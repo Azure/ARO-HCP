@@ -444,7 +444,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
           correlationId: 'userJourneyIDMSMirrorErrorsFastBurn/{{ $labels.cluster }}'
           description: 'More than 72% of cluster update operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
           info: 'More than 72% of cluster update operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
-          runbook_url: 'aka.ms/arohcp-runbook'
+          runbook_url: 'https://aka.ms/arohcp-runbook-idms'
           summary: '{{ $labels.cluster }}: Cluster update error rate critically high (>72%)'
           title: '{{ $labels.cluster }}: Cluster update error rate critically high (>72%)'
         }
@@ -473,7 +473,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
           correlationId: 'userJourneyIDMSMirrorErrorsMediumBurn/{{ $labels.cluster }}'
           description: 'More than 30% of cluster update operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
           info: 'More than 30% of cluster update operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
-          runbook_url: 'aka.ms/arohcp-runbook'
+          runbook_url: 'https://aka.ms/arohcp-runbook-idms'
           summary: '{{ $labels.cluster }}: Cluster update error rate elevated (>30%) for 30+ minutes'
           title: '{{ $labels.cluster }}: Cluster update error rate elevated (>30%) for 30+ minutes'
         }
@@ -502,7 +502,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
           correlationId: 'userJourneyIDMSMirrorErrorsSlowBurn/{{ $labels.cluster }}'
           description: 'More than 5% of cluster update operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           info: 'More than 5% of cluster update operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
-          runbook_url: 'aka.ms/arohcp-runbook'
+          runbook_url: 'https://aka.ms/arohcp-runbook-idms'
           summary: '{{ $labels.cluster }}: Cluster update error rate exceeds SLO target (>5%) for 6+ hours'
           title: '{{ $labels.cluster }}: Cluster update error rate exceeds SLO target (>5%) for 6+ hours'
         }
