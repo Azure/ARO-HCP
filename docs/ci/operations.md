@@ -42,6 +42,18 @@ run's bounded time window from the regional Azure Monitor workspaces.
   completeness warnings. It can be rendered again without Azure access.
 - `junit_alerts.xml` records unexpected fired alerts as test failures for Prow.
 
+Known alert firings can be temporarily excluded from this CI gate in
+[`knownIssues.yaml`](../../test/cmd/aro-hcp-tests/gather-observability/known-issues/knownIssues.yaml).
+Each entry requires a reason and an alert name; optional label patterns narrow
+the match. An optional `expiresAfter: "YYYY-MM-DD"` date timebombs that exception.
+It applies through the named UTC date. From 00:00 UTC on the following day, a
+matching firing is unexpected again and fails the observability step. Entries
+without `expiresAfter` keep their current behavior. If the alert no longer fires,
+an expired entry does not itself fail CI. Remove resolved entries rather than
+extending their dates; review still-active issues before renewing an expiry.
+This classification only affects CI results and artifacts, not Azure Monitor
+alert firing or notification routing.
+
 Tabs and artifact writes are attempted independently. An unavailable alert API,
 workspace, or chart does not suppress unrelated output. Incomplete alert
 collection still fails the step and produces an explicit JUnit failure; it does
