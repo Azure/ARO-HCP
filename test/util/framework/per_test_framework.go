@@ -739,6 +739,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	// their globally-unique names stay reserved until purged. Purge them so a
 	// later run reusing a colliding vault name does not hit VaultAlreadyExists.
 	tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
+	tc.purgeDeletedManagedHSMsInResourceGroup(ctx, resourceGroupName)
 
 	// we want non-conformant clusters to be visible at the end, without impeding our ability to clean up the resource group
 	return nonConformantErr
@@ -798,6 +799,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 	// Purge any Key Vaults left soft-deleted by the resource group deletion so
 	// their globally-unique names are immediately reusable by later runs.
 	tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
+	tc.purgeDeletedManagedHSMsInResourceGroup(ctx, resourceGroupName)
 
 	return nil
 }
@@ -888,6 +890,71 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 // protection enabled, meaning the purge API will reject any purge attempt.
 func keyVaultPurgeProtected(props *armkeyvault.DeletedVaultProperties) bool {
 	return props != nil && props.PurgeProtectionEnabled != nil && *props.PurgeProtectionEnabled
+}
+
+// purgeDeletedManagedHSMsInResourceGroup purges any soft-deleted Managed HSMs that belonged to the given resource group, mirroring purgeDeletedKeyVaultsInResourceGroup for the separate Managed HSM resource type whose globally-unique name is likewise reserved until purged. Best-effort: failures are logged but never fail cleanup.
+func (tc *perItOrDescribeTestContext) purgeDeletedManagedHSMsInResourceGroup(ctx context.Context, resourceGroupName string) {
+	ctx, cancel := context.WithTimeout(ctx, keyVaultPurgeTimeout)
+	defer cancel()
+
+	creds, err := tc.AzureCredential()
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted managed HSMs: failed to get azure credentials", "resourceGroup", resourceGroupName)
+		return
+	}
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted managed HSMs: failed to get subscription id", "resourceGroup", resourceGroupName)
+		return
+	}
+	hsmsClient, err := armkeyvault.NewManagedHsmsClient(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted managed HSMs: failed to build managed HSM client", "resourceGroup", resourceGroupName)
+		return
+	}
+
+	rgMarker := strings.ToLower("/resourcegroups/" + resourceGroupName + "/")
+
+	pager := hsmsClient.NewListDeletedPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			ginkgo.GinkgoLogr.Error(err, "unable to list soft-deleted managed HSMs", "resourceGroup", resourceGroupName)
+			return
+		}
+		for _, deleted := range page.Value {
+			if deleted == nil || deleted.Name == nil || deleted.Properties == nil ||
+				deleted.Properties.MhsmID == nil || deleted.Properties.Location == nil {
+				continue
+			}
+			if !strings.Contains(strings.ToLower(*deleted.Properties.MhsmID), rgMarker) {
+				continue
+			}
+			if deleted.Properties.PurgeProtectionEnabled != nil && *deleted.Properties.PurgeProtectionEnabled {
+				ginkgo.GinkgoLogr.Info("skipping purge of soft-deleted managed HSM with purge protection enabled",
+					"managedHSM", *deleted.Name, "resourceGroup", resourceGroupName)
+				continue
+			}
+			ginkgo.GinkgoLogr.Info("purging soft-deleted managed HSM",
+				"managedHSM", *deleted.Name, "location", *deleted.Properties.Location, "resourceGroup", resourceGroupName)
+			poller, err := hsmsClient.BeginPurgeDeleted(ctx, *deleted.Name, *deleted.Properties.Location, nil)
+			if err != nil {
+				if IsNotFoundError(err) {
+					continue
+				}
+				ginkgo.GinkgoLogr.Error(err, "failed to start purge of soft-deleted managed HSM; a colliding name may block a later run until it is purged or expires",
+					"managedHSM", *deleted.Name, "resourceGroup", resourceGroupName)
+				continue
+			}
+			if _, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: StandardPollInterval}); err != nil {
+				if IsNotFoundError(err) {
+					continue
+				}
+				ginkgo.GinkgoLogr.Error(err, "failed to purge soft-deleted managed HSM; a colliding name may block a later run until it is purged or expires",
+					"managedHSM", *deleted.Name, "resourceGroup", resourceGroupName)
+			}
+		}
+	}
 }
 
 // IsNotFoundError reports whether err is an Azure 404 (Not Found) response.
