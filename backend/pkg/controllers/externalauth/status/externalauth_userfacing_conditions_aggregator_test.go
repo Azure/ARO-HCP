@@ -16,7 +16,6 @@ package status
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -36,24 +35,115 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
 
-func TestIsUserFacingCondition(t *testing.T) {
-	tests := []struct {
-		condType string
-		want     bool
-	}{
-		{"Available", true},
-		{"Degraded", false},
-		{"Progressing", false},
-		{"InternalOnly", false},
-		{"SomeOtherCondition", false},
-		{"ConsoleAvailable", false},
-		{"CliAvailable", false},
-		{"FooBarAvailable", false},
-		{"", false},
+// newTestExternalAuthForAggregator builds a minimal ExternalAuth for aggregator tests.
+func newTestExternalAuthForAggregatorTests(opts ...func(*coreapi.HCPOpenShiftClusterExternalAuth)) *coreapi.HCPOpenShiftClusterExternalAuth {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
+			"/externalAuths/" + statusutils.TestExternalAuthName,
+	))
+	ea := &coreapi.HCPOpenShiftClusterExternalAuth{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+		ProxyResource: coreapi.ProxyResource{
+			Resource: coreapi.Resource{
+				ID:   resourceID,
+				Name: statusutils.TestExternalAuthName,
+				Type: resourceID.ResourceType.String(),
+			},
+		},
 	}
+	for _, opt := range opts {
+		opt(ea)
+	}
+	return ea
+}
+
+func newTestSPEAForAggregator(opts ...func(*coreapi.ServiceProviderExternalAuth)) *coreapi.ServiceProviderExternalAuth {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
+			"/externalAuths/" + statusutils.TestExternalAuthName +
+			"/serviceProviderExternalAuths/" + coreapi.ServiceProviderExternalAuthResourceName,
+	))
+	spea := &coreapi.ServiceProviderExternalAuth{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+	}
+	for _, opt := range opts {
+		opt(spea)
+	}
+	return spea
+}
+
+func TestAggregateDegradedCondition(t *testing.T) {
+	tests := []struct {
+		name                                  string
+		serviceProviderExternalAuthConditions []metav1.Condition
+		expectStatus                          metav1.ConditionStatus
+		expectReason                          string
+		expectMessage                         string
+	}{
+		{
+			name:                                  "no conditions -> Degraded=False",
+			serviceProviderExternalAuthConditions: nil,
+			expectStatus:                          metav1.ConditionFalse,
+			expectReason:                          coreapi.ExternalAuthUserFacingDegradedReasonAsExpected,
+			expectMessage:                         coreapi.ExternalAuthMessageAllOperational,
+		},
+		{
+			name: "all conditions False -> Degraded=False",
+			serviceProviderExternalAuthConditions: []metav1.Condition{
+				{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageAllOperational},
+			},
+			expectStatus:  metav1.ConditionFalse,
+			expectReason:  coreapi.ExternalAuthUserFacingDegradedReasonAsExpected,
+			expectMessage: coreapi.ExternalAuthMessageAllOperational,
+		},
+		{
+			name: "OIDCClientsDegraded=True -> Degraded=True with prefixed message",
+			serviceProviderExternalAuthConditions: []metav1.Condition{
+				{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionTrue, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonDegradation, Message: "console: " + coreapi.ExternalAuthMessageAwaitingSecret},
+			},
+			expectStatus:  metav1.ConditionTrue,
+			expectReason:  coreapi.ExternalAuthUserFacingDegradedReason,
+			expectMessage: coreapi.ExternalAuthOIDCClientsDegradedCondition + ": console: " + coreapi.ExternalAuthMessageAwaitingSecret,
+		},
+		{
+			name: "multiple True conditions -> merged message",
+			serviceProviderExternalAuthConditions: []metav1.Condition{
+				{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionTrue, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonDegradation, Message: "console: " + coreapi.ExternalAuthMessageAwaitingSecret},
+				{Type: "FutureCondition", Status: metav1.ConditionTrue, Reason: "SomeReason", Message: "something else"},
+			},
+			expectStatus:  metav1.ConditionTrue,
+			expectReason:  coreapi.ExternalAuthUserFacingDegradedReason,
+			expectMessage: coreapi.ExternalAuthOIDCClientsDegradedCondition + ": console: " + coreapi.ExternalAuthMessageAwaitingSecret + "\nFutureCondition: something else",
+		},
+		{
+			name: "mixed True and False -> Degraded=True with only True in message",
+			serviceProviderExternalAuthConditions: []metav1.Condition{
+				{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionTrue, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonDegradation, Message: "cli: " + coreapi.ExternalAuthMessageIssuerURLInvalid},
+				{Type: "FutureCondition", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "all good"},
+			},
+			expectStatus:  metav1.ConditionTrue,
+			expectReason:  coreapi.ExternalAuthUserFacingDegradedReason,
+			expectMessage: coreapi.ExternalAuthOIDCClientsDegradedCondition + ": cli: " + coreapi.ExternalAuthMessageIssuerURLInvalid,
+		},
+	}
+
 	for _, tc := range tests {
-		t.Run(fmt.Sprintf("%q", tc.condType), func(t *testing.T) {
-			assert.Equal(t, tc.want, isUserFacingCondition(tc.condType))
+		t.Run(tc.name, func(t *testing.T) {
+			got := aggregateDegradedCondition(tc.serviceProviderExternalAuthConditions)
+			assert.Equal(t, statusutils.DegradedConditionType, got.Type, "condition type")
+			assert.Equal(t, tc.expectStatus, got.Status, "condition status")
+			assert.Equal(t, tc.expectReason, got.Reason, "condition reason")
+			assert.Equal(t, tc.expectMessage, got.Message, "condition message")
 		})
 	}
 }
@@ -65,25 +155,6 @@ func TestExternalAuthUserFacingConditionsAggregator_SyncOnce(t *testing.T) {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
 	))
 
-	availableTrue := metav1.Condition{
-		Type:    coreapi.ExternalAuthAvailableCondition,
-		Status:  metav1.ConditionTrue,
-		Reason:  coreapi.ExternalAuthReasonOIDCConfigAvailable,
-		Message: "OIDC config is available",
-	}
-	availableFalse := metav1.Condition{
-		Type:    coreapi.ExternalAuthAvailableCondition,
-		Status:  metav1.ConditionFalse,
-		Reason:  coreapi.ExternalAuthReasonAwaitingSecret,
-		Message: "Waiting for secret",
-	}
-	nonUserFacingCondition := metav1.Condition{
-		Type:    "InternalOnly",
-		Status:  metav1.ConditionTrue,
-		Reason:  "Internal",
-		Message: "should not be promoted",
-	}
-
 	tests := []struct {
 		name string
 
@@ -91,110 +162,57 @@ func TestExternalAuthUserFacingConditionsAggregator_SyncOnce(t *testing.T) {
 		serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth
 
 		expectNoWrite  bool
-		wantConditions []metav1.Condition
+		expectDegraded *metav1.ConditionStatus
+		expectReason   string
+		expectMessage  string
 	}{
 		{
-			name:         "lifts Available condition from ServiceProviderExternalAuth to ExternalAuth",
-			externalAuth: newTestExternalAuthForAvailable(),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(ServiceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
-				ServiceProviderExternalAuth.Status.Conditions = []metav1.Condition{availableTrue}
-			}),
-			wantConditions: []metav1.Condition{availableTrue},
-		},
-		{
-			name:         "lifts AwaitingSecret condition from ServiceProviderExternalAuth to ExternalAuth",
-			externalAuth: newTestExternalAuthForAvailable(),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(ServiceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
-				ServiceProviderExternalAuth.Status.Conditions = []metav1.Condition{availableFalse}
-			}),
-			wantConditions: []metav1.Condition{availableFalse},
-		},
-		{
-			name:         "does not promote non-Available conditions",
-			externalAuth: newTestExternalAuthForAvailable(),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(ServiceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
-				ServiceProviderExternalAuth.Status.Conditions = []metav1.Condition{
-					availableTrue,
-					nonUserFacingCondition,
+			name:         "ServiceProviderExternalAuth OIDCClientsDegraded=True -> UserFacing Degraded=True",
+			externalAuth: newTestExternalAuthForAggregatorTests(),
+			serviceProviderExternalAuth: newTestSPEAForAggregator(func(spea *coreapi.ServiceProviderExternalAuth) {
+				spea.Status.Conditions = []metav1.Condition{
+					{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionTrue, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonDegradation, Message: "console: " + coreapi.ExternalAuthMessageAwaitingSecret},
 				}
 			}),
-			wantConditions: []metav1.Condition{availableTrue},
+			expectDegraded: ptrTo(metav1.ConditionTrue),
+			expectReason:   coreapi.ExternalAuthUserFacingDegradedReason,
+			expectMessage:  coreapi.ExternalAuthOIDCClientsDegradedCondition + ": console: " + coreapi.ExternalAuthMessageAwaitingSecret,
 		},
 		{
-			name: "does not promote Degraded or Progressing conditions",
-			externalAuth: newTestExternalAuthForAvailable(),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(ServiceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
-				ServiceProviderExternalAuth.Status.Conditions = []metav1.Condition{
-					availableTrue,
-					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "no errors"},
-					{Type: "Progressing", Status: metav1.ConditionFalse, Reason: "Idle"},
+			name:         "ServiceProviderExternalAuth OIDCClientsDegraded=False -> UserFacing Degraded=False",
+			externalAuth: newTestExternalAuthForAggregatorTests(),
+			serviceProviderExternalAuth: newTestSPEAForAggregator(func(spea *coreapi.ServiceProviderExternalAuth) {
+				spea.Status.Conditions = []metav1.Condition{
+					{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageAllOperational},
 				}
 			}),
-			wantConditions: []metav1.Condition{availableTrue},
+			expectDegraded: ptrTo(metav1.ConditionFalse),
+			expectReason:   coreapi.ExternalAuthUserFacingDegradedReasonAsExpected,
+			expectMessage:  coreapi.ExternalAuthMessageAllOperational,
 		},
 		{
-			name: "removes stale Available condition when ServiceProviderExternalAuth has none",
-			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
-				ea.Status.UserFacingConditions = []metav1.Condition{availableTrue}
-			}),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
-			wantConditions:              nil,
-		},
-		{
-			name: "preserves non-Available conditions already on ExternalAuth",
-			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
-				ea.Status.UserFacingConditions = []metav1.Condition{
-					{Type: "SomeOtherType", Status: metav1.ConditionTrue, Reason: "External", Message: "set by another controller"},
-					availableTrue,
-				}
-			}),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(ServiceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
-				ServiceProviderExternalAuth.Status.Conditions = []metav1.Condition{availableFalse}
-			}),
-			wantConditions: []metav1.Condition{
-				{Type: "SomeOtherType", Status: metav1.ConditionTrue, Reason: "External", Message: "set by another controller"},
-				availableFalse,
-			},
-		},
-		{
-			name: "updates existing Available from True to False",
-			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
-				ea.Status.UserFacingConditions = []metav1.Condition{availableTrue}
-			}),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(ServiceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
-				ServiceProviderExternalAuth.Status.Conditions = []metav1.Condition{availableFalse}
-			}),
-			wantConditions: []metav1.Condition{availableFalse},
+			name:                        "ServiceProviderExternalAuth has no conditions -> UserFacing Degraded=False",
+			externalAuth:                newTestExternalAuthForAggregatorTests(),
+			serviceProviderExternalAuth: newTestSPEAForAggregator(),
+			expectDegraded:              ptrTo(metav1.ConditionFalse),
+			expectReason:                coreapi.ExternalAuthUserFacingDegradedReasonAsExpected,
+			expectMessage:               coreapi.ExternalAuthMessageAllOperational,
 		},
 		{
 			name:                        "no-op when ServiceProviderExternalAuth not found",
-			externalAuth:                newTestExternalAuthForAvailable(),
+			externalAuth:                newTestExternalAuthForAggregatorTests(),
 			serviceProviderExternalAuth: nil,
 			expectNoWrite:               true,
 		},
 		{
-			name: "no-op when UserFacingConditions already match ServiceProviderExternalAuth",
-			externalAuth: newTestExternalAuthForAvailable(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
-				ea.Status.UserFacingConditions = []metav1.Condition{availableTrue}
+			name: "no-op when UserFacingConditions already match",
+			externalAuth: newTestExternalAuthForAggregatorTests(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+				ea.Status.UserFacingConditions = []metav1.Condition{
+					{Type: statusutils.DegradedConditionType, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthUserFacingDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageAllOperational},
+				}
 			}),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(ServiceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
-				ServiceProviderExternalAuth.Status.Conditions = []metav1.Condition{availableTrue}
-			}),
-			expectNoWrite: true,
-		},
-		{
-			name:                        "no-op when ServiceProviderExternalAuth has no conditions and ExternalAuth has no UserFacingConditions",
-			externalAuth:                newTestExternalAuthForAvailable(),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
+			serviceProviderExternalAuth: newTestSPEAForAggregator(),
 			expectNoWrite:               true,
-		},
-		{
-			name: "no-op when ServiceProviderExternalAuth only has non-Available conditions and ExternalAuth has none",
-			externalAuth: newTestExternalAuthForAvailable(),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(ServiceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
-				ServiceProviderExternalAuth.Status.Conditions = []metav1.Condition{nonUserFacingCondition}
-			}),
-			expectNoWrite: true,
 		},
 	}
 
@@ -242,21 +260,11 @@ func TestExternalAuthUserFacingConditionsAggregator_SyncOnce(t *testing.T) {
 				return
 			}
 
-			if tc.wantConditions == nil {
-				assert.Empty(t, updatedEA.Status.UserFacingConditions,
-					"expected no user-facing conditions")
-				return
-			}
-
-			require.Len(t, updatedEA.Status.UserFacingConditions, len(tc.wantConditions),
-				"expected %d user-facing conditions", len(tc.wantConditions))
-			for _, want := range tc.wantConditions {
-				cond := apimeta.FindStatusCondition(updatedEA.Status.UserFacingConditions, want.Type)
-				require.NotNil(t, cond, fmt.Sprintf("aggregator must set the %s condition", want.Type))
-				assert.Equal(t, want.Status, cond.Status, "status for %s", want.Type)
-				assert.Equal(t, want.Reason, cond.Reason, "reason for %s", want.Type)
-				assert.Equal(t, want.Message, cond.Message, "message for %s", want.Type)
-			}
+			cond := apimeta.FindStatusCondition(updatedEA.Status.UserFacingConditions, statusutils.DegradedConditionType)
+			require.NotNil(t, cond, "aggregator must set the Degraded condition on ExternalAuth.UserFacingConditions")
+			assert.Equal(t, *tc.expectDegraded, cond.Status, "Degraded condition status")
+			assert.Equal(t, tc.expectReason, cond.Reason, "Degraded condition reason")
+			assert.Equal(t, tc.expectMessage, cond.Message, "Degraded condition message")
 		})
 	}
 }

@@ -39,9 +39,10 @@ type ServiceProviderExternalAuth struct {
 
 // ServiceProviderExternalAuthStatus contains the observed state of the external auth.
 type ServiceProviderExternalAuthStatus struct {
-	// Conditions are conditions observed by backend controllers (e.g. OIDC client availability).
-	// These are surfaced onto ExternalAuth.Status.UserFacingConditions by the aggregator.
-	// Written by: ExternalAuthAvailableController
+	// Conditions are conditions observed by backend controllers (e.g. OIDC client degradation).
+	// These are aggregated into a single user-facing Degraded condition on
+	// ExternalAuth.Status.UserFacingConditions by the ExternalAuthUserFacingConditionsAggregator.
+	// Written by: ExternalAuthOIDCClientsDegradedController
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge

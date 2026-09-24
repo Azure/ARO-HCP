@@ -17,6 +17,7 @@ package status
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -24,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -36,26 +38,20 @@ const (
 	externalAuthUserFacingConditionsAggregatorControllerName = "ExternalAuthUserFacingConditionsAggregator"
 )
 
-// userFacingConditionTypes is the static whitelist of condition types that are
-// promoted from ServiceProviderExternalAuth.Status.Conditions to
-// ExternalAuth.Status.UserFacingConditions.
-var userFacingConditionTypes = map[string]struct{}{
-	coreapi.ExternalAuthAvailableCondition: {},
-}
-
-// externalAuthUserFacingConditionsAggregator promotes whitelisted conditions
-// from ServiceProviderExternalAuth.Status.Conditions onto
-// HCPOpenShiftClusterExternalAuth.Status.UserFacingConditions.
+// externalAuthUserFacingConditionsAggregator aggregates all conditions from
+// ServiceProviderExternalAuth.Status.Conditions into a single user-facing
+// Degraded condition on HCPOpenShiftClusterExternalAuth.Status.UserFacingConditions.
 //
-// A condition is promoted when its Type is in the static whitelist
-// (currently only "Available"). Stale conditions that existed on the
-// ExternalAuth but are no longer present on the ServiceProviderExternalAuth
-// are removed.
+// If ANY ServiceProviderExternalAuth condition has Status=True (meaning something is degraded), the
+// aggregator produces Degraded=True with reason ExternalAuthProvider and a
+// composite message prefixed by the source condition type.
 //
-// Backend controllers (e.g. ExternalAuthAvailableController) write conditions
-// onto ServiceProviderExternalAuth; this aggregator selectively lifts the
-// user-facing subset up to the ExternalAuth resource where they are visible
-// through the ARM API.
+// If ALL ServiceProviderExternalAuth conditions are False or absent, the aggregator produces
+// Degraded=False with reason AsExpected.
+//
+// This design allows future internal conditions (beyond OIDC client state) to
+// automatically contribute to the user-facing Degraded condition without
+// changing the aggregator.
 type externalAuthUserFacingConditionsAggregator struct {
 	externalAuthLister                corelisters.ExternalAuthLister
 	serviceProviderExternalAuthLister corelisters.ServiceProviderExternalAuthLister
@@ -65,8 +61,9 @@ type externalAuthUserFacingConditionsAggregator struct {
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthUserFacingConditionsAggregator)(nil)
 
 // NewExternalAuthUserFacingConditionsAggregatorController creates a controller
-// that promotes whitelisted ServiceProviderExternalAuth conditions onto the
-// external auth's Status.UserFacingConditions.
+// that aggregates ServiceProviderExternalAuth conditions into a single
+// user-facing Degraded condition on the external auth's
+// Status.UserFacingConditions.
 func NewExternalAuthUserFacingConditionsAggregatorController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	externalAuthLister corelisters.ExternalAuthLister,
@@ -87,13 +84,6 @@ func NewExternalAuthUserFacingConditionsAggregatorController(
 	)
 }
 
-// isUserFacingCondition returns true if the condition type should be surfaced
-// through the ARM API.
-func isUserFacingCondition(condType string) bool {
-	_, ok := userFacingConditionTypes[condType]
-	return ok
-}
-
 func (c *externalAuthUserFacingConditionsAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
 	existing, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -111,28 +101,10 @@ func (c *externalAuthUserFacingConditionsAggregator) SyncOnce(ctx context.Contex
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderExternalAuth from cache: %w", err))
 	}
 
+	degraded := aggregateDegradedCondition(serviceProviderExternalAuth.Status.Conditions)
+
 	replacement := existing.DeepCopy()
-
-	// Collect the set of condition types being promoted from ServiceProviderExternalAuth.
-	promoted := make(map[string]struct{})
-	for _, condition := range serviceProviderExternalAuth.Status.Conditions {
-		if isUserFacingCondition(condition.Type) {
-			apimeta.SetStatusCondition(&replacement.Status.UserFacingConditions, condition)
-			promoted[condition.Type] = struct{}{}
-		}
-	}
-
-	// Remove stale conditions that are no longer on the ServiceProviderExternalAuth.
-	cleaned := make([]metav1.Condition, 0, len(replacement.Status.UserFacingConditions))
-	for _, condition := range replacement.Status.UserFacingConditions {
-		if isUserFacingCondition(condition.Type) {
-			if _, ok := promoted[condition.Type]; !ok {
-				continue
-			}
-		}
-		cleaned = append(cleaned, condition)
-	}
-	replacement.Status.UserFacingConditions = cleaned
+	apimeta.SetStatusCondition(&replacement.Status.UserFacingConditions, degraded)
 
 	if equality.Semantic.DeepEqual(existing.Status.UserFacingConditions, replacement.Status.UserFacingConditions) {
 		return nil
@@ -147,4 +119,32 @@ func (c *externalAuthUserFacingConditionsAggregator) SyncOnce(ctx context.Contex
 		return utils.TrackError(fmt.Errorf("failed to replace ExternalAuth: %w", err))
 	}
 	return nil
+}
+
+// aggregateDegradedCondition produces a single Degraded condition from the
+// ServiceProviderExternalAuth internal conditions. If any condition is True, the result is
+// Degraded=True with a composite message; otherwise Degraded=False.
+func aggregateDegradedCondition(serviceProviderExternalAuthConditions []metav1.Condition) metav1.Condition {
+	var trueParts []string
+	for _, condition := range serviceProviderExternalAuthConditions {
+		if condition.Status == metav1.ConditionTrue {
+			trueParts = append(trueParts, fmt.Sprintf("%s: %s", condition.Type, condition.Message))
+		}
+	}
+
+	if len(trueParts) > 0 {
+		return metav1.Condition{
+			Type:    statusutils.DegradedConditionType,
+			Status:  metav1.ConditionTrue,
+			Reason:  coreapi.ExternalAuthUserFacingDegradedReason,
+			Message: strings.Join(trueParts, "\n"),
+		}
+	}
+
+	return metav1.Condition{
+		Type:    statusutils.DegradedConditionType,
+		Status:  metav1.ConditionFalse,
+		Reason:  coreapi.ExternalAuthUserFacingDegradedReasonAsExpected,
+		Message: coreapi.ExternalAuthMessageAllOperational,
+	}
 }

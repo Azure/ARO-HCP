@@ -434,6 +434,304 @@ Reserves `ManagementClusterScheduling.Status.PendingAssignedClusters` before rep
 [Source](../backend/pkg/controllers/cluster/identity/fetch_msi_identities_info.go) · **Trigger:** Cluster; 1m, 12h recheck.
 
 Reads Azure identities for the service-managed and control-plane operator identities; writes resolved resource/client/principal IDs or errors under `Status.MSIManagedIdentities`, plus its earliest recheck. Observes Azure; does not create identities.
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.EarliestRecheckTimesByController["FetchMSIIdentitiesInfo"]` (NeedsWork)</li><li>`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities` (deep-equal before write)</li><li>`Status.MSIManagedIdentities.ServiceManagedIdentity` (deep-equal before write)</li></ul> |
+| Read | Managed Identities Data Plane | <ul><li>`GetUserAssignedIdentitiesCredentials`</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities`** = map keyed by lowercased resource ID (`ResourceID`, `ClientID`, `PrincipalID`)</li><li>**`Status.MSIManagedIdentities.ServiceManagedIdentity`** = `ResourceID`, `ClientID`, `PrincipalID`</li><li>**`Spec.EarliestRecheckTimesByController["FetchMSIIdentitiesInfo"]`** = now + jittered 12h interval</li></ul> |
+
+---
+
+### Other Controllers
+
+#### PlacementController
+
+**File:** [placement_controller.go](../backend/pkg/controllers/cluster/placement/placement_controller.go)
+**Trigger:** Cluster informer, 5-minute resync (20 workers); unresolved capacity decisions schedule a retry after 29 seconds
+**Gate (needsWork on ServiceProviderCluster and Cluster):**
+- `ServiceProviderCluster.Spec.ManagementClusterResourceID` == nil
+- Both `ServiceProviderCluster` and `HCPOpenShiftCluster` are present in the informer caches
+- `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `HCPOpenShiftCluster.ServiceProviderProperties.ProvisioningState.IsTerminal()` == false
+
+Resolves the scheduler's *desired* placement (`Spec.ManagementClusterResourceID`) from cached management-cluster and scheduling observations. Eligible management clusters are `Schedulable`, have `Ready=True`, and have a scheduling document with both `CapacityDataCurrent=True` and `ScalingDataCurrent=True`. Available SWIFT-NIC capacity is `ScaleCeiling.Capacity - max(ObservedResources.Usage, ObservedResources.Requests)`, reduced by each non-nil `NotReadyResourceIDs` and `PendingAssignedClusters` entry's NIC reservation. A SingleReplica HCP needs one NIC; other HCPs need three. Existing reservations use each HCP's cached control-plane availability, conservatively reserving three NICs when the HCP cannot be read. Among fitting management clusters, selection chooses the highest available capacity, breaking ties by lowest resource ID.
+
+Each completed selection records `Status.Placement.Conditions[CapacityAvailable]`:
+- `True` / `Available`: a suitable management cluster was found, even if other candidates have incomplete observations.
+- `False` / `InsufficientCapacity`: eligible candidates were evaluated, but none had enough capacity.
+- `False` / `NoEligibleManagementCluster`: all candidates were evaluated and none were eligible, or there were no candidates.
+- `Unknown` / `EvaluationIncomplete`: no fit was found and at least one candidate could not be assessed because required observations or configuration were unavailable.
+
+When no fit is found, the controller persists the condition with internal per-candidate diagnostics and schedules a 29-second retry without returning a reconciliation error. Operational failures, including read/write errors and write conflicts, still return errors for workqueue backoff. When a fit is found, it first reserves capacity on the chosen management cluster using a live, etag-guarded read-modify-write, then records `Spec.ManagementClusterResourceID` and `CapacityAvailable=True` in the same SPC `Replace`. Unchanged SPC state does not trigger a write. There are no rollout backfills from observed Status or Cluster Service.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ManagementClusterResourceID` (NeedsWork: must be nil)</li><li>`Status.Placement.Conditions` (merge the capacity condition; skip unchanged state)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (skip deleting clusters)</li><li>`ServiceProviderProperties.ProvisioningState` (skip terminal clusters)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability` (new HCP's NIC requirement; also read for existing NotReady/Pending HCP reservations)</li></ul> |
+| Read | `ManagementCluster` (all, cached) | <ul><li>`Spec.SchedulingPolicy`, `Status.Conditions[Ready]`, `ResourceID` (including parent stamp identifier)</li></ul> |
+| Read | `ManagementClusterScheduling` (cached for evaluation; live for reservation) | <ul><li>`Status.Conditions[CapacityDataCurrent]`, `Status.Conditions[ScalingDataCurrent]`</li><li>`Status.ScaleCeiling.Capacity`, `Status.ObservedResources.Usage`, `Status.ObservedResources.Requests`, `Status.NotReadyResourceIDs`, `Status.PendingAssignedClusters`</li></ul> |
+| **Write** | **`ManagementClusterScheduling`** | <ul><li>**`Status.PendingAssignedClusters`** += chosen HCP cluster resource ID (idempotent capacity reservation; conflicts retry the reconcile)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.Placement.Conditions[CapacityAvailable]`** = selection result</li><li>**`Spec.ManagementClusterResourceID`** = chosen management cluster resource ID, when a fit is found (same `Replace` as the condition; conflicts retry the reconcile)</li></ul> |
+
+#### PendingCleanupController
+
+**File:** [pending_cleanup_controller.go](../backend/pkg/controllers/cluster/placement/pending_cleanup_controller.go)
+**Trigger:** ManagementCluster informer, 10-minute resync (5 workers)
+
+Garbage-collects stale entries from each management cluster's `Status.PendingAssignedClusters`. Each entry's *effective* placement is the referenced ServiceProviderCluster's `Status.ManagementClusterResourceID` (Cluster Service reality) when set, falling back to `Spec.ManagementClusterResourceID` only when Status is unset. An entry is kept when effective placement points at this management cluster, even if the HCP is terminal; it is removed when placement points elsewhere or the ServiceProviderCluster no longer exists. For unresolved placement (both fields nil), the controller reads the HCP's provisioning state: it retains the reservation while the HCP is nonterminal or absent from the cluster cache, and removes it once the HCP is terminal. This releases reservations left by an interrupted Spec write without waiting for customer deletion. Other read errors abort the sweep without persisting removals. Reservations that become observed (present in `ReadyResourceIDs`/`NotReadyResourceIDs`) are cleared by CapacityReportingController instead.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ManagementClusterScheduling` | <ul><li>`Status.PendingAssignedClusters`</li></ul> |
+| Read | `ServiceProviderCluster` (per pending entry) | <ul><li>`Status.ManagementClusterResourceID` (effective placement; preferred when set)</li><li>`Spec.ManagementClusterResourceID` (fallback when Status unset)</li></ul> |
+| Read | `HCPOpenShiftCluster` (per unresolved pending entry) | <ul><li>`ServiceProviderProperties.ProvisioningState` (release only when known terminal; a cluster cache miss retains the reservation)</li></ul> |
+| **Write** | **`ManagementClusterScheduling`** | <ul><li>**`Status.PendingAssignedClusters`** = stale entries removed (conflict-retried)</li></ul> |
+
+#### ManagementClusterPlacementSync
+
+**File:** [management_cluster_placement_sync.go](../backend/pkg/controllers/cluster/placement/management_cluster_placement_sync.go)
+**Trigger:** Cluster informer, 5-minute resync
+Records the observed placement (`Status.ManagementClusterResourceID`) from the Cluster Service provision shard. Cluster Service is queried **only while the observed placement is unknown** (`Status` unset); once a shard has been observed and recorded, the CS lookup is skipped on subsequent syncs.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (when already set, the CS lookup is skipped)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID` (skip when unset)</li></ul> |
+| Read | Cluster Service | <ul><li>`GetClusterProvisionShard` (only when `Status` is unset)</li></ul> |
+| Read | `ManagementCluster` | <ul><li>`ResourceID` (via `GetByCSProvisionShardID`)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagementClusterResourceID`** = observed management cluster resource ID (written only when previously unset)</li></ul> |
+
+#### BackfillClusterUID
+
+**File:** [backfill_cluster_uid.go](../backend/pkg/controllers/mismatch/backfill_cluster_uid.go)
+**Trigger:** Cluster informer, 60-minute cooldown
+**Gate (NeedsWork on Cluster):**
+- `len(Cluster.ServiceProviderProperties.ClusterUID)` == 0
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterUID` (NeedsWork: must be empty)</li><li>`SystemData.CreatedAt`</li><li>`ID`</li></ul> |
+| Read | `BillingDocument` | <ul><li>`ListActiveForCluster` (matching creation time)</li></ul> |
+| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterUID`** = billing doc ID or new UUID</li></ul> |
+
+#### CreateBillingDoc
+
+**File:** [create_billing_doc.go](../backend/pkg/controllers/billing/create_billing_doc.go)
+**Trigger:** Cluster informer, 60-second cooldown
+**Gate (NeedsWork on Cluster):**
+- `len(Cluster.ServiceProviderProperties.ClusterUID)` > 0
+- `len(Cluster.ServiceProviderProperties.BillingDocumentCosmosID)` == 0
+- `Cluster.ServiceProviderProperties.ProvisioningState` == `Succeeded`
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterUID` (NeedsWork: must be non-empty)</li><li>`ServiceProviderProperties.BillingDocumentCosmosID` (NeedsWork: must be empty)</li><li>`ServiceProviderProperties.ProvisioningState` (NeedsWork: must be `Succeeded`)</li><li>`SystemData.CreatedAt`</li><li>`CustomerProperties.Platform.ManagedResourceGroup`</li><li>`ID`</li></ul> |
+| Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
+| **Write** | **`BillingDocument`** | <ul><li>`ClusterUID`, `CreationTime`, `Location`, `TenantID`, `ManagedResourceGroup`, `ResourceID`</li></ul> |
+| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.BillingDocumentCosmosID`** = billing doc ID</li></ul> |
+
+#### OrphanedBillingCleanup
+
+**File:** [orphaned_billing_cleanup.go](../backend/pkg/controllers/billing/orphaned_billing_cleanup.go)
+**Trigger:** Time-based, 60-minute jitter (no informer — queues work directly)
+**Gate:**
+- `BillingDocument.DeletionTime` == nil (skip already-deleted docs)
+- Corresponding `HCPOpenShiftCluster` must not exist (orphan detection)
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `BillingDocument` | <ul><li>All billing docs via lister (list scan)</li><li>`DeletionTime` (skip if non-nil)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>Existence check only (if cluster exists, billing doc is not orphaned)</li></ul> |
+| **Write** | **`BillingDocument`** | <ul><li>**`DeletionTime`** = now (via `PatchByID`)</li></ul> |
+
+#### DeleteOrphanedCosmosResources
+
+**File:** [delete_orphaned_cosmos.go](../backend/pkg/controllers/mismatch/delete_orphaned_cosmos.go)
+**Trigger:** Time-based, 60-minute jitter (no informer — queues all subscriptions)
+**Gate:**
+- Resource is not a cluster (clusters own themselves)
+- Resource is inside a resource group (resources outside RG have TTL)
+- Parent resource does not exist (orphan detection)
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | All resources | <ul><li>`ListRecursive` per subscription (untyped scan)</li><li>`ResourceID` (parent existence check)</li></ul> |
+| Read | `ManagementCluster` | <ul><li>All management clusters (for kube-applier desire cleanup)</li></ul> |
+| Read | Kube-applier desires | <ul><li>`ListRecursive` per management cluster container (ReadDesire, ApplyDesire, DeleteDesire)</li></ul> |
+| **Write** | Orphaned resources | <ul><li>**DELETES** resources whose parent no longer exists (via `DeleteByCosmosID`)</li></ul> |
+| **Write** | Orphaned desires | <ul><li>**DELETES** kube-applier desire documents whose parent resource no longer exists (via `DeleteByCosmosID`)</li></ul> |
+
+---
+
+#### ClusterValidation / NodePoolValidation
+
+**File:** [cluster_validation_controller.go](../backend/pkg/controllers/cluster/validation/cluster_validation_controller.go), [nodepool_validation_controller.go](../backend/pkg/controllers/nodepool/validation/nodepool_validation_controller.go)
+**Trigger:** Cluster/NodePool informer, 1-minute resync
+**Gate (shouldProcess on ServiceProviderCluster/ServiceProviderNodePool):**
+- `!meta.IsStatusConditionTrue(ServiceProviderCluster.Status.Validations, validation.Name())` (condition must not yet be True)
+- SyncOnce also checks `DeletionTimestamp == nil` on the resource
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>`Status.Validations[<name>]` (shouldProcess: condition must not be True)</li></ul> |
+| Read | `ServiceProviderNodePool` | <ul><li>`Status.Validations[<name>]` (shouldProcess: condition must not be True)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li></ul> |
+| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.Validations[<name>]`** = condition (True/False)</li></ul> |
+| **Write** | **`ServiceProviderNodePool`** | <ul><li>**`Status.Validations[<name>]`** = condition (True/False)</li></ul> |
+
+#### DegradedAggregators (Cluster / NodePool / ExternalAuth)
+
+**File:** [cluster_degraded_aggregator.go](../backend/pkg/controllers/cluster/status/cluster_degraded_aggregator.go), [nodepool_degraded_aggregator.go](../backend/pkg/controllers/nodepool/status/nodepool_degraded_aggregator.go), [externalauth_degraded_aggregator.go](../backend/pkg/controllers/externalauth/status/externalauth_degraded_aggregator.go)
+**Trigger:** Resource informer, 1-minute resync
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | Controller docs | <ul><li>All `Status.Conditions[Degraded]` under the resource</li></ul> |
+| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Status.Conditions[Degraded]`** = aggregated union</li></ul> |
+| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Status.Conditions[Degraded]`** = aggregated union</li></ul> |
+| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Status.Conditions[Degraded]`** = aggregated union</li></ul> |
+
+#### ClusterRequirementsValidAggregator
+
+**File:** [cluster_requirements_valid_aggregator.go](../backend/pkg/controllers/statuscontrollers/cluster_requirements_valid_aggregator.go)
+**Trigger:** Cluster / ServiceProviderCluster informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `ServiceProviderCluster` exists
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`Status.UserFacingConditions` (skip write when unchanged)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.Validations` (non-True = Status False or Unknown)</li></ul> |
+| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Status.UserFacingConditions[RequirementsValid]`** = True/Valid when no failures; False/Degraded with unioned failed validation messages otherwise</li></ul> |
+
+#### NodePoolRequirementsValidAggregator
+
+**File:** [nodepool_requirements_valid_aggregator.go](../backend/pkg/controllers/statuscontrollers/nodepool_requirements_valid_aggregator.go)
+**Trigger:** NodePool / ServiceProviderNodePool informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+- `NodePool.ServiceProviderProperties.DeletionTimestamp` == nil
+- `ServiceProviderNodePool` exists
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`Status.UserFacingConditions` (skip write when unchanged)</li></ul> |
+| Read | `ServiceProviderNodePool` | <ul><li>`Status.Validations` (non-True = Status False or Unknown)</li></ul> |
+| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Status.UserFacingConditions[RequirementsValid]`** = True/Valid when no failures; False/Degraded with unioned failed validation messages otherwise</li></ul> |
+
+#### ExternalAuthOIDCClientsDegradedController
+
+**File:** [externalauth_oidc_clients_degraded_controller.go](../backend/pkg/controllers/externalauth/status/externalauth_oidc_clients_degraded_controller.go)
+**Trigger:** ExternalAuth / ServiceProviderExternalAuth informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+
+- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` == nil
+- `ExternalAuth.ServiceProviderProperties.ClusterServiceID` != nil
+- `ServiceProviderExternalAuth` exists (created by CreateServiceProviderExternalAuth)
+
+|           | Object                             | Fields |
+| --------- | ---------------------------------- | ------ |
+| Read      | `HCPOpenShiftClusterExternalAuth`  | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (needsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (needsWork: must not be nil)</li><li>`Properties.Clients` (component name, namespace, type — Public vs Confidential)</li></ul> |
+| Read      | `ServiceProviderExternalAuth`      | <ul><li>`Status.Conditions` (compared to skip no-op writes)</li></ul> |
+| Read      | ReadDesire (HostedCluster)         | <ul><li>`Status.Configuration.Authentication.OIDCClients` (ComponentName, ComponentNamespace, Conditions — Available, Degraded)</li></ul> |
+| **Write** | **`ServiceProviderExternalAuth`**  | <ul><li>**`Status.Conditions[OIDCClientsDegraded]`** — True/OIDCClientDegradation when any client is degraded (composite message from degraded clients only); False/AsExpected when all healthy.</li></ul> |
+
+
+
+
+#### CreateServiceProviderExternalAuth
+
+**File:** [create_service_provider_externalauth_controller.go](../backend/pkg/controllers/externalauth/creation/create_service_provider_externalauth_controller.go)
+**Trigger:** ExternalAuth / ServiceProviderExternalAuth informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+
+- `ExternalAuth` exists and not deleting
+- `ServiceProviderExternalAuth` not yet in lister
+
+|           | Object                             | Fields |
+| --------- | ---------------------------------- | ------ |
+| Read      | `HCPOpenShiftClusterExternalAuth`  | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (must be nil — skip when deleting)</li></ul> |
+| Read      | `ServiceProviderExternalAuth`      | <ul><li>existence check only (skip when already exists)</li></ul> |
+| **Write** | **`ServiceProviderExternalAuth`**  | <ul><li>Creates the document via `GetOrCreateServiceProviderExternalAuth` (all default fields)</li></ul> |
+
+
+
+
+#### ExternalAuthUserFacingConditionsAggregator
+
+**File:** [externalauth_userfacing_conditions_aggregator.go](../backend/pkg/controllers/externalauth/status/externalauth_userfacing_conditions_aggregator.go)
+**Trigger:** ExternalAuth / ServiceProviderExternalAuth informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+
+- `ExternalAuth` exists
+- `ServiceProviderExternalAuth` exists
+- Aggregated Degraded condition differs from `ExternalAuth.Status.UserFacingConditions`
+
+|           | Object                             | Fields |
+| --------- | ---------------------------------- | ------ |
+| Read      | `HCPOpenShiftClusterExternalAuth`  | <ul><li>`Status.UserFacingConditions` (compared to skip no-op writes)</li></ul> |
+| Read      | `ServiceProviderExternalAuth`      | <ul><li>`Status.Conditions` (all conditions checked: any with Status=True contribute to user-facing Degraded=True)</li></ul> |
+| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Status.UserFacingConditions[Degraded]`** — True/ExternalAuthProvider when any ServiceProviderExternalAuth condition is True (composite message prefixed by source condition type); False/AsExpected when all False or absent</li></ul> |
+
+
+
+
+#### BackupScheduleSyncer
+
+**File:** [schedule_controller.go](../backend/pkg/controllers/backupcontroller/schedule_controller.go)
+**Trigger:** Cluster informer, periodic resync
+**Gate (needsWork on Cluster):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `Cluster.ServiceProviderProperties.BillingDocumentCosmosID` != ""
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (needsWork: must be nil)</li><li>`ServiceProviderProperties.BillingDocumentCosmosID` (needsWork: must be non-empty)</li><li>`ServiceProviderProperties.ClusterServiceID` (SyncOnce: must not be nil)</li><li>`CustomerProperties.DNS.BaseDomainPrefix` (SyncOnce: must be non-empty)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.BackupState` (determines whether per-cluster schedules are paused)</li><li>`Status.ManagementClusterResourceID` (SyncOnce: must not be nil)</li></ul> |
+| **Write** | `ApplyDesire` (kube-applier DB) | <ul><li>Creates/replaces one Velero `Schedule` ApplyDesire per configured backup schedule; sets `Spec.Paused` based on global pause config or `Spec.BackupState == Paused`</li></ul> |
+| **Write** | `ReadDesire` (kube-applier DB) | <ul><li>Creates/replaces one ReadDesire per schedule to observe `Schedule` status on the management cluster</li></ul> |
+
+No writes to the Cosmos Resources container.
+
+#### KeyRotationBackupSyncer
+
+**File:** [key_rotation_controller.go](../backend/pkg/controllers/cluster/backups/key_rotation_controller.go)
+**Trigger:** Cluster informer + ApplyDesire informer, 5-minute resync
+**Gate (needsWork on Cluster, plus KMS + rotation checks):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `Cluster.ServiceProviderProperties.BillingDocumentCosmosID` != ""
+- `ServiceProviderCluster.Status.ManagementClusterResourceID` != nil
+- customer-managed KMS configured with a non-empty active key version
+- observed HostedCluster reports KMS rotation complete (`Status.SecretEncryption`)
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (needsWork: must be nil)</li><li>`ServiceProviderProperties.BillingDocumentCosmosID` (needsWork: must be non-empty)</li><li>`CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey` (KMS gate; VaultName/Name/Version → fingerprint)</li><li>`ResourceID` (annotated onto the Velero `Backup`)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (SyncOnce: must not be nil)</li><li>`Status.HostedClusterNamespace`, `Status.ControlPlaneNamespace` (backup target namespaces)</li><li>`Status.KeyRotationBackupFingerprint` (skip re-creating the on-demand backup once it already matches the active key's fingerprint)</li></ul> |
+| Read | `ReadDesire` (kube-applier DB) | <ul><li>`Status.KubeContent` of the HostedCluster ReadDesire (`Status.SecretEncryption`: `History`, `ActiveKey`, `TargetKey` — determines rotation completion and the active-key fingerprint)</li></ul> |
+| **Write** | `ServiceProviderCluster` | <ul><li>**`Status.KeyRotationBackupFingerprint`** = the active key's fingerprint, recorded as durable per-fingerprint completion state once the on-demand backup's ApplyDesire is observed `Successful`, strictly before that ApplyDesire document is purged. This record is what stops the backup from being re-created on later resyncs after its desires are cleaned up.</li></ul> |
+| **Write** | `ApplyDesire` (kube-applier DB) | <ul><li>Creates the on-demand Velero `Backup` ApplyDesire for the post-rotation key fingerprint; once it succeeds the ApplyDesire document is **purged** (hard-deleted from Cosmos, tolerating NotFound). Deleting the desire document stops kube-applier reconciliation **without** deleting the Velero `Backup`, so the restore point is retained until its own TTL. ApplyDesires from superseded rotations are purged the same way.</li></ul> |
+| **Write** | `ReadDesire` (kube-applier DB) | <ul><li>Creates the companion ReadDesire to observe the Backup status; the ReadDesire is **retained** after the ApplyDesire is purged so the admin API can keep listing the backup, and is deleted only once Velero/kube-applier confirm there's nothing left to observe (`Status.KubeContent` nil and `Successful`, i.e. the Backup was GC'd at its TTL), whether it belongs to the current rotation or a superseded one</li></ul> |
+
+#### CreateClusterScopedReadDesires / CreateNodePoolScopedReadDesires
+
+**File:** [create_cluster_scoped_read_desires_controller.go](../backend/pkg/controllers/cluster/readdesires/create_cluster_scoped_read_desires_controller.go), [create_nodepool_scoped_read_desires_controller.go](../backend/pkg/controllers/nodepool/readdesires/create_nodepool_scoped_read_desires_controller.go)
+**Trigger:** Cluster/NodePool informer, 1-minute resync
+**Gate (SyncOnce preconditions + ReadDesire spec drift):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil
+- `ServiceProviderCluster.Status.ManagementClusterResourceID` != nil
+- `len(Cluster.CustomerProperties.DNS.BaseDomainPrefix)` > 0
+- Existing `ReadDesire` == nil, or `ReadDesire.Spec.ManagementCluster` differs, or `ReadDesire.Spec.TargetItem` differs (both controllers reconcile via the shared `kubeapplierhelpers.EnsureReadDesire` helper, consulting the ReadDesire informer lister)
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (SyncOnce: must not be nil)</li><li>`CustomerProperties.DNS.BaseDomainPrefix` (SyncOnce: must be non-empty)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (SyncOnce: must not be nil)</li></ul> |
+| Read | Existing `ReadDesire` | <ul><li>`Spec.ManagementCluster` (spec drift: compared to desired)</li><li>`Spec.TargetItem` (spec drift: compared to desired)</li></ul> |
+| **Write** | `ReadDesire` (kube-applier DB) | <ul><li>Creates or replaces `ReadDesire` documents (not Resources container)</li></ul> |
 
 #### FetchDataPlaneOperatorsManagedIdentitiesInfo
 

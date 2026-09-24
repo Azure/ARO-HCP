@@ -778,7 +778,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		b.clock,
 	)
-	externalAuthAvailableController := externalauthstatus.NewExternalAuthAvailableController(
+	externalAuthOIDCClientsDegradedController := externalauthstatus.NewExternalAuthOIDCClientsDegradedController(
 		b.options.ResourcesDBClient,
 		externalAuthLister,
 		serviceProviderExternalAuthLister,
@@ -1213,7 +1213,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go nodePoolDegradedAggregatorController.Run(ctx, 20)
 				go nodePoolRequirementsValidAggregatorController.Run(ctx, 20)
 				go externalAuthDegradedAggregatorController.Run(ctx, 20)
-				go externalAuthAvailableController.Run(ctx, 20)
+				go externalAuthOIDCClientsDegradedController.Run(ctx, 20)
 				go externalAuthUserFacingAggregatorController.Run(ctx, 20)
 				go createServiceProviderExternalAuthController.Run(ctx, 20)
 				go desiredControlPlaneSizeController.Run(ctx, 20)

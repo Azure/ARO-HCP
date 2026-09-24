@@ -252,7 +252,7 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyAllClusterOperatorsAvailable().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster operators are available after external auth config creation")
 
-			By("verifying Available condition via v20260901preview API")
+			By("verifying Degraded condition via v20260901preview API")
 			eaClient20260901 := tc.Get20260901ClientFactoryOrDie(ctx).NewExternalAuthsClient()
 			Eventually(func(g Gomega) {
 				resp, err := eaClient20260901.Get(ctx, *resourceGroup.Name, customerClusterName, customerExternalAuthName, nil)
@@ -268,14 +268,14 @@ var _ = Describe("Customer", func() {
 					}
 				}
 
-				available := condByType["Available"]
-				g.Expect(available).NotTo(BeNil(), "Available condition not found")
-				g.Expect(available.Status).NotTo(BeNil(), "Available Status was nil")
-				g.Expect(string(*available.Status)).To(Equal("True"),
-					fmt.Sprintf("Available status should be True after secret creation, got %s (reason: %s, message: %s)",
-						ptr.Deref((*string)(available.Status), "<nil>"),
-						ptr.Deref(available.Reason, "<nil>"),
-						ptr.Deref(available.Message, "<nil>")))
-			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "Available condition did not converge to True")
+				degraded := condByType["Degraded"]
+				g.Expect(degraded).NotTo(BeNil(), "Degraded condition not found")
+				g.Expect(degraded.Status).NotTo(BeNil(), "Degraded Status was nil")
+				g.Expect(string(*degraded.Status)).To(Equal("False"),
+					fmt.Sprintf("Degraded status should be False after secret creation, got %s (reason: %s, message: %s)",
+						ptr.Deref((*string)(degraded.Status), "<nil>"),
+						ptr.Deref(degraded.Reason, "<nil>"),
+						ptr.Deref(degraded.Message, "<nil>")))
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "Degraded condition did not converge to False")
 		})
 })
