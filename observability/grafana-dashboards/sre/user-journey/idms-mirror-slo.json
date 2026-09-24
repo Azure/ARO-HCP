@@ -26,7 +26,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### IDMS Image Registry Mirror SLO Dashboard\n\nMonitors the health of the IDMS (`imageDigestMirrors`) user journey — a customer PUT/PATCH that configures image registry mirrors, delivered to the guest cluster as `ImageDigestMirrorSet` objects.\n\n> **Scope caveat:** there is **no IDMS-specific metric today.** An `imageDigestMirrors` change is carried by the generic cluster **update** LRO, so every panel here is scoped to `operation_type=\"update\"` on `hcpopenshiftclusters` and includes authorized-CIDR changes, version upgrades, and every other cluster update. Treat these panels as the enclosing signal, not as proof an IDMS change specifically succeeded or failed. Confirm the operation is a mirror change by inspecting the cluster document.\n\n**SLO Targets (Proposed — pending baseline):**\n- Operation success rate: 95% over 7-day rolling window\n- Operation latency: complete within 2700s (45m), matching `BackendAsyncOperationClusterUpdateStuck`\n\n**Metrics Source:** `backend_resource_operation_phase_info`, `backend_resource_operation_start_time_seconds`, `backend_resource_operation_last_transition_time_seconds` (Cosmos DB-backed), plus `workqueue_*` for the `OperationClusterUpdate` controller.\n\n**Jira:** [ARO-25924](https://redhat.atlassian.net/browse/ARO-25924) | **User Journey:** [IDMS Image Registry Mirror Configuration](https://aka.ms/arohcp-runbook-idms)",
+        "content": "### IDMS Image Registry Mirror SLO Dashboard\n\nMonitors the health of the IDMS (`imageDigestMirrors`) user journey — a customer PUT/PATCH that configures image registry mirrors, delivered to the guest cluster as `ImageDigestMirrorSet` objects.\n\n> **Scope caveat:** there is **no IDMS-specific metric today.** An `imageDigestMirrors` change is carried by the generic cluster **update** LRO, so every panel here is scoped to `operation_type=\"update\"` on `hcpopenshiftclusters` and includes authorized-CIDR changes, version upgrades, and every other cluster update. Treat these panels as the enclosing signal, not as proof an IDMS change specifically succeeded or failed. Confirm the operation is a mirror change from the Backend logs.\n\n> **Current-state caveat:** the Backend keeps only the most recent update per cluster, so a failed update followed by a successful retry is overwritten. The success-rate, failed-count and error-budget panels therefore show the phase of each cluster's *latest* update over the ~7-day retention \u2014 a current-state view, not a count of every LRO. The burn-rate alerts are driven by the windowed series in `backend-cluster-update-slo-recordingRule.yaml`.\n\n**SLO Targets (Proposed — pending baseline):**\n- Success rate: 95%, alerted on 1h / 6h / 3d windows of terminal transitions\n- Operation latency: complete within 2700s (45m), matching `BackendAsyncOperationClusterUpdateStuck`\n\n**Metrics Source:** `backend_resource_operation_phase_info`, `backend_resource_operation_start_time_seconds`, `backend_resource_operation_last_transition_time_seconds` (Cosmos DB-backed), plus `workqueue_*` for the `OperationClusterUpdate` controller.\n\n**Jira:** [ARO-25924](https://redhat.atlassian.net/browse/ARO-25924) | **User Journey:** [IDMS Image Registry Mirror Configuration](https://aka.ms/arohcp-runbook-idms)",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -35,7 +35,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Availability. Fraction of terminal cluster update operations in succeeded state. SLO target: 95%.",
+      "description": "Current-state view. Fraction of clusters whose latest succeeded-or-failed update succeeded, over the ~7-day Cosmos retention. A failed update later overwritten by a successful one is not counted, so this is not an LRO success rate. The burn-rate alerts use the windowed series instead.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -74,7 +74,7 @@
           "refId": "A"
         }
       ],
-      "title": "Operation Success Rate",
+      "title": "Success Rate (Latest Update per Cluster)",
       "transformations": [
         { "id": "seriesToRows", "options": {} },
         { "id": "merge", "options": {} }
@@ -83,7 +83,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Errors. Current count of cluster update operations in failed terminal state.",
+      "description": "Current-state view. Number of clusters whose latest update is in failed state. A failure later overwritten by a successful update is not counted.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -120,7 +120,7 @@
           "refId": "A"
         }
       ],
-      "title": "Failed Operations",
+      "title": "Clusters with Failed Latest Update",
       "transformations": [
         { "id": "seriesToRows", "options": {} },
         { "id": "merge", "options": {} }
@@ -174,7 +174,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Remaining error budget against the 95% success-rate objective. 100% means no budget consumed; 0% means the objective is exactly met and any further failure breaches it.",
+      "description": "Indicative only. Derived from the current-state success rate rather than from every LRO, so it understates budget consumption when failed updates are retried successfully. The burn-rate alerts use the windowed series instead.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -215,7 +215,7 @@
           "refId": "A"
         }
       ],
-      "title": "Error Budget Remaining (95% SLO)",
+      "title": "Error Budget Remaining (Indicative)",
       "transformations": [
         { "id": "seriesToRows", "options": {} },
         { "id": "merge", "options": {} }
@@ -224,7 +224,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Availability over time with the 95% SLO target line.",
+      "description": "Current-state success rate over time (latest update per cluster), with the 95% target line.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -272,12 +272,12 @@
           "refId": "A"
         }
       ],
-      "title": "Operation Success Rate Over Time",
+      "title": "Success Rate Over Time (Latest Update per Cluster)",
       "type": "timeseries"
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Distribution of cluster update operations across lifecycle phases.",
+      "description": "Number of clusters by the phase of their latest update.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -314,7 +314,7 @@
           "refId": "A"
         }
       ],
-      "title": "Operation Phase Distribution",
+      "title": "Latest Update Phase per Cluster",
       "type": "timeseries"
     },
     {
@@ -480,7 +480,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Table of currently failed cluster update operations. Cross-check the cluster document to confirm whether the update carried an imageDigestMirrors change.",
+      "description": "Clusters whose latest update is in failed state. A cluster that failed and then succeeded on retry will not appear. Confirm from the Backend logs that the update carried an imageDigestMirrors change.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -503,7 +503,7 @@
           "refId": "A"
         }
       ],
-      "title": "Failed Operations Detail",
+      "title": "Clusters with Failed Latest Update — Detail",
       "transformations": [
         { "id": "seriesToRows", "options": {} },
         { "id": "merge", "options": {} },
