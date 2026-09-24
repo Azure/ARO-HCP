@@ -49,7 +49,7 @@ func TestClusterKeyVaultTypePreservation(t *testing.T) {
 			// Build an existing cluster persisted with a Managed HSM key vault type.
 			// keyVaultType only exists in the external API of v20261001preview and
 			// newer; older versions must still preserve it on update.
-			existing, err := version.NewHCPOpenShiftCluster(nil).ConvertToInternal(nil)
+			existing, err := version.NewCluster(nil).ConvertToInternal(nil)
 			require.NoError(t, err)
 			existing.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
 			existing.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
@@ -62,7 +62,7 @@ func TestClusterKeyVaultTypePreservation(t *testing.T) {
 			}
 
 			// Send an update through this API version that does not touch etcd.
-			external := version.NewHCPOpenShiftCluster(existing)
+			external := version.NewCluster(existing)
 			body := `{"properties":{"platform":{"operatorsAuthentication":{"userAssignedIdentities":{}}}}}`
 			require.NoError(t, json.Unmarshal([]byte(body), external))
 
