@@ -8,44 +8,44 @@
   },
   "parameters": {
     "clusterName": {
+      "type": "string",
       "metadata": {
         "description": "The name of the Hypershift cluster to which the node pool will be attached."
-      },
-      "type": "string"
+      }
     },
     "nodePoolName": {
+      "type": "string",
       "metadata": {
         "description": "The name of the node pool"
-      },
-      "type": "string"
+      }
     },
     "nodePoolVersion": {
+      "type": "string",
       "metadata": {
         "description": "The version of OpenShift to use for the node pool (e.g. 4.20.16)"
-      },
-      "type": "string"
+      }
     }
   },
   "resources": [
     {
+      "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
       "apiVersion": "2025-12-23-preview",
-      "location": "[resourceGroup().location]",
       "name": "[format('{0}/{1}', parameters('clusterName'), parameters('nodePoolName'))]",
+      "location": "[resourceGroup().location]",
       "properties": {
         "platform": {
-          "osDisk": {
-            "diskStorageAccountType": "StandardSSD_LRS",
-            "sizeGiB": 64
-          },
           "subnetId": "[reference(resourceId('Microsoft.RedHatOpenShift/hcpOpenShiftClusters', parameters('clusterName')), '2025-12-23-preview').platform.subnetId]",
-          "vmSize": "Standard_D8s_v3"
+          "vmSize": "Standard_D8s_v3",
+          "osDisk": {
+            "sizeGiB": 64,
+            "diskStorageAccountType": "StandardSSD_LRS"
+          }
         },
         "replicas": 2,
         "version": {
           "id": "[parameters('nodePoolVersion')]"
         }
-      },
-      "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+      }
     }
   ]
 }

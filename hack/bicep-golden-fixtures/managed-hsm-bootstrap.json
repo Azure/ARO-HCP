@@ -1,0 +1,306 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep"
+    }
+  },
+  "parameters": {
+    "hsmName": {
+      "type": "string",
+      "metadata": {
+        "description": "Globally unique Managed HSM name (3-24 alphanumeric characters or hyphens)."
+      }
+    },
+    "keyName": {
+      "type": "string",
+      "defaultValue": "cmk",
+      "metadata": {
+        "description": "Name of the HSM-backed RSA key to create."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region for all resources."
+      }
+    },
+    "wrappingCertificate0Base64": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Base64-encoded PEM certificate containing quorum member 1 public key."
+      }
+    },
+    "wrappingCertificate1Base64": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Base64-encoded PEM certificate containing quorum member 2 public key."
+      }
+    },
+    "wrappingCertificate2Base64": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Base64-encoded PEM certificate containing quorum member 3 public key."
+      }
+    },
+    "securityDomainQuorum": {
+      "type": "int",
+      "defaultValue": 2,
+      "minValue": 2,
+      "maxValue": 3,
+      "metadata": {
+        "description": "Number of private wrapping keys required to recover the security domain."
+      }
+    },
+    "additionalAdminObjectIds": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Additional Entra object IDs that should be initial Managed HSM administrators."
+      }
+    },
+    "keyManagerObjectIds": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Entra object IDs that should be able to create and manage keys in the Managed HSM."
+      }
+    },
+    "enablePurgeProtection": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable irreversible purge protection. Recommended for production; leave false for disposable testing."
+      }
+    },
+    "softDeleteRetentionInDays": {
+      "type": "int",
+      "defaultValue": 7,
+      "minValue": 7,
+      "maxValue": 90,
+      "metadata": {
+        "description": "Soft-delete retention period in days. Azure Managed HSM requires at least 7 days."
+      }
+    },
+    "keySize": {
+      "type": "int",
+      "defaultValue": 3072,
+      "allowedValues": [
+        2048,
+        3072,
+        4096
+      ],
+      "metadata": {
+        "description": "RSA key size."
+      }
+    },
+    "forceUpdateTag": {
+      "type": "string",
+      "defaultValue": "retry-3",
+      "metadata": {
+        "description": "Change this value only when the bootstrap deployment script must run again."
+      }
+    }
+  },
+  "variables": {
+    "storageAccountName": "[take(format('mhsmsd{0}', uniqueString(subscription().subscriptionId, resourceGroup().id, parameters('hsmName'))), 24)]",
+    "securityDomainContainerName": "security-domain",
+    "securityDomainBlobName": "[format('{0}-security-domain.json', parameters('hsmName'))]",
+    "storageBlobDataContributorRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-bootstrap', parameters('hsmName'))]",
+      "location": "[parameters('location')]"
+    },
+    {
+      "type": "Microsoft.KeyVault/managedHSMs",
+      "apiVersion": "2025-05-01",
+      "name": "[parameters('hsmName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "family": "B",
+        "name": "Standard_B1"
+      },
+      "properties": {
+        "createMode": "default",
+        "enablePurgeProtection": "[parameters('enablePurgeProtection')]",
+        "enableSoftDelete": true,
+        "initialAdminObjectIds": "[concat(createArray(reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-bootstrap', parameters('hsmName'))), '2023-01-31').principalId), parameters('additionalAdminObjectIds'))]",
+        "publicNetworkAccess": "Enabled",
+        "softDeleteRetentionInDays": "[parameters('softDeleteRetentionInDays')]",
+        "tenantId": "[tenant().tenantId]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-bootstrap', parameters('hsmName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2025-01-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard_GRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "allowBlobPublicAccess": false,
+        "allowSharedKeyAccess": false,
+        "defaultToOAuthAuthentication": true,
+        "minimumTlsVersion": "TLS1_2",
+        "publicNetworkAccess": "Enabled",
+        "supportsHttpsTrafficOnly": true
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2025-01-01",
+      "name": "[format('{0}/{1}', variables('storageAccountName'), 'default')]",
+      "properties": {
+        "containerDeleteRetentionPolicy": {
+          "enabled": true,
+          "days": 90
+        },
+        "deleteRetentionPolicy": {
+          "enabled": true,
+          "days": 90
+        },
+        "isVersioningEnabled": true
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2025-01-01",
+      "name": "[format('{0}/{1}/{2}', variables('storageAccountName'), 'default', variables('securityDomainContainerName'))]",
+      "properties": {
+        "publicAccess": "None"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageAccountName'), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-bootstrap', parameters('hsmName'))), variables('storageBlobDataContributorRoleDefinitionId'))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-bootstrap', parameters('hsmName'))), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('storageBlobDataContributorRoleDefinitionId')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-bootstrap', parameters('hsmName')))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2023-08-01",
+      "name": "[format('{0}-activate-and-create-key', parameters('hsmName'))]",
+      "location": "[parameters('location')]",
+      "kind": "AzureCLI",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-bootstrap', parameters('hsmName'))))]": {}
+        }
+      },
+      "properties": {
+        "azCliVersion": "2.59.0",
+        "cleanupPreference": "OnSuccess",
+        "forceUpdateTag": "[parameters('forceUpdateTag')]",
+        "retentionInterval": "P1D",
+        "timeout": "PT45M",
+        "environmentVariables": [
+          {
+            "name": "HSM_NAME",
+            "value": "[parameters('hsmName')]"
+          },
+          {
+            "name": "KEY_NAME",
+            "value": "[parameters('keyName')]"
+          },
+          {
+            "name": "KEY_SIZE",
+            "value": "[string(parameters('keySize'))]"
+          },
+          {
+            "name": "SD_QUORUM",
+            "value": "[string(parameters('securityDomainQuorum'))]"
+          },
+          {
+            "name": "STORAGE_ACCOUNT",
+            "value": "[variables('storageAccountName')]"
+          },
+          {
+            "name": "STORAGE_CONTAINER",
+            "value": "[variables('securityDomainContainerName')]"
+          },
+          {
+            "name": "STORAGE_BLOB",
+            "value": "[variables('securityDomainBlobName')]"
+          },
+          {
+            "name": "BOOTSTRAP_PRINCIPAL_ID",
+            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-bootstrap', parameters('hsmName'))), '2023-01-31').principalId]"
+          },
+          {
+            "name": "KEY_MANAGER_OBJECT_IDS_JSON",
+            "value": "[string(parameters('keyManagerObjectIds'))]"
+          },
+          {
+            "name": "SECURITY_DOMAIN_BLOB_URI",
+            "value": "[format('{0}{1}/{2}', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2025-01-01').primaryEndpoints.blob, variables('securityDomainContainerName'), variables('securityDomainBlobName'))]"
+          },
+          {
+            "name": "WRAPPING_CERTIFICATE_0_BASE64",
+            "secureValue": "[parameters('wrappingCertificate0Base64')]"
+          },
+          {
+            "name": "WRAPPING_CERTIFICATE_1_BASE64",
+            "secureValue": "[parameters('wrappingCertificate1Base64')]"
+          },
+          {
+            "name": "WRAPPING_CERTIFICATE_2_BASE64",
+            "secureValue": "[parameters('wrappingCertificate2Base64')]"
+          }
+        ],
+        "scriptContent": "      #!/usr/bin/env bash\n      set -euo pipefail\n\n      log() {\n        level=\"$1\"\n        shift\n        printf '%s [%s] phase=%s %s\\n' \\\n          \"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\" \\\n          \"$level\" \\\n          \"$current_phase\" \\\n          \"$*\" >&2\n      }\n\n      current_phase='initialize'\n      work_dir=\"$(mktemp -d)\"\n      cleanup() {\n        exit_code=$?\n        if [ \"$exit_code\" -ne 0 ]; then\n          log 'ERROR' \"deployment script failed with exit code $exit_code\"\n        fi\n        rm -rf \"$work_dir\"\n      }\n      trap cleanup EXIT\n\n      log 'INFO' \"starting bootstrap for HSM $HSM_NAME and key $KEY_NAME\"\n\n      current_phase='decode-wrapping-certificates'\n      printf '%s' \"$WRAPPING_CERTIFICATE_0_BASE64\" | base64 -d > \"$work_dir/cert_0.cer\"\n      printf '%s' \"$WRAPPING_CERTIFICATE_1_BASE64\" | base64 -d > \"$work_dir/cert_1.cer\"\n      printf '%s' \"$WRAPPING_CERTIFICATE_2_BASE64\" | base64 -d > \"$work_dir/cert_2.cer\"\n      log 'INFO' 'decoded three wrapping certificates'\n\n      current_phase='activate-managed-hsm'\n      sd_file=\"$work_dir/security-domain.json\"\n      activation_succeeded=false\n      activation_result=''\n\n      for attempt in $(seq 1 20); do\n        rm -f \"$sd_file\"\n\n        set +e\n        activation_result=\"$(az keyvault security-domain download \\\n          --hsm-name \"$HSM_NAME\" \\\n          --security-domain-file \"$sd_file\" \\\n          --sd-quorum \"$SD_QUORUM\" \\\n          --sd-wrapping-keys \\\n            \"$work_dir/cert_0.cer\" \\\n            \"$work_dir/cert_1.cer\" \\\n            \"$work_dir/cert_2.cer\" \\\n          --only-show-errors \\\n          --output json 2>&1)\"\n        activation_exit_code=$?\n        set -e\n\n        activation_status=\"$(\n          printf '%s' \"$activation_result\" |\n            jq -r 'if type == \"object\" then (.status // \"Unknown\") else \"Unknown\" end' 2>/dev/null ||\n            printf 'Unknown'\n        )\"\n\n        if [ \"$activation_exit_code\" -eq 0 ] &&\n           [ \"$activation_status\" = 'Success' ] &&\n           [ -s \"$sd_file\" ]; then\n          activation_succeeded=true\n          break\n        fi\n\n        log 'WARN' \"attempt $attempt failed with status $activation_status\"\n        sleep 30\n      done\n\n      if [ \"$activation_succeeded\" != true ]; then\n        log 'ERROR' 'activation did not produce a security-domain file'\n        printf '%s\\n' \"$activation_result\" >&2\n        exit 1\n      fi\n      log 'INFO' 'Managed HSM activation completed successfully'\n\n      current_phase='persist-security-domain'\n      uploaded=false\n      upload_result=''\n      for attempt in $(seq 1 20); do\n        set +e\n        upload_result=\"$(az storage blob upload \\\n            --auth-mode login \\\n            --account-name \"$STORAGE_ACCOUNT\" \\\n            --container-name \"$STORAGE_CONTAINER\" \\\n            --name \"$STORAGE_BLOB\" \\\n            --file \"$sd_file\" \\\n            --overwrite true \\\n            --only-show-errors \\\n            --output json 2>&1)\"\n        upload_exit_code=$?\n        set -e\n\n        if [ \"$upload_exit_code\" -eq 0 ]; then\n          uploaded=true\n          break\n        fi\n        log 'WARN' \"security-domain upload attempt $attempt failed\"\n        sleep 15\n      done\n\n      if [ \"$uploaded\" != true ]; then\n        log 'ERROR' 'failed to persist the security-domain backup'\n        printf '%s\\n' \"$upload_result\" >&2\n        exit 1\n      fi\n      log 'INFO' \"security-domain backup persisted to $SECURITY_DOMAIN_BLOB_URI\"\n\n      current_phase='assign-managed-hsm-roles'\n      ensure_crypto_user_role() {\n        principal_id=\"$1\"\n        principal_type=\"${2:-}\"\n\n        for attempt in $(seq 1 20); do\n          existing_assignments=\"$(az keyvault role assignment list \\\n            --hsm-name \"$HSM_NAME\" \\\n            --assignee-object-id \"$principal_id\" \\\n            --role 'Managed HSM Crypto User' \\\n            --scope '/' \\\n            --query 'length(@)' \\\n            --output tsv \\\n            --only-show-errors 2>/dev/null || printf '0')\"\n\n          if [ \"$existing_assignments\" != '0' ]; then\n            return 0\n          fi\n\n          principal_type_arguments=()\n          if [ -n \"$principal_type\" ]; then\n            principal_type_arguments=(--assignee-principal-type \"$principal_type\")\n          fi\n\n          set +e\n          role_assignment_result=\"$(az keyvault role assignment create \\\n              --hsm-name \"$HSM_NAME\" \\\n              --assignee-object-id \"$principal_id\" \\\n              \"${principal_type_arguments[@]}\" \\\n              --role 'Managed HSM Crypto User' \\\n              --scope '/' \\\n              --only-show-errors \\\n              --output json 2>&1)\"\n          role_assignment_exit_code=$?\n          set -e\n\n          if [ \"$role_assignment_exit_code\" -eq 0 ]; then\n            log 'INFO' \"assigned Managed HSM Crypto User to $principal_id\"\n            return 0\n          fi\n\n          log 'WARN' \"role assignment attempt $attempt failed for $principal_id\"\n          sleep 15\n        done\n\n        log 'ERROR' \"failed to assign Managed HSM Crypto User to $principal_id\"\n        printf '%s\\n' \"$role_assignment_result\" >&2\n        return 1\n      }\n\n      ensure_crypto_user_role \"$BOOTSTRAP_PRINCIPAL_ID\" 'MSI'\n\n      while IFS= read -r principal_id; do\n        if [ -n \"$principal_id\" ]; then\n          ensure_crypto_user_role \"$principal_id\"\n        fi\n      done < <(printf '%s' \"$KEY_MANAGER_OBJECT_IDS_JSON\" | jq -r '.[]')\n\n      current_phase='create-managed-hsm-key'\n      key_id=\"$(az keyvault key show \\\n        --hsm-name \"$HSM_NAME\" \\\n        --name \"$KEY_NAME\" \\\n        --query key.kid \\\n        --output tsv \\\n        --only-show-errors 2>/dev/null || true)\"\n\n      if [ -z \"$key_id\" ]; then\n        key_creation_result=''\n        for attempt in $(seq 1 20); do\n          set +e\n          key_creation_result=\"$(az keyvault key create \\\n              --hsm-name \"$HSM_NAME\" \\\n              --name \"$KEY_NAME\" \\\n              --kty RSA-HSM \\\n              --size \"$KEY_SIZE\" \\\n              --ops encrypt decrypt \\\n              --only-show-errors \\\n              --output json 2>&1)\"\n          key_creation_exit_code=$?\n          set -e\n\n          if [ \"$key_creation_exit_code\" -eq 0 ]; then\n            key_id=\"$(\n              printf '%s' \"$key_creation_result\" |\n                jq -r '.key.kid // empty' 2>/dev/null ||\n                true\n            )\"\n          fi\n\n          if [ -n \"$key_id\" ]; then\n            break\n          fi\n\n          log 'WARN' \"key creation attempt $attempt failed\"\n          sleep 15\n        done\n      fi\n\n      if [ -z \"$key_id\" ]; then\n        log 'ERROR' 'Managed HSM was activated, but key creation failed'\n        printf '%s\\n' \"$key_creation_result\" >&2\n        exit 1\n      fi\n      log 'INFO' \"key is ready: $key_id\"\n\n      current_phase='write-outputs'\n      jq -n -c \\\n        --arg keyId \"$key_id\" \\\n        --arg securityDomainBlobUri \"$SECURITY_DOMAIN_BLOB_URI\" \\\n        '{keyId: $keyId, securityDomainBlobUri: $securityDomainBlobUri}' \\\n        > \"$AZ_SCRIPTS_OUTPUT_PATH\"\n      log 'INFO' 'bootstrap completed successfully'\n    "
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-bootstrap', parameters('hsmName')))]",
+        "[resourceId('Microsoft.KeyVault/managedHSMs', parameters('hsmName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', variables('storageAccountName'), 'default', variables('securityDomainContainerName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-bootstrap', parameters('hsmName'))), variables('storageBlobDataContributorRoleDefinitionId')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "managedHsmUri": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.KeyVault/managedHSMs', parameters('hsmName')), '2025-05-01').hsmUri]"
+    },
+    "keyId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deploymentScripts', format('{0}-activate-and-create-key', parameters('hsmName'))), '2023-08-01').outputs.keyId]"
+    },
+    "securityDomainBlobUri": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deploymentScripts', format('{0}-activate-and-create-key', parameters('hsmName'))), '2023-08-01').outputs.securityDomainBlobUri]"
+    },
+    "bootstrapIdentityPrincipalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-bootstrap', parameters('hsmName'))), '2023-01-31').principalId]"
+    }
+  }
+}

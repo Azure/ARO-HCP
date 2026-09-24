@@ -1,0 +1,1 @@
+Cluster Etcd Managed HSM Encryption should create a cluster with Managed HSM keyVaultType and verify etcd encryption works

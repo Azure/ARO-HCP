@@ -8,538 +8,635 @@
   },
   "parameters": {
     "clusterName": {
+      "type": "string",
       "metadata": {
         "description": "Name of the hypershift cluster"
-      },
-      "type": "string"
-    },
-    "clusterVersion": {
-      "metadata": {
-        "description": "The version of the cluster to create (e.g. 4.20)"
-      },
-      "type": "string"
-    },
-    "keyVaultName": {
-      "metadata": {
-        "description": "The KeyVault name that contains the encryption key"
-      },
-      "type": "string"
+      }
     },
     "managedResourceGroupName": {
+      "type": "string",
       "metadata": {
         "description": "The Hypershift cluster managed resource group name"
-      },
-      "type": "string"
+      }
     },
     "nsgName": {
+      "type": "string",
       "metadata": {
         "description": "The Network security group name for the hcp cluster resources"
-      },
-      "type": "string"
+      }
     },
-    "privateKeyVault": {
+    "vnetName": {
+      "type": "string",
       "metadata": {
-        "description": "The visibility of the KeyVault (Public or Private)"
-      },
-      "type": "bool"
+        "description": "The virtual network name for the hcp cluster resources"
+      }
     },
     "subnetName": {
+      "type": "string",
       "metadata": {
         "description": "The subnet name for deploying hcp cluster resources."
-      },
-      "type": "string"
+      }
+    },
+    "vnetIntegrationSubnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "The VNet integration subnet name for direct private network connectivity."
+      }
+    },
+    "keyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "The KeyVault name that contains the encryption key"
+      }
+    },
+    "privateKeyVault": {
+      "type": "bool",
+      "metadata": {
+        "description": "The visibility of the KeyVault (Public or Private)"
+      }
+    },
+    "clusterVersion": {
+      "type": "string",
+      "metadata": {
+        "description": "The version of the cluster to create (e.g. 4.20)"
+      }
     },
     "tags": {
+      "type": "object",
       "defaultValue": {},
       "metadata": {
         "description": "Tags that should be added to the ARO HCP cluster"
-      },
-      "type": "object"
-    },
-    "vnetIntegrationSubnetName": {
-      "metadata": {
-        "description": "The VNet integration subnet name for direct private network connectivity."
-      },
-      "type": "string"
-    },
-    "vnetName": {
-      "metadata": {
-        "description": "The virtual network name for the hcp cluster resources"
-      },
-      "type": "string"
+      }
     }
+  },
+  "variables": {
+    "etcdEncryptionKeyName": "etcd-data-kms-encryption-key",
+    "randomSuffix": "[toLower(uniqueString(parameters('clusterName')))]",
+    "readerRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]",
+    "hcpClusterApiProviderRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '88366f10-ed47-4cc0-9fab-c8a06148393e')]",
+    "keyVaultCryptoUserRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '12338af0-0e69-4776-bea7-57ae8d297424')]",
+    "hcpControlPlaneOperatorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'fc0c873f-45e9-4d0d-a7d1-585aab30c6ed')]",
+    "cloudControllerManagerRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a1f96423-95ce-4224-ab27-4e3dc72facd4')]",
+    "ingressOperatorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0336e1d3-7a87-462b-b6db-342b63f7802c')]",
+    "fileStorageOperatorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0d7aedc0-15fd-4a67-a412-efad370c947e')]",
+    "networkOperatorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'be7a6435-15ae-4171-8f30-4a343eff9e8f')]",
+    "federatedCredentialsRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ef318e2a-8334-4a05-9e4a-295a196c6a6e')]",
+    "hcpServiceManagedIdentityRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'c0ff367d-66d8-445e-917c-583feb0ef0d4')]"
   },
   "resources": [
     {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
       "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
       "name": "[format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+      "location": "[resourceGroup().location]"
     },
     {
+      "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('hcpClusterApiProviderRoleId'), resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('hcpClusterApiProviderRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
     },
     {
+      "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix')))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('readerRoleId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix'))))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('readerRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
-      "name": "[format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('keyVaultCryptoUserRoleId'), resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('keyVaultCryptoUserRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
     },
     {
+      "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix')))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('readerRoleId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix'))))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('readerRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
-      "name": "[format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('hcpControlPlaneOperatorRoleId'), resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('hcpControlPlaneOperatorRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('hcpControlPlaneOperatorRoleId'), resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('hcpControlPlaneOperatorRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
     },
     {
+      "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix')))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('readerRoleId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix'))))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('readerRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
-      "name": "[format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('cloudControllerManagerRoleId'), resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('cloudControllerManagerRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('cloudControllerManagerRoleId'), resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('cloudControllerManagerRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
     },
     {
+      "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix')))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('readerRoleId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix'))))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('readerRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
-      "name": "[format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('ingressOperatorRoleId'), resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('ingressOperatorRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
     },
     {
+      "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix')))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('readerRoleId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix'))))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('readerRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
-      "name": "[format('{0}-cp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix')))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-cp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('readerRoleId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('readerRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
-      "name": "[format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('fileStorageOperatorRoleId'), resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('fileStorageOperatorRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('fileStorageOperatorRoleId'), resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('fileStorageOperatorRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
     },
     {
+      "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('readerRoleId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('readerRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
-      "name": "[format('{0}-cp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-cp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix')))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('readerRoleId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix'))))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('readerRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
-      "name": "[format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('networkOperatorRoleId'), resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('networkOperatorRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('networkOperatorRoleId'), resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('networkOperatorRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
     },
     {
+      "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix')))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('readerRoleId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix'))))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('readerRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
-      "name": "[format('{0}-dp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix')))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-dp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('federatedCredentialsRoleId'))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('federatedCredentialsRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
-      "name": "[format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('federatedCredentialsRoleId'))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('federatedCredentialsRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-      "type": "Microsoft.Authorization/roleAssignments"
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
     },
     {
+      "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('fileStorageOperatorRoleId'), resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('fileStorageOperatorRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('fileStorageOperatorRoleId'), resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('fileStorageOperatorRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
-      "name": "[format('{0}-dp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-dp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix')))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('federatedCredentialsRoleId'))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('federatedCredentialsRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2023-01-31",
-      "location": "[resourceGroup().location]",
-      "name": "[format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))]",
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix')))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('hcpServiceManagedIdentityRoleId'), resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('hcpServiceManagedIdentityRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
-    },
-    {
-      "apiVersion": "2022-04-01",
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-      ],
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('hcpServiceManagedIdentityRoleId'), resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName')))]",
       "properties": {
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[variables('hcpServiceManagedIdentityRoleId')]"
       },
-      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
-      "type": "Microsoft.Authorization/roleAssignments"
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+      ]
     },
     {
+      "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
       "apiVersion": "2025-12-23-preview",
+      "name": "[parameters('clusterName')]",
+      "location": "[resourceGroup().location]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "dns": {},
+        "network": {
+          "networkType": "OVNKubernetes",
+          "podCidr": "10.128.0.0/14",
+          "serviceCidr": "172.30.0.0/16",
+          "machineCidr": "10.0.0.0/16",
+          "hostPrefix": 23
+        },
+        "console": {},
+        "etcd": {
+          "dataEncryption": {
+            "keyManagementMode": "CustomerManaged",
+            "customerManaged": {
+              "encryptionType": "KMS",
+              "kms": {
+                "activeKey": {
+                  "name": "[variables('etcdEncryptionKeyName')]",
+                  "version": "[last(split(reference(resourceId('Microsoft.KeyVault/vaults/keys', parameters('keyVaultName'), variables('etcdEncryptionKeyName')), '2024-12-01-preview').keyUriWithVersion, '/'))]"
+                },
+                "vaultName": "[parameters('keyVaultName')]",
+                "visibility": "[if(parameters('privateKeyVault'), 'Private', 'Public')]"
+              }
+            }
+          }
+        },
+        "api": {
+          "visibility": "Public"
+        },
+        "clusterImageRegistry": {
+          "state": "Enabled"
+        },
+        "platform": {
+          "managedResourceGroup": "[parameters('managedResourceGroupName')]",
+          "subnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
+          "vnetIntegrationSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('vnetIntegrationSubnetName'))]",
+          "outboundType": "LoadBalancer",
+          "networkSecurityGroupId": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
+          "operatorsAuthentication": {
+            "userAssignedIdentities": {
+              "controlPlaneOperators": {
+                "cluster-api-azure": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+                "control-plane": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+                "cloud-controller-manager": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+                "ingress": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+                "disk-csi-driver": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+                "file-csi-driver": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+                "image-registry": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+                "cloud-network-config": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+                "kms": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+              },
+              "dataPlaneOperators": {
+                "disk-csi-driver": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+                "file-csi-driver": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
+                "image-registry": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+              },
+              "serviceManagedIdentity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
+            }
+          }
+        },
+        "version": {
+          "id": "[parameters('clusterVersion')]"
+        }
+      },
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {}
+        }
+      },
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix')))]",
         "[extensionResourceId(resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName')), 'Microsoft.Authorization/roleAssignments', guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('cloudControllerManagerRoleId'), resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))))]",
@@ -581,104 +678,7 @@
         "[extensionResourceId(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix'))), 'Microsoft.Authorization/roleAssignments', guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('readerRoleId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix')))))]",
         "[extensionResourceId(resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName')), 'Microsoft.Authorization/roleAssignments', guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('hcpServiceManagedIdentityRoleId'), resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))))]",
         "[extensionResourceId(resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')), 'Microsoft.Authorization/roleAssignments', guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('hcpServiceManagedIdentityRoleId'), resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))))]"
-      ],
-      "identity": {
-        "type": "UserAssigned",
-        "userAssignedIdentities": {
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {},
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix'))))]": {}
-        }
-      },
-      "location": "[resourceGroup().location]",
-      "name": "[parameters('clusterName')]",
-      "properties": {
-        "api": {
-          "visibility": "Public"
-        },
-        "clusterImageRegistry": {
-          "state": "Enabled"
-        },
-        "console": {},
-        "dns": {},
-        "etcd": {
-          "dataEncryption": {
-            "customerManaged": {
-              "encryptionType": "KMS",
-              "kms": {
-                "activeKey": {
-                  "name": "[variables('etcdEncryptionKeyName')]",
-                  "version": "[last(split(reference(resourceId('Microsoft.KeyVault/vaults/keys', parameters('keyVaultName'), variables('etcdEncryptionKeyName')), '2024-12-01-preview').keyUriWithVersion, '/'))]"
-                },
-                "vaultName": "[parameters('keyVaultName')]",
-                "visibility": "[if(parameters('privateKeyVault'), 'Private', 'Public')]"
-              }
-            },
-            "keyManagementMode": "CustomerManaged"
-          }
-        },
-        "network": {
-          "hostPrefix": 23,
-          "machineCidr": "10.0.0.0/16",
-          "networkType": "OVNKubernetes",
-          "podCidr": "10.128.0.0/14",
-          "serviceCidr": "172.30.0.0/16"
-        },
-        "platform": {
-          "managedResourceGroup": "[parameters('managedResourceGroupName')]",
-          "networkSecurityGroupId": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
-          "operatorsAuthentication": {
-            "userAssignedIdentities": {
-              "controlPlaneOperators": {
-                "cloud-controller-manager": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-                "cloud-network-config": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-network-config-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-                "cluster-api-azure": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cluster-api-azure-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-                "control-plane": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-control-plane-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-                "disk-csi-driver": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-                "file-csi-driver": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-                "image-registry": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-                "ingress": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-ingress-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-                "kms": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-kms-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-              },
-              "dataPlaneOperators": {
-                "disk-csi-driver": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-disk-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-                "file-csi-driver": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-file-csi-driver-{1}', parameters('clusterName'), variables('randomSuffix')))]",
-                "image-registry": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-dp-image-registry-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-              },
-              "serviceManagedIdentity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-service-managed-identity-{1}', parameters('clusterName'), variables('randomSuffix')))]"
-            }
-          },
-          "outboundType": "LoadBalancer",
-          "subnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
-          "vnetIntegrationSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('vnetIntegrationSubnetName'))]"
-        },
-        "version": {
-          "id": "[parameters('clusterVersion')]"
-        }
-      },
-      "tags": "[parameters('tags')]",
-      "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+      ]
     }
-  ],
-  "variables": {
-    "cloudControllerManagerRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a1f96423-95ce-4224-ab27-4e3dc72facd4')]",
-    "etcdEncryptionKeyName": "etcd-data-kms-encryption-key",
-    "federatedCredentialsRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ef318e2a-8334-4a05-9e4a-295a196c6a6e')]",
-    "fileStorageOperatorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0d7aedc0-15fd-4a67-a412-efad370c947e')]",
-    "hcpClusterApiProviderRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '88366f10-ed47-4cc0-9fab-c8a06148393e')]",
-    "hcpControlPlaneOperatorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'fc0c873f-45e9-4d0d-a7d1-585aab30c6ed')]",
-    "hcpServiceManagedIdentityRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'c0ff367d-66d8-445e-917c-583feb0ef0d4')]",
-    "ingressOperatorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0336e1d3-7a87-462b-b6db-342b63f7802c')]",
-    "keyVaultCryptoUserRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '12338af0-0e69-4776-bea7-57ae8d297424')]",
-    "networkOperatorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'be7a6435-15ae-4171-8f30-4a343eff9e8f')]",
-    "randomSuffix": "[toLower(uniqueString(parameters('clusterName')))]",
-    "readerRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]"
-  }
+  ]
 }

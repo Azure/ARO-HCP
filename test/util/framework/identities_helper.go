@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
@@ -1468,6 +1469,37 @@ func (tc *perItOrDescribeTestContext) assignRoleToIdentity(
 		"assignmentID", *result.ID)
 
 	return nil
+}
+
+// GetUserAssignedIdentityPrincipalID returns the principal (object) ID of the
+// user-assigned managed identity identified by its ARM resource ID. Tests use it
+// to grant data-plane roles (e.g. Managed HSM Crypto User) to a cluster's
+// control-plane operator identity, whose resource ID is exposed on the cluster
+// params via UserAssignedIdentitiesProfile.ControlPlaneOperators.
+func (tc *perItOrDescribeTestContext) GetUserAssignedIdentityPrincipalID(ctx context.Context, identityResourceID string) (string, error) {
+	resourceID, err := azcorearm.ParseResourceID(identityResourceID)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse identity resource ID %q: %w", identityResourceID, err)
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return "", fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+
+	msiClientFactory, err := armmsi.NewClientFactory(resourceID.SubscriptionID, creds, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create MSI client factory: %w", err)
+	}
+
+	identity, err := msiClientFactory.NewUserAssignedIdentitiesClient().Get(ctx, resourceID.ResourceGroupName, resourceID.Name, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get managed identity %q: %w", identityResourceID, err)
+	}
+	if identity.Properties == nil || identity.Properties.PrincipalID == nil {
+		return "", fmt.Errorf("managed identity %q has no principal ID", identityResourceID)
+	}
+	return *identity.Properties.PrincipalID, nil
 }
 
 // guid generates a deterministic UUID for Azure resource names.

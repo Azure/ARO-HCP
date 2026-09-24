@@ -52,6 +52,10 @@ var (
 	// behavior. Selected by the hypershift-presubmit/parallel suite so that
 	// HyperShift presubmit PRs can run a targeted subset of ARO-HCP e2e tests.
 	HypershiftPresubmit = ginkgo.Label("Hypershift-Presubmit")
+	// ManualOnly marks tests that must never run in CI or a regular release.
+	// They are selected exclusively by the manual/parallel suite and are
+	// explicitly excluded from every automatically-scheduled suite.
+	ManualOnly = ginkgo.Label("Manual-Only")
 )
 
 var (

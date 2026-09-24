@@ -298,6 +298,7 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 		{suite: "rp-api-compat-all/parallel", suffix: "rp-api-compat-all-parallel-development", setDevelopmentEnv: true},
 		{suite: "hypershift-presubmit/parallel", suffix: "hypershift-presubmit-parallel"},
 		{suite: "upgrade/in-place", suffix: "upgrade-in-place"},
+		{suite: "manual/parallel", suffix: "manual-parallel"},
 	}
 
 	for _, test := range tests {
