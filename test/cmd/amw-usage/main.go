@@ -55,7 +55,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 
 func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writer, collect func(context.Context, amwusage.CollectOptions) (amwusage.CollectSummary, error)) error {
 	if len(args) == 0 {
-		return errors.New("usage: amw-usage collect|scan|refresh|recover-namespaces|enrich|status|compact|repair|render [flags]; use <command> --help")
+		return errors.New("usage: amw-usage collect|scan|refresh|recover-namespaces|enrich|labels|status|compact|repair|render [flags]; use <command> --help")
 	}
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	flags.SetOutput(stderr)
@@ -70,6 +70,62 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 		return nil
 	}
 	switch args[0] {
+	case "labels":
+		var database string
+		var azureCLI, migrateOnly bool
+		var workers int
+		var limits amwusage.LabelScanOptions
+		flags.StringVar(&database, "db", "", "isolated SQLite backup of the full-run ranking snapshot")
+		flags.BoolVar(&azureCLI, "azure-cli", false, "use SDK AzureCLICredential")
+		flags.BoolVar(&migrateOnly, "migrate-only", false, "normalize an isolated legacy backup offline; never send cloud requests")
+		flags.IntVar(&workers, "workers", 2, "maximum concurrent label requests, 1-2")
+		flags.Int64Var(&limits.MaxBytes, "max-bytes", 2147483648, "cumulative response byte budget; interrupted attempts reserve 32 MiB")
+		flags.IntVar(&limits.MaxRequests, "max-requests", 10000, "cumulative physical attempt budget, including retries")
+		if err := parse(); err != nil {
+			return helpError(err)
+		}
+		if database == "" || workers < 1 || workers > 2 || limits.MaxBytes < 33554433 || limits.MaxRequests < 1 {
+			return errors.New("labels requires --db, workers 1-2, max-bytes >= 33554433 and positive max-requests")
+		}
+		if _, err := os.Stat(database); err != nil {
+			return err
+		}
+		store, err := amwusage.OpenScanStore(database)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		if migrateOnly {
+			if err := store.MigrateLabels(ctx); err != nil {
+				return err
+			}
+			fmt.Fprintln(stdout, "Label normalization migration complete; collection remains paused. Resume labels when ready; compact only after all work is terminal.")
+			return nil
+		}
+		if err := store.PlanLabels(ctx, limits); err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "Full-run raw labels: %s; cumulative limits %d bytes / %d requests; %d workers. Resume with this command.\n", database, limits.MaxBytes, limits.MaxRequests, workers)
+		var credential azcore.TokenCredential
+		if azureCLI {
+			credential, err = azidentity.NewAzureCLICredential(nil)
+		} else {
+			credential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
+		}
+		if err != nil {
+			return err
+		}
+		scanErr := store.Scan(ctx, amwusage.ScanOptions{Workers: workers, Credential: credential, Kinds: []string{"inventory_labels"}})
+		summaryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		summary, summaryErr := store.LabelSummary(summaryCtx)
+		if summaryErr == nil {
+			summaryErr = json.NewEncoder(stdout).Encode(summary)
+			if !summary.CoverageComplete {
+				scanErr = errors.Join(scanErr, errors.New("label coverage is partial; inspect label_scan_coverage and query/attempt ledger, increase budgets to resume pending work"))
+			}
+		}
+		return errors.Join(scanErr, summaryErr)
 	case "refresh":
 		var database string
 		var retryEmpty bool
@@ -455,10 +511,10 @@ func runWithCollector(ctx context.Context, args []string, stdout, stderr io.Writ
 		fmt.Fprintf(stdout, "Rendered %s (offline)\n", output)
 		return nil
 	case "--help", "-h", "help":
-		fmt.Fprintln(stdout, "usage: amw-usage collect|scan|refresh|recover-namespaces|enrich|status|compact|repair|render [flags]; use <command> --help")
+		fmt.Fprintln(stdout, "usage: amw-usage collect|scan|refresh|recover-namespaces|enrich|labels|status|compact|repair|render [flags]; use <command> --help")
 		return nil
 	default:
-		return fmt.Errorf("unknown command %q; expected collect, scan, refresh, recover-namespaces, enrich, status, compact, repair or render", args[0])
+		return fmt.Errorf("unknown command %q; expected collect, scan, refresh, recover-namespaces, enrich, labels, status, compact, repair or render", args[0])
 	}
 }
 

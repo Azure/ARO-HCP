@@ -18,7 +18,14 @@
   const reconciliation=()=>rate()?workspace.Rate:workspace.Series;
   const metricFilter=()=>filters.find(f=>f[0]===0)?.[1];
   const sampleData=$('sample-data')?JSON.parse($('sample-data').textContent):[];
-   const metricExperiments=(id=metricFilter())=>id==null?[]:sampleData.filter(e=>e.Workspace===workspace.Name&&e.Metric===label(0,id)&&e.Matched);
+    const metricExperiments=(id=metricFilter())=>id==null?[]:sampleData.filter(e=>e.Workspace===workspace.Name&&e.Metric===label(0,id)&&(e.SourceReconciled??e.Matched));
+    const labelAvailability=(id=metricFilter())=>{
+      if(metricExperiments(id).length)return {available:true,text:'Label cardinality & sample distribution',title:'Inspect full-label measurements for selected windows; source filters do not change this metric/window scope'};
+      const m=data.Metrics[id];
+      if(m?.LabelSummaryIncluded)return {available:false,text:'Label comparison unavailable',title:'Label data is included, but it has not reconciled with every grouped source; no matched detail is available'};
+      if(m?.LabelCollected)return {available:false,text:'Label detail not included',title:'Full label evidence is collected in SQLite. This bounded HTML report does not embed every metric summary'};
+      return {available:false,text:'Label details not collected',title:'Grouped counts cannot reconstruct individual label cardinality'};
+    };
   function timeline(){
     const c=rate()?workspace.RateChart:workspace.SeriesChart,host=$('timeline-svg'),width=Math.max(280,host.clientWidth);
     const x=v=>70+(Number(v)-62)*(width-85)/675,y=v=>10+(Number(v)-20)*80/162;
@@ -106,14 +113,15 @@
     if(filters.length){button('Back',$('filters'),()=>{filters.pop();page=0;render();});button('Reset',$('filters'),()=>{filters=[];page=0;$('search').value='';render();});}
     $('selection').textContent=metricFilter()==null?`${workspace.Name} / ${filters.length?'selected sources':'all sources'}`:`${workspace.Name} / ${label(0,metricFilter())}`;
      $('inspect').hidden=metricFilter()==null;
-     $('inspect').disabled=!metricExperiments().length;
-     $('inspect').textContent=metricExperiments().length?'Label cardinality & sample distribution':'Label details not collected';
-     $('inspect').title=metricExperiments().length?'Inspect full-label measurements for selected windows':'Grouped counts cannot reconstruct individual label cardinality';
+     const availability=labelAvailability();
+     $('inspect').disabled=!availability.available;
+     $('inspect').textContent=availability.text;
+     $('inspect').title=availability.title;
     $('name-heading').textContent=dimensions[dimension];$('sort-value').textContent=rate()?'Samples/min':'Series at end';$('growth-heading').hidden=rate();
     page=Math.max(0,Math.min(page,Math.ceil(ranked.length/10)-1));$('rows').replaceChildren();
     for(const g of ranked.slice(page*10,page*10+10)){
        const tr=make('tr',null,$('rows')),name=make('td',null,tr);button(g.name,name,()=>select(g.id));
-       if(dimension===0){const details=button('Labels',name,()=>{select(g.id);openLabels();});details.className='metric-labels';details.disabled=!metricExperiments(g.id).length;details.title=details.disabled?'Full-label details not collected for this metric':'Cardinality contribution and samples by label';details.setAttribute('aria-label',`Label details for ${g.name}`);}
+       if(dimension===0){const state=labelAvailability(g.id),details=button(state.available?'Labels':state.text,name,()=>{select(g.id);openLabels();});details.className='metric-labels';details.disabled=!state.available;details.title=state.title;details.setAttribute('aria-label',`Label details for ${g.name}: ${state.text}`);}
         const v=make('td',`${g.partial?'\u2265':''}${number(g.v)}`,tr);if(g.partial)make('small','Measured; remainder unknown',v);make('td',`${g.partial?'\u2265':''}${percent(g.share)}`,tr);if(!rate()){const cell=make('td',g.d==null?'Unknown':`${g.dBound|| (g.d>0?'+':'')}${number(g.d)}`,tr);if(g.bPartial&&g.ePartial)cell.title='Both endpoint totals are lower bounds; their difference does not bound net growth';make('small',`Before ${g.bPartial?'\u2265':''}${number(g.b)}`,cell);}
     }
     if(!ranked.length)make('td','No matching source values.',make('tr',null,$('rows'))).colSpan=rate()?3:4;
@@ -134,8 +142,10 @@
     const e=experiments[Number($('label-window').value)];if(!e)return;
     $('label-title').textContent=e.Metric;
     $('label-scope').textContent=`${e.Selector} | ${new Date(e.Start*1000).toISOString()} to ${new Date(e.End*1000).toISOString()} | ${number(e.Full.Series)} physical series | ${number(e.Full.Rate)} samples/min`;
+    if(e.SelectionReason)$('label-scope').textContent+=` | ${e.SelectionReason} (whole-run counts, across workspaces; not 12-hour AMW inventory)`;
+    if(e.OmittedLabels)$('label-scope').textContent+=` | ${e.Labels.length} of ${e.LabelCount} labels shown; remaining detail in SQLite. Label reductions overlap and are not additive.`;
     choices=[...(e.Labels||[]).map(l=>({...l,title:l.Name})),...(e.LabelPairs||[]).map(l=>({...l,title:l.Names.join(' + ')}))];
-    choices.sort((a,b)=>(b.Reduction??(b.BaseIdentities==null?-1:b.Physical-b.BaseIdentities))-(a.Reduction??(a.BaseIdentities==null?-1:a.Physical-a.BaseIdentities))||a.title.localeCompare(b.title));
+    choices.sort((a,b)=>(b.Reduction??(b.BaseIdentities==null?-1:b.Physical-b.BaseIdentities))-(a.Reduction??(a.BaseIdentities==null?-1:a.Physical-a.BaseIdentities))||(b.Distinct??0)-(a.Distinct??0)||a.title.localeCompare(b.title));
     $('label-choice').replaceChildren();make('option','All labels: identity impact',$('label-choice')).value=-1;choices.forEach((l,i)=>{make('option',l.title,$('label-choice')).value=i;});labelChoice=-1;labelPage=0;showLabels();
   }
   function showLabels(){

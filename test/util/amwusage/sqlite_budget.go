@@ -63,10 +63,11 @@ func budgetBands(start, end float64, baselineStart, baselineEnd sql.NullFloat64,
 }
 
 type budgetMetric struct {
-	ID                                  int `json:"id"`
-	Name                                int `json:"n"`
-	Before, End, Samples                *float64
-	LowerBefore, LowerEnd, LowerSamples *float64 `json:",omitempty"`
+	ID                                   int `json:"id"`
+	Name                                 int `json:"n"`
+	Before, End, Samples                 *float64
+	LowerBefore, LowerEnd, LowerSamples  *float64 `json:",omitempty"`
+	LabelCollected, LabelSummaryIncluded bool     `json:",omitempty"`
 }
 
 type databaseBudget struct {
@@ -206,7 +207,8 @@ func readDatabaseBudget(tx databaseReader, r *databaseReport, metrics map[int]*d
  max(CASE WHEN n.name='hostedcontrolplane' THEN v.value END) hcp,
  max(CASE WHEN n.name='prometheus' THEN v.value END) prometheus
  FROM labelset_member lm JOIN label_name n ON n.id=lm.name_id JOIN label_value v ON v.id=lm.value_id
- WHERE n.name IN ('namespace','cluster','job','hostedcontrolplane','prometheus') GROUP BY lm.labelset_id
+ WHERE lm.labelset_id IN (SELECT DISTINCT labelset_id FROM selected_observations)
+ AND n.name IN ('namespace','cluster','job','hostedcontrolplane','prometheus') GROUP BY lm.labelset_id
  ) SELECT o.metric_id,l.namespace,l.cluster,l.job,l.hcp,l.prometheus,
  total(CASE WHEN o.kind='before12h' THEN o.value END),
  total(CASE WHEN o.kind='end12h' THEN o.value END),
@@ -248,6 +250,9 @@ func readDatabaseBudget(tx databaseReader, r *databaseReport, metrics map[int]*d
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	if err := databaseLabelBudgetFlags(tx, r, b); err != nil {
+		return nil, err
+	}
 	data, err := databaseMarshal(tx, b)
 	if err != nil {
 		return nil, err
@@ -274,11 +279,12 @@ func readDatabaseBudget(tx databaseReader, r *databaseReport, metrics map[int]*d
 			}
 			for k := range e {
 				switch k {
-				case "Workspace", "Metric", "Selector", "Window", "Start", "End", "Minutes", "Matched", "Labels", "LabelPairs", "Full", "AMWMean", "AMWShare":
+				case "Workspace", "Metric", "Selector", "Window", "Start", "End", "Minutes", "Matched", "Labels", "LabelPairs", "Full", "AMWMean", "AMWShare", "SelectionReason", "LabelCount", "OmittedLabels":
 				default:
 					delete(e, k)
 				}
 			}
+			e["SourceReconciled"] = e["Matched"]
 			var full map[string]json.RawMessage
 			if err := json.Unmarshal(e["Full"], &full); err != nil {
 				return nil, err
