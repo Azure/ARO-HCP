@@ -316,6 +316,57 @@ func TestMutateCluster(t *testing.T) {
 	}
 }
 
+func TestMutateClusterZStreamUpdatePolicy(t *testing.T) {
+	registered := &coreapi.Subscription{Properties: &coreapi.SubscriptionProperties{
+		RegisteredFeatures: &[]coreapi.Feature{{
+			Name: ptr.To(metadataapi.FeatureExperimentalReleaseFeatures), State: ptr.To("Registered"),
+		}},
+	}}
+	tests := []struct {
+		name         string
+		subscription *coreapi.Subscription
+		tags         map[string]string
+		want         coreapi.ZStreamUpdatePolicy
+		wantError    bool
+	}{
+		{name: "Immediate", subscription: registered, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "Immediate"}, want: coreapi.ImmediateZStreamUpdatePolicy},
+		{name: "case insensitive key", subscription: registered, tags: map[string]string{"ARO-HCP.Experimental.Cluster.Z-Stream-Update-Policy": "Immediate"}, want: coreapi.ImmediateZStreamUpdatePolicy},
+		{name: "absent or removed", subscription: registered},
+		{name: "no subscription ignores policy", tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "Immediate"}},
+		{name: "no AFEC ignores policy", subscription: &coreapi.Subscription{}, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "Immediate"}},
+		{name: "no AFEC ignores invalid value", subscription: &coreapi.Subscription{}, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "true"}},
+		{name: "boolean rejected", subscription: registered, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "true"}, wantError: true},
+		{name: "empty rejected", subscription: registered, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: ""}, wantError: true},
+		{name: "unknown rejected", subscription: registered, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "Deferred"}, wantError: true},
+		{name: "lowercase value rejected", subscription: registered, tags: map[string]string{metadataapi.TagClusterZStreamUpdatePolicy: "immediate"}, wantError: true},
+	}
+	for _, tt := range tests {
+		for _, opType := range []operation.Type{operation.Create, operation.Update} {
+			t.Run(fmt.Sprintf("%s/%v", tt.name, opType), func(t *testing.T) {
+				cluster := &coreapi.Cluster{TrackedResource: coreapi.TrackedResource{Tags: tt.tags}}
+				var oldCluster *coreapi.Cluster
+				if opType == operation.Update {
+					// Both tag removal and loss of the AFEC must clear an existing policy.
+					cluster.ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy = coreapi.ImmediateZStreamUpdatePolicy
+					oldCluster = cluster.DeepCopy()
+				}
+				ctx := &ClusterAdmissionContext{
+					Clock: utilsclock.RealClock{}, Subscription: tt.subscription, OriginalCluster: cluster.DeepCopy(),
+				}
+				errs := MutateCluster(context.Background(), ctx, operation.Operation{Type: opType}, cluster, oldCluster)
+				var expectedErrors []utils.ExpectedError
+				if tt.wantError {
+					expectedErrors = []utils.ExpectedError{{FieldPath: "tags[" + metadataapi.TagClusterZStreamUpdatePolicy + "]", Message: `must be "Immediate"`}}
+				}
+				utils.VerifyErrorsMatch(t, expectedErrors, errs)
+				if !tt.wantError && cluster.ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy != tt.want {
+					t.Errorf("expected policy %q, got %q", tt.want, cluster.ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy)
+				}
+			})
+		}
+	}
+}
+
 func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 	afecRegistered := &coreapi.Subscription{
 		Properties: &coreapi.SubscriptionProperties{

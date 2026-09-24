@@ -46,8 +46,9 @@ const ForcedClusterDesiredVersionControllerName = "ForcedClusterDesiredVersion"
 // channel reaches the pin's UntilExactVersion, then adopts best and clears the
 // pin. For an unpinned cluster whose ServiceProviderProperties.ExperimentalFeatures
 // .ControlPlaneExactVersion is set, that exact version is authoritative and the
-// cluster is held at it indefinitely. All other clusters are left to normal
-// rollout assignment.
+// cluster is held at it indefinitely. Otherwise, an experimental Immediate
+// z-stream update policy advances to the channel's best version independently of
+// progressive rollout gates. All other clusters are left to normal assignment.
 type forcedClusterDesiredVersionSyncer struct {
 	clock                        utilsclock.PassiveClock
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
@@ -118,42 +119,44 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 	}
 
 	pin := serviceProviderCluster.Spec.PinnedVersion
-	experimentalExactVersion := cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+	experimentalFeatures := cluster.ServiceProviderProperties.ExperimentalFeatures
+	experimentalExactVersion := experimentalFeatures.ControlPlaneExactVersion
+	immediate := experimentalFeatures.ZStreamUpdatePolicy == coreapi.ImmediateZStreamUpdatePolicy
 
-	// This controller only acts on clusters held at an authoritative version: an
-	// SRE PinnedVersion or the experimental ControlPlaneExactVersion. Otherwise
-	// normal rollout assignment owns the cluster.
-	if pin.ExactVersion == nil && experimentalExactVersion == nil {
+	// Only pins, exact overrides, and Immediate updates bypass normal rollout.
+	if pin.ExactVersion == nil && experimentalExactVersion == nil && !immediate {
 		logger.Info("Leaving desired version to normal rollout assignment; no pin or experimental override")
 		return nil
 	}
 
-	// The fleet best version is only needed to decide when an SRE pin releases;
-	// the experimental exact-version override holds indefinitely and never reads it.
+	// Pins use their pinned minor's channel; Immediate uses the desired minor's
+	// channel, just like normal z-stream rollout. Exact overrides need no rollout.
+	versionForChannel := pin.ExactVersion
+	if versionForChannel == nil && experimentalExactVersion == nil && immediate {
+		versionForChannel = serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
+	}
 	var best *semver.Version
-	if pin.ExactVersion != nil {
-		// Resolve the ControlPlaneVersionRollout that governs this pinned cluster
-		// (its y-stream channel = <channelGroup>-<pinned minor>) to read bestExactVersion.
+	if versionForChannel != nil {
 		channelGroup := cluster.CustomerProperties.Version.ChannelGroup
 		if channelGroup == "" {
 			return utils.TrackError(fmt.Errorf("cluster %s has no channel group", key.HCPClusterName))
 		}
-		yStreamChannel := yStreamChannel(channelGroup, minorString(*pin.ExactVersion))
+		yStreamChannel := yStreamChannel(channelGroup, minorString(*versionForChannel))
 
 		rollout, err := c.rolloutLister.Get(ctx, yStreamChannel)
 		if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 			return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", yStreamChannel, err))
 		}
 		if cosmosstorageutils.IsNotFoundError(err) {
-			logger.Info("Pinned channel rollout is missing; retaining pin", "ystreamChannel", yStreamChannel)
+			logger.Info("Channel rollout is missing; no best version available", "ystreamChannel", yStreamChannel)
 		}
 		if err == nil {
 			best = rollout.Spec.BestExactVersion
 		}
 	}
 
-	// Pins take precedence over exact overrides. Releasing a pin adopts best
-	// even if desired is already there.
+	// Pins take precedence over exact overrides, which take precedence over
+	// Immediate. Releasing a pin adopts best even if desired is already there.
 	desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
 	var newDesired *semver.Version
 	clearPin := false
@@ -166,9 +169,15 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 		}
 	case experimentalExactVersion != nil:
 		newDesired = experimentalExactVersion
+	case immediate && best != nil && desired != nil && minorString(*best) == minorString(*desired) && best.GT(*desired):
+		// Production e2e tests must reliably exercise automatic z-stream upgrades
+		// even when the fleet's canaries are incomplete or failed. Immediate bypasses
+		// progressive rollout gates, but never downgrades or changes the minor.
+		// Initial assignment and requested minor upgrades retain their owners.
+		newDesired = best
 	}
 	changed := newDesired != nil && (clearPin || desired == nil || !desired.EQ(*newDesired))
-	logger.Info("Computed forced version decision", "currentDesired", versionString(desired), "pinnedVersion", versionString(pin.ExactVersion), "untilVersion", versionString(pin.UntilExactVersion), "experimentalExactVersion", versionString(experimentalExactVersion), "best", versionString(best), "changed", changed, "clearPin", clearPin, "newDesired", versionString(newDesired))
+	logger.Info("Computed forced version decision", "currentDesired", versionString(desired), "pinnedVersion", versionString(pin.ExactVersion), "untilVersion", versionString(pin.UntilExactVersion), "experimentalExactVersion", versionString(experimentalExactVersion), "zStreamUpdatePolicy", experimentalFeatures.ZStreamUpdatePolicy, "best", versionString(best), "changed", changed, "clearPin", clearPin, "newDesired", versionString(newDesired))
 	if !changed {
 		return nil
 	}

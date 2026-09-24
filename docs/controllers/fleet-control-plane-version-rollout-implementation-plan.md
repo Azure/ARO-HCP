@@ -175,6 +175,10 @@ controller** — the plan reuses the existing path. Input
   3. Else: no-op.
 - Also assigns `ExperimentalFeatures.ControlPlaneExactVersion` indefinitely when
   there is no SRE pin. An SRE pin takes precedence.
+- With neither override, experimental `ZStreamUpdatePolicy=Immediate` advances
+  an initialized cluster to the best newer version in its desired minor. This
+  bypasses progressive gates so production e2e automatic z-stream upgrade tests
+  do not depend on the canary state. It never downgrades or changes the minor.
 
 ### 5.3 Control Plane Version Status Collector (per-rollout)
 - Fires when any SPC `active_versions`/`desired_version` changes or `BestExactVersion` changes. Cluster deletion marks also enqueue recomputation.
@@ -204,7 +208,7 @@ controller** — the plan reuses the existing path. Input
 - **Output**: `SPC.Spec…DesiredVersion` for a bounded set of clusters.
 - **Sync** (pure fns `eligibleClusters`, `rolloutDecision`):
   1. Failure budget: if `FailedClusterCount[best] > max(2, 5% of clusters desiring best)` → failure condition, return.
-  2. `EligibleClusters` = non-deleting clusters in the channel's minor with a non-nil `desired < best`, and either no pin, or pinned with `untilExactVersion <= best`. Initial assignment owns nil desired versions; experimental exact-version assignments belong to the forced controller.
+  2. `EligibleClusters` = non-deleting clusters in the channel's minor with a non-nil `desired < best`, and either no pin, or pinned with `untilExactVersion <= best`. Initial assignment owns nil desired versions; experimental exact-version and Immediate assignments belong to the forced controller.
   3. If no eligible → stable condition, return.
   4. Canary: if `(Mismatched+Achieved)[best] < canaryPercentage%+2` → pick N (random for now) eligible, set desired=best, return.
   5. Gate: if `Successful[best] < canaryPercentage%` → progressing condition, return.

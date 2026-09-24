@@ -46,7 +46,19 @@ type ExperimentalFeatures struct {
 	// Assignment controller excludes the cluster from rollout advancement. An SRE
 	// PinnedVersion, if present, takes precedence over this value.
 	ControlPlaneExactVersion *semver.Version `json:"controlPlaneExactVersion,omitempty"`
+
+	// ZStreamUpdatePolicy controls automatic z-stream advancement. Immediate
+	// follows the channel's best version without progressive rollout gates so
+	// production e2e tests do not depend on the fleet's canary progress. SRE pins
+	// and ControlPlaneExactVersion take precedence; unset uses normal rollout.
+	// Written by: Frontend PUT/PATCH Cluster (admission)
+	ZStreamUpdatePolicy ZStreamUpdatePolicy `json:"zStreamUpdatePolicy,omitempty"`
 }
+
+// ZStreamUpdatePolicy controls how automatic z-stream updates are assigned.
+type ZStreamUpdatePolicy string
+
+const ImmediateZStreamUpdatePolicy ZStreamUpdatePolicy = "Immediate"
 
 // ControlPlaneAvailability controls the AvailabilityPolicy for control plane components.
 type ControlPlaneAvailability string
