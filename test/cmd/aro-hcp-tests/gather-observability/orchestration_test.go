@@ -44,6 +44,7 @@ func TestGatherIndependentFailures(t *testing.T) {
 		"endpoint:hcp", "endpoint:svc", "query:svc", "metrics", "render:First",
 		"render:alerts", "render:utilization", "write:alerts.json", "write:utilization.json",
 		"write:junit", "write:page", "setup:cosmos", "setup:known", "setup:queries",
+		"amw", "render:amw", "write:amw.json",
 	} {
 		t.Run(failure, func(t *testing.T) {
 			t.Parallel()
@@ -82,6 +83,16 @@ func TestGatherIndependentFailures(t *testing.T) {
 			var suites *junit.TestSuites
 			var tabs []observabilityTab
 			deps := gatherDependencies{
+				collectAMW: func(context.Context) amwReport {
+					report := amwReport{}
+					if err := call("amw"); err != nil {
+						report.Errors = []string{err.Error()}
+					}
+					return report
+				},
+				renderAMW: func(amwReport) ([]byte, error) {
+					return []byte("AMW partial"), call("render:amw")
+				},
 				fetchAlerts: func(_ context.Context, _ azcore.TokenCredential, scope string, _, _ time.Time) ([]alert, error) {
 					name := filepath.Base(scope)
 					ws := o.Workspaces[name]
@@ -135,14 +146,14 @@ func TestGatherIndependentFailures(t *testing.T) {
 				},
 			}
 			err := o.run(logr.NewContext(context.Background(), logr.Discard()), deps)
-			fatal := failure != "" && failure != "query:svc" && failure != "metrics" && failure != "render:First"
+			fatal := failure != "" && failure != "query:svc" && failure != "metrics" && failure != "render:First" && failure != "amw" && failure != "render:amw" && failure != "write:amw.json"
 			if (err != nil) != fatal {
 				t.Fatalf("Run error = %v, want fatal = %v", err, fatal)
 			}
 			if fatal && !errors.Is(err, injected) {
 				t.Errorf("fatal aggregate lost injected error: %v", err)
 			}
-			for _, name := range []string{"alerts:svc", "alerts:hcp", "metricRules:svc", "metricRules:hcp", "rules:svc", "rules:hcp", "endpoint:svc", "endpoint:hcp", "render:alerts", "write:alerts.json", "write:junit", "utilization", "render:utilization", "write:utilization.json", "write:page"} {
+			for _, name := range []string{"alerts:svc", "alerts:hcp", "metricRules:svc", "metricRules:hcp", "rules:svc", "rules:hcp", "endpoint:svc", "endpoint:hcp", "render:alerts", "write:alerts.json", "write:junit", "utilization", "render:utilization", "write:utilization.json", "amw", "render:amw", "write:amw.json", "write:page"} {
 				if calls[name] != 1 {
 					t.Errorf("independent operation %s attempted %d times, want 1", name, calls[name])
 				}
@@ -164,9 +175,9 @@ func TestGatherIndependentFailures(t *testing.T) {
 					t.Errorf("unescaped error in %s tab", tab.Title)
 				}
 			}
-			wantTitles := []string{"Azure Monitor Alerts", "First", "Second", "Utilization"}
+			wantTitles := []string{"Azure Monitor Alerts", "AMW", "First", "Second", "Utilization"}
 			if failure == "setup:queries" {
-				wantTitles = []string{"Azure Monitor Alerts", "Metrics", "Utilization"}
+				wantTitles = []string{"Azure Monitor Alerts", "AMW", "Metrics", "Utilization"}
 			}
 			if !reflect.DeepEqual(titles, wantTitles) {
 				t.Errorf("tab order = %v, want %v", titles, wantTitles)
@@ -250,6 +261,45 @@ func TestCompleteRetainsIndependentSetupResults(t *testing.T) {
 				t.Fatal("missing one autoscale ceiling discarded available values")
 			}
 		})
+	}
+}
+
+func TestAMWOnlySkipsOtherCollectors(t *testing.T) {
+	o := Options{completedOptions: &completedOptions{AMWOnly: true, OutputDir: t.TempDir()}}
+	collected, written, rendered := false, false, false
+	deps := gatherDependencies{
+		collectAMW: func(context.Context) amwReport {
+			collected = true
+			return amwReport{Errors: []string{"partial collection"}}
+		},
+		renderAMW: func(report amwReport) ([]byte, error) {
+			if len(report.Errors) != 1 {
+				t.Fatal("collector errors lost before rendering")
+			}
+			return []byte("AMW evidence"), nil
+		},
+		writeFile: func(path string, data []byte, mode os.FileMode) error {
+			written = true
+			if filepath.Base(path) != "amw.json" || !json.Valid(data) || mode != 0600 {
+				t.Fatalf("unexpected AMW artifact: %s %o", path, mode)
+			}
+			return nil
+		},
+		renderPage: func(_ string, tabs []observabilityTab) error {
+			rendered = true
+			if len(tabs) != 1 || tabs[0].Title != "AMW" {
+				t.Fatalf("unexpected tabs: %v", tabs)
+			}
+			return nil
+		},
+	}
+	// All non-AMW dependencies are deliberately nil: even endpoint discovery
+	// and alert evaluation must be skipped by the standalone path.
+	if err := o.run(logr.NewContext(context.Background(), logr.Discard()), deps); err != nil {
+		t.Fatal(err)
+	}
+	if !collected || !written || !rendered {
+		t.Fatal("AMW-only path did not collect, persist and render")
 	}
 }
 

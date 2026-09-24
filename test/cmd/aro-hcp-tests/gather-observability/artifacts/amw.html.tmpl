@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Azure Monitor Workspace Ingestion</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { font-family: 'Roboto', sans-serif; margin: 16px; padding: 0; background: #000; color: #fff; line-height: 1.5; }
+    main { max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 24px; margin: 0 0 8px; font-weight: 500; }
+    h2 { color: #4E9AF1; font-size: 20px; margin: 0; }
+    h3 { font-size: 15px; margin: 0; overflow-wrap: anywhere; }
+    p { margin: 8px 0; }
+    a { color: #80baff; }
+    .eyebrow { color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; }
+    .muted, .description { color: #aaa; font-size: 13px; }
+    .window, .resource-id, .metadata { font-family: monospace; overflow-wrap: anywhere; }
+    .evidence { display: inline-block; border: 1px solid #555; padding: 5px 12px; border-radius: 4px; margin: 8px 0; }
+    .notice { border-left: 3px solid #4E9AF1; padding: 8px 14px; background: #111; margin: 16px 0; }
+    .warnings { color: #FFB300; font-size: 13px; overflow-wrap: anywhere; }
+    .warnings ul { padding-left: 20px; }
+    .resource { margin-top: 28px; border-top: 1px solid #333; padding-top: 20px; }
+    .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+    .chart { min-width: 0; padding: 16px; border: 1px solid #333; background: #101010; border-radius: 4px; }
+    svg { display: block; width: 100%; height: auto; margin: 12px 0 0; }
+    svg text { fill: #aaa; font: 16px monospace; }
+    .legend { list-style: none; padding: 0; margin: 8px 0 12px; max-height: 150px; overflow: auto; font-size: 12px; }
+    .legend li { display: flex; gap: 8px; align-items: baseline; overflow-wrap: anywhere; }
+    .swatch { flex: 0 0 22px; width: 22px; height: 10px; margin: 0; }
+    .table-scroll { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 12px; text-align: left; }
+    caption { text-align: left; color: #aaa; margin-bottom: 8px; }
+    th { color: #ccc; font-weight: 500; }
+    th, td { border-bottom: 1px solid #333; padding: 8px; vertical-align: top; }
+    td { font-variant-numeric: tabular-nums; }
+    td:first-child { min-width: 140px; max-width: 240px; overflow-wrap: anywhere; }
+    time { white-space: nowrap; }
+    summary { cursor: pointer; }
+    .metadata { background: #222; padding: 12px; font-size: 12px; }
+    footer { padding: 24px 0 30px; }
+    @media (max-width: 850px) { .charts { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 480px) { body { margin: 10px; } .chart { padding: 10px; } h1 { font-size: 21px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">Azure platform metrics / ingestion</p>
+    <h1>Azure Monitor Workspace Ingestion</h1>
+    <p class="window muted">[{{.Start}}, {{.End}}) UTC / PT1M</p>
+    <a class="evidence" href="amw.json">Evidence: amw.json</a>
+    <p class="description">Offline SVG charts. Azure ARM metrics only; no Prometheus queries. Raw responses, definitions, discovery metadata and collection errors are exported in amw.json, not embedded here.</p>
+  </header>
+  <div class="notice description">
+    <p>Window is clamped to collection time then rounded outward to whole minutes, with End excluded. Original requested bounds are retained in amw.json. The first or last minute may be partial. ActiveTimeSeries counts series received over the preceding approximately 12 hours, not just this run. EventsPerMinuteIngested measures events received, not confirmed stored samples.</p>
+    <p>Gaps mean unknown, not zero. No totals across StampColor, streams, response codes, or events and samples. Latest capacity rows use the latest numeric usage/limit pair at the exact same minute and complete dimension set, independently per stamp. Utilization = usage / nonzero limit; headroom = limit - usage. Both are calculated locally, never fetched or carried across stamps.</p>
+    <p>EventsDropped measures events not accepted; TimeSeriesSamplesDropped measures samples dropped after an event was accepted. Their LimitThrottling signals identify separate ingestion stages. One-minute maxima are not summed into total losses. Drop metrics are preview signals.</p>
+  </div>
+  {{if .Warnings}}<details class="warnings" open><summary>Collection warnings / exported errors</summary><ul>{{range .Warnings}}<li>{{.}}</li>{{end}}</ul></details>{{end}}
+  {{range .Resources}}
+  <section class="resource">
+    <p class="eyebrow">{{.Kind}}</p>
+    <h2>{{.Name}}</h2>
+    <p class="resource-id muted">{{.ID}}</p>
+    {{if eq .Kind "dcr"}}
+    <div class="notice description">
+      <p>Fixed documented DCR limit: 15,000 requests/min (15000 req/min), not a measured or per-stream limit. The 50 GB/min (50GB/min) limit is unobservable from these metrics. No DCR utilization ratio is inferred from dimension splits.</p>
+      <p>Workspace destination matches do not prove an active data flow:</p>
+      {{range .Workspaces}}<p class="resource-id">{{.}}</p>{{end}}
+      <a href="https://learn.microsoft.com/azure/azure-monitor/fundamentals/service-limits#prometheus-metrics">Azure Monitor documented limits</a>
+    </div>
+    {{end}}
+    {{if .Warnings}}<details class="warnings" open><summary>Metric warnings</summary><ul>{{range .Warnings}}<li>{{.}}</li>{{end}}</ul></details>{{end}}
+    <div class="charts">
+      {{range .Charts}}
+      <article class="chart">
+        <h3>{{.Title}}</h3>
+        <p class="muted">{{.Unit}}</p>
+        {{range .Warnings}}<p class="warnings">{{.}}</p>{{end}}
+        {{if .Series}}
+        <svg viewBox="0 0 768 220" role="img" aria-label="{{.Title}}; gaps are unknown">
+          <title>{{.Title}}; individual dimension series, not stacked</title>
+          <path d="M64 20H744M64 105H744M64 190H744" fill="none" stroke="#333"/>
+          <text x="4" y="25">{{.Maximum}}</text><text x="40" y="194">0</text>
+          <text x="64" y="212">{{.Start}} UTC</text><text x="744" y="212" text-anchor="end">{{.End}} UTC (excluded)</text>
+          {{range .Series}}<path d="{{.Path}}" fill="none" stroke="{{.Color}}" stroke-width="2.5" stroke-linecap="round"{{if .Limit}} stroke-dasharray="6 4"{{end}}><title>{{.Metric}} | {{.Label}}</title></path>{{end}}
+        </svg>
+        <ul class="legend">{{range .Series}}<li><svg class="swatch" viewBox="0 0 22 10" aria-hidden="true"><path d="M0 5H22" stroke="{{.Color}}" stroke-width="2"{{if .Limit}} stroke-dasharray="6 4"{{end}}/></svg><span>{{.Metric}} | {{.Label}}{{if .Limit}} (dashed){{end}}</span></li>{{end}}</ul>
+        {{else}}<p class="muted">Chart unavailable: no eligible visual series. Missing data is unknown, not zero.</p>{{end}}
+        <div class="table-scroll" tabindex="0" role="region" aria-label="{{.Title}} latest observations">
+          <table>
+            <caption>{{if .Capacity}}Latest paired observations per dimension set{{else}}Latest observations per dimension set{{end}}. Table summary remains available without charts.</caption>
+            <thead><tr><th scope="col">Dimensions</th><th scope="col">{{if .Capacity}}Usage{{else}}Observed{{end}}</th>{{if .Capacity}}<th scope="col">Limit</th><th scope="col">Utilization</th><th scope="col">Headroom</th>{{end}}<th scope="col">Time (UTC)</th></tr></thead>
+            <tbody>{{range .Rows}}<tr><td>{{.Label}}</td><td>{{.Usage}}</td>{{if .Limit}}<td>{{.Limit}}</td><td>{{.Utilization}}</td><td>{{.Headroom}}</td>{{end}}<td><time>{{.At}}</time></td></tr>{{else}}<tr><td colspan="6">No usable dimension sets. Unknown, not zero.</td></tr>{{end}}</tbody>
+          </table>
+        </div>
+      </article>
+      {{end}}
+    </div>
+    <details class="muted"><summary>Exported metric request / response metadata</summary><div class="metadata">{{range .Metadata}}<p>{{.}}</p>{{else}}No metric responses collected.{{end}}</div></details>
+  </section>
+  {{else}}<p class="notice">No workspace or DCR resources available. See collection warnings and amw.json.</p>{{end}}
+  <footer class="muted">Evidence, not a health verdict. Absent throttling observations do not establish zero drops.</footer>
+</main>
+</body>
+</html>

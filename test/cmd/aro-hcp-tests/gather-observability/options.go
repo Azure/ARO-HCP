@@ -56,10 +56,12 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "Azure subscription ID.")
 	cmd.Flags().StringVar(&opts.StartTimeFallback, "start-time-fallback", opts.StartTimeFallback, "Optional RFC3339 time to use as start time fallback when steps and test timing are unavailable.")
 	cmd.Flags().StringVar(&opts.SeverityThreshold, "severity-threshold", opts.SeverityThreshold, "Include alerts at this severity level or more critical (Sev0=critical .. Sev4=verbose). E.g. Sev2 includes Sev0, Sev1, Sev2. If not set, all severities are shown.")
+	cmd.Flags().BoolVar(&opts.AMWOnly, "amw-only", false, "Collect only bounded AMW/DCR platform metrics and render the AMW pane; no Prometheus queries or alert evaluation.")
 	return nil
 }
 
 type RawOptions struct {
+	AMWOnly           bool
 	TimingInputDir    string
 	OutputDir         string
 	RenderedConfig    string
@@ -78,6 +80,7 @@ type ValidatedOptions struct {
 }
 
 type completedOptions struct {
+	AMWOnly           bool
 	OutputDir         string
 	Workspaces        map[string]azcorearm.ResourceID
 	MetricResources   map[string]azcorearm.ResourceID
@@ -239,6 +242,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	logger.Info("loaded known issues config", "patterns", len(knownIssues))
 
 	return &Options{completedOptions: &completedOptions{
+		AMWOnly:            o.AMWOnly,
 		OutputDir:          o.OutputDir,
 		Workspaces:         workspaces,
 		MetricResources:    metricResources,
@@ -305,6 +309,8 @@ type gatherDependencies struct {
 	queryRange            func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*PrometheusResponse, error)
 	queryMetrics          func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]PrometheusResult, string, error)
 	collectUtilization    func(context.Context, map[string]*workspaceData) utilizationReport
+	collectAMW            func(context.Context) amwReport
+	renderAMW             func(amwReport) ([]byte, error)
 	renderAlerts          func(any) ([]byte, error)
 	renderPanel           func(panelPageData) ([]byte, error)
 	renderUtilization     func(utilizationReport) ([]byte, error)
@@ -319,6 +325,7 @@ func (o Options) dependencies() gatherDependencies {
 		fetchAlertRules: fetchAlertRules, lookupEndpoint: lookupPrometheusEndpoint,
 		queryRange: queryRange, queryMetrics: queryAzureMonitorMetrics,
 		collectUtilization: o.collectUtilization, renderUtilization: renderUtilizationHTML,
+		collectAMW: o.collectAMW, renderAMW: renderAMWHTML,
 		renderAlerts: renderAlertsHTML, renderPanel: renderPanelHTML,
 		renderPage: renderObservabilityPage, writeFile: os.WriteFile, writeJUnit: junit.Write,
 	}
@@ -332,6 +339,10 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return fmt.Errorf("logger not found in context: %w", err)
+	}
+	if o.AMWOnly {
+		tab, err := o.runAMW(ctx, deps)
+		return errors.Join(err, deps.renderPage(filepath.Join(o.OutputDir, "observability-summary.html"), []observabilityTab{tab}))
 	}
 
 	var fatalErrors []error
@@ -503,6 +514,14 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 	} else {
 		logger.Info("wrote alert JUnit artifact", "path", junitPath)
 	}
+
+	// Gather bounded ARM-only evidence before expensive PromQL panels. AMW
+	// diagnostics are best effort and do not add an alert/JUnit gate.
+	amwTab, amwErr := o.runAMW(ctx, deps)
+	if amwErr != nil {
+		logger.Error(amwErr, "failed to publish AMW evidence")
+	}
+	tabs = append(tabs, amwTab)
 
 	// Execute panel queries (Prometheus and Azure Monitor) and render timeseries charts
 	if o.Queries != nil {
