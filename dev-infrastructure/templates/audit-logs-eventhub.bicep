@@ -16,6 +16,12 @@ param alertEventsEventHubName string
 @description('Consumer group name for alert events Kusto data connection')
 param alertEventsKustoConsumerGroupName string
 
+@description('Event Hub name for Maestro MQTT connection diagnostics')
+param maestroMqttEventHubName string
+
+@description('Consumer group name for Maestro MQTT diagnostics Kusto data connection')
+param maestroMqttKustoConsumerGroupName string
+
 @description('Principal ID of the Kusto cluster managed identity')
 param kustoPrincipalId string
 
@@ -86,6 +92,18 @@ resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = if (kust
       name: alertEventsKustoConsumerGroupName
     }
   }
+
+  resource maestroMqttEventHub 'eventhubs@2024-01-01' = {
+    name: maestroMqttEventHubName
+    properties: {
+      messageRetentionInDays: 7
+      partitionCount: 2
+    }
+
+    resource kustoConsumerGroup 'consumergroups@2024-01-01' = {
+      name: maestroMqttKustoConsumerGroupName
+    }
+  }
 }
 
 var eventHubDataReceiverRole = 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde'
@@ -109,8 +127,19 @@ resource alertEventsEventHubDataReceiverRoleAssignment 'Microsoft.Authorization/
   }
 }
 
+resource maestroMqttEventHubDataReceiverRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (kustoEnabled && eventhubEnabled && kustoPrincipalId != '') {
+  scope: eventHubNamespace::maestroMqttEventHub
+  name: guid(eventHubNamespace::maestroMqttEventHub.id, kustoPrincipalId, eventHubDataReceiverRole)
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', eventHubDataReceiverRole)
+    principalId: kustoPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 output auditLogsEventHubId string = kustoEnabled && eventhubEnabled ? eventHubNamespace::eventHub.id : ''
 output alertEventsEventHubId string = kustoEnabled && eventhubEnabled ? eventHubNamespace::alertEventsEventHub.id : ''
+output maestroMqttEventHubId string = kustoEnabled && eventhubEnabled ? eventHubNamespace::maestroMqttEventHub.id : ''
 output eventHubNamespaceName string = kustoEnabled && eventhubEnabled ? eventHubNamespace.name : ''
 output auditLogsEventHubAuthRuleId string = kustoEnabled && eventhubEnabled
   ? eventHubNamespace::diagnosticSettingsAuthRule.id

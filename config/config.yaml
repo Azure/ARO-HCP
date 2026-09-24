@@ -408,6 +408,10 @@ defaults:
     name: "metric-alerts"
     kustoConsumerGroupName: "AlertEventsToKusto"
     kustoDataConnectionName: "{{ .ctx.environment }}-{{ .ctx.region }}-alert-events"
+  maestroMqttEventHub:
+    name: "maestro-mqtt-connections"
+    kustoConsumerGroupName: "MaestroMqttToKusto"
+    kustoDataConnectionName: "{{ .ctx.environment }}-{{ .ctx.region }}-maestro-mqtt"
   # Hypershift
   hypershift:
     image:
