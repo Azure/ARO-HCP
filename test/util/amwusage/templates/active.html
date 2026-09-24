@@ -1,0 +1,47 @@
+<section id="active-overview" aria-label="Workspace active series">
+<div class="stats active-kpis">
+<div><strong>{{number .Active.Before}}</strong><span>Before the run / AMW active series</span></div>
+<div><strong>{{number .Active.End}}</strong><span>At the end / AMW active series</span></div>
+<div><strong>{{signed .Active.Delta}}</strong><span>Net change / sum of workspace changes</span></div>
+</div>
+<p>AMW's trailing <strong>12-hour active-series inventory</strong>, using the minute at or before each run boundary. Each workspace has its own budget; limits are not pooled.</p>
+<div class="table-wrap"><table id="active-workspaces"><thead><tr><th>Workspace</th><th>Before / as of UTC</th><th>End / as of UTC</th><th>Net change</th><th>Workspace limit at end</th></tr></thead><tbody>
+{{range .Active.Workspaces}}<tr><td>{{.Name}}</td><td>{{number .Baseline}}{{if .Baseline}}<br><span class="muted">{{utc .BaselineTime}}</span>{{end}}</td><td>{{number .End}}{{if .End}}<br><span class="muted">{{utc .EndTime}}</span>{{end}}</td><td>{{signed .Delta}}</td><td>{{number .Limit}}</td></tr>{{end}}
+</tbody></table></div>
+<div class="plots">{{range .Active.Workspaces}}<div class="card">{{template "chart" .Chart}}</div>{{end}}</div>
+<p class="muted">One-minute Maximum points, not exact sub-minute observations. Dashed vertical markers show the run. Usage-only axes reveal the rise; quota comparisons remain in detailed evidence.</p>
+</section>
+<section id="active-breakdown"><p class="eyebrow">INSPECTED SERIES / NOT THE WHOLE WORKSPACE</p><h2>What made up the baseline and growth?</h2>
+<p class="notice">Inventory measured: <strong>{{number .Active.InventoryBefore}}</strong> selected series before ({{.Active.BeforeMeasured}}/{{.Active.Requested}} snapshots) and <strong>{{number .Active.InventoryEnd}}</strong> at end ({{.Active.EndMeasured}}/{{.Active.Requested}} snapshots). Workspace totals: <strong>{{number .Active.Before}}</strong> before and <strong>{{number .Active.End}}</strong> at end. {{.Active.Measured}}/{{.Active.Requested}} selected metric inventories comparable for added/removed/net. Independently measured before/end subtotals may cover different metrics; do not subtract them. This does not explain the remaining workspace inventory or exactly reconcile retained samples with quota accounting.</p>
+<div class="table-wrap"><table id="inventory-decomposition"><thead><tr><th>Workspace / selected metric</th><th>Before</th><th>End</th><th>Added identities</th><th>Removed identities</th><th>Net</th></tr></thead><tbody>
+{{range .Active.Inventories}}<tr><td>{{.WorkspaceName}} / {{.Metric}}{{with .Error}}<br><span class="error">{{.}}</span>{{end}}</td><td>{{number .Before}}</td><td>{{number .End}}</td><td>{{number .Added}}</td><td>{{number .Removed}}</td><td>{{signed .Net}}</td></tr>{{else}}<tr><td colspan="6">No full-label 12-hour inventories collected. Aggregate run-window counts below cannot substitute for these snapshots.</td></tr>{{end}}
+</tbody><tfoot><tr><th>Inspected subtotal</th><td>{{number .Active.InventoryBefore}}</td><td>{{number .Active.InventoryEnd}}</td><td>{{number .Active.Added}}</td><td>{{number .Active.Removed}}</td><td>{{signed .Active.Net}}</td></tr></tfoot></table></div>
+<div id="active-controls" hidden>
+<div class="period-tabs" role="group" aria-label="Inventory period"><button type="button" data-period="before" aria-pressed="true">Before the run</button><button type="button" data-period="growth" aria-pressed="false">Growth during the run</button><button type="button" data-period="end" aria-pressed="false">At the end</button></div>
+<div class="contribution-controls"><label>Group by<select id="active-group"><option value="source">Source</option><option value="metric">Metric</option><option value="collector">Collector agent</option></select></label><label>Workspace<select id="active-workspace"><option value="">All workspaces</option>{{range $i,$w:=.Active.Workspaces}}<option value="{{$i}}">{{$w.Name}}</option>{{end}}</select></label></div>
+<p id="active-period-note" class="muted"></p>
+<div id="active-breadcrumb" class="breadcrumbs" aria-label="Inventory drill-down"></div>
+<p id="active-selection" class="contribution-summary" aria-live="polite"></p>
+<p id="active-status" class="muted" role="status">The ranked table works without the optional treemap library.</p>
+<div id="active-treemap" hidden role="img" aria-label="Selected inventory treemap. Table buttons provide keyboard drill-down."></div>
+<div class="table-wrap"><table id="active-ranked"><thead><tr><th>Contribution / drill down</th><th id="active-count-heading">Selected series</th><th>Removed</th><th>Net</th><th>Share of inspected / cumulative</th></tr></thead><tbody></tbody></table></div>
+<section id="active-label-detail" hidden><h3>Which labels multiply these identities?</h3>
+<p class="muted">Current subtree and period only. Choose a label to see its values. A high distinct count with zero drop-one reduction means other labels preserve identity.</p>
+<div class="table-wrap"><table id="active-labels"><thead><tr><th>Label</th><th>Distinct values</th><th>Missing</th><th>Identities without this label</th><th>Independent reduction</th></tr></thead><tbody></tbody></table></div>
+<p class="verdict">Projection is not a safe relabeling recommendation. Removing <code>le</code> destroys histogram bucket semantics. Removing replica labels requires HA deduplication to avoid collisions. Independent reductions are not additive.</p>
+<h3 id="active-label-title">Label values</h3><div class="table-wrap"><table id="active-label-values"><thead><tr><th>Value</th><th>Physical series</th><th>Share</th></tr></thead><tbody></tbody></table></div>
+<details><summary>Replicas and shards in this selection</summary><p id="active-replicas"></p><p id="active-multiplicity"></p>
+<p class="muted">Only <code>prometheus_replica</code> is removed in this projection; cluster, target and all other labels remain. Shards divide targets; replicas may duplicate. Observed only in the selection, not a global two-replica assumption or proof of identical samples. Unknown agent naming patterns remain unknown.</p>
+<div class="table-wrap"><table id="active-agents"><thead><tr><th>Source cluster</th><th>Full agent name</th><th>Recognized shard</th><th>Physical series</th><th>Replica-free identities</th></tr></thead><tbody></tbody></table></div></details>
+<details><summary>Observed shard partition</summary><p id="active-shard-overlap" class="muted"></p><div class="table-wrap"><table id="active-shards"><thead><tr><th>Workspace / source cluster</th><th>Recognized shard</th><th>Physical series</th><th>Replica-free identities</th><th>Observed target tuples</th></tr></thead><tbody></tbody></table></div></details>
+</section></div>
+<details id="inventory-offline"><summary>Offline label and replica analysis / all inspected metrics</summary>
+<p>Go-rendered snapshots below remain available without JavaScript. Before/end membership covers (boundary - 12h, boundary]; growth compares full physical identities, not the quiet 30-minute baseline and not first-ever creation. Identity analysis canonicalizes AMW label names and values case-insensitively; the immutable original labels remain in the evidence archive. Drop-one-label projections are lossy, independent and not additive. Removing histogram boundaries loses bucket semantics; removing replica labels without HA deduplication can create collisions.</p>
+{{range .Active.Inventories}}<h3>{{.WorkspaceName}} / {{.Metric}}</h3>{{with .Error}}<p class="error">{{.}}</p>{{end}}
+{{range .Snapshots}}<details><summary>{{.Period}}: {{.Series}} physical series / {{.WithoutReplica}} without only prometheus_replica</summary><p>Mean physical multiplicity: {{if .Multiplicity}}{{number .Multiplicity}}{{else}}Unknown (empty inventory){{end}}. {{range .Multiplicities}}{{.Identities}} identities with {{.Copies}} physical copies; {{end}}</p>
+<div class="table-wrap"><table><thead><tr><th>Label</th><th>Distinct</th><th>Missing</th><th>Projected identities</th><th>Independent reduction</th><th>All values / physical counts</th></tr></thead><tbody>{{range .Labels}}<tr><td>{{.Name}}</td><td>{{.Distinct}}</td><td>{{.Missing}}</td><td>{{.Projected}}</td><td>{{.Reduction}}</td><td><details><summary>Values</summary>{{range .Values}}<p>{{.Value}}: {{.Count}}</p>{{end}}</details></td></tr>{{end}}</tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Source cluster</th><th>Full agent name</th><th>Shard</th><th>Physical series</th></tr></thead><tbody>{{range .Agents}}<tr><td>{{.Cluster}}</td><td>{{.Agent}}</td><td>{{.Shard}}</td><td>{{.Series}}</td></tr>{{end}}</tbody></table></div></details>{{end}}
+<details><summary>Inventory query provenance</summary><p>Before request: {{.BeforeRequest}}; end request: {{.EndRequest}}</p><pre>{{.BeforeQuery}}
+{{.EndQuery}}</pre></details>{{end}}
+{{range .Active.Warnings}}<p class="error">{{.}}</p>{{end}}
+</details></section>
