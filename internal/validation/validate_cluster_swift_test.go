@@ -140,7 +140,6 @@ func TestClusterSwiftNetworking(t *testing.T) {
 				}
 				if tt.immutable {
 					expected = append(expected,
-						utils.ExpectedError{FieldPath: "customerProperties.platform", Message: "field is immutable"},
 						utils.ExpectedError{FieldPath: subnetPath, Message: "field is immutable"})
 				}
 				if !tt.subnet {

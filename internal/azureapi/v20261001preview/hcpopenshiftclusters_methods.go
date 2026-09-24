@@ -236,7 +236,17 @@ func newPlatformProfile(from *coreapi.CustomerPlatformProfile, from2 *coreapi.Se
 		OutboundType:            metadataapihelpers.PtrOrNil(generated.OutboundType(from.OutboundType)),
 		NetworkSecurityGroupID:  metadataapihelpers.ResourceIDToStringPtr(from.NetworkSecurityGroupID),
 		OperatorsAuthentication: metadataapihelpers.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
+		ContainerRegistry:       newContainerRegistryProfile(from.ContainerRegistry.PullManagedIdentity),
 		IssuerURL:               metadataapihelpers.PtrOrNil(from2.IssuerURL),
+	}
+}
+
+func newContainerRegistryProfile(from *azcorearm.ResourceID) *generated.ContainerRegistryProfile {
+	if from == nil {
+		return nil
+	}
+	return &generated.ContainerRegistryProfile{
+		ManagedIdentity: metadataapihelpers.ResourceIDToStringPtr(from),
 	}
 }
 
@@ -575,6 +585,8 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.HCPOpenShiftCl
 		}
 		if c.Properties.Platform != nil {
 			errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)...)
+			errs = append(errs, normalizeContainerRegistry(field.NewPath("properties", "platform", "containerRegistry"), c.Properties.Platform.ContainerRegistry, &out.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity)...)
+
 		}
 		if c.Properties.Autoscaling != nil {
 			normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
@@ -602,8 +614,8 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.HCPOpenShiftCl
 }
 
 // preserveUnknownClusterFields copies customer-facing fields from existing that
-// this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20260630preview.
+// this API version doesn't know about. Currently empty — v20261001preview is
+// the latest version.
 func preserveUnknownClusterFields(from, to *coreapi.HCPOpenShiftCluster) {
 }
 
@@ -701,6 +713,30 @@ func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *c
 		out.OperatorsAuthentication = coreapi.OperatorsAuthenticationProfile{}
 	}
 	out2.IssuerURL = metadataapihelpers.Deref(p.IssuerURL)
+
+	return errs
+}
+
+func normalizeContainerRegistry(fldPath *field.Path, p *generated.ContainerRegistryProfile, out **azcorearm.ResourceID) field.ErrorList {
+	errs := field.ErrorList{}
+
+	if p == nil || p.ManagedIdentity == nil {
+		*out = nil
+		return errs
+	}
+
+	mi := strings.TrimSpace(*p.ManagedIdentity)
+	if mi == "" {
+		errs = append(errs, field.Invalid(fldPath.Child("managedIdentity"), *p.ManagedIdentity, "must be a non-empty resource ID or null to clear"))
+		return errs
+	}
+
+	resourceID, err := azcorearm.ParseResourceID(mi)
+	if err != nil {
+		errs = append(errs, field.Invalid(fldPath.Child("managedIdentity"), *p.ManagedIdentity, err.Error()))
+	} else {
+		*out = resourceID
+	}
 
 	return errs
 }
