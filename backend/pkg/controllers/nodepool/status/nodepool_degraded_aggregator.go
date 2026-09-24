@@ -35,6 +35,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const NodePoolDegradedAggregatorControllerName = "NodePoolDegradedAggregator"
+
 // nodePoolDegradedAggregator rolls per-controller Degraded conditions up
 // onto NodePool.Status.Conditions. See the package and
 // clusterDegradedAggregator docs for the overall design.
@@ -96,7 +98,7 @@ func NewNodePoolDegradedAggregatorController(
 		readDesireLister:  readDesireLister,
 	}
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolDegradedAggregator",
+		NodePoolDegradedAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

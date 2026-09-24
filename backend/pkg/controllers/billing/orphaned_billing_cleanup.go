@@ -31,6 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const OrphanedBillingCleanupControllerName = "OrphanedBillingCleanup"
+
 type orphanedBillingCleanup struct {
 	name string
 
@@ -48,7 +50,7 @@ type orphanedBillingCleanup struct {
 // as deleted when their corresponding cluster no longer exists in Cosmos DB.
 func NewOrphanedBillingCleanupController(clock utilsclock.PassiveClock, billingDBClient billingcosmosstorage.BillingDBClient, clusterLister corelisters.ClusterLister, billingLister corelisters.BillingLister) controllerutils.Controller {
 	c := &orphanedBillingCleanup{
-		name:            "OrphanedBillingCleanup",
+		name:            OrphanedBillingCleanupControllerName,
 		clock:           clock,
 		clusterLister:   clusterLister,
 		billingLister:   billingLister,
@@ -56,7 +58,7 @@ func NewOrphanedBillingCleanupController(clock utilsclock.PassiveClock, billingD
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "OrphanedBillingCleanup",
+				Name: OrphanedBillingCleanupControllerName,
 			},
 		),
 	}

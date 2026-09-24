@@ -36,6 +36,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
+const DispatchRequestCredentialControllerName = "SystemAdminCredentialDispatchRequestCredential"
+
 type dispatchRequestCredential struct {
 	clock             utilsclock.PassiveClock
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
@@ -67,7 +69,7 @@ func NewDispatchRequestCredentialController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"SystemAdminCredentialDispatchRequestCredential",
+		DispatchRequestCredentialControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

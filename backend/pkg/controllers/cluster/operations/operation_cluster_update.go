@@ -46,6 +46,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const OperationClusterUpdateControllerName = "OperationClusterUpdate"
+
 type operationClusterUpdate struct {
 	clock                           utilsclock.PassiveClock
 	resourcesDBClient               corecosmosstorage.ResourcesDBClient
@@ -98,7 +100,7 @@ func NewOperationClusterUpdateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationClusterUpdate",
+		OperationClusterUpdateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

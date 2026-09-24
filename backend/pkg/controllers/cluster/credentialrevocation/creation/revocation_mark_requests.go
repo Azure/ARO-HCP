@@ -31,6 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const RevocationMarkRequestsControllerName = "SystemAdminCredentialRevocationMarkRequests"
+
 type revocationMarkRequests struct {
 	clock             utilsclock.PassiveClock
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
@@ -55,7 +57,7 @@ func NewRevocationMarkRequestsController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRevocationWatchingController(
-		"SystemAdminCredentialRevocationMarkRequests",
+		RevocationMarkRequestsControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,

@@ -37,6 +37,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const TriggerControlPlaneUpgradeControllerName = "TriggerControlPlaneUpgrade"
+
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
 	clock                        utilsclock.PassiveClock
@@ -74,7 +76,7 @@ func NewTriggerControlPlaneUpgradeController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"TriggerControlPlaneUpgrade",
+		TriggerControlPlaneUpgradeControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

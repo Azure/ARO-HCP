@@ -90,7 +90,7 @@ func NewNodePoolValidationController(
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
-		fmt.Sprintf("NodePoolValidation%s", validation.Name()),
+		ControllerName(validation.Name()),
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
@@ -255,4 +255,9 @@ func (c *nodePoolValidationSyncer) trackConsecutiveUnknowns(key controllerutils.
 	}
 	c.consecutiveUnknownCounts.Add(key, count)
 	return count
+}
+
+// ControllerName is shared by controller registration and storage budget wiring.
+func ControllerName(validationName string) string {
+	return fmt.Sprintf("NodePoolValidation%s", validationName)
 }

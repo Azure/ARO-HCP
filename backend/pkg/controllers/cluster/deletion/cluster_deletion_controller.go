@@ -38,6 +38,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterDeletionControllerName = "ClusterDeletionController"
+
 // clusterDeletionController issues a Cosmos cluster delete
 // for the Clusters that have their DeletionTimestamp and ClusterServiceDeletionTimestamp set,
 // their ClusterServiceID has been cleared, all cluster-scoped Maestro readonly bundles
@@ -73,7 +75,7 @@ func NewClusterDeletionController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterDeletionController",
+		ClusterDeletionControllerName,
 		resourcesDBClient,
 		informers,
 		nil,

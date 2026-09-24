@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const DesiredControlPlaneSizeControllerName = "DesiredControlPlaneSize"
+
 // desiredControlPlaneSizeSyncer records ServiceProviderCluster.Status
 // DesiredHostedClusterControlPlaneSize once cluster-service reflects the
 // effective size override implied by SPC Spec and the cluster experimental
@@ -76,7 +78,7 @@ func NewDesiredControlPlaneSizeController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"DesiredControlPlaneSize",
+		DesiredControlPlaneSizeControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

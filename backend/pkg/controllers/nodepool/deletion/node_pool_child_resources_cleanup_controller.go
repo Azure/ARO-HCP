@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const NodePoolChildResourcesCleanupControllerName = "NodePoolChildResourcesCleanupController"
+
 // nodePoolChildResourcesCleanupController deletes child resources scoped
 // under a NodePool (e.g. ManagementClusterContent documents) recursively once
 // the NodePool is marked for deletion and Cluster Service has confirmed the
@@ -65,7 +67,7 @@ func NewNodePoolChildResourcesCleanupController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolChildResourcesCleanupController",
+		NodePoolChildResourcesCleanupControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

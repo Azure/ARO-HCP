@@ -33,6 +33,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const OperationRequestCredentialPollControllerName = "SystemAdminCredentialOperationRequestCredentialPoll"
+
 type operationRequestCredentialPoll struct {
 	clock              utilsclock.PassiveClock
 	resourcesDBClient  corecosmosstorage.ResourcesDBClient
@@ -62,7 +64,7 @@ func NewOperationRequestCredentialPollController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"SystemAdminCredentialOperationRequestCredentialPoll",
+		OperationRequestCredentialPollControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

@@ -47,6 +47,8 @@ func (c contextKey) String() string {
 		return "resourceID"
 	case contextKeyControllerName:
 		return "controllerName"
+	case contextKeyInformerName:
+		return "informerName"
 	}
 	return "<unknown>"
 }
@@ -55,6 +57,7 @@ const (
 	// Keys for request-scoped data in http.Request contexts
 	contextKeyResourceID contextKey = iota
 	contextKeyControllerName
+	contextKeyInformerName
 )
 
 func ContextWithLogger(ctx context.Context, logger logr.Logger) context.Context {
@@ -102,6 +105,19 @@ func ControllerNameFromContext(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	return ret, true
+}
+
+// ContextWithInformerName associates a stable informer name with the context.
+// Attribution is shared by Cosmos accounting and rate limiting without requiring
+// either package to depend on informer implementations.
+func ContextWithInformerName(ctx context.Context, name string) context.Context {
+	return context.WithValue(ctx, contextKeyInformerName, name)
+}
+
+// InformerNameFromContext returns the informer name, if present.
+func InformerNameFromContext(ctx context.Context) (string, bool) {
+	name, ok := ctx.Value(contextKeyInformerName).(string)
+	return name, ok
 }
 
 // LogValues is a slice of key/value pairs for use with logger.WithValues.

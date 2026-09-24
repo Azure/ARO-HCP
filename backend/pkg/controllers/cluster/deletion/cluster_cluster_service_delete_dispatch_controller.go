@@ -42,6 +42,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterClusterServiceDeleteDispatchControllerName = "ClusterClusterServiceDeleteDispatch"
+
 // missingClusterServiceIDTimeout is how long we wait after first observing
 // DeletionTimestamp for the ClusterServiceID to appear before concluding
 // that the corresponding Cluster Service Cluster was never created and we have
@@ -93,7 +95,7 @@ func NewClusterClusterServiceDeleteDispatchController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterClusterServiceDeleteDispatch",
+		ClusterClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

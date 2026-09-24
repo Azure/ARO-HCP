@@ -39,6 +39,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ExternalAuthClusterServiceUpdateDispatchControllerName = "ExternalAuthClusterServiceUpdateDispatch"
+
 // externalAuthClusterServiceUpdateDispatchSyncer calls Cluster Service's ExternalAuth PATCH when
 // the ExternalAuth's dispatch-managed configuration has drifted. It reconciles a curated subset of
 // fields defined by ocm.externalAuthUpdateDispatchConfig.
@@ -76,7 +78,7 @@ func NewExternalAuthClusterServiceUpdateDispatchController(
 	)
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthClusterServiceUpdateDispatch",
+		ExternalAuthClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		backendInformers,
 		time.Minute,

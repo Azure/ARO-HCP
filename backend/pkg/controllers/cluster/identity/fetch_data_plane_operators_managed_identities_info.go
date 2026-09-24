@@ -37,6 +37,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName = fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName
+
 const (
 	fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName = "FetchDataPlaneOperatorsManagedIdentitiesInfo"
 

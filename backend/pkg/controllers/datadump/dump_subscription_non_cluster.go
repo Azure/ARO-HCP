@@ -27,6 +27,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const SubscriptionNonClusterDataDumpControllerName = "SubscriptionNonClusterDataDump"
+
 type subscriptionNonClusterDataDump struct {
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
 
@@ -45,7 +47,7 @@ func NewSubscriptionNonClusterDataDumpController(
 	}
 
 	return controllerutils.NewSubscriptionWatchingController(
-		"SubscriptionNonClusterDataDump",
+		SubscriptionNonClusterDataDumpControllerName,
 		backendInformers,
 		5*time.Minute,
 		syncer,

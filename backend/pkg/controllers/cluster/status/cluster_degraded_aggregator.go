@@ -40,6 +40,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterDegradedAggregatorControllerName = "ClusterDegradedAggregator"
+
 // clusterDegradedAggregator rolls per-controller Degraded conditions
 // (api.Controller.Status.Conditions[Degraded]) up onto
 // Cluster.Status.Conditions, using the library-go-style union
@@ -112,7 +114,7 @@ func NewClusterDegradedAggregatorController(
 		readDesireLister:  readDesireLister,
 	}
 	return controllerutils.NewClusterWatchingController(
-		"ClusterDegradedAggregator",
+		ClusterDegradedAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

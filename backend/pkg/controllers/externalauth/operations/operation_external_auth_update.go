@@ -38,6 +38,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const OperationExternalAuthUpdateControllerName = "OperationExternalAuthUpdate"
+
 type operationExternalAuthUpdate struct {
 	clock                  utilsclock.PassiveClock
 	resourcesDBClient      corecosmosstorage.ResourcesDBClient
@@ -85,7 +87,7 @@ func NewOperationExternalAuthUpdateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationExternalAuthUpdate",
+		OperationExternalAuthUpdateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

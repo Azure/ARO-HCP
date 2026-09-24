@@ -20,46 +20,37 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
 )
 
-type bucketContextKey struct{}
-
-func contextWithBucket(ctx context.Context, bucket *TokenBucket) context.Context {
-	buckets, _ := ctx.Value(bucketContextKey{}).([]*TokenBucket)
-	for _, existing := range buckets {
-		if existing == bucket {
-			return ctx
-		}
+// NewPolicy enforces the bucket bound to the Cosmos client, then
+// charges that bucket from x-ms-request-charge on every response, including
+// failed attempts.
+// Install it once in ClientOptions.PerRetryPolicies so retries and query pages
+// each wait and pay their own cost. All requests from the client share the same bucket, including transactions.
+func NewPolicy(bucket *TokenBucket) policy.Policy {
+	if bucket == nil {
+		panic("cosmos rate limiter policy requires a token bucket")
 	}
-	// Do not mutate slices inherited from contexts shared by concurrent calls.
-	copied := make([]*TokenBucket, len(buckets)+1)
-	copy(copied, buckets)
-	copied[len(buckets)] = bucket
-	return context.WithValue(ctx, bucketContextKey{}, copied)
+	return &requestChargePolicy{bucket: bucket, metrics: bucket.metrics}
 }
 
-// NewPolicy enforces the buckets selected by CRUD layers, then charges each
-// bucket from x-ms-request-charge on every response, including failed attempts.
-// Install it once in ClientOptions.PerRetryPolicies so retries and query pages
-// each wait and pay their own cost. Requests outside a CRUD layer pass through.
-func NewPolicy() policy.Policy { return &requestChargePolicy{} }
+type requestChargePolicy struct {
+	bucket  *TokenBucket
+	metrics *rateLimitMetrics
+}
 
-type requestChargePolicy struct{}
-
-func (*requestChargePolicy) Do(req *policy.Request) (*http.Response, error) {
-	ctx := req.Raw().Context()
-	buckets, _ := ctx.Value(bucketContextKey{}).([]*TokenBucket)
-	for _, bucket := range buckets {
-		if err := bucket.Wait(ctx); err != nil {
-			return nil, err
-		}
+func (p *requestChargePolicy) Do(req *policy.Request) (*http.Response, error) {
+	ctx := context.WithValue(req.Raw().Context(), waitRequestKey{}, req.Raw())
+	if err := p.bucket.Wait(ctx); err != nil {
+		return nil, err
 	}
 	resp, err := req.Next()
+	p.metrics.requests.WithLabelValues(cosmosmetrics.LabelValues(ctx, req.Raw(), resp)...).Inc()
 	if resp != nil {
 		if charge, parseErr := strconv.ParseFloat(resp.Header.Get("x-ms-request-charge"), 64); parseErr == nil {
-			for _, bucket := range buckets {
-				bucket.Consume(charge)
-			}
+			p.bucket.Consume(charge)
 		}
 	}
 	return resp, err

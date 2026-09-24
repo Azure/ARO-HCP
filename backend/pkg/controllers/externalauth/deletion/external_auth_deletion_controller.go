@@ -29,6 +29,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ExternalAuthDeletionControllerName = "ExternalAuthDeletionController"
+
 // externalAuthDeletionController issues a Cosmos external auth delete
 // for ExternalAuths that have their DeletionTimestamp and
 // ClusterServiceDeletionTimestamp set and their ClusterServiceID
@@ -51,7 +53,7 @@ func NewExternalAuthDeletionController(
 	}
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthDeletionController",
+		ExternalAuthDeletionControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,

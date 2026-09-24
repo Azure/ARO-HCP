@@ -43,6 +43,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -210,16 +212,8 @@ func (opts *FrontendOpts) Run() error {
 	clientOpts.Cloud = cloud.AzurePublic
 	clientOpts.PerCallPolicies = []policy.Policy{PolicyFunc(CorrelationIDPolicy)}
 	clientOpts.TracingProvider = azotel.NewTracingProvider(otel.GetTracerProvider(), nil)
-	cosmosDatabaseClient, err := corecosmosstorage.NewCosmosDatabaseClient(
-		opts.cosmosURL,
-		opts.cosmosName,
-		clientOpts,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
-	}
-
-	resourcesDBClient, err := corecosmosstorage.NewResourcesDBClient(cosmosDatabaseClient)
+	resourcesDBClient, err := corecosmosstorage.NewResourcesDBClient(opts.cosmosURL, opts.cosmosName,
+		cosmosclient.Options{ClientOptions: clientOpts}, cosmosratelimit.NewUnlimitedTokenBucket("frontend"))
 	if err != nil {
 		return fmt.Errorf("failed to create the resources database client: %w", err)
 	}

@@ -126,15 +126,21 @@ func TestTokenBucketLargeDebtDoesNotOverflowWait(t *testing.T) {
 	require.False(t, math.IsInf(balance, 0))
 }
 
-func TestTokenBucketLayersShareAccounting(t *testing.T) {
+func TestTokenBucketLayerPreservesContext(t *testing.T) {
 	bucket, err := NewTokenBucket("test", 1, 1)
 	require.NoError(t, err)
-	other, err := NewTokenBucket("other", 1, 1)
-	require.NoError(t, err)
-	ctx := contextWithBucket(t.Context(), bucket)
-	same := contextWithBucket(ctx, bucket)
-	require.Same(t, ctx, same)
-	child := contextWithBucket(ctx, other)
-	require.Len(t, child.Value(bucketContextKey{}), 2)
-	require.Len(t, ctx.Value(bucketContextKey{}), 1)
+	ctx := t.Context()
+	require.NoError(t, bucket.Do(ctx, func(actual context.Context) error {
+		require.Same(t, ctx, actual, "the token bucket must not be stored in context")
+		return nil
+	}))
+}
+
+func TestUnlimitedTokenBucket(t *testing.T) {
+	bucket := NewUnlimitedTokenBucket("test")
+	bucket.Consume(math.MaxFloat64)
+	require.NoError(t, bucket.Wait(t.Context()))
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	require.ErrorIs(t, bucket.Wait(ctx), context.Canceled)
 }

@@ -38,6 +38,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const UnionKubeApplierInformersControllerName = controllerName
+
 const controllerName = "union-kube-applier-informers-controller"
 
 // ManagementClusterKey identifies one management cluster for the controller's

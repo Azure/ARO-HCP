@@ -135,6 +135,28 @@ panels:
     unit: /s
     workspace: svc
     step: "60s"
+  - title: "Cosmos Rate Limiter Wait Rate"
+    description: "Five-minute average rate of calls that begin waiting for a Cosmos RU budget, by controller or informer, Cosmos container, and service cluster. Includes waits that later get canceled. This measures local rate limiting, not Cosmos HTTP 429 responses."
+    query: |
+      sum by (source_kind, source, cosmosdb_container, cluster) (
+        max without (prometheus_replica) (
+          rate(cosmos_rate_limiter_waits_total{namespace="aro-hcp", container="aro-hcp-backend"}[5m])
+        )
+      )
+    unit: waits/s
+    workspace: svc
+    step: "60s"
+  - title: "Cosmos Rate Limiter Waiting Requests"
+    description: "Calls currently waiting for a Cosmos RU budget, by controller or informer, Cosmos container, and service cluster. Shows sustained blocking even when no new waits begin; decreases when calls resume or are canceled."
+    query: |
+      sum by (source_kind, source, cosmosdb_container, cluster) (
+        max without (prometheus_replica) (
+          cosmos_rate_limiter_waiting_requests{namespace="aro-hcp", container="aro-hcp-backend"}
+        )
+      )
+    unit: requests
+    workspace: svc
+    step: "60s"
 - title: "Fleet Controller Metrics"
   queries:
   - title: "Controller Workqueue Retry Ratio"
@@ -185,6 +207,28 @@ panels:
         rate(panic_total{namespace="fleet"}[5m])
       )
     unit: /s
+    workspace: svc
+    step: "60s"
+  - title: "Cosmos Rate Limiter Wait Rate"
+    description: "Five-minute average rate of calls that begin waiting for a Cosmos RU budget, by controller or informer, Cosmos container, and service cluster. Includes waits that later get canceled. This measures local rate limiting, not Cosmos HTTP 429 responses."
+    query: |
+      sum by (source_kind, source, cosmosdb_container, cluster) (
+        max without (prometheus_replica) (
+          rate(cosmos_rate_limiter_waits_total{namespace="fleet", container="fleet-controller"}[5m])
+        )
+      )
+    unit: waits/s
+    workspace: svc
+    step: "60s"
+  - title: "Cosmos Rate Limiter Waiting Requests"
+    description: "Calls currently waiting for a Cosmos RU budget, by controller or informer, Cosmos container, and service cluster. Shows sustained blocking even when no new waits begin; decreases when calls resume or are canceled."
+    query: |
+      sum by (source_kind, source, cosmosdb_container, cluster) (
+        max without (prometheus_replica) (
+          cosmos_rate_limiter_waiting_requests{namespace="fleet", container="fleet-controller"}
+        )
+      )
+    unit: requests
     workspace: svc
     step: "60s"
 - title: "CosmosDB Metrics"

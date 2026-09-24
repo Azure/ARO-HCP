@@ -36,6 +36,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const OperationNodePoolDeleteControllerName = "OperationNodePoolDelete"
+
 type operationNodePoolDelete struct {
 	clock                utilsclock.PassiveClock
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
@@ -81,7 +83,7 @@ func NewOperationNodePoolDeleteController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationNodePoolDelete",
+		OperationNodePoolDeleteControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

@@ -31,6 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const RevocationDeletionControllerName = "SystemAdminCredentialRevocationDeletion"
+
 type revocationDeletion struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
@@ -60,7 +62,7 @@ func NewRevocationDeletionController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRevocationWatchingController(
-		"SystemAdminCredentialRevocationDeletion",
+		RevocationDeletionControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

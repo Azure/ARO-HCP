@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const TriggerNodePoolUpgradeControllerName = "TriggerNodePoolUpgrade"
+
 // triggerNodePoolUpgradeSyncer is a NodePool syncer that triggers node pool upgrades
 type triggerNodePoolUpgradeSyncer struct {
 	nodePoolLister                corelisters.NodePoolLister
@@ -61,7 +63,7 @@ func NewTriggerNodePoolUpgradeController(
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
-		"TriggerNodePoolUpgrade",
+		TriggerNodePoolUpgradeControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

@@ -24,6 +24,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -70,18 +72,17 @@ type cosmosFleetDBClient struct {
 
 var _ FleetDBClient = &cosmosFleetDBClient{}
 
-// NewFleetDBClient instantiates a FleetDBClient from a Cosmos DatabaseClient.
-func NewFleetDBClient(database *azcosmos.DatabaseClient) (FleetDBClient, error) {
+// NewFleetDBClient creates a Fleet client with its own Cosmos pipeline bound to bucket.
+func NewFleetDBClient(url, databaseName string, options cosmosclient.Options, bucket *cosmosratelimit.TokenBucket) (FleetDBClient, error) {
+	database, err := cosmosclient.NewCosmosDatabaseClient(url, databaseName, options, bucket)
+	if err != nil {
+		return nil, err
+	}
 	container, err := database.NewContainer(fleetContainer)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 	return &cosmosFleetDBClient{container: container}, nil
-}
-
-// NewFleetDBClientFromContainer wraps an already-opened container client.
-func NewFleetDBClientFromContainer(container *azcosmos.ContainerClient) FleetDBClient {
-	return &cosmosFleetDBClient{container: container}
 }
 
 func (c *cosmosFleetDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {

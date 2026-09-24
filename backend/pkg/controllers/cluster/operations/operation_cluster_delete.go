@@ -44,6 +44,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const OperationClusterDeleteControllerName = "OperationClusterDelete"
+
 type operationClusterDelete struct {
 	clock                utilsclock.PassiveClock
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
@@ -98,7 +100,7 @@ func NewOperationClusterDeleteController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationClusterDelete",
+		OperationClusterDeleteControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

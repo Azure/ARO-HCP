@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterChildResourcesCleanupControllerName = "ClusterChildResourcesCleanupController"
+
 // clusterChildResourcesCleanupController deletes child resources scoped
 // under a Cluster recursively once the Cluster is marked for deletion and
 // Cluster Service has confirmed the delete on its side. Controller status
@@ -62,7 +64,7 @@ func NewClusterChildResourcesCleanupController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterChildResourcesCleanupController",
+		ClusterChildResourcesCleanupControllerName,
 		resourcesDBClient,
 		informers,
 		nil,

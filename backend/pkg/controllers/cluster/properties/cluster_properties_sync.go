@@ -35,6 +35,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterPropertiesSyncControllerName = "ClusterPropertiesSync"
+
 // clusterPropertiesSyncer synchronizes ServiceProviderProperties from the observed
 // HostedCluster ReadDesire content to Cosmos DB, reconciling when values differ:
 //   - ServiceProviderProperties.Console.URL
@@ -66,7 +68,7 @@ func NewClusterPropertiesSyncController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterPropertiesSync",
+		ClusterPropertiesSyncControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

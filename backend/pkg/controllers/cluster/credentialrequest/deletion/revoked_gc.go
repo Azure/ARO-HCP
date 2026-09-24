@@ -28,6 +28,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const RevokedGCControllerName = "SystemAdminCredentialRevokedGC"
+
 const (
 	// revokedGCRetention is how long a credential request doc stays in Cosmos
 	// after creation before it is garbage-collected.
@@ -55,7 +57,7 @@ func NewRevokedGCController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
-		"SystemAdminCredentialRevokedGC",
+		RevokedGCControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,

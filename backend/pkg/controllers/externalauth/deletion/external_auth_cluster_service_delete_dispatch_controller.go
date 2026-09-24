@@ -38,6 +38,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ExternalAuthClusterServiceDeleteDispatchControllerName = "ExternalAuthClusterServiceDeleteDispatch"
+
 // missingClusterServiceIDTimeout is how long we wait after first observing
 // DeletionTimestamp for the ClusterServiceID to appear before concluding
 // that the corresponding Cluster Service ExternalAuth was never created and we
@@ -83,7 +85,7 @@ func NewExternalAuthClusterServiceDeleteDispatchController(
 	}
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthClusterServiceDeleteDispatch",
+		ExternalAuthClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,

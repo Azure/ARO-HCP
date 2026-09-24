@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterRequirementsValidAggregatorControllerName = clusterRequirementsValidAggregatorControllerName
+
 const (
 	// clusterRequirementsValidAggregatorControllerName is the controller name used for
 	// metrics labels, ctx values, log fields, and the Controller document name.

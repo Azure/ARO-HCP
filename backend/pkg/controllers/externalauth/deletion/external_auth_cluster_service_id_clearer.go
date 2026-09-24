@@ -33,6 +33,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ExternalAuthClusterServiceIDClearerControllerName = "ExternalAuthDeletionClusterServiceIDClearer"
+
 // externalAuthClusterServiceIDClearer clears ClusterServiceID after the
 // cluster-service ExternalAuth itself has been confirmed gone. This runs
 // after the delete dispatch controller has already issued the delete
@@ -60,7 +62,7 @@ func NewExternalAuthClusterServiceIDClearerController(
 	}
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthDeletionClusterServiceIDClearer",
+		ExternalAuthClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,

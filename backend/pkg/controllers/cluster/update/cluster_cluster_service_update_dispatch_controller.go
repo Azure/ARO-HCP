@@ -39,6 +39,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterClusterServiceUpdateDispatchControllerName = "ClusterClusterServiceUpdateDispatch"
+
 // clusterClusterServiceUpdateDispatchSyncer calls Cluster Service's Cluster PATCH when
 // the Cluster's dispatch-managed configuration has drifted. It reconciles a curated subset of
 // fields defined by ocm.clusterUpdateDispatchConfig.
@@ -78,7 +80,7 @@ func NewClusterClusterServiceUpdateDispatchController(
 	)
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterClusterServiceUpdateDispatch",
+		ClusterClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		nil,

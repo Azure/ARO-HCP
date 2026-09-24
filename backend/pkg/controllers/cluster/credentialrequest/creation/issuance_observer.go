@@ -37,6 +37,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const IssuanceObserverControllerName = "SystemAdminCredentialIssuanceObserver"
+
 type issuanceObserver struct {
 	clock             utilsclock.PassiveClock
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
@@ -62,7 +64,7 @@ func NewIssuanceObserverController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
-		"SystemAdminCredentialIssuanceObserver",
+		IssuanceObserverControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

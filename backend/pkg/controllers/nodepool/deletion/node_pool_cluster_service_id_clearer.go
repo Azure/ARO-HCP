@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const NodePoolClusterServiceIDClearerControllerName = "NodePoolDeletionClusterServiceIDClearer"
+
 // nodePoolClusterServiceIDClearer clears ClusterServiceID after the
 // cluster-service NodePool itself has been confirmed gone. This runs after the
 // delete dispatch controller has already issued the delete request
@@ -62,7 +64,7 @@ func NewNodePoolClusterServiceIDClearerController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolDeletionClusterServiceIDClearer",
+		NodePoolClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

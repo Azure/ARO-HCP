@@ -47,6 +47,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
+const ControlPlaneDesiredVersionControllerName = controlPlaneDesiredVersionControllerName
+
 // controlPlaneDesiredVersionControllerName is the Cosmos controller document ID for this syncer.
 // It is intentionally kept as "ControlPlaneDesiredVersion" (rather than renamed to match the
 // upgrade split) to preserve metrics continuity and the existing controller document identity.

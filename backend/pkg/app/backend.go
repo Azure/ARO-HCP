@@ -81,10 +81,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -99,14 +95,11 @@ type Backend struct {
 }
 
 type BackendOptions struct {
+	StorageFactory                     StorageFactory
 	AppShortDescriptionName            string
 	AppVersion                         string
 	AzureLocation                      string
 	LeaderElectionLock                 resourcelock.Interface
-	ResourcesDBClient                  corecosmosstorage.ResourcesDBClient
-	BillingDBClient                    billingcosmosstorage.BillingDBClient
-	FleetDBClient                      fleetcosmosstorage.FleetDBClient
-	KubeApplierDBClients               kubeappliercosmosstorage.KubeApplierDBClients
 	ClustersServiceClient              ocm.ClusterServiceClientSpec
 	MetricsRegisterer                  prometheus.Registerer
 	MetricsGatherer                    prometheus.Gatherer
@@ -203,6 +196,9 @@ func (o *BackendOptions) validate() error {
 	if o.MetricsRegisterer == nil || o.MetricsGatherer == nil {
 		return fmt.Errorf("metrics registerer and gatherer must both be set (registerer set=%t, gatherer set=%t)",
 			o.MetricsRegisterer != nil, o.MetricsGatherer != nil)
+	}
+	if o.StorageFactory == nil {
+		return fmt.Errorf("storage factory must be set")
 	}
 	if o.BackupConfig == nil {
 		return fmt.Errorf("backup config must be set")
@@ -410,9 +406,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	logger := utils.LoggerFromContext(ctx)
 
 	backendInformers := coreinformers.NewBackendInformers(ctx,
-		b.options.ResourcesDBClient.ResourcesGlobalListers(),
-		b.options.ResourcesDBClient,
-		b.options.BillingDBClient.BillingGlobalListers(),
+		b.options.StorageFactory.ResourcesStorageClient(BackendInformersStorageName).ResourcesGlobalListers(),
+		b.options.StorageFactory.ResourcesStorageClient(BackendInformersStorageName),
+		b.options.StorageFactory.BillingStorageClient(BackendInformersStorageName).BillingGlobalListers(),
 	)
 
 	_, subscriptionLister := backendInformers.Subscriptions()
@@ -422,7 +418,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	operationPhaseMetricsController := metrics.NewController(
 		"OperationPhaseMetrics", backendInformers.AllOperations(), operationPhaseHandler)
 
-	fleetInformers := fleetinformers.NewFleetInformers(ctx, b.options.FleetDBClient.GlobalListers(), b.options.FleetDBClient)
+	fleetInformers := fleetinformers.NewFleetInformers(ctx, b.options.StorageFactory.FleetStorageClient(FleetInformersStorageName).GlobalListers(), b.options.StorageFactory.FleetStorageClient(FleetInformersStorageName))
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 
 	// Union kube-applier informers: one aggregator surface that fans out
@@ -433,7 +429,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	unionKubeApplierInformersController := unionkubeapplierinformers.NewUnionKubeApplierInformersController(
 		managementClusterInformer,
 		managementClusterLister,
-		unionkubeapplierinformers.NewKubeApplierInformerFactory(b.options.KubeApplierDBClients, nil),
+		unionkubeapplierinformers.NewKubeApplierInformerFactory(b.options.StorageFactory.KubeApplierStorageClients(unionkubeapplierinformers.UnionKubeApplierInformersControllerName), nil),
 	)
 	unionKubeApplierInformers := unionKubeApplierInformersController.Union()
 	_, unionReadDesireLister := unionKubeApplierInformers.ReadDesires()
@@ -469,80 +465,80 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, serviceProviderNodePoolLister := backendInformers.ServiceProviderNodePools()
 
-	subscriptionNonClusterDataDumpController := datadump.NewSubscriptionNonClusterDataDumpController(b.options.ResourcesDBClient, backendInformers)
-	clusterRecursiveDataDumpController := datadump.NewClusterRecursiveDataDumpController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, managementClusterLister, activeOperationLister, backendInformers, unionKubeApplierInformers)
-	csStateDumpController := datadump.NewCSStateDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers, b.options.ClustersServiceClient)
-	billingDumpController := datadump.NewBillingDumpController(b.options.ResourcesDBClient, b.options.BillingDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers)
-	managementClusterDumpController := datadump.NewManagementClusterDataDumpController(b.options.FleetDBClient, managementClusterLister, fleetInformers)
+	subscriptionNonClusterDataDumpController := datadump.NewSubscriptionNonClusterDataDumpController(b.options.StorageFactory.ResourcesStorageClient(datadump.SubscriptionNonClusterDataDumpControllerName), backendInformers)
+	clusterRecursiveDataDumpController := datadump.NewClusterRecursiveDataDumpController(b.options.StorageFactory.ResourcesStorageClient(datadump.ClusterRecursiveDataDumpControllerName), b.options.StorageFactory.KubeApplierStorageClients(datadump.ClusterRecursiveDataDumpControllerName), managementClusterLister, activeOperationLister, backendInformers, unionKubeApplierInformers)
+	csStateDumpController := datadump.NewCSStateDumpController(b.options.StorageFactory.ResourcesStorageClient(datadump.CSStateDumpControllerName), activeOperationLister, backendInformers, unionKubeApplierInformers, b.options.ClustersServiceClient)
+	billingDumpController := datadump.NewBillingDumpController(b.options.StorageFactory.ResourcesStorageClient(datadump.BillingDumpControllerName), b.options.StorageFactory.BillingStorageClient(datadump.BillingDumpControllerName), activeOperationLister, backendInformers, unionKubeApplierInformers)
+	managementClusterDumpController := datadump.NewManagementClusterDataDumpController(b.options.StorageFactory.FleetStorageClient(datadump.ManagementClusterDataDumpControllerName), managementClusterLister, fleetInformers)
 	dispatchRequestCredentialController := legacycredentialrequest.NewDispatchRequestCredentialController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(legacycredentialrequest.DispatchRequestCredentialControllerName),
 		b.options.ClustersServiceClient,
 		activeOperationInformer,
 	)
 	adminCredentialsDispatchRequestCredentialController := credentialrequestoperations.NewDispatchRequestCredentialController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrequestoperations.DispatchRequestCredentialControllerName),
 		clusterLister,
 		activeOperationInformer,
 	)
 	adminCredentialsDispatchRevokeCredentialsController := credentialrevocationoperations.NewDispatchRevokeCredentialsController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrevocationoperations.DispatchRevokeCredentialsControllerName),
 		clusterLister,
 		activeOperationInformer,
 	)
 	adminCredentialsOperationRequestCredentialPollController := credentialrequestoperations.NewOperationRequestCredentialPollController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrequestoperations.OperationRequestCredentialPollControllerName),
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	adminCredentialsOperationRevokeCredentialsPollController := credentialrevocationoperations.NewOperationRevokeCredentialsPollController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrevocationoperations.OperationRevokeCredentialsPollControllerName),
 		clusterLister,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	adminCredentialsIssuanceObserverController := credentialrequestcreation.NewIssuanceObserverController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrequestcreation.IssuanceObserverControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
 	adminCredentialsDesiresCreatorController := credentialrequestcreation.NewDesiresCreatorController(
-		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrequestcreation.DesiresCreatorControllerName),
+		b.options.StorageFactory.KubeApplierStorageClients(credentialrequestcreation.DesiresCreatorControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 	adminCredentialsPostIssuanceCleanupController := credentialrequestdeletion.NewPostIssuanceCleanupController(
-		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrequestdeletion.PostIssuanceCleanupControllerName),
+		b.options.StorageFactory.KubeApplierStorageClients(credentialrequestdeletion.PostIssuanceCleanupControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 	adminCredentialsRevokedGCController := credentialrequestdeletion.NewRevokedGCController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrequestdeletion.RevokedGCControllerName),
 		backendInformers,
 	)
 	adminCredentialsClusterDeletionCleanupController := credentialrequestdeletion.NewClusterDeletionCleanupController(
-		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrequestdeletion.ClusterDeletionCleanupControllerName),
+		b.options.StorageFactory.KubeApplierStorageClients(credentialrequestdeletion.ClusterDeletionCleanupControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 	systemAdminCredentialRevocationMarkRequestsController := credentialrevocationcreation.NewRevocationMarkRequestsController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrevocationcreation.RevocationMarkRequestsControllerName),
 		backendInformers,
 	)
 	systemAdminCredentialRevocationDesiresController := credentialrevocationcreation.NewRevocationDesiresController(
-		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrevocationcreation.RevocationDesiresControllerName),
+		b.options.StorageFactory.KubeApplierStorageClients(credentialrevocationcreation.RevocationDesiresControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 		unionApplyDesireLister,
@@ -550,21 +546,21 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	systemAdminCredentialRevocationCompletionController := credentialrevocationdeletion.NewRevocationCompletionController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrevocationdeletion.RevocationCompletionControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
 	systemAdminCredentialRevocationDeletionController := credentialrevocationdeletion.NewRevocationDeletionController(
-		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.ResourcesStorageClient(credentialrevocationdeletion.RevocationDeletionControllerName),
+		b.options.StorageFactory.KubeApplierStorageClients(credentialrevocationdeletion.RevocationDeletionControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 
 	operationClusterCreateController := clusteroperations.NewOperationClusterCreateController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusteroperations.OperationClusterCreateControllerName),
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
@@ -573,7 +569,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	operationClusterUpdateController := clusteroperations.NewOperationClusterUpdateController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusteroperations.OperationClusterUpdateControllerName),
 		b.options.ClustersServiceClient,
 		unionReadDesireLister,
 		http.DefaultClient,
@@ -582,9 +578,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	operationClusterDeleteController := clusteroperations.NewOperationClusterDeleteController(
 		b.clock,
-		b.options.ResourcesDBClient,
-		b.options.BillingDBClient,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.ResourcesStorageClient(clusteroperations.OperationClusterDeleteControllerName),
+		b.options.StorageFactory.BillingStorageClient(clusteroperations.OperationClusterDeleteControllerName),
+		b.options.StorageFactory.KubeApplierStorageClients(clusteroperations.OperationClusterDeleteControllerName),
 		unionReadDesireLister,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
@@ -592,7 +588,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	operationNodePoolCreateController := nodepooloperations.NewOperationNodePoolCreateController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepooloperations.OperationNodePoolCreateControllerName),
 		b.options.ClustersServiceClient,
 		unionReadDesireLister,
 		http.DefaultClient,
@@ -601,7 +597,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	operationNodePoolUpdateController := nodepooloperations.NewOperationNodePoolUpdateController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepooloperations.OperationNodePoolUpdateControllerName),
 		b.options.ClustersServiceClient,
 		unionReadDesireLister,
 		http.DefaultClient,
@@ -610,14 +606,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	operationNodePoolDeleteController := nodepooloperations.NewOperationNodePoolDeleteController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepooloperations.OperationNodePoolDeleteControllerName),
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	operationExternalAuthCreateController := externalauthoperations.NewOperationExternalAuthCreateController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(externalauthoperations.OperationExternalAuthCreateControllerName),
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
@@ -625,7 +621,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	operationExternalAuthUpdateController := externalauthoperations.NewOperationExternalAuthUpdateController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(externalauthoperations.OperationExternalAuthUpdateControllerName),
 		b.options.ClustersServiceClient,
 		unionReadDesireLister,
 		http.DefaultClient,
@@ -634,37 +630,37 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	operationExternalAuthDeleteController := externalauthoperations.NewOperationExternalAuthDeleteController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(externalauthoperations.OperationExternalAuthDeleteControllerName),
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	operationRequestCredentialController := legacycredentialrequest.NewOperationRequestCredentialController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(legacycredentialrequest.OperationRequestCredentialControllerName),
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 
-	clusterServiceMatchingClusterController := mismatch.NewClusterServiceClusterMatchingController(b.clock, b.options.ResourcesDBClient, subscriptionLister, b.options.ClustersServiceClient)
+	clusterServiceMatchingClusterController := mismatch.NewClusterServiceClusterMatchingController(b.clock, b.options.StorageFactory.ResourcesStorageClient(mismatch.ClusterServiceClusterMatchingControllerName), subscriptionLister, b.options.ClustersServiceClient)
 	alwaysSuccessClusterValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewAlwaysSuccessValidation(),
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clustervalidation.ControllerName((&validationutils.AlwaysSuccessValidation{}).Name())),
 		serviceProviderClusterLister,
 		backendInformers,
 	)
-	deleteOrphanedCosmosResourcesController := mismatch.NewDeleteOrphanedCosmosResourcesController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, subscriptionLister, managementClusterLister)
-	missingResourceIDController := mismatch.NewMissingResourceIDController(b.options.ResourcesDBClient)
+	deleteOrphanedCosmosResourcesController := mismatch.NewDeleteOrphanedCosmosResourcesController(b.options.StorageFactory.ResourcesStorageClient(mismatch.DeleteOrphanedCosmosResourcesControllerName), b.options.StorageFactory.KubeApplierStorageClients(mismatch.DeleteOrphanedCosmosResourcesControllerName), subscriptionLister, managementClusterLister)
+	missingResourceIDController := mismatch.NewMissingResourceIDController(b.options.StorageFactory.ResourcesStorageClient(mismatch.MissingResourceIDControllerName))
 	backfillClusterUIDController := controllerutils.NewClusterWatchingController(
-		"BackfillClusterUID", b.options.ResourcesDBClient, backendInformers, unionKubeApplierInformers, 60*time.Minute,
-		mismatch.NewBackfillClusterUIDController(b.clock, b.options.ResourcesDBClient, b.options.BillingDBClient, clusterLister))
-	orphanedBillingCleanupController := billing.NewOrphanedBillingCleanupController(b.clock, b.options.BillingDBClient, clusterLister, billingLister)
+		BackfillClusterUIDControllerName, b.options.StorageFactory.ResourcesStorageClient(BackfillClusterUIDControllerName), backendInformers, unionKubeApplierInformers, 60*time.Minute,
+		mismatch.NewBackfillClusterUIDController(b.clock, b.options.StorageFactory.ResourcesStorageClient(BackfillClusterUIDControllerName), b.options.StorageFactory.BillingStorageClient(BackfillClusterUIDControllerName), clusterLister))
+	orphanedBillingCleanupController := billing.NewOrphanedBillingCleanupController(b.clock, b.options.StorageFactory.BillingStorageClient(billing.OrphanedBillingCleanupControllerName), clusterLister, billingLister)
 	createBillingDocController := controllerutils.NewClusterWatchingController(
-		"CreateBillingDoc", b.options.ResourcesDBClient, backendInformers, unionKubeApplierInformers, 60*time.Second,
-		billing.NewCreateBillingDocController(b.clock, b.options.AzureLocation, b.options.ResourcesDBClient, b.options.BillingDBClient, clusterLister, billingLister))
+		CreateBillingDocControllerName, b.options.StorageFactory.ResourcesStorageClient(CreateBillingDocControllerName), backendInformers, unionKubeApplierInformers, 60*time.Second,
+		billing.NewCreateBillingDocController(b.clock, b.options.AzureLocation, b.options.StorageFactory.ResourcesStorageClient(CreateBillingDocControllerName), b.options.StorageFactory.BillingStorageClient(CreateBillingDocControllerName), clusterLister, billingLister))
 	controlPlaneActiveVersionController := clusterversion.NewControlPlaneActiveVersionController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterversion.ControlPlaneActiveVersionControllerName),
 		clusterLister,
 		serviceProviderClusterLister,
 		backendInformers,
@@ -673,7 +669,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	controlPlaneDesiredVersionController := clusterversion.NewControlPlaneDesiredVersionController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterversion.ControlPlaneDesiredVersionControllerName),
 		clusterLister,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
@@ -684,7 +680,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	triggerControlPlaneUpgradeController := clusterversion.NewTriggerControlPlaneUpgradeController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterversion.TriggerControlPlaneUpgradeControllerName),
 		clusterLister,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
@@ -693,38 +689,38 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 	clusterBaseDomainPrefixSyncController := clusterproperties.NewClusterBaseDomainPrefixSyncController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterproperties.ClusterBaseDomainPrefixSyncControllerName),
 		b.options.ClustersServiceClient,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 	clusterPropertiesSyncController := clusterproperties.NewClusterPropertiesSyncController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterproperties.ClusterPropertiesSyncControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
 	clusterIdentitySyncController := clusteridentity.NewClusterIdentitySyncController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusteridentity.ClusterIdentitySyncControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 	desiredControlPlaneSizeController := clusterproperties.NewDesiredControlPlaneSizeController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterproperties.DesiredControlPlaneSizeControllerName),
 		b.options.ClustersServiceClient,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 	serviceProviderClusterPropertiesSyncController := clusterproperties.NewServiceProviderClusterPropertiesSyncController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterproperties.ServiceProviderClusterPropertiesSyncControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
 
 	backupScheduleController := clusterbackups.NewBackupScheduleController(
-		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.ResourcesStorageClient(clusterbackups.BackupScheduleControllerName),
+		b.options.StorageFactory.KubeApplierStorageClients(clusterbackups.BackupScheduleControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 		b.options.MaestroSourceEnvironmentIdentifier,
@@ -732,8 +728,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 
 	keyRotationBackupController := clusterbackups.NewKeyRotationBackupController(
-		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.ResourcesStorageClient(clusterbackups.KeyRotationBackupControllerName),
+		b.options.StorageFactory.KubeApplierStorageClients(clusterbackups.KeyRotationBackupControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 		b.options.BackupConfig,
@@ -743,7 +739,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	// package so subsystem-specific tuning lives next to the controller that
 	// uses it. The constructors here just supply listers / DB / clock.
 	clusterDegradedAggregatorController := clusterstatus.NewClusterDegradedAggregatorController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterstatus.ClusterDegradedAggregatorControllerName),
 		clusterLister,
 		controllerLister,
 		backendInformers,
@@ -751,13 +747,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.clock,
 	)
 	clusterRequirementsValidAggregatorController := clusterstatus.NewClusterRequirementsValidAggregatorController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterstatus.ClusterRequirementsValidAggregatorControllerName),
 		clusterLister,
 		serviceProviderClusterLister,
 		backendInformers,
 	)
 	nodePoolDegradedAggregatorController := nodepoolstatus.NewNodePoolDegradedAggregatorController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepoolstatus.NodePoolDegradedAggregatorControllerName),
 		nodePoolLister,
 		controllerLister,
 		backendInformers,
@@ -765,13 +761,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.clock,
 	)
 	nodePoolRequirementsValidAggregatorController := nodepoolstatus.NewNodePoolRequirementsValidAggregatorController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepoolstatus.NodePoolRequirementsValidAggregatorControllerName),
 		nodePoolLister,
 		serviceProviderNodePoolLister,
 		backendInformers,
 	)
 	externalAuthDegradedAggregatorController := externalauthstatus.NewExternalAuthDegradedAggregatorController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(externalauthstatus.ExternalAuthDegradedAggregatorControllerName),
 		externalAuthLister,
 		controllerLister,
 		backendInformers,
@@ -779,31 +775,31 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 
 	createClusterScopedReadDesiresController := clusterreaddesires.NewCreateClusterScopedReadDesiresController(
-		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
+		activeOperationLister, b.options.StorageFactory.ResourcesStorageClient(clusterreaddesires.CreateClusterScopedReadDesiresControllerName), b.options.StorageFactory.KubeApplierStorageClients(clusterreaddesires.CreateClusterScopedReadDesiresControllerName),
 		serviceProviderClusterLister, unionReadDesireLister,
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
 	createNodePoolScopedReadDesiresController := nodepoolreaddesires.NewCreateNodePoolScopedReadDesiresController(
-		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
+		activeOperationLister, b.options.StorageFactory.ResourcesStorageClient(nodepoolreaddesires.CreateNodePoolScopedReadDesiresControllerName), b.options.StorageFactory.KubeApplierStorageClients(nodepoolreaddesires.CreateNodePoolScopedReadDesiresControllerName),
 		serviceProviderClusterLister, unionReadDesireLister,
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
 	cosmosMigrationController := cosmosmigration.NewCosmosMigrationController(
-		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.ResourcesStorageClient(cosmosmigration.CosmosMigrationControllerName),
+		b.options.StorageFactory.KubeApplierStorageClients(cosmosmigration.CosmosMigrationControllerName),
 		backendInformers,
 		5*time.Minute,
 	)
 	createServiceProviderClusterController := clustercreation.NewCreateServiceProviderClusterController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clustercreation.CreateServiceProviderClusterControllerName),
 		clusterLister,
 		serviceProviderClusterLister,
 		backendInformers,
 	)
 	createServiceProviderNodePoolController := nodepoolcreation.NewCreateServiceProviderNodePoolController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepoolcreation.CreateServiceProviderNodePoolControllerName),
 		nodePoolLister,
 		serviceProviderNodePoolLister,
 		backendInformers,
@@ -812,13 +808,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	cleanOrphanedClusterManagedResourceGroupController := clusterdeletion.NewCleanOrphanedClusterManagedResourceGroupController(
 		b.options.AzureLocation,
 		activeOperationLister,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterdeletion.CleanOrphanedClusterManagedResourceGroupControllerName),
 		b.options.FPAClientBuilder,
 		backendInformers,
 	)
 
 	ensureManagedResourceGroupController := clusterazureresources.NewManagedResourceGroupController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterazureresources.ManagedResourceGroupControllerName),
 		serviceProviderClusterLister,
 		subscriptionLister,
 		b.options.FPAClientBuilder,
@@ -833,40 +829,40 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	azureRPRegistrationValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clustervalidation.ControllerName((&validationutils.AzureResourceProvidersRegistrationValidation{}).Name())),
 		serviceProviderClusterLister,
 		backendInformers,
 	)
 
 	azureClusterResourceGroupExistenceValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewAzureClusterResourceGroupExistenceValidation(b.options.FPAClientBuilder),
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clustervalidation.ControllerName((&validationutils.AzureClusterResourceGroupExistenceValidation{}).Name())),
 		serviceProviderClusterLister,
 		backendInformers,
 	)
 
 	azureClusterManagedIdentitiesExistenceValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewAzureClusterManagedIdentitiesExistenceValidation(b.options.SMIClientBuilder),
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clustervalidation.ControllerName((&validationutils.AzureClusterManagedIdentitiesExistenceValidation{}).Name())),
 		serviceProviderClusterLister,
 		backendInformers,
 	)
 	containerRegistryPullCredentialsValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewContainerRegistryPullCredentialsPermissionValidation(b.options.SMIClientBuilder, b.options.CheckAccessV2ClientBuilder),
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clustervalidation.ControllerName((&validationutils.ContainerRegistryPullCredentialsPermissionValidation{}).Name())),
 		serviceProviderClusterLister,
 		backendInformers,
 	)
 	azureVMSizeSupportsEphemeralOSDiskValidationController := nodepoolvalidation.NewNodePoolValidationController(
 		validationutils.NewAzureVMSizeSupportsEphemeralOSDiskValidation(virtualMachineResourceSKUsCachedReaderController),
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepoolvalidation.ControllerName((&validationutils.AzureVMSizeSupportsEphemeralOSDiskValidation{}).Name())),
 		serviceProviderNodePoolLister,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 	azureNodePoolVMQuotaValidationController := nodepoolvalidation.NewNodePoolValidationController(
 		validationutils.NewAzureNodePoolVMQuotaValidation(virtualMachineResourceSKUsCachedReaderController, b.options.FPAClientBuilder),
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepoolvalidation.ControllerName((&validationutils.AzureNodePoolVMQuotaValidation{}).Name())),
 		serviceProviderNodePoolLister,
 		backendInformers,
 		unionKubeApplierInformers,
@@ -881,7 +877,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 			b.options.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 			b.options.CloudEnvironment.CheckAccessV2Scope(),
 		),
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clustervalidation.ControllerName((&validationutils.ControlPlaneIdentitiesPermissionsClusterValidation{}).Name())),
 		serviceProviderClusterLister,
 		backendInformers,
 	)
@@ -892,33 +888,33 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 			b.options.BackendIdentityAzureCachedReaders,
 			b.options.CheckAccessV2ClientBuilder,
 		),
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clustervalidation.ControllerName((&validationutils.DataPlaneIdentitiesPermissionsValidation{}).Name())),
 		serviceProviderClusterLister,
 		backendInformers,
 	)
 
 	nodePoolNSGBasedRequiredConnectivityValidationController := nodepoolvalidation.NewNodePoolValidationController(
 		validationutils.NewAzureNodePoolNSGBasedRequiredConnectivityValidation(b.options.SMIClientBuilder),
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepoolvalidation.ControllerName((&validationutils.AzureNodePoolNSGBasedRequiredConnectivityValidation{}).Name())),
 		serviceProviderNodePoolLister,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 	nodePoolVersionController := nodepoolversion.NewNodePoolVersionController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepoolversion.NodepoolVersionControllerName),
 		subscriptionLister,
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
 	nodePoolActiveVersionController := nodepoolversion.NewNodePoolActiveVersionController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepoolversion.NodePoolActiveVersionsControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
 	triggerNodePoolUpgradeController := nodepoolversion.NewTriggerNodePoolUpgradeController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepoolversion.TriggerNodePoolUpgradeControllerName),
 		nodePoolLister,
 		b.options.ClustersServiceClient,
 		serviceProviderNodePoolLister,
@@ -926,7 +922,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 	placementSyncController := clusterplacement.NewManagementClusterPlacementSyncController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterplacement.ManagementClusterPlacementSyncControllerName),
 		b.options.ClustersServiceClient,
 		managementClusterLister,
 		backendInformers,
@@ -934,80 +930,80 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	_, managementClusterSchedulingLister := fleetInformers.ManagementClusterSchedulings()
 	placementController := clusterplacement.NewPlacementController(
-		b.options.ResourcesDBClient,
-		b.options.FleetDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterplacement.PlacementControllerName),
+		b.options.StorageFactory.FleetStorageClient(clusterplacement.PlacementControllerName),
 		managementClusterLister,
 		managementClusterSchedulingLister,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 	pendingCleanupController := clusterplacement.NewPendingCleanupController(
-		b.options.FleetDBClient,
+		b.options.StorageFactory.FleetStorageClient(clusterplacement.PendingCleanupControllerName),
 		serviceProviderClusterLister,
 		clusterLister,
 		fleetInformers,
 	)
 
 	nodePoolClusterServiceCreateController := nodepoolcreation.NewNodePoolClusterServiceCreateController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepoolcreation.NodePoolClusterServiceCreateControllerName),
 		b.options.ClustersServiceClient,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 
 	externalAuthClusterServiceCreateController := externalauthcreation.NewExternalAuthClusterServiceCreateController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(externalauthcreation.ExternalAuthClusterServiceCreateControllerName),
 		b.options.ClustersServiceClient,
 		backendInformers,
 	)
 
 	nodePoolDeletionClusterServiceDeleteDispatchController := nodepooldeletion.NewNodePoolClusterServiceDeleteDispatchController(
 		utilsclock.RealClock{},
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepooldeletion.NodePoolClusterServiceDeleteDispatchControllerName),
 		b.options.ClustersServiceClient,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 
 	nodePoolClusterServiceIDClearerController := nodepooldeletion.NewNodePoolClusterServiceIDClearerController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepooldeletion.NodePoolClusterServiceIDClearerControllerName),
 		b.options.ClustersServiceClient,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 	nodePoolChildResourcesCleanupController := nodepooldeletion.NewNodePoolChildResourcesCleanupController(
-		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.ResourcesStorageClient(nodepooldeletion.NodePoolChildResourcesCleanupControllerName),
+		b.options.StorageFactory.KubeApplierStorageClients(nodepooldeletion.NodePoolChildResourcesCleanupControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 	nodePoolDeletionController := nodepooldeletion.NewNodePoolDeletionController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepooldeletion.NodePoolDeletionControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.KubeApplierStorageClients(nodepooldeletion.NodePoolDeletionControllerName),
 	)
 
 	externalAuthDeletionClusterServiceDeleteDispatchController := externalauthdeletion.NewExternalAuthClusterServiceDeleteDispatchController(
 		utilsclock.RealClock{},
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(externalauthdeletion.ExternalAuthClusterServiceDeleteDispatchControllerName),
 		b.options.ClustersServiceClient,
 		backendInformers,
 	)
 
 	externalAuthClusterServiceIDClearerController := externalauthdeletion.NewExternalAuthClusterServiceIDClearerController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(externalauthdeletion.ExternalAuthClusterServiceIDClearerControllerName),
 		b.options.ClustersServiceClient,
 		backendInformers,
 	)
 
 	externalAuthChildResourcesCleanupController := externalauthdeletion.NewExternalAuthChildResourcesCleanupController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(externalauthdeletion.ExternalAuthChildResourcesCleanupControllerName),
 		backendInformers,
 	)
 
 	externalAuthDeletionController := externalauthdeletion.NewExternalAuthDeletionController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(externalauthdeletion.ExternalAuthDeletionControllerName),
 		backendInformers,
 	)
 
@@ -1018,19 +1014,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	if b.options.HasRealFPA {
 		clusterDenyAssignmentController = denyassignments.NewClusterDenyAssignmentController(
 			utilsclock.RealClock{},
-			b.options.ResourcesDBClient,
+			b.options.StorageFactory.ResourcesStorageClient(denyassignments.ClusterDenyAssignmentControllerName),
 			b.options.FPAClientBuilder,
 			backendInformers,
 		)
 	}
 
 	clusterPendingClusterServiceIDAssignController := clustercreation.NewClusterPendingClusterServiceIDAssignController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clustercreation.ClusterPendingClusterServiceIDAssignControllerName),
 		backendInformers,
 	)
 
 	clusterClusterServiceCreateController := clustercreation.NewClusterClusterServiceCreateController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clustercreation.ClusterClusterServiceCreateControllerName),
 		b.options.ClustersServiceClient,
 		managementClusterLister,
 		backendInformers,
@@ -1039,51 +1035,51 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	clusterDeletionClusterServiceDeleteDispatchController := clusterdeletion.NewClusterClusterServiceDeleteDispatchController(
 		utilsclock.RealClock{},
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterdeletion.ClusterClusterServiceDeleteDispatchControllerName),
 		b.options.ClustersServiceClient,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 
 	clusterClusterServiceIDClearerController := clusterdeletion.NewClusterClusterServiceIDClearerController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterdeletion.ClusterClusterServiceIDClearerControllerName),
 		b.options.ClustersServiceClient,
 		backendInformers,
 	)
 
 	clusterCredentialDeletionMarkerController := clusterdeletion.NewClusterCredentialDeletionMarkerController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterdeletion.ClusterCredentialDeletionMarkerControllerName),
 		backendInformers,
 	)
 
 	clusterChildResourcesCleanupController := clusterdeletion.NewClusterChildResourcesCleanupController(
-		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.ResourcesStorageClient(clusterdeletion.ClusterChildResourcesCleanupControllerName),
+		b.options.StorageFactory.KubeApplierStorageClients(clusterdeletion.ClusterChildResourcesCleanupControllerName),
 		backendInformers,
 	)
 
 	clusterDeletionController := clusterdeletion.NewClusterDeletionController(
 		utilsclock.RealClock{},
-		b.options.ResourcesDBClient,
-		b.options.BillingDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterdeletion.ClusterDeletionControllerName),
+		b.options.StorageFactory.BillingStorageClient(clusterdeletion.ClusterDeletionControllerName),
 		backendInformers,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.KubeApplierStorageClients(clusterdeletion.ClusterDeletionControllerName),
 	)
 
 	clusterClusterServiceUpdateDispatchController := clusterupdate.NewClusterClusterServiceUpdateDispatchController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterupdate.ClusterClusterServiceUpdateDispatchControllerName),
 		b.options.ClustersServiceClient,
 		backendInformers,
 	)
 
 	nodePoolClusterServiceUpdateDispatchController := nodepoolupdate.NewNodePoolClusterServiceUpdateDispatchController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(nodepoolupdate.NodePoolClusterServiceUpdateDispatchControllerName),
 		b.options.ClustersServiceClient,
 		backendInformers,
 	)
 	externalAuthClusterServiceUpdateDispatchController := externalauthupdate.NewExternalAuthClusterServiceUpdateDispatchController(
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(externalauthupdate.ExternalAuthClusterServiceUpdateDispatchControllerName),
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
@@ -1091,21 +1087,21 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	fetchMSIIdentitiesInfoController := clusteridentity.NewFetchMSIIdentitiesInfoController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusteridentity.FetchMSIIdentitiesInfoControllerName),
 		backendInformers,
 		b.options.FPAMIDataplaneClientBuilder,
 	)
 
 	fetchDataPlaneOperatorsManagedIdentitiesInfoController := clusteridentity.NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName),
 		backendInformers,
 		b.options.SMIClientBuilder,
 	)
 
 	identityRoleAssignmentsController := clusterroleassignments.NewRoleAssignmentsController(
 		b.clock,
-		b.options.ResourcesDBClient,
+		b.options.StorageFactory.ResourcesStorageClient(clusterroleassignments.RoleAssignmentsControllerName),
 		serviceProviderClusterLister,
 		subscriptionLister,
 		b.options.FPAClientBuilder,
@@ -1115,8 +1111,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 
 	clusterResourcesController := clusterresources.NewClusterResourcesController(
-		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
+		b.options.StorageFactory.ResourcesStorageClient(clusterresources.ClusterResourcesControllerName),
+		b.options.StorageFactory.KubeApplierStorageClients(clusterresources.ClusterResourcesControllerName),
 		backendInformers,
 		unionKubeApplierInformers,
 		b.options.ClustersServiceClient,
