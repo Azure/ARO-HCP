@@ -90,7 +90,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Cluster update error rate critically high (>72%)"
         description: "More than 72% of cluster update operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
-        runbook_url: "aka.ms/arohcp-runbook"
+        runbook_url: "https://aka.ms/arohcp-runbook-idms"
   # Medium burn fires after 30m 'for' duration
   - eval_time: 35m
     alertname: userJourneyIDMSMirrorErrorsMediumBurn
@@ -103,7 +103,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Cluster update error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of cluster update operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
-        runbook_url: "aka.ms/arohcp-runbook"
+        runbook_url: "https://aka.ms/arohcp-runbook-idms"
 # ========================================
 # Test 3: Slow burn — 10% failure rate
 # ========================================
@@ -156,7 +156,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Cluster update error rate exceeds SLO target (>5%) for 6+ hours"
         description: "More than 5% of cluster update operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
-        runbook_url: "aka.ms/arohcp-runbook"
+        runbook_url: "https://aka.ms/arohcp-runbook-idms"
 # ========================================
 # Test 4: Low volume — 100% failure rate, below the minimum volume guard
 # ========================================
