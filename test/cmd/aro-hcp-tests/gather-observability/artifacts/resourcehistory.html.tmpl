@@ -7,28 +7,26 @@
   <style>
     :root { color-scheme: dark; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: #0d1117; color: #e6edf3; font: 14px/1.5 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-    main { max-width: 1600px; margin: auto; padding: 24px; }
-    h1 { margin: 0; font-size: 26px; } h2 { margin: 0 0 8px; font-size: 19px; }
-    p { margin: 8px 0; } .muted, label { color: #9da7b3; } .eyebrow { color: #58a6ff; text-transform: uppercase; font-size: 11px; letter-spacing: .12em; }
-    .panel { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 16px; margin-top: 20px; min-width: 0; }
+    body { margin: 0; background: #000; color: #ddd; font: 14px/1.5 system-ui, sans-serif; }
+    main { max-width: 1600px; margin: auto; padding: 16px; }
+    h2 { margin: 0 0 8px; font-size: 15px; font-weight: 500; }
+    p { margin: 8px 0; overflow-wrap: anywhere; } .muted, label { color: #9da7b3; }
+    .panel { padding: 12px 0; margin-top: 12px; min-width: 0; }
+    header { color: #888; font-size: 12px; }
     .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 16px 0; }
     label { display: flex; flex-direction: column; gap: 5px; min-width: 0; max-width: 100%; }
     select, button { font: inherit; color: #e6edf3; background: #21262d; border: 1px solid #484f58; border-radius: 4px; padding: 7px 10px; max-width: 100%; }
-    select { min-width: 140px; } button, summary { cursor: pointer; } button:hover { border-color: #58a6ff; } :focus-visible { outline: 2px solid #58a6ff; outline-offset: 2px; }
+    select { min-width: 140px; } button { cursor: pointer; } button:hover { border-color: #58a6ff; } :focus-visible { outline: 2px solid #58a6ff; outline-offset: 2px; }
     .warning { border-left: 4px solid #d29922; background: #292315; padding: 12px 16px; }
     .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; } .charts .panel { margin: 0; } .charts .panel:last-child { grid-column: 1 / -1; }
     .chart { height: 350px; width: 100%; } [hidden] { display: none !important; }
-    .coverage { padding: 0; list-style: none; font-size: 13px; } .coverage li { margin: 6px 0; } .swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; }
-    .table-scroll { overflow-x: auto; width: 100%; } table { border-collapse: collapse; width: 100%; font-size: 13px; } th, td { padding: 8px; border-bottom: 1px solid #30363d; text-align: left; vertical-align: top; } th { color: #9da7b3; } td { font-variant-numeric: tabular-nums; } .nowrap { white-space: nowrap; }
-    p, li, td, summary { overflow-wrap: anywhere; } summary { color: #79c0ff; } textarea { width: 100%; height: 180px; background: #0d1117; color: #e6edf3; border: 1px solid #484f58; font: 12px/1.5 monospace; }
     @media (max-width: 900px) { .charts { grid-template-columns: 1fr; } }
-    @media (max-width: 650px) { main { padding: 12px; } .panel { padding: 12px; } .controls > label { width: 100%; } select { width: 100%; } .chart { height: 310px; } h1 { font-size: 23px; } }
+    @media (max-width: 650px) { main { padding: 12px; } .panel { padding: 12px; } .controls > label { width: 100%; } select { width: 100%; } .chart { height: 310px; } }
   </style>
 </head>
 <body>
 <main>
-  <header><div class="eyebrow">Observability / Resource utilization</div><h1>Resource History</h1><p id="window" class="muted"></p></header>
+  <header id="window"></header>
   <noscript><p class="warning">JavaScript is required to explore this embedded history. No Azure credentials are needed.</p></noscript>
   <p id="history-status" class="warning" role="status"></p>
   <div id="history-content" hidden>
@@ -36,29 +34,16 @@
       <label>Cluster<select id="cluster" aria-label="Cluster"></select></label>
       <label>Pool<select id="pool" aria-label="Pool"></select></label>
       <label>Node<select id="node" aria-label="Node"></select></label>
-      <label>Display<select id="display"><option value="absolute">Absolute quantities</option><option value="percent">Percent of capacity</option></select></label>
-      <button id="reset-zoom" type="button">Reset time zoom</button>
+      <label>Display<select id="display"><option value="absolute">Absolute</option><option value="percent">% capacity</option></select></label>
+      <button id="reset-zoom" type="button">Reset zoom</button>
     </div>
-    <p id="scope" class="muted"></p>
-    <p id="chart-status" class="muted" role="status">Charts are loading. The sample table and coverage counts work without the chart CDN.</p>
+    <p id="chart-status" class="muted" role="status">Loading charts...</p>
     <div class="charts">
-      <section class="panel"><h2>CPU</h2><div id="chart-cpu" class="chart" hidden role="img" aria-label="CPU history; equivalent values and coverage in sample table"></div><p id="status-cpu"></p><ul id="coverage-cpu" class="coverage"></ul></section>
-      <section class="panel"><h2>Memory</h2><div id="chart-memory" class="chart" hidden role="img" aria-label="Memory history; equivalent values and coverage in sample table"></div><p id="status-memory"></p><ul id="coverage-memory" class="coverage"></ul></section>
-      <section class="panel"><h2>SWIFT-NIC</h2><div id="chart-swiftNIC" class="chart" hidden role="img" aria-label="SWIFT-NIC slot history; no usage metric; equivalent values and coverage in sample table"></div><p id="status-swiftNIC"></p><ul id="coverage-swiftNIC" class="coverage"></ul></section>
+      <section class="panel"><h2>CPU</h2><div id="chart-cpu" class="chart" hidden role="img" aria-label="CPU history"></div></section>
+      <section class="panel"><h2>Memory</h2><div id="chart-memory" class="chart" hidden role="img" aria-label="Memory history"></div></section>
+      <section class="panel"><h2>SWIFT-NIC</h2><div id="chart-swiftNIC" class="chart" hidden role="img" aria-label="SWIFT-NIC slot history"></div></section>
     </div>
-    <section class="panel"><h2>Sample table</h2><p class="muted">Exact minute samples in the selected scope. Gaps are not zeros or interpolated totals. Coverage counts are measured / relevant observed nodes, not a fraction of consumption. Percentage lines also require complete, positive aggregate capacity.</p>
-      <div class="controls"><button id="previous" type="button">Previous samples</button><span id="page" role="status"></span><button id="next" type="button">Next samples</button></div>
-      <div class="table-scroll"><table><thead><tr><th>UTC sample / resource</th><th>Capacity</th><th>Allocatable</th><th>Usage</th><th>Requests</th><th>Requests / allocatable</th><th>Allocatable minus requests estimate</th><th>Coverage diagnostics</th></tr></thead><tbody id="samples"></tbody></table></div>
-    </section>
   </div>
-  <section class="panel"><h2>Measurement semantics</h2>
-    <p id="measurement-windows"></p>
-    <p>Whole-node non-idle CPU includes host and platform overhead, not just containers. Memory usage is host total minus available memory. History memory capacity comes from kube-state-metrics (KSM), unlike the smoothed host capacity in peak snapshots. These sources can differ.</p>
-    <p>Requests sum regular containers assigned to each node. They exclude init containers, pod overhead and unassigned demand; they are not scheduler-effective reservations. Requests / allocatable and the allocatable minus requests estimate are observational comparisons, not placement predictions.</p>
-    <p>All observed nodes are included, including NotReady and cordoned nodes. Allocatable is not a guarantee of usable capacity. This is regional load, not attribution to the test run or to a tenant. SWIFT-NIC is an advertised slot resource, not traffic or usage. SWIFT capacity and allocatable exclude non-advertising nodes, but assigned requests require measurements from all nodes: requests can remain after advertisement stops. Unknown advertisement gaps capacity and allocatable, not known absolute requests.</p>
-    <p class="muted">Selectors retain historically observed clusters, pools and nodes, including deleted nodes. Membership is evaluated separately at each minute. Unknown inventory, ambiguous pool membership or missing expected clusters prevent complete totals. Lines sum quantities before calculating ratios; no partial totals are drawn.</p>
-    <details id="diagnostics"><summary id="diagnostic-count">Collection diagnostics</summary><div id="diagnostic-text"></div></details>
-  </section>
 </main>
 <script id="resource-history-data" type="application/json">{{.}}</script>
 <script>
@@ -71,10 +56,9 @@ const history = list(report.history), resources = ['cpu', 'memory', 'swiftNIC'];
 const fields = ['capacity', 'allocatable', 'usage', 'requests'];
 const labels = {capacity: 'Capacity', allocatable: 'Allocatable', usage: 'Usage', requests: 'Requests'};
 const colors = {capacity: '#79b8ff', allocatable: '#c4a4ef', usage: '#56d4a3', requests: '#e3b341'};
-const resourceNames = {cpu: 'CPU', memory: 'Memory', swiftNIC: 'SWIFT-NIC'};
 const charts = {}, legend = {Capacity: true, Allocatable: true, Usage: true, Requests: true};
-let scope = {cluster: '', pool: '', node: ''}, percent = false, zoom = {start: 0, end: 100}, page = 0, aggregates = {};
-const pageSize = 12, format = new Intl.NumberFormat('en-US', {maximumFractionDigits: 2});
+let scope = {cluster: '', pool: '', node: ''}, percent = false, zoom = {start: 0, end: 100}, aggregates = {};
+const format = new Intl.NumberFormat('en-US', {maximumFractionDigits: 2});
 const utc = value => new Date(value).toISOString().replace('T', ' ').replace('.000Z', ' UTC');
 const nodeKey = node => JSON.stringify([node.cluster, node.name]);
 const unknownPool = pool => !pool || pool === 'unknown';
@@ -87,7 +71,6 @@ for (const sample of history) {
     const values = report.quantities[quantities];
     return {...report.metadata[metadata], capacity: values[0], allocatable: values[1], usage: values[2], requests: values[3]};
   });
-  sample.warnings = list(sample.warnings).map(index => report.messages[index]);
 }
 const timestamps = history.map(sample => Date.parse(sample.time));
 const timeLabels = timestamps.map(utc), startTime = Date.parse(report.start), endTime = Date.parse(report.end);
@@ -133,7 +116,7 @@ function cascade(level) {
     options($('node'), [...choices].sort((a, b) => a[1].localeCompare(b[1])), 'All nodes');
     $('node').value = scope.node;
   }
-  page = 0; render();
+  render();
 }
 function aggregate(sample, resource, selected = scope) {
   const clusters = selected.node ? [JSON.parse(selected.node)[0]] : selected.cluster ? [selected.cluster] : list(report.clusters);
@@ -166,64 +149,68 @@ function aggregate(sample, resource, selected = scope) {
   return {time: sample.time, lines, missingClusters, missingInventory, ambiguousPool, unknownSwift, observed: candidates.length, excluded, requestsWithoutAdvertisement, noResource,
     requestRatio: known(a) && a > 0 && known(r) ? 100 * r / a : null, estimate: known(a) && known(r) ? a - r : null};
 }
-function diagnostics(sample) {
-  return [sample.missingClusters + ' missing expected clusters', sample.missingInventory + ' missing inventory', sample.ambiguousPool + ' ambiguous pool', sample.unknownSwift + ' unknown SWIFT capacity applicability', sample.excluded + ' non-advertising nodes excluded from capacity/allocatable only', sample.requestsWithoutAdvertisement + ' nodes with positive assigned SWIFT requests without confirmed advertisement'].join('; ');
-}
-function lineText(sample, field, resource) {
-  if (sample.noResource && field !== 'requests') return 'No SWIFT-NIC resource advertised';
-  const line = sample.lines[field];
-  return quantity(percent ? line.percent : line.value, resource, percent) + ' (' + line.count + '/' + line.total + ' nodes' + (percent ? '; capacity ' + sample.lines.capacity.count + '/' + sample.lines.capacity.total : '') + ')';
-}
-function tooltip(resource, index) {
+function tooltip(resource, index, field) {
   const sample = aggregates[resource][index], host = el('div');
   if (!sample) return host;
-  host.append(el('strong', timeLabels[index] + ' / ' + resourceNames[resource]));
-  for (const field of resourceFields(resource)) host.append(el('div', labels[field] + ': ' + lineText(sample, field, resource)));
-  host.append(el('div', 'Requests / allocatable: ' + quantity(sample.requestRatio, resource, true)), el('div', 'Allocatable minus requests estimate: ' + quantity(sample.estimate, resource)), el('div', diagnostics(sample)));
+  const line = sample.lines[field];
+  if (!line) return host;
+  host.append(el('div', timeLabels[index]), el('strong', labels[field] + ': ' + quantity(percent ? line.percent : line.value, resource, percent)));
   return host;
 }
 function chartOption(resource) {
   const data = aggregates[resource];
   return {
     animation: false, useUTC: true, backgroundColor: 'transparent', textStyle: {color: '#e6edf3'},
-    legend: {data: resourceFields(resource).map(field => labels[field]), selected: {...legend}, textStyle: {color: '#e6edf3'}, type: 'scroll'},
+    legend: {show: true, icon: 'rect', data: resourceFields(resource).map(field => labels[field]), selected: {...legend}, textStyle: {color: '#e6edf3'}, type: 'scroll'},
     grid: {left: 65, right: 22, top: 65, bottom: 85},
-    tooltip: {trigger: 'axis', confine: true, renderMode: 'html', formatter: params => tooltip(resource, params[0]?.dataIndex), backgroundColor: '#161b22', borderColor: '#484f58', textStyle: {color: '#e6edf3'}},
+    tooltip: {trigger: 'item', triggerOn: 'none', confine: true, renderMode: 'html', backgroundColor: '#161b22', borderColor: '#484f58', textStyle: {color: '#e6edf3'}},
     axisPointer: {label: {formatter: params => utc(params.value)}},
     xAxis: {type: 'time', min: startTime, max: endTime, axisLabel: {hideOverlap: true, formatter: value => utc(value).slice(5, 16)}, axisPointer: {snap: true}},
     yAxis: {type: 'value', min: 0, name: percent ? '% of capacity' : resource === 'memory' ? 'GiB' : resource === 'cpu' ? 'cores' : 'slots', splitLine: {lineStyle: {color: '#30363d'}}},
     dataZoom: [{type: 'inside', ...zoom, filterMode: 'none'}, {type: 'slider', ...zoom, filterMode: 'none', bottom: 12, textStyle: {color: '#9da7b3'}, labelFormatter: value => utc(value)}],
-    series: resourceFields(resource).map(field => ({id: field, name: labels[field], type: 'line', smooth: false, step: field === 'usage' ? false : 'end', connectNulls: false, showSymbol: true, symbolSize: 4,
+    series: resourceFields(resource).map(field => ({id: field, name: labels[field], type: 'line', smooth: false, step: field === 'usage' ? false : 'end', connectNulls: false, showSymbol: false, symbol: 'none', triggerLineEvent: true,
       lineStyle: {color: colors[field], width: 2}, itemStyle: {color: colors[field]},
        data: data.map((sample, index) => [timestamps[index], percent ? sample.lines[field].percent : known(sample.lines[field].value) ? sample.lines[field].value / (resource === 'memory' ? 1073741824 : 1) : null])}))
   };
 }
 function drawCharts() {
   if (!window.echarts || !history.length) return;
-  $('chart-status').textContent = 'Hover and time zoom are linked. Drag the time slider or scroll over a chart to zoom; scope changes preserve the time window. Click legend labels to toggle lines.';
+  $('chart-status').hidden = true;
   for (const resource of resources) {
     $('chart-' + resource).hidden = false;
     if (!charts[resource]) {
       const chart = charts[resource] = window.echarts.init($('chart-' + resource));
-      chart.group = 'resource-history';
-      chart.on('datazoom', event => { const value = event.batch?.[0] || event; if (known(value.start) && known(value.end)) zoom = {start: value.start, end: value.end}; });
-      chart.on('legendselectchanged', event => { Object.assign(legend, event.selected); });
+      // Synchronize navigation only; ECharts groups also broadcast tooltips.
+      chart.on('datazoom', event => {
+        const value = event.batch?.[0] || event;
+        if (known(value.start) && known(value.end)) {
+          zoom = {start: value.start, end: value.end};
+          for (const other of Object.values(charts)) if (other !== chart) other.dispatchAction({type: 'dataZoom', ...zoom}, {silent: true});
+        }
+      });
+      chart.on('legendselectchanged', event => {
+        Object.assign(legend, event.selected);
+        for (const other of Object.values(charts)) if (other !== chart) other.dispatchAction({type: event.selected[event.name] ? 'legendSelect' : 'legendUnSelect', name: event.name}, {silent: true});
+      });
+      chart.on('mouseover', () => { for (const other of Object.values(charts)) if (other !== chart) other.dispatchAction({type: 'hideTip'}); });
+      chart.on('mousemove', 'series.line', event => {
+        // Line events have no dataIndex when symbols are disabled.
+        const time = chart.convertFromPixel({xAxisIndex: 0}, event.event.offsetX);
+        if (!known(time)) return;
+        let low = 0, high = timestamps.length - 1;
+        while (low < high) {
+          const middle = Math.floor((low + high) / 2);
+          if (timestamps[middle] < time) low = middle + 1; else high = middle;
+        }
+        const index = low > 0 && time - timestamps[low - 1] < timestamps[low] - time ? low - 1 : low;
+        const field = resourceFields(resource)[event.seriesIndex], line = aggregates[resource][index].lines[field];
+        if (!known(percent ? line.percent : line.value)) { chart.dispatchAction({type: 'hideTip'}); return; }
+        // With no symbol element, showTip needs explicit content and position.
+        chart.dispatchAction({type: 'showTip', x: event.event.offsetX, y: event.event.offsetY, tooltip: {formatter: () => tooltip(resource, index, field)}});
+      });
+      chart.on('mouseout', 'series.line', () => chart.dispatchAction({type: 'hideTip'}));
     }
     charts[resource].setOption(chartOption(resource));
-  }
-  window.echarts.connect('resource-history');
-}
-function renderTable() {
-  const body = $('samples'); body.replaceChildren();
-  const count = Math.ceil(history.length / pageSize);
-  $('page').textContent = 'Page ' + (page + 1) + ' of ' + count + ' / ' + history.length + ' minute samples';
-  $('previous').disabled = page === 0; $('next').disabled = page + 1 >= count;
-  for (let index = page * pageSize; index < Math.min(history.length, (page + 1) * pageSize); index++) for (const resource of resources) {
-    const sample = aggregates[resource][index], row = el('tr');
-    row.append(el('td', timeLabels[index] + ' / ' + resourceNames[resource]));
-    for (const field of fields) row.append(el('td', field === 'usage' && resource === 'swiftNIC' ? 'Not a usage resource' : lineText(sample, field, resource)));
-    row.append(el('td', quantity(sample.requestRatio, resource, true)), el('td', quantity(sample.estimate, resource)), el('td', diagnostics(sample)));
-    body.append(row);
   }
 }
 function render() {
@@ -234,48 +221,19 @@ function render() {
     for (const resource of resources) aggregates[resource] = history.map(sample => aggregate(sample, resource));
     aggregateScope = key;
   }
-  $('scope').textContent = [scope.cluster || 'Fleet', scope.pool ? JSON.parse(scope.pool) || '(unknown pool)' : 'All pools', scope.node ? JSON.parse(scope.node)[1] : 'All nodes'].join(' / ') + '. UTC window remains fixed across scopes.';
-  for (const resource of resources) {
-    const data = aggregates[resource];
-    const coverage = $('coverage-' + resource); coverage.replaceChildren();
-    for (const field of resourceFields(resource)) {
-      const complete = data.filter(sample => known(percent ? sample.lines[field].percent : sample.lines[field].value)).length;
-      const count = data.reduce((sum, sample) => sum + sample.lines[field].count, 0), total = data.reduce((sum, sample) => sum + sample.lines[field].total, 0);
-      const item = el('li'), swatch = el('span'); swatch.className = 'swatch'; swatch.style.background = colors[field];
-      item.append(swatch, el('span', labels[field] + ': ' + complete + '/' + data.length + ' complete minutes; ' + count + '/' + total + ' measured node-minutes.'));
-      coverage.append(item);
-    }
-    const unavailable = !data.some(sample => Object.values(sample.lines).some(line => known(percent ? line.percent : line.value)));
-    const noResource = data.filter(sample => sample.noResource).length;
-    $('status-' + resource).textContent = (noResource === data.length ? 'No SWIFT-NIC resource advertised.' : unavailable ? 'Data unavailable for this scope.' : 'Gaps indicate unavailable totals, not zero.') +
-      (resource === 'swiftNIC' && noResource !== data.length ? ' No SWIFT-NIC resource advertised at ' + noResource + '/' + data.length + ' minutes; no usage line.' : '') +
-      (resource === 'swiftNIC' ? ' Positive assigned requests without confirmed advertisement at ' + data.filter(sample => sample.requestsWithoutAdvertisement).length + '/' + data.length + ' minutes. Requests require all observed nodes; request data unavailable at ' + data.filter(sample => !known(sample.lines.requests.value)).length + '/' + data.length + ' minutes.' : '') +
-      ' Incomplete minutes: inventory ' + data.filter(sample => sample.missingInventory).length + ', expected clusters ' + data.filter(sample => sample.missingClusters).length + ', pool membership ' + data.filter(sample => sample.ambiguousPool).length + ', applicability ' + data.filter(sample => sample.unknownSwift).length + '.' +
-      (percent ? ' Capacity denominator complete and positive at ' + data.filter(sample => known(sample.lines.capacity.value) && sample.lines.capacity.value > 0).length + '/' + data.length + ' minutes.' : '');
-  }
-  renderTable(); drawCharts();
+  drawCharts();
 }
 $('window').textContent = utc(report.start) + ' to ' + utc(report.end);
-$('measurement-windows').textContent = 'Sampling step: ' + (report.step || 'not recorded') + '. CPU window: ' + (report.cpuWindow || 'not recorded') + '; memory window: ' + (report.memoryWindow || 'not recorded') + '. Absolute units are cores, GiB (1,073,741,824 bytes) and slots. Percentages use capacity, not allocatable.';
-$('history-status').textContent = history.length ? 'Complete lines only: any missing relevant measurement creates a gap in that line. Missing capacity also gaps percentage denominators; it does not erase known absolute usage or requests.' : 'History not recorded. This artifact contains no minute history; peak snapshots cannot reconstruct it.';
+$('history-status').textContent = 'History not recorded.';
+$('history-status').hidden = history.length > 0;
 $('history-content').hidden = !history.length;
-const warningCount = list(report.warnings).length + history.reduce((sum, sample) => sum + list(sample.warnings).length, 0);
-$('diagnostic-count').textContent = 'Collection diagnostics: ' + warningCount + ' saved messages (expand to inspect)';
-$('diagnostics').ontoggle = () => {
-  const host = $('diagnostic-text'); host.replaceChildren();
-  if (!$('diagnostics').open) return;
-  const text = el('textarea'); text.readOnly = true; text.setAttribute('aria-label', 'Original collection diagnostics');
-  text.value = [...list(report.warnings), ...history.flatMap(sample => list(sample.warnings).map(warning => utc(sample.time) + ': ' + warning))].join('\n') || 'No collection diagnostics recorded.';
-  host.append(text);
-};
 options($('cluster'), list(report.clusters).map(cluster => [cluster, cluster]), 'Fleet');
 $('cluster').onchange = () => cascade('cluster'); $('pool').onchange = () => cascade('pool'); $('node').onchange = () => cascade('node');
 $('display').onchange = render;
 $('reset-zoom').onclick = () => { zoom = {start: 0, end: 100}; if (charts.cpu) charts.cpu.dispatchAction({type: 'dataZoom', ...zoom}); };
-$('previous').onclick = () => { page--; renderTable(); }; $('next').onclick = () => { page++; renderTable(); };
 window.addEventListener('resize', () => Object.values(charts).forEach(chart => chart.resize()));
 cascade('cluster');
 </script>
-<script defer src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js" onload="drawCharts()" onerror="document.getElementById('chart-status').textContent='Chart CDN unavailable. Use the sample table and per-line coverage below; selectors still work.'"></script>
+<script defer src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js" onload="drawCharts()" onerror="document.getElementById('chart-status').textContent='Chart CDN unavailable.'"></script>
 </body>
 </html>

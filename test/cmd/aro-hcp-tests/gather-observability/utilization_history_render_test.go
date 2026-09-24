@@ -59,7 +59,7 @@ func TestRenderResourceHistoryHTML(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(html)
-	for _, want := range []string{"<!DOCTYPE html>", `name="viewport"`, `id="chart-cpu"`, `id="chart-memory"`, `id="chart-swiftNIC"`, `id="samples"`, `\u003c/script\u003e`, `\u0026`, `\u2028`, `\u2029`, "https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js"} {
+	for _, want := range []string{"<!DOCTYPE html>", `name="viewport"`, `id="chart-cpu"`, `id="chart-memory"`, `id="chart-swiftNIC"`, `\u003c/script\u003e`, `\u0026`, `\u2028`, `\u2029`, "https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("rendered history missing %q", want)
 		}
@@ -234,8 +234,7 @@ func TestRenderResourceHistoryBrowser(t *testing.T) {
   let nic = aggregate(swift, 'swiftNIC', svc);
   check(nic.noResource && nic.lines.capacity.value === null && nic.lines.allocatable.value === null && nic.lines.requests.value === 2, 'positive assigned requests survive absent advertised capacity');
   check(nic.lines.requests.percent === null && nic.requestRatio === null && nic.estimate === null, 'missing capacity and allocatable leave derived ratios and estimate unknown');
-  check(lineText(nic, 'requests', 'swiftNIC').startsWith('2 slots (1/1 nodes)') && lineText(nic, 'capacity', 'swiftNIC') === 'No SWIFT-NIC resource advertised', 'absence notice never masks assigned request value');
-  check(diagnostics(nic).includes('1 nodes with positive assigned SWIFT requests without confirmed advertisement'), 'requests without advertisement explicitly diagnosed');
+  check(nic.requestsWithoutAdvertisement === 1, 'requests without advertisement remain diagnosed in aggregate');
   nic = aggregate(swift, 'swiftNIC', fleet);
   check(nic.lines.requests.value === 9 && nic.lines.capacity.value === 24 && nic.lines.requests.percent === 37.5, 'requests include non-advertising nodes while capacity excludes them');
   swift.nodes[0].requests.swiftNIC = 0;
@@ -251,15 +250,9 @@ func TestRenderResourceHistoryBrowser(t *testing.T) {
   check(aggregate(zero, 'cpu', svc).lines.usage.percent === null, 'zero denominator is unknown, not infinity');
   zero.nodes[0].allocatable.cpu = 1; zero.nodes[0].requests.cpu = 2;
   check(aggregate(zero, 'cpu', svc).estimate === -1, 'negative estimate not clamped into misleading availability');
-  check(!$('history-content').hidden && resources.every(r => $('chart-' + r).hidden), 'CDN-free sample table has no empty chart space');
-  check($('samples').children.length === 15 && $('samples').textContent.includes('Data unavailable'), 'all fixture rows available without CDN');
-  check($('coverage-cpu').textContent.includes('Capacity: 2/5 complete minutes'), 'per-line coverage visible without chart');
-  check(!$('diagnostic-text').children.length, 'warnings remain lazy');
-  $('diagnostics').open = true; $('diagnostics').ontoggle();
-  check($('diagnostic-text').firstChild.value.includes(report.warnings.at(-1)), 'literal diagnostic text preserved');
-  check(!window.injected && !document.querySelector('img'), 'diagnostics never execute HTML');
-  $('diagnostics').open = false; $('diagnostics').ontoggle();
-  check(!$('diagnostic-text').children.length, 'diagnostic collapse releases DOM');
+  check(!$('history-content').hidden && resources.every(r => $('chart-' + r).hidden), 'unloaded charts have no empty chart space');
+  check(!document.querySelector('details, table, textarea') && !$('samples') && !$('coverage-cpu'), 'graphs only: no coverage, samples or measurement sections');
+  check(!window.injected && !document.querySelector('img'), 'saved diagnostics never execute HTML');
   check(document.documentElement.scrollWidth <= window.innerWidth, 'mobile has no page overflow');
   const choose = (id, value) => { $(id).value = value; $(id).onchange(); };
   choose('cluster', 'synthetic-mgmt');
@@ -272,28 +265,32 @@ func TestRenderResourceHistoryBrowser(t *testing.T) {
   choose('pool', unknown.pool);
   check([...$('node').options].some(option => option.textContent === 'mgmt-b') && aggregates.cpu[2].lines.capacity.value === 16, 'unknown bucket selector displays known capacity');
   choose('node', JSON.stringify(['synthetic-mgmt', 'mgmt-b']));
-  check(aggregates.cpu[2].lines.usage.value === 12 && $('samples').textContent.includes('12 cores'), 'exact unknown-pool node measurements reach sample table');
+  check(aggregates.cpu[2].lines.usage.value === 12, 'exact unknown-pool node measurements remain available');
   choose('cluster', 'synthetic-svc');
   check(!scope.pool && !scope.node && $('pool').value === '' && $('node').value === '', 'cluster cascades reset descendants');
-  check($('status-swiftNIC').textContent.includes('No SWIFT-NIC resource advertised at 4/5 minutes') && aggregates.swiftNIC[2].lines.requests.value === null, 'known zero requests coexist with explicit advertisement absence and inventory gap');
+  check(aggregates.swiftNIC.filter(s => s.noResource).length === 4 && aggregates.swiftNIC[2].lines.requests.value === null, 'advertisement absence and inventory gap remain distinct');
   choose('cluster', '');
   startCharts();
   const option = resource => charts[resource].getOption();
   check(option('cpu').useUTC && option('cpu').xAxis[0].min === Date.parse(report.start) && option('cpu').xAxis[0].max === Date.parse(report.end), 'UTC and global bounds');
   check(resources.every(resource => option(resource).xAxis[0].axisLabel.hideOverlap === true), 'time axes suppress overlapping labels on narrow viewports');
   check(option('cpu').series.every(series => series.connectNulls === false && series.smooth === false), 'no null interpolation or smooth usage');
+  check(resources.every(resource => option(resource).legend[0].show && option(resource).legend[0].icon === 'rect'), 'legends always visible without circular icons');
+  check(resources.every(resource => option(resource).series.every(series => series.showSymbol === false && series.symbol === 'none' && series.triggerLineEvent)), 'lines only with hover enabled');
   check(option('cpu').series.find(series => series.id === 'usage').step === false && option('cpu').series.find(series => series.id === 'requests').step === 'end', 'straight usage and step requests');
   check(option('memory').series[0].data[0][1] === 112, 'memory chart uses GiB');
   check(option('swiftNIC').series.length === 3, 'three NIC lines, never usage');
-  const tip = tooltip('cpu', 0);
-  check(tip.textContent.includes('Requests / allocatable: 56%') && tip.textContent.includes('estimate: 11 cores') && tip.textContent.includes('UTC'), 'safe tooltip with ratios, estimates, UTC');
+  const tip = tooltip('cpu', 0, 'requests');
+  check(tip.textContent.includes('Requests:') && tip.textContent.includes('UTC') && !tip.textContent.includes('Capacity') && !tip.textContent.includes('estimate') && !tip.textContent.includes('nodes'), 'tooltip contains only hovered series value and UTC');
+  check(option('cpu').tooltip[0].trigger === 'item', 'only hovered item triggers tooltip');
+  check(document.querySelectorAll('details[open]').length === 0 && $('history-status').hidden, 'details and explanatory text start hidden');
   const cpuChart = charts.cpu;
-  check(resources.every(resource => charts[resource].group === 'resource-history'), 'all resources share hover and zoom connection group');
+  check(resources.every(resource => !charts[resource].group), 'charts do not broadcast hover via connection group');
   cpuChart.dispatchAction({type: 'dataZoom', start: 20, end: 80});
   if (window.cachedECharts) {
     check(option('memory').dataZoom[0].start === 20 && option('swiftNIC').dataZoom[0].end === 80, 'real ECharts synchronizes zoom before rerender');
     cpuChart.dispatchAction({type: 'showTip', seriesIndex: 0, dataIndex: 0});
-    check(tooltip('cpu', 0).textContent.includes('3/3 nodes'), 'linked hover has exact per-line coverage');
+    check(tooltip('cpu', 0, 'capacity').children.length === 2, 'hover remains a compact timestamp and single value');
     cpuChart.dispatchAction({type: 'hideTip'});
   }
   cpuChart.dispatchAction({type: 'legendToggleSelect', name: 'Usage'});
@@ -307,7 +304,6 @@ func TestRenderResourceHistoryBrowser(t *testing.T) {
     check(config.xAxis[0].min === Date.parse(report.start) && config.xAxis[0].max === Date.parse(report.end), 'scope does not shrink time axis');
   }
   check(charts.cpu === cpuChart, 'chart instance reused on scope change');
-  check($('status-cpu').textContent.includes('Capacity denominator complete'), 'percentage denominator coverage visible');
   $('reset-zoom').click();
   check(option('cpu').dataZoom[0].start === 0 && option('memory').dataZoom[0].end === 100, 'reset applies across charts');
   const left = $('chart-cpu').getBoundingClientRect(), right = $('chart-memory').getBoundingClientRect();
@@ -323,12 +319,12 @@ func TestRenderResourceHistoryBrowserRequestsWithoutAdvertisement(t *testing.T) 
 		r.History[0].Nodes[0].Requests.SwiftNIC = &requests
 		checkResourceHistoryBrowser(t, r, `
   $('cluster').value = 'synthetic-svc'; $('cluster').onchange();
-  check(aggregates.swiftNIC[0].lines.requests.value === 2 && $('samples').textContent.includes('2 slots'), 'assigned requests reach rendered table');
+  check(aggregates.swiftNIC[0].lines.requests.value === 2, 'assigned requests retained');
   check(chartOption('swiftNIC').series.find(series => series.id === 'requests').data[0][1] === 2, 'advertisement does not discard request chart point');
-  check($('status-swiftNIC').textContent.includes('Positive assigned requests without confirmed advertisement at 1/5 minutes'), 'request advertisement mismatch visible without opening diagnostics');
-  check(tooltip('swiftNIC', 0).textContent.includes('Requests: 2 slots'), 'tooltip still shows known requests');
+  check(aggregates.swiftNIC[0].requestsWithoutAdvertisement === 1, 'request advertisement mismatch retained');
+  check(tooltip('swiftNIC', 0, 'requests').textContent.includes('Requests: 2 slots'), 'tooltip still shows known requests');
   $('display').value = 'percent'; $('display').onchange();
-  check(tooltip('swiftNIC', 0).textContent.includes('Requests: Data unavailable'), 'percentage request tooltip cannot manufacture denominator');
+  check(tooltip('swiftNIC', 0, 'requests').textContent.includes('Requests: Data unavailable'), 'percentage request tooltip cannot manufacture denominator');
   check(chartOption('swiftNIC').series.find(series => series.id === 'requests').data[0][1] === null, 'percentage request chart gaps without capacity denominator');
 `)
 	}
@@ -344,7 +340,7 @@ func TestRenderResourceHistoryBrowserLabels(t *testing.T) {
   $('pool').value = JSON.stringify(malicious); $('pool').onchange();
   check([...$('pool').options].some(option => option.textContent === malicious), 'selector text preserves literal metric labels');
   $('node').value = JSON.stringify(['synthetic-svc', malicious]); $('node').onchange();
-  check($('scope').textContent.includes(malicious) && !window.injected && !document.querySelector('img'), 'scope labels cannot inject HTML');
+  check(JSON.parse(scope.node)[1] === malicious && !window.injected && !document.querySelector('img'), 'scope labels cannot inject HTML');
 `)
 }
 
@@ -353,7 +349,7 @@ func TestRenderResourceHistoryBrowserLegacy(t *testing.T) {
 	r.History = nil
 	checkResourceHistoryBrowser(t, r, `
   check($('history-status').textContent.startsWith('History not recorded.'), 'legacy artifacts explicitly lack history');
-  check($('history-content').hidden && !$('samples').children.length, 'do not synthesize history from peak snapshots');
+  check($('history-content').hidden && !$('samples'), 'do not synthesize history from peak snapshots');
   startCharts(); check(!Object.keys(charts).length, 'no empty charts for legacy report');
 `)
 }
@@ -472,8 +468,8 @@ func TestRenderResourceHistoryBrowserReplay(t *testing.T) {
 
 const historyPerformanceAssertions = `
   const choose = (id, value) => { $(id).value = value; $(id).onchange(); };
-  check(history.length > 12, 'large test requires multiple table pages');
-  check($('samples').children.length === 36, 'table limited to twelve minutes, not history truncated');
+  check(history.length > 12, 'large test requires substantial history');
+  check(!$('samples'), 'no sample-table DOM for large history');
   const scans = aggregate;
   let calls = 0;
   aggregate = (...args) => { calls++; return scans(...args); };
@@ -525,11 +521,6 @@ const historyPerformanceAssertions = `
       check(aggregates[resource][i].lines[field].value === expected, 'independent exact fleet sum and gap check');
     }
   }
-  const beforePage = calls;
-  for (let i = 1; i < Math.ceil(history.length / pageSize); i++) $('next').click();
-  check($('next').disabled && !$('previous').disabled && $('samples').children.length === ((history.length - 1) % pageSize + 1) * 3, 'last page retains every minute');
-  $('previous').click();
-  check(calls === beforePage, 'pagination does not aggregate');
   Date.parse = originalDates;
   // Guard only our option preparation, including initial chart creation and
   // every subsequent update. ECharts itself may legitimately parse dates.
@@ -602,14 +593,15 @@ func checkResourceHistoryBrowser(t *testing.T, report utilizationReport, asserti
   function startCharts() {
     window.echarts = window.cachedECharts || {connect() {}, init() {
       let option; const handlers = {};
-      return {setOption(value) { option = value; }, getOption() { return {...option, xAxis: [option.xAxis], yAxis: [option.yAxis], legend: [option.legend]}; },
+      return {setOption(value) { option = value; }, getOption() { return {...option, xAxis: [option.xAxis], yAxis: [option.yAxis], legend: [option.legend], tooltip: [option.tooltip]}; },
         on(name, handler) { handlers[name] = handler; }, resize() {},
-        dispatchAction(event) {
+        dispatchAction(event, settings = {}) {
            if (event.type === 'dataZoom') {
-             for (const chart of Object.values(charts)) for (const z of chart.getOption().dataZoom) Object.assign(z, {start: event.start, end: event.end});
-             handlers.datazoom(event);
+              for (const z of option.dataZoom) Object.assign(z, {start: event.start, end: event.end});
+              if (!settings.silent) handlers.datazoom(event);
            }
-          if (event.type === 'legendToggleSelect') handlers.legendselectchanged({selected: {...option.legend.selected, [event.name]: false}});
+          if (event.type === 'legendToggleSelect') handlers.legendselectchanged({name: event.name, selected: {...option.legend.selected, [event.name]: false}});
+          if (event.type === 'legendSelect' || event.type === 'legendUnSelect') option.legend.selected[event.name] = event.type === 'legendSelect';
         }};
     }};
     drawCharts();

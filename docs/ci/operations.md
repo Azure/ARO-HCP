@@ -138,8 +138,9 @@ Synthetic-data desktop and mobile previews:
 
 The Resource History tab retains every evaluated minute, not just peak samples.
 Select the fleet, a cluster, pool, or historical node to inspect CPU, memory,
-and SWIFT-NIC resources. The three charts share time zoom and hover; changing
-scope preserves the time window. Absolute units (cores, GiB, slots) are the
+and SWIFT-NIC resources. The three charts share time zoom, not hover. Hovering
+a line shows only its timestamp and value; legends remain visible and point
+markers are omitted. Changing scope preserves the time window. Absolute units (cores, GiB, slots) are the
 default; percentage mode divides aggregate quantities by aggregate capacity.
 Pool membership and node placement are evaluated at each sample, including
 nodes deleted before collection. Unknown pool labels are not inferred from names.
@@ -154,9 +155,8 @@ twice. Empty HCP results are legitimate when both workspace queries succeed
 and the shared KSM collector has inventory evidence in the services workspace.
 
 SWIFT-NIC plots advertised capacity, allocatable and assigned requested slots,
-not measured NIC usage or traffic. A scope with no advertised resource is shown
-explicitly, separately from unavailable telemetry. Tooltips show requests as a
-percentage of allocatable and estimated unrequested capacity. Requests exclude
+not measured NIC usage or traffic. Missing or non-applicable capacity remains
+a gap rather than zero. Requests exclude
 init-container reservations, pod overhead and unassigned demand; spec-backed
 container inventory can also miss unobserved containers. These are not exact
 scheduler reservations or a guarantee that new pods will fit. NotReady and
@@ -165,11 +165,11 @@ during the run, not load attributable exclusively to that run.
 
 Incomplete measurements create gaps in the affected aggregate line. Known
 absolute usage can still be shown when capacity is unavailable, but percentage
-mode requires a complete positive capacity denominator. Coverage counts and
-collection diagnostics explain missing data; the collector cannot detect nodes
+mode requires a complete positive capacity denominator. Saved JSON retains
+collection diagnostics; the collector cannot detect nodes
 or pods absent from every input metric. There is no interpolation, silent
-partial summation, or zero-filling. A paginated sample table remains usable if
-the ECharts CDN is unavailable.
+partial summation, or zero-filling. The graph-only view requires the ECharts CDN;
+there is no sample table or measurement-details section.
 
 To iterate on the UI with an existing artifact:
 
@@ -183,7 +183,7 @@ the same renderers as the live tabs. Older JSON without history still renders
 peak snapshots, with "History not recorded" in the history output.
 No rendered configuration or Azure credentials are needed. Unsupported schema
 versions and invalid inputs are rejected. Charts use the existing ECharts CDN;
-summary tables and filters remain usable without that asset. The synthetic
+the separate peak view retains its summary tables without that asset. The synthetic
 fixture at `test/cmd/aro-hcp-tests/gather-observability/testdata/utilization-synthetic.json`
 can also be used as input for local UI testing.
 For history previews, use
