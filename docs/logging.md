@@ -171,6 +171,8 @@ Prod Kusto clusters are grouped by geography, so a single resource's logs live i
 | `AllHostedControlPlaneLogs` | `HostedControlPlaneLogs` |
 | `AllMonitoringEvents` | `MonitoringEvents` |
 
+Entity groups are database scoped. Select the database shown in the table before using its group. For example, `AllMonitoringEvents` resolves from `MonitoringEvents` but not from `ServiceLogs`. The `.show entity_groups` command also lists only the groups defined in the selected database.
+
 `macro-expand` runs the wrapped query on each member cluster and unions the results. Bind the group to an alias and project `$current_cluster_endpoint` to tag each row with its source cluster:
 
 ```kql

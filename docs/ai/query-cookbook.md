@@ -41,6 +41,8 @@ The two Kusto databases per region (see [kusto-debugging.md](kusto-debugging.md)
 
 The table lists above assume you are connected to the one regional cluster that hosts your resource. On prod you can instead fan a query across every cluster with the environment-scoped entity groups (`AllServiceLogs` for the `ServiceLogs` database, `AllHostedControlPlaneLogs` for `HostedControlPlaneLogs`, `AllMonitoringEvents` for `MonitoringEvents`). This is useful for the discovery step below when you do not yet know which cluster hosts the resource:
 
+Select the matching database before running the query. Kusto entity groups are database scoped, so `AllMonitoringEvents` resolves from `MonitoringEvents`, not from `ServiceLogs` or `HostedControlPlaneLogs`.
+
 ```kql
 macro-expand AllServiceLogs as X
 (
