@@ -75,14 +75,14 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		return np
 	}
 
-	nodePoolWithZeroReplicas := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+	nodePoolWithZeroReplicas := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 		np := fixture.NewNodePool()
 		np.Properties.Replicas = 0
 		np.Properties.AutoScaling = nil
 		return np
 	}
 
-	nodePoolWithTwoReplicas := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+	nodePoolWithTwoReplicas := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 		np := fixture.NewNodePool()
 		np.Properties.Replicas = 2
 		return np
@@ -106,7 +106,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 
 	// newHypershiftNodePoolReadDesire builds the mirrored Hypershift NodePool; AllMachinesReady is
 	// True unless allMachinesReadyMessage is set, in which case it is False with that message.
-	newHypershiftNodePoolReadDesire := func(nodePool *coreapi.HCPOpenShiftClusterNodePool, allMachinesReadyMessage string) *kubeapplierapi.ReadDesire {
+	newHypershiftNodePoolReadDesire := func(nodePool *coreapi.NodePool, allMachinesReadyMessage string) *kubeapplierapi.ReadDesire {
 		readDesire := newNodePoolReadDesire(t, nodePool, fixture.NewCluster())
 		if allMachinesReadyMessage == "" {
 			return readDesire
@@ -313,7 +313,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			// message is what ends up in the operation error once the deadline is exceeded.
 			name:  "deadline exceeded surfaces hypershift AllMachinesReady message",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
-			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 				np := nodePoolWithTwoReplicas(fixture)
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
 				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
