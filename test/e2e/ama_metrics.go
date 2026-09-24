@@ -73,11 +73,8 @@ var _ = Describe("AMA Metrics", func() {
 			svcWorkspaceNameStr, err := config.GetStringByPath(serviceConfig, "monitoring.svcWorkspaceName")
 			Expect(err).NotTo(HaveOccurred(), "failed to resolve monitoring.svcWorkspaceName")
 
-			// The SVC workspace lives in the mgmt (underlay infra) subscription, not the
-			// customer subscription that tc.SubscriptionID resolves to (the one the e2e
-			// test's own HCP cluster is created in), so it must be looked up separately.
-			mgmtSubscriptionNameStr, err := config.GetStringByPath(serviceConfig, "mgmt.subscription.key")
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve mgmt.subscription.key")
+			svcSubscriptionNameStr, err := config.GetStringByPath(serviceConfig, "svc.subscription.key")
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve svc.subscription.key")
 
 			cred, err := tc.AzureCredential()
 			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
@@ -85,8 +82,8 @@ var _ = Describe("AMA Metrics", func() {
 			subscriptionsClientFactory, err := tc.GetARMSubscriptionsClientFactory()
 			Expect(err).NotTo(HaveOccurred(), "failed to get ARM subscriptions client factory")
 
-			subscriptionID, err := framework.GetSubscriptionID(ctx, subscriptionsClientFactory.NewClient(), mgmtSubscriptionNameStr)
-			Expect(err).NotTo(HaveOccurred(), "failed to look up mgmt subscription ID for %q", mgmtSubscriptionNameStr)
+			subscriptionID, err := framework.GetSubscriptionID(ctx, subscriptionsClientFactory.NewClient(), svcSubscriptionNameStr)
+			Expect(err).NotTo(HaveOccurred(), "failed to look up svc subscription ID for %q", svcSubscriptionNameStr)
 
 			By("Resolving SVC workspace Prometheus endpoint")
 			endpoint, err := promutil.LookupPrometheusEndpoint(ctx, cred, subscriptionID, regionRGStr, svcWorkspaceNameStr)
@@ -114,7 +111,7 @@ var _ = Describe("AMA Metrics", func() {
 				{`kube_applier_health`, "kube-applier health (MGMT)"},
 				{`maestro_build_info`, "maestro build info (MGMT)"},
 				{`hypershift_hostedclusters`, "hypershift hosted clusters gauge (MGMT)"},
-				{`hosted_cluster_managed_azure_info`, "mgmt-agent hosted cluster info (MGMT)"},
+				{`capacity_reporting_sync_errors_total`, "mgmt-agent capacity reporting sync errors (MGMT)"},
 			}
 
 			By("Polling Azure Monitor for service metrics from both clusters")

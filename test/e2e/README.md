@@ -214,7 +214,12 @@ which contains all E2E test cases compatible with dev environment.
 ./test/aro-hcp-tests run-suite "rp-api-compat-all/parallel"
 ```
 Or this could be simplified by just running the following make command which would set the required environment variable, build the binary and execute the complete suite against your RP .
+Set the config variables accordingly to run the metrics tests locally.
 ```bash
+export ARO_HCP_CONFIG_FILE="REPOROOT/config/config.yaml"; \
+export CLOUD="dev"; \
+export DEPLOY_ENV="pers"; \
+export REGION="westus3"; \
 make e2e/local
 ```
 
