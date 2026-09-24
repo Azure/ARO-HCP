@@ -160,6 +160,7 @@ func (b *backendInformers) HasSynced() bool {
 		b.externalAuthInformer.HasSynced() &&
 		b.serviceProviderClusterInformer.HasSynced() &&
 		b.serviceProviderNodePoolInformer.HasSynced() &&
+		b.serviceProviderExternalAuthInformer.HasSynced() &&
 		b.controllerInformer.HasSynced() &&
 		b.managementClusterContentInformer.HasSynced() &&
 		b.systemAdminCredentialRequestInformer.HasSynced() &&

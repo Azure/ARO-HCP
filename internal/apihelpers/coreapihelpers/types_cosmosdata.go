@@ -143,7 +143,7 @@ func ToServiceProviderExternalAuthResourceIDString(subscriptionName, resourceGro
 	))
 }
 
-// leafTypeName returns the trailing segment of an ARM ResourceType (the
+// LeafTypeName returns the trailing segment of an ARM ResourceType (the
 // part after the last slash). Using it in the per-level helpers prevents
 // callers from accidentally embedding the full `namespace/type/...` form
 // twice in the same ID — see the original ToServiceProviderNodePoolResourceIDString

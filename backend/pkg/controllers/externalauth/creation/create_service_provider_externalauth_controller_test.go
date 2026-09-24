@@ -56,10 +56,10 @@ func newCreatorTestExternalAuthKey() controllerutils.HCPExternalAuthKey {
 	}
 }
 
-func newCreatorTestExternalAuth(t *testing.T) *coreapi.HCPOpenShiftClusterExternalAuth {
+func newCreatorTestExternalAuth(t *testing.T) *coreapi.ExternalAuth {
 	t.Helper()
 	resourceID := metadataapi.Must(coreapihelpers.ToExternalAuthResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName, creatorTestExternalAuthName))
-	return &coreapi.HCPOpenShiftClusterExternalAuth{
+	return &coreapi.ExternalAuth{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
 		ProxyResource: coreapi.ProxyResource{
 			Resource: coreapi.Resource{
@@ -76,7 +76,7 @@ type boomExternalAuthLister struct {
 	err error
 }
 
-func (b *boomExternalAuthLister) Get(_ context.Context, _, _, _, _ string) (*coreapi.HCPOpenShiftClusterExternalAuth, error) {
+func (b *boomExternalAuthLister) Get(_ context.Context, _, _, _, _ string) (*coreapi.ExternalAuth, error) {
 	return nil, b.err
 }
 
@@ -130,7 +130,7 @@ func TestCreateServiceProviderExternalAuthSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderExternalAuthSyncer{
 					resourcesDBClient: mockDB,
 					externalAuthLister: &corelistertesting.SliceExternalAuthLister{
-						ExternalAuths: []*coreapi.HCPOpenShiftClusterExternalAuth{newCreatorTestExternalAuth(t)},
+						ExternalAuths: []*coreapi.ExternalAuth{newCreatorTestExternalAuth(t)},
 					},
 					serviceProviderExternalAuthLister: &corelistertesting.SliceServiceProviderExternalAuthLister{
 						ServiceProviderExternalAuths: []*coreapi.ServiceProviderExternalAuth{{
@@ -147,7 +147,7 @@ func TestCreateServiceProviderExternalAuthSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderExternalAuthSyncer{
 					resourcesDBClient: mockDB,
 					externalAuthLister: &corelistertesting.SliceExternalAuthLister{
-						ExternalAuths: []*coreapi.HCPOpenShiftClusterExternalAuth{newCreatorTestExternalAuth(t)},
+						ExternalAuths: []*coreapi.ExternalAuth{newCreatorTestExternalAuth(t)},
 					},
 					serviceProviderExternalAuthLister: &boomServiceProviderExternalAuthLister{err: listerBoom},
 				}
@@ -163,7 +163,7 @@ func TestCreateServiceProviderExternalAuthSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderExternalAuthSyncer{
 					resourcesDBClient: mockDB,
 					externalAuthLister: &corelistertesting.SliceExternalAuthLister{
-						ExternalAuths: []*coreapi.HCPOpenShiftClusterExternalAuth{deletingEA},
+						ExternalAuths: []*coreapi.ExternalAuth{deletingEA},
 					},
 					serviceProviderExternalAuthLister: &corelistertesting.SliceServiceProviderExternalAuthLister{},
 				}
@@ -176,7 +176,7 @@ func TestCreateServiceProviderExternalAuthSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderExternalAuthSyncer{
 					resourcesDBClient: mockDB,
 					externalAuthLister: &corelistertesting.SliceExternalAuthLister{
-						ExternalAuths: []*coreapi.HCPOpenShiftClusterExternalAuth{newCreatorTestExternalAuth(t)},
+						ExternalAuths: []*coreapi.ExternalAuth{newCreatorTestExternalAuth(t)},
 					},
 					serviceProviderExternalAuthLister: &corelistertesting.SliceServiceProviderExternalAuthLister{},
 				}
@@ -189,7 +189,7 @@ func TestCreateServiceProviderExternalAuthSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderExternalAuthSyncer{
 					resourcesDBClient: mockDB,
 					externalAuthLister: &corelistertesting.SliceExternalAuthLister{
-						ExternalAuths: []*coreapi.HCPOpenShiftClusterExternalAuth{newCreatorTestExternalAuth(t)},
+						ExternalAuths: []*coreapi.ExternalAuth{newCreatorTestExternalAuth(t)},
 					},
 					serviceProviderExternalAuthLister: &corelistertesting.SliceServiceProviderExternalAuthLister{},
 				}

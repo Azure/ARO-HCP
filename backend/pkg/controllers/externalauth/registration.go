@@ -119,6 +119,24 @@ func instantiateExternalAuthDegradedAggregatorController(controllerContext contr
 	), nil
 }
 
+func registerExternalAuthUserFacingConditionsDegradedAggregatorController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateExternalAuthUserFacingConditionsDegradedAggregatorController, false),
+	}
+}
+
+func instantiateExternalAuthUserFacingConditionsDegradedAggregatorController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, externalAuthLister := controllerContext.BackendInformers.ExternalAuths()
+	_, serviceProviderExternalAuthLister := controllerContext.BackendInformers.ServiceProviderExternalAuths()
+	return externalauthstatus.NewExternalAuthUserFacingConditionsDegradedAggregatorController(
+		controllerContext.ResourcesDBClient,
+		externalAuthLister,
+		serviceProviderExternalAuthLister,
+		controllerContext.BackendInformers,
+	), nil
+}
+
 func registerExternalAuthDeletionClusterServiceDeleteDispatchController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -195,12 +213,53 @@ func instantiateExternalAuthClusterServiceUpdateDispatchController(controllerCon
 	), nil
 }
 
+func registerCreateServiceProviderExternalAuthController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateCreateServiceProviderExternalAuthController, false),
+	}
+}
+
+func instantiateCreateServiceProviderExternalAuthController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, externalAuthLister := controllerContext.BackendInformers.ExternalAuths()
+	_, serviceProviderExternalAuthLister := controllerContext.BackendInformers.ServiceProviderExternalAuths()
+	return externalauthcreation.NewCreateServiceProviderExternalAuthController(
+		controllerContext.ResourcesDBClient,
+		externalAuthLister,
+		serviceProviderExternalAuthLister,
+		controllerContext.BackendInformers,
+	), nil
+}
+
+func registerExternalAuthOIDCClientsDegradedController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateExternalAuthOIDCClientsDegradedController, true),
+	}
+}
+
+func instantiateExternalAuthOIDCClientsDegradedController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, externalAuthLister := controllerContext.BackendInformers.ExternalAuths()
+	_, serviceProviderExternalAuthLister := controllerContext.BackendInformers.ServiceProviderExternalAuths()
+	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
+	return externalauthstatus.NewExternalAuthOIDCClientsDegradedController(
+		controllerContext.ResourcesDBClient,
+		externalAuthLister,
+		serviceProviderExternalAuthLister,
+		unionReadDesireLister,
+		controllerContext.BackendInformers,
+	), nil
+}
+
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(externalauthcreation.ExternalAuthClusterServiceCreateControllerName)] = registerExternalAuthClusterServiceCreateController()
+	registry[strings.ToLower(externalauthcreation.CreateServiceProviderExternalAuthControllerName)] = registerCreateServiceProviderExternalAuthController()
 	registry[strings.ToLower(externalauthoperations.OperationExternalAuthCreateControllerName)] = registerOperationExternalAuthCreateController()
 	registry[strings.ToLower(externalauthoperations.OperationExternalAuthUpdateControllerName)] = registerOperationExternalAuthUpdateController()
 	registry[strings.ToLower(externalauthoperations.OperationExternalAuthDeleteControllerName)] = registerOperationExternalAuthDeleteController()
 	registry[strings.ToLower(externalauthstatus.ExternalAuthDegradedAggregatorControllerName)] = registerExternalAuthDegradedAggregatorController()
+	registry[strings.ToLower(externalauthstatus.ExternalAuthOIDCClientsDegradedControllerName)] = registerExternalAuthOIDCClientsDegradedController()
+	registry[strings.ToLower(externalauthstatus.ExternalAuthUserFacingConditionsDegradedAggregatorControllerName)] = registerExternalAuthUserFacingConditionsDegradedAggregatorController()
 	registry[strings.ToLower(externalauthdeletion.ExternalAuthClusterServiceDeleteDispatchControllerName)] = registerExternalAuthDeletionClusterServiceDeleteDispatchController()
 	registry[strings.ToLower(externalauthdeletion.ExternalAuthDeletionClusterServiceIDClearerControllerName)] = registerExternalAuthClusterServiceIDClearerController()
 	registry[strings.ToLower(externalauthdeletion.ExternalAuthChildResourcesCleanupControllerControllerName)] = registerExternalAuthChildResourcesCleanupController()
