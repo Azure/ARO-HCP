@@ -39,15 +39,15 @@ import (
 )
 
 // newTestExternalAuthForAggregator builds a minimal
-// ClusterExternalAuth suitable for the aggregator tests.
-func newTestExternalAuthForAggregator(opts ...func(*coreapi.ClusterExternalAuth)) *coreapi.ClusterExternalAuth {
+// ExternalAuth suitable for the aggregator tests.
+func newTestExternalAuthForAggregator(opts ...func(*coreapi.ExternalAuth)) *coreapi.ExternalAuth {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
 			"/externalAuths/" + statusutils.TestExternalAuthName,
 	))
-	ea := &coreapi.ClusterExternalAuth{
+	ea := &coreapi.ExternalAuth{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -194,7 +194,7 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			existing := newTestExternalAuthForAggregator(func(ea *coreapi.ClusterExternalAuth) {
+			existing := newTestExternalAuthForAggregator(func(ea *coreapi.ExternalAuth) {
 				if len(tc.initialConditions) > 0 {
 					ea.Status.Conditions = append([]metav1.Condition{}, tc.initialConditions...)
 				}

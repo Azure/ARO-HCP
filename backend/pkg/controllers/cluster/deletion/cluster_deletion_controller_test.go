@@ -322,14 +322,14 @@ func newTestNodePool(t *testing.T) *coreapi.NodePool {
 	}
 }
 
-func newTestExternalAuth(t *testing.T) *coreapi.ClusterExternalAuth {
+func newTestExternalAuth(t *testing.T) *coreapi.ExternalAuth {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/externalAuths/test-auth"))
-	return &coreapi.ClusterExternalAuth{
+	return &coreapi.ExternalAuth{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),

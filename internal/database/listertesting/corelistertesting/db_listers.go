@@ -181,7 +181,7 @@ type DBExternalAuthLister struct {
 
 var _ corelisters.ExternalAuthLister = &DBExternalAuthLister{}
 
-func (l *DBExternalAuthLister) List(ctx context.Context) ([]*coreapi.ClusterExternalAuth, error) {
+func (l *DBExternalAuthLister) List(ctx context.Context) ([]*coreapi.ExternalAuth, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ExternalAuths().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -189,16 +189,16 @@ func (l *DBExternalAuthLister) List(ctx context.Context) ([]*coreapi.ClusterExte
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
-func (l *DBExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.ClusterExternalAuth, error) {
+func (l *DBExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.ExternalAuth, error) {
 	return l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(clusterName).Get(ctx, externalAuthName)
 }
 
-func (l *DBExternalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.ClusterExternalAuth, error) {
+func (l *DBExternalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.ExternalAuth, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var result []*coreapi.ClusterExternalAuth
+	var result []*coreapi.ExternalAuth
 	for _, ea := range all {
 		if ea.ID != nil &&
 			strings.EqualFold(ea.ID.SubscriptionID, subscriptionID) &&
@@ -209,7 +209,7 @@ func (l *DBExternalAuthLister) ListForResourceGroup(ctx context.Context, subscri
 	return result, nil
 }
 
-func (l *DBExternalAuthLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.ClusterExternalAuth, error) {
+func (l *DBExternalAuthLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.ExternalAuth, error) {
 	iter, err := l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(clusterName).List(ctx, nil)
 	if err != nil {
 		return nil, err

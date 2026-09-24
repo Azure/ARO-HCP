@@ -569,7 +569,7 @@ func TestCanonicalDefaultsConsistencyNodePool(t *testing.T) {
 // versioned constructors. This catches drift between the defaulting layers
 // described in docs/api-version-defaults-and-storage.md.
 func TestEnsureDefaultsConsistencyExternalAuth(t *testing.T) {
-	ensuredDefault := &coreapi.ClusterExternalAuth{}
+	ensuredDefault := &coreapi.ExternalAuth{}
 	ensuredDefault.EnsureDefaults()
 
 	// Verify against each versioned API's SetDefaultValues
@@ -644,21 +644,21 @@ func TestPreExistingDataExternalAuth(t *testing.T) {
 	))
 
 	internalID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/external_auth_config/external_auths/default"))
-	preExistingDoc := &GenericDocument[coreapi.ClusterExternalAuth]{
+	preExistingDoc := &GenericDocument[coreapi.ExternalAuth]{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
-		Content: coreapi.ClusterExternalAuth{
+		Content: coreapi.ExternalAuth{
 			// PrefixPolicy is intentionally zero-valued to simulate
 			// a pre-existing document that predates the field.
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID: resourceID,
 			},
-			Properties: coreapi.ClusterExternalAuthProperties{
+			Properties: coreapi.ExternalAuthProperties{
 				ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			},
-			ServiceProviderProperties: coreapi.ClusterExternalAuthServiceProviderProperties{
+			ServiceProviderProperties: coreapi.ExternalAuthServiceProviderProperties{
 				ClusterServiceID: &internalID,
 			},
 		},

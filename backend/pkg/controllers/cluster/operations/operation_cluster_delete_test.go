@@ -58,7 +58,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 	testCases := []struct {
 		name                           string
 		nodePools                      []*coreapi.NodePool
-		externalAuths                  []*coreapi.ClusterExternalAuth
+		externalAuths                  []*coreapi.ExternalAuth
 		usesNewClusterDeletionApproach bool
 		existingCluster                *coreapi.Cluster
 		setupCSMock                    func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
@@ -122,7 +122,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			wantErr: false,
-			externalAuths: []*coreapi.ClusterExternalAuth{
+			externalAuths: []*coreapi.ExternalAuth{
 				operationtesting.NewExternalAuthTestFixture().NewExternalAuth(),
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {

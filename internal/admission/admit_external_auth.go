@@ -26,20 +26,20 @@ import (
 // ExternalAuthAdmissionContext carries dependencies that external auth mutation/admission needs
 // beyond the external auth object itself.
 type ExternalAuthAdmissionContext struct {
-	// ClusterExternalAuths is a list of all external auths for the cluster
-	ClusterExternalAuths []*coreapi.ClusterExternalAuth
+	// ExternalAuths is a list of all external auths for the cluster
+	ExternalAuths []*coreapi.ExternalAuth
 }
 
 // AdmitExternalAuth performs non-static checks of external auth. Checks that require more information than is contained inside of
 // the external auth instance itself.
-func AdmitExternalAuth(ctx context.Context, admissionContext *ExternalAuthAdmissionContext, op operation.Operation, newExternalAuth, oldExternalAuth *coreapi.ClusterExternalAuth) field.ErrorList {
+func AdmitExternalAuth(ctx context.Context, admissionContext *ExternalAuthAdmissionContext, op operation.Operation, newExternalAuth, oldExternalAuth *coreapi.ExternalAuth) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// We do a *best-effort* to check to see if there are other external auths on the cluster and if there are we
 	// prevent the creation of a new external auth. This is because as of now (2026-06-26) we do not allow creating more than one external auth
 	// per cluster.
 	if op.Type == operation.Create {
-		if len(admissionContext.ClusterExternalAuths) > 0 {
+		if len(admissionContext.ExternalAuths) > 0 {
 			errs = append(errs, field.Forbidden(field.NewPath("name"), "There are other external auths on the cluster. Only one external auth is allowed per cluster."))
 		}
 	}

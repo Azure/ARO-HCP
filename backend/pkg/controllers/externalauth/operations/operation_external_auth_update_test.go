@@ -48,7 +48,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 	testClockNow := time.Now()
 	fixture := operationtesting.NewExternalAuthTestFixture()
 
-	newExternalAuth := func(mutate ...func(*coreapi.ClusterExternalAuth)) *coreapi.ClusterExternalAuth {
+	newExternalAuth := func(mutate ...func(*coreapi.ExternalAuth)) *coreapi.ExternalAuth {
 		externalAuth := fixture.NewExternalAuth()
 		for _, fn := range mutate {
 			if fn != nil {
@@ -75,7 +75,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 		})
 	}
 
-	newPassingCSExternalAuth := func(t *testing.T, externalAuth *coreapi.ClusterExternalAuth) *arohcpv1alpha1.ExternalAuth {
+	newPassingCSExternalAuth := func(t *testing.T, externalAuth *coreapi.ExternalAuth) *arohcpv1alpha1.ExternalAuth {
 		t.Helper()
 		builder, err := ocm.BuildCSExternalAuth(context.Background(), externalAuth, true)
 		require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 		return csExternalAuth
 	}
 
-	newPassingExternalAuth := func(mutate ...func(*coreapi.ClusterExternalAuth)) *coreapi.ClusterExternalAuth {
+	newPassingExternalAuth := func(mutate ...func(*coreapi.ExternalAuth)) *coreapi.ExternalAuth {
 		return operationtesting.NewExternalAuthUpdateTestExternalAuth(mutate...)
 	}
 
@@ -103,7 +103,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name                          string
-		existingExternalAuth          *coreapi.ClusterExternalAuth
+		existingExternalAuth          *coreapi.ExternalAuth
 		existingOperation             *coreapi.Operation
 		externalAuthLister            corelisters.ExternalAuthLister
 		activeOperationsLister        corelisters.ActiveOperationLister
@@ -140,7 +140,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 			existingOperation:             newOperationAccepted(),
 			cachedHostedClusterReadDesire: newPassingCachedHostedClusterReadDesire(),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
-				staleCSExternalAuth := newPassingCSExternalAuth(t, newPassingExternalAuth(func(ea *coreapi.ClusterExternalAuth) {
+				staleCSExternalAuth := newPassingCSExternalAuth(t, newPassingExternalAuth(func(ea *coreapi.ExternalAuth) {
 					ea.Properties.Issuer.URL = "https://stale.example.com"
 				}))
 				mock.EXPECT().
@@ -212,7 +212,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "active operation id mismatch leaves operation unchanged",
-			existingExternalAuth: newExternalAuth(func(ea *coreapi.ClusterExternalAuth) {
+			existingExternalAuth: newExternalAuth(func(ea *coreapi.ExternalAuth) {
 				ea.ServiceProviderProperties.ActiveOperationID = "other-operation"
 			}),
 			existingOperation: newOperationAccepted(),
@@ -224,7 +224,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
-			existingExternalAuth: newExternalAuth(func(ea *coreapi.ClusterExternalAuth) {
+			existingExternalAuth: newExternalAuth(func(ea *coreapi.ExternalAuth) {
 				ea.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			existingOperation: newOperationAccepted(),
@@ -236,7 +236,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "shouldReconcile gate not passed when external auth is deleting",
-			existingExternalAuth: newExternalAuth(func(ea *coreapi.ClusterExternalAuth) {
+			existingExternalAuth: newExternalAuth(func(ea *coreapi.ExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: testClockNow}
 			}),
 			existingOperation: newOperationAccepted(),

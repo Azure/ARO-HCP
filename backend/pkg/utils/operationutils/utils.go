@@ -248,7 +248,7 @@ func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient core
 
 // getExternalAuthForUpdate returns a deep copy of the external auth with updated
 // provisioning state, or nil if the resource update should be skipped.
-func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.ExternalAuthsCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.ClusterExternalAuth, error) {
+func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.ExternalAuthsCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.ExternalAuth, error) {
 	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {

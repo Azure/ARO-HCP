@@ -170,7 +170,7 @@ func TestExternalAuthMetricsHandler_SetsMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	handler := NewExternalAuthMetricsHandler(reg)
 
-	externalAuth := &coreapi.ClusterExternalAuth{
+	externalAuth := &coreapi.ExternalAuth{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1"))},
 		ProxyResource: coreapi.ProxyResource{
 			Resource: coreapi.Resource{
@@ -178,7 +178,7 @@ func TestExternalAuthMetricsHandler_SetsMetrics(t *testing.T) {
 				SystemData: &coreapi.SystemData{CreatedAt: &now},
 			},
 		},
-		Properties: coreapi.ClusterExternalAuthProperties{
+		Properties: coreapi.ExternalAuthProperties{
 			ProvisioningState: coreapi.ProvisioningStateAccepted,
 		},
 	}

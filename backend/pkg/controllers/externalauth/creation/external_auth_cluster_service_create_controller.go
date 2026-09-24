@@ -68,7 +68,7 @@ func NewExternalAuthClusterServiceCreateController(
 	)
 }
 
-func (c *externalAuthClusterServiceCreateSyncer) needsWork(externalAuth *coreapi.ClusterExternalAuth) bool {
+func (c *externalAuthClusterServiceCreateSyncer) needsWork(externalAuth *coreapi.ExternalAuth) bool {
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp == nil &&
 		(externalAuth.ServiceProviderProperties.ClusterServiceID == nil || len(externalAuth.ServiceProviderProperties.ClusterServiceID.String()) == 0)
 }

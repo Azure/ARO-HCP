@@ -38,7 +38,7 @@ func (v version) ValidationPathRewriter(internalObj any) (coreapi.ValidationPath
 	switch internalObj.(type) {
 	case *coreapi.NodePool:
 		return nil, nil
-	case *coreapi.ClusterExternalAuth:
+	case *coreapi.ExternalAuth:
 		return nil, nil
 	case *coreapi.Cluster:
 		return propertiesReplacer.Replace, nil

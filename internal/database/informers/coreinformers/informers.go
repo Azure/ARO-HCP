@@ -199,14 +199,14 @@ func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalListe
 
 // NewExternalAuthInformer creates an unstarted SharedIndexInformer for external auths
 // with resource group and cluster indexes using the default relist duration.
-func NewExternalAuthInformer(lister cosmosstorageutils.GlobalLister[coreapi.ClusterExternalAuth], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewExternalAuthInformer(lister cosmosstorageutils.GlobalLister[coreapi.ExternalAuth], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewExternalAuthInformerWithRelistDuration(lister, cosmosClient, ExternalAuthRelistDuration)
 }
 
 // NewExternalAuthInformerWithRelistDuration creates an unstarted SharedIndexInformer for external auths
 // with resource group and cluster indexes and a configurable relist duration.
-func NewExternalAuthInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.ClusterExternalAuth], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[coreapi.ClusterExternalAuth, *coreapi.ClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ClusterExternalAuth]](
+func NewExternalAuthInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.ExternalAuth], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.ExternalAuth, *coreapi.ExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ExternalAuth]](
 		[]azcorearm.ResourceType{coreapi.ExternalAuthResourceType},
 		utilsclock.RealClock{},
 		lister,
@@ -217,14 +217,14 @@ func NewExternalAuthInformerWithRelistDuration(lister cosmosstorageutils.GlobalL
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "ExternalAuths"},
-		&coreapi.ClusterExternalAuth{},
+		&coreapi.ExternalAuth{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
 				corelisters.ByResourceGroup: resourceGroupIndexFunc,
 				corelisters.ByCluster:       clusterResourceIDIndexFunc,
 			},
-			ObjectDescription: "ClusterExternalAuth",
+			ObjectDescription: "ExternalAuth",
 		},
 	)
 }

@@ -151,7 +151,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Walkthrough of an HCP cluster creation process through all the service layers of ARO HCP
 - [Resource Creation Diagram](resource-creation.md)
   - Detailed diagram of the resource creation flow (frontend, backend, Cluster Service, Maestro)
-  - Covers HCPOpenShiftCluster, NodePool, and ExternalAuth resource types
+  - Covers Cluster, NodePool, and ExternalAuth resource types
 - [PostgreSQL](ops/postgres.md)
   - PostgreSQL usage for Clusters Service and Maestro
 - [Postgres Breakglass](ops/postgres-breakglass.md)

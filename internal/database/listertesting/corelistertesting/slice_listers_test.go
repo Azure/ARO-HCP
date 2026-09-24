@@ -177,7 +177,7 @@ func TestSliceExternalAuthLister(t *testing.T) {
 	ea3 := newTestExternalAuth(testSubscriptionID, testResourceGroupName, testClusterName2, testExternalAuthName)
 
 	lister := &SliceExternalAuthLister{
-		ExternalAuths: []*coreapi.ClusterExternalAuth{ea1, ea2, ea3},
+		ExternalAuths: []*coreapi.ExternalAuth{ea1, ea2, ea3},
 	}
 
 	ctx := context.Background()
@@ -440,14 +440,14 @@ func newTestExternalAuthOperation(subscriptionID, operationName, targetSubscript
 	}
 }
 
-func newTestExternalAuth(subscriptionID, resourceGroupName, clusterName, externalAuthName string) *coreapi.ClusterExternalAuth {
+func newTestExternalAuth(subscriptionID, resourceGroupName, clusterName, externalAuthName string) *coreapi.ExternalAuth {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/externalAuths/" + externalAuthName,
 	))
-	return &coreapi.ClusterExternalAuth{
+	return &coreapi.ExternalAuth{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 		ProxyResource:  coreapi.NewProxyResource(resourceID),
 	}

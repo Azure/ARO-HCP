@@ -264,7 +264,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.ClusterExternalAuth{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.ExternalAuth{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.externalAuthInformer.RunWithContext(localCtx)

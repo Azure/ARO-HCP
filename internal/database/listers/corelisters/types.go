@@ -25,7 +25,7 @@ type BackendListers struct {
 	ActiveOperationLister         ActiveOperationLister
 	ClusterLister                 ClusterLister
 	NodePoolLister                NodePoolLister
-	ClusterExternalAuthLister     ExternalAuthLister
+	ExternalAuthLister            ExternalAuthLister
 	ServiceProviderClusterLister  ServiceProviderClusterLister
 	ServiceProviderNodePoolLister ServiceProviderNodePoolLister
 	ControllerLister              ControllerLister

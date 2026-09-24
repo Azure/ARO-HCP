@@ -124,7 +124,7 @@ type VersionedCreatableResource[InternalAPIType any] interface {
 
 type VersionedCluster VersionedCreatableResource[Cluster]
 type VersionedNodePool VersionedCreatableResource[NodePool]
-type VersionedClusterExternalAuth VersionedCreatableResource[ClusterExternalAuth]
+type VersionedExternalAuth VersionedCreatableResource[ExternalAuth]
 type VersionedOpenShiftVersion VersionedResource
 
 // ValidationPathMapperFunc takes an internal path from validation and converts it to the external path
@@ -141,7 +141,7 @@ type Version interface {
 	// Passing a nil pointer creates a resource with default values.
 	NewCluster(*Cluster) VersionedCluster
 	NewNodePool(*NodePool) VersionedNodePool
-	NewClusterExternalAuth(*ClusterExternalAuth) VersionedClusterExternalAuth
+	NewExternalAuth(*ExternalAuth) VersionedExternalAuth
 	NewOpenShiftVersion(*OpenShiftVersion) VersionedOpenShiftVersion
 
 	// Request Unmarshaling

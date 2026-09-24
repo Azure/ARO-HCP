@@ -175,8 +175,8 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 		func(j *coreapi.NodePoolStatus, c randfill.Continue) {
 			*j = coreapi.NodePoolStatus{}
 		},
-		func(j *coreapi.ClusterExternalAuthStatus, c randfill.Continue) {
-			*j = coreapi.ClusterExternalAuthStatus{}
+		func(j *coreapi.ExternalAuthStatus, c randfill.Continue) {
+			*j = coreapi.ExternalAuthStatus{}
 		},
 		// Override: zero internal-only fields instead of populating them.
 		func(j *coreapi.ClusterServiceProviderProperties, c randfill.Continue) {
@@ -199,7 +199,7 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			j.ClusterServiceID = nil
 			j.UsesNewNodePoolDeletionApproach = false
 		},
-		func(j *coreapi.ClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
+		func(j *coreapi.ExternalAuthServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			j.ActiveOperationID = ""
 			j.ClusterServiceID = nil
@@ -286,7 +286,7 @@ func CommonDeepCopyFuzzFuncs() []interface{} {
 			}
 			j.ClusterServiceID = metadataapihelpers.Ptr(FuzzInternalID(GenName(c)))
 		},
-		func(j *coreapi.ClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
+		func(j *coreapi.ExternalAuthServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return

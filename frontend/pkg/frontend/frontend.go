@@ -332,7 +332,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return utils.TrackError(err)
 	}
 
-	// Parent resource is the hcpOpenShiftCluster.
+	// Parent resource is the cluster.
 	clusterResourceID := resourceID.Parent
 
 	correlationData, err := CorrelationDataFromContext(ctx)
@@ -433,7 +433,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return utils.TrackError(err)
 	}
 
-	// Parent resource is the hcpOpenShiftCluster.
+	// Parent resource is the cluster.
 	clusterResourceID := resourceID.Parent
 
 	correlationData, err := CorrelationDataFromContext(ctx)
@@ -800,7 +800,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		case strings.ToLower(coreapi.ExternalAuthResourceType.String()):
 			// API version is already validated by this point.
 			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
-			versionedExternalAuth := versionedInterface.NewClusterExternalAuth(nil)
+			versionedExternalAuth := versionedInterface.NewExternalAuth(nil)
 
 			err = preflightResource.Convert(versionedExternalAuth)
 			if err != nil {
@@ -1106,7 +1106,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewClusterExternalAuth(resultingInternalExternalAuth))
+		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewExternalAuth(resultingInternalExternalAuth))
 		if err != nil {
 			return utils.TrackError(err)
 		}

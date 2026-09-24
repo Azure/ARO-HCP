@@ -175,16 +175,16 @@ func (l *SliceActiveOperationLister) listByPrefix(prefix string) []*coreapi.Oper
 
 // SliceExternalAuthLister implements corelisters.ExternalAuthLister backed by a slice.
 type SliceExternalAuthLister struct {
-	ExternalAuths []*coreapi.ClusterExternalAuth
+	ExternalAuths []*coreapi.ExternalAuth
 }
 
 var _ corelisters.ExternalAuthLister = &SliceExternalAuthLister{}
 
-func (l *SliceExternalAuthLister) List(ctx context.Context) ([]*coreapi.ClusterExternalAuth, error) {
+func (l *SliceExternalAuthLister) List(ctx context.Context) ([]*coreapi.ExternalAuth, error) {
 	return l.ExternalAuths, nil
 }
 
-func (l *SliceExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.ClusterExternalAuth, error) {
+func (l *SliceExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.ExternalAuth, error) {
 	for _, ea := range l.ExternalAuths {
 		if ea.ID == nil {
 			continue
@@ -199,8 +199,8 @@ func (l *SliceExternalAuthLister) Get(ctx context.Context, subscriptionID, resou
 	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
-func (l *SliceExternalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.ClusterExternalAuth, error) {
-	var result []*coreapi.ClusterExternalAuth
+func (l *SliceExternalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.ExternalAuth, error) {
+	var result []*coreapi.ExternalAuth
 	for _, ea := range l.ExternalAuths {
 		if ea.ID == nil {
 			continue
@@ -213,8 +213,8 @@ func (l *SliceExternalAuthLister) ListForResourceGroup(ctx context.Context, subs
 	return result, nil
 }
 
-func (l *SliceExternalAuthLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.ClusterExternalAuth, error) {
-	var result []*coreapi.ClusterExternalAuth
+func (l *SliceExternalAuthLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.ExternalAuth, error) {
+	var result []*coreapi.ExternalAuth
 	for _, ea := range l.ExternalAuths {
 		if ea.ID == nil {
 			continue

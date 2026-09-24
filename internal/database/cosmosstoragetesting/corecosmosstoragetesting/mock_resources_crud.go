@@ -450,7 +450,7 @@ func (m *mockHCPClusterCRUD) ExternalAuth(hcpClusterName string) corecosmosstora
 			hcpClusterName)))
 
 	return &mockExternalAuthCRUD{
-		MockResourceCRUD: NewMockResourceCRUD[coreapi.ClusterExternalAuth, *coreapi.ClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ClusterExternalAuth]](
+		MockResourceCRUD: NewMockResourceCRUD[coreapi.ExternalAuth, *coreapi.ExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ExternalAuth]](
 			m.client,
 			parentResourceID,
 			coreapi.ExternalAuthResourceType,
@@ -560,7 +560,7 @@ var _ corecosmosstorage.NodePoolsCRUD = &mockNodePoolsCRUD{}
 
 // mockExternalAuthCRUD implements corecosmosstorage.ExternalAuthsCRUD.
 type mockExternalAuthCRUD struct {
-	*MockResourceCRUD[coreapi.ClusterExternalAuth, *coreapi.ClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ClusterExternalAuth]]
+	*MockResourceCRUD[coreapi.ExternalAuth, *coreapi.ExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ExternalAuth]]
 }
 
 func (m *mockExternalAuthCRUD) Controllers(externalAuthName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {

@@ -27,7 +27,7 @@ import (
 //   - *coreapi.Cluster
 //   - *coreapi.NodePool
 //   - *coreapi.Operation
-//   - *coreapi.ClusterExternalAuth
+//   - *coreapi.ExternalAuth
 //   - *coreapi.ServiceProviderCluster
 //   - *coreapi.ServiceProviderNodePool
 //   - *coreapi.Subscription
@@ -58,7 +58,7 @@ func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) e
 		return m.addNodePool(ctx, r)
 	case *coreapi.Operation:
 		return m.addOperation(ctx, r)
-	case *coreapi.ClusterExternalAuth:
+	case *coreapi.ExternalAuth:
 		return m.addExternalAuth(ctx, r)
 	case *coreapi.ServiceProviderCluster:
 		return m.addServiceProviderCluster(ctx, r)
@@ -110,7 +110,7 @@ func (m *MockResourcesDBClient) addOperation(ctx context.Context, operation *cor
 	return err
 }
 
-func (m *MockResourcesDBClient) addExternalAuth(ctx context.Context, externalAuth *coreapi.ClusterExternalAuth) error {
+func (m *MockResourcesDBClient) addExternalAuth(ctx context.Context, externalAuth *coreapi.ExternalAuth) error {
 	if externalAuth.ID == nil {
 		return fmt.Errorf("external auth is missing resource ID")
 	}

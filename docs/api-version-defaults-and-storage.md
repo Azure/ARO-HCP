@@ -287,7 +287,7 @@ flowchart TD
 **3. Canonical defaults** (`internal/api/types_*.go`)
 - [ ] Add to the `EnsureDefaults()` method on the internal type
   (`Cluster`, `NodePool`, or
-  `ClusterExternalAuth`).
+  `ExternalAuth`).
 - [ ] Only default if safe (zero never valid) or pointer type (nil = unset).
 - [ ] Never default ARM-managed fields (`provisioningState`, `systemData`,
   `id`/`name`/`type`, `tags`) — these come from `ResourceDocument`.
@@ -374,7 +374,7 @@ pointer types or remove `omitempty` to avoid this. See existing precedent:
 | Layer | Cluster | NodePool | ExternalAuth | File |
 |-------|---------|----------|--------------|------|
 | Constructor defaults | `SetDefaultValuesCluster()` | `SetDefaultValuesNodePool()` | `SetDefaultValuesExternalAuth()` | `v*/methods.go` |
-| Canonical defaults | `Cluster.EnsureDefaults()` | `NodePool.EnsureDefaults()` | `ClusterExternalAuth.EnsureDefaults()` | `internal/api/types_*.go` |
+| Canonical defaults | `Cluster.EnsureDefaults()` | `NodePool.EnsureDefaults()` | `ExternalAuth.EnsureDefaults()` | `internal/api/types_*.go` |
 | Cross-version preservation | `preserveUnknownClusterFields()` | `preserveUnknownNodePoolFields()` | `preserveUnknownExternalAuthFields()` | `v*/methods.go` |
 | Read-only field restoration | `CopyReadOnlyClusterValues()` | `CopyReadOnlyNodePoolValues()` | `CopyReadOnlyExternalAuthValues()` | `internal/conversion/readonly_*.go` |
 | CS→RP defaults | `convertVersionIDCSToRP()` | `convertDiskStorageAccountTypeCSToRP()` | — | `internal/ocm/convert.go` |

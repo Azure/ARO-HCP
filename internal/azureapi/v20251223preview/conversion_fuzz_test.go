@@ -69,7 +69,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	}
 
 	for i := 0; i < 200; i++ {
-		original := &coreapi.ClusterExternalAuth{}
+		original := &coreapi.ExternalAuth{}
 		fuzzer.Fill(original)
 		original.ResourceID = original.ID
 		original.CosmosETag = ""
@@ -111,9 +111,9 @@ func roundTripNodePool(t *testing.T, original *coreapi.NodePool) {
 	}
 }
 
-func roundTripExternalAuth(t *testing.T, original *coreapi.ClusterExternalAuth) {
+func roundTripExternalAuth(t *testing.T, original *coreapi.ExternalAuth) {
 	v := version{}
-	externalObj := v.NewClusterExternalAuth(original)
+	externalObj := v.NewExternalAuth(original)
 
 	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)

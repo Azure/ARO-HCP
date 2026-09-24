@@ -145,7 +145,7 @@ type NodePoolsCRUD interface {
 }
 
 type ExternalAuthsCRUD interface {
-	cosmosstorageutils.ResourceCRUD[coreapi.ClusterExternalAuth, *coreapi.ClusterExternalAuth]
+	cosmosstorageutils.ResourceCRUD[coreapi.ExternalAuth, *coreapi.ExternalAuth]
 	ControllerContainer
 }
 
@@ -165,7 +165,7 @@ func (h *hcpClusterCRUD) ExternalAuth(hcpClusterName string) ExternalAuthsCRUD {
 			hcpClusterName)))
 
 	return &externalAuthCRUD{
-		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ClusterExternalAuth, *coreapi.ClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ClusterExternalAuth]](
+		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ExternalAuth, *coreapi.ExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ExternalAuth]](
 			h.ContainerClient,
 			parentResourceID,
 			coreapi.ExternalAuthResourceType,
@@ -253,7 +253,7 @@ func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) cosmos
 }
 
 type externalAuthCRUD struct {
-	*cosmosstorageutils.NestedCosmosResourceCRUD[coreapi.ClusterExternalAuth, *coreapi.ClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ClusterExternalAuth]]
+	*cosmosstorageutils.NestedCosmosResourceCRUD[coreapi.ExternalAuth, *coreapi.ExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ExternalAuth]]
 }
 
 func (h *externalAuthCRUD) Controllers(externalAuthName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {

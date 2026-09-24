@@ -787,7 +787,7 @@ func controllerInformerTestCase() informerTestCase {
 					"/resourceGroups/"+resourceGroupName+
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 					"/externalAuths/"+externalAuthName)
-			ea := &coreapi.ClusterExternalAuth{
+			ea := &coreapi.ExternalAuth{
 				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: eaResourceID, PartitionKey: strings.ToLower(eaResourceID.SubscriptionID)},
 				ProxyResource:  coreapi.NewProxyResource(eaResourceID),
 			}

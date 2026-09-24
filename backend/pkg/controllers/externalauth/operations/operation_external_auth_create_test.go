@@ -40,29 +40,29 @@ import (
 )
 
 func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
-	defaultExternalAuth := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ClusterExternalAuth {
+	defaultExternalAuth := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ExternalAuth {
 		return fixture.NewExternalAuth()
 	}
 
-	externalAuthWithoutCSID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ClusterExternalAuth {
+	externalAuthWithoutCSID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ExternalAuth {
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.ClusterServiceID = nil
 		return ea
 	}
 
-	externalAuthWithDeletionTimestamp := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ClusterExternalAuth {
+	externalAuthWithDeletionTimestamp := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ExternalAuth {
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 		return ea
 	}
 
-	externalAuthWithMismatchedActiveOperationID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ClusterExternalAuth {
+	externalAuthWithMismatchedActiveOperationID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ExternalAuth {
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.ActiveOperationID = "other-operation"
 		return ea
 	}
 
-	externalAuthWithEmptyActiveOperationID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ClusterExternalAuth {
+	externalAuthWithEmptyActiveOperationID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ExternalAuth {
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.ActiveOperationID = ""
 		return ea
@@ -70,7 +70,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		externalAuth func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ClusterExternalAuth
+		externalAuth func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.ExternalAuth
 		setupCSMock  func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec
 		expectError  bool
 		verify       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture)

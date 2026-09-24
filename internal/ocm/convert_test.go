@@ -478,8 +478,8 @@ func TestBuildCSNodePool(t *testing.T) {
 	}
 }
 
-func externalAuthResource(opts ...func(*coreapi.ClusterExternalAuth)) *coreapi.ClusterExternalAuth {
-	externalAuth := coreapi.NewDefaultClusterExternalAuth(nil)
+func externalAuthResource(opts ...func(*coreapi.ExternalAuth)) *coreapi.ExternalAuth {
+	externalAuth := coreapi.NewDefaultExternalAuth(nil)
 
 	for _, opt := range opts {
 		opt(externalAuth)
@@ -488,7 +488,7 @@ func externalAuthResource(opts ...func(*coreapi.ClusterExternalAuth)) *coreapi.C
 }
 
 // Because we don't distinguish between unset and empty values in our JSON parsing
-// we will get the resulting CS object from an empty ClusterExternalAuth object.
+// we will get the resulting CS object from an empty ExternalAuth object.
 func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 	return arohcpv1alpha1.NewExternalAuth().
 		ID("").
@@ -513,7 +513,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 	resourceID := testResourceID(t)
 	testCases := []struct {
 		name                   string
-		hcpExternalAuth        *coreapi.ClusterExternalAuth
+		hcpExternalAuth        *coreapi.ExternalAuth
 		expectedCSExternalAuth *arohcpv1alpha1.ExternalAuthBuilder
 	}{
 		{
@@ -524,7 +524,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 		{
 			name: "correctly parse PrefixPolicy",
 			hcpExternalAuth: externalAuthResource(
-				func(hsc *coreapi.ClusterExternalAuth) {
+				func(hsc *coreapi.ExternalAuth) {
 					hsc.Properties.Claim.Mappings.Username.PrefixPolicy = metadataapi.UsernameClaimPrefixPolicyPrefix
 				},
 			),
@@ -542,7 +542,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 		{
 			name: "correctly parse Issuer",
 			hcpExternalAuth: externalAuthResource(
-				func(hsc *coreapi.ClusterExternalAuth) {
+				func(hsc *coreapi.ExternalAuth) {
 					hsc.Properties.Issuer = coreapi.TokenIssuerProfile{
 						CA:        dummyCA,
 						URL:       dummyURL,
@@ -560,7 +560,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 		{
 			name: "correctly parse Claim",
 			hcpExternalAuth: externalAuthResource(
-				func(hsc *coreapi.ClusterExternalAuth) {
+				func(hsc *coreapi.ExternalAuth) {
 					hsc.Properties.Claim = coreapi.ExternalAuthClaimProfile{
 						Mappings: coreapi.TokenClaimMappingsProfile{
 							Username: coreapi.UsernameClaimProfile{
@@ -618,7 +618,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 		{
 			name: "handle multiple clients",
 			hcpExternalAuth: externalAuthResource(
-				func(hsc *coreapi.ClusterExternalAuth) {
+				func(hsc *coreapi.ExternalAuth) {
 					hsc.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 						{
 							ClientID: "a",

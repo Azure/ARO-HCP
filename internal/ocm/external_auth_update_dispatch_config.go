@@ -27,7 +27,7 @@ import (
 // Conversion functions project external state into this form and back out when dispatching to
 // Cluster Service.
 //
-// The same struct is built from either RP desired state (ClusterExternalAuth) or from
+// The same struct is built from either RP desired state (ExternalAuth) or from
 // the live Cluster Service ExternalAuth. This applies only to ExternalAuth CS updates. Cluster and
 // node pool updates use separate dispatch paths and update dispatch config structs. Drift between the
 // two projections may trigger the external auth's cluster service update dispatch controller to
@@ -66,7 +66,7 @@ import (
 //
 //   - Confirm this is an ExternalAuth-level Cluster Service update (not cluster or node pool).
 //   - Confirm Cluster Service supports updating the field on an existing external auth.
-//   - Identify where RP desired state lives (ClusterExternalAuth).
+//   - Identify where RP desired state lives (ExternalAuth).
 //
 // 1. Dispatch wiring (this file)
 //
@@ -106,7 +106,7 @@ import (
 //     dispatch controller PATCHes an existing one). Verify the new field is present on create.
 //   - Desired state must exist in Cosmos before dispatch can sync it. If customers set this
 //     field via ARM, also wire the full ingest path: ARM API, frontend validation/conversion,
-//     and persistence onto ClusterExternalAuth. Internal-only fields still need
+//     and persistence onto ExternalAuth. Internal-only fields still need
 //     whatever backend path writes the value Cosmos holds.
 type externalAuthUpdateDispatchConfig struct {
 	Issuer  externalAuthUpdateDispatchConfigIssuer   `json:"issuer,omitempty"`
@@ -180,7 +180,7 @@ type externalAuthUpdateDispatchConfigRequiredClaim struct {
 
 // ExternalAuthUpdateDispatchConfigJSONFromRP returns the canonical JSON of the dispatch config
 // projected from RP desired state.
-func ExternalAuthUpdateDispatchConfigJSONFromRP(externalAuth *coreapi.ClusterExternalAuth) (string, error) {
+func ExternalAuthUpdateDispatchConfigJSONFromRP(externalAuth *coreapi.ExternalAuth) (string, error) {
 	config, err := externalAuthUpdateDispatchConfigFromRP(externalAuth)
 	if err != nil {
 		return "", err
@@ -207,7 +207,7 @@ func ExternalAuthUpdateDispatchConfigJSONFromCS(csExternalAuth *arohcpv1alpha1.E
 }
 
 // externalAuthUpdateDispatchConfigFromRP projects RP desired state into the dispatch canonical form.
-func externalAuthUpdateDispatchConfigFromRP(ea *coreapi.ClusterExternalAuth) (*externalAuthUpdateDispatchConfig, error) {
+func externalAuthUpdateDispatchConfigFromRP(ea *coreapi.ExternalAuth) (*externalAuthUpdateDispatchConfig, error) {
 	clients, err := externalAuthUpdateDispatchConfigClientsFromRP(ea.Properties.Clients)
 	if err != nil {
 		return nil, err

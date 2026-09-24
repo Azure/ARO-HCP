@@ -31,19 +31,19 @@ type ClusterLister interface {
 	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.Cluster, error)
 }
 
-// hcpOpenShiftClusterLister implements ClusterLister backed by a SharedIndexInformer.
-type hcpOpenShiftClusterLister struct {
+// clusterLister implements ClusterLister backed by a SharedIndexInformer.
+type clusterLister struct {
 	indexer cache.Indexer
 }
 
 // NewClusterLister creates an ClusterLister from a SharedIndexInformer's indexer.
 func NewClusterLister(indexer cache.Indexer) ClusterLister {
-	return &hcpOpenShiftClusterLister{
+	return &clusterLister{
 		indexer: indexer,
 	}
 }
 
-func (l *hcpOpenShiftClusterLister) List(ctx context.Context) ([]*coreapi.Cluster, error) {
+func (l *clusterLister) List(ctx context.Context) ([]*coreapi.Cluster, error) {
 	return listerutils.ListAll[coreapi.Cluster](l.indexer)
 }
 
@@ -51,12 +51,12 @@ func (l *hcpOpenShiftClusterLister) List(ctx context.Context) ([]*coreapi.Cluste
 // The store key is the lowercased ResourceID string:
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<name>
-func (l *hcpOpenShiftClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.Cluster, error) {
+func (l *clusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.Cluster, error) {
 	key := coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	return listerutils.GetByKey[coreapi.Cluster](l.indexer, key)
 }
 
-func (l *hcpOpenShiftClusterLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.Cluster, error) {
+func (l *clusterLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.Cluster, error) {
 	key := coreapihelpers.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
 	return listerutils.ListFromIndex[coreapi.Cluster](l.indexer, ByResourceGroup, key)
 }

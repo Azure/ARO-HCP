@@ -26,43 +26,43 @@ import (
 
 // ExternalAuthLister lists and gets ExternalAuths from an informer's indexer.
 type ExternalAuthLister interface {
-	List(ctx context.Context) ([]*coreapi.ClusterExternalAuth, error)
-	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.ClusterExternalAuth, error)
-	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.ClusterExternalAuth, error)
-	ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.ClusterExternalAuth, error)
+	List(ctx context.Context) ([]*coreapi.ExternalAuth, error)
+	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.ExternalAuth, error)
+	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.ExternalAuth, error)
+	ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.ExternalAuth, error)
 }
 
-// hcpOpenShiftClusterExternalAuthLister implements ExternalAuthLister backed by a SharedIndexInformer.
-type hcpOpenShiftClusterExternalAuthLister struct {
+// externalAuthLister implements ExternalAuthLister backed by a SharedIndexInformer.
+type externalAuthLister struct {
 	indexer cache.Indexer
 }
 
 // NewExternalAuthLister creates an ExternalAuthLister from a SharedIndexInformer's indexer.
 func NewExternalAuthLister(indexer cache.Indexer) ExternalAuthLister {
-	return &hcpOpenShiftClusterExternalAuthLister{
+	return &externalAuthLister{
 		indexer: indexer,
 	}
 }
 
-func (l *hcpOpenShiftClusterExternalAuthLister) List(ctx context.Context) ([]*coreapi.ClusterExternalAuth, error) {
-	return listerutils.ListAll[coreapi.ClusterExternalAuth](l.indexer)
+func (l *externalAuthLister) List(ctx context.Context) ([]*coreapi.ExternalAuth, error) {
+	return listerutils.ListAll[coreapi.ExternalAuth](l.indexer)
 }
 
-// Get retrieves a single ClusterExternalAuth by subscription ID, resource group name, cluster name, and external auth name.
+// Get retrieves a single ExternalAuth by subscription ID, resource group name, cluster name, and external auth name.
 // The store key is the lowercased ResourceID string:
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster>/externalauths/<name>
-func (l *hcpOpenShiftClusterExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.ClusterExternalAuth, error) {
+func (l *externalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.ExternalAuth, error) {
 	key := coreapihelpers.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
-	return listerutils.GetByKey[coreapi.ClusterExternalAuth](l.indexer, key)
+	return listerutils.GetByKey[coreapi.ExternalAuth](l.indexer, key)
 }
 
-func (l *hcpOpenShiftClusterExternalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.ClusterExternalAuth, error) {
+func (l *externalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.ExternalAuth, error) {
 	key := coreapihelpers.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
-	return listerutils.ListFromIndex[coreapi.ClusterExternalAuth](l.indexer, ByResourceGroup, key)
+	return listerutils.ListFromIndex[coreapi.ExternalAuth](l.indexer, ByResourceGroup, key)
 }
 
-func (l *hcpOpenShiftClusterExternalAuthLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.ClusterExternalAuth, error) {
+func (l *externalAuthLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.ExternalAuth, error) {
 	key := coreapihelpers.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
-	return listerutils.ListFromIndex[coreapi.ClusterExternalAuth](l.indexer, ByCluster, key)
+	return listerutils.ListFromIndex[coreapi.ExternalAuth](l.indexer, ByCluster, key)
 }

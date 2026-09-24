@@ -33,7 +33,7 @@ type ResourcesGlobalListers interface {
 	Subscriptions() cosmosstorageutils.GlobalLister[coreapi.Subscription]
 	Clusters() cosmosstorageutils.GlobalLister[coreapi.Cluster]
 	NodePools() cosmosstorageutils.GlobalLister[coreapi.NodePool]
-	ExternalAuths() cosmosstorageutils.GlobalLister[coreapi.ClusterExternalAuth]
+	ExternalAuths() cosmosstorageutils.GlobalLister[coreapi.ExternalAuth]
 	ServiceProviderClusters() cosmosstorageutils.GlobalLister[coreapi.ServiceProviderCluster]
 	ServiceProviderNodePools() cosmosstorageutils.GlobalLister[coreapi.ServiceProviderNodePool]
 	Controllers() cosmosstorageutils.GlobalLister[coreapi.Controller]
@@ -81,8 +81,8 @@ func (g *cosmosResourcesGlobalListers) NodePools() cosmosstorageutils.GlobalList
 	}
 }
 
-func (g *cosmosResourcesGlobalListers) ExternalAuths() cosmosstorageutils.GlobalLister[coreapi.ClusterExternalAuth] {
-	return &cosmosstorageutils.CosmosGlobalLister[coreapi.ClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ClusterExternalAuth]]{
+func (g *cosmosResourcesGlobalListers) ExternalAuths() cosmosstorageutils.GlobalLister[coreapi.ExternalAuth] {
+	return &cosmosstorageutils.CosmosGlobalLister[coreapi.ExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ExternalAuth]]{
 		ContainerClient: g.resources,
 		ResourceTypes:   []azcorearm.ResourceType{coreapi.ExternalAuthResourceType},
 	}

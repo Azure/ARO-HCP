@@ -92,15 +92,15 @@ func (l *NodePoolList) GetObjectKind() schema.ObjectKind {
 }
 
 var (
-	_ runtime.Object            = &ClusterExternalAuth{}
-	_ metav1.ObjectMetaAccessor = &ClusterExternalAuth{}
+	_ runtime.Object            = &ExternalAuth{}
+	_ metav1.ObjectMetaAccessor = &ExternalAuth{}
 )
 
-func (o *ClusterExternalAuth) GetObjectKind() schema.ObjectKind {
+func (o *ExternalAuth) GetObjectKind() schema.ObjectKind {
 	return schema.EmptyObjectKind
 }
 
-func (o *ClusterExternalAuth) GetObjectMeta() metav1.Object {
+func (o *ExternalAuth) GetObjectMeta() metav1.Object {
 	om := &metav1.ObjectMeta{}
 	if o.ID != nil {
 		om.Name = strings.ToLower(o.ID.String())
@@ -110,18 +110,18 @@ func (o *ClusterExternalAuth) GetObjectMeta() metav1.Object {
 	return om
 }
 
-// ClusterExternalAuthList is a list of ExternalAuths
+// ExternalAuthList is a list of ExternalAuths
 // compatible with runtime.Object for use with Kubernetes informer machinery.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type ClusterExternalAuthList struct {
+type ExternalAuthList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterExternalAuth `json:"items"`
+	Items           []ExternalAuth `json:"items"`
 }
 
-var _ runtime.Object = &ClusterExternalAuthList{}
+var _ runtime.Object = &ExternalAuthList{}
 
-func (l *ClusterExternalAuthList) GetObjectKind() schema.ObjectKind {
+func (l *ExternalAuthList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
 

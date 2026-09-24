@@ -88,7 +88,7 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 			newDocument: func() (any, *TypedDocument) {
 				resourceID := mustParseResourceID(t, coreapitesting.TestExternalAuthResourceID)
 				createdAt := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
-				obj := &coreapi.ClusterExternalAuth{
+				obj := &coreapi.ExternalAuth{
 					ProxyResource: coreapi.ProxyResource{
 						Resource: coreapi.Resource{
 							ID:   resourceID,

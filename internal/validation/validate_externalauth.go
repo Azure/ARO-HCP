@@ -29,29 +29,29 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-func ValidateExternalAuthCreate(ctx context.Context, newObj *coreapi.ClusterExternalAuth) field.ErrorList {
+func ValidateExternalAuthCreate(ctx context.Context, newObj *coreapi.ExternalAuth) field.ErrorList {
 	op := operation.Operation{Type: operation.Create}
 	return validateExternalAuth(ctx, op, newObj, nil)
 }
 
-func ValidateExternalAuthUpdate(ctx context.Context, newObj, oldObj *coreapi.ClusterExternalAuth) field.ErrorList {
+func ValidateExternalAuthUpdate(ctx context.Context, newObj, oldObj *coreapi.ExternalAuth) field.ErrorList {
 	op := operation.Operation{Type: operation.Update}
 	return validateExternalAuth(ctx, op, newObj, oldObj)
 }
 
 var (
-	toExternalAuthProxyResource = func(oldObj *coreapi.ClusterExternalAuth) *coreapi.ProxyResource {
+	toExternalAuthProxyResource = func(oldObj *coreapi.ExternalAuth) *coreapi.ProxyResource {
 		return &oldObj.ProxyResource
 	}
-	toExternalAuthProperties = func(oldObj *coreapi.ClusterExternalAuth) *coreapi.ClusterExternalAuthProperties {
+	toExternalAuthProperties = func(oldObj *coreapi.ExternalAuth) *coreapi.ExternalAuthProperties {
 		return &oldObj.Properties
 	}
-	toExternalAuthServiceProviderProperties = func(oldObj *coreapi.ClusterExternalAuth) *coreapi.ClusterExternalAuthServiceProviderProperties {
+	toExternalAuthServiceProviderProperties = func(oldObj *coreapi.ExternalAuth) *coreapi.ExternalAuthServiceProviderProperties {
 		return &oldObj.ServiceProviderProperties
 	}
 )
 
-func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.ClusterExternalAuth) field.ErrorList {
+func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, oldObj *coreapi.ExternalAuth) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//coreapi.ProxyResource
@@ -62,10 +62,10 @@ func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, o
 		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("id"), &newObj.ID.Name, nil, externalAuthResourceNameRegex, externalAuthResourceNameErrorString)...)
 	}
 
-	//Properties ClusterExternalAuthProperties `json:"properties"`
+	//Properties ExternalAuthProperties `json:"properties"`
 	errs = append(errs, validateExternalAuthProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, toExternalAuthProperties))...)
 
-	//ServiceProviderProperties ClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	//ServiceProviderProperties ExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, validateExternalAuthServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, toExternalAuthServiceProviderProperties))...)
 
 	return errs
@@ -85,21 +85,21 @@ func validateProxyResource(ctx context.Context, op operation.Operation, fldPath 
 }
 
 var (
-	toExternalAuthPropertiesProvisioningState = func(oldObj *coreapi.ClusterExternalAuthProperties) *coreapi.ProvisioningState {
+	toExternalAuthPropertiesProvisioningState = func(oldObj *coreapi.ExternalAuthProperties) *coreapi.ProvisioningState {
 		return &oldObj.ProvisioningState
 	}
-	toExternalAuthPropertiesIssuer = func(oldObj *coreapi.ClusterExternalAuthProperties) *coreapi.TokenIssuerProfile {
+	toExternalAuthPropertiesIssuer = func(oldObj *coreapi.ExternalAuthProperties) *coreapi.TokenIssuerProfile {
 		return &oldObj.Issuer
 	}
-	toExternalAuthPropertiesClients = func(oldObj *coreapi.ClusterExternalAuthProperties) []coreapi.ExternalAuthClientProfile {
+	toExternalAuthPropertiesClients = func(oldObj *coreapi.ExternalAuthProperties) []coreapi.ExternalAuthClientProfile {
 		return oldObj.Clients
 	}
-	toExternalAuthPropertiesClaim = func(oldObj *coreapi.ClusterExternalAuthProperties) *coreapi.ExternalAuthClaimProfile {
+	toExternalAuthPropertiesClaim = func(oldObj *coreapi.ExternalAuthProperties) *coreapi.ExternalAuthClaimProfile {
 		return &oldObj.Claim
 	}
 )
 
-func validateExternalAuthProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterExternalAuthProperties) field.ErrorList {
+func validateExternalAuthProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ExternalAuthProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ProvisioningState coreapi.ProvisioningState       `json:"provisioningState"`
@@ -147,12 +147,12 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 }
 
 var (
-	toExternalAuthServiceProviderClusterServiceID = func(oldObj *coreapi.ClusterExternalAuthServiceProviderProperties) *metadataapi.InternalID {
+	toExternalAuthServiceProviderClusterServiceID = func(oldObj *coreapi.ExternalAuthServiceProviderProperties) *metadataapi.InternalID {
 		return oldObj.ClusterServiceID
 	}
 )
 
-func validateExternalAuthServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterExternalAuthServiceProviderProperties) field.ErrorList {
+func validateExternalAuthServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ExternalAuthServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ClusterServiceID  *InternalID                     `json:"clusterServiceID,omitempty"`

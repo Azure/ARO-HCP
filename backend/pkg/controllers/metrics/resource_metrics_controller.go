@@ -188,25 +188,25 @@ func (h *nodePoolMetricsHandler) Sync(ctx context.Context, nodePool *coreapi.Nod
 }
 
 type externalAuthMetricsObject struct {
-	*coreapi.ClusterExternalAuth
+	*coreapi.ExternalAuth
 }
 
 func (o externalAuthMetricsObject) ResourceID() *azcorearm.ResourceID {
-	if o.ClusterExternalAuth == nil {
+	if o.ExternalAuth == nil {
 		return nil
 	}
 	return o.ID
 }
 
 func (o externalAuthMetricsObject) ProvisioningState() coreapi.ProvisioningState {
-	if o.ClusterExternalAuth == nil {
+	if o.ExternalAuth == nil {
 		return ""
 	}
 	return o.Properties.ProvisioningState
 }
 
 func (o externalAuthMetricsObject) CreatedAt() *time.Time {
-	if o.ClusterExternalAuth == nil || o.SystemData == nil {
+	if o.ExternalAuth == nil || o.SystemData == nil {
 		return nil
 	}
 	return o.SystemData.CreatedAt
@@ -217,7 +217,7 @@ type externalAuthMetricsHandler struct {
 }
 
 // NewExternalAuthMetricsHandler creates a metrics handler for external auth metrics.
-func NewExternalAuthMetricsHandler(r prometheus.Registerer) Handler[*coreapi.ClusterExternalAuth] {
+func NewExternalAuthMetricsHandler(r prometheus.Registerer) Handler[*coreapi.ExternalAuth] {
 	return &externalAuthMetricsHandler{
 		newResourceStateMetricsHandler[externalAuthMetricsObject](
 			r,
@@ -229,6 +229,6 @@ func NewExternalAuthMetricsHandler(r prometheus.Registerer) Handler[*coreapi.Clu
 	}
 }
 
-func (h *externalAuthMetricsHandler) Sync(ctx context.Context, externalAuth *coreapi.ClusterExternalAuth) {
+func (h *externalAuthMetricsHandler) Sync(ctx context.Context, externalAuth *coreapi.ExternalAuth) {
 	h.resourceStateMetricsHandler.Sync(ctx, externalAuthMetricsObject{externalAuth})
 }

@@ -133,8 +133,8 @@ func ClusterTestCase(t *testing.T, tweaks *coreapi.Cluster) *coreapi.Cluster {
 	return resource
 }
 
-func MinimumValidExternalAuthTestCase() *coreapi.ClusterExternalAuth {
-	resource := coreapi.NewDefaultClusterExternalAuth(metadataapi.Must(azcorearm.ParseResourceID(TestExternalAuthResourceID)))
+func MinimumValidExternalAuthTestCase() *coreapi.ExternalAuth {
+	resource := coreapi.NewDefaultExternalAuth(metadataapi.Must(azcorearm.ParseResourceID(TestExternalAuthResourceID)))
 	resource.Properties.Issuer.URL = "https://www.redhat.com"
 	resource.Properties.Issuer.Audiences = []string{"audience1"}
 	resource.Properties.Claim.Mappings.Username.Claim = "my-cool-claim"
@@ -148,7 +148,7 @@ func MinimumValidExternalAuthTestCase() *coreapi.ClusterExternalAuth {
 	return resource
 }
 
-func ExternalAuthTestCase(t *testing.T, tweaks *coreapi.ClusterExternalAuth) *coreapi.ClusterExternalAuth {
+func ExternalAuthTestCase(t *testing.T, tweaks *coreapi.ExternalAuth) *coreapi.ExternalAuth {
 	externalAuth := MinimumValidExternalAuthTestCase()
 	require.NoError(t, mergo.Merge(externalAuth, tweaks, mergo.WithOverride))
 	return externalAuth

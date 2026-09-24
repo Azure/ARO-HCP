@@ -693,8 +693,8 @@ func BuildCSNodePool(ctx context.Context, nodePool *coreapi.NodePool, updating b
 	return nodePoolBuilder, nil
 }
 
-// BuildCSExternalAuth creates a CS ExternalAuthBuilder object from a ClusterExternalAuth object.
-func BuildCSExternalAuth(ctx context.Context, externalAuth *coreapi.ClusterExternalAuth, updating bool) (*arohcpv1alpha1.ExternalAuthBuilder, error) {
+// BuildCSExternalAuth creates a CS ExternalAuthBuilder object from a ExternalAuth object.
+func BuildCSExternalAuth(ctx context.Context, externalAuth *coreapi.ExternalAuth, updating bool) (*arohcpv1alpha1.ExternalAuthBuilder, error) {
 	externalAuthBuilder := arohcpv1alpha1.NewExternalAuth()
 
 	// These attributes cannot be updated after node pool creation.

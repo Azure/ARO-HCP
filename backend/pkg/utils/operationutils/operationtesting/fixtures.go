@@ -340,8 +340,8 @@ func (f *ExternalAuthTestFixture) NewCluster() *coreapi.Cluster {
 	}
 }
 
-func (f *ExternalAuthTestFixture) NewExternalAuth() *coreapi.ClusterExternalAuth {
-	return &coreapi.ClusterExternalAuth{
+func (f *ExternalAuthTestFixture) NewExternalAuth() *coreapi.ExternalAuth {
+	return &coreapi.ExternalAuth{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: f.ExternalAuthResourceID, PartitionKey: strings.ToLower(f.ExternalAuthResourceID.SubscriptionID)},
 		ProxyResource: coreapi.ProxyResource{
 			Resource: coreapi.Resource{
@@ -350,10 +350,10 @@ func (f *ExternalAuthTestFixture) NewExternalAuth() *coreapi.ClusterExternalAuth
 				Type: f.ExternalAuthResourceID.ResourceType.String(),
 			},
 		},
-		Properties: coreapi.ClusterExternalAuthProperties{
+		Properties: coreapi.ExternalAuthProperties{
 			ProvisioningState: coreapi.ProvisioningStateAccepted,
 		},
-		ServiceProviderProperties: coreapi.ClusterExternalAuthServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ExternalAuthServiceProviderProperties{
 			ClusterServiceID:  &f.ExternalAuthInternalID,
 			ActiveOperationID: TestOperationName,
 		},
@@ -410,9 +410,9 @@ func ClusterUpdateMatchingHostedClusterSpec() v1beta1.HostedClusterSpec {
 
 // NewExternalAuthUpdateTestExternalAuth returns an external auth whose properties match
 // ExternalAuthUpdateMatchingOIDCProvider for external auth update state calculation tests.
-func NewExternalAuthUpdateTestExternalAuth(mutate ...func(*coreapi.ClusterExternalAuth)) *coreapi.ClusterExternalAuth {
+func NewExternalAuthUpdateTestExternalAuth(mutate ...func(*coreapi.ExternalAuth)) *coreapi.ExternalAuth {
 	externalAuth := NewExternalAuthTestFixture().NewExternalAuth()
-	externalAuth.Properties = coreapi.ClusterExternalAuthProperties{
+	externalAuth.Properties = coreapi.ExternalAuthProperties{
 		ProvisioningState: coreapi.ProvisioningStateAccepted,
 		Issuer: coreapi.TokenIssuerProfile{
 			URL:       "https://issuer.example.com",

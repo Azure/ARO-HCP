@@ -83,8 +83,8 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 	testCases := []struct {
 		name                 string
 		listerCluster        *coreapi.Cluster
-		existingExternalAuth *coreapi.ClusterExternalAuth
-		listerExternalAuth   *coreapi.ClusterExternalAuth
+		existingExternalAuth *coreapi.ExternalAuth
+		listerExternalAuth   *coreapi.ExternalAuth
 		setupMockCSClient    func(mock *ocm.MockClusterServiceClientSpec)
 		wantErr              bool
 		wantErrContain       string
@@ -93,7 +93,7 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 		{
 			name:          "when ClusterServiceID is already set no-op is performed",
 			listerCluster: newTestCluster(t, nil),
-			existingExternalAuth: newTestExternalAuthForCreate(t, func(ea *coreapi.ClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthForCreate(t, func(ea *coreapi.ExternalAuth) {
 				ea.ServiceProviderProperties.ClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr)))
 			}),
 			verifyDB: verifyClusterServiceIDIsSet,
@@ -101,7 +101,7 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 		{
 			name:          "when DeletionTimestamp is set no-op is performed",
 			listerCluster: newTestCluster(t, nil),
-			existingExternalAuth: newTestExternalAuthForCreate(t, func(ea *coreapi.ClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthForCreate(t, func(ea *coreapi.ExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: metav1.Now().Time}
 			}),
 			verifyDB: verifyClusterServiceIDIsNil,
@@ -112,7 +112,7 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 		{
 			name:          "when lister is stale but DB already has ClusterServiceID no-op is performed",
 			listerCluster: newTestCluster(t, nil),
-			existingExternalAuth: newTestExternalAuthForCreate(t, func(ea *coreapi.ClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthForCreate(t, func(ea *coreapi.ExternalAuth) {
 				ea.ServiceProviderProperties.ClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr)))
 			}),
 			listerExternalAuth: newTestExternalAuthForCreate(t, nil),
@@ -259,7 +259,7 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 				clustersForLister = append(clustersForLister, tc.listerCluster)
 			}
 
-			externalAuthsForLister := []*coreapi.ClusterExternalAuth{}
+			externalAuthsForLister := []*coreapi.ExternalAuth{}
 			listerExternalAuth := tc.listerExternalAuth
 			if listerExternalAuth == nil {
 				listerExternalAuth = tc.existingExternalAuth
@@ -334,14 +334,14 @@ func newTestCluster(t *testing.T, opts func(*coreapi.Cluster)) *coreapi.Cluster 
 	return cluster
 }
 
-func newTestExternalAuthForCreate(t *testing.T, opts func(*coreapi.ClusterExternalAuth)) *coreapi.ClusterExternalAuth {
+func newTestExternalAuthForCreate(t *testing.T, opts func(*coreapi.ExternalAuth)) *coreapi.ExternalAuth {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/externalAuths/" + testExternalAuthName))
-	ea := coreapi.NewDefaultClusterExternalAuth(resourceID)
+	ea := coreapi.NewDefaultExternalAuth(resourceID)
 	ea.CosmosMetadata = coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)}
 	ea.ServiceProviderProperties.ClusterServiceID = nil
 	if opts != nil {

@@ -434,7 +434,7 @@ func (r *mockTransactionResult) GetItem(cosmosUID string) (any, error) {
 		}
 		return cosmosstorageutils.CosmosGenericToInternal(&cosmosObj)
 	case strings.ToLower(coreapi.ExternalAuthResourceType.String()):
-		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.ClusterExternalAuth]
+		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.ExternalAuth]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
