@@ -208,12 +208,15 @@ func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
 		newTestCluster("c2", "stable", "4.21"),
 		newTestCluster("c3", "stable", "4.21"),
 		newTestCluster("c4", "stable", "4.21"),
+		newTestCluster("immediate", "stable", "4.21"),
 	}
+	clusters[4].ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy = coreapi.ImmediateZStreamUpdatePolicy
 	serviceProviderClusters := []*coreapi.ServiceProviderCluster{
 		newTestServiceProviderCluster("c1", v("4.21.4"), nil, nil),
 		newTestServiceProviderCluster("c2", v("4.21.4"), nil, nil),
 		newTestServiceProviderCluster("c3", v("4.21.4"), nil, nil),
 		newTestServiceProviderCluster("c4", v("4.21.4"), nil, nil),
+		newTestServiceProviderCluster("immediate", v("4.21.4"), nil, nil),
 	}
 
 	resources := make([]any, 0, len(clusters)+len(serviceProviderClusters))
@@ -226,7 +229,7 @@ func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
 	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 	require.NoError(t, err)
 
-	// Fresh rollout at 4.21.6: canary threshold = ceil(6% of 4) + 2 = 3.
+	// Fresh rollout at 4.21.6: canary threshold = ceil(6% of 5) + 2 = 3.
 	mockFleet, lister := newTestRolloutStore(t, newTestRollout(yStreamChannel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
 	beforeRollout, err := lister.Get(ctx, yStreamChannel)
 	require.NoError(t, err)
@@ -260,6 +263,9 @@ func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 3, atBest, "canary should have advanced exactly 3 of 4 clusters to best")
+	immediate, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, "immediate").Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.Equal(t, v("4.21.4"), immediate.Spec.ControlPlaneVersion.DesiredVersion, "Immediate belongs to forced assignment, not canary selection")
 
 	// Neither an immediate notification nor a restart may bypass the persisted
 	// reservation. After cooldown, stale collector counts must not add a batch.

@@ -24,7 +24,8 @@
 //     bounded by a failure budget.
 //   - Forced Cluster Desired Version Assignment (per cluster): holds an
 //     SRE-pinned cluster at its pinned exact version until the fleet best version
-//     reaches the pin's release threshold.
+//     reaches the pin's release threshold. Also applies experimental exact
+//     versions and Immediate z-stream updates independently of rollout gates.
 //   - Rollout Seeding (per cluster): creates requested and pinned channel rollouts.
 //   - Initial Normal Desired Version (per cluster): assigns initial versions and
 //     backfills legacy desired-version timestamps.
