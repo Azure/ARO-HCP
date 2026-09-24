@@ -893,6 +893,11 @@ func TestRequestAdminCredentialRequiresCSR(t *testing.T) {
 			body:        mustMarshalAdminCredentialRequestBody(t, ""),
 		},
 		{
+			name:        "malformed JSON body",
+			contentType: "application/json",
+			body:        []byte("{invalid json"),
+		},
+		{
 			name:        "CSR with wrong subject",
 			contentType: "application/json",
 			body:        mustMarshalAdminCredentialRequestBody(t, newCSRWithSubject(t, "not-the-break-glass-admin", "system:unauthorized")),
