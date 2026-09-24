@@ -501,6 +501,11 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *coreap
 	if len(newInternalCluster.CustomerProperties.Platform.ManagedResourceGroup) == 0 {
 		newInternalCluster.CustomerProperties.Platform.ManagedResourceGroup = oldInternalCluster.CustomerProperties.Platform.ManagedResourceGroup
 	}
+	if newKms := newInternalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; newKms != nil && newKms.Kms != nil && len(newKms.Kms.KeyVaultType) == 0 {
+		if oldKms := oldInternalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; oldKms != nil && oldKms.Kms != nil {
+			newKms.Kms.KeyVaultType = oldKms.Kms.KeyVaultType
+		}
+	}
 
 	// ServiceProviderProperties contains two types of information
 	// 1. values that a user cannot change because the external type does not expose the information.

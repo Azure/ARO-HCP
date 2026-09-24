@@ -529,6 +529,16 @@ func preserveUnknownClusterFields(from, to *coreapi.Cluster) {
 	to.CustomerProperties.Ingress = from.CustomerProperties.Ingress
 	// CryptoRestrictions was added in v2026_06_30_preview
 	to.CustomerProperties.CryptoRestrictions = from.CustomerProperties.CryptoRestrictions
+	// KeyVaultType was added in v20261001preview.
+	if from.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
+		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged == nil {
+			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{}
+		}
+		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms == nil {
+			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = &coreapi.KmsEncryptionProfile{}
+		}
+		to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType
+	}
 	// ContainerRegistry was added in v2026_10_01_preview.
 	to.CustomerProperties.Platform.ContainerRegistry = from.CustomerProperties.Platform.ContainerRegistry
 }

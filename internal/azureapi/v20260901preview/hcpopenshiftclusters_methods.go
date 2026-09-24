@@ -582,6 +582,16 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.Cluster) (*cor
 // preserveUnknownClusterFields copies customer-facing fields from existing that
 // this API version doesn't know about.
 func preserveUnknownClusterFields(from, to *coreapi.Cluster) {
+	// KeyVaultType was added in v20261001preview.
+	if from.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
+		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged == nil {
+			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{}
+		}
+		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms == nil {
+			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = &coreapi.KmsEncryptionProfile{}
+		}
+		to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType
+	}
 	// ContainerRegistry was added in v20261001preview.
 	to.CustomerProperties.Platform.ContainerRegistry = from.CustomerProperties.Platform.ContainerRegistry
 }

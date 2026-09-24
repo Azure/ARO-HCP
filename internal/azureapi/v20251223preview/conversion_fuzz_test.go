@@ -47,6 +47,11 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			c.FillNoCustom(j)
 			j.ContainerRegistry = coreapi.ContainerRegistryProfile{}
 		},
+		// KeyVaultType was added in v20261001preview and does not exist in v20251223preview.
+		func(j *coreapi.KmsEncryptionProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.KeyVaultType = ""
+		},
 	), rand.NewSource(seed))
 
 	for i := 0; i < 200; i++ {
