@@ -131,8 +131,10 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 							"type": "Available", "status": "True", "reason": "Spoofed", "message": "spoofed-status", "lastTransitionTime": "2000-01-01T00:00:00Z",
 						}}}
 						properties["status"] = status
-						if tc.kind == "Cluster" {
+						if tc.kind != "ExternalAuth" {
 							status["activeVersions"] = []any{map[string]any{"version": "99.99"}}
+						}
+						if tc.kind == "Cluster" {
 							identity := payload["identity"].(map[string]any)
 							identity["principalId"], identity["tenantId"] = spoofedID, spoofedID
 							assigned := identity["userAssignedIdentities"].(map[string]any)
