@@ -1117,9 +1117,9 @@ defaults:
   # Cluster Service
   clustersService:
     image:
-      registry: quay.io
-      repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:39b62d34c0ae6caad264fcc2a086fe84c7a97da3f7baab017f01c28e10c3ba6f # 68ecbc6bed9fda594f7f845285176c245c20d4c7 (2026-09-24 19:28)
+      registry: arohcpsvcdev
+      repository: nshneor/cs
+      digest: sha256:a18a76b7071862c8f5234d49c9c3e5ac12659f2d8e31792c240e0f4848f81bca # bump CS to test against PR 387
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
