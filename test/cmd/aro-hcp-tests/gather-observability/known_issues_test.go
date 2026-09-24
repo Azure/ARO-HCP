@@ -15,6 +15,7 @@
 package gatherobservability
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -98,6 +99,81 @@ func TestParseKnownIssues(t *testing.T) {
 			}
 			if len(result) != tt.wantLen {
 				t.Errorf("got %d known issues, want %d", len(result), tt.wantLen)
+			}
+		})
+	}
+}
+
+func TestDefaultKnownIssuesParse(t *testing.T) {
+	t.Parallel()
+	issues, err := parseKnownIssues(defaultKnownIssuesData)
+	if err != nil {
+		t.Fatalf("embedded knownIssues.yaml failed to parse: %v", err)
+	}
+	if len(issues) == 0 {
+		t.Fatal("embedded knownIssues.yaml parsed to zero patterns")
+	}
+}
+
+// TestDefaultKnownIssuesClassification classifies alerts against the actual
+// embedded knownIssues.yaml (not an inline copy), so a typo or label mismatch
+// in the production entries fails this test directly. Covers the
+// FrontendPathMedianLatency PUT/GET split added for AROSLSRE-2232.
+func TestDefaultKnownIssuesClassification(t *testing.T) {
+	t.Parallel()
+	issues, err := parseKnownIssues(defaultKnownIssuesData)
+	if err != nil {
+		t.Fatalf("embedded knownIssues.yaml failed to parse: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		alertName     string
+		labels        map[string]string
+		wantKnown     bool
+		wantReasonSub string
+	}{
+		{
+			name:          "median_latency_put_is_known",
+			alertName:     "FrontendPathMedianLatency",
+			labels:        map[string]string{"method": "PUT", "route": "/clusters"},
+			wantKnown:     true,
+			wantReasonSub: "AROSLSRE-2232",
+		},
+		{
+			name:          "median_latency_lowercase_put_is_known",
+			alertName:     "FrontendPathMedianLatency",
+			labels:        map[string]string{"method": "put", "route": "/clusters"},
+			wantKnown:     true,
+			wantReasonSub: "AROSLSRE-2232",
+		},
+		{
+			name:      "median_latency_get_is_not_known",
+			alertName: "FrontendPathMedianLatency",
+			labels:    map[string]string{"method": "GET", "route": "/clusters"},
+			wantKnown: false,
+		},
+		{
+			name:      "median_latency_head_is_not_known",
+			alertName: "FrontendPathMedianLatency",
+			labels:    map[string]string{"method": "HEAD", "route": "/clusters"},
+			wantKnown: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			classified := classifyAlerts([]alert{{Alert: alertData{Name: tt.alertName, Labels: tt.labels}}}, issues)
+			if len(classified) != 1 {
+				t.Fatalf("expected 1 classified alert, got %d", len(classified))
+			}
+			got := classified[0].Metadata.KnownIssue
+			if got != tt.wantKnown {
+				t.Errorf("%s{%v}: KnownIssue = %v, want %v (reason: %q)", tt.alertName, tt.labels, got, tt.wantKnown, classified[0].Metadata.KnownIssueReason)
+			}
+			if tt.wantReasonSub != "" && !strings.Contains(classified[0].Metadata.KnownIssueReason, tt.wantReasonSub) {
+				t.Errorf("%s{%v}: KnownIssueReason = %q, want substring %q", tt.alertName, tt.labels, classified[0].Metadata.KnownIssueReason, tt.wantReasonSub)
 			}
 		})
 	}
@@ -198,6 +274,29 @@ func TestClassifyAlerts(t *testing.T) {
 				{Alert: alertData{
 					Name:   "BackendControllerRetryHotLoop",
 					Labels: map[string]string{"name": "operationcreate"},
+				}},
+			},
+		},
+		{
+			name: "median_latency_mutating_methods",
+			knownIssuesYAML: `knownIssues:
+- name: "FrontendPathMedianLatency"
+  reason: "read-path SLO"
+  labels:
+    method: "(?i)(PUT|POST|PATCH|DELETE)"
+`,
+			alerts: []alert{
+				{Alert: alertData{
+					Name:   "FrontendPathMedianLatency",
+					Labels: map[string]string{"method": "PUT", "route": "/clusters"},
+				}},
+				{Alert: alertData{
+					Name:   "FrontendPathMedianLatency",
+					Labels: map[string]string{"method": "put", "route": "/clusters"},
+				}},
+				{Alert: alertData{
+					Name:   "FrontendPathMedianLatency",
+					Labels: map[string]string{"method": "GET", "route": "/clusters"},
 				}},
 			},
 		},
