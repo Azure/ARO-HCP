@@ -264,7 +264,8 @@ func readDatabaseNamespaces(tx databaseReader, r *databaseReport, metrics map[in
  max(CASE WHEN n.name='namespace' THEN v.value END) namespace,
  max(CASE WHEN n.name='hostedcontrolplane' THEN v.value END) hcp
  FROM labelset_member lm JOIN label_name n ON n.id=lm.name_id JOIN label_value v ON v.id=lm.value_id
- WHERE n.name IN ('cluster','namespace','hostedcontrolplane') GROUP BY lm.labelset_id
+ WHERE lm.labelset_id IN (SELECT DISTINCT labelset_id FROM accepted_observation WHERE ranking=1)
+ AND n.name IN ('cluster','namespace','hostedcontrolplane') GROUP BY lm.labelset_id
  ), contributions AS MATERIALIZED (
  SELECT o.workspace_id,o.metric_id,l.cluster,l.namespace,l.hcp,
  total(CASE WHEN o.kind='before12h' THEN o.value END) b,

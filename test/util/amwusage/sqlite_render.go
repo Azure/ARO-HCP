@@ -162,8 +162,8 @@ type databaseReport struct {
 
 // RenderDatabase writes a standalone, offline report from a schema-1 scan database.
 // It opens SQLite read-only and reads one consistent snapshot, including during a
-// live scan. Only normalized accepted observations are used; raw responses and
-// full physical-series inventories are never reconstructed or embedded.
+// live scan. Accepted observations and bounded full-run label summaries are used;
+// raw responses and physical-series inventories are never embedded.
 func RenderDatabase(w io.Writer, path string) error {
 	return renderDatabase(context.Background(), w, path, false)
 }
@@ -215,7 +215,16 @@ func renderDatabase(ctx context.Context, w io.Writer, path string, bounded bool)
 			{"labelset_member", 1000000}, {"label_name", 256},
 		} {
 			var n int
-			if err := reader.QueryRow(fmt.Sprintf("SELECT count(*) FROM (SELECT 1 FROM %s LIMIT ?)", limit.table), limit.rows+1).Scan(&n); err != nil {
+			filter := ""
+			// Raw label inventories share these dictionaries, but are separately
+			// bounded by the label reader and never expanded into ranking models.
+			if limit.table == "labelset_member" {
+				filter = " WHERE labelset_id IN (SELECT DISTINCT labelset_id FROM observation)"
+			}
+			if limit.table == "label_name" {
+				filter = " WHERE id IN (SELECT name_id FROM labelset_member WHERE labelset_id IN (SELECT DISTINCT labelset_id FROM observation))"
+			}
+			if err := reader.QueryRow(fmt.Sprintf("SELECT count(*) FROM (SELECT 1 FROM %s%s LIMIT ?)", limit.table, filter), limit.rows+1).Scan(&n); err != nil {
 				return err
 			}
 			if n > limit.rows {
@@ -223,7 +232,8 @@ func renderDatabase(ctx context.Context, w io.Writer, path string, bounded bool)
 			}
 		}
 		var bytes int64
-		if err := reader.QueryRow(`SELECT coalesce(sum(length(CAST(value AS BLOB))),0) FROM label_value`).Scan(&bytes); err != nil {
+		if err := reader.QueryRow(`SELECT coalesce(sum(length(CAST(value AS BLOB))),0) FROM label_value
+ WHERE id IN (SELECT value_id FROM labelset_member WHERE labelset_id IN (SELECT DISTINCT labelset_id FROM observation))`).Scan(&bytes); err != nil {
 			return err
 		}
 		if bytes > DatabaseReportMaxBytes {
@@ -560,6 +570,21 @@ func readDatabaseReport(tx databaseReader) (*databaseReport, error) {
 	if err != nil {
 		return nil, err
 	}
+	labelContext := context.Background()
+	if reader, ok := tx.(databaseContextReader); ok {
+		labelContext = reader.ctx
+	}
+	labels, err := readDatabaseLabelDetail(labelContext, tx)
+	if err != nil {
+		return nil, err
+	}
+	if labels != nil {
+		if r.SampleDetail == nil {
+			r.SampleDetail = labels
+		} else {
+			r.SampleDetail.Experiments = append(r.SampleDetail.Experiments, labels.Experiments...)
+		}
+	}
 	for _, w := range r.Workspaces {
 		var before, end []databaseMeasure
 		for _, m := range r.Metrics {
@@ -725,7 +750,8 @@ func readDatabaseSources(tx databaseReader, r *databaseReport, metrics map[int]*
  max(CASE WHEN n.name='namespace' THEN v.value END) namespace,
  max(CASE WHEN n.name='hostedcontrolplane' THEN v.value END) hcp
  FROM labelset_member lm JOIN label_name n ON n.id=lm.name_id JOIN label_value v ON v.id=lm.value_id
- WHERE n.name IN ('cluster','job','namespace','hostedcontrolplane') GROUP BY lm.labelset_id
+ WHERE lm.labelset_id IN (SELECT DISTINCT labelset_id FROM accepted_observation WHERE ranking=1)
+ AND n.name IN ('cluster','job','namespace','hostedcontrolplane') GROUP BY lm.labelset_id
  ), grouped AS (
  SELECT o.metric_id,l.cluster,l.job,l.namespace,l.hcp,
  total(CASE WHEN o.kind='before12h' THEN o.value END) b,

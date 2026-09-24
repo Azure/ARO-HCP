@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,6 +56,7 @@ type ScanOptions struct {
 	// Kinds selects logical enrichment roles through enrichment_query links.
 	// Only their exact requests are executed/recovered, without partition planning
 	// or run completion updates. Empty preserves normal catalog scanning.
+	// inventory_labels selects the separate full-run label ledger exclusively.
 	Kinds []string
 	// NamespaceOnly executes only immutable namespace inventory children, without
 	// legacy partition planning. The durable total attempt budget includes retries.
@@ -103,8 +105,33 @@ func (c *scanCredential) GetToken(ctx context.Context, options policy.TokenReque
 // Blocked coverage is not a scheduling failure: inspect Summary afterwards.
 // Cancellation releases this process's leases; crashes are recovered at expiry.
 func (s *ScanStore) Scan(ctx context.Context, o ScanOptions) error {
+	var labels int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_schema WHERE name='label_scan'`).Scan(&labels); err != nil {
+		return err
+	}
+	if labels != 0 {
+		if len(o.Kinds) != 1 || o.Kinds[0] != "inventory_labels" {
+			return errors.New("label snapshot requires labels; ordinary scan/enrichment cannot bypass label budgets")
+		}
+		if err := labelMigrationReady(ctx, s.db); err != nil {
+			return err
+		}
+		var legacy int
+		if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM pragma_table_info('label_scan_observation') WHERE name='labels_json'`).Scan(&legacy); err != nil {
+			return err
+		}
+		if legacy != 0 {
+			return errors.New("label snapshot requires offline normalization migration")
+		}
+	}
 	if o.Workers == 0 {
 		o.Workers = 4
+		if labels != 0 {
+			o.Workers = 2
+		}
+	}
+	if labels != 0 && o.Workers > 2 {
+		return errors.New("label workers must be between 1 and 2")
 	}
 	if o.Workers < 1 || o.Workers > 4 {
 		return errors.New("workers must be between 1 and 4")
@@ -116,9 +143,12 @@ func (s *ScanStore) Scan(ctx context.Context, o ScanOptions) error {
 		return errors.New("namespace and enrichment scan scopes are mutually exclusive")
 	}
 	for _, kind := range o.Kinds {
-		if kind != "samples_window" && kind != "inventory_samples" {
-			return errors.New("filtered scans only support samples_window and inventory_samples")
+		if kind != "samples_window" && kind != "inventory_samples" && kind != "inventory_labels" {
+			return errors.New("filtered scans only support samples_window, inventory_samples and inventory_labels")
 		}
+	}
+	if len(o.Kinds) > 1 && slices.Contains(o.Kinds, "inventory_labels") {
+		return errors.New("full-run labels cannot be mixed with enrichment roles")
 	}
 	var planning string
 	err := s.db.QueryRowContext(ctx, `SELECT planning_state FROM run WHERE id=1`).Scan(&planning)
@@ -191,7 +221,9 @@ func (s *ScanStore) scanWorker(ctx context.Context, owner string, credential azc
 		var claim *scanClaim
 		var done bool
 		var err error
-		if len(kinds) > 0 {
+		if len(kinds) == 1 && kinds[0] == "inventory_labels" {
+			claim, done, err = s.claimLabelScan(ctx, owner, time.Now())
+		} else if len(kinds) > 0 {
 			claim, done, err = s.claimEnrichment(ctx, owner, time.Now(), kinds)
 		} else {
 			claim, done, err = s.claimScan(ctx, owner, time.Now(), namespaceOnly)
@@ -397,12 +429,32 @@ func (s *ScanStore) requestScan(ctx context.Context, c scanClaim, credential azc
 		o.body = "Azure token acquisition failed; verify Azure CLI login and workspace query permissions"
 		return o, nil
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint+c.path+"?"+c.params, nil)
+	method, target := http.MethodGet, c.endpoint+c.path+"?"+c.params
+	var requestBody io.Reader
+	var priorGET414 bool
+	if c.kind == "inventory_labels" {
+		if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM attempt a JOIN label_scan_http h ON h.attempt_id=a.id WHERE a.query_id=? AND a.http_status=414 AND h.method='GET')`, c.id).Scan(&priorGET414); err != nil {
+			return o, err
+		}
+	}
+	if c.kind == "inventory_labels" && (len(target) > 6000 || priorGET414) {
+		method, target = http.MethodPost, c.endpoint+c.path
+		requestBody = strings.NewReader(c.params)
+	}
+	if c.kind == "inventory_labels" {
+		if _, err := s.db.ExecContext(ctx, `INSERT INTO label_scan_http VALUES(?,?)`, c.attempt, method); err != nil {
+			return o, err
+		}
+	}
+	req, err := http.NewRequestWithContext(ctx, method, target, requestBody)
 	if err != nil {
 		return o, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token.Token)
 	req.Header.Set("Accept", "application/json")
+	if method == http.MethodPost {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
 	started := time.Now()
 	defer func() { o.duration = time.Since(started).Milliseconds() }()
 	response, err := client.Do(req)
@@ -459,7 +511,7 @@ func (s *ScanStore) requestScan(ctx context.Context, c scanClaim, credential azc
 			if c.kind == "before12h" || c.kind == "end12h" || c.kind == "run" || c.kind == "samples_window" || c.kind == "inventory_samples" {
 				validateScanCount(&batch[i])
 			}
-			if (c.kind == "samples_window" || c.kind == "inventory_samples") && (batch[i].integer == nil || *batch[i].integer <= 0) {
+			if (c.kind == "samples_window" || c.kind == "inventory_samples" || c.kind == "inventory_labels") && (batch[i].integer == nil || *batch[i].integer <= 0) {
 				raw := strings.ReplaceAll(batch[i].raw, token.Token, "[REDACTED]")
 				return fmt.Errorf("sample counts must be positive integers: value=%q at=%g", raw[:min(len(raw), 512)], batch[i].at)
 			}
@@ -472,7 +524,11 @@ func (s *ScanStore) requestScan(ctx context.Context, c scanClaim, credential azc
 		if err := checkScanFence(ctx, tx, c, time.Now()); err != nil {
 			return err
 		}
-		if err := insertObservations(ctx, tx, c.attempt, batch); err != nil {
+		insert := insertObservations
+		if c.kind == "inventory_labels" {
+			insert = insertLabelObservations
+		}
+		if err := insert(ctx, tx, c.attempt, batch); err != nil {
 			return err
 		}
 		if err := tx.Commit(); err != nil {
@@ -483,6 +539,9 @@ func (s *ScanStore) requestScan(ctx context.Context, c scanClaim, credential azc
 	o.scanResponseMeta = meta
 	if parseErr == nil && c.path == "/api/v1/query" && meta.resultType != "vector" {
 		parseErr = errors.New("instant query did not return a vector")
+	}
+	if parseErr == nil && c.kind == "inventory_labels" && meta.warnings != "[]" {
+		parseErr = errors.New("raw label response contains warnings; completeness is unknown")
 	}
 	if parseErr != nil {
 		var databaseError scanDBError
@@ -639,6 +698,9 @@ func (s *ScanStore) finishScan(ctx context.Context, c scanClaim, o scanOutcome, 
 		filter := ""
 		if c.kind == "samples_window" || c.kind == "inventory_samples" {
 			filter = " AND id IN (SELECT query_id FROM enrichment_query WHERE plan_id=1)"
+		}
+		if c.kind == "inventory_labels" {
+			filter = " AND id IN (SELECT query_id FROM label_scan_query)"
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE query SET state='blocked',classification='workspace_authorization' WHERE workspace_id=? AND state IN ('pending','retry_wait')`+filter, c.workspace); err != nil {
 			return err

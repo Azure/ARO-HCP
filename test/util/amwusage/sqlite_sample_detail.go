@@ -44,6 +44,8 @@ type databaseSampleExperiment struct {
 	Labels                              []databaseSampleLabel
 	LabelPairs                          []databaseSampleLabelPair
 	Sources                             []databaseSampleValue
+	SelectionReason                     string `json:",omitempty"`
+	LabelCount, OmittedLabels           int    `json:",omitempty"`
 }
 
 type databaseSampleQuery struct {

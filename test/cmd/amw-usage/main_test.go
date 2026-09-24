@@ -37,10 +37,27 @@ func TestCLIValidationAndHelp(t *testing.T) {
 			t.Fatalf("invalid invocation accepted: %v", args)
 		}
 	}
-	for _, command := range []string{"collect", "render", "scan", "refresh", "recover-namespaces", "enrich", "status", "compact", "repair"} {
+	for _, command := range []string{"collect", "render", "scan", "refresh", "recover-namespaces", "enrich", "labels", "status", "compact", "repair"} {
 		var stderr bytes.Buffer
 		if err := run(context.Background(), []string{command, "--help"}, io.Discard, &stderr); err != nil || stderr.Len() == 0 {
 			t.Fatalf("help failed for %s: %v", command, err)
+		}
+	}
+}
+
+func TestCLILabelsValidation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "absent.db")
+	for _, args := range [][]string{
+		{"labels"}, {"labels", "--db", path},
+		{"labels", "--db", path, "--workers", "3"},
+		{"labels", "--db", path, "--max-bytes", "32"},
+		{"labels", "--db", path, "--max-requests", "0"},
+	} {
+		if err := run(context.Background(), args, io.Discard, io.Discard); err == nil {
+			t.Fatalf("invalid labels invocation accepted: %v", args)
+		}
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("labels created absent snapshot: %v", err)
 		}
 	}
 }

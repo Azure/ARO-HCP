@@ -315,6 +315,51 @@ The command prints an enrichment-only coverage summary and generates adjacent HT
 after normal completion, including partial coverage (nonzero exit). Ranking status
 may remain incomplete, independently. Offline rendering needs no credentials.
 
+## Full-Run Label Scans
+
+Use `labels` on an isolated SQLite backup of the final ranking scan. Unlike
+`enrich`, this selects the whole catalog and exactly `(run.start, run.end]`, not
+the rolling 12-hour inventory. Confidently complete empty run results are skipped.
+
+```bash
+test ! -e labels-analysis.db && \
+  sqlite3 -readonly fullscan.db ".backup 'labels-analysis.db'"
+amw-usage labels --db labels-analysis.db --azure-cli --workers 2
+# Repeat to resume; increase cumulative limits if necessary:
+amw-usage labels --db labels-analysis.db --azure-cli --max-bytes 4294967296 --max-requests 20000
+amw-usage render --input labels-analysis.db --output labels-analysis.html
+```
+
+Defaults are two workers, 2 GiB of response bytes, and 10,000 physical attempt
+claims, including retries. Each in-flight or abandoned attempt reserves 32 MiB
+plus one byte, so cancellation/crashes cannot evade the cumulative byte budget.
+Successful leaves are never reissued. Capacity failures can split into disjoint
+literal selectors and exhaustive complements; unknown coverage is not zero.
+Long URLs and GET 414 responses use read-only form-encoded query POSTs. Ordinary
+scan/enrichment execution is rejected on a label snapshot to protect its budget.
+
+Full labels use the shared lowercase dictionaries. Case-colliding names or
+identities, invalid counts, partial responses, and warnings cannot publish.
+`label_scan_coverage` distinguishes execution completeness from reconciliation
+against frozen grouped source counts, including each source group. Unknown
+comparators remain unverified, not reconciled. Partial coverage exits nonzero;
+inspect the query/attempt ledger before deciding whether to increase budgets.
+
+The offline report embeds at most 12 summaries selected from the top 15 candidates
+by series and by sample volume across workspaces. It reads at most 500,000 rows
+per candidate and 2,000,000 total, without sampling an oversized inventory.
+Summaries retain six labels, three label pairs, and the union of the top eight
+values by series and samples plus a remainder. The UI distinguishes uncollected,
+collected-but-omitted, and unreconciled detail. Label reductions overlap and must
+not be added together. Full evidence remains in SQLite and can contain sensitive
+resource labels; do not publish databases or private reports.
+
+For an existing legacy label checkpoint with `labels_json`, stop all scanners and
+run `labels --db <isolated-backup> --migrate-only`. This restartable offline
+migration preserves the raw table until normalized row/sample totals validate.
+Scanning and label rendering refuse an incomplete migration. Compact only after
+all work is terminal; `compact` retains its completed-scan safety checks.
+
 ## Offline Rendering
 
 Regenerate HTML from existing evidence without credentials or Azure calls:

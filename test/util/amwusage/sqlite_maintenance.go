@@ -66,7 +66,21 @@ func PruneScanStore(ctx context.Context, path string) error {
 	}
 	// Every observation counts, not just accepted observations: staging and
 	// platform references must never lose their normalized dictionaries.
-	if _, err := tx.ExecContext(ctx, `CREATE TEMP TABLE orphan_labelset AS SELECT id FROM labelset WHERE id NOT IN (SELECT labelset_id FROM observation UNION SELECT labelset_id FROM platform_observation)`); err != nil {
+	labelReferences := ""
+	var normalizedLabels int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM pragma_table_info('label_scan_observation') WHERE name='labelset_id'`).Scan(&normalizedLabels); err != nil {
+		return err
+	}
+	if normalizedLabels != 0 {
+		if err := labelMigrationReady(ctx, tx); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM label_scan_group WHERE labelset_id NOT IN (SELECT labelset_id FROM label_scan_observation)`); err != nil {
+			return err
+		}
+		labelReferences = ` UNION SELECT labelset_id FROM label_scan_observation UNION SELECT labelset_id FROM label_scan_group UNION SELECT group_id FROM label_scan_group UNION SELECT group_id FROM label_scan_expected_group`
+	}
+	if _, err := tx.ExecContext(ctx, `CREATE TEMP TABLE orphan_labelset AS SELECT id FROM labelset WHERE id NOT IN (SELECT labelset_id FROM observation UNION SELECT labelset_id FROM platform_observation`+labelReferences+`)`); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
