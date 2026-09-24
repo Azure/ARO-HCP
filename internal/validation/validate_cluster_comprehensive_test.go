@@ -1375,6 +1375,49 @@ func TestValidateClusterCreate(t *testing.T) {
 				{Message: "Unsupported value", FieldPath: "customerProperties.ingress.type"},
 			},
 		},
+		{
+			name: "Managed HSM KMS on 4.22 - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "Managed HSM KMS below 4.22 rejected - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.21"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Managed HSM KMS requires OpenShift version 4.22 or later", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType"},
+			},
+		},
+		{
+			name: "KeyVault KMS below 4.22 allowed - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.21"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeKeyVault
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "invalid KMS keyVaultType rejected - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = "InvalidType"
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
