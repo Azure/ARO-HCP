@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	applycorev1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/ptr"
@@ -208,7 +209,7 @@ var _ = Describe("Customer", func() {
 			// ── Cordon ──
 
 			By(fmt.Sprintf("cordoning node %s by setting spec.unschedulable=true", targetNode.Name))
-			Expect(setNodeUnschedulable(ctx, kubeClient, targetNode.Name, true)).To(
+			Expect(setNodeUnschedulable(ctx, kubeClient, targetNode.Name, targetNode.UID, true)).To(
 				Succeed(), "failed to cordon node %s", targetNode.Name,
 			)
 
@@ -338,7 +339,7 @@ var _ = Describe("Customer", func() {
 			// ── Uncordon and verify scheduling resumes ──
 
 			By(fmt.Sprintf("uncordoning node %s by setting spec.unschedulable=false", targetNode.Name))
-			Expect(setNodeUnschedulable(ctx, kubeClient, targetNode.Name, false)).To(
+			Expect(setNodeUnschedulable(ctx, kubeClient, targetNode.Name, targetNode.UID, false)).To(
 				Succeed(), "failed to uncordon node %s", targetNode.Name,
 			)
 
@@ -379,15 +380,23 @@ var _ = Describe("Customer", func() {
 // spec.unschedulable on the nodes it cordons.
 const cordonFieldManager = "aro-hcp-e2e-cordon-test"
 
-// setNodeUnschedulable flips spec.unschedulable using server-side apply.
+// setNodeUnschedulable flips spec.unschedulable on the node identified by name and uid,
+// using server-side apply.
 //
 // A read-modify-write Update() of the whole Node loses races against kubelet's node
 // heartbeat: any concurrent write bumps the resourceVersion and the Update is rejected
 // with a 409 Conflict ("the object has been modified"). Applying only the field this
 // test owns sends no resourceVersion, so it cannot lose that race and needs no retry.
-func setNodeUnschedulable(ctx context.Context, kubeClient kubernetes.Interface, nodeName string, unschedulable bool) error {
+//
+// uid is required because apply is create-or-update: without it, applying to a node that
+// has since been deleted or replaced would materialize a partial Node rather than fail.
+// Supplying it makes the apiserver reject that case, so the node going away is still a
+// loud failure.
+func setNodeUnschedulable(ctx context.Context, kubeClient kubernetes.Interface, nodeName string, nodeUID types.UID, unschedulable bool) error {
 	_, err := kubeClient.CoreV1().Nodes().Apply(ctx,
-		applycorev1.Node(nodeName).WithSpec(applycorev1.NodeSpec().WithUnschedulable(unschedulable)),
+		applycorev1.Node(nodeName).
+			WithUID(nodeUID).
+			WithSpec(applycorev1.NodeSpec().WithUnschedulable(unschedulable)),
 		metav1.ApplyOptions{FieldManager: cordonFieldManager, Force: true},
 	)
 	return err
