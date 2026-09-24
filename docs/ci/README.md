@@ -171,6 +171,9 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Test Suites And Labels](e2e-testing.md#test-suites-and-labels)
 - [Periodic Tests](e2e-testing.md#periodic-tests)
 
+### [Incident-Only E2E Acknowledgement](e2e-ci-kill-switch.md)
+
+- Temporary acknowledgement requirement for automatic E2E during an incident
 ### [Upgrade-Path Presubmit](upgrade-path-presubmit.md)
 
 - [When To Use It](upgrade-path-presubmit.md#when-to-use-it)

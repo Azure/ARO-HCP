@@ -120,6 +120,8 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [E2E Testing in CI](ci/e2e-testing.md)
   - How to trigger E2E jobs from PRs
   - How to narrow test selection safely
+- [Incident-Only E2E Acknowledgement](ci/e2e-ci-kill-switch.md)
+  - Temporary acknowledgement requirement for automatic E2E
 - [CI Operations](ci/operations.md)
   - How to trigger, inspect, troubleshoot, and change CI
   - Tiny source-of-truth appendix for job families
