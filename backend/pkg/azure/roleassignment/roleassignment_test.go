@@ -81,3 +81,41 @@ func TestManagedResourceGroupScopedRoleAssignmentResourceID(t *testing.T) {
 		t.Fatalf("role assignment resource ID mismatch: got %q, want %q", got, want)
 	}
 }
+
+// TestGenerateManagedResourceGroupScopedRoleAssignmentNameMatchesClusterServiceCanonicalScope
+// locks the cross-component naming contract with Cluster Service (ARO-29892).
+//
+// The backend feeds this generator a scope built from coreapi.ToResourceGroupResourceID,
+// which lowercases the subscription ID and managed resource group name. Cluster Service
+// must feed the identically cased scope through its own CanonicalManagedResourceGroupScope
+// helper. Azure deduplicates role assignments by scope, principal and role definition
+// rather than by name, so if the two sides hash scopes that differ only by casing (for
+// example the "MC_" managed resource group prefix Azure returns versus the lowercased
+// "mc_") they derive different names for the same assignment and the second writer wedges
+// on RoleAssignmentExists.
+//
+// canonicalName is the same UUIDv5 Cluster Service pins for this canonical scope. If it
+// changes here, Cluster Service must change in lockstep.
+func TestGenerateManagedResourceGroupScopedRoleAssignmentNameMatchesClusterServiceCanonicalScope(t *testing.T) {
+	t.Parallel()
+
+	const (
+		canonicalScope   = "/subscriptions/d8b8e5a0-1111-2222-3333-444455556666/resourceGroups/mc_ricohcp9232rg_ricohcp9232_canadacentral"
+		principalID      = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+		roleDefinitionID = "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
+		canonicalName    = "eed0283b-ecb0-5db2-90d8-0d15228b9f82"
+	)
+
+	got := GenerateManagedResourceGroupScopedRoleAssignmentName(canonicalScope, principalID, roleDefinitionID)
+	if got != canonicalName {
+		t.Fatalf("canonical role assignment name mismatch: got %q, want %q (Cluster Service contract broken)", got, canonicalName)
+	}
+
+	// A managed resource group scope that still carries Azure's upper-case "MC_" prefix
+	// hashes to a different name, which is exactly why the scope must be canonicalized to
+	// lower case before it reaches this generator.
+	uncanonicalScope := "/subscriptions/d8b8e5a0-1111-2222-3333-444455556666/resourceGroups/MC_ricohcp9232rg_ricohcp9232_canadacentral"
+	if GenerateManagedResourceGroupScopedRoleAssignmentName(uncanonicalScope, principalID, roleDefinitionID) == canonicalName {
+		t.Fatal("expected a differently cased managed resource group scope to derive a different name")
+	}
+}
