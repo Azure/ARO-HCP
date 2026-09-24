@@ -58,12 +58,30 @@ func (tc *perItOrDescribeTestContext) CreateDiskEncryptionSet(ctx context.Contex
 		return "", fmt.Errorf("failed to create Key Vault keys client: %w", err)
 	}
 
-	createKeyResp, err := keyClient.CreateKey(ctx, desKeyName, azkeys.CreateKeyParameters{
-		Kty:     to.Ptr(azkeys.KeyTypeRSA),
-		KeySize: to.Ptr(int32(2048)),
-	}, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create DES encryption key: %w", err)
+	keyCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	var createKeyResp azkeys.CreateKeyResponse
+	var previousErr string
+	for {
+		var createErr error
+		createKeyResp, createErr = keyClient.CreateKey(keyCtx, desKeyName, azkeys.CreateKeyParameters{
+			Kty:     to.Ptr(azkeys.KeyTypeRSA),
+			KeySize: to.Ptr(int32(2048)),
+		}, nil)
+		if createErr == nil {
+			break
+		}
+		// delta-only logging: only emit when the failure changes between polls
+		if createErr.Error() != previousErr {
+			ginkgo.GinkgoLogr.Info("waiting for Key Vault RBAC to propagate before creating DES key",
+				"keyVaultName", keyVaultName, "error", createErr.Error())
+			previousErr = createErr.Error()
+		}
+		select {
+		case <-keyCtx.Done():
+			return "", fmt.Errorf("failed to create DES encryption key after retries: %w", createErr)
+		case <-time.After(StandardPollInterval):
+		}
 	}
 	if createKeyResp.Key == nil || createKeyResp.Key.KID == nil {
 		return "", fmt.Errorf("created key response or KID was nil")

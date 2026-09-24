@@ -50,6 +50,7 @@ func (v verifyVMOSDiskCustomerEncryption) Verify(ctx context.Context, _ *rest.Co
 		vms = append(vms, page.Value...)
 	}
 
+	// Match with Contains: CAPZ prefixes VM names with the cluster/MachineDeployment name.
 	var workerVMs []*armcompute.VirtualMachine
 	for _, vm := range vms {
 		if vm.Name != nil && strings.Contains(*vm.Name, v.nodePoolName) {
