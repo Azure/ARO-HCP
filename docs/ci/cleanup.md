@@ -138,7 +138,8 @@ Deletion requires all of the following:
   cutoff (seven days by default; the minimum supported threshold is 24 hours).
   Renewal or recent reuse postpones cleanup by another grace period. This is
   deliberately more conservative than first-version age and avoids enumerating
-  version histories for tens of thousands of certificates.
+  version histories for tens of thousands of certificates. Normal CI jobs
+  finish within three hours, leaving a wide margin before eligibility.
 - No RG containing that exact job token in either subscription, including RGs
   still being deleted. Any incomplete/failed RG inventory aborts deletion.
 - Unchanged, still-eligible latest certificate metadata immediately before delete,
@@ -146,14 +147,22 @@ Deletion requires all of the following:
   If certificate revalidation takes longer than that, the attempt fails without
   deleting and the certificate is retried by a later hourly run.
 
-Active and deleted certificate inventories both stop requesting Key Vault pages
-as soon as they inspect their configured number of metadata entries:
-`--max-deletions` for active certificates and `--max-purges` for tombstones.
-Ineligible and live-owned objects consume these limits, so the selected mutation
-count can be lower than the configured limit. Every delete still uses a fresh
-owner revalidation through the shared 30-second guard. This bounds inventory
-reads as well as mutations, limiting Key Vault cost, runtime, and throttling
-risk.
+Active and deleted certificate inventories stop requesting Key Vault pages when
+they exhaust their inspection budgets. `--max-deletions` bounds active metadata
+entries inspected. `--max-purges` is shared by immediate purges after active
+deletion and metadata inspected from previously deleted tombstones. When both
+actions are enabled, active inspection is bounded by the lower limit, purge
+capacity is reserved for each selected active certificate, and only the
+remainder is used to inspect deleted certificates. Ineligible and live-owned
+objects consume their applicable inspection limit, so the selected mutation
+count can be lower than the configured limit. This keeps each selected active
+certificate on the tested delete+purge path while ensuring that all irreversible
+purge operations honor one bound.
+The default 1,000-certificate budgets also comfortably exceed the normal daily
+creation rate of roughly 1,000 CI jobs per month.
+Every delete still uses a fresh owner revalidation through the shared 30-second
+guard. The limits bound reads as well as mutations, limiting Key Vault cost,
+runtime, and throttling risk.
 `--delete-active` and `--purge-deleted` independently enable the two actions,
 allowing tombstones to be remediated without resuming active-certificate
 cleanup. The command emits JSON candidate and summary logs.
@@ -178,12 +187,13 @@ reserves a reusable seven-digit job name. Purge is irreversible and requires
 certificate purge permission.
 
 The command never issues separate key or secret delete calls. Failed deletes and
-purges are reported together at the end. The deleted-certificate inventory is
-retained as a recovery path: if a tombstone does not appear within 30 seconds,
-the process is interrupted, or immediate purge fails, a later run rediscovers
-and retries it after repeating safety checks. Individual failures do not fail
-the command when at least one certificate was deleted, purged, or already
-absent; the command fails when every attempted change failed.
+purges are reported together at the end. If a tombstone does not appear within
+30 seconds, the process is interrupted, or immediate purge fails, a later run
+rediscovers and retries that tombstone after repeating safety checks. Certificate
+provisioning does not recover soft-deleted certificates; successful cleanup must
+purge their names so a later job can create a new certificate. Individual
+failures do not fail the command when at least one certificate was deleted,
+purged, or already absent; the command fails when every attempted change failed.
 
 Azure does not provide an atomic owner-check/certificate-delete operation, so
 concurrent reuse of a seven-digit job suffix remains a race. The age guard, recent

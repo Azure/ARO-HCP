@@ -353,7 +353,7 @@ func TestDryRunInventoryAndLimit(t *testing.T) {
 	ctx := logr.NewContext(t.Context(), logr.FromSlogHandler(slog.NewJSONHandler(&logs, nil)))
 	opts := options(true)
 	opts.MaxDeletions = 2
-	opts.MaxPurges = 1
+	opts.MaxPurges = 2
 	if err := s.run(ctx, opts); err != nil {
 		t.Fatal(err)
 	}
@@ -704,6 +704,30 @@ func TestImmediatePurgeWaitsForTombstone(t *testing.T) {
 	}
 	if !reflect.DeepEqual(f.purges, []string{"maestro-server-j1234567"}) {
 		t.Fatalf("purges = %v", f.purges)
+	}
+}
+
+func TestPurgeBudgetIncludesImmediatePurges(t *testing.T) {
+	s, f, _, _ := newTestSweeper(
+		"maestro-server-j1234567",
+		"maestro-server-j2345678",
+		"maestro-server-j3456789",
+	)
+	f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{{
+		deletedCertificate("maestro-server-j4567890"),
+	}}
+	opts := options(false)
+	opts.MaxDeletions = 3
+	opts.MaxPurges = 2
+
+	if err := s.run(t.Context(), opts); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.deletes) != 2 || len(f.purges) != 2 {
+		t.Fatalf("shared purge budget exceeded: deletes=%v purges=%v", f.deletes, f.purges)
+	}
+	if f.deletedLists != 0 {
+		t.Fatalf("deleted-certificate inventory read without remaining purge budget: %d", f.deletedLists)
 	}
 }
 

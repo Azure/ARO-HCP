@@ -268,6 +268,10 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 	var candidates []*azcertificates.CertificateProperties
 	var owners map[string]bool
 	if opts.DeleteActive {
+		activeInspectLimit := opts.MaxDeletions
+		if opts.PurgeDeleted && opts.MaxPurges < activeInspectLimit {
+			activeInspectLimit = opts.MaxPurges
+		}
 		var err error
 		owners, _, err = s.owners(ctx)
 		if err != nil {
@@ -277,7 +281,7 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 		pager := s.certificates.NewListCertificatePropertiesPager(nil)
 	activeInventory:
 		for pager.More() {
-			if counts.Scanned >= opts.MaxDeletions {
+			if counts.Scanned >= activeInspectLimit {
 				counts.Skipped["limit"]++
 				break
 			}
@@ -286,7 +290,7 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 				return fmt.Errorf("list certificate metadata (no changes attempted): %w", err)
 			}
 			for _, cert := range page.Value {
-				if counts.Scanned >= opts.MaxDeletions {
+				if counts.Scanned >= activeInspectLimit {
 					counts.Skipped["limit"]++
 					break activeInventory
 				}
@@ -310,12 +314,16 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 			}
 		}
 	}
-	if opts.PurgeDeleted {
+	deletedPurgeLimit := opts.MaxPurges
+	if opts.DeleteActive {
+		deletedPurgeLimit -= len(candidates)
+	}
+	if opts.PurgeDeleted && deletedPurgeLimit > 0 {
 		deletedSeen := map[string]bool{}
 		deletedPager := s.certificates.NewListDeletedCertificatePropertiesPager(nil)
 	deletedInventory:
 		for deletedPager.More() {
-			if counts.DeletedScanned >= opts.MaxPurges {
+			if counts.DeletedScanned >= deletedPurgeLimit {
 				counts.Skipped["purge-limit"]++
 				break
 			}
@@ -324,7 +332,7 @@ func (s *sweeper) run(ctx context.Context, opts Options) error {
 				return fmt.Errorf("list deleted certificate metadata (no changes attempted): %w", err)
 			}
 			for _, cert := range page.Value {
-				if counts.DeletedScanned >= opts.MaxPurges {
+				if counts.DeletedScanned >= deletedPurgeLimit {
 					counts.Skipped["purge-limit"]++
 					break deletedInventory
 				}
