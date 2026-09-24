@@ -33,16 +33,21 @@ var _ = Describe("KSM HCP Metrics", func() {
 	It("metrics should be present in HCP Azure Monitoring Workspace",
 		labels.Medium,
 		labels.Positive,
+		labels.RequireNothing,
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
 		labels.RequiresConfig,
-		labels.MIContainers(0),
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "ksm-hcp-metrics"
 				customerNodePoolName = "nodepool"
 			)
 			tc := framework.NewTestContext()
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
+			}
 
 			serviceConfig, err := config.GetServiceConfig()
 			Expect(err).NotTo(HaveOccurred(), "failed to load service config")
@@ -52,11 +57,6 @@ var _ = Describe("KSM HCP Metrics", func() {
 
 			hcpWorkspaceNameStr, err := config.GetStringByPath(serviceConfig, "monitoring.hcpWorkspaceName")
 			Expect(err).NotTo(HaveOccurred(), "failed to resolve monitoring.hcpWorkspaceName")
-
-			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
-				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
-			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "hcp-metrics", tc.Location())
@@ -102,11 +102,9 @@ var _ = Describe("KSM HCP Metrics", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q", customerNodePoolName)
 
-			// The HCP workspace lives in the mgmt (underlay infra) subscription, not the
-			// customer subscription that tc.SubscriptionID resolves to (the one the e2e
-			// test's own HCP cluster is created in), so it must be looked up separately.
-			mgmtSubscriptionNameStr, err := config.GetStringByPath(serviceConfig, "mgmt.subscription.key")
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve mgmt.subscription.key")
+			// Confusingly.the HCP workspace lives in the svc subscription, not mgmt
+			svcSubscriptionNameStr, err := config.GetStringByPath(serviceConfig, "svc.subscription.key")
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve svc.subscription.key")
 
 			cred, err := tc.AzureCredential()
 			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
@@ -114,8 +112,8 @@ var _ = Describe("KSM HCP Metrics", func() {
 			subscriptionsClientFactory, err := tc.GetARMSubscriptionsClientFactory()
 			Expect(err).NotTo(HaveOccurred(), "failed to get ARM subscriptions client factory")
 
-			subscriptionID, err := framework.GetSubscriptionID(ctx, subscriptionsClientFactory.NewClient(), mgmtSubscriptionNameStr)
-			Expect(err).NotTo(HaveOccurred(), "failed to look up mgmt subscription ID for %q", mgmtSubscriptionNameStr)
+			subscriptionID, err := framework.GetSubscriptionID(ctx, subscriptionsClientFactory.NewClient(), svcSubscriptionNameStr)
+			Expect(err).NotTo(HaveOccurred(), "failed to look up svc subscription ID for %q", svcSubscriptionNameStr)
 
 			By("Resolving HCP workspace Prometheus endpoint")
 			endpoint, err := promutil.LookupPrometheusEndpoint(ctx, cred, subscriptionID, regionRGStr, hcpWorkspaceNameStr)
@@ -138,16 +136,15 @@ var _ = Describe("KSM HCP Metrics", func() {
 					start := now.Add(-20 * time.Minute)
 
 					resp, err := promutil.QueryRange(ctx, httpClient, cred, endpoint, query, start, now, "60s")
-					g.Expect(err).NotTo(HaveOccurred(), "Prometheus query_range failed")
+					g.Expect(err).NotTo(HaveOccurred(), "Prometheus query_range failed for %s", metric)
 					if err != nil {
 						return
 					}
 					g.Expect(resp.Data.Result).NotTo(BeEmpty(),
-						"expected %s metrics for at least one hostedcontrolplane but got no results", metric)
+						"expected %s metrics from kube-state-metrics but got no results", metric)
 
-					GinkgoLogr.Info("found metrics for at least one hostedcontrolplane", "metric", metric, "results", resp.Data.Result)
 				}
 			}).WithTimeout(15*time.Minute).WithPolling(30*time.Second).WithContext(ctx).Should(Succeed(),
-				"not all metrics appeared in Azure Monitor for any hostedcontrolplane")
+				"not all KSM metrics appeared in Azure Monitor")
 		})
 })

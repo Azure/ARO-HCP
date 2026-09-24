@@ -46,28 +46,34 @@ func GetServiceConfig() (types.Configuration, error) {
 		if cloud == "" {
 			cloud = os.Getenv("CLOUD")
 		}
-		required := map[string]string{
-			"ARO_HCP_CONFIG_FILE": os.Getenv("ARO_HCP_CONFIG_FILE"),
-			"ARO_HCP_CLOUD":       cloud,
-			"DEPLOY_ENV":          os.Getenv("DEPLOY_ENV"),
-			"REGION":              os.Getenv("REGION"),
-		}
+		configFile := os.Getenv("ARO_HCP_CONFIG_FILE")
+		deployEnv := os.Getenv("DEPLOY_ENV")
+		region := os.Getenv("REGION")
+
+		// Check in deterministic order to make error messages consistent
 		var missing []string
-		for k, v := range required {
-			if v == "" {
-				missing = append(missing, k)
-			}
+		if configFile == "" {
+			missing = append(missing, "ARO_HCP_CONFIG_FILE")
+		}
+		if cloud == "" {
+			missing = append(missing, "ARO_HCP_CLOUD or CLOUD")
+		}
+		if deployEnv == "" {
+			missing = append(missing, "DEPLOY_ENV")
+		}
+		if region == "" {
+			missing = append(missing, "REGION")
 		}
 		if len(missing) > 0 {
 			configErr = fmt.Errorf("required environment variables not set: %v", missing)
 			return
 		}
 		opts := ConfigOptions{
-			ConfigFile:         required["ARO_HCP_CONFIG_FILE"],
+			ConfigFile:         configFile,
 			ConfigFileOverride: os.Getenv("ARO_HCP_CONFIG_FILE_OVERRIDE"),
-			Cloud:              required["ARO_HCP_CLOUD"],
-			DeployEnv:          required["DEPLOY_ENV"],
-			Region:             required["REGION"],
+			Cloud:              cloud,
+			DeployEnv:          deployEnv,
+			Region:             region,
 		}
 		configErr = LoadConfig(opts)
 	})
