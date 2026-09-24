@@ -98,6 +98,9 @@ param genevaClusterLogsName string
 @description('The name of the Azure Storage account to create for HCP Backups')
 param hcpBackupsStorageAccountName string
 
+@description('The name of this management cluster\'s HCP backup container')
+param hcpBackupsStorageAccountContainerName string
+
 @description('Event Hub name for AKS audit logs')
 param auditLogsEventHubName string
 
@@ -357,11 +360,20 @@ resource veleroUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31
   ]
 }
 
+resource mgmtAgentUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: mgmtAgentMIName
+  dependsOn: [
+    managedIdentities
+  ]
+}
+
 module hcpBackupsRbac '../modules/hcp-backups/storage-rbac.bicep' = {
   name: 'hcp-backups-rbac'
   params: {
     storageAccountName: hcpBackupsStorageAccountName
+    containerName: hcpBackupsStorageAccountContainerName
     veleroManagedIdentityPrincipalId: veleroUAMI.properties.principalId
+    mgmtAgentManagedIdentityPrincipalId: mgmtAgentUAMI.properties.principalId
   }
 }
 

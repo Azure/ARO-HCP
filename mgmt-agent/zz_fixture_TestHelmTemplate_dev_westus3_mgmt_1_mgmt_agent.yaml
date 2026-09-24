@@ -36,6 +36,141 @@ data:
   config.yaml: |
     enabled: true
 ---
+# Source: mgmt-agent/templates/backuprepositorycleanup-crd.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: backuprepositorycleanups.mgmtagent.aro-hcp.azure.com
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+spec:
+  group: mgmtagent.aro-hcp.azure.com
+  names:
+    kind: BackupRepositoryCleanup
+    listKind: BackupRepositoryCleanupList
+    plural: backuprepositorycleanups
+    singular: backuprepositorycleanup
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Repository
+      type: string
+      jsonPath: .spec.repository.name
+    - name: Complete
+      type: string
+      jsonPath: .status.conditions[?(@.type=="Complete")].status
+    - name: Reason
+      type: string
+      jsonPath: .status.conditions[?(@.type=="Complete")].reason
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Immutable cleanup obligation; no credentials or owner references to the retired repository.
+            type: object
+            required:
+            - repository
+            - storage
+            x-kubernetes-validations:
+            - rule: self == oldSelf
+              message: Cleanup identity and storage target are immutable.
+            properties:
+              repository:
+                type: object
+                required:
+                - name
+                - uid
+                - volumeNamespace
+                properties:
+                  name:
+                    type: string
+                    minLength: 1
+                    maxLength: 253
+                  uid:
+                    type: string
+                    minLength: 1
+                    maxLength: 64
+                  volumeNamespace:
+                    type: string
+                    minLength: 1
+                    maxLength: 63
+                    pattern: ^ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}(-[a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
+              storage:
+                type: object
+                required:
+                - accountURL
+                - container
+                - prefix
+                properties:
+                  accountURL:
+                    type: string
+                    maxLength: 128
+                    pattern: ^https://[a-z0-9]{3,24}\.blob\.core\.windows\.net/?$
+                  container:
+                    type: string
+                    minLength: 3
+                    maxLength: 63
+                    pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+                  prefix:
+                    type: string
+                    minLength: 1
+                    maxLength: 1024
+          status:
+            type: object
+            properties:
+              conditions:
+                type: array
+                x-kubernetes-list-type: map
+                x-kubernetes-list-map-keys:
+                - type
+                items:
+                  type: object
+                  required:
+                  - type
+                  - status
+                  - lastTransitionTime
+                  - reason
+                  - message
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                      - Complete
+                    status:
+                      type: string
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                    observedGeneration:
+                      type: integer
+                      format: int64
+                      minimum: 0
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
+                    reason:
+                      type: string
+                      minLength: 1
+                      maxLength: 1024
+                    message:
+                      type: string
+                      maxLength: 32768
+---
 # Source: mgmt-agent/templates/capacityreport-crd.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -378,8 +513,12 @@ rules:
   resources:
   - backups
   - backuprepositories
+  - backupstoragelocations
+  - schedules
   - datauploads
   - datadownloads
+  - podvolumebackups
+  - podvolumerestores
   - restores
   verbs:
   - get
@@ -390,8 +529,51 @@ rules:
   resources:
   - deletebackuprequests
   verbs:
+  - get
   - list
   - create
+  - patch
+  - delete
+- apiGroups:
+  - velero.io
+  resources:
+  - backuprepositories
+  verbs:
+  - patch
+  - delete
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - backuprepositorycleanups
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - backuprepositorycleanups/status
+  verbs:
+  - patch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
   - delete
 ---
 # Source: mgmt-agent/templates/leader_election_role.yaml

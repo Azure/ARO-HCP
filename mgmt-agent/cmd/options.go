@@ -31,6 +31,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -60,6 +61,8 @@ import (
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/capacityreporting"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/repositorycleanup"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/repositorycleanup/storage"
 	capacityreportclient "github.com/Azure/ARO-HCP/mgmt-agent/pkg/generated/clientset/versioned"
 )
 
@@ -119,6 +122,7 @@ type completedControllerOptions struct {
 	nodeHealth               *nodehealth.Controller
 	capacityReport           *capacityreporting.CapacityReportController
 	backupCleanup            *backupcleanup.Controller
+	repositoryCleanup        *repositorycleanup.Controller
 	veleroInformers          dynamicinformer.DynamicSharedInformerFactory
 	resourceWatcher          *controller.ResourceWatcher
 	podWatcher               *controller.PodWatcher
@@ -292,6 +296,18 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backup cleanup controller: %w", err)
 	}
+	repositoryInformers := make(map[schema.GroupVersionResource]cache.SharedIndexInformer)
+	for _, gvr := range repositorycleanup.RequiredResources() {
+		if gvr == repositorycleanup.HostedClustersGVR {
+			repositoryInformers[gvr] = hsInformers.Hypershift().V1beta1().HostedClusters().Informer()
+		} else {
+			repositoryInformers[gvr] = veleroInformers.ForResource(gvr).Informer()
+		}
+	}
+	repositoryCleanup, err := repositorycleanup.NewController(dynamicClient, storage.NewDeleter(azureCredential), repositoryInformers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create repository cleanup controller: %w", err)
+	}
 
 	metricsClient, err := metricsclientset.NewForConfig(kubeConfig)
 	if err != nil {
@@ -360,6 +376,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			nodeHealth:               nodeHealth,
 			capacityReport:           capacityReportCtrl,
 			backupCleanup:            backupCleanup,
+			repositoryCleanup:        repositoryCleanup,
 			veleroInformers:          veleroInformers,
 			resourceWatcher:          resourceWatcher,
 			podWatcher:               podWatcher,
@@ -547,6 +564,13 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 					defer utilruntime.HandleCrash()
 					if err := o.backupCleanup.Run(ctx, o.workers); err != nil {
 						logger.Error(err, "backup cleanup controller failed")
+					}
+				}()
+
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.repositoryCleanup.Run(ctx, o.workers); err != nil {
+						logger.Error(err, "repository cleanup controller failed")
 					}
 				}()
 

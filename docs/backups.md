@@ -5,6 +5,7 @@
 ARO-HCP uses [Velero](https://velero.io/) to perform automated backups of Hosted Control Plane (HCP) resources. The backup system is composed of:
 
 - A **backup schedule controller** in the backend service that creates and manages Velero Schedule resources on management clusters via kube-applier desires.
+- Management-agent **backup and repository cleanup controllers** that retire orphaned backups and their Kopia storage independently of ARM deletion completion.
 - An **admin API** that exposes endpoints for inspecting backup schedule status and pause/resume of backup schedules.
 - **Velero** deployed on each management cluster with the Azure and HyperShift plugins.
 - **Azure Blob Storage** as the backup storage backend.
@@ -172,17 +173,17 @@ namespace suffix. It never reconstructs a HostedCluster name from that suffix:
 any HostedCluster in the source HostedCluster namespace protects the backup.
 Unrecognized or ambiguous backup shapes are left untouched.
 
-Cleanup uses Velero `DeleteBackupRequest` objects, not direct deletion of Backup
-CRs. The controller waits for terminal backup phases and for associated uploads,
+Cleanup server-side applies Velero `DeleteBackupRequest` objects instead of
+directly deleting Backup CRs. It waits for terminal backup phases and associated uploads,
 restores and downloads to finish. It rechecks the backup, repository opt-outs, and
 HostedCluster absence through the Kubernetes API before submitting a request;
 API errors do not authorize deletion. Failed processed requests are retried while
 the backup remains. Backend schedule teardown is still responsible for stopping
 new scheduled backups.
 
-To opt out of this controller's cleanup, add this annotation to a Backup or its
-BackupRepository **before the HostedCluster disappears**, including before making
-backups visible on a recovery management cluster:
+To opt out, add this annotation to a Backup or its BackupRepository **before the
+HostedCluster disappears**, including before making backups visible on a recovery
+management cluster. It can also preserve a `BackupRepositoryCleanup` obligation:
 
 ```yaml
 metadata:
@@ -190,21 +191,72 @@ metadata:
     mgmt-agent.aro-hcp.azure.com/preserve-backup: ""
 ```
 
-Presence of the annotation is sufficient, regardless of its value. On a
-BackupRepository it also protects backups that include the repository's volume
-namespace and use the same backup storage location. The opt-out does not change
-Velero's TTL expiration and cannot cancel a deletion request already submitted
-to Velero. Schedule annotations propagate to newly scheduled Backups; an
-annotation on a HostedCluster alone does not protect backups.
+Presence is sufficient, regardless of value. On a BackupRepository it protects
+both retirement and backups that include its volume namespace and use the same
+backup storage location. A preserved Backup that remains also blocks repository
+retirement. On a cleanup CR it blocks further retirement/cleanup steps, not backup
+deletion by `BackupCleanup`. These opt-outs do not change Velero TTL expiration
+and **cannot cancel deletion already underway**, whether a request handed to
+Velero or an Azure sweep. Schedule annotations propagate to newly scheduled
+Backups; an annotation on a HostedCluster alone does not protect backups.
 
-**Repository retirement is not implemented by this controller.** Deleting a
-Backup through Velero forgets its Kopia snapshots, but physical data reclamation
-requires subsequent repository maintenance. Deleting a BackupRepository CR does
-not erase its blob prefix and would stop that maintenance. Repositories and
-their maintenance Jobs/pods therefore remain, including when no backups remain;
-this change does not resolve the maintenance-pod count by itself. Full repository
-retirement needs a separately verified cleanup mechanism, not a time-based guess
-that garbage collection has completed. No direct blob deletion is performed.
+### Repository Retirement
+
+The management agent's `RepositoryCleanup` controller retires recognized ARO
+Kopia repositories in `velero`, including existing ones observed at startup.
+Both cleanup controllers separate pure plans from API execution: informer caches
+only route work, live API reads authorize actions, and handlers re-read/replan
+before mutations. Writes use non-forced server-side apply (SSA); Kubernetes
+deletes use UID/resourceVersion preconditions. Errors or ambiguous evidence block
+cleanup, rather than expanding its scope.
+
+1. The controller adds `mgmtagent.aro-hcp.azure.com/repository-cleanup` to supported,
+   non-preserved repositories by default, before deletion. It does not add the
+   finalizer retroactively to an already-terminating, unprotected repository.
+2. Retirement requires no HostedCluster in the base namespace (even terminating),
+   no matching or unscoped Schedules or Backups, no potentially associated active
+   uploads/downloads/restores or pod-volume operations, and no repository sharing
+   or ambiguously aliasing the physical prefix. A paused Schedule still blocks.
+3. The controller requests repository deletion, then applies a
+   `mgmtagent.aro-hcp.azure.com/v1alpha1` `BackupRepositoryCleanup` named
+   `repo-<repository-UID>` in `velero`. Its whole spec is immutable: repository
+   name/UID/volume namespace and resolved account URL/container/prefix. It has the
+   same finalizer by default and **no owner reference**. A separate live GET must
+   confirm the matching protected obligation before the repository finalizer is
+   released. **The repository finalizer only holds the handoff, not storage cleanup.**
+4. After the repository name is absent (any replacement UID blocks), the cleanup
+   CR drives maintenance draining. Active or ambiguous maintenance Jobs/Pods
+   block, including active foreign maintenance for the same volume regardless of
+   the current BSL: a worker may still use its old storage target. Only recognized
+   terminal Jobs and terminal orphan Pods associated with this repository are
+   removed. Terminal foreign Jobs are ignored, never deleted, but their active
+   Pods still block. Terminating is not terminal.
+5. With dependencies rechecked and writers drained, mgmt-agent directly sweeps
+   only `<BSL-prefix>/kopia/<volumeNamespace>/` in Azure. It does not rely on a
+   maintenance success or elapsed time as proof of Kopia garbage collection.
+   Bounded sweeps retry until a fresh listing is empty, then recheck Kubernetes
+   dependencies before reporting `Complete=True`, reason `CleanupComplete`.
+
+Only the current Azure public-cloud BSL/Kopia shape is supported, using
+`https://<account>.blob.core.windows.net` and a nonempty BSL prefix. Custom or
+sovereign endpoints and unsupported configurations block retirement. The sweep
+uses normal Azure APIs to delete live blobs, versions and snapshots; **completion
+is not permanent purge of soft-deleted history**, which remains subject to Azure
+retention. It never deletes the entire container or account.
+
+Completed cleanup CRs remain as finalizer-protected tombstones with no owner
+references. Events and a **10-minute completed recheck** revalidate dependencies
+and sweep again, catching late maintenance work or writes. Pending/blocked work
+normally rechecks after one minute; API/sweep errors use rate-limited retries.
+Live checks are not an atomic lock across Kubernetes and Azure. Explicit cleanup
+CR deletion requires another successful sweep and fresh dependency checks before
+finalizer release, and ends future late-writer protection; a stored Complete
+condition alone never authorizes removal.
+
+Keep completed tombstones by default. **Do not remove the `velero` namespace or
+cleanup CRD until all cleanup obligations are settled**, including late-writer
+risk; do not bypass finalizers to make teardown appear complete. Neither backup
+cleanup nor repository retirement gates the ARM delete result.
 
 ### Admin API
 
@@ -314,9 +366,19 @@ Velero is deployed to each management cluster via a Helm chart that wraps Velero
 
 Velero authenticates to Azure Blob Storage using workload identity. The Velero service account is annotated with the managed identity's client ID. The identity holds Storage Blob Data Contributor, Storage Account Key Operator, and Reader roles on the backup storage account.
 
+Repository cleanup uses the **mgmt-agent identity**, with Storage Blob Data
+Contributor scoped to this management cluster's backup **container**, not the
+whole storage account. Deploy the management-cluster infrastructure role
+assignment first and allow Azure RBAC propagation before rolling out the agent.
+The cleanup CRD (including whole-spec immutability) and Kubernetes permissions
+must also be installed before the controller starts. Preserve Velero's existing
+roles; its permissions do not authorize mgmt-agent's direct sweep. For public
+environments, apply the infrastructure and service changes through the normal
+[deployment pipelines](https://aka.ms/arohcp-pipelines) in that order.
+
 ## Operational Procedures
 
-All examples below use the admin base path defined in [Admin API Reference](#admin-api-reference).
+HTTP examples below use the admin base path defined in [Admin API Reference](#admin-api-reference).
 
 ### Check backup status for a cluster
 
@@ -352,3 +414,31 @@ Set `backend.backupScheduleState` to `Disabled` in the backend deployment config
 2. Check the backend logs for backup schedule controller errors.
 3. Verify that ApplyDesires and ReadDesires exist in the kube-applier Cosmos container for the cluster's management cluster.
 4. On the management cluster, check Velero Schedule and Backup objects in the `velero` namespace.
+
+### Inspect Retirement Progress
+
+Use read-only inspection on the relevant management cluster:
+
+```sh
+kubectl -n velero get backuprepositorycleanups.mgmtagent.aro-hcp.azure.com
+kubectl -n velero get backuprepositorycleanups.mgmtagent.aro-hcp.azure.com <cleanup-name> -o yaml
+kubectl -n velero get backuprepositories.velero.io,backups.velero.io,deletebackuprequests.velero.io
+```
+
+Inspect the cleanup's immutable target, finalizer and `status.conditions` of type
+`Complete`, including `reason`, `message` and `observedGeneration`:
+
+| Reason | Meaning |
+|---|---|
+| `Blocked` | Preservation, live consumers, ambiguous storage/identity, or finalizer ownership needs attention. |
+| `WaitingForRepository` | The repository name still exists, including a replacement with a different UID. |
+| `DrainingMaintenance` | Maintenance is active/ambiguous or terminal Jobs/Pods are being removed. |
+| `DeletingBlobs` | The scoped Azure prefix sweep is pending/in progress. |
+| `SweepFailed` | Sweep failed or exhausted its bounded work budget; it will retry. Inspect agent logs for the error, including authorization failures. |
+| `CleanupComplete` | `Complete=True`: last sweep and dependency checks succeeded; the retained tombstone remains monitored. |
+
+Before a cleanup CR exists, retirement blockers are logged by `RepositoryCleanup`.
+Inspect matching Schedules, Backups, transfers/restores and maintenance Jobs/Pods
+rather than deleting them in bulk or removing protection. An existing
+`DeleteBackupRequest` stuck `InProgress` is **not fixed by repository retirement**:
+`BackupCleanup` waits for Velero, and the retained Backup blocks retirement.

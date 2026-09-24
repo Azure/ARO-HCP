@@ -16,8 +16,10 @@ package backupcleanup
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -114,6 +116,16 @@ func newTestController(t *testing.T, objects ...runtime.Object) (*Controller, *d
 		BackupsGVR: "BackupList", BackupRepositoriesGVR: "BackupRepositoryList", DeleteBackupRequestsGVR: "DeleteBackupRequestList",
 		HostedClustersGVR: "HostedClusterList", DataUploadsGVR: "DataUploadList", RestoresGVR: "RestoreList", DataDownloadsGVR: "DataDownloadList",
 	}, objects...)
+	// The dynamic fake does not implement SSA creation or field ownership. Record
+	// the apply action and create its payload; assertions below verify the wire contract.
+	client.PrependReactor("patch", "deletebackuprequests", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		patch := action.(clienttesting.PatchAction)
+		obj := &unstructured.Unstructured{}
+		if err := json.Unmarshal(patch.GetPatch(), &obj.Object); err != nil {
+			return true, nil, err
+		}
+		return true, obj, client.Tracker().Create(DeleteBackupRequestsGVR, obj, Namespace)
+	})
 	factory := dynamicinformer.NewDynamicSharedInformerFactory(client, 0)
 	c, err := NewController(client, factory.ForResource(HostedClustersGVR).Informer(), factory.ForResource(BackupsGVR).Informer(), factory.ForResource(BackupRepositoriesGVR).Informer())
 	if err != nil {
@@ -145,10 +157,21 @@ func assertNoWrites(t *testing.T, client *dynamicfake.FakeDynamicClient) {
 func assertRequest(t *testing.T, client *dynamicfake.FakeDynamicClient, backup *unstructured.Unstructured) {
 	t.Helper()
 	actions := writes(client)
-	if len(actions) != 1 || actions[0].GetVerb() != "create" || actions[0].GetResource() != DeleteBackupRequestsGVR {
-		t.Fatalf("expected only a DeleteBackupRequest create, got %#v", actions)
+	if len(actions) != 1 || actions[0].GetVerb() != "patch" || actions[0].GetResource() != DeleteBackupRequestsGVR {
+		t.Fatalf("expected only a DeleteBackupRequest apply, got %#v", actions)
 	}
-	r := actions[0].(clienttesting.CreateAction).GetObject().(*unstructured.Unstructured)
+	patch := actions[0].(clienttesting.PatchAction)
+	options := actions[0].(clienttesting.PatchActionImpl).GetPatchOptions()
+	if patch.GetPatchType() != types.ApplyPatchType || options.FieldManager != BackupCleanupControllerName || options.Force == nil || *options.Force {
+		t.Fatalf("incorrect apply options: %#v", patch)
+	}
+	r := &unstructured.Unstructured{}
+	if err := json.Unmarshal(patch.GetPatch(), &r.Object); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := r.Object["status"]; exists {
+		t.Fatal("apply must not own Velero status")
+	}
 	if r.GetName() != deletionRequestName(backup) || r.GetNamespace() != Namespace || field(r, "spec", "backupName") != backup.GetName() || r.GetLabels()[backupUIDLabel] != string(backup.GetUID()) || r.GetLabels()[backupNameLabel] != veleroBackupName(backup.GetName()) {
 		t.Fatalf("incorrect request: %#v", r.Object)
 	}
@@ -628,6 +651,7 @@ func TestLiveReadFailures(t *testing.T) {
 	}{
 		{"get", BackupsGVR, 1}, {"get", BackupsGVR, 2}, {"list", BackupRepositoriesGVR, 1}, {"list", BackupRepositoriesGVR, 2}, {"list", DataDownloadsGVR, 1},
 		{"list", HostedClustersGVR, 1}, {"list", HostedClustersGVR, 2}, {"list", DeleteBackupRequestsGVR, 1}, {"list", DataUploadsGVR, 1}, {"list", RestoresGVR, 1},
+		{"list", DeleteBackupRequestsGVR, 2}, {"list", DataUploadsGVR, 2}, {"list", RestoresGVR, 2}, {"list", DataDownloadsGVR, 2},
 	} {
 		for _, failure := range []error{errors.New("unavailable"), apierrors.NewForbidden(tt.gvr.GroupResource(), "", errors.New("denied")), apierrors.NewNotFound(tt.gvr.GroupResource(), "missing")} {
 			t.Run(fmt.Sprintf("%s/%s/%d/%v", tt.verb, tt.gvr.Resource, tt.nth, failure), func(t *testing.T) {
@@ -655,8 +679,8 @@ func TestLiveReadFailures(t *testing.T) {
 			list.SetContinue("more")
 			return true, list, nil
 		})
-		if _, err := c.reconcile(testContext(t), "velero/backup"); err != nil {
-			t.Fatal(err)
+		if _, err := c.reconcile(testContext(t), "velero/backup"); err == nil {
+			t.Fatal("incomplete HC list must fail closed")
 		}
 		assertNoWrites(t, client)
 	})
@@ -823,6 +847,7 @@ func TestDeletionRequests(t *testing.T) {
 		{"missing UID label", func(r *unstructured.Unstructured) { r.SetLabels(nil) }, true},
 		{"name collision", func(r *unstructured.Unstructured) { set(r, "other", "spec", "backupName") }, true},
 		{"missing request UID", func(r *unstructured.Unstructured) { r.SetUID("") }, true},
+		{"missing request RV", func(r *unstructured.Unstructured) { r.SetResourceVersion("") }, true},
 		{"terminating request", func(r *unstructured.Unstructured) { now := metav1.Now(); r.SetDeletionTimestamp(&now) }, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -881,7 +906,7 @@ func TestDeletionRequests(t *testing.T) {
 }
 
 func TestWriteFailures(t *testing.T) {
-	for _, verb := range []string{"create", "delete"} {
+	for _, verb := range []string{"patch", "delete"} {
 		for _, failure := range []error{errors.New("unavailable"), apierrors.NewConflict(DeleteBackupRequestsGVR.GroupResource(), "request", errors.New("changed")), apierrors.NewAlreadyExists(DeleteBackupRequestsGVR.GroupResource(), "request"), apierrors.NewNotFound(DeleteBackupRequestsGVR.GroupResource(), "request")} {
 			t.Run(verb+"/"+failure.Error(), func(t *testing.T) {
 				b := testBackup()
@@ -892,7 +917,7 @@ func TestWriteFailures(t *testing.T) {
 				c, client, _ := newTestController(t, objects...)
 				client.PrependReactor(verb, "deletebackuprequests", func(clienttesting.Action) (bool, runtime.Object, error) { return true, nil, failure })
 				_, err := c.reconcile(testContext(t), "velero/backup")
-				handled := verb == "create" && apierrors.IsAlreadyExists(failure) || verb == "delete" && apierrors.IsNotFound(failure)
+				handled := verb == "delete" && apierrors.IsNotFound(failure)
 				if (err == nil) != handled {
 					t.Fatalf("err=%v handled=%v", err, handled)
 				}
@@ -961,8 +986,8 @@ func TestEnqueue(t *testing.T) {
 	}
 	c.enqueueBackup(cache.DeletedFinalStateUnknown{Key: "velero/backup", Obj: b})
 	c.enqueueAll()
-	if c.queue.Len() != 2 {
-		t.Fatalf("expected all velero backups, got %d", c.queue.Len())
+	if c.queue.Len() != 3 {
+		t.Fatalf("expected all cached objects without eligibility filtering, got %d", c.queue.Len())
 	}
 }
 
@@ -977,8 +1002,9 @@ func (i *handlerInformer) AddEventHandler(handler cache.ResourceEventHandler) (c
 	return i.SharedIndexInformer.AddEventHandler(handler)
 }
 
-func TestInformerUpdateFilters(t *testing.T) {
-	_, client, factory := newTestController(t)
+func TestInformerEventsAlwaysEnqueue(t *testing.T) {
+	_, client, _ := newTestController(t)
+	factory := dynamicinformer.NewDynamicSharedInformerFactory(client, 0)
 	hc := &handlerInformer{SharedIndexInformer: factory.ForResource(HostedClustersGVR).Informer()}
 	backup := &handlerInformer{SharedIndexInformer: factory.ForResource(BackupsGVR).Informer()}
 	repo := &handlerInformer{SharedIndexInformer: factory.ForResource(BackupRepositoriesGVR).Informer()}
@@ -997,18 +1023,20 @@ func TestInformerUpdateFilters(t *testing.T) {
 		mutate   func(*unstructured.Unstructured)
 		want     bool
 	}{
-		{"repo status", repo, testRepo(testCPNamespace, "bsl", true), func(o *unstructured.Unstructured) { set(o, "Ready", "status", "phase") }, false},
-		{"repo resource version", repo, testRepo(testCPNamespace, "bsl", true), func(*unstructured.Unstructured) {}, false},
+		{"repo status", repo, testRepo(testCPNamespace, "bsl", true), func(o *unstructured.Unstructured) { set(o, "Ready", "status", "phase") }, true},
+		{"repo resource version", repo, testRepo(testCPNamespace, "bsl", true), func(*unstructured.Unstructured) {}, true},
+		{"repo resync", repo, testRepo(testCPNamespace, "bsl", true), func(o *unstructured.Unstructured) { o.SetResourceVersion("1") }, true},
 		{"repo preserve value only", repo, testRepo(testCPNamespace, "bsl", true), func(o *unstructured.Unstructured) {
 			o.SetAnnotations(map[string]string{PreserveBackupAnnotation: "false"})
-		}, false},
+		}, true},
 		{"repo preserve added", repo, testRepo(testCPNamespace, "bsl", false), func(o *unstructured.Unstructured) { o.SetAnnotations(map[string]string{PreserveBackupAnnotation: ""}) }, true},
 		{"repo preserve removed", repo, testRepo(testCPNamespace, "bsl", true), func(o *unstructured.Unstructured) { o.SetAnnotations(nil) }, true},
 		{"repo namespace", repo, testRepo(testCPNamespace, "bsl", true), func(o *unstructured.Unstructured) { set(o, "other", "spec", "volumeNamespace") }, true},
 		{"repo BSL", repo, testRepo(testCPNamespace, "bsl", true), func(o *unstructured.Unstructured) { set(o, "other", "spec", "backupStorageLocation") }, true},
-		{"HC status", hc, testHC(), func(o *unstructured.Unstructured) { set(o, "Ready", "status", "phase") }, false},
-		{"HC terminating", hc, testHC(), func(o *unstructured.Unstructured) { now := metav1.Now(); o.SetDeletionTimestamp(&now) }, false},
-		{"backup resync", backup, testBackup(), func(o *unstructured.Unstructured) { o.SetResourceVersion("1") }, false},
+		{"HC status", hc, testHC(), func(o *unstructured.Unstructured) { set(o, "Ready", "status", "phase") }, true},
+		{"HC terminating", hc, testHC(), func(o *unstructured.Unstructured) { now := metav1.Now(); o.SetDeletionTimestamp(&now) }, true},
+		{"HC resync", hc, testHC(), func(o *unstructured.Unstructured) { o.SetResourceVersion("1") }, true},
+		{"backup resync", backup, testBackup(), func(o *unstructured.Unstructured) { o.SetResourceVersion("1") }, true},
 		{"backup changed", backup, testBackup(), func(o *unstructured.Unstructured) { set(o, "Failed", "status", "phase") }, true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1174,6 +1202,221 @@ func TestInvalidInputs(t *testing.T) {
 			t.Fatal("shutdown queue kept worker running")
 		}
 	})
+}
+
+func TestPlanCleanup(t *testing.T) {
+	b := testBackup()
+	b.SetLabels(map[string]string{scheduleNameLabel: "daily"})
+	request := testRequest(b, "Processed")
+	apply := testRequest(b, "")
+	apply.SetUID("")
+	apply.SetResourceVersion("")
+	unstructured.RemoveNestedField(apply.Object, "status")
+	wait := plan{requeue: true}
+	remove := plan{delete: &deletionTarget{name: request.GetName(), uid: request.GetUID(), resourceVersion: request.GetResourceVersion()}, requeue: true}
+	create := plan{apply: apply, requeue: true}
+	for _, tt := range []struct {
+		name    string
+		objects []*unstructured.Unstructured
+		mutate  func(*observations)
+		want    plan
+		wantErr bool
+	}{
+		{name: "orphan", want: create},
+		{name: "HC exists", objects: []*unstructured.Unstructured{testHC()}},
+		{name: "repository opt out", objects: []*unstructured.Unstructured{testRepo(testCPNamespace, "bsl", true)}},
+		{name: "unrelated repository", objects: []*unstructured.Unstructured{testRepo(testCPNamespace, "other", true)}, want: create},
+		{name: "pending request", objects: []*unstructured.Unstructured{testRequest(b, "New")}, want: wait},
+		{name: "processed request", objects: []*unstructured.Unstructured{request}, want: remove},
+		{name: "missing backup", mutate: func(o *observations) { o.backup = nil }},
+		{name: "missing HC observation", mutate: func(o *observations) { delete(o.lists, HostedClustersGVR) }, want: plan{observe: HostedClustersGVR}},
+		{name: "incomplete requests", mutate: func(o *observations) { o.lists[DeleteBackupRequestsGVR].SetContinue("more") }, wantErr: true},
+		{name: "scope lost", mutate: func(o *observations) { o.backup.SetAnnotations(nil) }},
+		{name: "backup opt out", mutate: func(o *observations) {
+			o.backup.SetAnnotations(map[string]string{PreserveBackupAnnotation: "false", controllerutils.HcpClusterAzureResourceIdAnnotation: testARMID})
+		}},
+		{name: "backup active", mutate: func(o *observations) { set(o.backup, "InProgress", "status", "phase") }, want: wait},
+		{name: "changed backup", mutate: func(o *observations) { o.previous = o.backup.DeepCopy(); o.backup.SetUID("replacement") }, want: wait},
+		{name: "request collision", objects: []*unstructured.Unstructured{request}, mutate: func(o *observations) { o.lists[DeleteBackupRequestsGVR].Items[0].SetLabels(nil) }, wantErr: true},
+		{name: "request missing RV", objects: []*unstructured.Unstructured{request}, mutate: func(o *observations) { o.lists[DeleteBackupRequestsGVR].Items[0].SetResourceVersion("") }, wantErr: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			o := completeObservations(b, tt.objects...)
+			if tt.mutate != nil {
+				tt.mutate(&o)
+			}
+			before := fmt.Sprintf("%#v", o.backup)
+			got, err := planCleanup(o)
+			if (err != nil) != tt.wantErr || !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("plan=%#v err=%v, want %#v error=%v", got, err, tt.want, tt.wantErr)
+			}
+			if fmt.Sprintf("%#v", o.backup) != before {
+				t.Fatal("planner mutated backup")
+			}
+		})
+	}
+	for _, kind := range []string{"Restore", "DataUpload", "DataDownload"} {
+		for _, phase := range []string{"", "New", "Canceling", "Completed", "Failed", "Canceled", "PartiallyFailed", "FailedValidation"} {
+			t.Run(kind+"/"+phase, func(t *testing.T) {
+				op := object(kind, "operation")
+				set(op, phase, "status", "phase")
+				set(op, "daily", "spec", "scheduleName")
+				set(op, testCPNamespace, "spec", "sourceNamespace")
+				set(op, "bsl", "spec", "backupStorageLocation")
+				op.SetLabels(map[string]string{backupNameLabel: b.GetName()})
+				want := wait
+				if phase == "Completed" || phase == "Failed" || kind != "Restore" && phase == "Canceled" || kind == "Restore" && (phase == "PartiallyFailed" || phase == "FailedValidation") {
+					want = create
+				}
+				got, err := planCleanup(completeObservations(b, op))
+				if err != nil || !reflect.DeepEqual(got, want) {
+					t.Fatalf("plan=%#v err=%v, want %#v", got, err, want)
+				}
+			})
+		}
+	}
+}
+
+func completeObservations(backup *unstructured.Unstructured, objects ...*unstructured.Unstructured) observations {
+	o := observations{backup: backup.DeepCopy(), lists: map[schema.GroupVersionResource]*unstructured.UnstructuredList{}}
+	for kind, gvr := range map[string]schema.GroupVersionResource{
+		"HostedCluster": HostedClustersGVR, "BackupRepository": BackupRepositoriesGVR, "DeleteBackupRequest": DeleteBackupRequestsGVR,
+		"DataUpload": DataUploadsGVR, "Restore": RestoresGVR, "DataDownload": DataDownloadsGVR,
+	} {
+		o.lists[gvr] = &unstructured.UnstructuredList{}
+		for _, obj := range objects {
+			if obj.GetKind() == kind {
+				o.lists[gvr].Items = append(o.lists[gvr].Items, *obj.DeepCopy())
+			}
+		}
+	}
+	return o
+}
+
+func TestRawNamespaceRoutingAndCurrentState(t *testing.T) {
+	for _, route := range []string{"backup", "HC", "repository"} {
+		for _, eligible := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/eligible=%v", route, eligible), func(t *testing.T) {
+				live := testBackup()
+				if !eligible {
+					live.SetAnnotations(nil)
+				}
+				c, client, _ := newTestController(t)
+				cached := testBackup()
+				if eligible {
+					cached.SetAnnotations(nil)
+					cached.SetUID("")
+					set(cached, "New", "status", "phase")
+				}
+				if err := c.backupStore.Add(cached); err != nil {
+					t.Fatal(err)
+				}
+				switch route {
+				case "backup":
+					c.enqueueBackup(cached)
+				case "HC":
+					c.enqueueHostedCluster(testHC())
+				case "repository":
+					c.enqueueRepository(testRepo(testCPNamespace, "bsl", false))
+				}
+				if c.queue.Len() != 1 || len(client.Actions()) != 0 {
+					t.Fatal("routing must enqueue ineligible cached backups without API reads")
+				}
+				// State appears/changes after the event, before the worker reads it.
+				if err := client.Tracker().Create(BackupsGVR, live, Namespace); err != nil {
+					t.Fatal(err)
+				}
+				c.processNext(testContext(t))
+				if eligible {
+					assertRequest(t, client, live)
+				} else {
+					assertNoWrites(t, client)
+				}
+			})
+		}
+	}
+}
+
+func TestLateOperationsAndRequestIdentity(t *testing.T) {
+	for _, kind := range []string{"DataUpload", "Restore", "DataDownload", "DeleteBackupRequest"} {
+		t.Run(kind, func(t *testing.T) {
+			c, client, _ := newTestController(t, testBackup())
+			op := object(kind, "late")
+			op.SetLabels(map[string]string{backupNameLabel: "backup"})
+			set(op, "backup", "spec", "backupName")
+			set(op, testCPNamespace, "spec", "sourceNamespace")
+			set(op, "bsl", "spec", "backupStorageLocation")
+			gvr := map[string]schema.GroupVersionResource{"DataUpload": DataUploadsGVR, "Restore": RestoresGVR, "DataDownload": DataDownloadsGVR, "DeleteBackupRequest": DeleteBackupRequestsGVR}[kind]
+			calls := 0
+			client.PrependReactor("list", gvr.Resource, func(clienttesting.Action) (bool, runtime.Object, error) {
+				calls++
+				if calls == 2 {
+					return true, &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*op}}, nil
+				}
+				return false, nil, nil
+			})
+			_, err := c.reconcile(testContext(t), "velero/backup")
+			if (err != nil) != (kind == "DeleteBackupRequest") || calls != 2 {
+				t.Fatalf("calls=%d err=%v", calls, err)
+			}
+			assertNoWrites(t, client)
+		})
+	}
+	t.Run("collision after list", func(t *testing.T) {
+		b := testBackup()
+		c, client, _ := newTestController(t, b)
+		client.PrependReactor("get", "deletebackuprequests", func(clienttesting.Action) (bool, runtime.Object, error) {
+			r := testRequest(b, "New")
+			set(r, "other", "spec", "backupName")
+			return true, r, nil
+		})
+		if _, err := c.reconcile(testContext(t), "velero/backup"); err == nil {
+			t.Fatal("SSA must not overwrite an existing request's identity")
+		}
+		assertNoWrites(t, client)
+	})
+	t.Run("request GET failure", func(t *testing.T) {
+		c, client, _ := newTestController(t, testBackup())
+		client.PrependReactor("get", "deletebackuprequests", func(clienttesting.Action) (bool, runtime.Object, error) {
+			return true, nil, errors.New("unavailable")
+		})
+		if _, err := c.reconcile(testContext(t), "velero/backup"); err == nil {
+			t.Fatal("failed request identity read must fail closed")
+		}
+		assertNoWrites(t, client)
+	})
+}
+
+func TestRepositoryRoutesOldAndNewNamespaces(t *testing.T) {
+	_, client, _ := newTestController(t)
+	factory := dynamicinformer.NewDynamicSharedInformerFactory(client, 0)
+	repos := &handlerInformer{SharedIndexInformer: factory.ForResource(BackupRepositoriesGVR).Informer()}
+	c, err := NewController(client, factory.ForResource(HostedClustersGVR).Informer(), factory.ForResource(BackupsGVR).Informer(), repos)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.queue.ShutDown()
+	for _, namespace := range []string{"old", "new", "unrelated"} {
+		b := object("Backup", namespace)
+		// Neither the namespace shape nor the backup metadata is eligible.
+		set(b, []interface{}{namespace}, "spec", "includedNamespaces")
+		if err := c.backupStore.Add(b); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repos.handler.OnUpdate(testRepo("old", "bsl", false), testRepo("new", "other", false))
+	if c.queue.Len() != 2 {
+		t.Fatalf("expected only old and new associations, got %d", c.queue.Len())
+	}
+	got := map[string]bool{}
+	for c.queue.Len() != 0 {
+		key, _ := c.queue.Get()
+		got[key] = true
+		c.queue.Done(key)
+	}
+	if !reflect.DeepEqual(got, map[string]bool{"velero/old": true, "velero/new": true}) || len(client.Actions()) != 0 {
+		t.Fatalf("expected indexed routing without API reads, got %v, actions=%v", got, client.Actions())
+	}
 }
 
 func waitFor(t *testing.T, condition func() bool) {

@@ -9,8 +9,12 @@ rules:
   resources:
   - backups
   - backuprepositories
+  - backupstoragelocations
+  - schedules
   - datauploads
   - datadownloads
+  - podvolumebackups
+  - podvolumerestores
   - restores
   verbs:
   - get
@@ -21,8 +25,51 @@ rules:
   resources:
   - deletebackuprequests
   verbs:
+  - get
   - list
   - create
+  - patch
+  - delete
+- apiGroups:
+  - velero.io
+  resources:
+  - backuprepositories
+  verbs:
+  - patch
+  - delete
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - backuprepositorycleanups
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - backuprepositorycleanups/status
+  verbs:
+  - patch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
   - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
