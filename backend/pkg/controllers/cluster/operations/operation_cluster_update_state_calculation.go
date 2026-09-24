@@ -46,7 +46,7 @@ import (
 // hypershiftHostedClusterOperationState contains the cluster update operation state calculation comparing desired state
 // against Hypershift's HostedCluster in the management cluster.
 func (c *operationClusterUpdate) hypershiftHostedClusterOperationState(ctx context.Context, cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx,
 		c.readDesireLister,
 		cluster.ID.SubscriptionID,

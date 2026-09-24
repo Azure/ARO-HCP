@@ -759,6 +759,18 @@ Reserves `ManagementClusterScheduling.Status.PendingAssignedClusters` before rep
 
 Write semantics, optimistic-concurrency handling, eligibility gates and condition statuses are unchanged. Scores and pending counts are transient evaluation data, not persisted fields; recorded placements are not rebalanced.
 
+#### FetchMSIIdentitiesInfo
+
+[Source](../backend/pkg/controllers/cluster/identity/fetch_msi_identities_info.go) · **Trigger:** Cluster; 1m, 12h recheck.
+
+Reads Azure identities for the service-managed and control-plane operator identities; writes resolved resource/client/principal IDs or errors under `Status.MSIManagedIdentities`, plus its earliest recheck. Observes Azure; does not create identities.
+
+#### FetchDataPlaneOperatorsManagedIdentitiesInfo
+
+[Source](../backend/pkg/controllers/cluster/identity/fetch_data_plane_operators_managed_identities_info.go) · **Trigger:** Cluster; 1m, 12h recheck.
+
+Reads the requested data-plane operator identities and writes `Status.DataPlaneOperatorsManagedIdentities.Identities` and its recheck time. No Azure mutation.
+
 #### ActualHostedCluster
 
 **File:** [actual_hosted_cluster_controller.go](../backend/pkg/controllers/cluster/hostedcluster/actual_hosted_cluster_controller.go)
@@ -772,27 +784,15 @@ Leaves the field `nil` until the HostedCluster is observed, and only writes when
 object changes. A missing or unsuccessful ReadDesire observation leaves an already-published
 mirror in place — those states also cover a cold union informer, so clearing on them would wipe
 and rewrite every mirror on each backend restart. A successful empty observation clears the
-mirror because it proves the HostedCluster is absent. A cluster with a `DeletionTimestamp` is
-skipped while its HostedCluster is still up, and once that HostedCluster is gone the mirror is
-retracted to `nil` so it never outlives the object it mirrors.
+mirror because it proves the HostedCluster is absent. Deletion does not gate mirroring:
+successful observations continue updating the object while the cluster is deleting, and a
+successful empty observation retracts it to `nil` for both active and deleting clusters.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp`</li></ul> |
-| Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions[Successful]` — gates whether empty `kubeContent` counts as an answer</li><li>`Status.KubeContent` — the observed HostedCluster, whole object (`Spec` + `Status`)</li></ul> |
+| Read | `HCPOpenShiftCluster` | Existence only; no deletion gate |
+| Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions[Successful]` — gates all mirror updates, including clearing empty content</li><li>`Status.KubeContent` — the observed HostedCluster, whole object (`Spec` + `Status`)</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ActualHostedCluster`** = the observed HostedCluster, mirrored verbatim (`Spec` + `Status` + `metadata`)</li></ul> |
-
-#### FetchMSIIdentitiesInfo
-
-[Source](../backend/pkg/controllers/cluster/identity/fetch_msi_identities_info.go) · **Trigger:** Cluster; 1m, 12h recheck.
-
-Reads Azure identities for the service-managed and control-plane operator identities; writes resolved resource/client/principal IDs or errors under `Status.MSIManagedIdentities`, plus its earliest recheck. Observes Azure; does not create identities.
-
-#### FetchDataPlaneOperatorsManagedIdentitiesInfo
-
-[Source](../backend/pkg/controllers/cluster/identity/fetch_data_plane_operators_managed_identities_info.go) · **Trigger:** Cluster; 1m, 12h recheck.
-
-Reads the requested data-plane operator identities and writes `Status.DataPlaneOperatorsManagedIdentities.Identities` and its recheck time. No Azure mutation.
 
 #### EnsureManagedResourceGroup
 

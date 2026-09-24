@@ -99,6 +99,7 @@ var expectedControllerLaunches = []struct {
 	{"triggercontrolplaneupgrade", 20},
 	{"clusterbasedomainprefixsync", 20},
 	{"clusterpropertiessync", 20},
+	{"actualhostedcluster", 20},
 	{"clusteridentitysync", 20},
 	{"clusterdegradedaggregator", 20},
 	{"clusterrequirementsvalidaggregator", 20},

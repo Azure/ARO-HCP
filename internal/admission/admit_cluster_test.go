@@ -1968,13 +1968,34 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 func TestAdmitCluster_WiresV5DataPlaneMirrorAdmission(t *testing.T) {
 	t.Parallel()
 
-	oldCluster := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	oldCluster := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			Version: coreapi.VersionProfile{ID: "4.22"},
 			Etcd: coreapi.EtcdProfile{
 				DataEncryption: coreapi.EtcdDataEncryptionProfile{
 					CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
 						Kms: &coreapi.KmsEncryptionProfile{},
+					},
+				},
+			},
+			Platform: coreapi.CustomerPlatformProfile{
+				OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
+						ControlPlaneOperators: map[string]*azcorearm.ResourceID{
+							"cloud-controller-manager": metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager")),
+							"cloud-network-config":     metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config")),
+							"cluster-api-azure":        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure")),
+							"control-plane":            metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane")),
+							"disk-csi-driver":          metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver")),
+							"file-csi-driver":          metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver")),
+							"image-registry":           metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry")),
+							"ingress":                  metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress")),
+						},
+						DataPlaneOperators: map[string]*azcorearm.ResourceID{
+							"disk-csi-driver": metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver")),
+							"file-csi-driver": metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver")),
+							"image-registry":  metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry")),
+						},
 					},
 				},
 			},
@@ -1985,7 +2006,10 @@ func TestAdmitCluster_WiresV5DataPlaneMirrorAdmission(t *testing.T) {
 
 	errs := AdmitCluster(
 		context.Background(),
-		&ClusterAdmissionContext{ServiceProviderCluster: &coreapi.ServiceProviderCluster{}},
+		&ClusterAdmissionContext{
+			ServiceProviderCluster:        &coreapi.ServiceProviderCluster{},
+			ClusterScopedIdentitiesConfig: azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+		},
 		operation.Operation{Type: operation.Update},
 		newCluster,
 		oldCluster,

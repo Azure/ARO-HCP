@@ -90,48 +90,26 @@ func NewActualHostedClusterController(
 // SyncOnce mirrors the observed HostedCluster onto the ServiceProviderCluster,
 // writing only when the observed object differs from what is already stored.
 func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	_, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
-	isDeleting := existingCluster.ServiceProviderProperties.DeletionTimestamp != nil
-
-	observation, err := kubeapplierhelpers.GetHostedClusterObservationForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	hostedCluster, observed, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
 	}
-	hostedCluster := observation.HostedCluster
-	switch {
-	case !observation.Observed:
-		// The ReadDesire is absent, or it exists but has not completed a successful
-		// read. Either way we have not looked, which is not the same as looking and
-		// finding nothing. Leave the stored value alone: nil if we have never
-		// observed this cluster, otherwise the last value we mirrored.
-		//
-		// Clearing here would be wrong. "Not observed" also covers a cold union
-		// ReadDesire informer — workers start before the per-management-cluster
-		// sub-informers register, and an empty union reports itself synced — so
-		// clearing would wipe and then rewrite every mirror on each backend
-		// restart.
-		//
-		// We are re-enqueued when the kube-applier writes status.
-		return nil
-
-	case hostedCluster != nil && isDeleting:
-		// Deletion is under way and the HostedCluster is still up. Publishing its
-		// teardown churn races the deletion controllers and no reader benefits from
-		// it, so we stop mirroring here and act on this cluster once more only to
-		// retract the mirror below.
+	if !observed {
+		// A missing or unsuccessful ReadDesire is not proof of absence. This also
+		// covers a cold informer cache, so retain the last mirror until a successful
+		// observation arrives, regardless of whether the cluster is deleting.
 		return nil
 	}
 
-	// What is left is a completed observation: either a HostedCluster to mirror,
-	// or a successful read that found none — in which case hostedCluster is nil
-	// and the mirror is retracted rather than left pointing at an object that no
-	// longer exists.
+	// Mirror every successful observation, including updates during deletion.
+	// A successful read that found no HostedCluster clears the stored mirror.
 
 	existing, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
