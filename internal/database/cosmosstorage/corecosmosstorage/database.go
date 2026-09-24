@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -188,7 +189,7 @@ func NewCosmosDatabaseClient(url string, dbName string, clientOptions azcore.Cli
 	// Keep Cosmos accounting out of the credential pipeline and preserve the
 	// caller's policies without modifying their shared backing array.
 	cosmosClientOptions := clientOptions
-	cosmosClientOptions.PerRetryPolicies = append(slices.Clone(clientOptions.PerRetryPolicies), cosmosmetrics.NewRequestChargePolicy())
+	cosmosClientOptions.PerRetryPolicies = append(slices.Clone(clientOptions.PerRetryPolicies), cosmosmetrics.NewRequestChargePolicy(), cosmosratelimit.NewPolicy())
 
 	client, err := azcosmos.NewClient(
 		url,

@@ -99,6 +99,38 @@ sum by (source_kind, source) (
 )
 ```
 
+### Opt-in CRUD rate limiting
+
+[CRUD layers](../internal/database/cosmosstorage/cosmosstorageutils/crud_layer.go)
+wrap `ResourceCRUD` or `ValidatingResourceCRUD` without changing their object,
+validation, or error semantics. A shared
+[`cosmosratelimit.TokenBucket`](../internal/database/cosmosstorage/cosmosratelimit/bucket.go)
+can be passed to `NewLayeredResourceCRUD` or `NewLayeredValidatingResourceCRUD`.
+Reuse the same bucket across every CRUD and worker sharing a budget.
+
+The bucket starts full and refills continuously up to its capacity. Requests may
+start while its RU balance is **at least zero**. After each HTTP attempt, the
+[`cosmosratelimit` policy](../internal/database/cosmosstorage/cosmosratelimit/policy.go)
+subtracts the response's `x-ms-request-charge`, including fractional charges and
+charged failures. Negative balances hold subsequent requests until refill repays
+the debt. A charge larger than capacity is retained in full. Invalid charges are
+ignored using the same rules as metrics. In-flight requests can overshoot the
+budget because their actual costs are only known on completion.
+
+The shared database constructor installs the policy alongside metrics; custom
+SDK clients must install `cosmosratelimit.NewPolicy()` once in `PerRetryPolicies`.
+The CRUD layer selects the bucket, and the policy enforces it on every page and
+retry. `List` stays lazy; its iterator uses the context supplied to `Items`.
+Canceled waits return the context error. Blocked calls log a clear rate-limit
+message with the bucket name, RU balance, refill rate, and estimated wait; later
+in-flight charges can extend that estimate.
+
+Transaction assembly and execution are outside this layer. Unwrapped CRUDs,
+global listers, and change-feed clients keep their existing behavior. Wrapping a
+parent CRUD does not wrap separately obtained nested CRUDs: wrap each returned
+CRUD that should share the bucket. This adds request pacing without changing
+controller registration, field ownership, or the lifecycle graph edges below.
+
 ---
 
 ## 1. Frontend Endpoint Writes
