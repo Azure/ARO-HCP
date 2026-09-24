@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,7 +68,22 @@ func newRenderAMWCommand() *cobra.Command {
 			if err := json.Unmarshal(data, &report); err != nil {
 				return fmt.Errorf("decode AMW input: %w", err)
 			}
-			html, err := renderAMWHTML(report)
+			inputPath, err := filepath.Abs(input)
+			if err != nil {
+				return err
+			}
+			outputDir, err := filepath.Abs(filepath.Dir(output))
+			if err != nil {
+				return err
+			}
+			relative, err := filepath.Rel(outputDir, inputPath)
+			if err != nil {
+				return fmt.Errorf("locate AMW evidence relative to report: %w", err)
+			}
+			// Encode filenames as URL paths (including spaces, # and ?), not HTML
+			// or URL schemes. srcdoc inherits the containing report's base URL.
+			evidenceURL := (&url.URL{Path: "./" + filepath.ToSlash(relative)}).String()
+			html, err := renderAMWHTMLWithEvidence(report, evidenceURL)
 			if err != nil {
 				return err
 			}

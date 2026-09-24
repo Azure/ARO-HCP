@@ -17,6 +17,7 @@ package gatherobservability
 import (
 	"bytes"
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,7 +72,7 @@ func TestRenderAMWCommand(t *testing.T) {
 	if len(tabs) != 1 || tabs[0].Title != "AMW" {
 		t.Fatalf("expected exactly one AMW tab, got %d tabs", len(tabs))
 	}
-	want, err := renderAMWHTML(report)
+	want, err := renderAMWHTMLWithEvidence(report, "./amw.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,6 +138,50 @@ func TestRenderAMWCommandRejectsInputAliases(t *testing.T) {
 				if err != nil || !bytes.Equal(actual, data) {
 					t.Fatalf("alias rejection changed %s: %v", path, err)
 				}
+			}
+		})
+	}
+}
+
+func TestRenderAMWCommandEvidenceLink(t *testing.T) {
+	for _, filename := range []string{"evidence.json", "evidence #1?.json", "javascript:example.json"} {
+		t.Run(filename, func(t *testing.T) {
+			dir := t.TempDir()
+			input := filepath.Join(dir, filename)
+			outputDir := filepath.Join(dir, "reports")
+			if err := os.Mkdir(outputDir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			output := filepath.Join(outputDir, "report.html")
+			if err := os.WriteFile(input, []byte(`{"Start":"2026-09-24T12:00:00Z","End":"2026-09-24T12:01:00Z"}`), 0600); err != nil {
+				t.Fatal(err)
+			}
+			cmd := newRenderAMWCommand()
+			cmd.SetArgs([]string{"--input", input, "--output", output})
+			if err := cmd.Execute(); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, payload, _ := strings.Cut(string(data), "const TABS =")
+			var tabs []observabilityTab
+			if err := json.NewDecoder(strings.NewReader(payload)).Decode(&tabs); err != nil {
+				t.Fatal(err)
+			}
+			_, link, ok := strings.Cut(tabs[0].HTML, `<a href="`)
+			if !ok {
+				t.Fatal("JSON link missing")
+			}
+			link, _, _ = strings.Cut(link, `"`)
+			parsed, err := url.Parse(link)
+			if err != nil || parsed.IsAbs() || parsed.Fragment != "" || parsed.RawQuery != "" {
+				t.Fatalf("unsafe evidence URL %q: %v", link, err)
+			}
+			resolved := (&url.URL{Scheme: "file", Path: output}).ResolveReference(parsed)
+			if resolved.Path != input {
+				t.Fatalf("link points at %q, want %q", resolved.Path, input)
 			}
 		})
 	}

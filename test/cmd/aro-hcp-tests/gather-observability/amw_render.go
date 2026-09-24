@@ -64,15 +64,20 @@ type amwRenderResource struct {
 }
 
 func renderAMWHTML(report amwReport) ([]byte, error) {
+	return renderAMWHTMLWithEvidence(report, "amw.json")
+}
+
+func renderAMWHTMLWithEvidence(report amwReport, evidenceURL string) ([]byte, error) {
 	if report.Start.IsZero() || report.End.IsZero() || !report.Start.Before(report.End) || report.End.Sub(report.Start) > 24*time.Hour ||
 		!report.Start.Equal(report.Start.Truncate(time.Minute)) || !report.End.Equal(report.End.Truncate(time.Minute)) {
 		return nil, fmt.Errorf("AMW report requires minute-aligned nonzero Start < End and a window of at most 24 hours")
 	}
 	page := struct {
-		Start, End string
-		Resources  []amwRenderResource
-		Warnings   []string
-	}{Start: report.Start.UTC().Format(time.RFC3339), End: report.End.UTC().Format(time.RFC3339), Warnings: slices.Clone(report.Errors)}
+		Start, End  string
+		EvidenceURL string
+		Resources   []amwRenderResource
+		Warnings    []string
+	}{Start: report.Start.UTC().Format(time.RFC3339), End: report.End.UTC().Format(time.RFC3339), EvidenceURL: evidenceURL, Warnings: slices.Clone(report.Errors)}
 	for _, discovery := range report.Discovery {
 		if discovery.Error != "" {
 			page.Warnings = append(page.Warnings, discovery.SubscriptionID+": "+discovery.Error)
@@ -367,15 +372,17 @@ func amwPrepareChart(chart *amwRenderChart, start time.Time, budget *int) {
 		chart.Warnings = append(chart.Warnings, fmt.Sprintf("Summary limited to 100 of %d dimension sets; all labels and raw series remain in amw.json", len(chart.Rows)))
 		chart.Rows = chart.Rows[:100]
 	}
+	// Retain unknown series in the table, but spend visual budgets only on
+	// series with numeric observations.
+	chart.Series = slices.DeleteFunc(chart.Series, func(series amwRenderSeries) bool {
+		return !slices.ContainsFunc(series.Values, func(value *float64) bool { return value != nil })
+	})
 	count := min(len(chart.Series), amwPlotSeriesLimit, *budget)
 	if count < len(chart.Series) {
 		chart.Warnings = append(chart.Warnings, fmt.Sprintf("Showing %d of %d visual series (12 per plot, 96 per report maximum); omitted series remain in amw.json", count, len(chart.Series)))
 	}
 	chart.Series = chart.Series[:count]
 	*budget -= count
-	chart.Series = slices.DeleteFunc(chart.Series, func(series amwRenderSeries) bool {
-		return !slices.ContainsFunc(series.Values, func(value *float64) bool { return value != nil })
-	})
 	if len(chart.Series) == 0 {
 		return
 	}

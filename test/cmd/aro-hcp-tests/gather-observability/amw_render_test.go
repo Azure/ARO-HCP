@@ -331,6 +331,15 @@ func TestAMWRenderHTML(t *testing.T) {
 	figures := 0
 	var walk func(*html.Node)
 	walk = func(node *html.Node) {
+		if node.Type == html.ElementNode && node.Data == "th" {
+			scoped := false
+			for _, attribute := range node.Attr {
+				scoped = scoped || attribute.Key == "scope" && attribute.Val == "col"
+			}
+			if !scoped {
+				t.Error("table header missing column scope")
+			}
+		}
 		if node.Type == html.ElementNode && node.Data == "figure" {
 			figures++
 			var text strings.Builder
@@ -360,6 +369,9 @@ func TestAMWRenderHTML(t *testing.T) {
 	walk(doc)
 	if figures != 5 {
 		t.Errorf("want four workspace and one DCR plots, got %d", figures)
+	}
+	if !strings.Contains(string(output), `<th scope="col">Utilization</th>`) || strings.Contains(string(output), ">Used</th>") {
+		t.Error("capacity percentage must be labeled Utilization")
 	}
 	if directory := os.Getenv("AMW_RENDER_FIXTURE"); directory != "" {
 		if err := os.WriteFile(filepath.Join(directory, "amw.html"), output, 0600); err != nil {
@@ -510,5 +522,23 @@ func TestAMWRenderBoundsAndFallback(t *testing.T) {
 	b, _ := amwReadRenderSeries(duplicate, amwRenderStart, amwRenderStart.Add(time.Minute))
 	if len(a) != 1 || len(b) != 1 || a[0].Key != b[0].Key {
 		t.Fatalf("duplicate suppression must be order independent: %v, %v", a, b)
+	}
+}
+
+func TestAMWChartBudgetIgnoresMissingSeries(t *testing.T) {
+	for _, budgetSize := range []int{1, 96} {
+		var series []amwRenderSeries
+		for i := 0; i < amwPlotSeriesLimit; i++ {
+			series = append(series, amwRenderSeries{Label: fmt.Sprintf("empty-%d", i), Values: []*float64{nil}})
+		}
+		series = append(series, amwRenderSeries{Label: "measured", Values: []*float64{to.Ptr(0.0)}})
+		chart, budget := amwRenderChart{Series: series}, budgetSize
+		amwPrepareChart(&chart, amwRenderStart, &budget)
+		if len(chart.Series) != 1 || chart.Series[0].Label != "measured" || chart.Options == "" || budget != budgetSize-1 || len(chart.Warnings) != 0 {
+			t.Fatalf("empty series consumed plot budget: budget=%d chart=%+v", budget, chart)
+		}
+		if len(chart.Rows) != amwPlotSeriesLimit+1 || chart.Rows[0].Usage != "unknown" {
+			t.Fatal("unknown series must remain in the value table")
+		}
 	}
 }
