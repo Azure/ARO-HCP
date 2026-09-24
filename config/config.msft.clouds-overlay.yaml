@@ -34,6 +34,7 @@ clouds:
           # the mgmt prometheus limit to 6Gi (hcp/config.msft.sensitive.clouds-overlay.yaml)
           # and that override wins, so any value set here is dead config.
           mgmt:
+            azureCnsCpuLimits: false
             aks:
               infraAgentPool:
                 minCount: 2
@@ -85,6 +86,7 @@ clouds:
             subscription:
               displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - SVC"
           mgmt:
+            azureCnsCpuLimits: false
             subscription:
               displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - MGMT - {{ .ctx.stamp }}"
           serviceKeyVault:
@@ -158,6 +160,8 @@ clouds:
           # Image Registry Policy
           imageRegistryPolicy:
             validationActions: Deny
+          mgmt:
+            azureCnsCpuLimits: false
         regions:
           eastus2euap:
             e2e:
