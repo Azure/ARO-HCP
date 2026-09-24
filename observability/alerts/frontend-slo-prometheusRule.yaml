@@ -27,7 +27,7 @@ spec:
   #   Medium (6x):  6 * 0.01 = 0.06 -> 6% slow requests
   #   Slow (1x):    1 * 0.01 = 0.01 -> 1% slow requests
   #
-  # Errors, availability and latency ratios are all calculated directly over
+  # Errors and latency ratios are calculated directly over
   # each alert window. Averaging 5m quantiles is neither an aggregate p99 nor a
   # burn rate, and averaging 5m ratios (the reverted design) would weight quiet
   # and busy windows equally. Histogram bucket counts and request counts are
@@ -39,14 +39,12 @@ spec:
   # Frontend outage (ready=0) from an ARM traffic drought (HTTP SLIs absent).
   #
   # Multi-window multi-burn-rate (ADR 79 / Google MWMBR): fast and medium
-  # require BOTH long-window and short-window conditions. Errors, availability
-  # and latency all compute request-weighted ratios directly over each window;
+  # require BOTH long-window and short-window conditions. Errors and latency
+  # alerts compute request-weighted ratios directly over each window;
   # `for` is a short pending duration only, not a substitute for the short
   # window. Slow uses 3d long + 6h short at 1x.
   #
   # Fast/medium Errors + Latency page Sev 3 (customer-facing UJ).
-  # Availability is Sev 4 only - complementary to Errors on the same denominator,
-  # so dual Sev3 would open two IcMs per 5xx event (review feedback).
   # Slow/traffic/saturation Sev 4 ticket.
   #
   # summary includes {{ $labels.cluster }} (Access / Node Pool convention; prometheus-rules
@@ -184,192 +182,6 @@ spec:
         summary: "{{ $labels.cluster }}: Frontend HTTP 5xx error rate exceeds SLO (>0.05%)"
         description: "Frontend 5xx share on cluster {{ $labels.cluster }} is above the 0.05% SLO boundary on both the 3d and 6h windows (1x burn)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-  - name: arohcp_frontend_slo_availability_alerts
-    labels:
-      component: slo
-    rules:
-    - alert: userJourneyFrontendAvailability1h5m
-      # Each availability numerator is wrapped with `or 0 * <total>` so a total
-      # 5xx outage still fires: with no non-5xx requests the code!~"5.." series
-      # is absent, and a bare numerator/denominator would yield no sample and
-      # never trip the alert at exactly 0% availability. The fallback preserves
-      # a zero, matching the sli:frontend_http:good:rate5m recording rule.
-      expr: |
-        (
-          (
-            (
-              sum by (cluster) (
-                rate(frontend_http_requests_total{
-                  code!~"5..",
-                  route!~".*hcpoperation(results|statuses).*"
-                }[1h] offset 5m)
-              )
-              or
-              0 * sum by (cluster) (
-                rate(frontend_http_requests_total{
-                  route!~".*hcpoperation(results|statuses).*"
-                }[1h] offset 5m)
-              )
-            )
-            /
-            sum by (cluster) (
-              rate(frontend_http_requests_total{
-                route!~".*hcpoperation(results|statuses).*"
-              }[1h] offset 5m)
-            )
-          ) < 0.9928
-          and on (cluster)
-          (
-            (
-              sum by (cluster) (
-                rate(frontend_http_requests_total{
-                  code!~"5..",
-                  route!~".*hcpoperation(results|statuses).*"
-                }[5m] offset 5m)
-              )
-              or
-              0 * sum by (cluster) (
-                rate(frontend_http_requests_total{
-                  route!~".*hcpoperation(results|statuses).*"
-                }[5m] offset 5m)
-              )
-            )
-            /
-            sum by (cluster) (
-              rate(frontend_http_requests_total{
-                route!~".*hcpoperation(results|statuses).*"
-              }[5m] offset 5m)
-            )
-          ) < 0.9928
-        )
-      for: 2m
-      labels:
-        severity: "4"
-        slo: frontend-availability
-        long_window: 1h
-        short_window: 5m
-      annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP availability critically low (<99.28%)"
-        description: "Frontend availability on cluster {{ $labels.cluster }} is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendAvailability6h30m
-      expr: |
-        (
-          (
-            (
-              sum by (cluster) (
-                rate(frontend_http_requests_total{
-                  code!~"5..",
-                  route!~".*hcpoperation(results|statuses).*"
-                }[6h] offset 5m)
-              )
-              or
-              0 * sum by (cluster) (
-                rate(frontend_http_requests_total{
-                  route!~".*hcpoperation(results|statuses).*"
-                }[6h] offset 5m)
-              )
-            )
-            /
-            sum by (cluster) (
-              rate(frontend_http_requests_total{
-                route!~".*hcpoperation(results|statuses).*"
-              }[6h] offset 5m)
-            )
-          ) < 0.997
-          and on (cluster)
-          (
-            (
-              sum by (cluster) (
-                rate(frontend_http_requests_total{
-                  code!~"5..",
-                  route!~".*hcpoperation(results|statuses).*"
-                }[30m] offset 5m)
-              )
-              or
-              0 * sum by (cluster) (
-                rate(frontend_http_requests_total{
-                  route!~".*hcpoperation(results|statuses).*"
-                }[30m] offset 5m)
-              )
-            )
-            /
-            sum by (cluster) (
-              rate(frontend_http_requests_total{
-                route!~".*hcpoperation(results|statuses).*"
-              }[30m] offset 5m)
-            )
-          ) < 0.997
-        )
-      for: 15m
-      labels:
-        severity: "4"
-        slo: frontend-availability
-        long_window: 6h
-        short_window: 30m
-      annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%)"
-        description: "Frontend availability on cluster {{ $labels.cluster }} is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendAvailability3d6h
-      expr: |
-        (
-          (
-            (
-              sum by (cluster) (
-                rate(frontend_http_requests_total{
-                  code!~"5..",
-                  route!~".*hcpoperation(results|statuses).*"
-                }[3d] offset 5m)
-              )
-              or
-              0 * sum by (cluster) (
-                rate(frontend_http_requests_total{
-                  route!~".*hcpoperation(results|statuses).*"
-                }[3d] offset 5m)
-              )
-            )
-            /
-            sum by (cluster) (
-              rate(frontend_http_requests_total{
-                route!~".*hcpoperation(results|statuses).*"
-              }[3d] offset 5m)
-            )
-          ) < 0.9995
-          and on (cluster)
-          (
-            (
-              sum by (cluster) (
-                rate(frontend_http_requests_total{
-                  code!~"5..",
-                  route!~".*hcpoperation(results|statuses).*"
-                }[6h] offset 5m)
-              )
-              or
-              0 * sum by (cluster) (
-                rate(frontend_http_requests_total{
-                  route!~".*hcpoperation(results|statuses).*"
-                }[6h] offset 5m)
-              )
-            )
-            /
-            sum by (cluster) (
-              rate(frontend_http_requests_total{
-                route!~".*hcpoperation(results|statuses).*"
-              }[6h] offset 5m)
-            )
-          ) < 0.9995
-        )
-      for: 1h
-      labels:
-        severity: "4"
-        slo: frontend-availability
-        long_window: 3d
-        short_window: 6h
-      annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP availability below SLO (<99.95%)"
-        description: "Frontend availability on cluster {{ $labels.cluster }} is below the 99.95% SLO on both the 3d and 6h windows (1x burn)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_latency_alerts
     labels:
       component: slo
@@ -438,6 +250,9 @@ spec:
         description: "More than 14.4% of Frontend requests on cluster {{ $labels.cluster }} exceeded 1s on both the 1h and 5m windows (14.4x burn of the 1% latency budget)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
     - alert: userJourneyFrontendLatency6h30m
+      # The ratio is meaningful only with enough observations. Deduplicate HA
+      # replicas for the absolute gates so mirrored scrapes do not manufacture
+      # request volume or slow calls.
       expr: |
         (
           (
@@ -489,6 +304,35 @@ spec:
               }[30m] offset 5m)
             )
           ) > 0.06
+          and on (cluster)
+          (
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                increase(frontend_http_requests_duration_seconds_count{
+                  route!~".*hcpoperation(results|statuses).*"
+                }[30m] offset 5m)
+              )
+            )
+          ) >= 50
+          and on (cluster)
+          (
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                increase(frontend_http_requests_duration_seconds_count{
+                  route!~".*hcpoperation(results|statuses).*"
+                }[30m] offset 5m)
+              )
+            )
+            -
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                increase(frontend_http_requests_duration_seconds_bucket{
+                  le=~"^1([.]0)?$",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[30m] offset 5m)
+              )
+            )
+          ) >= 3
         )
       for: 15m
       labels:
