@@ -20,13 +20,24 @@ If timing artifacts are unavailable, provide `--start-time-fallback` in RFC3339
 format. Use the normal Azure SDK credential selection, for example
 `AZURE_TOKEN_CREDENTIALS=AzureCLICredential` after signing in with Azure CLI.
 The AMW-only path skips alerts, JUnit evaluation, utilization collection, and all
-Prometheus APIs. Open the resulting `observability-summary.html` locally. SVG
-charts and tables need neither JavaScript nor network access.
+Prometheus APIs. Open the resulting `observability-summary.html` locally. Summary
+tables work without JavaScript. Interactive charts load ECharts from the same CDN
+as the other observability panes. Hover for a UTC timestamp and series values;
+click legend entries to hide or show lines. Closed sections initialize on expansion.
+
+Regenerate HTML from saved evidence without Azure access:
+
+```sh
+aro-hcp-tests gather-observability render-amw --input amw.json --output observability-summary.html
+```
 
 ## Evidence
 
 The collector reads these six workspace metrics at one-minute `Maximum`
-aggregation, retaining `StampColor` and, for drops, `Reason`:
+aggregation, without a dimension filter for capacity and split by `Reason` for
+drops. `StampColor` is listed in the published metric catalog but is not exposed
+by all workspaces; requesting it can cause HTTP 400 for every workspace metric.
+Returned dimensions are retained, but `StampColor` is not required:
 
 - `ActiveTimeSeries` and `ActiveTimeSeriesLimit`
 - `EventsPerMinuteIngested` and `EventsPerMinuteIngestedLimit`
@@ -35,21 +46,21 @@ aggregation, retaining `StampColor` and, for drops, `Reason`:
 
 Utilization and headroom are calculated from numeric usage and limit observations
 at the same timestamp and complete dimension set. Different stamps are never
-summed or paired. The table states the observation time; it does not claim that
+summed or paired. Unsplit capacity series are labeled `Workspace (unsplit)`.
+The table states the observation time; it does not claim that
 an old observation is the workspace's current state.
 
-Workspace event throttling and active-series sample throttling have separate
-graphs, alongside other drop reasons. One-minute maxima are not summed into total
-losses. Missing, invalid, or ambiguous data is unknown, never zero. Active series
-is Azure's preceding approximately 12-hour inventory; events received are not
-the same measurement as samples successfully stored.
+The first AMW opens with active-series and events/minute graphs. Other AMWs and
+DCRs start closed. Expand dropped events/samples for one graph per metric with
+all reasons together; expand Values for the latest measurements and headroom.
+Missing data stays unknown, and minute maxima are not summed into total losses.
 
 DCR discovery lists rules in each selected workspace's subscription, across
 resource groups, and matches monitoring-account destinations. It does not discover
 rules in other subscriptions or prove that a matched destination has an active
 data flow. Each matching DCR contributes `MetricIngestionRequest_Count` at
-one-minute `Total`, split by `InputStreamId` and `ResponseCode`. Request 429s have
-their own graph. The documented 15,000 requests/minute limit is per DCR, not per
+one-minute `Total`, split by `InputStreamId` and `ResponseCode` on one graph.
+The documented 15,000 requests/minute limit is per DCR, not per
 stream. The 50 GB/minute limit has no corresponding Prometheus byte metric here.
 
 `amw.json` retains requested/effective time bounds, resource IDs, decoded SDK

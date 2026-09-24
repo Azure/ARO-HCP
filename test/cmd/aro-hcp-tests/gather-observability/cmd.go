@@ -45,6 +45,7 @@ func NewCommand() (*cobra.Command, error) {
 		return nil, err
 	}
 	cmd.AddCommand(newRenderUtilizationCommand())
+	cmd.AddCommand(newRenderAMWCommand())
 	return cmd, nil
 }
 

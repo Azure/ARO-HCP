@@ -90,9 +90,9 @@ func amwTestResponse(request *http.Request, status int, body string) (*http.Resp
 func amwTestMetricBody(request *http.Request) string {
 	name := request.URL.Query().Get("metricnames")
 	aggregation := strings.ToLower(request.URL.Query().Get("aggregation"))
-	metadata := `[{"name":{"value":"StampColor"},"value":"blue"}]`
+	metadata := `[]`
 	if strings.HasSuffix(name, "Dropped") {
-		metadata = `[{"name":{"value":"StampColor"},"value":"blue"},{"name":{"value":"Reason"},"value":"limit"}]`
+		metadata = `[{"name":{"value":"reason"},"value":"LimitThrottling"}]`
 	}
 	if name == "MetricIngestionRequest_Count" {
 		metadata = `[{"name":{"value":"InputStreamId"},"value":"stream"},{"name":{"value":"ResponseCode"},"value":"429"}]`
@@ -143,9 +143,9 @@ func TestAMWCollectARMOnly(t *testing.T) {
 			}
 			metrics[path]++
 			name := query.Get("metricnames")
-			wantFilter, wantAggregation, wantNamespace := "StampColor eq '*'", "Maximum", amwWorkspaceNamespace
+			wantFilter, wantAggregation, wantNamespace := "", "Maximum", amwWorkspaceNamespace
 			if strings.HasSuffix(name, "Dropped") {
-				wantFilter += " and Reason eq '*'"
+				wantFilter = "Reason eq '*'"
 			}
 			if name == "MetricIngestionRequest_Count" {
 				wantFilter, wantAggregation, wantNamespace = "InputStreamId eq '*' and ResponseCode eq '*'", "Total", amwDCRNamespace
@@ -209,6 +209,41 @@ func TestAMWCollectARMOnly(t *testing.T) {
 	}
 }
 
+func TestAMWCollectWorkspaceDimensions(t *testing.T) {
+	// The 7138 CI run advertised no capacity dimensions and only Reason for
+	// drops. Emulate Azure rejecting the unsupported documented StampColor.
+	report := amwTestCollect(t, []string{amwTestWorkspace}, func(request *http.Request) (*http.Response, error) {
+		if strings.Contains(request.URL.Query().Get("$filter"), "StampColor") {
+			return amwTestResponse(request, 400, `{"error":{"code":"BadRequest","message":"Unsupported dimension StampColor"}}`)
+		}
+		if strings.HasSuffix(request.URL.Path, "/metrics") {
+			return amwTestResponse(request, 200, amwTestMetricBody(request))
+		}
+		if strings.HasSuffix(request.URL.Path, "/metricDefinitions") {
+			return amwTestResponse(request, 200, `{"value":[{"name":{"value":"ActiveTimeSeries"},"supportedAggregationTypes":["Maximum"]},{"name":{"value":"EventsDropped"},"dimensions":[{"value":"Reason"}]}]}`)
+		}
+		return amwTestResponse(request, 200, `{"value":[]}`)
+	})
+	if len(report.Errors) != 0 || len(report.Resources) != 1 || len(report.Resources[0].Metrics) != 6 {
+		t.Fatalf("workspace collection must succeed without StampColor: %+v", report)
+	}
+	for _, metric := range report.Resources[0].Metrics {
+		series, warnings := amwReadRenderSeries(metric, report.Start, report.End)
+		if len(series) != 1 || len(warnings) != 0 || series[0].Values[1] == nil {
+			t.Fatalf("collected %s must be renderable: %+v %v", metric.Name, series, warnings)
+		}
+	}
+}
+
+func TestAMWRequestErrorCode(t *testing.T) {
+	for _, code := range []string{"BadRequest", "secret-token-never-persist"} {
+		message := amwRequestError(&azcore.ResponseError{StatusCode: 400, ErrorCode: code})
+		if !strings.Contains(message, "HTTP 400") || strings.Contains(message, "secret-") || (code == "BadRequest" && !strings.Contains(message, code)) {
+			t.Fatalf("unexpected safe error classification: %s", message)
+		}
+	}
+}
+
 func TestAMWCollectInvalidWindows(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
@@ -238,7 +273,6 @@ func TestAMWCollectMetricValidation(t *testing.T) {
 		{"empty series", `{"interval":"PT1M","value":[{"name":{"value":"ActiveTimeSeries"}}]}`, "empty timeseries"},
 		{"nil series", `{"interval":"PT1M","value":[{"name":{"value":"ActiveTimeSeries"},"timeseries":[null]}]}`, "nil timeseries"},
 		{"no values", `{"interval":"PT1M","value":[{"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[null,{"timeStamp":"2026-01-02T02:05:00Z"}]}]}]}`, "no samples"},
-		{"no dimension", `{"interval":"PT1M","value":[{"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[{"timeStamp":"2026-01-02T02:05:00Z","maximum":0}]}]}]}`, "dimension StampColor"},
 		{"metric error", `{"interval":"PT1M","value":[{"name":{"value":"ActiveTimeSeries"},"errorCode":"Failed","errorMessage":"partial","timeseries":[]}]}`, "individual metric error"},
 		{"malformed JSON", `{`, "decoding error"},
 	} {

@@ -29,6 +29,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -61,6 +63,10 @@ type amwReport struct {
 
 func (o Options) runAMW(ctx context.Context, deps gatherDependencies) (observabilityTab, error) {
 	report := deps.collectAMW(ctx)
+	logger := logr.FromContextOrDiscard(ctx)
+	for _, message := range report.Errors {
+		logger.Info("AMW collection incomplete", "warning", message)
+	}
 	content, writeErr := json.MarshalIndent(report, "", "  ")
 	if writeErr == nil {
 		writeErr = deps.writeFile(filepath.Join(o.OutputDir, "amw.json"), content, 0600)
@@ -184,7 +190,9 @@ func collectAMW(ctx context.Context, cred azcore.TokenCredential, workspaceIDs [
 			slices.Sort(names)
 			for _, name := range names {
 				metric := amwMetric{Name: name, Aggregation: aggregation}
-				dimensions := []string{"StampColor"}
+				// StampColor appears in the published catalog but is not exposed by
+				// all workspaces. Filtering on it makes Azure reject the entire query.
+				var dimensions []string
 				if strings.HasSuffix(name, "Dropped") {
 					dimensions = append(dimensions, "Reason")
 				}
@@ -201,12 +209,16 @@ func collectAMW(ctx context.Context, cred azcore.TokenCredential, workspaceIDs [
 				}
 				if err == nil {
 					requestCtx, requestCancel := context.WithTimeout(ctx, amwRequestTimeout)
-					response, requestErr := client.List(requestCtx, resource.ID, &armmonitor.MetricsClientListOptions{
+					query := &armmonitor.MetricsClientListOptions{
 						Metricnamespace: &namespace, Metricnames: &name, Aggregation: &aggregation,
 						Interval: to.Ptr("PT1M"), Timespan: to.Ptr(report.Start.Format(time.RFC3339) + "/" + report.End.Format(time.RFC3339)),
-						Filter: to.Ptr(strings.Join(filters, " and ")), Top: to.Ptr(int32(amwSeriesCap)),
+						Top:                 to.Ptr(int32(amwSeriesCap)),
 						AutoAdjustTimegrain: to.Ptr(false), ValidateDimensions: to.Ptr(true),
-					})
+					}
+					if len(filters) > 0 {
+						query.Filter = to.Ptr(strings.Join(filters, " and "))
+					}
+					response, requestErr := client.List(requestCtx, resource.ID, query)
 					requestCancel()
 					metric.Response, err = &response, requestErr
 				}
@@ -413,6 +425,13 @@ func amwRequestError(err error) string {
 	}
 	var responseError *azcore.ResponseError
 	if errors.As(err, &responseError) {
+		// Preserve service classification without serializing arbitrary response
+		// bodies, request headers, or credential diagnostics.
+		code := responseError.ErrorCode
+		switch code {
+		case "BadRequest", "InvalidRequest", "InvalidFilter", "InvalidMetric", "InvalidSamplingType", "AuthorizationFailed", "ResourceNotFound", "TooManyRequests":
+			return fmt.Sprintf("ARM request failed (HTTP %d, code %s)", responseError.StatusCode, code)
+		}
 		return fmt.Sprintf("ARM request failed (HTTP %d)", responseError.StatusCode)
 	}
 	return "ARM request failed (credential, transport, or response decoding error)"
