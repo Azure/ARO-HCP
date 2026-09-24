@@ -2098,3 +2098,33 @@ func TestConvertCSContainerRegistryPullCredentialsToRP(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertKmsKeyVaultTypeRPToCS(t *testing.T) {
+	tests := []struct {
+		name      string
+		vaultType string
+		want      arohcpv1alpha1.AzureKmsEncryptionKeyVaultType
+	}{
+		{
+			name:      "ManagedHSM maps to CS ManagedHsm",
+			vaultType: coreapi.KmsKeyVaultTypeManagedHSM,
+			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeManagedHsm,
+		},
+		{
+			name:      "KeyVault maps to CS KeyVault",
+			vaultType: coreapi.KmsKeyVaultTypeKeyVault,
+			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault,
+		},
+		{
+			name:      "empty defaults to CS KeyVault",
+			vaultType: "",
+			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, convertKmsKeyVaultTypeRPToCS(tt.vaultType))
+		})
+	}
+}

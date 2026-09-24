@@ -1090,8 +1090,9 @@ func validateCustomerManagedEncryptionProfile(ctx context.Context, op operation.
 }
 
 var (
-	toKmsEncryptionProfileVisibility = func(oldObj *coreapi.KmsEncryptionProfile) *metadataapi.KeyVaultVisibility { return &oldObj.Visibility }
-	toKmsEncryptionProfileActiveKey  = func(oldObj *coreapi.KmsEncryptionProfile) *coreapi.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileVisibility   = func(oldObj *coreapi.KmsEncryptionProfile) *metadataapi.KeyVaultVisibility { return &oldObj.Visibility }
+	toKmsEncryptionProfileActiveKey    = func(oldObj *coreapi.KmsEncryptionProfile) *coreapi.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileKeyVaultType = func(oldObj *coreapi.KmsEncryptionProfile) *string { return &oldObj.KeyVaultType }
 
 	validKmsKeyVaultTypes = sets.New(coreapi.KmsKeyVaultTypeKeyVault, coreapi.KmsKeyVaultTypeManagedHSM)
 )
@@ -1112,6 +1113,7 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 	errs = append(errs, validateKmsKey(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
 
 	//KeyVaultType string `json:"keyVaultType,omitempty"`
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("keyVaultType"), &newObj.KeyVaultType, safe.Field(oldObj, toKmsEncryptionProfileKeyVaultType))...)
 	if newObj.KeyVaultType != "" {
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("keyVaultType"), &newObj.KeyVaultType, nil, validKmsKeyVaultTypes, nil)...)
 	}
