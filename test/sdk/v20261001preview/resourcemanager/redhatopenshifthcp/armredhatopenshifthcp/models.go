@@ -93,6 +93,13 @@ type ConsoleProfile struct {
 	URL *string
 }
 
+// ContainerRegistryProfile - Azure Container Registry configuration for a cluster. Configures how worker nodes authenticate
+// container image pulls from Azure Container Registry (ACR).
+type ContainerRegistryProfile struct {
+	// The user-assigned managed identity used for container registry image pulls.
+	ManagedIdentity *string
+}
+
 // CustomerManagedEncryptionProfile - Customer managed encryption key profile.
 type CustomerManagedEncryptionProfile struct {
 	// The encryption type used.
@@ -819,12 +826,54 @@ type PlatformProfile struct {
 	// identifier per RFC 4122.
 	ManagedResourceGroup *string
 
+	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
+	IssuerURL *string
+
+	// Azure Container Registry configuration for authenticating image pulls on the cluster's worker nodes.
+	ContainerRegistry *ContainerRegistryProfile
+
 	// The core outgoing configuration
 	OutboundType *OutboundType
+}
 
-	// READ-ONLY; URL for the OIDC provider to be used for authentication
-	// to authenticate against user Azure cloud account
-	IssuerURL *string
+// PlatformProfileUpdate - Azure specific configuration
+type PlatformProfileUpdate struct {
+	// Azure Container Registry configuration for authenticating image pulls on the cluster's worker nodes.
+	ContainerRegistry *ContainerRegistryProfile
+
+	// The configuration that the operators of the cluster have to authenticate to Azure
+	OperatorsAuthentication *OperatorsAuthenticationProfile
+}
+
+// ProxyResource - The resource model definition for a Azure Resource Manager proxy resource. It will not have tags and a
+// location
+type ProxyResource struct {
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
+}
+
+// Resource - Common fields that are returned in the response for all Azure Resource Manager resources
+type Resource struct {
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
 }
 
 // RoleDefinition - A single role definition required by a given operator

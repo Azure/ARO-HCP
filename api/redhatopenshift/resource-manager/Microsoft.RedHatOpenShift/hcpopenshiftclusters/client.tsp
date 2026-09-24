@@ -269,6 +269,10 @@ namespace Microsoft.RedHatOpenShift {
 
     /** The configuration for operator authentication to Azure. */
     operatorsAuthentication: OperatorsAuthenticationProfile;
+
+    /** Azure Container Registry configuration for authenticating image pulls on the cluster's worker nodes. */
+    @added(Versions.v2026_10_01_preview)
+    containerRegistry?: ContainerRegistryProfile;
   }
 
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-resource-provisioning-state" "Omitting provisioningState in this create/update model because it is a server-side read-only field"

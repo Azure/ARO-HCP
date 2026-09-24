@@ -1,16 +1,5 @@
 {
-    "code": "MultipleErrorsOccurred",
-    "message": "2 errors occurred",
-    "details": [
-      {
-        "code": "InvalidRequestContent",
-        "message": "Forbidden: field is immutable",
-        "target": "properties.platform"
-      },
-      {
-        "code": "InvalidRequestContent",
-        "message": "Forbidden: field is immutable",
-        "target": "properties.platform.vnetIntegrationSubnetId"
-      }
-    ]
+    "code": "InvalidRequestContent",
+    "message": "Forbidden: field is immutable",
+    "target": "properties.platform.vnetIntegrationSubnetId"
   }

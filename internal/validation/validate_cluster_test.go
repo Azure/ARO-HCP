@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -25,6 +26,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -888,4 +890,155 @@ func TestURL(t *testing.T) {
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
+}
+
+func TestValidateContainerRegistryPullCredentials(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+	fldPath := field.NewPath("containerRegistry", "managedIdentity")
+
+	validResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acrPullMI",
+	))
+
+	tests := []struct {
+		name         string
+		newObj       *azcorearm.ResourceID
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "nil resource ID - valid",
+			newObj:       nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "valid MI resource ID - valid",
+			newObj:       validResourceID,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "wrong resource type - invalid",
+			newObj: metadataapi.Must(azcorearm.ParseResourceID(
+				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Storage/storageAccounts/wrongType",
+			)),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "containerRegistry.managedIdentity", Message: "Microsoft.ManagedIdentity/userAssignedIdentities"},
+			},
+		},
+		{
+			name: "MI in managed resource group - invalid",
+			newObj: metadataapi.Must(azcorearm.ParseResourceID(
+				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managedRg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acrPullMI",
+			)),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "containerRegistry.managedIdentity", Message: "must not be the same resource group name"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := validateContainerRegistryPullCredentials(ctx, op, fldPath, tt.newObj, nil, "managedRg")
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+
+	t.Run("update: changing MI from one to another is allowed", func(t *testing.T) {
+		updateOp := operation.Operation{Type: operation.Update}
+		oldMI := metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/old-mi"))
+		newMI := metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/new-mi"))
+		errs := validateContainerRegistryPullCredentials(ctx, updateOp, fldPath, newMI, oldMI, "managedRg")
+		utils.VerifyErrorsMatch(t, []utils.ExpectedError{}, errs)
+	})
+
+	t.Run("update: clearing MI (set to nil) is allowed", func(t *testing.T) {
+		updateOp := operation.Operation{Type: operation.Update}
+		oldMI := metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/old-mi"))
+		errs := validateContainerRegistryPullCredentials(ctx, updateOp, fldPath, nil, oldMI, "managedRg")
+		utils.VerifyErrorsMatch(t, []utils.ExpectedError{}, errs)
+	})
+
+	t.Run("update: setting MI from nil is allowed", func(t *testing.T) {
+		updateOp := operation.Operation{Type: operation.Update}
+		newMI := metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/new-mi"))
+		errs := validateContainerRegistryPullCredentials(ctx, updateOp, fldPath, newMI, nil, "managedRg")
+		utils.VerifyErrorsMatch(t, []utils.ExpectedError{}, errs)
+	})
+}
+
+// customerPlatformImmutableFields maps each immutable CustomerPlatformProfile
+// field name to the JSON field path suffix that validateCustomerPlatformProfile
+// uses when reporting the error. Every field on CustomerPlatformProfile must
+// appear here — the coverage subtest enforces that via reflection.
+var customerPlatformImmutableFields = map[string]string{
+	"ManagedResourceGroup":    "managedResourceGroup",
+	"SubnetID":                "subnetId",
+	"VnetIntegrationSubnetID": "vnetIntegrationSubnetId",
+	"OutboundType":            "outboundType",
+	"NetworkSecurityGroupID":  "networkSecurityGroupId",
+	"OperatorsAuthentication": "operatorsAuthentication",
+}
+
+var customerPlatformMutableFields = map[string]bool{
+	"ContainerRegistry": true,
+}
+
+func TestCustomerPlatformProfileImmutability(t *testing.T) {
+	t.Run("coverage", func(t *testing.T) {
+		typ := reflect.TypeOf(coreapi.CustomerPlatformProfile{})
+		for i := range typ.NumField() {
+			name := typ.Field(i).Name
+			_, immutable := customerPlatformImmutableFields[name]
+			_, mutable := customerPlatformMutableFields[name]
+			if !immutable && !mutable {
+				t.Errorf("CustomerPlatformProfile field %q is not listed in customerPlatformImmutableFields or customerPlatformMutableFields — classify it", name)
+			}
+		}
+	})
+
+	t.Run("enforcement", func(t *testing.T) {
+		ctx := context.Background()
+		op := operation.Operation{Type: operation.Update}
+		fldPath := field.NewPath("platform")
+
+		basePlatform := createValidCluster().CustomerProperties.Platform
+
+		for fieldName, jsonPath := range customerPlatformImmutableFields {
+			t.Run(fieldName, func(t *testing.T) {
+				oldObj := basePlatform
+				newObj := basePlatform
+
+				v := reflect.ValueOf(&newObj).Elem().FieldByName(fieldName)
+				switch v.Kind() {
+				case reflect.String:
+					v.SetString(v.String() + "-changed")
+				case reflect.Ptr:
+					changed := reflect.New(v.Type().Elem())
+					v.Set(changed)
+				case reflect.Struct:
+					v.Set(reflect.Zero(v.Type()))
+				default:
+					t.Fatalf("unsupported field kind %s for %s", v.Kind(), fieldName)
+				}
+
+				errs := validateCustomerPlatformProfile(ctx, op, fldPath, &newObj, &oldObj)
+
+				expectedPath := fldPath.Child(jsonPath).String()
+				found := false
+				for _, e := range errs {
+					if e.Field == expectedPath && strings.Contains(e.Detail, "field is immutable") {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("field %q classified as immutable but no immutability error produced for path %q; got errors: %v", fieldName, expectedPath, errs)
+				}
+			})
+		}
+	})
 }
