@@ -1293,8 +1293,8 @@ func TestBuildCSCluster(t *testing.T) {
 						OutboundType(csOutboundType)).
 					OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
 						ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
-							ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
-							DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+							ControlPlaneOperatorsManagedIdentities(testControlPlaneOperatorIdentities()).
+							DataPlaneOperatorsManagedIdentities(testDataPlaneOperatorIdentities()).
 							ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
 					ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
 					ResourceName(strings.ToLower(coreapitesting.TestClusterName)).
