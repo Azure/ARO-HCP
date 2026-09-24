@@ -77,9 +77,10 @@ var _ = Describe("Customer", func() {
 				nil,
 				framework.ClusterCreationTimeout,
 			)
-			if framework.IsAPINotDeployedError(err) {
+			// NB: a real post-#7033 regression that rejects the omitted vnetIntegrationSubnetId is also skipped here until the timebomb deadline; see AROSLSRE-2231.
+			if framework.IsAPINotDeployedError(err) || framework.IsFeatureNotDeployedError(err, "properties.platform.vnetIntegrationSubnetId") {
 				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20260901preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
+					Skip(fmt.Sprintf("RP capability for v20260901preview with omitted properties.platform.vnetIntegrationSubnetId not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
 				}
 				Fail(fmt.Sprintf("v20260901preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
 			}
