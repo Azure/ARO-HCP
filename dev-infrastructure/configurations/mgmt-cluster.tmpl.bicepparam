@@ -58,6 +58,7 @@ param genevaClusterLogsName = '{{ .geneva.logs.cluster.secretName }}'
 
 // HCP Backups Storage Account
 param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}'
+param hcpBackupsStorageAccountContainerName = '{{ .mgmt.hcpBackups.storageAccountContainerName }}'
 
 // Audit Logs Event Hub
 param auditLogsEventHubName = '{{ .auditLogsEventHub.name }}'

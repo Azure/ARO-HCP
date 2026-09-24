@@ -13,25 +13,25 @@
 // limitations under the License.
 
 // Package backupcleanup requests Velero-managed cleanup of orphaned ARO backups.
-// BackupRepository objects must remain for Kopia maintenance: neither a successful
-// DeleteBackupRequest nor elapsed time proves that repository GC has completed.
+// Repository retirement is handled separately after the backups are gone.
 package backupcleanup
 
 import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/dynamic"
@@ -53,6 +53,7 @@ const (
 	restoreNameLabel            = "velero.io/restore-name"
 	restoreUIDLabel             = "velero.io/restore-uid"
 	scheduleNameLabel           = "velero.io/schedule-name"
+	includedNamespaceIndex      = "backupcleanup/includedNamespace"
 	recheckInterval             = time.Minute
 )
 
@@ -74,7 +75,7 @@ var (
 type Controller struct {
 	name          string
 	dynamicClient dynamic.Interface
-	backupStore   cache.Store
+	backupStore   cache.Indexer
 	hasSynced     []cache.InformerSynced
 	queue         workqueue.TypedRateLimitingInterface[string]
 }
@@ -86,10 +87,21 @@ func NewController(dynamicClient dynamic.Interface, hcInformer cache.SharedIndex
 	if dynamicClient == nil || hcInformer == nil || backupInformer == nil || repoInformer == nil {
 		return nil, fmt.Errorf("client and all three informers are required")
 	}
+	if err := backupInformer.AddIndexers(cache.Indexers{includedNamespaceIndex: func(obj interface{}) ([]string, error) {
+		backup, ok := obj.(*unstructured.Unstructured)
+		if !ok {
+			return nil, nil
+		}
+		// Routing deliberately ignores eligibility, annotations and phase.
+		namespaces, _, _ := unstructured.NestedStringSlice(backup.Object, "spec", "includedNamespaces")
+		return namespaces, nil
+	}}); err != nil {
+		return nil, fmt.Errorf("index backup namespaces: %w", err)
+	}
 	c := &Controller{
 		name:          BackupCleanupControllerName,
 		dynamicClient: dynamicClient,
-		backupStore:   backupInformer.GetStore(),
+		backupStore:   backupInformer.GetIndexer(),
 		hasSynced:     []cache.InformerSynced{hcInformer.HasSynced, backupInformer.HasSynced, repoInformer.HasSynced},
 		queue:         workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[string](), workqueue.TypedRateLimitingQueueConfig[string]{Name: BackupCleanupControllerName}),
 	}
@@ -100,34 +112,25 @@ func NewController(dynamicClient dynamic.Interface, hcInformer cache.SharedIndex
 		{backupInformer, cache.ResourceEventHandlerFuncs{
 			AddFunc: c.enqueueBackup,
 			UpdateFunc: func(old, current interface{}) {
-				oldMeta, oldErr := meta.Accessor(old)
-				currentMeta, currentErr := meta.Accessor(current)
-				if oldErr == nil && currentErr == nil && oldMeta.GetResourceVersion() == currentMeta.GetResourceVersion() {
-					return
-				}
+				c.enqueueBackup(old)
 				c.enqueueBackup(current)
 			},
 			DeleteFunc: c.enqueueBackup,
 		}},
-		// Any HC preserves the namespace's backups, even while terminating.
-		// Updates cannot change existence; only add/delete events matter.
 		{hcInformer, cache.ResourceEventHandlerFuncs{
 			AddFunc: c.enqueueHostedCluster, DeleteFunc: c.enqueueHostedCluster,
+			UpdateFunc: func(old, current interface{}) {
+				c.enqueueHostedCluster(old)
+				c.enqueueHostedCluster(current)
+			},
 		}},
 		{repoInformer, cache.ResourceEventHandlerFuncs{
-			AddFunc: func(interface{}) { c.enqueueAll() },
+			AddFunc: c.enqueueRepository,
 			UpdateFunc: func(old, current interface{}) {
-				oldRepo, oldOK := old.(*unstructured.Unstructured)
-				currentRepo, currentOK := current.(*unstructured.Unstructured)
-				if oldOK && currentOK && preserved(oldRepo) == preserved(currentRepo) &&
-					field(oldRepo, "spec", "volumeNamespace") == field(currentRepo, "spec", "volumeNamespace") &&
-					field(oldRepo, "spec", "backupStorageLocation") == field(currentRepo, "spec", "backupStorageLocation") {
-					return
-				}
-				// Rescan both old and new associations, but not maintenance status.
-				c.enqueueAll()
+				c.enqueueRepository(old)
+				c.enqueueRepository(current)
 			},
-			DeleteFunc: func(interface{}) { c.enqueueAll() },
+			DeleteFunc: c.enqueueRepository,
 		}},
 	} {
 		if _, err := registration.informer.AddEventHandler(registration.handler); err != nil {
@@ -140,7 +143,7 @@ func NewController(dynamicClient dynamic.Interface, hcInformer cache.SharedIndex
 
 func (c *Controller) enqueueBackup(obj interface{}) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-	if err == nil && strings.HasPrefix(key, Namespace+"/") {
+	if err == nil {
 		c.queue.Add(key)
 	}
 }
@@ -160,15 +163,26 @@ func (c *Controller) enqueueHostedCluster(obj interface{}) {
 	if err != nil || namespace == "" {
 		return
 	}
-	for _, obj := range c.backupStore.List() {
-		backup, ok := obj.(*unstructured.Unstructured)
-		if !ok {
-			continue
-		}
-		hcNamespace, _, ok := backupNamespaces(backup)
-		if ok && hcNamespace == namespace {
-			c.enqueueBackup(backup)
-		}
+	c.enqueueNamespace(namespace)
+}
+
+func (c *Controller) enqueueRepository(obj interface{}) {
+	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		obj = tombstone.Obj
+	}
+	if repo, ok := obj.(*unstructured.Unstructured); ok {
+		c.enqueueNamespace(field(repo, "spec", "volumeNamespace"))
+	}
+}
+
+func (c *Controller) enqueueNamespace(namespace string) {
+	objects, err := c.backupStore.ByIndex(includedNamespaceIndex, namespace)
+	if err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+	for _, obj := range objects {
+		c.enqueueBackup(obj)
 	}
 }
 
@@ -231,6 +245,25 @@ func (c *Controller) processNext(ctx context.Context) bool {
 	return true
 }
 
+// Observations contain only live API results. A nil list is unobserved, not empty.
+type observations struct {
+	backup, previous *unstructured.Unstructured
+	lists            map[schema.GroupVersionResource]*unstructured.UnstructuredList
+}
+
+type deletionTarget struct {
+	name            string
+	uid             types.UID
+	resourceVersion string
+}
+
+type plan struct {
+	observe schema.GroupVersionResource
+	apply   *unstructured.Unstructured
+	delete  *deletionTarget
+	requeue bool
+}
+
 func (c *Controller) reconcile(ctx context.Context, key string) (bool, error) {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -239,51 +272,108 @@ func (c *Controller) reconcile(ctx context.Context, key string) (bool, error) {
 	if namespace != Namespace {
 		return false, nil
 	}
-	backups := c.dynamicClient.Resource(BackupsGVR).Namespace(Namespace)
-	backup, err := backups.Get(ctx, name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		return false, nil
+	var previous *unstructured.Unstructured
+	var desired plan
+	// Gather and plan twice before writing, including requests and operations on
+	// the second pass. Each pass may stop early only when the pure plan is safe.
+	for pass := 0; pass < 2; pass++ {
+		backup, err := c.dynamicClient.Resource(BackupsGVR).Namespace(Namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			return false, fmt.Errorf("get backup: %w", err)
+		}
+		if apierrors.IsNotFound(err) {
+			backup = nil
+		}
+		observed := observations{backup: backup, previous: previous, lists: map[schema.GroupVersionResource]*unstructured.UnstructuredList{}}
+		for {
+			desired, err = planCleanup(observed)
+			if err != nil {
+				return false, err
+			}
+			if desired.observe.Empty() {
+				break
+			}
+			gvr := desired.observe
+			namespace := Namespace
+			options := metav1.ListOptions{}
+			if gvr == HostedClustersGVR {
+				namespace, _, _ = backupNamespaces(backup)
+			}
+			if gvr == DataUploadsGVR {
+				options.LabelSelector = labels.Set{backupNameLabel: veleroBackupName(name)}.String()
+			}
+			objects, err := c.dynamicClient.Resource(gvr).Namespace(namespace).List(ctx, options)
+			if err != nil {
+				return false, fmt.Errorf("list %s: %w", gvr.Resource, err)
+			}
+			observed.lists[gvr] = objects
+		}
+		if desired.apply != nil {
+			// Guard the deterministic SSA name with a live identity observation,
+			// including requests that appeared after the unfiltered list.
+			request, err := c.dynamicClient.Resource(DeleteBackupRequestsGVR).Namespace(Namespace).Get(ctx, desired.apply.GetName(), metav1.GetOptions{})
+			if err != nil && !apierrors.IsNotFound(err) {
+				return false, fmt.Errorf("get deletion request: %w", err)
+			}
+			if err == nil {
+				observed.lists[DeleteBackupRequestsGVR].Items = append(observed.lists[DeleteBackupRequestsGVR].Items, *request)
+				desired, err = planCleanup(observed)
+				if err != nil {
+					return false, err
+				}
+			}
+		}
+		if desired.apply == nil && desired.delete == nil {
+			return desired.requeue, nil
+		}
+		previous = backup
 	}
-	if err != nil {
-		return false, fmt.Errorf("get backup: %w", err)
+	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.AddLogValuesForResourceIDString(previous.GetAnnotations()[controllerutils.HcpClusterAzureResourceIdAnnotation])...)
+	ctx = utils.ContextWithLogger(ctx, logger)
+	return desired.requeue, c.execute(ctx, desired)
+}
+
+// planCleanup is pure: missing observations request reads, never authorize writes.
+func planCleanup(observed observations) (plan, error) {
+	backup := observed.backup
+	if backup == nil {
+		return plan{}, nil
+	}
+	if observed.previous != nil && !reflect.DeepEqual(observed.previous.Object, backup.Object) {
+		return plan{requeue: true}, nil
 	}
 	hcNamespace, cpNamespace, scoped := backupNamespaces(backup)
 	if !scoped || preserved(backup) {
-		return false, nil
+		return plan{}, nil
 	}
-	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.AddLogValuesForResourceIDString(backup.GetAnnotations()[controllerutils.HcpClusterAzureResourceIdAnnotation])...)
-	ctx = utils.ContextWithLogger(ctx, logger)
-	// Avoid scanning Velero resources for live clusters. HC deletion events
-	// enqueue affected backups, so existence needs no periodic recheck.
-	hcs, err := c.dynamicClient.Resource(HostedClustersGVR).Namespace(hcNamespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return false, fmt.Errorf("check HostedCluster existence: %w", err)
+	// Preserve short-circuiting for live clusters and opted-out repositories.
+	for _, gvr := range []schema.GroupVersionResource{HostedClustersGVR, BackupRepositoriesGVR, DeleteBackupRequestsGVR} {
+		objects := observed.lists[gvr]
+		if objects == nil {
+			return plan{observe: gvr}, nil
+		}
+		if objects.GetContinue() != "" {
+			return plan{}, fmt.Errorf("incomplete %s list", gvr.Resource)
+		}
+		if gvr == HostedClustersGVR && len(objects.Items) != 0 {
+			return plan{}, nil
+		}
+		if gvr == BackupRepositoriesGVR {
+			for i := range objects.Items {
+				repo := &objects.Items[i]
+				volumeNamespace := field(repo, "spec", "volumeNamespace")
+				if preserved(repo) && (volumeNamespace == hcNamespace || volumeNamespace == cpNamespace) && field(repo, "spec", "backupStorageLocation") == field(backup, "spec", "storageLocation") {
+					return plan{}, nil
+				}
+			}
+			if !terminalBackup(backup) {
+				return plan{requeue: true}, nil
+			}
+		}
 	}
-	if len(hcs.Items) != 0 {
-		return false, nil
-	}
-	if hcs.GetContinue() != "" {
-		return true, nil
-	}
-	if protected, err := c.repositoryPreserves(ctx, backup, hcNamespace, cpNamespace); err != nil || protected {
-		// Repository events handle unprotection, without polling all operations.
-		return false, err
-	}
-	if !terminalBackup(backup) {
-		logger.V(4).Info("Preserving backup with nonterminal phase", "phase", field(backup, "status", "phase"))
-		return true, nil
-	}
-
-	requests := c.dynamicClient.Resource(DeleteBackupRequestsGVR).Namespace(Namespace)
-	// Velero adds backup labels asynchronously, so a selector would miss new
-	// requests created by other actors and could allow duplicate requests.
-	requestList, err := requests.List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return false, fmt.Errorf("list deletion requests: %w", err)
-	}
-	if requestList.GetContinue() != "" {
-		return false, fmt.Errorf("incomplete deletion request list")
-	}
+	name := backup.GetName()
+	// No selector: Velero labels requests asynchronously, including external ones.
+	requestList := observed.lists[DeleteBackupRequestsGVR]
 	requestName := deletionRequestName(backup)
 	var processed *unstructured.Unstructured
 	for i := range requestList.Items {
@@ -292,10 +382,10 @@ func (c *Controller) reconcile(ctx context.Context, key string) (bool, error) {
 			continue
 		}
 		if request.GetName() != requestName || request.GetLabels()[backupUIDLabel] != string(backup.GetUID()) || field(request, "spec", "backupName") != name {
-			return false, fmt.Errorf("another deletion request %q exists for backup; waiting for Velero", request.GetName())
+			return plan{}, fmt.Errorf("another deletion request %q exists for backup; waiting for Velero", request.GetName())
 		}
 		if field(request, "status", "phase") != "Processed" || request.GetDeletionTimestamp() != nil {
-			return true, nil
+			return plan{requeue: true}, nil
 		}
 		processed = request
 	}
@@ -304,20 +394,18 @@ func (c *Controller) reconcile(ctx context.Context, key string) (bool, error) {
 	// Unknown/missing phases are active, not evidence that data is safe to remove.
 	restoreNames, restoreUIDs := map[string]bool{}, map[string]bool{}
 	for _, gvr := range []schema.GroupVersionResource{DataUploadsGVR, RestoresGVR, DataDownloadsGVR} {
-		options := metav1.ListOptions{}
-		if gvr == DataUploadsGVR {
-			// Velero's CSI backup action sets this label when creating uploads.
-			options.LabelSelector = labels.Set{backupNameLabel: veleroBackupName(name)}.String()
-		}
-		objects, err := c.dynamicClient.Resource(gvr).Namespace(Namespace).List(ctx, options)
-		if err != nil {
-			return false, fmt.Errorf("list %s: %w", gvr.Resource, err)
+		objects := observed.lists[gvr]
+		if objects == nil {
+			return plan{observe: gvr}, nil
 		}
 		if objects.GetContinue() != "" {
-			return false, fmt.Errorf("incomplete %s list", gvr.Resource)
+			return plan{}, fmt.Errorf("incomplete %s list", gvr.Resource)
 		}
 		for i := range objects.Items {
 			obj := &objects.Items[i]
+			if gvr == DataUploadsGVR && obj.GetLabels()[backupNameLabel] != veleroBackupName(name) {
+				continue
+			}
 			if gvr == DataUploadsGVR || gvr == DataDownloadsGVR {
 				switch field(obj, "status", "phase") {
 				case "Completed", "Failed", "Canceled":
@@ -347,60 +435,21 @@ func (c *Controller) reconcile(ctx context.Context, key string) (bool, error) {
 					continue
 				}
 			}
-			logger.V(4).Info("Preserving backup with active operation", "resource", gvr.Resource, "name", obj.GetName())
-			return true, nil
+			return plan{requeue: true}, nil
 		}
-	}
-
-	// Recheck the current object, all repository opt-outs and HC absence before
-	// each mutation. Never authorize a deletion using an informer cache miss.
-	current, err := backups.Get(ctx, name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("recheck backup: %w", err)
-	}
-	if current.GetUID() != backup.GetUID() || current.GetResourceVersion() != backup.GetResourceVersion() || preserved(current) {
-		return true, nil
-	}
-	currentHC, currentCP, scoped := backupNamespaces(current)
-	if !scoped || !terminalBackup(current) || currentHC != hcNamespace || currentCP != cpNamespace || field(current, "spec", "storageLocation") != field(backup, "spec", "storageLocation") {
-		return true, nil
-	}
-	if protected, err := c.repositoryPreserves(ctx, current, hcNamespace, cpNamespace); err != nil || protected {
-		return false, err
-	}
-	hcs, err = c.dynamicClient.Resource(HostedClustersGVR).Namespace(hcNamespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		// Even NotFound (e.g. an unavailable CRD) is not proof of HC absence.
-		return false, fmt.Errorf("confirm HostedCluster absence: %w", err)
-	}
-	if len(hcs.Items) != 0 {
-		return false, nil
-	}
-	if hcs.GetContinue() != "" {
-		return true, nil
 	}
 	if processed != nil {
-		uid := processed.GetUID()
-		if uid == "" {
-			return false, fmt.Errorf("processed deletion request %q has no UID", processed.GetName())
+		if processed.GetUID() == "" || processed.GetResourceVersion() == "" {
+			return plan{}, fmt.Errorf("processed deletion request %q has no UID or resource version", processed.GetName())
 		}
-		logger.Info("Retrying processed deletion request while backup still exists", "request", processed.GetName(), "errors", processed.Object["status"])
 		// A new request retries Velero's processed failures. UID/RV preconditions
 		// prevent deleting a replacement request or one whose status changed.
-		rv := processed.GetResourceVersion()
-		err := requests.Delete(ctx, processed.GetName(), metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &uid, ResourceVersion: &rv}})
-		if err != nil && !apierrors.IsNotFound(err) {
-			return false, fmt.Errorf("remove processed deletion request: %w", err)
-		}
-		return true, nil
+		return plan{delete: &deletionTarget{name: processed.GetName(), uid: processed.GetUID(), resourceVersion: processed.GetResourceVersion()}, requeue: true}, nil
 	}
 
 	// Velero v1.18 records these labels but resolves spec.backupName without
-	// checking the UID. They are NOT a server-side identity fence. The live GET
-	// above narrows, but cannot eliminate, concurrent Backup name reuse or a new
+	// checking the UID. They are NOT a server-side identity fence. Live reads
+	// narrow, but cannot eliminate, concurrent Backup name reuse or a new
 	// HC/opt-out/operation after these checks. Opt-outs cannot cancel requests
 	// already handed to Velero. Do not add a Backup ownerReference: Kubernetes GC
 	// must not remove the request while Velero is cleaning external data.
@@ -412,33 +461,26 @@ func (c *Controller) reconcile(ctx context.Context, key string) (bool, error) {
 		},
 		"spec": map[string]interface{}{"backupName": name},
 	}}
-	if _, err := requests.Create(ctx, request, metav1.CreateOptions{}); err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			return true, nil
-		}
-		return false, fmt.Errorf("create deletion request: %w", err)
-	}
-	logger.Info("Requested Velero cleanup of orphaned backup", "request", requestName, "backupUID", backup.GetUID())
-	return true, nil
+	return plan{apply: request, requeue: true}, nil
 }
 
-func (c *Controller) repositoryPreserves(ctx context.Context, backup *unstructured.Unstructured, hcNamespace, cpNamespace string) (bool, error) {
-	repositories, err := c.dynamicClient.Resource(BackupRepositoriesGVR).Namespace(Namespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return false, fmt.Errorf("check repositories: %w", err)
-	}
-	if repositories.GetContinue() != "" {
-		return false, fmt.Errorf("incomplete repository list")
-	}
-	for i := range repositories.Items {
-		repo := &repositories.Items[i]
-		volumeNamespace := field(repo, "spec", "volumeNamespace")
-		if preserved(repo) && (volumeNamespace == hcNamespace || volumeNamespace == cpNamespace) && field(repo, "spec", "backupStorageLocation") == field(backup, "spec", "storageLocation") {
-			utils.LoggerFromContext(ctx).V(4).Info("Preserving backup associated with opted-out repository", "repository", repo.GetName())
-			return true, nil
+func (c *Controller) execute(ctx context.Context, desired plan) error {
+	requests := c.dynamicClient.Resource(DeleteBackupRequestsGVR).Namespace(Namespace)
+	if desired.delete != nil {
+		target := desired.delete
+		if err := requests.Delete(ctx, target.name, metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &target.uid, ResourceVersion: &target.resourceVersion}}); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("remove processed deletion request: %w", err)
 		}
+		utils.LoggerFromContext(ctx).Info("Retrying processed deletion request while backup still exists", "request", target.name)
 	}
-	return false, nil
+	if desired.apply != nil {
+		// Only desired metadata/spec are applied; status belongs exclusively to Velero.
+		if _, err := requests.Apply(ctx, desired.apply.GetName(), desired.apply, metav1.ApplyOptions{FieldManager: BackupCleanupControllerName, Force: false}); err != nil {
+			return fmt.Errorf("apply deletion request: %w", err)
+		}
+		utils.LoggerFromContext(ctx).Info("Requested Velero cleanup of orphaned backup", "request", desired.apply.GetName(), "backupUID", desired.apply.GetLabels()[backupUIDLabel])
+	}
+	return nil
 }
 
 // backupNamespaces recognizes the ARO builder's exact two-namespace shape,

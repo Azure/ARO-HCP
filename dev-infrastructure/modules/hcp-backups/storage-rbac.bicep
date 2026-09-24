@@ -1,8 +1,14 @@
 @description('Storage account name for HCP backups')
 param storageAccountName string
 
+@description('Name of this management cluster\'s HCP backup container')
+param containerName string
+
 @description('Principal ID of the Velero managed identity')
 param veleroManagedIdentityPrincipalId string
+
+@description('Principal ID of the mgmt-agent managed identity')
+param mgmtAgentManagedIdentityPrincipalId string
 
 // Storage Blob Data Contributor: Grants read, write, and delete access to blob containers and data
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#storage-blob-data-contributor
@@ -18,6 +24,27 @@ var readerRole = 'acdd72a7-3385-48ef-bd42-f606fba81ae7'
 
 resource hcpBackupsStorageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' existing = {
   name: storageAccountName
+}
+
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2022-09-01' existing = {
+  name: 'default'
+  parent: hcpBackupsStorageAccount
+}
+
+resource hcpBackupsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2022-09-01' existing = {
+  name: containerName
+  parent: blobService
+}
+
+// Allow mgmt-agent to clean up backup blobs only in this management cluster's container.
+resource mgmtAgentStorageBlobDataContributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(hcpBackupsContainer.id, mgmtAgentManagedIdentityPrincipalId, storageBlobDataContributorRole)
+  scope: hcpBackupsContainer
+  properties: {
+    principalId: mgmtAgentManagedIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRole)
+  }
 }
 
 // ============================================================================
