@@ -207,6 +207,12 @@ This means that when the job reports failure, the build log contains the
 outcome for every expired resource group — not just the first one that
 failed.
 
+The expired resource-group command limits cleanup to 20 resource groups at a
+time by default. The `--concurrency` flag can lower or raise that limit for a
+specific job. ARM clients honor server retry delays up to 10 minutes, so a
+provider throttle pauses the affected cleanup instead of causing an immediate
+burst of failed retries.
+
 ## Why They Behave Differently
 
 ### Why periodic cleanup is best-effort
