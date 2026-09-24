@@ -43,6 +43,7 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 	const (
 		subscriptionID = "6b690bec-0c16-4ecb-8f67-781caf40bba7"
 		clusterName    = "readonly-create"
+		identityID     = "/subscriptions/" + subscriptionID + "/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/readonly-create"
 		spoofedID      = "11111111-2222-4333-8444-555555555555"
 	)
 	armSystemData := map[string]any{
@@ -116,6 +117,12 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					if tc.kind != "ExternalAuth" {
 						payload["tags"] = map[string]any{"purpose": "readonly-create"}
 					}
+					if tc.kind == "NodePool" {
+						// Only the cluster payload ships identities, via withRequiredOperatorIdentities.
+						payload["identity"] = map[string]any{
+							"type": "UserAssigned", "userAssignedIdentities": map[string]any{identityID: map[string]any{}},
+						}
+					}
 					if tc.kind == "Cluster" {
 						properties["dns"] = map[string]any{"baseDomainPrefix": "readonly-create"}
 					}
@@ -133,14 +140,14 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 						properties["status"] = status
 						if tc.kind != "ExternalAuth" {
 							status["activeVersions"] = []any{map[string]any{"version": "99.99"}}
-						}
-						if tc.kind == "Cluster" {
 							identity := payload["identity"].(map[string]any)
 							identity["principalId"], identity["tenantId"] = spoofedID, spoofedID
 							assigned := identity["userAssignedIdentities"].(map[string]any)
 							for id := range assigned {
 								assigned[id] = map[string]any{"clientId": spoofedID, "principalId": spoofedID}
 							}
+						}
+						if tc.kind == "Cluster" {
 							properties["api"].(map[string]any)["url"] = "https://spoofed-api.example.com"
 							properties["console"] = map[string]any{"url": "https://spoofed-console.example.com"}
 							properties["dns"].(map[string]any)["baseDomain"] = "spoofed.example.com"
@@ -168,8 +175,6 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					require.Equal(t, "Accepted", got["properties"].(map[string]any)["provisioningState"])
 					if tc.kind != "ExternalAuth" {
 						require.Equal(t, map[string]any{"purpose": "readonly-create"}, got["tags"])
-					}
-					if tc.kind == "Cluster" {
 						keysOnly := map[string]any{}
 						for id := range payload["identity"].(map[string]any)["userAssignedIdentities"].(map[string]any) {
 							keysOnly[id] = map[string]any{}
