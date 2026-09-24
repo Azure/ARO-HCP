@@ -53,6 +53,12 @@ spec:
       containers:
       - name: patcher
         image: "{{ .Values.jobImage }}"
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
         command:
         - /bin/sh
         - -c
