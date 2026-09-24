@@ -72,15 +72,15 @@ spec:
         - /bin/sh
         - -c
         - |
+          set -e
+
           DESIRED_REQ="500m"
           DESIRED_LIM="2000m"
 
-          if ! kubectl get daemonset azure-cns -n kube-system > /dev/null 2>&1; then
+          if ! kubectl get daemonset azure-cns -n kube-system --ignore-not-found -o name | grep -q .; then
             echo "azure-cns DaemonSet not found in kube-system, skipping patch"
             exit 0
           fi
-
-          set -e
 
           CURRENT_REQ=$(kubectl get daemonset azure-cns -n kube-system \
             -o jsonpath='{.spec.template.spec.containers[?(@.name=="azure-cns")].resources.requests.cpu}')
