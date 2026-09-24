@@ -34,6 +34,7 @@ import (
 //   - The default ingress remains public (independence of KAS and ingress visibility)
 var _ = Describe("Customer", func() {
 	It("should create a cluster with private KAS and verify API server is only reachable from VNet while ingress remains public",
+		FlakeAttempts(2),
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,

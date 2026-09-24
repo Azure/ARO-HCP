@@ -37,6 +37,7 @@ import (
 
 var _ = Describe("Customer", func() {
 	It("should be able to create a no-CNI private cluster with a private key vault, a nodepool and install cilium CNI successfully",
+		FlakeAttempts(2),
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,

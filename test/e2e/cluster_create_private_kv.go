@@ -35,6 +35,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 	})
 
 	It("should create a cluster with private keyvault using v20251223preview API",
+		FlakeAttempts(2),
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,

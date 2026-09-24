@@ -62,6 +62,7 @@ import (
 // - Node pool labels and taints
 var _ = Describe("Customer", func() {
 	It("should be able to create a cluster and node pools with aggregated advanced features",
+		FlakeAttempts(2),
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,

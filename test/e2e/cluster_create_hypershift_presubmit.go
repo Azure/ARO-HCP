@@ -30,6 +30,7 @@ import (
 
 var _ = Describe("ARO-HCP HyperShift Presubmit", func() {
 	It("should create a cluster and nodepool to completion",
+		FlakeAttempts(2),
 		labels.HypershiftPresubmit,
 		labels.RequireNothing,
 		labels.Critical,

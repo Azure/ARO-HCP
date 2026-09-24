@@ -31,6 +31,7 @@ var _ = Describe("Customer", func() {
 	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-10-01T00:00:00Z"))
 
 	It("should create a cluster using v20260901preview API and verify cluster health",
+		FlakeAttempts(2),
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,

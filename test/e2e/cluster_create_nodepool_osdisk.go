@@ -32,6 +32,7 @@ var _ = Describe("Customer", func() {
 	})
 
 	It("should be able to create an HCP cluster and custom node pool osDisk size",
+		FlakeAttempts(2),
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,

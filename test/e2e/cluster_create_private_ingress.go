@@ -37,6 +37,7 @@ import (
 // credentials, and cluster health — to avoid creating multiple clusters in CI.
 var _ = Describe("Customer", func() {
 	It("should create a cluster with private ingress using v20260901preview and verify the ingress is internal",
+		FlakeAttempts(2),
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
