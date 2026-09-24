@@ -43,7 +43,6 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 	const (
 		subscriptionID = "6b690bec-0c16-4ecb-8f67-781caf40bba7"
 		clusterName    = "readonly-create"
-		identityID     = "/subscriptions/" + subscriptionID + "/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/readonly-create"
 		spoofedID      = "11111111-2222-4333-8444-555555555555"
 	)
 	armSystemData := map[string]any{
@@ -116,22 +115,9 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					properties := payload["properties"].(map[string]any)
 					if tc.kind != "ExternalAuth" {
 						payload["tags"] = map[string]any{"purpose": "readonly-create"}
-						payload["identity"] = map[string]any{
-							"type": "UserAssigned", "userAssignedIdentities": map[string]any{identityID: map[string]any{}},
-						}
 					}
 					if tc.kind == "Cluster" {
 						properties["dns"] = map[string]any{"baseDomainPrefix": "readonly-create"}
-						// The payload encrypts etcd with a customer-managed key, so kms is required.
-						// withRequiredOperatorIdentities fills in the rest below.
-						kmsIdentityID := "/subscriptions/" + subscriptionID + "/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
-						properties["platform"].(map[string]any)["operatorsAuthentication"] = map[string]any{
-							"userAssignedIdentities": map[string]any{
-								"serviceManagedIdentity": identityID,
-								"controlPlaneOperators":  map[string]any{"kms": kmsIdentityID},
-							},
-						}
-						payload["identity"].(map[string]any)["userAssignedIdentities"].(map[string]any)[kmsIdentityID] = map[string]any{}
 					}
 					if inject {
 						payload["id"] = clusterResourceID("spoofed-resource")
@@ -145,13 +131,14 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 							"type": "Available", "status": "True", "reason": "Spoofed", "message": "spoofed-status", "lastTransitionTime": "2000-01-01T00:00:00Z",
 						}}}
 						properties["status"] = status
-						if tc.kind != "ExternalAuth" {
+						if tc.kind == "Cluster" {
 							status["activeVersions"] = []any{map[string]any{"version": "99.99"}}
 							identity := payload["identity"].(map[string]any)
 							identity["principalId"], identity["tenantId"] = spoofedID, spoofedID
-							identity["userAssignedIdentities"].(map[string]any)[identityID] = map[string]any{"clientId": spoofedID, "principalId": spoofedID}
-						}
-						if tc.kind == "Cluster" {
+							assigned := identity["userAssignedIdentities"].(map[string]any)
+							for id := range assigned {
+								assigned[id] = map[string]any{"clientId": spoofedID, "principalId": spoofedID}
+							}
 							properties["api"].(map[string]any)["url"] = "https://spoofed-api.example.com"
 							properties["console"] = map[string]any{"url": "https://spoofed-console.example.com"}
 							properties["dns"].(map[string]any)["baseDomain"] = "spoofed.example.com"
@@ -160,13 +147,6 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					}
 					body, err := json.Marshal(payload)
 					require.NoError(t, err)
-					if tc.kind == "Cluster" {
-						// The operatorsAuthentication block above replaces the one the payload
-						// ships with, so put the required operator identities back. Re-read the
-						// result so the assertions below compare against what was actually sent.
-						body = withRequiredOperatorIdentities(body, subscriptionID)
-						require.NoError(t, json.Unmarshal(body, &payload))
-					}
 					request, err := http.NewRequestWithContext(ctx, http.MethodPut, ti.FrontendURL+tc.resourceID+"?api-version="+v20261001, bytes.NewReader(body))
 					require.NoError(t, err)
 					request.Header.Set("Content-Type", "application/json")
@@ -186,6 +166,8 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					require.Equal(t, "Accepted", got["properties"].(map[string]any)["provisioningState"])
 					if tc.kind != "ExternalAuth" {
 						require.Equal(t, map[string]any{"purpose": "readonly-create"}, got["tags"])
+					}
+					if tc.kind == "Cluster" {
 						keysOnly := map[string]any{}
 						for id := range payload["identity"].(map[string]any)["userAssignedIdentities"].(map[string]any) {
 							keysOnly[id] = map[string]any{}
@@ -227,7 +209,9 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 						cluster.ServiceProviderProperties.Platform.IssuerURL = "https://issuer.server.example.com"
 						cluster.Status.ActiveVersions = []coreapi.HCPClusterActiveVersion{{Version: "4.20"}}
 						clientID, principalID := "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff"
-						cluster.Identity.UserAssignedIdentities[identityID] = &coreapi.UserAssignedIdentity{ClientID: &clientID, PrincipalID: &principalID}
+						for id := range cluster.Identity.UserAssignedIdentities {
+							cluster.Identity.UserAssignedIdentities[id] = &coreapi.UserAssignedIdentity{ClientID: &clientID, PrincipalID: &principalID}
+						}
 						_, err = clusters.Replace(ctx, cluster, nil)
 						require.NoError(t, err)
 						_, served := getResourceResponse(t, ctx, ti, v20261001, tc.resourceID)
@@ -238,7 +222,11 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 						require.Equal(t, "readonly-create", servedProperties["dns"].(map[string]any)["baseDomainPrefix"])
 						require.Equal(t, "https://issuer.server.example.com", servedProperties["platform"].(map[string]any)["issuerUrl"])
 						require.Equal(t, []any{map[string]any{"version": "4.20"}}, servedProperties["status"].(map[string]any)["activeVersions"])
-						require.Equal(t, map[string]any{"clientId": clientID, "principalId": principalID}, served["identity"].(map[string]any)["userAssignedIdentities"].(map[string]any)[identityID], "server-populated identity IDs must remain visible")
+						servedIdentities := served["identity"].(map[string]any)["userAssignedIdentities"].(map[string]any)
+						require.NotEmpty(t, servedIdentities, "cluster must serve the user-assigned identities it was created with")
+						for id, value := range servedIdentities {
+							require.Equal(t, map[string]any{"clientId": clientID, "principalId": principalID}, value, "server-populated identity IDs must remain visible for %s", id)
+						}
 					}
 				}) {
 					break
