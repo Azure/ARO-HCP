@@ -80,6 +80,8 @@ spec:
             exit 0
           fi
 
+          set -e
+
           CURRENT_REQ=$(kubectl get daemonset azure-cns -n kube-system \
             -o jsonpath='{.spec.template.spec.containers[?(@.name=="azure-cns")].resources.requests.cpu}')
           CURRENT_LIM=$(kubectl get daemonset azure-cns -n kube-system \
