@@ -13,26 +13,30 @@ metadata:
 ---
 # Source: ARO HCP MC Mitigations/templates/azure-cns-cpu-limits.yaml
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: azure-cns-cpu-patcher-role
+  namespace: kube-system
 rules:
 - apiGroups:
   - apps
   resources:
   - daemonsets
+  resourceNames:
+  - azure-cns
   verbs:
   - get
   - patch
 ---
 # Source: ARO HCP MC Mitigations/templates/azure-cns-cpu-limits.yaml
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: azure-cns-cpu-patcher-binding
+  namespace: kube-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: azure-cns-cpu-patcher-role
 subjects:
 - kind: ServiceAccount
