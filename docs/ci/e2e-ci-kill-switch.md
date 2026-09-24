@@ -8,7 +8,7 @@ critical fixes.
 
 ## Decision
 
-Use `acknowledge-critical-fixes-only` as a temporary requirement on the existing
+Use `aro-hcp/e2e-critical-fix` as a temporary requirement on the existing
 `e2e-parallel` second-wave test.
 
 There is no lock file, no new ProwJob, and no E2E workflow guard. Normal E2E is
@@ -37,7 +37,7 @@ The E2E source configuration carries the requirement only during an incident:
 - as: e2e-parallel
   always_run: false
   pipeline_required_labels:
-  - acknowledge-critical-fixes-only
+  - aro-hcp/e2e-critical-fix
 ```
 
 `openshift/ci-tools` propagates this field to the generated Prow annotation.
@@ -52,7 +52,7 @@ schedules the existing E2E job without a new commit.
 - Pipeline-controller support for `pipeline_required_labels` is deployed.
 - ci-operator Prowgen support for the field is deployed.
 - The release targets are available.
-- The Prow `/label acknowledge-critical-fixes-only` command is restricted to
+- The Prow `/label aro-hcp/e2e-critical-fix` command is restricted to
   the configured incident authorities. GitHub users with label-edit permission
   can also add it directly; this procedure trusts repository writers.
 
@@ -83,7 +83,7 @@ schedules the existing E2E job without a new commit.
    ```
 
 3. Review and merge the generated E2E-only change.
-4. Remove `acknowledge-critical-fixes-only` from every open PR carrying it,
+4. Remove `aro-hcp/e2e-critical-fix` from every open PR carrying it,
    including PRs that did not run E2E.
 5. Use `/retest` for every PR that was waiting for E2E while the policy was
    enabled.
