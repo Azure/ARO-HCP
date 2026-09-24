@@ -52,7 +52,7 @@ macro-expand AllServiceLogs as X
 )
 ```
 
-`X.$current_cluster_endpoint` tags each row with its source cluster. Keep the heavy per-layer queries pointed at that single resolved cluster; the entity groups are for discovery and fleet-wide questions, not bulk exports. See [kusto-debugging.md](kusto-debugging.md#cross-cluster-queries-prod) for the full table and caveats.
+`X.$current_cluster_endpoint` tags each row with its source cluster. Keep the heavy per-layer queries pointed at that single resolved cluster; the entity groups are environment scoped and intended for discovery and fleet-wide questions, not bulk exports. See [kusto-debugging.md](kusto-debugging.md#cross-cluster-queries-prod) for the full table and caveats.
 
 ## Bootstrapping: from minimal input to magic strings
 

@@ -33,7 +33,7 @@ the discovery chain for resolving correlation IDs into the magic strings
       | distinct cid, SourceCluster = X.$current_cluster_endpoint
   )
   ```
-- Prefer a single cluster for heavy log pulls: a resource lives on one cluster, so fanning a large export across all members only adds cost and hits per-cluster query limits. Use the groups for discovery and fleet-wide questions, then run the heavy query against the resolved cluster. The groups exist on prod only; on a single regional cluster query the database or table directly.
+- Prefer a single cluster for heavy log pulls: a resource lives on one cluster, so fanning a large export across all members only adds cost and hits per-cluster query limits. Use the groups for discovery and fleet-wide questions, then run the heavy query against the resolved cluster. The groups are environment scoped and include only clusters tagged for the selected environment.
 
 ## Tables
 
