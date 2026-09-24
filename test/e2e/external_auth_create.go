@@ -252,12 +252,18 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyAllClusterOperatorsAvailable().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster operators are available after external auth config creation")
 
-			By("verifying Available condition via v20260901preview API")
+			By("verifying OIDCClientsDegraded condition via v20260901preview API")
 			eaClient20260901 := tc.Get20260901ClientFactoryOrDie(ctx).NewExternalAuthsClient()
 			Eventually(func(g Gomega) {
 				resp, err := eaClient20260901.Get(ctx, *resourceGroup.Name, customerClusterName, customerExternalAuthName, nil)
 				g.Expect(err).NotTo(HaveOccurred(), "failed to get external auth via v20260901preview API")
+				if err != nil {
+					return
+				}
 				g.Expect(resp.Properties).NotTo(BeNil(), "external auth Properties was nil")
+				if resp.Properties == nil || resp.Properties.Status == nil {
+					return
+				}
 				g.Expect(resp.Properties.Status).NotTo(BeNil(), "external auth Properties.Status was nil")
 				g.Expect(resp.Properties.Status.Conditions).NotTo(BeEmpty(), "external auth Properties.Status.Conditions was empty")
 
@@ -268,14 +274,20 @@ var _ = Describe("Customer", func() {
 					}
 				}
 
-				available := condByType["Available"]
-				g.Expect(available).NotTo(BeNil(), "Available condition not found")
-				g.Expect(available.Status).NotTo(BeNil(), "Available Status was nil")
-				g.Expect(string(*available.Status)).To(Equal("True"),
-					fmt.Sprintf("Available status should be True after secret creation, got %s (reason: %s, message: %s)",
-						ptr.Deref((*string)(available.Status), "<nil>"),
-						ptr.Deref(available.Reason, "<nil>"),
-						ptr.Deref(available.Message, "<nil>")))
-			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "Available condition did not converge to True")
+				degraded := condByType["OIDCClientsDegraded"]
+				g.Expect(degraded).NotTo(BeNil(), "OIDCClientsDegraded condition not found")
+				if degraded == nil {
+					return
+				}
+				g.Expect(degraded.Status).NotTo(BeNil(), "OIDCClientsDegraded Status was nil")
+				if degraded.Status == nil {
+					return
+				}
+				g.Expect(string(*degraded.Status)).To(Equal("False"),
+					fmt.Sprintf("OIDCClientsDegraded status should be False after secret creation, got %s (reason: %s, message: %s)",
+						ptr.Deref((*string)(degraded.Status), "<nil>"),
+						ptr.Deref(degraded.Reason, "<nil>"),
+						ptr.Deref(degraded.Message, "<nil>")))
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "OIDCClientsDegraded condition did not converge to False")
 		})
 })
