@@ -742,6 +742,7 @@ defaults:
           poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     applyKubeletFixes: true
+    azureCnsCpuLimits: true
     nsp:
       name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     aks:
@@ -1685,6 +1686,7 @@ clouds:
                 osDiskSizeGB: 64
                 vmSize: 'Standard_D4s_v3'
             applyKubeletFixes: false
+            azureCnsCpuLimits: false
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
