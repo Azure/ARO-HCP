@@ -44,7 +44,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/certificate"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/fpa"
@@ -199,6 +201,10 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to register Cosmos DB metrics: %w", err)
 	}
 
+	if err := cosmosratelimit.RegisterMetrics(registry); err != nil {
+		return nil, fmt.Errorf("failed to register Cosmos DB rate limiter metrics: %w", err)
+	}
+
 	// Create CS client
 	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
 		URL(o.ClustersServiceURL).
@@ -215,23 +221,17 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentAdmin)
 	// FIXME Cloud should be determined by other means.
 	clientOpts.Cloud = cloud.AzurePublic
-	cosmosDatabaseClient, err := corecosmosstorage.NewCosmosDatabaseClient(
-		o.CosmosURL,
-		o.CosmosName,
-		clientOpts,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create the CosmosDB client: %w", err)
-	}
-	resourcesDBClient, err := corecosmosstorage.NewResourcesDBClient(cosmosDatabaseClient)
+	storageOptions := cosmosclient.Options{ClientOptions: clientOpts}
+	bucket := cosmosratelimit.NewUnlimitedTokenBucket("admin")
+	resourcesDBClient, err := corecosmosstorage.NewResourcesDBClient(o.CosmosURL, o.CosmosName, storageOptions, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the resources DB client: %w", err)
 	}
-	billingDBClient, err := billingcosmosstorage.NewBillingDBClient(cosmosDatabaseClient)
+	billingDBClient, err := billingcosmosstorage.NewBillingDBClient(o.CosmosURL, o.CosmosName, storageOptions, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the billing database client: %w", err)
 	}
-	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(cosmosDatabaseClient)
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(o.CosmosURL, o.CosmosName, storageOptions, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the fleet database client: %w", err)
 	}
@@ -298,7 +298,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	sessionClient := sessiongateClientset.SessiongateV1alpha1().Sessions(o.SessiongateNamespace)
 
 	mcLister := kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient)
-	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(cosmosDatabaseClient, mcLister)
+	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(o.CosmosURL, o.CosmosName, storageOptions, func(string) (*cosmosratelimit.TokenBucket, error) { return bucket, nil }, mcLister)
 
 	return &Options{
 		completedOptions: &completedOptions{

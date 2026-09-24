@@ -39,10 +39,6 @@ import (
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -54,14 +50,11 @@ type Backend struct {
 }
 
 type BackendOptions struct {
+	StorageFactory                     StorageFactory
 	AppShortDescriptionName            string
 	AppVersion                         string
 	AzureLocation                      string
 	LeaderElectionLock                 resourcelock.Interface
-	ResourcesDBClient                  corecosmosstorage.ResourcesDBClient
-	BillingDBClient                    billingcosmosstorage.BillingDBClient
-	FleetDBClient                      fleetcosmosstorage.FleetDBClient
-	KubeApplierDBClients               kubeappliercosmosstorage.KubeApplierDBClients
 	ClustersServiceClient              ocm.ClusterServiceClientSpec
 	MetricsRegisterer                  prometheus.Registerer
 	MetricsGatherer                    prometheus.Gatherer
@@ -158,6 +151,9 @@ func (o *BackendOptions) validate() error {
 	if o.MetricsRegisterer == nil || o.MetricsGatherer == nil {
 		return fmt.Errorf("metrics registerer and gatherer must both be set (registerer set=%t, gatherer set=%t)",
 			o.MetricsRegisterer != nil, o.MetricsGatherer != nil)
+	}
+	if o.StorageFactory == nil {
+		return fmt.Errorf("storage factory must be set")
 	}
 	if o.BackupConfig == nil {
 		return fmt.Errorf("backup config must be set")
@@ -365,7 +361,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	logger := utils.LoggerFromContext(ctx)
 
 	controllerContext := b.newControllerContext(ctx)
-	controllers, err := instantiateControllers(newControllerRegistry(), controllerContext)
+	controllers, err := instantiateControllers(newControllerRegistry(), controllerContext, b.options.StorageFactory)
 	if err != nil {
 		return err
 	}

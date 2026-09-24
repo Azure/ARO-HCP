@@ -44,13 +44,21 @@ type instantiatedController struct {
 	workers  int
 }
 
-func instantiateControllers(registry map[string]ControllerRegistration, controllerContext ControllerContext) (map[string]instantiatedController, error) {
+func instantiateControllers(registry map[string]ControllerRegistration, controllerContext ControllerContext, storageFactory StorageFactory) (map[string]instantiatedController, error) {
 	controllers := make(map[string]instantiatedController, len(registry))
+	withoutStorage := controllersWithoutStorage()
 	for name, entry := range registry {
 		if entry.Enabled != nil && !entry.Enabled(controllerContext) {
 			continue
 		}
-		runnable, err := entry.Instantiate(controllerContext)
+		instanceContext := controllerContext
+		if _, skip := withoutStorage[name]; !skip {
+			instanceContext.ResourcesDBClient = storageFactory.ResourcesStorageClient(name)
+			instanceContext.BillingDBClient = storageFactory.BillingStorageClient(name)
+			instanceContext.FleetDBClient = storageFactory.FleetStorageClient(name)
+			instanceContext.KubeApplierDBClients = storageFactory.KubeApplierStorageClients(name)
+		}
+		runnable, err := entry.Instantiate(instanceContext)
 		if err != nil {
 			return nil, utils.TrackError(fmt.Errorf("failed to instantiate controller %q: %w", name, err))
 		}

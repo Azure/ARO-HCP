@@ -30,11 +30,13 @@ import (
 // request costs more than the bucket's capacity. Concurrent in-flight requests
 // may overshoot the budget; subsequent requests wait for all accumulated debt.
 //
-// A bucket implements cosmosstorageutils.ResourceCRUDLayer. Share one bucket
-// across all CRUDs and workers that should use the same RU budget. The Cosmos
-// client must install NewPolicy in PerRetryPolicies (the shared database client
-// constructor does this automatically).
+// Pass the bucket to a container storage constructor to bind all
+// requests from that client to it. Share one bucket across clients and workers
+// using the same RU budget. It can also provide an earlier admission check via
+// the ResourceCRUDLayer interface, without storing the bucket in context.
 type TokenBucket struct {
+	unlimited       bool
+	metrics         *rateLimitMetrics
 	mu              sync.Mutex
 	name            string
 	capacity        float64
@@ -49,25 +51,35 @@ func NewTokenBucket(name string, capacity, refillPerSecond float64) (*TokenBucke
 	if !positiveFinite(capacity) || !positiveFinite(refillPerSecond) {
 		return nil, fmt.Errorf("cosmos RU bucket capacity and refill rate must be finite and positive")
 	}
-	return &TokenBucket{name: name, capacity: capacity, refillPerSecond: refillPerSecond, tokens: capacity, updated: time.Now()}, nil
+	return &TokenBucket{metrics: defaultMetrics, name: name, capacity: capacity, refillPerSecond: refillPerSecond, tokens: capacity, updated: time.Now()}, nil
+}
+
+// NewUnlimitedTokenBucket explicitly preserves unlimited throughput for callers
+// that have not allocated an RU budget. The client still records request metrics.
+func NewUnlimitedTokenBucket(name string) *TokenBucket {
+	return &TokenBucket{name: name, unlimited: true, metrics: defaultMetrics}
 }
 
 func positiveFinite(value float64) bool {
 	return value > 0 && !math.IsInf(value, 0) && !math.IsNaN(value)
 }
 
-// Do implements the CRUD layer contract. The pipeline also waits before every
-// individual HTTP attempt, covering paged queries and SDK retries.
+// Do implements the CRUD layer contract as an optional early admission check.
+// The Cosmos client must independently be constructed with the same bucket to
+// account for actual charges and enforce limits on query pages and SDK retries.
 func (b *TokenBucket) Do(ctx context.Context, operation func(context.Context) error) error {
 	if err := b.Wait(ctx); err != nil {
 		return err
 	}
-	return operation(contextWithBucket(ctx, b))
+	return operation(ctx)
 }
 
 // Wait blocks until the balance is nonnegative or ctx is canceled. It does not
 // reserve estimated RUs: the actual cost is only known after the response.
 func (b *TokenBucket) Wait(ctx context.Context) error {
+	if b.unlimited {
+		return ctx.Err()
+	}
 	logged := false
 	for {
 		if err := ctx.Err(); err != nil {
@@ -80,6 +92,8 @@ func (b *TokenBucket) Wait(ctx context.Context) error {
 			return nil
 		}
 		if !logged {
+			finishWait := b.metrics.beginWait(ctx)
+			defer finishWait()
 			utils.LoggerFromContext(ctx).Info("Cosmos requests are being rate limited; waiting for RU bucket to refill",
 				"rate_limiter", b.name, "available_rus", tokens, "refill_rus_per_second", b.refillPerSecond, "estimated_wait", delay.String())
 			logged = true
@@ -119,7 +133,7 @@ func (b *TokenBucket) delayLocked(now time.Time) (time.Duration, float64) {
 // Consume subtracts an actual request charge. Invalid or negative charges are
 // ignored, matching Cosmos metrics accounting. Zero is a valid no-op charge.
 func (b *TokenBucket) Consume(charge float64) {
-	if !positiveFinite(charge) {
+	if b.unlimited || !positiveFinite(charge) {
 		return
 	}
 	b.mu.Lock()

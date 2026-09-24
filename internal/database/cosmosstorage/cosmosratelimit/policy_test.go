@@ -34,9 +34,9 @@ type testTransport func(*http.Request) (*http.Response, error)
 
 func (t testTransport) Do(req *http.Request) (*http.Response, error) { return t(req) }
 
-func pipeline(transport testTransport, retries int32) runtime.Pipeline {
+func pipeline(bucket *TokenBucket, transport testTransport, retries int32) runtime.Pipeline {
 	return runtime.NewPipeline("test", "v0.0.0", runtime.PipelineOptions{}, &policy.ClientOptions{
-		PerRetryPolicies: []policy.Policy{NewPolicy()}, Transport: transport,
+		PerRetryPolicies: []policy.Policy{NewPolicy(bucket)}, Transport: transport,
 		Retry:     policy.RetryOptions{MaxRetries: retries, RetryDelay: time.Nanosecond, MaxRetryDelay: time.Nanosecond},
 		Telemetry: policy.TelemetryOptions{Disabled: true},
 	})
@@ -54,7 +54,7 @@ func TestPolicyChargesEveryRetry(t *testing.T) {
 		require.NoError(t, err)
 		attempts := 0
 		start := time.Now()
-		p := pipeline(func(req *http.Request) (*http.Response, error) {
+		p := pipeline(bucket, func(req *http.Request) (*http.Response, error) {
 			attempts++
 			if attempts == 1 {
 				return response(req, http.StatusInternalServerError, "3.5"), nil
@@ -83,10 +83,10 @@ func TestPolicyResponses(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				bucket, err := NewTokenBucket("test", 1, 1)
 				require.NoError(t, err)
-				p := pipeline(func(req *http.Request) (*http.Response, error) {
+				p := pipeline(bucket, func(req *http.Request) (*http.Response, error) {
 					return response(req, http.StatusForbidden, charge), nil
 				}, -1)
-				req, err := runtime.NewRequest(contextWithBucket(t.Context(), bucket), http.MethodGet, "https://cosmos.test")
+				req, err := runtime.NewRequest(t.Context(), http.MethodGet, "https://cosmos.test")
 				require.NoError(t, err)
 				resp, err := p.Do(req)
 				require.NoError(t, err)
@@ -102,23 +102,23 @@ func TestPolicyResponses(t *testing.T) {
 	}
 }
 
-func TestPolicyTransportFailureAndUnlayeredRequests(t *testing.T) {
+func TestPolicyTransportFailureAndUnlimitedRequests(t *testing.T) {
 	bucket, err := NewTokenBucket("test", 1, 1)
 	require.NoError(t, err)
 	failure := errors.New("transport failed")
-	p := pipeline(func(*http.Request) (*http.Response, error) { return nil, failure }, -1)
-	req, err := runtime.NewRequest(contextWithBucket(t.Context(), bucket), http.MethodGet, "https://cosmos.test")
+	p := pipeline(bucket, func(*http.Request) (*http.Response, error) { return nil, failure }, -1)
+	req, err := runtime.NewRequest(t.Context(), http.MethodGet, "https://cosmos.test")
 	require.NoError(t, err)
 	_, err = p.Do(req)
 	require.ErrorIs(t, err, failure)
 	require.Equal(t, 1.0, bucket.tokens)
 
 	bucket.Consume(100)
-	p = pipeline(func(req *http.Request) (*http.Response, error) { return response(req, http.StatusOK, "100"), nil }, -1)
+	p = pipeline(NewUnlimitedTokenBucket("test"), func(req *http.Request) (*http.Response, error) { return response(req, http.StatusOK, "100"), nil }, -1)
 	req, err = runtime.NewRequest(t.Context(), http.MethodGet, "https://cosmos.test")
 	require.NoError(t, err)
 	resp, err := p.Do(req)
-	require.NoError(t, err, "requests without a CRUD layer must not wait")
+	require.NoError(t, err, "explicitly unlimited clients must not wait")
 	require.NoError(t, resp.Body.Close())
 }
 
@@ -127,11 +127,11 @@ func TestPolicyCancellationBetweenPages(t *testing.T) {
 		bucket, err := NewTokenBucket("test", 1, 1)
 		require.NoError(t, err)
 		calls := 0
-		p := pipeline(func(req *http.Request) (*http.Response, error) {
+		p := pipeline(bucket, func(req *http.Request) (*http.Response, error) {
 			calls++
 			return response(req, http.StatusOK, "10"), nil
 		}, -1)
-		ctx, cancel := context.WithTimeout(contextWithBucket(t.Context(), bucket), time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		for range 2 {
 			req, err := runtime.NewRequest(ctx, http.MethodGet, "https://cosmos.test")

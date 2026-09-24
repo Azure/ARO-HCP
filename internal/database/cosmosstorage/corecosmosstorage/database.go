@@ -16,19 +16,16 @@ package corecosmosstorage
 
 import (
 	"context"
-	"slices"
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -90,9 +87,13 @@ type resourcesCosmosDBClient struct {
 	resources *azcosmos.ContainerClient
 }
 
-// NewResourcesDBClient instantiates a ResourcesDBClient from a Cosmos DatabaseClient instance
-// targeting the Frontends async database (Resources container).
-func NewResourcesDBClient(database *azcosmos.DatabaseClient) (ResourcesDBClient, error) {
+// NewResourcesDBClient creates a Resources client with its own Cosmos pipeline,
+// bound to bucket for all CRUDs, nested clients, transactions, and feeds.
+func NewResourcesDBClient(url, databaseName string, options cosmosclient.Options, bucket *cosmosratelimit.TokenBucket) (ResourcesDBClient, error) {
+	database, err := cosmosclient.NewCosmosDatabaseClient(url, databaseName, options, bucket)
+	if err != nil {
+		return nil, err
+	}
 	resources, err := database.NewContainer(resourcesContainer)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -174,32 +175,4 @@ func (d *resourcesCosmosDBClient) ReadFeedRanges(ctx context.Context, options *a
 	}
 
 	return resourcesFeedRanges, nil
-}
-
-// NewCosmosDatabaseClient instantiates a generic Cosmos database client.
-func NewCosmosDatabaseClient(url string, dbName string, clientOptions azcore.ClientOptions) (*azcosmos.DatabaseClient, error) {
-	credential, err := azidentity.NewDefaultAzureCredential(
-		&azidentity.DefaultAzureCredentialOptions{
-			ClientOptions:                clientOptions,
-			RequireAzureTokenCredentials: true,
-		})
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	// Keep Cosmos accounting out of the credential pipeline and preserve the
-	// caller's policies without modifying their shared backing array.
-	cosmosClientOptions := clientOptions
-	cosmosClientOptions.PerRetryPolicies = append(slices.Clone(clientOptions.PerRetryPolicies), cosmosmetrics.NewRequestChargePolicy(), cosmosratelimit.NewPolicy())
-
-	client, err := azcosmos.NewClient(
-		url,
-		credential,
-		&azcosmos.ClientOptions{
-			ClientOptions: cosmosClientOptions,
-		})
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	return client.NewDatabase(dbName)
 }

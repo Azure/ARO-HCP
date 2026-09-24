@@ -22,15 +22,15 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
-// ResourceCRUDLayer wraps a non-transactional CRUD operation. The layer must
-// invoke operation synchronously with the context to use for that operation,
+// ResourceCRUDLayer wraps a CRUD operation or transaction execution. The layer
+// must invoke operation synchronously with the context to use for that operation,
 // or return an error without invoking it. Layers may be shared by multiple CRUDs
-// and must support concurrent calls. List iteration is wrapped separately because
-// its requests are deferred until Items is consumed.
+// and transactions and must support concurrent calls. List iteration is wrapped
+// separately because its requests are deferred until Items is consumed.
 //
 // Layers can be composed by wrapping a CRUD more than once. Transaction assembly
 // methods are forwarded unchanged: they do not issue requests, and the eventual
-// transaction execution is outside this interface.
+// transaction execution can be wrapped separately with NewLayeredTransaction.
 type ResourceCRUDLayer interface {
 	Do(ctx context.Context, operation func(context.Context) error) error
 }

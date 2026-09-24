@@ -230,7 +230,7 @@ func TestRateLimitedCRUDListPages(t *testing.T) {
 		pages := 0
 		start := time.Now()
 		pipeline := runtime.NewPipeline("test", "v0.0.0", runtime.PipelineOptions{}, &policy.ClientOptions{
-			PerRetryPolicies: []policy.Policy{cosmosratelimit.NewPolicy()},
+			PerRetryPolicies: []policy.Policy{cosmosratelimit.NewPolicy(bucket)},
 			Transport: layerTestTransport(func(req *http.Request) (*http.Response, error) {
 				require.Equal(t, "iteration", req.Context().Value(layerContextKey{}), "use the Items context")
 				require.Equal(t, time.Duration(pages*2)*time.Second, time.Since(start))
