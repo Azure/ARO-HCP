@@ -31,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -100,6 +101,35 @@ func (r *unionHandlerRegistration) HasSynced() bool {
 		}
 	}
 	return true
+}
+
+func (r *unionHandlerRegistration) HasSyncedChecker() cache.DoneChecker {
+	return &unionDoneChecker{reg: r}
+}
+
+// unionDoneChecker implements cache.DoneChecker for unionHandlerRegistration.
+type unionDoneChecker struct {
+	reg *unionHandlerRegistration
+}
+
+func (c *unionDoneChecker) Name() string {
+	return "UnionDesireInformerHandler"
+}
+
+func (c *unionDoneChecker) Done() <-chan struct{} {
+	ch := make(chan struct{})
+	go func() {
+		defer utilruntime.HandleCrash()
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for range ticker.C {
+			if c.reg.HasSynced() {
+				close(ch)
+				return
+			}
+		}
+	}()
+	return ch
 }
 
 // NewUnionDesireInformer returns an empty union; call Add to register

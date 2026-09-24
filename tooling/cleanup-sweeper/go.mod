@@ -20,7 +20,7 @@ require (
 	github.com/microsoftgraph/msgraph-sdk-go v1.69.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
-	k8s.io/apimachinery v0.35.3
+	k8s.io/apimachinery v0.36.0
 	sigs.k8s.io/yaml v1.6.0
 )
 

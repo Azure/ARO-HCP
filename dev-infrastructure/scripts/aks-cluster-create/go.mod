@@ -16,7 +16,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v1.0.0
 	github.com/go-logr/logr v1.4.3
 	github.com/stretchr/testify v1.12.0
-	k8s.io/apimachinery v0.35.3
+	k8s.io/apimachinery v0.36.0
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5
 )
 
@@ -42,7 +42,7 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.35.3 // indirect
+	k8s.io/api v0.36.0 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
