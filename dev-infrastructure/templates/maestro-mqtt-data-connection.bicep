@@ -5,7 +5,7 @@ param kustoName string
 param databaseName string
 
 @description('Resource ID of the Maestro MQTT diagnostics Event Hub')
-param eventHubId string
+param maestroMqttEventHubId string
 
 @description('Consumer group for the Kusto data connection')
 param kustoConsumerGroupName string
@@ -28,7 +28,7 @@ resource maestroMqttDataConnection 'Microsoft.Kusto/clusters/databases/dataConne
   location: location
   kind: 'EventHub'
   properties: {
-    eventHubResourceId: eventHubId
+    eventHubResourceId: maestroMqttEventHubId
     consumerGroup: kustoConsumerGroupName
     tableName: 'rawMaestroMqttConnections'
     dataFormat: 'JSON'
