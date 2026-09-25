@@ -49,6 +49,8 @@ type clusterClusterServiceCreateSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceCreateSyncer)(nil)
 
+const ClusterClusterServiceCreateControllerName = "ClusterClusterServiceCreate"
+
 func NewClusterClusterServiceCreateController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
@@ -70,7 +72,7 @@ func NewClusterClusterServiceCreateController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterClusterServiceCreate",
+		ClusterClusterServiceCreateControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,

@@ -377,11 +377,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		RetryPeriod:   sharedleaderelection.RecommendedRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				go controllerContext.BackendInformers.RunWithContext(ctx)
-				go controllerContext.FleetInformers.RunWithContext(ctx)
-				for _, controller := range controllers {
-					go controller.runnable.Run(ctx, controller.workers)
-				}
+				startControllers(ctx, controllers, controllerContext)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

@@ -42,6 +42,8 @@ type postIssuanceCleanup struct {
 
 var _ controllerutils.SystemAdminCredentialRequestSyncer = (*postIssuanceCleanup)(nil)
 
+const SystemAdminCredentialPostIssuanceCleanupControllerName = "SystemAdminCredentialPostIssuanceCleanup"
+
 // NewPostIssuanceCleanupController returns a CredentialRequestWatchingController
 // that eagerly tears down per-credential CSR/CSRApproval/RBAC ApplyDesires and
 // ReadDesires once an individual credential reaches Issued or Failed condition,
@@ -61,7 +63,7 @@ func NewPostIssuanceCleanupController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
-		"SystemAdminCredentialPostIssuanceCleanup",
+		SystemAdminCredentialPostIssuanceCleanupControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

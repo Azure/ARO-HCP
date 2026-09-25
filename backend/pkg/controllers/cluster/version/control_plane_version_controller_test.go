@@ -394,7 +394,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			assert.True(t, gotDesired.EQ(*tt.wantDesiredVersion), "wanted desired version %s, got %s", tt.wantDesiredVersion.String(), gotDesired.String())
 
 			controllerDoc, getControllerDocErr := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
-				Controllers(testClusterName).Get(ctx, controlPlaneDesiredVersionControllerName)
+				Controllers(testClusterName).Get(ctx, ControlPlaneDesiredVersionControllerName)
 			require.NoError(t, getControllerDocErr)
 			intentFailedCondition := apimeta.FindStatusCondition(controllerDoc.Status.Conditions, coreapi.ControllerConditionTypeIntentFailed)
 			require.NotNil(t, intentFailedCondition)
@@ -491,7 +491,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceSkipsWhenGated(t *testing.T) {
 
 	// Controller doc was never written, since we returned before WriteController.
 	_, getControllerDocErr := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
-		Controllers(testClusterName).Get(ctx, controlPlaneDesiredVersionControllerName)
+		Controllers(testClusterName).Get(ctx, ControlPlaneDesiredVersionControllerName)
 	assert.True(t, cosmosstorageutils.IsNotFoundError(getControllerDocErr), "controller doc must not be written on the skip path, got err=%v", getControllerDocErr)
 }
 

@@ -39,6 +39,8 @@ type operationRequestCredentialPoll struct {
 	notificationClient *http.Client
 }
 
+const SystemAdminCredentialOperationRequestCredentialPollControllerName = "SystemAdminCredentialOperationRequestCredentialPoll"
+
 // NewOperationRequestCredentialPollController returns a Controller that
 // maps the SystemAdminCredentialRequest's conditions to ARM provisioning state. It
 // replaces the old cluster-service-based OperationRequestCredentialController.
@@ -62,7 +64,7 @@ func NewOperationRequestCredentialPollController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"SystemAdminCredentialOperationRequestCredentialPoll",
+		SystemAdminCredentialOperationRequestCredentialPollControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

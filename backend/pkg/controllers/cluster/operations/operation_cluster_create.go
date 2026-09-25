@@ -61,6 +61,8 @@ type operationClusterCreate struct {
 	notificationClient                    *http.Client
 }
 
+const OperationClusterCreateControllerName = "OperationClusterCreate"
+
 // NewOperationClusterCreateController returns a new Controller instance that
 // follows an asynchronous cluster creation operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -101,7 +103,7 @@ func NewOperationClusterCreateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationClusterCreate",
+		OperationClusterCreateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

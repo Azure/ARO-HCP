@@ -38,6 +38,8 @@ type dispatchRevokeCredentials struct {
 	clusterLister     corelisters.ClusterLister
 }
 
+const SystemAdminCredentialDispatchRevokeCredentialsControllerName = "SystemAdminCredentialDispatchRevokeCredentials"
+
 // NewDispatchRevokeCredentialsController returns a Controller that handles the
 // first step of a RevokeCredentials operation: it creates a single
 // SystemAdminCredentialRevocation document nested under the cluster, records its
@@ -66,7 +68,7 @@ func NewDispatchRevokeCredentialsController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"SystemAdminCredentialDispatchRevokeCredentials",
+		SystemAdminCredentialDispatchRevokeCredentialsControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

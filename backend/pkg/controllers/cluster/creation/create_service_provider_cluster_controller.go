@@ -44,6 +44,8 @@ type createServiceProviderClusterSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*createServiceProviderClusterSyncer)(nil)
 
+const CreateServiceProviderClusterControllerName = "CreateServiceProviderCluster"
+
 // NewCreateServiceProviderClusterController wires the controller that creates
 // missing ServiceProviderCluster documents.
 func NewCreateServiceProviderClusterController(
@@ -59,7 +61,7 @@ func NewCreateServiceProviderClusterController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"CreateServiceProviderCluster",
+		CreateServiceProviderClusterControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,

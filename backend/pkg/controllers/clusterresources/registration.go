@@ -12,29 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package clusterresources
 
 import (
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
+	"strings"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 )
 
-const (
-	clusterResourcesControllerName = "clusterresources"
-)
-
-func registerClusterResourcesController() ControllerRegistration {
-	return ControllerRegistration{
+func registerClusterResourcesController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		instantiate: instantiateClusterResourcesController,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterResourcesController, true),
 	}
 }
 
-func instantiateClusterResourcesController(controllerContext ControllerContext) (Runnable, error) {
-	return clusterresources.NewClusterResourcesController(
+func instantiateClusterResourcesController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return NewClusterResourcesController(
 		controllerContext.ResourcesDBClient,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,
 		controllerContext.ClustersServiceClient,
 	), nil
+}
+
+func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(ClusterResourcesControllerName)] = registerClusterResourcesController()
 }

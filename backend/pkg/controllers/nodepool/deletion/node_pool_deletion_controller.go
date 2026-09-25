@@ -48,6 +48,8 @@ type nodePoolDeletionController struct {
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDeletionController)(nil)
 
+const NodePoolDeletionControllerControllerName = "NodePoolDeletionController"
+
 func NewNodePoolDeletionController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
@@ -66,7 +68,7 @@ func NewNodePoolDeletionController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolDeletionController",
+		NodePoolDeletionControllerControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

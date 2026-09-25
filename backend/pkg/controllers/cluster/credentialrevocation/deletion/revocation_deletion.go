@@ -39,6 +39,8 @@ type revocationDeletion struct {
 
 var _ controllerutils.SystemAdminCredentialRevocationSyncer = (*revocationDeletion)(nil)
 
+const SystemAdminCredentialRevocationDeletionControllerName = "SystemAdminCredentialRevocationDeletion"
+
 // NewRevocationDeletionController returns a RevocationWatchingController that runs
 // once a revocation has been marked for deletion (Status.DeletionTimestamp set). It
 // tears down the revocation's desires (CRR ApplyDesire/ReadDesire and the CRR
@@ -60,7 +62,7 @@ func NewRevocationDeletionController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRevocationWatchingController(
-		"SystemAdminCredentialRevocationDeletion",
+		SystemAdminCredentialRevocationDeletionControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

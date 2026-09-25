@@ -34,6 +34,8 @@ type subscriptionNonClusterDataDump struct {
 	nextDataDumpChecker controllerutil.CooldownChecker
 }
 
+const SubscriptionNonClusterDataDumpControllerName = "SubscriptionNonClusterDataDump"
+
 // NewSubscriptionNonClusterDataDumpController periodically dumps data for a subscription that is NOT related to a cluster.
 func NewSubscriptionNonClusterDataDumpController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -45,7 +47,7 @@ func NewSubscriptionNonClusterDataDumpController(
 	}
 
 	return controllerutils.NewSubscriptionWatchingController(
-		"SubscriptionNonClusterDataDump",
+		SubscriptionNonClusterDataDumpControllerName,
 		backendInformers,
 		5*time.Minute,
 		syncer,

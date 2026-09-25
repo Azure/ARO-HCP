@@ -51,6 +51,8 @@ type nodePoolChildResourcesCleanupController struct {
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolChildResourcesCleanupController)(nil)
 
+const NodePoolChildResourcesCleanupControllerControllerName = "NodePoolChildResourcesCleanupController"
+
 func NewNodePoolChildResourcesCleanupController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
@@ -65,7 +67,7 @@ func NewNodePoolChildResourcesCleanupController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolChildResourcesCleanupController",
+		NodePoolChildResourcesCleanupControllerControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

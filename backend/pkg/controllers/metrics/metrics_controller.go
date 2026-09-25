@@ -29,6 +29,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -41,11 +42,24 @@ type Handler[T coreapi.CosmosPersistable] interface {
 // Controller watches a SharedIndexInformer and keeps metrics level-driven from
 // the current cache contents.
 type Controller[T coreapi.CosmosPersistable] struct {
+	internalcontrollerutils.CacheSyncWaiter
 	name    string
 	indexer cache.Indexer
 	queue   workqueue.TypedRateLimitingInterface[string]
 	handler Handler[T]
 }
+
+const OperationPhaseMetricsControllerName = "OperationPhaseMetrics"
+
+const ClusterMetricsControllerName = "ClusterMetrics"
+
+const ClusterVersionMetricsControllerName = "ClusterVersionMetrics"
+
+const NodePoolMetricsControllerName = "NodePoolMetrics"
+
+const ExternalAuthMetricsControllerName = "ExternalAuthMetrics"
+
+const ClusterInfoMetricsControllerName = "ClusterInfoMetrics"
 
 // NewController creates a metrics controller for the given informer/handler pair.
 func NewController[T coreapi.CosmosPersistable](
@@ -92,6 +106,10 @@ func (c *Controller[T]) enqueue(obj interface{}) {
 func (c *Controller[T]) Run(ctx context.Context, threadiness int) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
+
+	if !c.WaitForCacheSync(ctx) {
+		return
+	}
 
 	logger := utils.LoggerFromContext(ctx)
 	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)

@@ -39,6 +39,8 @@ type operationRevokeCredentialsPoll struct {
 	notificationClient *http.Client
 }
 
+const SystemAdminCredentialOperationRevokeCredentialsPollControllerName = "SystemAdminCredentialOperationRevokeCredentialsPoll"
+
 // NewOperationRevokeCredentialsPollController returns a Controller that follows a
 // RevokeCredentials operation to completion. The dispatch controller creates a
 // SystemAdminCredentialRevocation document, records it on the operation's
@@ -61,7 +63,7 @@ func NewOperationRevokeCredentialsPollController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"SystemAdminCredentialOperationRevokeCredentialsPoll",
+		SystemAdminCredentialOperationRevokeCredentialsPollControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

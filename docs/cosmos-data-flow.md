@@ -365,7 +365,7 @@ additional business controllers.
 
 | Service | Startup evidence |
 |---|---|
-| Backend | [backend.go](../backend/pkg/app/backend.go) launches the ordered [controller registry](../backend/pkg/app/controller_registry.go), including conditional deny-assignment registration and all validation/metrics instances; [ControllerContext](../backend/pkg/app/controller_context.go) owns shared dependencies |
+| Backend | [backend.go](../backend/pkg/app/backend.go) launches the unordered [controller registry](../backend/pkg/app/controller_registry.go), including conditional deny-assignment registration and all validation/metrics instances; [ControllerContext](../backend/pkg/controllers/controllerconfig/context.go) owns shared dependencies |
 | Fleet | [manager.go](../fleet/pkg/manager/manager.go) |
 | Kube-applier | [kube_applier.go](../kube-applier/pkg/app/kube_applier.go); read manager creates target read controllers dynamically |
 | Management-agent | [options.go](../mgmt-agent/cmd/options.go) |
@@ -379,30 +379,43 @@ backend instances plus the separately counted shared union controller.
 `ClusterDenyAssignment` is instantiated and launched only when `HasRealFPA` is
 true; otherwise 105 controllers run. The flag is also passed to cluster creation.
 
-Each zone has a `controller_registry_<zone>.go` file alongside the central
-registry: [billing](../backend/pkg/app/controller_registry_billing.go),
-[cluster](../backend/pkg/app/controller_registry_cluster.go),
-[clusterresources](../backend/pkg/app/controller_registry_clusterresources.go),
-[cosmosmigration](../backend/pkg/app/controller_registry_cosmosmigration.go),
-[datadump](../backend/pkg/app/controller_registry_datadump.go),
-[externalauth](../backend/pkg/app/controller_registry_externalauth.go),
-[metrics](../backend/pkg/app/controller_registry_metrics.go),
-[mismatch](../backend/pkg/app/controller_registry_mismatch.go), and
-[nodepool](../backend/pkg/app/controller_registry_nodepool.go).
-The [supporting registrations](../backend/pkg/app/controller_registry_support.go)
-return the shared SKU cached-reader and union informer controller instances.
-Each registration has a named builder and instantiation adapter. Lowercase name
-constants declared in the zone files are reused by the central map and both
-construction and launch order lists, without changing runtime controller names.
+Each top-level controller package owns a `registration.go` file and a `Register`
+function: [billing](../backend/pkg/controllers/billing/registration.go),
+[cluster](../backend/pkg/controllers/cluster/registration.go),
+[clusterresources](../backend/pkg/controllers/clusterresources/registration.go),
+[cosmosmigration](../backend/pkg/controllers/cosmosmigration/registration.go),
+[datadump](../backend/pkg/controllers/datadump/registration.go),
+[externalauth](../backend/pkg/controllers/externalauth/registration.go),
+[metrics](../backend/pkg/controllers/metrics/registration.go),
+[mismatch](../backend/pkg/controllers/mismatch/registration.go), and
+[nodepool](../backend/pkg/controllers/nodepool/registration.go).
+The [SKU](../backend/pkg/azure/cachedreader/registration.go) and
+[union](../internal/database/unioninformers/kubeapplier/registration.go) packages
+register their existing shared supporting-controller instances. The app only
+aggregates these registrations. Keys lowercase the name constants in the actual
+controller implementation packages; there are no app-owned controller constants
+or construction/launch order lists.
 
-Controller construction precedes leader election. Once leading, the backend
-launches the backend and fleet informers, then the union informer controller,
-then its consumers in the registry's explicit launch order. This is goroutine
-launch order, not a readiness or cache-sync barrier. The union controller tracks
-management clusters using the shared fleet informer/lister and the default
-per-management-cluster relist durations. All consumers use the same backend,
-fleet, and union informer/lister instances. The SKU cached reader passed to both
-VM validation instances is the same instance that is launched.
+Controller construction precedes leader election. Once leading, backend and
+fleet informer factories, the union and SKU controllers, and all consumers launch
+from one unordered map. Each consumer's existing `Run` waits for cache sync after
+installing its queue-shutdown defer and before starting workers or periodic
+reconciliation. Registration-time factory adapters track every informer/lister
+accessor used by constructors, including lister-only dependencies; union consumers
+also wait on the union surface's authoritative `HasSynced` signal. These adapters
+return the original informers and listers; they create no caches or queues.
+
+The union controller waits for the management-cluster cache and delivery of its
+initial handler events, then independently runs its workers and per-MC informers.
+Union readiness requires registration for every discovered MC identity and initial
+sync of both desire caches for those MCs. Empty fleet discovery must complete before
+an empty union becomes ready. Unavailable factories retry through the workqueue;
+failed initial lists remain unready while the informers retry. Waits honor leader
+context cancellation and do not hold topology locks. Producers never wait on their
+own readiness. This is a startup barrier, not dynamic-membership read-error gating:
+later MC additions/removals retain existing eventual-consistency behavior. Per-MC
+relist durations are unchanged. Both VM validators still share the launched SKU
+cached reader, whose cache-miss wait already honors cancellation.
 
 `ControllerContext` carries the shared informer factories rather than individual
 informers or listers. Each named instantiation adapter obtains only the
@@ -417,7 +430,7 @@ of the six metrics controllers and the union informer controller, five for
 `DeleteOrphanedCosmosResources`. `BackfillClusterUID` retains its 60-minute resync
 and `CreateBillingDoc` its 60-second resync. Registry keys are lowercased existing
 controller names; log, metric, and persisted controller identities are unchanged.
-This registration-only refactor does not change the catalog's effects or the
+These startup gates do not change the catalog's reconciliation effects or the
 field/condition edges in the lifecycle DOT sources and PNGs below.
 
 “Cluster”, “node pool”, “external auth”, “credential request” and “credential

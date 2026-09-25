@@ -47,6 +47,8 @@ type externalAuthDegradedAggregator struct {
 
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthDegradedAggregator)(nil)
 
+const ExternalAuthDegradedAggregatorControllerName = "ExternalAuthDegradedAggregator"
+
 // externalAuthDegradedAggregatorInertia is the inertia config used by the
 // external-auth aggregator. Kept independent of the cluster / node-pool
 // variants so external-auth-specific controllers can be tuned in
@@ -81,7 +83,7 @@ func NewExternalAuthDegradedAggregatorController(
 		firstObservedBad:   statusutils.NewFirstObservedBadCache(clock),
 	}
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthDegradedAggregator",
+		ExternalAuthDegradedAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		1*time.Minute,

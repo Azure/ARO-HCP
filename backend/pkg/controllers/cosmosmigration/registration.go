@@ -12,30 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package cosmosmigration
 
 import (
+	"strings"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cosmosmigration"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 )
 
-const (
-	cosmosMigrationControllerName = "cosmosmigration"
-)
-
-func registerCosmosMigrationController() ControllerRegistration {
-	return ControllerRegistration{
+func registerCosmosMigrationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
 		Workers:     5,
-		instantiate: instantiateCosmosMigrationController,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateCosmosMigrationController, false),
 	}
 }
 
-func instantiateCosmosMigrationController(controllerContext ControllerContext) (Runnable, error) {
-	return cosmosmigration.NewCosmosMigrationController(
+func instantiateCosmosMigrationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return NewCosmosMigrationController(
 		controllerContext.ResourcesDBClient,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
 		5*time.Minute,
 	), nil
+}
+
+func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(CosmosMigrationControllerName)] = registerCosmosMigrationController()
 }

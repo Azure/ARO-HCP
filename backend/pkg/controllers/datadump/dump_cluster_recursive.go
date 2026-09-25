@@ -39,6 +39,8 @@ type clusterRecursiveDataDump struct {
 	nextDataDumpChecker controllerutil.CooldownChecker
 }
 
+const DataDumpControllerName = "DataDump"
+
 // NewClusterRecursiveDataDumpController periodically lists all clusters and logs when the cluster was created and its state.
 func NewClusterRecursiveDataDumpController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -56,7 +58,7 @@ func NewClusterRecursiveDataDumpController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"DataDump",
+		DataDumpControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

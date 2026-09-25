@@ -35,6 +35,8 @@ type managementClusterDataDump struct {
 	nextDataDumpChecker controllerutil.CooldownChecker
 }
 
+const ManagementClusterDataDumpControllerName = "ManagementClusterDataDump"
+
 // NewManagementClusterDataDumpController periodically dumps management cluster data.
 func NewManagementClusterDataDumpController(
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
@@ -48,7 +50,7 @@ func NewManagementClusterDataDumpController(
 	}
 
 	return controllerutils.NewManagementClusterWatchingController(
-		"ManagementClusterDataDump",
+		ManagementClusterDataDumpControllerName,
 		fleetDBClient,
 		fleetInformers,
 		5*time.Minute,

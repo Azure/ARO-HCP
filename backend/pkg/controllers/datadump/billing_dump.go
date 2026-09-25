@@ -37,6 +37,8 @@ type billingDump struct {
 	nextDumpChecker controllerutil.CooldownChecker
 }
 
+const BillingDumpControllerName = "BillingDump"
+
 // NewBillingDumpController periodically dumps billing documents for each cluster.
 func NewBillingDumpController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -52,7 +54,7 @@ func NewBillingDumpController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"BillingDump",
+		BillingDumpControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

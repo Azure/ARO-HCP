@@ -20,11 +20,12 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
-	"go/printer"
 	"go/token"
+	"maps"
 	"net/http"
+	"os"
 	"reflect"
-	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -41,6 +42,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 )
 
 var expectedControllerLaunches = []struct {
@@ -165,10 +168,8 @@ func TestControllerRegistryManifest(t *testing.T) {
 		require.True(t, exists, "missing controller %s", expected.name)
 		require.Equal(t, expected.name, strings.ToLower(expected.name))
 		require.Equal(t, expected.workers, entry.Workers, expected.name)
-		require.NotNil(t, entry.instantiate, expected.name)
-		function := runtime.FuncForPC(reflect.ValueOf(entry.instantiate).Pointer())
-		require.Contains(t, function.Name(), ".instantiate", expected.name)
-		require.NotContains(t, function.Name(), ".func", expected.name)
+		require.NotNil(t, entry.Instantiate, expected.name)
+
 		if expected.name == "clusterdenyassignment" {
 			require.NotNil(t, entry.Enabled)
 			require.False(t, entry.Enabled(ControllerContext{}))
@@ -177,15 +178,7 @@ func TestControllerRegistryManifest(t *testing.T) {
 			require.Nil(t, entry.Enabled, expected.name)
 		}
 	}
-	require.Equal(t, expectedOrder, controllerLaunchOrder())
-	require.ElementsMatch(t, expectedOrder, controllerConstructionOrder())
-	for _, order := range [][]string{controllerLaunchOrder(), controllerConstructionOrder()} {
-		seen := map[string]bool{}
-		for _, name := range order {
-			require.False(t, seen[name], "duplicate controller %s", name)
-			seen[name] = true
-		}
-	}
+	require.ElementsMatch(t, expectedOrder, slices.Collect(maps.Keys(registry)))
 }
 
 func testControllerContext(t *testing.T, hasRealFPA bool) ControllerContext {
@@ -228,10 +221,19 @@ func TestControllerRegistryInstantiation(t *testing.T) {
 				}
 			}
 			require.Len(t, controllers, len(expected))
-			for index, controller := range controllers {
-				require.Equal(t, expected[index].name, controller.name)
-				require.Equal(t, expected[index].workers, controller.workers)
+			for name, controller := range controllers {
+				require.Equal(t, name, controller.name)
+				require.Equal(t, newControllerRegistry()[name].Workers, controller.workers)
 				require.NotNil(t, controller.runnable, controller.name)
+				if name != "union-kube-applier-informers-controller" && name != "fpavirtualmachineresourceskuscachedreader" {
+					waiter := reflect.ValueOf(controller.runnable).Elem().FieldByName("CacheSyncWaiter")
+					require.True(t, waiter.IsValid(), "missing cache gate for %s", name)
+					if name == "missingresourceid" {
+						require.Zero(t, waiter.FieldByName("cacheSyncs").Len(), "this controller uses only live DB reads")
+					} else {
+						require.Positive(t, waiter.FieldByName("cacheSyncs").Len(), "no cache dependencies for %s", name)
+					}
+				}
 				if controller.name != "union-kube-applier-informers-controller" {
 					actualName := reflect.ValueOf(controller.runnable).Elem().FieldByName("name")
 					require.True(t, actualName.IsValid(), controller.name)
@@ -253,19 +255,19 @@ func TestControllerRegistrySharedInstances(t *testing.T) {
 	_, applyLister := controllerContext.UnionKubeApplierInformers.ApplyDesires()
 	_, clusterLister := controllerContext.BackendInformers.Clusters()
 	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
-	activeVersionsController, err := registry[controlPlaneActiveVersionsControllerName].Instantiate(controllerContext)
+	activeVersionsController, err := registry["controlplaneactiveversions"].Instantiate(controllerContext)
 	require.NoError(t, err)
 	requireControllerDependency(t, activeVersionsController, clusterLister, "syncer", "syncer", "clusterLister")
 	requireControllerDependency(t, activeVersionsController, serviceProviderClusterLister, "syncer", "syncer", "serviceProviderClusterLister")
 	requireControllerDependency(t, activeVersionsController, readLister, "syncer", "syncer", "readDesireLister")
-	revocationController, err := registry[systemAdminCredentialRevocationDesiresControllerName].Instantiate(controllerContext)
+	revocationController, err := registry["systemadmincredentialrevocationdesires"].Instantiate(controllerContext)
 	require.NoError(t, err)
 	requireControllerDependency(t, revocationController, applyLister, "syncer", "syncer", "applyDesireLister")
 	requireControllerDependency(t, revocationController, readLister, "syncer", "syncer", "readDesireLister")
 	managementInformer, managementLister := controllerContext.FleetInformers.ManagementClusters()
 	requireControllerDependency(t, unionController, managementInformer, "mcInformer")
 	requireControllerDependency(t, unionController, managementLister, "mcLister")
-	dumpController, err := registry[clusterRecursiveDataDumpControllerName].Instantiate(controllerContext)
+	dumpController, err := registry["datadump"].Instantiate(controllerContext)
 	require.NoError(t, err)
 	requireControllerDependency(t, dumpController, managementLister, "syncer", "syncer", "managementClusterLister")
 	skuController, err := registry["fpavirtualmachineresourceskuscachedreader"].Instantiate(controllerContext)
@@ -311,77 +313,58 @@ func TestControllerContextKeepsFactoriesNotIndividualInformers(t *testing.T) {
 
 func TestControllerRegistryNamedZoneRegistrations(t *testing.T) {
 	files := token.NewFileSet()
-	builders := map[string]bool{}
-	constants := map[string]bool{}
 	for zone, expectedCount := range map[string]int{
 		"billing": 2, "cluster": 56, "clusterresources": 1, "cosmosmigration": 1,
-		"datadump": 5, "externalauth": 10, "metrics": 6, "mismatch": 4,
-		"nodepool": 19, "support": 2,
+		"datadump": 5, "externalauth": 10, "metrics": 6, "mismatch": 4, "nodepool": 19,
 	} {
-		source, err := parser.ParseFile(files, "controller_registry_"+zone+".go", nil, 0)
+		source, err := parser.ParseFile(files, "../controllers/"+zone+"/registration.go", nil, 0)
 		require.NoError(t, err)
-		var builderCount, adapterCount, constantCount int
+		var builders, adapters, entries int
 		for _, declaration := range source.Decls {
-			switch declaration := declaration.(type) {
-			case *ast.FuncDecl:
-				if strings.HasPrefix(declaration.Name.Name, "register") {
-					builders[declaration.Name.Name] = true
-					builderCount++
-				}
-				if strings.HasPrefix(declaration.Name.Name, "instantiate") {
-					adapterCount++
-				}
-			case *ast.GenDecl:
-				if declaration.Tok == token.CONST {
-					for _, spec := range declaration.Specs {
-						for _, name := range spec.(*ast.ValueSpec).Names {
-							constants[name.Name] = true
-							constantCount++
-						}
+			function, ok := declaration.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			if strings.HasPrefix(function.Name.Name, "register") {
+				builders++
+			}
+			if strings.HasPrefix(function.Name.Name, "instantiate") {
+				adapters++
+			}
+			if function.Name.Name == "Register" {
+				for _, statement := range function.Body.List {
+					assignment := statement.(*ast.AssignStmt)
+					key := assignment.Lhs[0].(*ast.IndexExpr).Index.(*ast.CallExpr)
+					require.Equal(t, "ToLower", key.Fun.(*ast.SelectorExpr).Sel.Name)
+					switch key.Args[0].(type) {
+					case *ast.Ident, *ast.SelectorExpr:
+					default:
+						t.Fatalf("%s: registry key must reference a controller constant", zone)
 					}
+					entries++
 				}
 			}
 		}
-		require.Equal(t, expectedCount, builderCount, zone)
-		require.Equal(t, expectedCount, adapterCount, zone)
-		require.Equal(t, expectedCount, constantCount, zone)
+		require.Equal(t, expectedCount, builders, zone)
+		require.Equal(t, expectedCount, adapters, zone)
+		require.Equal(t, expectedCount, entries, zone)
 	}
-	source, err := parser.ParseFile(files, "controller_registry.go", nil, 0)
+	source, err := os.ReadFile("controller_registry.go")
 	require.NoError(t, err)
-	for _, declaration := range source.Decls {
-		function, ok := declaration.(*ast.FuncDecl)
-		if !ok {
-			continue
-		}
-		switch function.Name.Name {
-		case "newControllerRegistry", "controllerConstructionOrder", "controllerLaunchOrder":
-			returned := function.Body.List[0].(*ast.ReturnStmt).Results[0].(*ast.CompositeLit)
-			require.Len(t, returned.Elts, 106, function.Name.Name)
-			for _, element := range returned.Elts {
-				if entry, ok := element.(*ast.KeyValueExpr); ok {
-					call, ok := entry.Value.(*ast.CallExpr)
-					require.True(t, ok, "registry entry must call a named builder")
-					require.Empty(t, call.Args)
-					require.True(t, builders[call.Fun.(*ast.Ident).Name])
-					element = entry.Key
-				}
-				name, ok := element.(*ast.Ident)
-				require.True(t, ok, "map and order lists must reference zone name constants")
-				require.True(t, constants[name.Name], name.Name)
-			}
-		}
-	}
+	require.NotContains(t, string(source), "controllerConstructionOrder")
+	require.NotContains(t, string(source), "controllerLaunchOrder")
+	require.NotContains(t, string(source), "const ")
 }
 
 type registryTestRunnable struct{}
 
 func (*registryTestRunnable) Run(context.Context, int) {}
 
-func TestControllerRegistryConstructionOrderAndErrors(t *testing.T) {
+func TestControllerRegistryUnorderedConstructionAndErrors(t *testing.T) {
 	registry := newControllerRegistry()
 	var constructed []string
 	for name, entry := range registry {
-		entry.instantiate = func(ControllerContext) (Runnable, error) {
+		entry.Instantiate = func(ControllerContext) (Runnable, error) {
 			constructed = append(constructed, name)
 			return &registryTestRunnable{}, nil
 		}
@@ -389,16 +372,16 @@ func TestControllerRegistryConstructionOrderAndErrors(t *testing.T) {
 	}
 	_, err := instantiateControllers(registry, ControllerContext{HasRealFPA: true})
 	require.NoError(t, err)
-	require.Equal(t, controllerConstructionOrder(), constructed)
+	require.ElementsMatch(t, slices.Collect(maps.Keys(registry)), constructed)
 	constructed = nil
 	_, err = instantiateControllers(registry, ControllerContext{})
 	require.NoError(t, err)
 	require.Len(t, constructed, 105)
 	require.NotContains(t, constructed, "clusterdenyassignment")
 	expectedErr := errors.New("constructor failed")
-	name := controllerConstructionOrder()[0]
+	name := "union-kube-applier-informers-controller"
 	entry := registry[name]
-	entry.instantiate = func(ControllerContext) (Runnable, error) { return nil, expectedErr }
+	entry.Instantiate = func(ControllerContext) (Runnable, error) { return nil, expectedErr }
 	registry[name] = entry
 	controllers, err := instantiateControllers(registry, ControllerContext{})
 	require.ErrorIs(t, err, expectedErr)
@@ -406,35 +389,47 @@ func TestControllerRegistryConstructionOrderAndErrors(t *testing.T) {
 	require.Nil(t, controllers)
 }
 
-func TestControllerRegistryInformerLaunchOrder(t *testing.T) {
-	files := token.NewFileSet()
-	source, err := parser.ParseFile(files, "backend.go", nil, 0)
-	require.NoError(t, err)
-	var launches []string
-	ast.Inspect(source, func(node ast.Node) bool {
-		entry, ok := node.(*ast.KeyValueExpr)
-		if !ok {
-			return true
-		}
-		key, ok := entry.Key.(*ast.Ident)
-		if !ok || key.Name != "OnStartedLeading" {
-			return true
-		}
-		ast.Inspect(entry.Value, func(node ast.Node) bool {
-			launch, ok := node.(*ast.GoStmt)
-			if ok {
-				var expression strings.Builder
-				require.NoError(t, printer.Fprint(&expression, files, launch.Call.Fun))
-				launches = append(launches, expression.String())
-			}
-			return true
-		})
-		return false
+type launchBackendInformers struct {
+	coreinformers.BackendInformers
+	started chan string
+}
+
+func (informers *launchBackendInformers) RunWithContext(ctx context.Context) {
+	informers.started <- "backend"
+	<-ctx.Done()
+}
+
+type launchFleetInformers struct {
+	fleetinformers.FleetInformers
+	started chan string
+}
+
+func (informers *launchFleetInformers) RunWithContext(ctx context.Context) {
+	informers.started <- "fleet"
+	<-ctx.Done()
+}
+
+func TestControllerRegistryStartsEveryProducerAndConsumer(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	started := make(chan string, 3)
+	runnable := informerRunner{run: func(ctx context.Context) {
+		started <- "consumer"
+		<-ctx.Done()
+	}}
+	controllers := map[string]instantiatedController{"consumer": {runnable: runnable, workers: 20}}
+	startControllers(ctx, controllers, ControllerContext{
+		BackendInformers: &launchBackendInformers{started: started},
+		FleetInformers:   &launchFleetInformers{started: started},
 	})
-	require.Equal(t, []string{
-		"controllerContext.BackendInformers.RunWithContext",
-		"controllerContext.FleetInformers.RunWithContext",
-		"controller.runnable.Run",
-	}, launches)
-	require.Equal(t, "union-kube-applier-informers-controller", controllerLaunchOrder()[0])
+	var names []string
+	for range 3 {
+		select {
+		case name := <-started:
+			names = append(names, name)
+		case <-time.After(5 * time.Second):
+			t.Fatal("launch blocked on a producer or consumer")
+		}
+	}
+	require.ElementsMatch(t, []string{"backend", "fleet", "consumer"}, names)
 }

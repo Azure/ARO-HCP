@@ -18,25 +18,25 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cosmosmigration"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadump"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauth"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metrics"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-type Runnable interface {
-	Run(ctx context.Context, threadiness int)
-}
-
-var _ Runnable = controllerutils.Controller(nil)
-
-type ControllerRegistration struct {
-	Workers     int
-	Enabled     func(ControllerContext) bool
-	instantiate func(ControllerContext) (Runnable, error)
-}
-
-func (registration ControllerRegistration) Instantiate(controllerContext ControllerContext) (Runnable, error) {
-	return registration.instantiate(controllerContext)
-}
+type Runnable = controllerconfig.Runnable
+type ControllerRegistration = controllerconfig.ControllerRegistration
 
 type instantiatedController struct {
 	name     string
@@ -44,10 +44,9 @@ type instantiatedController struct {
 	workers  int
 }
 
-func instantiateControllers(registry map[string]ControllerRegistration, controllerContext ControllerContext) ([]instantiatedController, error) {
-	instances := make(map[string]Runnable, len(registry))
-	for _, name := range controllerConstructionOrder() {
-		entry := registry[name]
+func instantiateControllers(registry map[string]ControllerRegistration, controllerContext ControllerContext) (map[string]instantiatedController, error) {
+	controllers := make(map[string]instantiatedController, len(registry))
+	for name, entry := range registry {
 		if entry.Enabled != nil && !entry.Enabled(controllerContext) {
 			continue
 		}
@@ -55,366 +54,48 @@ func instantiateControllers(registry map[string]ControllerRegistration, controll
 		if err != nil {
 			return nil, utils.TrackError(fmt.Errorf("failed to instantiate controller %q: %w", name, err))
 		}
-		instances[name] = runnable
-	}
-	controllers := make([]instantiatedController, 0, len(instances))
-	for _, name := range controllerLaunchOrder() {
-		if runnable, exists := instances[name]; exists {
-			controllers = append(controllers, instantiatedController{name: name, runnable: runnable, workers: registry[name].Workers})
-		}
+		controllers[name] = instantiatedController{name: name, runnable: runnable, workers: entry.Workers}
 	}
 	return controllers, nil
 }
 
 func newControllerRegistry() map[string]ControllerRegistration {
-	return map[string]ControllerRegistration{
-
-		// billing
-		orphanedBillingCleanupControllerName: registerOrphanedBillingCleanupController(),
-		createBillingDocControllerName:       registerCreateBillingDocController(),
-
-		// cluster
-		dispatchRequestCredentialControllerName:                        registerDispatchRequestCredentialController(),
-		adminCredentialsDispatchRequestCredentialControllerName:        registerAdminCredentialsDispatchRequestCredentialController(),
-		adminCredentialsDispatchRevokeCredentialsControllerName:        registerAdminCredentialsDispatchRevokeCredentialsController(),
-		adminCredentialsOperationRequestCredentialPollControllerName:   registerAdminCredentialsOperationRequestCredentialPollController(),
-		adminCredentialsOperationRevokeCredentialsPollControllerName:   registerAdminCredentialsOperationRevokeCredentialsPollController(),
-		adminCredentialsIssuanceObserverControllerName:                 registerAdminCredentialsIssuanceObserverController(),
-		adminCredentialsDesiresCreatorControllerName:                   registerAdminCredentialsDesiresCreatorController(),
-		adminCredentialsPostIssuanceCleanupControllerName:              registerAdminCredentialsPostIssuanceCleanupController(),
-		adminCredentialsRevokedGCControllerName:                        registerAdminCredentialsRevokedGCController(),
-		adminCredentialsClusterDeletionCleanupControllerName:           registerAdminCredentialsClusterDeletionCleanupController(),
-		systemAdminCredentialRevocationMarkRequestsControllerName:      registerSystemAdminCredentialRevocationMarkRequestsController(),
-		systemAdminCredentialRevocationDesiresControllerName:           registerSystemAdminCredentialRevocationDesiresController(),
-		systemAdminCredentialRevocationCompletionControllerName:        registerSystemAdminCredentialRevocationCompletionController(),
-		systemAdminCredentialRevocationDeletionControllerName:          registerSystemAdminCredentialRevocationDeletionController(),
-		clusterDenyAssignmentControllerName:                            registerClusterDenyAssignmentController(),
-		clusterPendingClusterServiceIDAssignControllerName:             registerClusterPendingClusterServiceIDAssignController(),
-		clusterClusterServiceCreateControllerName:                      registerClusterClusterServiceCreateController(),
-		operationClusterCreateControllerName:                           registerOperationClusterCreateController(),
-		operationClusterUpdateControllerName:                           registerOperationClusterUpdateController(),
-		operationClusterDeleteControllerName:                           registerOperationClusterDeleteController(),
-		operationRequestCredentialControllerName:                       registerOperationRequestCredentialController(),
-		alwaysSuccessClusterValidationControllerName:                   registerAlwaysSuccessClusterValidationController(),
-		controlPlaneActiveVersionsControllerName:                       registerControlPlaneActiveVersionsController(),
-		controlPlaneDesiredVersionControllerName:                       registerControlPlaneDesiredVersionController(),
-		triggerControlPlaneUpgradeControllerName:                       registerTriggerControlPlaneUpgradeController(),
-		clusterBaseDomainPrefixSyncControllerName:                      registerClusterBaseDomainPrefixSyncController(),
-		clusterPropertiesSyncControllerName:                            registerClusterPropertiesSyncController(),
-		clusterIdentitySyncControllerName:                              registerClusterIdentitySyncController(),
-		clusterDegradedAggregatorControllerName:                        registerClusterDegradedAggregatorController(),
-		clusterRequirementsValidAggregatorControllerName:               registerClusterRequirementsValidAggregatorController(),
-		desiredControlPlaneSizeControllerName:                          registerDesiredControlPlaneSizeController(),
-		serviceProviderClusterPropertiesSyncControllerName:             registerServiceProviderClusterPropertiesSyncController(),
-		azureRPRegistrationValidationControllerName:                    registerAzureRPRegistrationValidationController(),
-		azureClusterResourceGroupExistenceValidationControllerName:     registerAzureClusterResourceGroupExistenceValidationController(),
-		azureClusterManagedIdentitiesExistenceValidationControllerName: registerAzureClusterManagedIdentitiesExistenceValidationController(),
-		controlPlaneIdentitiesPermissionsValidationControllerName:      registerControlPlaneIdentitiesPermissionsValidationController(),
-		dataPlaneIdentitiesPermissionsValidationControllerName:         registerDataPlaneIdentitiesPermissionsValidationController(),
-		containerRegistryPullCredentialsValidationControllerName:       registerContainerRegistryPullCredentialsValidationController(),
-		createClusterScopedReadDesiresControllerName:                   registerCreateClusterScopedReadDesiresController(),
-		createServiceProviderClusterControllerName:                     registerCreateServiceProviderClusterController(),
-		cleanOrphanedClusterManagedResourceGroupControllerName:         registerCleanOrphanedClusterManagedResourceGroupController(),
-		ensureManagedResourceGroupControllerName:                       registerEnsureManagedResourceGroupController(),
-		clusterDeletionClusterServiceDeleteDispatchControllerName:      registerClusterDeletionClusterServiceDeleteDispatchController(),
-		clusterClusterServiceIDClearerControllerName:                   registerClusterClusterServiceIDClearerController(),
-		clusterCredentialDeletionMarkerControllerName:                  registerClusterCredentialDeletionMarkerController(),
-		clusterChildResourcesCleanupControllerName:                     registerClusterChildResourcesCleanupController(),
-		clusterDeletionControllerName:                                  registerClusterDeletionController(),
-		clusterClusterServiceUpdateDispatchControllerName:              registerClusterClusterServiceUpdateDispatchController(),
-		placementSyncControllerName:                                    registerPlacementSyncController(),
-		placementControllerName:                                        registerPlacementController(),
-		pendingCleanupControllerName:                                   registerPendingCleanupController(),
-		backupScheduleControllerName:                                   registerBackupScheduleController(),
-		fetchMSIIdentitiesInfoControllerName:                           registerFetchMSIIdentitiesInfoController(),
-		fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName:     registerFetchDataPlaneOperatorsManagedIdentitiesInfoController(),
-		identityRoleAssignmentsControllerName:                          registerIdentityRoleAssignmentsController(),
-		keyRotationBackupControllerName:                                registerKeyRotationBackupController(),
-
-		// clusterresources
-		clusterResourcesControllerName: registerClusterResourcesController(),
-
-		// cosmosmigration
-		cosmosMigrationControllerName: registerCosmosMigrationController(),
-
-		// datadump
-		subscriptionNonClusterDataDumpControllerName: registerSubscriptionNonClusterDataDumpController(),
-		clusterRecursiveDataDumpControllerName:       registerClusterRecursiveDataDumpController(),
-		csStateDumpControllerName:                    registerCsStateDumpController(),
-		billingDumpControllerName:                    registerBillingDumpController(),
-		managementClusterDumpControllerName:          registerManagementClusterDumpController(),
-
-		// externalauth
-		externalAuthClusterServiceCreateControllerName:                 registerExternalAuthClusterServiceCreateController(),
-		operationExternalAuthCreateControllerName:                      registerOperationExternalAuthCreateController(),
-		operationExternalAuthUpdateControllerName:                      registerOperationExternalAuthUpdateController(),
-		operationExternalAuthDeleteControllerName:                      registerOperationExternalAuthDeleteController(),
-		externalAuthDegradedAggregatorControllerName:                   registerExternalAuthDegradedAggregatorController(),
-		externalAuthDeletionClusterServiceDeleteDispatchControllerName: registerExternalAuthDeletionClusterServiceDeleteDispatchController(),
-		externalAuthClusterServiceIDClearerControllerName:              registerExternalAuthClusterServiceIDClearerController(),
-		externalAuthChildResourcesCleanupControllerName:                registerExternalAuthChildResourcesCleanupController(),
-		externalAuthDeletionControllerName:                             registerExternalAuthDeletionController(),
-		externalAuthClusterServiceUpdateDispatchControllerName:         registerExternalAuthClusterServiceUpdateDispatchController(),
-
-		// metrics
-		operationPhaseMetricsControllerName: registerOperationPhaseMetricsController(),
-		clusterMetricsControllerName:        registerClusterMetricsController(),
-		clusterVersionMetricsControllerName: registerClusterVersionMetricsController(),
-		nodePoolMetricsControllerName:       registerNodePoolMetricsController(),
-		externalAuthMetricsControllerName:   registerExternalAuthMetricsController(),
-		clusterInfoMetricsControllerName:    registerClusterInfoMetricsController(),
-
-		// mismatch
-		clusterServiceMatchingClusterControllerName: registerClusterServiceMatchingClusterController(),
-		deleteOrphanedCosmosResourcesControllerName: registerDeleteOrphanedCosmosResourcesController(),
-		missingResourceIDControllerName:             registerMissingResourceIDController(),
-		backfillClusterUIDControllerName:            registerBackfillClusterUIDController(),
-
-		// nodepool
-		nodePoolClusterServiceCreateControllerName:                   registerNodePoolClusterServiceCreateController(),
-		operationNodePoolCreateControllerName:                        registerOperationNodePoolCreateController(),
-		operationNodePoolUpdateControllerName:                        registerOperationNodePoolUpdateController(),
-		operationNodePoolDeleteControllerName:                        registerOperationNodePoolDeleteController(),
-		nodePoolDegradedAggregatorControllerName:                     registerNodePoolDegradedAggregatorController(),
-		nodePoolRequirementsValidAggregatorControllerName:            registerNodePoolRequirementsValidAggregatorController(),
-		azureVMSizeSupportsEphemeralOSDiskValidationControllerName:   registerAzureVMSizeSupportsEphemeralOSDiskValidationController(),
-		azureNodePoolVMQuotaValidationControllerName:                 registerAzureNodePoolVMQuotaValidationController(),
-		nodePoolNSGBasedRequiredConnectivityValidationControllerName: registerNodePoolNSGBasedRequiredConnectivityValidationController(),
-		nodePoolVersionControllerName:                                registerNodePoolVersionController(),
-		nodePoolActiveVersionControllerName:                          registerNodePoolActiveVersionController(),
-		createNodePoolScopedReadDesiresControllerName:                registerCreateNodePoolScopedReadDesiresController(),
-		createServiceProviderNodePoolControllerName:                  registerCreateServiceProviderNodePoolController(),
-		triggerNodePoolUpgradeControllerName:                         registerTriggerNodePoolUpgradeController(),
-		nodePoolDeletionClusterServiceDeleteDispatchControllerName:   registerNodePoolDeletionClusterServiceDeleteDispatchController(),
-		nodePoolClusterServiceIDClearerControllerName:                registerNodePoolClusterServiceIDClearerController(),
-		nodePoolChildResourcesCleanupControllerName:                  registerNodePoolChildResourcesCleanupController(),
-		nodePoolDeletionControllerName:                               registerNodePoolDeletionController(),
-		nodePoolClusterServiceUpdateDispatchControllerName:           registerNodePoolClusterServiceUpdateDispatchController(),
-
-		// Supporting controllers
-		unionKubeApplierInformersControllerName:              registerUnionKubeApplierInformersController(),
-		virtualMachineResourceSKUsCachedReaderControllerName: registerVirtualMachineResourceSKUsCachedReaderController(),
-	}
+	registry := map[string]ControllerRegistration{}
+	billing.Register(registry)
+	cluster.Register(registry)
+	clusterresources.Register(registry)
+	cosmosmigration.Register(registry)
+	datadump.Register(registry)
+	externalauth.Register(registry)
+	metrics.Register(registry)
+	mismatch.Register(registry)
+	nodepool.Register(registry)
+	cachedreader.Register(registry, func(context ControllerContext) *cachedreader.FPAVirtualMachineResourceSKUsCachedReaderController {
+		return context.VirtualMachineResourceSKUsCachedReaderController
+	})
+	unionkubeapplierinformers.Register(registry, func(context ControllerContext) *unionkubeapplierinformers.UnionKubeApplierInformersController {
+		return context.UnionKubeApplierInformersController
+	})
+	return registry
 }
 
-func controllerConstructionOrder() []string {
-	return []string{
-		operationPhaseMetricsControllerName,
-		unionKubeApplierInformersControllerName,
-		clusterMetricsControllerName,
-		clusterVersionMetricsControllerName,
-		clusterInfoMetricsControllerName,
-		nodePoolMetricsControllerName,
-		externalAuthMetricsControllerName,
-		subscriptionNonClusterDataDumpControllerName,
-		clusterRecursiveDataDumpControllerName,
-		csStateDumpControllerName,
-		billingDumpControllerName,
-		managementClusterDumpControllerName,
-		dispatchRequestCredentialControllerName,
-		adminCredentialsDispatchRequestCredentialControllerName,
-		adminCredentialsDispatchRevokeCredentialsControllerName,
-		adminCredentialsOperationRequestCredentialPollControllerName,
-		adminCredentialsOperationRevokeCredentialsPollControllerName,
-		adminCredentialsIssuanceObserverControllerName,
-		adminCredentialsDesiresCreatorControllerName,
-		adminCredentialsPostIssuanceCleanupControllerName,
-		adminCredentialsRevokedGCControllerName,
-		adminCredentialsClusterDeletionCleanupControllerName,
-		systemAdminCredentialRevocationMarkRequestsControllerName,
-		systemAdminCredentialRevocationDesiresControllerName,
-		systemAdminCredentialRevocationCompletionControllerName,
-		systemAdminCredentialRevocationDeletionControllerName,
-		operationClusterCreateControllerName,
-		operationClusterUpdateControllerName,
-		operationClusterDeleteControllerName,
-		operationNodePoolCreateControllerName,
-		operationNodePoolUpdateControllerName,
-		operationNodePoolDeleteControllerName,
-		operationExternalAuthCreateControllerName,
-		operationExternalAuthUpdateControllerName,
-		operationExternalAuthDeleteControllerName,
-		operationRequestCredentialControllerName,
-		clusterServiceMatchingClusterControllerName,
-		alwaysSuccessClusterValidationControllerName,
-		deleteOrphanedCosmosResourcesControllerName,
-		missingResourceIDControllerName,
-		backfillClusterUIDControllerName,
-		orphanedBillingCleanupControllerName,
-		createBillingDocControllerName,
-		controlPlaneActiveVersionsControllerName,
-		controlPlaneDesiredVersionControllerName,
-		triggerControlPlaneUpgradeControllerName,
-		clusterBaseDomainPrefixSyncControllerName,
-		clusterPropertiesSyncControllerName,
-		clusterIdentitySyncControllerName,
-		desiredControlPlaneSizeControllerName,
-		serviceProviderClusterPropertiesSyncControllerName,
-		backupScheduleControllerName,
-		keyRotationBackupControllerName,
-		clusterDegradedAggregatorControllerName,
-		clusterRequirementsValidAggregatorControllerName,
-		nodePoolDegradedAggregatorControllerName,
-		nodePoolRequirementsValidAggregatorControllerName,
-		externalAuthDegradedAggregatorControllerName,
-		createClusterScopedReadDesiresControllerName,
-		createNodePoolScopedReadDesiresControllerName,
-		cosmosMigrationControllerName,
-		createServiceProviderClusterControllerName,
-		createServiceProviderNodePoolControllerName,
-		cleanOrphanedClusterManagedResourceGroupControllerName,
-		ensureManagedResourceGroupControllerName,
-		virtualMachineResourceSKUsCachedReaderControllerName,
-		azureRPRegistrationValidationControllerName,
-		azureClusterResourceGroupExistenceValidationControllerName,
-		azureClusterManagedIdentitiesExistenceValidationControllerName,
-		containerRegistryPullCredentialsValidationControllerName,
-		azureVMSizeSupportsEphemeralOSDiskValidationControllerName,
-		azureNodePoolVMQuotaValidationControllerName,
-		controlPlaneIdentitiesPermissionsValidationControllerName,
-		dataPlaneIdentitiesPermissionsValidationControllerName,
-		nodePoolNSGBasedRequiredConnectivityValidationControllerName,
-		nodePoolVersionControllerName,
-		nodePoolActiveVersionControllerName,
-		triggerNodePoolUpgradeControllerName,
-		placementSyncControllerName,
-		placementControllerName,
-		pendingCleanupControllerName,
-		nodePoolClusterServiceCreateControllerName,
-		externalAuthClusterServiceCreateControllerName,
-		nodePoolDeletionClusterServiceDeleteDispatchControllerName,
-		nodePoolClusterServiceIDClearerControllerName,
-		nodePoolChildResourcesCleanupControllerName,
-		nodePoolDeletionControllerName,
-		externalAuthDeletionClusterServiceDeleteDispatchControllerName,
-		externalAuthClusterServiceIDClearerControllerName,
-		externalAuthChildResourcesCleanupControllerName,
-		externalAuthDeletionControllerName,
-		clusterDenyAssignmentControllerName,
-		clusterPendingClusterServiceIDAssignControllerName,
-		clusterClusterServiceCreateControllerName,
-		clusterDeletionClusterServiceDeleteDispatchControllerName,
-		clusterClusterServiceIDClearerControllerName,
-		clusterCredentialDeletionMarkerControllerName,
-		clusterChildResourcesCleanupControllerName,
-		clusterDeletionControllerName,
-		clusterClusterServiceUpdateDispatchControllerName,
-		nodePoolClusterServiceUpdateDispatchControllerName,
-		externalAuthClusterServiceUpdateDispatchControllerName,
-		fetchMSIIdentitiesInfoControllerName,
-		fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName,
-		identityRoleAssignmentsControllerName,
-		clusterResourcesControllerName,
-	}
+type informerRunner struct {
+	run func(context.Context)
 }
 
-func controllerLaunchOrder() []string {
-	return []string{
-		unionKubeApplierInformersControllerName,
-		subscriptionNonClusterDataDumpControllerName,
-		clusterRecursiveDataDumpControllerName,
-		csStateDumpControllerName,
-		billingDumpControllerName,
-		managementClusterDumpControllerName,
-		dispatchRequestCredentialControllerName,
-		adminCredentialsDispatchRequestCredentialControllerName,
-		adminCredentialsDispatchRevokeCredentialsControllerName,
-		adminCredentialsOperationRequestCredentialPollControllerName,
-		adminCredentialsOperationRevokeCredentialsPollControllerName,
-		adminCredentialsIssuanceObserverControllerName,
-		adminCredentialsDesiresCreatorControllerName,
-		adminCredentialsPostIssuanceCleanupControllerName,
-		adminCredentialsRevokedGCControllerName,
-		adminCredentialsClusterDeletionCleanupControllerName,
-		systemAdminCredentialRevocationMarkRequestsControllerName,
-		systemAdminCredentialRevocationDesiresControllerName,
-		systemAdminCredentialRevocationCompletionControllerName,
-		systemAdminCredentialRevocationDeletionControllerName,
-		clusterDenyAssignmentControllerName,
-		clusterPendingClusterServiceIDAssignControllerName,
-		clusterClusterServiceCreateControllerName,
-		nodePoolClusterServiceCreateControllerName,
-		externalAuthClusterServiceCreateControllerName,
-		operationClusterCreateControllerName,
-		operationClusterUpdateControllerName,
-		operationClusterDeleteControllerName,
-		operationNodePoolCreateControllerName,
-		operationNodePoolUpdateControllerName,
-		operationNodePoolDeleteControllerName,
-		operationExternalAuthCreateControllerName,
-		operationExternalAuthUpdateControllerName,
-		operationExternalAuthDeleteControllerName,
-		operationRequestCredentialControllerName,
-		clusterServiceMatchingClusterControllerName,
-		alwaysSuccessClusterValidationControllerName,
-		deleteOrphanedCosmosResourcesControllerName,
-		missingResourceIDControllerName,
-		backfillClusterUIDControllerName,
-		orphanedBillingCleanupControllerName,
-		createBillingDocControllerName,
-		controlPlaneActiveVersionsControllerName,
-		controlPlaneDesiredVersionControllerName,
-		triggerControlPlaneUpgradeControllerName,
-		clusterBaseDomainPrefixSyncControllerName,
-		clusterPropertiesSyncControllerName,
-		clusterIdentitySyncControllerName,
-		clusterDegradedAggregatorControllerName,
-		clusterRequirementsValidAggregatorControllerName,
-		nodePoolDegradedAggregatorControllerName,
-		nodePoolRequirementsValidAggregatorControllerName,
-		externalAuthDegradedAggregatorControllerName,
-		desiredControlPlaneSizeControllerName,
-		serviceProviderClusterPropertiesSyncControllerName,
-		azureRPRegistrationValidationControllerName,
-		azureClusterResourceGroupExistenceValidationControllerName,
-		azureClusterManagedIdentitiesExistenceValidationControllerName,
-		azureVMSizeSupportsEphemeralOSDiskValidationControllerName,
-		azureNodePoolVMQuotaValidationControllerName,
-		controlPlaneIdentitiesPermissionsValidationControllerName,
-		nodePoolNSGBasedRequiredConnectivityValidationControllerName,
-		dataPlaneIdentitiesPermissionsValidationControllerName,
-		containerRegistryPullCredentialsValidationControllerName,
-		nodePoolVersionControllerName,
-		nodePoolActiveVersionControllerName,
-		createClusterScopedReadDesiresControllerName,
-		createNodePoolScopedReadDesiresControllerName,
-		createServiceProviderClusterControllerName,
-		createServiceProviderNodePoolControllerName,
-		cleanOrphanedClusterManagedResourceGroupControllerName,
-		ensureManagedResourceGroupControllerName,
-		triggerNodePoolUpgradeControllerName,
-		nodePoolDeletionClusterServiceDeleteDispatchControllerName,
-		nodePoolClusterServiceIDClearerControllerName,
-		nodePoolChildResourcesCleanupControllerName,
-		nodePoolDeletionControllerName,
-		externalAuthDeletionClusterServiceDeleteDispatchControllerName,
-		externalAuthClusterServiceIDClearerControllerName,
-		externalAuthChildResourcesCleanupControllerName,
-		externalAuthDeletionControllerName,
-		clusterDeletionClusterServiceDeleteDispatchControllerName,
-		clusterClusterServiceIDClearerControllerName,
-		clusterCredentialDeletionMarkerControllerName,
-		clusterChildResourcesCleanupControllerName,
-		clusterDeletionControllerName,
-		clusterClusterServiceUpdateDispatchControllerName,
-		nodePoolClusterServiceUpdateDispatchControllerName,
-		externalAuthClusterServiceUpdateDispatchControllerName,
-		operationPhaseMetricsControllerName,
-		clusterMetricsControllerName,
-		clusterVersionMetricsControllerName,
-		nodePoolMetricsControllerName,
-		externalAuthMetricsControllerName,
-		clusterInfoMetricsControllerName,
-		placementSyncControllerName,
-		placementControllerName,
-		pendingCleanupControllerName,
-		cosmosMigrationControllerName,
-		virtualMachineResourceSKUsCachedReaderControllerName,
-		backupScheduleControllerName,
-		fetchMSIIdentitiesInfoControllerName,
-		fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName,
-		identityRoleAssignmentsControllerName,
-		keyRotationBackupControllerName,
-		clusterResourcesControllerName,
+func (runner informerRunner) Run(ctx context.Context, _ int) {
+	defer utilruntime.HandleCrash()
+	runner.run(ctx)
+}
+
+func startControllers(ctx context.Context, controllers map[string]instantiatedController, controllerContext ControllerContext) {
+	runners := make(map[string]instantiatedController, len(controllers)+2)
+	for name, controller := range controllers {
+		runners[name] = controller
+	}
+	runners["backend-informers"] = instantiatedController{runnable: informerRunner{run: controllerContext.BackendInformers.RunWithContext}}
+	runners["fleet-informers"] = instantiatedController{runnable: informerRunner{run: controllerContext.FleetInformers.RunWithContext}}
+	for _, controller := range runners {
+		go controller.runnable.Run(ctx, controller.workers)
 	}
 }
