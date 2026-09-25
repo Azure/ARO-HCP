@@ -24,6 +24,17 @@ tests:
     exp_samples:
     - labels: 'errors:ingress_canary:error_rate{_id="aaa", cluster="mgmt-1", region="uksouth"}'
       value: 0
+  # Windowed (1h) record: 2 series x 6 samples (minutes 0-5) = 12 total, 0 failed.
+  - expr: errors:ingress_canary:error_rate_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate_1h{_id="aaa", cluster="mgmt-1", region="uksouth"}'
+      value: 0
+  - expr: errors:ingress_canary:total_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:total_1h{_id="aaa", cluster="mgmt-1", region="uksouth"}'
+      value: 12
 # ========================================
 # Test 2: Half of observations unreachable — availability ratio = 0.5, error rate = 0.5
 # ========================================
@@ -44,6 +55,17 @@ tests:
     exp_samples:
     - labels: 'errors:ingress_canary:error_rate{_id="bbb", cluster="mgmt-1", region="uksouth"}'
       value: 0.5
+  # Windowed (1h): 2 series x 6 samples = 12 total, 6 failed (the always-0 series).
+  - expr: errors:ingress_canary:error_rate_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate_1h{_id="bbb", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
+  - expr: errors:ingress_canary:failed_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:failed_1h{_id="bbb", cluster="mgmt-1", region="uksouth"}'
+      value: 6
 # ========================================
 # Test 3: All observations unreachable — availability ratio = 0, error rate = 1
 # ========================================
@@ -113,6 +135,9 @@ tests:
   - expr: errors:ingress_canary:error_rate
     eval_time: 5m
     exp_samples: []
+  - expr: errors:ingress_canary:error_rate_1h
+    eval_time: 5m
+    exp_samples: []
 # ========================================
 # Test 6: All canary checks fast — latency ratio = 1, error rate = 0
 # ========================================
@@ -138,6 +163,12 @@ tests:
     eval_time: 5m
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate{_id="aaa", cluster="mgmt-1", region="uksouth"}'
+      value: 0
+  # Windowed (1h): 2 instances x 1 check/min x 5m = 10 total checks, all fast.
+  - expr: errors:ingress_canary_latency:error_rate_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate_1h{_id="aaa", cluster="mgmt-1", region="uksouth"}'
       value: 0
 # ========================================
 # Test 7: Half canary checks slow — latency ratio = 0.5, error rate = 0.5
@@ -167,6 +198,12 @@ tests:
     exp_samples:
     - labels: 'errors:ingress_canary_latency:error_rate{_id="bbb", cluster="mgmt-1", region="uksouth"}'
       value: 0.5
+  # Windowed (1h): instance .1 fast, instance .2 slow — 0.5 error rate persists.
+  - expr: errors:ingress_canary_latency:error_rate_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate_1h{_id="bbb", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
 # ========================================
 # Test 8: No histogram data — latency SLI returns empty
 # ========================================
@@ -177,5 +214,8 @@ tests:
     eval_time: 5m
     exp_samples: []
   - expr: errors:ingress_canary_latency:error_rate
+    eval_time: 5m
+    exp_samples: []
+  - expr: errors:ingress_canary_latency:error_rate_1h
     eval_time: 5m
     exp_samples: []
