@@ -419,7 +419,7 @@ For a live cluster with neither confirmed nor pending Cluster Service ID, persis
 
 [Source](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go) · **Trigger:** Cluster; 5m, no kube-applier watch.
 
-Requires a service-provider document. Resolves initial and subsequent exact versions using customer `Version.ID`/`ChannelGroup`, update-service graph, active operation and node-pool versions; writes `Spec.ControlPlaneVersion.DesiredVersion` and controller `IntentFailed`. Automatic selection does not downgrade; enforced rollback has separate handling.
+Requires a service-provider document. Reads `ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion`, the pin admission projects from the `aro-hcp.experimental.cluster.control-plane-exact-version` tag. When the pin is set it becomes `Spec.ControlPlaneVersion.DesiredVersion` directly and graph resolution is skipped; a pin that differs from the stored desired version and falls below `Spec.ControlPlaneVersion.DesiredVersion` or the latest `Status.ControlPlaneVersion.ActiveVersions` entry is rejected with controller `IntentFailed`, the write-time backstop for the versions admission read before the write committed. An unchanged pin is never re-litigated, so a cluster already sitting below either version keeps reconciling. Otherwise resolves initial and subsequent exact versions using customer `Version.ID`/`ChannelGroup`, update-service graph, active operation and node-pool versions; writes `Spec.ControlPlaneVersion.DesiredVersion` and controller `IntentFailed`. Automatic selection does not downgrade; enforced rollback has separate handling.
 
 #### Placement
 
@@ -583,7 +583,7 @@ For the matching nonterminal operation, writes status/error/transition time and 
 
 [Source](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) · **Trigger:** Active operation; 10s.
 
-Observes dispatched configuration and completion; For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Observes dispatched configuration and completion; For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification. Desired-version resolution is judged against `ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion` when the pin is set — the resolved version must equal the pin, not merely share its release line, because `Version.ID` only ever carries `MAJOR.MINOR` — and against `Version.ID`'s major/minor otherwise.
 
 #### OperationClusterDelete
 

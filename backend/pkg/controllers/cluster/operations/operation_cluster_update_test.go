@@ -65,6 +65,14 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		return cluster
 	}
 
+	pinExactControlPlaneVersion := func(version string) func(*coreapi.Cluster) {
+		parsedVersion, err := semver.ParseTolerant(version)
+		require.NoError(t, err)
+		return func(cluster *coreapi.Cluster) {
+			cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(parsedVersion)
+		}
+	}
+
 	newCSClusterWithState := func(state arohcpv1alpha1.ClusterState) *arohcpv1alpha1.Cluster {
 		allowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess().Mode(ocm.CSCIDRBlockAllowAccessModeAllowAll)
 		csCluster, err := arohcpv1alpha1.NewCluster().
@@ -354,6 +362,96 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 
 				assert.Equal(t, coreapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+		{
+			name:                           "exact version pin matching the resolved desired version transitions operation to succeeded",
+			existingCluster:                newClusterWithCustomerVersion("4.19", pinExactControlPlaneVersion("4.19.7")),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19.7"),
+			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.ClusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
+			},
+		},
+		{
+			// version.id is a bare MAJOR.MINOR, so the Major/Minor compare used for unpinned
+			// clusters reports Succeeded the moment the pin is edited within a minor, while
+			// DesiredVersion still holds the previous z-stream. The pin must be compared exactly.
+			name:                           "exact version pin within the same minor as the resolved desired version keeps operation accepted",
+			existingCluster:                newClusterWithCustomerVersion("4.19", pinExactControlPlaneVersion("4.19.7")),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19.5"),
+			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.ClusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
+				assert.Nil(t, op.Error)
+			},
+		},
+		{
+			// The seam with the desired-version controller: a pin it rejected as a downgrade
+			// surfaces to the customer as the operation error, verbatim.
+			name:                           "exact version pin rejected by the desired-version controller fails the operation with its message",
+			existingCluster:                newClusterWithCustomerVersion("4.19", pinExactControlPlaneVersion("4.19.5")),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19.7"),
+			existingControlPlaneDesiredVersionController: newControlPlaneDesiredVersionControllerWithConditions([]metav1.Condition{{
+				Type:   coreapi.ControllerConditionTypeIntentFailed,
+				Status: metav1.ConditionTrue,
+				Reason: coreapi.VersionUpgradeNotAcceptedReason,
+				Message: `exact control plane version pin 4.19.5 is below the desired control plane version 4.19.7; ` +
+					`control plane downgrades are not supported. ` +
+					`Set the "aro-hcp.experimental.cluster.control-plane-exact-version" tag to 4.19.7 or higher`,
+			}}),
+			cachedHostedClusterReadDesire: newPassingCachedHostedClusterReadDesire(),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.ClusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Contains(t, op.Error.Message,
+					`exact control plane version pin 4.19.5 is below the desired control plane version 4.19.7`)
+			},
+		},
+		{
+			name:                           "exact version pin mismatch without IntentFailed fails after 129s naming the pin",
+			existingCluster:                newClusterWithCustomerVersion("4.19", pinExactControlPlaneVersion("4.19.7")),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19.5"),
+			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
+			seedMismatchFirstSeenAt:        testClockNow.Add(-130 * time.Second),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.ClusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				// The failure names the pin, not the release line the customer never touched.
+				assert.Contains(t, op.Error.Message,
+					"timed out after 129s waiting for resolution of desired version from pinned exact version 4.19.7")
 			},
 		},
 		{

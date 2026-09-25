@@ -62,7 +62,10 @@ func ToClusterServiceProviderProperties(oldObj *coreapi.Cluster) *coreapi.Cluste
 }
 
 var (
-	toClusterIdentity = func(oldObj *coreapi.Cluster) *coreapi.ManagedServiceIdentity { return oldObj.Identity }
+	toClusterIdentity                                                       = func(oldObj *coreapi.Cluster) *coreapi.ManagedServiceIdentity { return oldObj.Identity }
+	toServiceProviderPropertiesExperimentalFeaturesControlPlaneExactVersion = func(oldObj *coreapi.Cluster) *semver.Version {
+		return oldObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+	}
 )
 
 func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, oldCluster *coreapi.Cluster, validationPathMapper coreapi.ValidationPathMapperFunc) field.ErrorList {
@@ -94,9 +97,10 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// Private KAS requires OpenShift >= 4.22 (HyperShift gained private API server support in 4.22).
 	errs = append(errs, validatePrivateKASRequiresMinimumVersion(ctx, op, newCluster, oldCluster)...)
 
-	// Nightly installs must resolve to a full version; this needs both the customer
-	// version profile and the service-provider exact pin, so it lives at cluster level.
-	errs = append(errs, validateNightlyChannelRequiresFullVersion(ctx, op, newCluster, oldCluster)...)
+	// The control-plane exact-version pin (an internal-only field derived from an ARM
+	// tag) must be consistent with the customer's version profile, and is mandatory for
+	// nightly. This needs both halves, so it lives at cluster level.
+	errs = append(errs, validateControlPlaneExactVersionPin(ctx, op, newCluster, oldCluster)...)
 
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
@@ -182,53 +186,86 @@ func validatePrivateKASRequiresMinimumVersion(_ context.Context, _ operation.Ope
 	return nil
 }
 
-// validateNightlyChannelRequiresFullVersion enforces that a cluster in the
-// "nightly" channel group resolves to a full "<major>.<minor>.<patch>" version.
-// Nightly builds are published to the CI releasestream API rather than the
-// Cincinnati graph the control plane desired version controller resolves
-// against, so the controller cannot derive a nightly build from a bare
-// "<major>.<minor>" and would leave the cluster wedged in provisioning.
+// exactVersionTagDetail is the guidance attached to a patch-bearing version.id
+// for subscriptions with the experimental AFEC, where an exact build *is*
+// available — through the control-plane-exact-version tag rather than version.id.
+var exactVersionTagDetail = fmt.Sprintf(
+	"must be specified as MAJOR.MINOR; pin an exact build with the %q resource tag",
+	metadataapi.TagClusterControlPlaneExactVersion)
+
+// validateControlPlaneExactVersionPin enforces the three cross-cutting rules for
+// the control-plane-exact-version ARM tag, which admission translates into
+// ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion:
 //
-// Admission mutation runs before validation: for a full version.id (or an
-// exact-version tag) it moves the exact version onto
-// ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion and
-// reduces version.id to its "<major>.<minor>" release line. This validator
-// therefore maps that internal exact pin back to the external version.id it
-// represents and validates the mapped value, so a nightly install is accepted
-// only when the effective version.id is a full version.
-func validateNightlyChannelRequiresFullVersion(_ context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
-	// Nightly is only selectable with the experimental feature; without it the
-	// channelGroup enum already rejects the request, so skip here to avoid a
-	// duplicate error.
+//  1. For the "nightly" channel group the pin is required. Nightly builds are
+//     published to the CI releasestream API, not the Cincinnati graph that the
+//     control plane desired version controller resolves against, so the
+//     controller cannot derive a build from a bare "<major>.<minor>" and hard
+//     errors, leaving the cluster wedged in provisioning.
+//  2. The pin must be a build of the release line the customer asked for in
+//     version.id. The backend's cluster update operation controller compares
+//     version.id's major.minor against the resolved desired version and fails
+//     the operation when they differ, so a mismatch is rejected up front with an
+//     actionable message rather than timing out partway through the update.
+//  3. The pin may not decrease. validateVersionProfile already applies
+//     VersionMayNotDecrease to version.id, but a non-nil pin supersedes
+//     version.id as the desired control plane version — the control plane
+//     version controllers consume it directly and skip graph resolution — so
+//     without the same rule here the no-downgrade guarantee on version.id could
+//     be sidestepped by lowering the tag alone. The comparison is semver, which
+//     orders a prerelease below its release: moving between channel groups at
+//     the same z-stream (for example "4.21.0" to "4.21.0-0.nightly-...") is
+//     therefore a decrease and is rejected. Dropping the tag entirely is not a
+//     decrease and is not checked here; the pin stops applying and the
+//     controllers fall back to resolving from version.id.
+//
+// Errors are reported against the tag, not version.id: the tag is the only way
+// to express an exact version and the only thing the customer can change.
+func validateControlPlaneExactVersionPin(ctx context.Context, op operation.Operation, newCluster, oldCluster *coreapi.Cluster) field.ErrorList {
+	// The pin and the nightly channel group are both gated on the experimental
+	// AFEC; without it the channelGroup enum already rejects nightly and
+	// ExperimentalFeatures is zeroed, so there is nothing to check.
 	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
 		return nil
 	}
-	if newCluster.CustomerProperties.Version.ChannelGroup != metadataapi.ChannelGroupNightly {
+
+	errs := field.ErrorList{}
+
+	tagPath := field.NewPath("tags").Key(metadataapi.TagClusterControlPlaneExactVersion)
+	newExact := newCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+
+	if newCluster.CustomerProperties.Version.ChannelGroup == metadataapi.ChannelGroupNightly && newExact == nil {
+		return field.ErrorList{field.Required(tagPath,
+			"nightly builds are not published to the update graph, so the exact build must be pinned with this tag "+
+				"when channelGroup is \"nightly\" (e.g. \"4.21.0-0.nightly-2026-08-05-123456\")")}
+	}
+
+	if newExact == nil {
 		return nil
 	}
 
-	// Map the internal exact pin back to the external version.id it represents:
-	// when a full version was supplied, mutation moved it to
-	// ControlPlaneExactVersion and reduced version.id to its release line.
-	effectiveVersionID := newCluster.CustomerProperties.Version.ID
-	if exact := newCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
-		effectiveVersionID = exact.String()
-	}
-	if len(effectiveVersionID) == 0 {
-		// A missing version.id is reported by the required-value check.
+	// A missing or malformed version.id is reported by the required-value and
+	// syntax checks in validateVersionProfile; don't pile on here.
+	requested, err := semver.ParseTolerant(newCluster.CustomerProperties.Version.ID)
+	if err != nil {
 		return nil
 	}
-
-	// Strict semver parsing accepts a full "<major>.<minor>.<patch>" (optionally
-	// with a pre-release such as the nightly build suffix) while rejecting a bare
-	// "<major>.<minor>".
-	if _, err := semver.Parse(effectiveVersionID); err != nil {
-		return field.ErrorList{field.Invalid(
-			field.NewPath("customerProperties", "version", "id"), effectiveVersionID,
-			"must be specified as MAJOR.MINOR.PATCH (optionally with a pre-release, e.g. a nightly build suffix) when channelGroup is \"nightly\"",
-		)}
+	if requested.Major != newExact.Major || requested.Minor != newExact.Minor {
+		errs = append(errs, field.Invalid(tagPath, newExact.String(),
+			fmt.Sprintf("must pin a build of the %d.%d release line requested by version.id, got %d.%d",
+				requested.Major, requested.Minor, newExact.Major, newExact.Minor)))
 	}
-	return nil
+
+	oldExact := safe.Field(oldCluster, toServiceProviderPropertiesExperimentalFeaturesControlPlaneExactVersion)
+	if oldExact == nil {
+		return errs
+	}
+
+	newExactStr := newExact.String()
+	oldExactStr := oldExact.String()
+	errs = append(errs, VersionMayNotDecrease(ctx, op, tagPath, &newExactStr, &oldExactStr)...)
+
+	return errs
 }
 
 func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
@@ -534,8 +571,12 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 			errs = append(errs, field.Invalid(fldPath.Child("id"), newObj.ID, "OpenShift v5 and above is not supported"))
 		}
 	} else {
-		// For our CI clusters, let us install anything: allow full semver format (X.Y.Z-prerelease)
-		errs = append(errs, OpenshiftVersionWithOptionalMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
+		// Even for CI clusters version.id carries only the release line: the published
+		// API documents id as "the desired X.Y version of the cluster control plane",
+		// and an exact build is not round-trippable through version.id (a GET would
+		// return only X.Y). An exact build is pinned with the control-plane-exact-version
+		// resource tag instead, which does round-trip.
+		errs = append(errs, OpenshiftVersionWithoutMicroDetail(ctx, op, fldPath.Child("id"), &newObj.ID, nil, exactVersionTagDetail)...)
 	}
 
 	// ChannelGroup string `json:"channelGroup,omitempty"`

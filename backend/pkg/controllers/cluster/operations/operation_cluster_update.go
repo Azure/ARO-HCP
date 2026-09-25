@@ -253,13 +253,32 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 		return nil, utils.TrackError(fmt.Errorf("service provider cluster has no desired version"))
 	}
 
-	customerDesiredVersion, err := semver.ParseTolerant(existingCluster.CustomerProperties.Version.ID)
-	if err != nil {
-		return nil, utils.TrackError(err)
+	// What the resolved desired version has to match depends on how the customer expressed intent.
+	// mismatchDetail names that target in the customer-facing messages below.
+	var matched bool
+	var mismatchDetail string
+	if exact := existingCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
+		// A pinned cluster must converge on the pin itself, not merely on its release line.
+		// version.id carries a bare MAJOR.MINOR, so the Major/Minor compare below would report
+		// Succeeded the moment the pin was edited within a minor, while DesiredVersion still held
+		// the previous z-stream. Comparing with EQ is safe: validateControlPlaneExactVersionPin
+		// already rejects a pin whose release line differs from version.id.
+		matched = resultingDesiredVersion.EQ(*exact)
+		mismatchDetail = fmt.Sprintf("pinned exact version %s", exact)
+	} else {
+		// version.id is only ever a release line, so a Major/Minor compare is all that is available.
+		// Parsing is confined to this branch: a pinned cluster must not fail the whole state source
+		// on a malformed version.id it no longer resolves from.
+		customerDesiredVersion, err := semver.ParseTolerant(existingCluster.CustomerProperties.Version.ID)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		matched = customerDesiredVersion.Major == resultingDesiredVersion.Major &&
+			customerDesiredVersion.Minor == resultingDesiredVersion.Minor
+		mismatchDetail = fmt.Sprintf("'%s' cluster version", existingCluster.CustomerProperties.Version.ID)
 	}
 
-	if customerDesiredVersion.Major == resultingDesiredVersion.Major &&
-		customerDesiredVersion.Minor == resultingDesiredVersion.Minor {
+	if matched {
 		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
@@ -280,12 +299,13 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 	}
 	intentFailedCondition := apimeta.FindStatusCondition(controllerDoc.Status.Conditions, coreapi.ControllerConditionTypeIntentFailed)
 	if intentFailedCondition == nil || intentFailedCondition.Status != metav1.ConditionTrue || intentFailedCondition.Reason != coreapi.VersionUpgradeNotAcceptedReason {
-		// Customer desired minor differs from the service provider resolved version, and the
+		// The resolved desired version differs from what the customer asked for, and the
 		// ControlPlaneDesiredVersion controller has not yet set IntentFailed (VersionUpgradeNotAccepted).
 		// Stay Accepted while resolution runs; fail once elapsed exceeds 129s from the first
 		// time this process observed the mismatch for this operation, so a
 		// controller restart does not immediately fail long-running operations.
-		pending := operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")
+		pending := operationbase.NewOperationState(coreapi.ProvisioningStateAccepted,
+			fmt.Sprintf("resolved desired version does not match %s", mismatchDetail))
 		firstSeen, ok := c.desiredVersionMismatchFirstSeen.Get(operation.ResourceID.String())
 		if !ok {
 			c.desiredVersionMismatchFirstSeen.Add(operation.ResourceID.String(), c.clock.Now())
@@ -295,8 +315,8 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 			return pending, nil
 		}
 		msg := fmt.Sprintf(
-			"timed out after 129s waiting for resolution of desired version from '%s' cluster version",
-			existingCluster.CustomerProperties.Version.ID,
+			"timed out after 129s waiting for resolution of desired version from %s",
+			mismatchDetail,
 		)
 		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
 		return operationbase.NewOperationState(coreapi.ProvisioningStateFailed, msg), nil
