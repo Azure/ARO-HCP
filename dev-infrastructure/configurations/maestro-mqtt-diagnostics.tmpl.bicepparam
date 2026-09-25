@@ -5,3 +5,4 @@ param eventHubAuthorizationRuleId = '__eventHubAuthorizationRuleId__'
 param eventHubName = '{{ .maestroMqttEventHub.name }}'
 param kustoEnabled = {{ .arobit.kusto.enabled }}
 param eventhubEnabled = {{ .auditLogsEventHub.enabled }}
+param maestroMqttEnabled = {{ .maestroMqttEventHub.enabled }}

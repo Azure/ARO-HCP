@@ -30,6 +30,7 @@ param kustoEnabled bool = true
 
 @description('Whether the audit logs Event Hub is enabled in this region')
 param eventhubEnabled bool
+param maestroMqttEnabled bool
 
 // Event Hub namespace for AKS audit logs
 resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = if (kustoEnabled && eventhubEnabled) {
@@ -93,7 +94,7 @@ resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = if (kust
     }
   }
 
-  resource maestroMqttEventHub 'eventhubs@2024-01-01' = {
+  resource maestroMqttEventHub 'eventhubs@2024-01-01' = if (maestroMqttEnabled) {
     name: maestroMqttEventHubName
     properties: {
       messageRetentionInDays: 7
@@ -127,7 +128,7 @@ resource alertEventsEventHubDataReceiverRoleAssignment 'Microsoft.Authorization/
   }
 }
 
-resource maestroMqttEventHubDataReceiverRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (kustoEnabled && eventhubEnabled && kustoPrincipalId != '') {
+resource maestroMqttEventHubDataReceiverRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (kustoEnabled && eventhubEnabled && maestroMqttEnabled && kustoPrincipalId != '') {
   scope: eventHubNamespace::maestroMqttEventHub
   name: guid(eventHubNamespace::maestroMqttEventHub.id, kustoPrincipalId, eventHubDataReceiverRole)
   properties: {
@@ -139,7 +140,7 @@ resource maestroMqttEventHubDataReceiverRoleAssignment 'Microsoft.Authorization/
 
 output auditLogsEventHubId string = kustoEnabled && eventhubEnabled ? eventHubNamespace::eventHub.id : ''
 output alertEventsEventHubId string = kustoEnabled && eventhubEnabled ? eventHubNamespace::alertEventsEventHub.id : ''
-output maestroMqttEventHubId string = kustoEnabled && eventhubEnabled ? eventHubNamespace::maestroMqttEventHub.id : ''
+output maestroMqttEventHubId string = kustoEnabled && eventhubEnabled && maestroMqttEnabled ? eventHubNamespace::maestroMqttEventHub.id : ''
 output eventHubNamespaceName string = kustoEnabled && eventhubEnabled ? eventHubNamespace.name : ''
 output auditLogsEventHubAuthRuleId string = kustoEnabled && eventhubEnabled
   ? eventHubNamespace::diagnosticSettingsAuthRule.id

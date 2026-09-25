@@ -412,7 +412,7 @@ defaults:
     name: "maestro-mqtt-connections"
     kustoConsumerGroupName: "MaestroMqttToKusto"
     kustoDataConnectionName: "{{ .ctx.environment }}-{{ .ctx.region }}-maestro-mqtt"
-    bootstrapTables: false
+    enabled: true
   # Hypershift
   hypershift:
     image:
@@ -1274,7 +1274,7 @@ clouds:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
       maestroMqttEventHub:
-        bootstrapTables: true
+        enabled: false
       cloudEnvironmentName: "AzurePublicCloud"
       kusto:
         kustoName: "hcp-dev-us-2"

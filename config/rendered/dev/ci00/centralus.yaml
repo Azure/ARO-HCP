@@ -634,7 +634,7 @@ maestro:
     managedIdentityName: maestro-server
     mqttClientName: maestro-server-j7654321
 maestroMqttEventHub:
-  bootstrapTables: true
+  enabled: false
   kustoConsumerGroupName: MaestroMqttToKusto
   kustoDataConnectionName: ci00-centralus-maestro-mqtt
   name: maestro-mqtt-connections

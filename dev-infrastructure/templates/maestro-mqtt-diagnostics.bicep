@@ -9,12 +9,13 @@ param eventHubName string
 
 param kustoEnabled bool
 param eventhubEnabled bool
+param maestroMqttEnabled bool
 
-resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-12-15-preview' existing = if (kustoEnabled && eventhubEnabled) {
+resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-12-15-preview' existing = if (kustoEnabled && eventhubEnabled && maestroMqttEnabled) {
   name: eventGridNamespaceName
 }
 
-resource maestroMqttDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (kustoEnabled && eventhubEnabled) {
+resource maestroMqttDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (kustoEnabled && eventhubEnabled && maestroMqttEnabled) {
   scope: eventGridNamespace
   name: 'maestro-mqtt-connections'
   properties: {
