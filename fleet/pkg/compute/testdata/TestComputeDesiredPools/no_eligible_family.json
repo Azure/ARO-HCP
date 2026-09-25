@@ -1,0 +1,13 @@
+{
+  "fullyAllocated": false,
+  "pools": null,
+  "failures": [
+    {
+      "tierIndex": 0,
+      "cores": 32,
+      "reason": "NoEligibleFamily",
+      "message": "tier 0 (32 cores): family priority list is empty",
+      "required": false
+    }
+  ]
+}

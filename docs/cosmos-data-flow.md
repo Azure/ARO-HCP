@@ -351,7 +351,7 @@ No writes to Cosmos Resources container.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **130 entries**: 105 backend instances, 11 fleet controllers,
+The catalog contains **131 entries**: 105 backend instances, 12 fleet controllers,
 three kube-applier controller types, eight management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
@@ -1122,6 +1122,12 @@ Aggregates current CapacityReports with ready HCPs into fleet HCPResourceRequire
 [Source](../fleet/pkg/controllers/amwscaling/controller.go) · **Trigger:** Periodic; configured interval.
 
 Reads Azure Monitor workspace utilization and current metrics-container limits, then raises Azure ingestion limits when thresholds require it. Mutates Azure Monitor accounts/metricsContainers through REST; no Cosmos domain write.
+
+#### NodePoolController
+
+[Source](../fleet/pkg/controllers/nodepool/controller.go) · **Trigger:** Management-cluster informer, stamp key; 30m resync. Registered only when `fleet.nodePoolPlanning.profile` is set.
+
+Shadow observer. Resolves the configured tier profile into a desired AKS node pool set using cached SKU metadata and per-family subscription vCPU quota, projects the live agent pools of the management cluster's AKS cluster, then simulates the planner's convergence sequence (create, scale, freeze, drain, delete) against a preserved capacity floor and logs the resulting trace. Waits while the cluster carries the provisioning marker or is not `Succeeded`. Performs no ARM writes, no Cosmos write, and no scheduling-capacity change; `aks-cluster-create` retains ownership of node pool mutation.
 
 ### Kube-applier and shared informer management
 
