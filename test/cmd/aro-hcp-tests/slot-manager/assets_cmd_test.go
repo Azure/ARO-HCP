@@ -17,8 +17,6 @@ package slotmanager
 import (
 	"context"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -36,14 +34,12 @@ func (h *recordingPoolHandler) ApplyPools(_ context.Context, request assets.Pool
 	return nil
 }
 
-func (h *recordingPoolHandler) ValidatePools(_ context.Context, request assets.PoolRequest) error {
-	h.requests = append(h.requests, request)
-	return nil
+func (h *recordingPoolHandler) ValidatePools(ctx context.Context, request assets.PoolRequest) error {
+	return h.ApplyPools(ctx, request)
 }
 
 func TestAssetCommandsPreserveUnmanagedSelection(t *testing.T) {
 	t.Parallel()
-	catalogPath := filepath.Join(t.TempDir(), "catalog.yaml")
 	const catalog = `version: 2
 environments:
   dev:
@@ -60,11 +56,9 @@ environments:
           resource_group_prefix: identities
           resource_group_count: 1
 `
-	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	catalogPath := writeAcquireTestCatalogFromYAML(t, catalog)
 	for _, validate := range []bool{false, true} {
-		for _, selector := range []string{"default", "subscription", "pool", "legacy-subscription", "missing-pool", "noncanonical-asset"} {
+		for _, selector := range []string{"default", "subscription", "pool", "legacy-subscription", "missing-pool"} {
 			t.Run(map[bool]string{false: "apply", true: "validate"}[validate]+"/"+selector, func(t *testing.T) {
 				handler := &recordingPoolHandler{Handler: identitypool.NewHandler()}
 				registry, err := assets.NewRegistry(handler)
@@ -96,23 +90,14 @@ environments:
 					args = []string{"--environment", "dev", "--slot-catalog", catalogPath, "--subscription", "customer"}
 				case "missing-pool":
 					args = append(args, "--pool", "missing")
-				case "noncanonical-asset":
-					args[len(args)-1] = "e2e-identities"
 				}
 				command.SetOut(io.Discard)
 				command.SetErr(io.Discard)
 				command.SetArgs(args)
 				err = command.Execute()
-				wantError := ""
-				switch selector {
-				case "missing-pool":
-					wantError = "no pools matched"
-				case "noncanonical-asset":
-					wantError = `unknown asset kind "e2e-identities"`
-				}
-				if wantError != "" {
-					if err == nil || !strings.Contains(err.Error(), wantError) || len(handler.requests) != 0 {
-						t.Fatalf("expected %q before handler, got error=%v requests=%v", wantError, err, handler.requests)
+				if selector == "missing-pool" {
+					if err == nil || !strings.Contains(err.Error(), "no pools matched") || len(handler.requests) != 0 {
+						t.Fatalf("expected no matching pools before handler, got error=%v requests=%v", err, handler.requests)
 					}
 					return
 				}

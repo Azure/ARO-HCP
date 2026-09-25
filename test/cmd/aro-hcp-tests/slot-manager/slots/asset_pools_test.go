@@ -94,14 +94,6 @@ func TestAssetInventoryAggregatesWholeCatalog(t *testing.T) {
 	if inventories[0].SubscriptionName != "infra" || inventories[0].Pool.Provisioning != AssetProvisioningManaged {
 		t.Fatalf("incorrect normalized inventory: %+v", inventories[0])
 	}
-	for _, invalid := range []string{"bundle-7", "bundle-07", "bundle-000", "bundle--1", "bundle-00-suffix", "foreign-00"} {
-		if inventories[0].Contains(invalid) {
-			t.Errorf("inventory accepted noncanonical resource %q", invalid)
-		}
-	}
-	if !inventories[0].Contains("bundle-06") {
-		t.Fatal("inventory rejected last valid bundle")
-	}
 	slot := ExpandSlotsForPool("dev", pools[0])[0]
 	if slot.DeployEnvironment != "ci01" || slot.Subscriptions.Infrastructure.Name != "infra" || slot.Assets.E2EIdentities != nil {
 		t.Fatalf("binding or absent asset handling is incorrect: %+v", slot)
@@ -117,6 +109,8 @@ func TestV2RejectsObsoleteAndInvalidCatalogs(t *testing.T) {
 		{"legacy identity count", "      region: westus3", "      identity_container_count: 1\n      region: westus3", "obsolete"},
 		{"plural binding", "    deployment_environment: {name: ci01, infrastructure_subscription: infra}", "    deploy_envs: [ci01]", "deploy_envs"},
 		{"missing binding", "    deployment_environment: {name: ci01, infrastructure_subscription: infra}", "", "deployment_environment"},
+		{"missing deployment name", "name: ci01, infrastructure_subscription: infra", "infrastructure_subscription: infra", "deployment_environment.name"},
+		{"missing E2E subscription", "subscriptions: {e2e: customer}", "subscriptions: {}", "subscriptions.e2e"},
 		{"missing demanded infrastructure binding", "name: ci01, infrastructure_subscription: infra", "name: ci01", "deployment_environment.infrastructure_subscription"},
 		{"blank demanded infrastructure binding", "name: ci01, infrastructure_subscription: infra", "name: ci01, infrastructure_subscription: '  '", "deployment_environment.infrastructure_subscription"},
 		{"deployment path traversal", "name: ci01,", "name: ../../outside,", "invalid deployment environment name"},

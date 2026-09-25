@@ -54,13 +54,7 @@ environments:
 
 func loadCatalogFromYAML(t *testing.T, catalogYAML string) *Catalog {
 	t.Helper()
-
-	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
-	if err := os.WriteFile(catalogPath, []byte(catalogYAML), 0o644); err != nil {
-		t.Fatalf("expected synthetic catalog write to succeed: %v", err)
-	}
-
-	catalog, err := LoadCatalog(catalogPath)
+	catalog, err := loadCatalogFromYAMLWithError(t, catalogYAML)
 	if err != nil {
 		t.Fatalf("expected synthetic catalog to load: %v", err)
 	}
@@ -113,10 +107,7 @@ func TestLoadCatalogAndExpandSlots(t *testing.T) {
 	}
 }
 
-func TestLoadV2CatalogAndExpandSlots(t *testing.T) {
-	t.Parallel()
-
-	catalog := loadCatalogFromYAML(t, `version: 2
+const dedicatedCatalog = `version: 2
 environments:
   dev:
     deployment_environment: {name: ci01, infrastructure_subscription: dev-infra}
@@ -134,7 +125,11 @@ environments:
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard0
           resource_group_count: 3
-`)
+`
+
+func TestLoadV2CatalogAndExpandSlots(t *testing.T) {
+	t.Parallel()
+	catalog := loadCatalogFromYAML(t, dedicatedCatalog)
 
 	environment, err := catalog.ResolveEnvironmentForDeployEnv("ci01")
 	if err != nil {
@@ -172,33 +167,15 @@ environments:
 
 func TestLoadV2CatalogRejectsDuplicatePoolNames(t *testing.T) {
 	t.Parallel()
-
-	_, err := loadCatalogFromYAMLWithError(t, `version: 2
-environments:
-  dev:
-    deployment_environment: {name: ci01, infrastructure_subscription: dev-infra}
-    pools:
-    - name: shard0
-      region: westus3
-      resource_type: first
-      slot_count: 1
-      subscriptions: {e2e: dev-e2e}
-      slot_assets:
-        e2e_identities:
-          allocation: dedicated
-          resource_group_prefix: first
-          resource_group_count: 1
-    - name: shard0
-      region: centralus
-      resource_type: second
-      slot_count: 1
-      subscriptions: {e2e: dev-e2e-2}
-      slot_assets:
-        e2e_identities:
-          allocation: dedicated
-          resource_group_prefix: second
-          resource_group_count: 1
-`)
+	catalog := loadCatalogFromYAML(t, dedicatedCatalog)
+	environment := catalog.Environments["dev"]
+	duplicate := environment.Pools[0]
+	duplicate.ResourceType = "second"
+	duplicate.Subscriptions.E2E = "other-customer"
+	duplicate.SlotAssets = SlotAssets{}
+	environment.Pools = append(environment.Pools, duplicate)
+	catalog.Environments["dev"] = environment
+	err := catalog.Validate()
 	if err == nil || !strings.Contains(err.Error(), "duplicate pool name") {
 		t.Fatalf("expected duplicate v2 pool name error, got %v", err)
 	}
@@ -757,82 +734,28 @@ func TestNormalizeV2PoolWithoutE2EIdentities(t *testing.T) {
 	}
 }
 
-func TestNormalizeV2PoolDiagnosticsUseEnvironmentFields(t *testing.T) {
+func TestV2E2EOnlyCatalogIgnoresInfrastructureBinding(t *testing.T) {
 	t.Parallel()
-	for _, test := range []struct {
-		name, deployEnv, infrastructure, want string
-	}{
-		{"missing deployment name", "", "infra", "deployment_environment.name"},
-		{"missing infrastructure subscription", "ci01", "", "deployment_environment.infrastructure_subscription"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			pool := Pool{Name: "shard", DeployEnv: test.deployEnv, Subscriptions: PoolSubscriptions{E2E: "customer", Infrastructure: test.infrastructure}}
-			pool.SlotAssets.InfrastructureIdentities = &LeasedAsset{Allocation: AllocationLeased, AssetPool: "bundles"}
-			err := normalizeV2Pool("dev", &pool)
-			if err == nil || !strings.Contains(err.Error(), test.want) || !strings.Contains(err.Error(), `environment "dev"`) {
-				t.Fatalf("expected environment diagnostic for %q, got %v", test.want, err)
-			}
-		})
-	}
-}
-
-func TestV2PublicE2EOnlyCatalog(t *testing.T) {
-	t.Parallel()
-	for _, environment := range []string{"int", "stg", "prod"} {
-		t.Run(environment, func(t *testing.T) {
-			input := `version: 2
-environments:
-  public:
-    deployment_environment: {name: ` + environment + `}
-    pools:
-    - name: e2e
-      region: eastus2
-      slot_count: 2
-      subscriptions: {e2e: customer}
-      slot_assets:
-        e2e_identities:
-          allocation: dedicated
-          provisioning: unmanaged
-          resource_group_prefix: customer-identities
-          resource_group_count: 2
-`
-			for _, binding := range []string{"", ", infrastructure_subscription: inaccessible-infra"} {
-				catalog := loadCatalogFromYAML(t, strings.Replace(input, "name: "+environment+"}", "name: "+environment+binding+"}", 1))
-				for range 2 {
-					if err := catalog.Validate(); err != nil {
-						t.Fatalf("revalidating E2E-only catalog: %v", err)
-					}
-					pool, err := catalog.ResolvePool("public", nil, nil, "")
-					if err != nil {
-						t.Fatal(err)
-					}
-					if pool.DeployEnv != environment || pool.InfrastructureSubscriptionName() != "" || pool.Subscriptions.Infrastructure != "" {
-						t.Fatalf("E2E-only normalization retained infrastructure demand: %+v", pool)
-					}
-					slot := ExpandSlotsForPool("public", pool)[0]
-					if slot.RequiresInfrastructureSubscription() || slot.Subscriptions.Infrastructure != (ResolvedSubscription{}) || slot.Assets.E2EIdentities == nil {
-						t.Fatalf("E2E-only expansion added infrastructure binding or lost identities: %+v", slot)
-					}
-				}
-				resolved, err := catalog.ResolveEnvironmentForDeployEnv(environment)
-				if err != nil || resolved != "public" {
-					t.Fatalf("logical deployment environment lost: %q, %v", resolved, err)
-				}
-				inventories, err := catalog.AssetInventories()
-				if err != nil || len(inventories) != 0 {
-					t.Fatalf("E2E-only catalog created infrastructure inventory: %+v, %v", inventories, err)
-				}
-			}
-			for _, test := range []struct{ from, to, want string }{
-				{"deployment_environment: {name: " + environment + "}", "deployment_environment: {}", "deployment_environment.name"},
-				{"subscriptions: {e2e: customer}", "subscriptions: {}", "subscriptions.e2e"},
-			} {
-				_, err := loadCatalogFromYAMLWithError(t, strings.Replace(input, test.from, test.to, 1))
-				if err == nil || !strings.Contains(err.Error(), test.want) {
-					t.Fatalf("expected %q rejection, got %v", test.want, err)
-				}
-			}
-		})
+	for _, binding := range []string{"", ", infrastructure_subscription: inaccessible-infra"} {
+		input := strings.Replace(dedicatedCatalog, "name: ci01, infrastructure_subscription: dev-infra", "name: stg"+binding, 1)
+		catalog := loadCatalogFromYAML(t, input)
+		if err := catalog.Validate(); err != nil {
+			t.Fatalf("revalidating E2E-only catalog: %v", err)
+		}
+		pool := catalog.Environments["dev"].Pools[0]
+		if pool.DeployEnv != "stg" || pool.InfrastructureSubscriptionName() != "" || pool.Subscriptions.Infrastructure != "" {
+			t.Fatalf("E2E-only normalization retained infrastructure demand: %+v", pool)
+		}
+		slot := ExpandSlotsForPool("dev", pool)[0]
+		if slot.RequiresInfrastructureSubscription() || slot.Subscriptions.Infrastructure != (ResolvedSubscription{}) || slot.Assets.E2EIdentities == nil {
+			t.Fatalf("E2E-only expansion added infrastructure binding or lost identities: %+v", slot)
+		}
+		if resolved, err := catalog.ResolveEnvironmentForDeployEnv("stg"); err != nil || resolved != "dev" {
+			t.Fatalf("logical deployment environment lost: %q, %v", resolved, err)
+		}
+		if inventories, err := catalog.AssetInventories(); err != nil || len(inventories) != 0 {
+			t.Fatalf("E2E-only catalog created infrastructure inventory: %+v, %v", inventories, err)
+		}
 	}
 }
 

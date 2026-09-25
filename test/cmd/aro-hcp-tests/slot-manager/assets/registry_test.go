@@ -84,28 +84,6 @@ func TestRegistryRejectsDuplicateKinds(t *testing.T) {
 	}
 }
 
-func TestRegistrySelectsCanonicalKindsOnly(t *testing.T) {
-	t.Parallel()
-
-	calls := []string{}
-	registry, err := NewRegistry(&fakeHandler{kind: KindE2EIdentities, declared: true, calls: &calls})
-	if err != nil {
-		t.Fatal(err)
-	}
-	request := PoolRequest{Pools: []slots.Pool{{}}}
-	for _, operation := range []func(context.Context, PoolRequest, ...Kind) error{registry.ApplyPools, registry.ValidatePools} {
-		if err := operation(context.Background(), request, "e2e_identities"); err != nil {
-			t.Fatalf("canonical kind was rejected: %v", err)
-		}
-		if err := operation(context.Background(), request, "e2e-identities"); err == nil || !strings.Contains(err.Error(), `unknown asset kind "e2e-identities"`) {
-			t.Fatalf("expected noncanonical selector rejection, got %v", err)
-		}
-	}
-	if want := []string{"apply:e2e_identities", "validate-pool:e2e_identities"}; !reflect.DeepEqual(calls, want) {
-		t.Fatalf("unexpected handler calls: got %v want %v", calls, want)
-	}
-}
-
 func TestRegistryAcquireLeaseDiagnostics(t *testing.T) {
 	t.Parallel()
 
@@ -149,24 +127,29 @@ func TestRegistryAcquireLeaseDiagnostics(t *testing.T) {
 	}
 }
 
-func TestRegistryUsesRegistrationOrderWithFilters(t *testing.T) {
+func TestRegistryFiltersKindsInRegistrationOrder(t *testing.T) {
 	t.Parallel()
 
 	calls := []string{}
 	registry, err := NewRegistry(
-		&fakeHandler{kind: "first", declared: true, calls: &calls},
+		&fakeHandler{kind: KindE2EIdentities, declared: true, calls: &calls},
 		&fakeHandler{kind: "second", declared: true, calls: &calls},
+		&fakeHandler{kind: "unselected", declared: true, calls: &calls},
 	)
 	if err != nil {
 		t.Fatalf("expected registry construction to succeed: %v", err)
 	}
+	request := PoolRequest{Pools: []slots.Pool{{}}}
 	for _, operation := range []func(context.Context, PoolRequest, ...Kind) error{registry.ApplyPools, registry.ValidatePools} {
-		err = operation(context.Background(), PoolRequest{Pools: []slots.Pool{{}}}, "second", "first", "second")
+		err = operation(context.Background(), request, "second", "e2e_identities", "second")
 		if err != nil {
 			t.Fatalf("expected filtered operation to succeed: %v", err)
 		}
+		if err := operation(context.Background(), request, "e2e-identities"); err == nil || !strings.Contains(err.Error(), `unknown asset kind "e2e-identities"`) {
+			t.Fatalf("expected noncanonical selector rejection, got %v", err)
+		}
 	}
-	if want := []string{"apply:first", "apply:second", "validate-pool:first", "validate-pool:second"}; !reflect.DeepEqual(calls, want) {
+	if want := []string{"apply:e2e_identities", "apply:second", "validate-pool:e2e_identities", "validate-pool:second"}; !reflect.DeepEqual(calls, want) {
 		t.Fatalf("unexpected handler order: got %v want %v", calls, want)
 	}
 }
@@ -192,28 +175,5 @@ func TestRegistryStopsLeaseAdmissionOnFirstFailure(t *testing.T) {
 	}
 	if want := []string{"prepare:first"}; !reflect.DeepEqual(calls, want) {
 		t.Fatalf("unexpected calls after failure: got %v want %v", calls, want)
-	}
-}
-
-func TestRegistryPublishesEveryLeasedAsset(t *testing.T) {
-	t.Parallel()
-
-	calls := []string{}
-	registry, err := NewRegistry(
-		&fakeHandler{kind: "first", calls: &calls},
-		&fakeHandler{kind: "second", calls: &calls},
-	)
-	if err != nil {
-		t.Fatalf("expected registry construction to succeed: %v", err)
-	}
-	request := LeaseRequest{State: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{ResourceName: "slot-00", Requirements: []slots.AssetRequirement{
-		{Kind: "first", Allocation: slots.AllocationDedicated}, {Kind: "second", Allocation: slots.AllocationDedicated},
-	}}}}
-	contract := slots.NewRuntimeContractBuilder()
-	if err := registry.PublishLease(context.Background(), request, contract); err != nil {
-		t.Fatalf("expected publication to succeed: %v", err)
-	}
-	if want := []string{"publish:first", "publish:second"}; !reflect.DeepEqual(calls, want) {
-		t.Fatalf("unexpected publication calls: got %v want %v", calls, want)
 	}
 }

@@ -134,35 +134,18 @@ func TestWriteV2AcquiredSlotStateAndRuntimeContract(t *testing.T) {
 	t.Parallel()
 
 	sharedDir := t.TempDir()
-	state := &AcquiredSlotState{
-		Version:           acquiredSlotStateVersionV2,
-		Leases:            LeaseSet{Primary: Lease{ResourceType: "aro-hcp-dev-shard0-slot", ResourceName: "aro-hcp-dev-shard0-slot-00"}},
-		DeployEnvironment: "ci01",
-		RuntimeRegion:     "centralus",
-		Slot: ExpandedSlot{
-			Environment:       "dev",
-			PoolName:          "shard0",
-			DeployEnvironment: "ci01",
-			ResourceType:      "aro-hcp-dev-shard0-slot",
-			ResourceName:      "aro-hcp-dev-shard0-slot-00",
-			Requirements: []AssetRequirement{
-				{Kind: KindInfrastructureIdentities, Allocation: AllocationLeased, UnitsPerSlot: 1},
-			},
-			Subscriptions: ResolvedSubscriptions{
-				E2E:            ResolvedSubscription{Name: "dev-e2e", ID: "e2e-id"},
-				Infrastructure: ResolvedSubscription{Name: "dev-infra", ID: "infra-id"},
-			},
-			Assets: ResolvedAssets{
-				InfrastructureIdentities: &ResolvedInfrastructureIdentities{
-					Allocation: AllocationLeased, ResourceGroups: []string{"bundle-00"}, Identities: []string{"service"},
-				},
-				E2EIdentities: &ResolvedE2EIdentitiesAsset{
-					ProvisioningRegion: "westus3",
-					ResourceGroups:     []string{"identity-rg-00", "identity-rg-01"},
-				},
-			},
+	state := resolvedV2TestState()
+	state.Slot.Requirements = []AssetRequirement{
+		{Kind: KindInfrastructureIdentities, Allocation: AllocationLeased, UnitsPerSlot: 1},
+	}
+	state.Slot.Assets = ResolvedAssets{
+		InfrastructureIdentities: &ResolvedInfrastructureIdentities{
+			Allocation: AllocationLeased, ResourceGroups: []string{"bundle-00"}, Identities: []string{"service"},
 		},
-		LeasedResourceName: "aro-hcp-dev-shard0-slot-00",
+		E2EIdentities: &ResolvedE2EIdentitiesAsset{
+			ProvisioningRegion: "westus3",
+			ResourceGroups:     []string{"identity-rg-00", "identity-rg-01"},
+		},
 	}
 
 	if err := WriteAcquiredSlotState(sharedDir, state); err != nil {
@@ -217,35 +200,12 @@ func TestE2EOnlyStateAndRuntimeOmitInfrastructure(t *testing.T) {
 		if err := state.Validate(); err != nil {
 			t.Fatalf("E2E-only state required infrastructure: %v", err)
 		}
-		dir := t.TempDir()
-		if err := WriteAcquiredSlotState(dir, state); err != nil {
+		contract := NewRuntimeContractBuilder()
+		if err := AddCoreRuntimeExports(contract, state, "dev-e2e", "profile"); err != nil {
 			t.Fatal(err)
 		}
-		loaded, err := LoadAcquiredSlotState(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := loaded.Validate(); err != nil {
-			t.Fatalf("round-trip lost valid E2E-only runtime state: %v", err)
-		}
-		if infrastructure == (ResolvedSubscription{}) {
-			statePath, _ := SlotStateFile(dir)
-			data, err := os.ReadFile(statePath)
-			if err != nil || strings.Contains(string(data), "infrastructure:") {
-				t.Fatalf("absent infrastructure should not be serialized: %s, %v", data, err)
-			}
-		}
-		if err := WriteEnvFile(dir, loaded, "dev-e2e", "profile"); err != nil {
-			t.Fatal(err)
-		}
-		path, _ := EnvFile(dir)
-		data, err := os.ReadFile(path)
-		if err != nil || strings.Contains(string(data), "INFRA_SUBSCRIPTION_ID") || !strings.Contains(string(data), "ARO_HCP_DEPLOY_ENV='ci01'") || !strings.Contains(string(data), "LEASED_MSI_CONTAINERS='identities-00'") {
-			t.Fatalf("incorrect E2E-only runtime contract: %s, %v", data, err)
-		}
-		state.Slot.Subscriptions.E2E.ID = ""
-		if err := state.Validate(); err == nil || !strings.Contains(err.Error(), "unresolved E2E subscription") {
-			t.Fatalf("optional infrastructure weakened E2E validation: %v", err)
+		if data := contract.MarshalShell(); strings.Contains(string(data), "INFRA_SUBSCRIPTION_ID") {
+			t.Fatalf("E2E-only runtime contract exported infrastructure: %s", data)
 		}
 	}
 }

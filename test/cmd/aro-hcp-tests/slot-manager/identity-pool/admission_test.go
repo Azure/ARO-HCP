@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -70,25 +71,6 @@ func TestLeaseCredentialUsesSelectedProfileWithoutAzureLogin(t *testing.T) {
 	}
 }
 
-func TestValidateIdentityNamesDetectsDrift(t *testing.T) {
-	t.Parallel()
-
-	err := validateIdentityNames(
-		"identity-rg",
-		map[string]struct{}{"expected": {}, "missing": {}},
-		map[string]string{"expected": "expected", "unexpected": "unexpected"},
-	)
-	if err == nil {
-		t.Fatal("expected identity inventory drift to fail validation")
-	}
-
-	for _, expected := range []string{"missing", "unexpected"} {
-		if !strings.Contains(err.Error(), expected) {
-			t.Fatalf("expected drift error to contain %q, got %v", expected, err)
-		}
-	}
-}
-
 func TestIdentityLeaseValidationBackoff(t *testing.T) {
 	t.Parallel()
 
@@ -134,40 +116,30 @@ func TestRunOperationPreservesCrashPolicy(t *testing.T) {
 
 func TestRunBoundedConcurrencyAndCancellation(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	var active, maximum atomic.Int32
-	entered := make(chan struct{}, 3)
-	operations := make([]func(context.Context) error, 100)
-	for i := range operations {
-		operations[i] = func(ctx context.Context) error {
-			current := active.Add(1)
-			defer active.Add(-1)
-			for old := maximum.Load(); current > old && !maximum.CompareAndSwap(old, current); old = maximum.Load() {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		var active atomic.Int32
+		operations := make([]func(context.Context) error, 100)
+		for i := range operations {
+			operations[i] = func(ctx context.Context) error {
+				active.Add(1)
+				defer active.Add(-1)
+				<-ctx.Done()
+				return ctx.Err()
 			}
-			entered <- struct{}{}
-			<-ctx.Done()
-			return ctx.Err()
 		}
-	}
-	done := make(chan error, 1)
-	go func() { done <- runBounded(ctx, 3, operations) }()
-	for range 3 {
-		select {
-		case <-entered:
-		case <-time.After(time.Second):
-			t.Fatal("workers did not start")
+		done := make(chan error, 1)
+		go func() { done <- runBounded(ctx, 3, operations) }()
+		synctest.Wait()
+		if active.Load() != 3 {
+			t.Fatalf("expected exactly three blocked workers, got %d", active.Load())
 		}
-	}
-	cancel()
-	select {
-	case err := <-done:
-		if !errors.Is(err, context.Canceled) || maximum.Load() != 3 || active.Load() != 0 {
-			t.Fatalf("cancellation/concurrency failed: err=%v max=%d active=%d", err, maximum.Load(), active.Load())
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) || active.Load() != 0 {
+			t.Fatalf("cancellation failed: err=%v active=%d", err, active.Load())
 		}
-	case <-time.After(time.Second):
-		t.Fatal("cancellation stranded workers or producer")
-	}
+	})
 }
 
 func TestRunBoundedRunsEveryOperationAndJoinsErrors(t *testing.T) {

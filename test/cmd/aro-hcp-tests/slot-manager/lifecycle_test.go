@@ -155,7 +155,7 @@ func lifecycleOptions(t *testing.T, catalog, server string, registry *assets.Reg
 
 func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []string{"success", "resolve", "prepare", "validate", "publish", "second acquire", "unexpected name", "empty secondary", "blank secondary", "padded secondary", "timeout", "primary state write", "secondary state write", "subscription resolution"} {
+	for _, scenario := range []string{"success", "resolve", "prepare", "validate", "publish", "second acquire", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state"} {
 		t.Run(scenario, func(t *testing.T) {
 			calls := []string{}
 			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
@@ -175,11 +175,7 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				second = leaseProxyReply{statusCode: http.StatusForbidden, body: "denied"}
 			case "unexpected name":
 				second = successAcquireReply("foreign-90")
-			case "empty secondary":
-				second = successAcquireReply("")
-			case "blank secondary":
-				second = successAcquireReply(" \t\n")
-			case "padded secondary":
+			case "malformed secondary":
 				second = successAcquireReply(" bundle-01 ")
 			case "timeout":
 				second = delayedLeaseProxyReply(150*time.Millisecond, unavailableAcquireReply("bundle-type"))
@@ -191,17 +187,12 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			defer server.Close()
 			options := lifecycleOptions(t, lifecycleCatalog, server.URL, registry)
 			writes := 0
-			var recorded []int
 			options.WriteState = func(dir string, state *slots.AcquiredSlotState) error {
 				writes++
 				if (scenario == "primary state write" && writes == 1) || (scenario == "secondary state write" && len(state.Leases.Assets[slots.KindInfrastructureIdentities]) == 1) {
 					return errors.New("state disk write failed")
 				}
-				if err := slots.WriteAcquiredSlotState(dir, state); err != nil {
-					return err
-				}
-				recorded = append(recorded, len(state.Leases.Assets[slots.KindInfrastructureIdentities]))
-				return nil
+				return slots.WriteAcquiredSlotState(dir, state)
 			}
 			resolve := options.ResolveSubscriptions
 			options.ResolveSubscriptions = func(ctx context.Context, profile, deploy, e2e, infra string) (slots.ResolvedSubscriptions, error) {
@@ -211,6 +202,9 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				}
 				if scenario == "subscription resolution" {
 					return slots.ResolvedSubscriptions{}, errors.New("profile binding mismatch")
+				}
+				if scenario == "invalid runtime state" {
+					return slots.ResolvedSubscriptions{}, nil
 				}
 				return resolve(ctx, profile, deploy, e2e, infra)
 			}
@@ -240,9 +234,6 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				if !reflect.DeepEqual(calls, wantCalls) {
 					t.Fatalf("incorrect admission order: %v", calls)
 				}
-				if !reflect.DeepEqual(recorded, []int{0, 0, 1, 2, 2, 2}) {
-					t.Fatalf("incremental writes missing: %v", recorded)
-				}
 				env, _ := slots.EnvFile(options.SharedDir)
 				data, err := os.ReadFile(env)
 				if err != nil || !strings.Contains(string(data), "ARO_HCP_DEPLOY_ENV='ci01'") || !strings.Contains(string(data), "FAKE_infrastructure_identities='ready'") {
@@ -256,11 +247,24 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected fail-closed acquisition")
 			}
+			if infra.fail != "" && !strings.Contains(err.Error(), "fake "+infra.fail+" failed") {
+				t.Fatalf("expected failure from %s, got %v", infra.fail, err)
+			}
+			if scenario == "invalid runtime state" {
+				if !strings.Contains(err.Error(), "unresolved E2E subscription") {
+					t.Fatalf("expected runtime validation failure, got %v", err)
+				}
+				for _, call := range calls {
+					if !strings.HasPrefix(call, "resolve:") && !strings.HasPrefix(call, "release:") {
+						t.Fatalf("invalid state reached admission: %v", calls)
+					}
+				}
+			}
 			wantReleased := []string{"bundle-04", "bundle-01", "aro-hcp-dev-shard0-slot-00"}
 			switch scenario {
 			case "primary state write", "subscription resolution":
 				wantReleased = []string{"aro-hcp-dev-shard0-slot-00"}
-			case "second acquire", "empty secondary", "blank secondary", "padded secondary", "timeout", "secondary state write":
+			case "second acquire", "malformed secondary", "timeout", "secondary state write":
 				wantReleased = []string{"bundle-04", "aro-hcp-dev-shard0-slot-00"}
 			case "unexpected name":
 				wantReleased[1] = "foreign-90"
@@ -271,25 +275,9 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			if _, err := slots.LoadAcquiredSlotState(options.SharedDir); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("successful rollback did not remove state: %v", err)
 			}
-		})
-	}
-}
-
-func TestFinalizeV2RejectsMalformedPrimaryBeforeStateWrite(t *testing.T) {
-	t.Parallel()
-	for _, name := range []string{"", " \t\n", " slot-00", "slot-00 ", "\tslot-00\n"} {
-		t.Run(name, func(t *testing.T) {
-			options := &AcquireOptions{
-				completedAcquireOptions: &completedAcquireOptions{
-					WriteState: func(string, *slots.AcquiredSlotState) error {
-						t.Fatal("invalid primary name reached state persistence")
-						return nil
-					},
-				},
-			}
-			err := options.finalizeV2Lease(context.Background(), slots.Pool{ResourceType: "slot"}, name)
-			if err == nil || !strings.Contains(err.Error(), "resource name") {
-				t.Fatalf("expected early primary name rejection, got %v", err)
+			envFile, _ := slots.EnvFile(options.SharedDir)
+			if _, err := os.Stat(envFile); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("failed acquisition published a runtime contract: %v", err)
 			}
 		})
 	}

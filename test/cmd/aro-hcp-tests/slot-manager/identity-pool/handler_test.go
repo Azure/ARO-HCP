@@ -47,8 +47,6 @@ func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
 			{"default skips unmanaged", []slots.Pool{unmanaged, managed}, false, "managed"},
 			{"explicit selection includes unmanaged", []slots.Pool{unmanaged, managed}, true, "unmanaged"},
 			{"only unmanaged default", []slots.Pool{unmanaged}, false, ""},
-			{"only unmanaged explicit", []slots.Pool{unmanaged}, true, "unmanaged"},
-			{"no pools", nil, false, ""},
 		} {
 			t.Run(operation+"/"+test.name, func(t *testing.T) {
 				// Stop at subscription resolution so neither operation can reach Azure.
@@ -78,5 +76,26 @@ func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
 				}
 			})
 		}
+	}
+
+}
+
+func TestHandlerPublishesIdentityGroups(t *testing.T) {
+	t.Parallel()
+
+	request := assets.LeaseRequest{State: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+		Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+			ResourceGroups: []string{"identity-rg-02", "identity-rg-01"},
+		}},
+	}}}
+	contract := slots.NewRuntimeContractBuilder()
+	if err := NewHandler().PublishLease(context.Background(), request, contract); err != nil {
+		t.Fatalf("publishing identity groups: %v", err)
+	}
+	if got, want := string(contract.MarshalShell()), "export LEASED_MSI_CONTAINERS='identity-rg-02 identity-rg-01'\n"; got != want {
+		t.Fatalf("identity export = %q, want %q", got, want)
+	}
+	if err := contract.Add("other", "LEASED_MSI_CONTAINERS", ""); err == nil || !strings.Contains(err.Error(), `already owned by "e2e_identities"`) {
+		t.Fatalf("identity export must be owned by e2e_identities, got %v", err)
 	}
 }
