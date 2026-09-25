@@ -255,10 +255,10 @@ clouds:
               - westus3
             # Prod-00 and Prod-01 run E2E across every production region, not
             # just uksouth: e2e-slots.yaml pins their runtime-selected region
-            # to uksouth today, but the prod canary job also leases these subs
-            # in eastus2euap (see e2e-slots.yaml), and quota must be tracked
-            # across all prod regions to catch exhaustion before a regional
-            # failover or canary run needs it.
+            # to uksouth today (the eastus2euap canary lease belongs to the
+            # separate cross-tenant "ARO HCP E2E" test-tenant pool, not these
+            # subs), but quota must still be tracked across all prod regions
+            # to catch exhaustion before a regional failover needs it.
             - name: "ARO HCP E2E Hosted Clusters - Prod - 00"
               regions:
               - eastus2euap
