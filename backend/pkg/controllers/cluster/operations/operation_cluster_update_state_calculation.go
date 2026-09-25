@@ -46,7 +46,7 @@ import (
 // hypershiftHostedClusterOperationState contains the cluster update operation state calculation comparing desired state
 // against Hypershift's HostedCluster in the management cluster.
 func (c *operationClusterUpdate) hypershiftHostedClusterOperationState(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx,
 		c.readDesireLister,
 		cluster.ID.SubscriptionID,
@@ -301,7 +301,7 @@ func (c *operationClusterUpdate) hypershiftHostedClusterAutoscalingSpecMatchesDe
 // service. These are ignored when comparing customer imageDigestMirrors propagation.
 var platformImageContentSources = map[string]struct{}{
 	"quay.io/openshift-release-dev/ocp-v4.0-art-dev":    {},
-	"quay.io/openshift-release-dev/ocp-v5.0-art-dev":    {},
+	apihelpers.OcpV5ArtDevMirrorSource:                  {},
 	"quay.io/openshift-release-dev/ocp-release":         {},
 	"quay.io/openshift-release-dev/ocp-release-nightly": {},
 }

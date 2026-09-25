@@ -105,6 +105,37 @@ cluster to obtain it. Any future "admission needs live cluster state" case must
 follow the same pattern: backend observes → mirrors onto `ServiceProviderCluster`
 → frontend prefetches → admission reads from context.
 
+The general-purpose landing spot for that state is
+`ServiceProviderCluster.Status.ActualHostedCluster`, which the backend
+`ActualHostedCluster` controller keeps as a copy of the whole observed
+HostedCluster (spec and status). Prefer reading a fact out of it over adding a
+new distilled field per check: a per-check field has to be named, versioned and
+backfilled, and single-purpose booleans in particular do not survive contact
+with the next release (`DataPlaneV5MirrorPresent` would need a sibling for every
+future major version). `admitClusterV5DataPlaneMirror` is the worked example —
+it reads `Spec.ImageContentSources` straight off the mirrored HostedCluster.
+
+Two rules when consuming it:
+
+- **Read actual, not desired.** Admission decides against what exists on the
+  management cluster today. `Spec.DesiredHostedCluster` is intent and may not be
+  reality; do not gate on it.
+- **Fail closed while unobserved for safety-critical upgrade gates.**
+  `ActualHostedCluster` is nil until the backend has seen the HostedCluster, and
+  is retracted to nil once a completed read reports no HostedCluster on the
+  management cluster, so the mirror never outlives the object it mirrors. A read
+  that has not happened or did not succeed leaves the previous value in place —
+  that is "we have not looked", not "it is gone" — so a non-nil value can lag
+  reality while the kube-applier is failing to read. Treat it as the last
+  confirmed observation, not as a live view. For the v5 data-plane mirror gate,
+  nil means the required mirror cannot be proven present, so the upgrade must be
+  rejected. Once it is non-nil, an empty field within it is a real answer and is
+  also rejected.
+
+Why the mirror exists at all (frontend has no kube-applier container access, so
+a frontend compromise cannot create management-cluster resources) is written up
+in [docs/cosmos-data-flow.md](../../docs/cosmos-data-flow.md#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster).
+
 ## Tests
 
 - Unit tests live next to the implementation (`admit_xxx_test.go`).

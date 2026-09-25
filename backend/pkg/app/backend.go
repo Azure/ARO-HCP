@@ -49,6 +49,7 @@ import (
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
+	clusterhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/hostedcluster"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
@@ -671,6 +672,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
+	actualHostedClusterController := clusterhostedcluster.NewActualHostedClusterController(
+		b.options.ResourcesDBClient,
+		clusterLister,
+		backendInformers,
+		unionKubeApplierInformers,
+		unionReadDesireLister,
+	)
 	controlPlaneDesiredVersionController := clusterversion.NewControlPlaneDesiredVersionController(
 		b.clock,
 		b.options.ResourcesDBClient,
@@ -1183,6 +1191,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go orphanedBillingCleanupController.Run(ctx, 20)
 				go createBillingDocController.Run(ctx, 20)
 				go controlPlaneActiveVersionController.Run(ctx, 20)
+				go actualHostedClusterController.Run(ctx, 20)
 				go controlPlaneDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)

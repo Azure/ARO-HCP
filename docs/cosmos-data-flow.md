@@ -351,7 +351,7 @@ No writes to Cosmos Resources container.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **130 entries**: 105 backend instances, 11 fleet controllers,
+The catalog contains **131 entries**: 106 backend instances, 11 fleet controllers,
 three kube-applier controller types, eight management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
@@ -428,6 +428,29 @@ Requires a service-provider document. Resolves initial and subsequent exact vers
 Requires both cached cluster documents, unresolved `Spec.ManagementClusterResourceID`, no deletion timestamp and a nonterminal provisioning state. Reads fleet scheduling policy, `Ready`, `CapacityDataCurrent` and `ScalingDataCurrent`. Selects the eligible management cluster with the most available SWIFT NICs (resource-ID order breaks ties); needs zero NICs for non-SWIFT HCPs (`CustomerProperties.Platform.VnetIntegrationSubnetID` is nil), one for SWIFT SingleReplica and three for other SWIFT HCPs. Available capacity subtracts the greater of observed usage/requests, plus reservations for not-ready and pending HCPs, from the scale ceiling. Existing `NotReadyResourceIDs` and `PendingAssignedClusters` reservations use the same per-HCP networking-mode and control-plane-availability rules, conservatively reserving three NICs when the HCP cannot be read from the cache. Zero-NIC requests still require eligible management clusters with nonnegative NIC headroom and retain pending assignment records. CPU/memory and aggregate HCP requirements are not selection criteria yet.
 
 Reserves `ManagementClusterScheduling.Status.PendingAssignedClusters` before replacing `ServiceProviderCluster` with both `Spec.ManagementClusterResourceID` and `Status.Placement.Conditions[CapacityAvailable]=True`. If no fit exists, records False for known blockers/exhaustion or Unknown for incomplete evaluation and enqueues a retry after 29s. The create-operation poller owns the overall deadline and customer-visible failure.
+
+#### ActualHostedCluster
+
+**File:** [actual_hosted_cluster_controller.go](../backend/pkg/controllers/cluster/hostedcluster/actual_hosted_cluster_controller.go)
+**Trigger:** Cluster, ServiceProviderCluster, cluster-scoped ManagementClusterContent,
+ReadDesire, and ApplyDesire informers; 5-minute resync.
+
+Mirrors the observed HostedCluster so the frontend has a source of management-cluster
+state it is allowed to read (see [Why management-cluster state is mirrored onto
+ServiceProviderCluster](#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster)).
+Leaves the field `nil` until the HostedCluster is observed, and only writes when the observed
+object changes. A missing or unsuccessful ReadDesire observation leaves an already-published
+mirror in place — those states also cover a cold union informer, so clearing on them would wipe
+and rewrite every mirror on each backend restart. A successful empty observation clears the
+mirror because it proves the HostedCluster is absent. Deletion does not gate mirroring:
+successful observations continue updating the object while the cluster is deleting, and a
+successful empty observation retracts it to `nil` for both active and deleting clusters.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | Existence only; no deletion gate |
+| Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions[Successful]` — gates all mirror updates, including clearing empty content</li><li>`Status.KubeContent` — the observed HostedCluster, whole object (`Spec` + `Status`)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ActualHostedCluster`** = the observed HostedCluster, mirrored verbatim (`Spec` + `Status` + `metadata`)</li></ul> |
 
 #### FetchMSIIdentitiesInfo
 

@@ -37,7 +37,7 @@ import (
 // hypershiftHostedClusterExternalAuthOperationState contains the external auth update operation state calculation
 // comparing desired state against Hypershift's HostedCluster in the management cluster.
 func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthOperationState(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx,
 		c.readDesireLister,
 		externalAuth.ID.SubscriptionID,

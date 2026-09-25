@@ -21,11 +21,13 @@ import (
 
 	"github.com/google/uuid"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/util/json"
 
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -42,38 +44,35 @@ import (
 // reduces to a stable Cosmos key regardless of case.
 var ReadDesireNameReadonlyHostedCluster = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 
-// GetCachedHostedClusterForCluster reads the HostedCluster mirror from the
-// per-cluster ReadDesire. The ReadDesire's Status.KubeContent.Raw carries
-// the observed HostedCluster JSON; we decode it directly and return the
-// typed object.
+// GetCachedHostedClusterForCluster reads the HostedCluster from the cached
+// per-cluster ReadDesire. The bool reports whether its Successful condition is
+// true. A nil HostedCluster with true means a successful read found no object;
+// a missing ReadDesire or an unsuccessful read returns false.
 //
-// Returns (nil, nil) when:
-//   - the ReadDesire has not been created yet (NotFound),
-//   - the ReadDesire exists but the kube-applier has not yet observed
-//     the target (Status.KubeContent is nil or empty).
-//
-// Returns a non-nil error only for hard failures: a non-NotFound lister
-// error, or unmarshal failure.
+// Cached content is returned even when the latest read was unsuccessful, so
+// callers that only need the last recorded content can ignore the bool.
+// Returns an error for non-NotFound lister errors or malformed content.
 func GetCachedHostedClusterForCluster(
 	ctx context.Context,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	subscriptionName, resourceGroupName, clusterName string,
-) (*v1beta1.HostedCluster, error) {
+) (*v1beta1.HostedCluster, bool, error) {
 	readDesire, err := readDesireLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, ReadDesireNameReadonlyHostedCluster)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		return nil, nil
+		return nil, false, nil
 	}
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get ReadDesire for HostedCluster: %w", err))
+		return nil, false, utils.TrackError(fmt.Errorf("failed to get ReadDesire for HostedCluster: %w", err))
 	}
+	observed := meta.IsStatusConditionTrue(readDesire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
 	if readDesire.Status.KubeContent == nil || len(readDesire.Status.KubeContent.Raw) == 0 {
-		return nil, nil
+		return nil, observed, nil
 	}
 	hostedCluster := &v1beta1.HostedCluster{}
 	if err := json.Unmarshal(readDesire.Status.KubeContent.Raw, hostedCluster); err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to unmarshal HostedCluster from ReadDesire kubeContent: %w", err))
+		return nil, false, utils.TrackError(fmt.Errorf("failed to unmarshal HostedCluster from ReadDesire kubeContent: %w", err))
 	}
-	return hostedCluster, nil
+	return hostedCluster, observed, nil
 }
 
 // GetCachedHostedClusterUUIDForCluster resolves the cluster UUID parsed from the cached HostedCluster's
@@ -94,7 +93,7 @@ func GetCachedHostedClusterUUIDForCluster(
 	subscriptionName, resourceGroupName, clusterName string,
 ) (uuid.UUID, bool, error) {
 	logger := utils.LoggerFromContext(ctx)
-	hostedCluster, err := GetCachedHostedClusterForCluster(ctx, readDesireLister, subscriptionName, resourceGroupName, clusterName)
+	hostedCluster, _, err := GetCachedHostedClusterForCluster(ctx, readDesireLister, subscriptionName, resourceGroupName, clusterName)
 	if err != nil {
 		return uuid.Nil, false, err
 	}

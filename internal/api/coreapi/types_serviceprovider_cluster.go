@@ -191,6 +191,36 @@ type ServiceProviderClusterStatus struct {
 	// Written by: ControlPlaneActiveVersions
 	DesiredVersionChannels []string `json:"desiredVersionChannels,omitempty"`
 
+	// ActualHostedCluster is the HostedCluster as it currently exists on the
+	// management cluster, mirrored here from the kube-applier ReadDesire by the
+	// backend. Both spec and status are carried, so this is the single place the
+	// frontend can consult for observed management-cluster state.
+	//
+	// The frontend is deliberately denied any path to a management cluster (no
+	// kube-applier container access, no ReadDesireLister, no Maestro), so a
+	// frontend compromise cannot create arbitrary resources on a management
+	// cluster. Anything admission needs to know about the real HostedCluster has
+	// to travel through this field; see internal/admission/CLAUDE.md.
+	//
+	// The object is mirrored verbatim, exactly as observed on the management
+	// cluster. Nothing is stripped or rewritten on the way in, so a consumer can
+	// read any field without having to know a mirroring policy.
+	//
+	// nil means there is no observed HostedCluster to report: the backend has not
+	// observed one yet (the cluster is still being created, or the first sync has
+	// not run), or a completed read found no HostedCluster on the management
+	// cluster, in which case the mirror is retracted rather than left pointing at
+	// an object that no longer exists. Consumers must treat nil as unavailable
+	// observed state. Safety-critical admission checks must fail closed while it
+	// is nil; they cannot assume a required property such as a data-plane image
+	// mirror is present.
+	//
+	// Backend controllers must NOT read this field. They have first-class access
+	// to the ReadDesire mirror and are expected to read that instead, staying as
+	// close to the source as possible rather than waiting for this copy to catch up.
+	// Written by: ActualHostedCluster
+	ActualHostedCluster *v1beta1.HostedCluster `json:"actualHostedCluster,omitempty"`
+
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
 	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
