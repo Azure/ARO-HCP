@@ -408,6 +408,11 @@ defaults:
     name: "metric-alerts"
     kustoConsumerGroupName: "AlertEventsToKusto"
     kustoDataConnectionName: "{{ .ctx.environment }}-{{ .ctx.region }}-alert-events"
+  maestroMqttEventHub:
+    name: "maestro-mqtt-connections"
+    kustoConsumerGroupName: "MaestroMqttToKusto"
+    kustoDataConnectionName: "{{ .ctx.environment }}-{{ .ctx.region }}-maestro-mqtt"
+    enabled: true
   # Hypershift
   hypershift:
     image:
@@ -1271,6 +1276,8 @@ clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
+      maestroMqttEventHub:
+        enabled: false
       cloudEnvironmentName: "AzurePublicCloud"
       kusto:
         kustoName: "hcp-dev-us-2"

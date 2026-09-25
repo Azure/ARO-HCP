@@ -636,6 +636,11 @@ maestro:
     loglevel: 2
     managedIdentityName: maestro-server
     mqttClientName: maestro-server-usw3ptest
+maestroMqttEventHub:
+  enabled: false
+  kustoConsumerGroupName: MaestroMqttToKusto
+  kustoDataConnectionName: perf-westus3-maestro-mqtt
+  name: maestro-mqtt-connections
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
