@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -113,8 +114,17 @@ func (s ExpandedSlot) ValidateResolvedAssets() error {
 	for _, requirement := range s.Requirements {
 		switch requirement.Kind {
 		case KindE2EIdentities:
-			if s.Assets.E2EIdentities == nil || len(s.Assets.E2EIdentities.ResourceGroups) == 0 {
+			asset := s.Assets.E2EIdentities
+			if asset == nil || len(asset.ResourceGroups) == 0 {
 				return fmt.Errorf("unresolved demanded asset %q", requirement.Kind)
+			}
+			if requirement.Allocation != AllocationDedicated || asset.Allocation != AllocationDedicated {
+				return fmt.Errorf("demanded asset %q requires dedicated allocation", requirement.Kind)
+			}
+			if s.IdentityContainerCount <= 0 || len(asset.ResourceGroups) != s.IdentityContainerCount ||
+				strings.TrimSpace(s.IdentityContainerPrefix) == "" ||
+				!slices.Equal(asset.ResourceGroups, identityContainerNames(s.IdentityContainerPrefix, s.IdentityContainerCount)) {
+				return fmt.Errorf("resolved demanded asset %q does not match dedicated identity containers", requirement.Kind)
 			}
 		case KindInfrastructureIdentities:
 			asset := s.Assets.InfrastructureIdentities

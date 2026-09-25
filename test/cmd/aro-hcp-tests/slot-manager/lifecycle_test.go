@@ -155,7 +155,7 @@ func lifecycleOptions(t *testing.T, catalog, server string, registry *assets.Reg
 
 func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []string{"success", "resolve", "prepare", "validate", "publish", "second acquire", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state"} {
+	for _, scenario := range []string{"success", "resolve", "prepare", "validate", "publish", "second acquire", "duplicate secondary", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state"} {
 		t.Run(scenario, func(t *testing.T) {
 			calls := []string{}
 			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
@@ -173,6 +173,8 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			switch scenario {
 			case "second acquire":
 				second = leaseProxyReply{statusCode: http.StatusForbidden, body: "denied"}
+			case "duplicate secondary":
+				second = successAcquireReply("bundle-04")
 			case "unexpected name":
 				second = successAcquireReply("foreign-90")
 			case "malformed secondary":
@@ -264,7 +266,7 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			switch scenario {
 			case "primary state write", "subscription resolution":
 				wantReleased = []string{"aro-hcp-dev-shard0-slot-00"}
-			case "second acquire", "malformed secondary", "timeout", "secondary state write":
+			case "second acquire", "duplicate secondary", "malformed secondary", "timeout", "secondary state write":
 				wantReleased = []string{"bundle-04", "aro-hcp-dev-shard0-slot-00"}
 			case "unexpected name":
 				wantReleased[1] = "foreign-90"

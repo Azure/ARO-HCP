@@ -194,8 +194,10 @@ func TestE2EOnlyStateAndRuntimeOmitInfrastructure(t *testing.T) {
 		state := resolvedV2TestState()
 		state.Slot.Subscriptions.Infrastructure = infrastructure
 		state.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+		state.Slot.IdentityContainerPrefix = "identities-00"
+		state.Slot.IdentityContainerCount = 1
 		state.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
-			Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00"},
+			Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00-00"},
 		}
 		if err := state.Validate(); err != nil {
 			t.Fatalf("E2E-only state required infrastructure: %v", err)
@@ -344,6 +346,41 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 		{"unresolved assets", func(s *AcquiredSlotState) {
 			s.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities}}
 		}, "unresolved demanded asset"},
+		{"truncated dedicated identities", func(s *AcquiredSlotState) {
+			s.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 2
+			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
+				Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00-00"},
+			}
+		}, "does not match dedicated identity containers"},
+		{"foreign dedicated identity", func(s *AcquiredSlotState) {
+			s.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 1
+			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
+				Allocation: AllocationDedicated, ResourceGroups: []string{"foreign-00-00"},
+			}
+		}, "does not match dedicated identity containers"},
+		{"duplicate dedicated identities", func(s *AcquiredSlotState) {
+			s.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 2
+			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
+				Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00-00", "identities-00-00"},
+			}
+		}, "does not match dedicated identity containers"},
+		{"wrong resolved identity allocation", func(s *AcquiredSlotState) {
+			s.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 1
+			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
+				Allocation: AllocationLeased, ResourceGroups: []string{"identities-00-00"},
+			}
+		}, "requires dedicated allocation"},
+		{"wrong demanded identity allocation", func(s *AcquiredSlotState) {
+			s.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationLeased}}
+			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 1
+			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
+				Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00-00"},
+			}
+		}, "requires dedicated allocation"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			state := resolvedV2TestState()

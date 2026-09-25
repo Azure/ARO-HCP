@@ -280,7 +280,7 @@ func loadIdentityLeaseInventory(
 			return nil, fmt.Errorf("failed listing role assignments for E2E subscription: %w", err)
 		}
 		for _, assignment := range page.Value {
-			if assignment == nil || assignment.Properties == nil || assignment.Properties.PrincipalID == nil {
+			if assignment == nil || assignment.Properties == nil || assignment.Properties.PrincipalID == nil || strings.TrimSpace(*assignment.Properties.PrincipalID) == "" {
 				return nil, errors.New("role assignment list returned an entry without a principal ID")
 			}
 			if _, found := principalIDs[strings.ToLower(*assignment.Properties.PrincipalID)]; found {

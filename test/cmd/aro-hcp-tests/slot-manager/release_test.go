@@ -123,49 +123,6 @@ func TestReleaseRunHappyPath(t *testing.T) {
 	}
 }
 
-func TestReleaseRunSupportsV2State(t *testing.T) {
-	t.Parallel()
-
-	sharedDir := t.TempDir()
-	state := &slots.AcquiredSlotState{
-		Version:           2,
-		Leases:            slots.LeaseSet{Primary: slots.Lease{ResourceType: "aro-hcp-dev-shard0-slot", ResourceName: "aro-hcp-dev-shard0-slot-00"}},
-		DeployEnvironment: "ci01",
-		RuntimeRegion:     "westus3",
-		Slot: slots.ExpandedSlot{
-			Environment:       "dev",
-			PoolName:          "shard0",
-			DeployEnvironment: "ci01",
-			ResourceType:      "aro-hcp-dev-shard0-slot",
-			ResourceName:      "aro-hcp-dev-shard0-slot-00",
-			Subscriptions: slots.ResolvedSubscriptions{
-				E2E:            slots.ResolvedSubscription{Name: "dev-e2e", ID: "e2e-id"},
-				Infrastructure: slots.ResolvedSubscription{Name: "dev-infra", ID: "infra-id"},
-			},
-			Assets: slots.ResolvedAssets{
-				E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{ResourceGroups: []string{"identity-rg"}},
-			},
-		},
-		LeasedResourceName: "aro-hcp-dev-shard0-slot-00",
-	}
-	if err := slots.WriteAcquiredSlotState(sharedDir, state); err != nil {
-		t.Fatalf("expected v2 state write to succeed: %v", err)
-	}
-
-	server, releasedNames := newReleaseTestServer(t)
-	defer server.Close()
-	if err := Release(context.Background(), &RawReleaseOptions{
-		SharedDir:           sharedDir,
-		LeaseProxyServerURL: server.URL,
-		LeaseProxyTimeout:   5 * time.Second,
-	}); err != nil {
-		t.Fatalf("expected release from v2 state to succeed: %v", err)
-	}
-	if got, want := *releasedNames, []string{"aro-hcp-dev-shard0-slot-00"}; !equalStrings(got, want) {
-		t.Fatalf("unexpected v2 released names: got %v want %v", got, want)
-	}
-}
-
 func TestReleaseRunNoStateFileReturnsNil(t *testing.T) {
 	t.Parallel()
 

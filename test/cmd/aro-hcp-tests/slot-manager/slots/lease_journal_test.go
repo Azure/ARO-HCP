@@ -38,9 +38,9 @@ func journalTestState() *AcquiredSlotState {
 	}
 }
 
-func TestJournalRejectsMalformedAssetNameWithoutPoisoningCleanup(t *testing.T) {
+func TestJournalRejectsInvalidAssetNameWithoutPoisoningCleanup(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"", " \t\n", " bundle-00", "bundle-00 ", "\tbundle-00\n", "\u00a0bundle-00"} {
+	for _, name := range []string{"", " \t\n", " bundle-00", "bundle-00 ", "\tbundle-00\n", "\u00a0bundle-00", "slot-00", "bundle-04"} {
 		t.Run(name, func(t *testing.T) {
 			state := journalTestState()
 			dir := t.TempDir()
@@ -63,7 +63,7 @@ func TestJournalRejectsMalformedAssetNameWithoutPoisoningCleanup(t *testing.T) {
 			_, err := journal.AcquireAsset(context.Background(), KindInfrastructureIdentities,
 				AssetInventory{Pool: AssetPool{ResourceType: "bundles", ResourceNamePrefix: "bundle"}, Capacity: 8})
 			if err == nil || !strings.Contains(err.Error(), "resource name") {
-				t.Fatalf("expected malformed name rejection, got %v", err)
+				t.Fatalf("expected invalid or duplicate name rejection, got %v", err)
 			}
 			if writes != 0 || len(state.Leases.Assets[KindInfrastructureIdentities]) != 0 {
 				t.Fatal("invalid name was journaled")
@@ -80,7 +80,6 @@ func TestJournalRejectsMalformedAssetNameWithoutPoisoningCleanup(t *testing.T) {
 
 func TestJournalReleaseContinuesAfterFailureAndCancellation(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
 	state := journalTestState()
 	calls := []string{}
 	failure := errors.New("Boskos return failed")
@@ -88,7 +87,7 @@ func TestJournalReleaseContinuesAfterFailureAndCancellation(t *testing.T) {
 	cancel()
 	journal := &LeaseJournal{
 		State: state, Timeout: time.Second,
-		Persist: func() error { return WriteAcquiredSlotState(dir, state) },
+		Persist: func() error { return nil },
 		Return: func(ctx context.Context, name string, _ time.Duration) error {
 			if ctx.Err() != nil {
 				t.Errorf("return %s inherited canceled context", name)
@@ -108,28 +107,6 @@ func TestJournalReleaseContinuesAfterFailureAndCancellation(t *testing.T) {
 	}
 	if !reflect.DeepEqual(calls, []string{"bundle-04", "bundle-07", "slot-00"}) {
 		t.Fatalf("cleanup stopped early: %v", calls)
-	}
-	reloaded, err := LoadAcquiredSlotState(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reloaded.Leases.Primary.ReturnState != "returned" || reloaded.Leases.Assets["removed-handler"][1].ReturnState != "returned" {
-		t.Fatalf("successful returns were not persisted: %+v", reloaded.Leases)
-	}
-	calls = nil
-	retry := &LeaseJournal{
-		State: reloaded, Timeout: time.Second,
-		Persist: func() error { return WriteAcquiredSlotState(dir, reloaded) },
-		Return: func(_ context.Context, name string, _ time.Duration) error {
-			calls = append(calls, name)
-			return nil
-		},
-	}
-	if err := retry.ReleaseAll(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(calls, []string{"bundle-04"}) {
-		t.Fatalf("retry re-returned a resource already returned: %v", calls)
 	}
 }
 

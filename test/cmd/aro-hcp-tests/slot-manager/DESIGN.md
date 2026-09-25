@@ -338,6 +338,8 @@ pool is exhausted.
 State is updated with every resolved lease before preparation begins. The
 release step can therefore return the primary slot and every independently
 leased asset if admission fails or the process is interrupted.
+Malformed or already-journaled names are rejected before changing the journal,
+so a duplicate acquisition response cannot prevent cleanup of existing leases.
 
 If acquisition fails after obtaining only part of the required lease set,
 slot-manager immediately attempts to release everything recorded so far. If
@@ -497,7 +499,9 @@ For slot index `N`, the handler expands the configured prefix and count into:
 where `M` ranges from zero to `resource_group_count - 1`.
 
 The resolved names are persisted in state and later published as
-`LEASED_MSI_CONTAINERS`.
+`LEASED_MSI_CONTAINERS`. Runtime validation requires dedicated allocation and
+the complete deterministic list above, not merely a nonempty set, before
+admission or publication.
 
 ### Pool management
 

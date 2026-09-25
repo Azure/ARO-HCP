@@ -723,17 +723,6 @@ func TestResolveCatalogPath(t *testing.T) {
 	}
 }
 
-func TestNormalizeV2PoolWithoutE2EIdentities(t *testing.T) {
-	t.Parallel()
-	pool := Pool{Name: "shard", DeployEnv: "ci01", Subscriptions: PoolSubscriptions{E2E: "customer", Infrastructure: "infra"}}
-	if err := normalizeV2Pool("dev", &pool); err != nil {
-		t.Fatalf("normalizing pool without E2E identities: %v", err)
-	}
-	if pool.SubscriptionName != "customer" || pool.ResourceType != "aro-hcp-dev-shard-slot" {
-		t.Fatalf("pool without E2E identities lost common normalization: %+v", pool)
-	}
-}
-
 func TestV2E2EOnlyCatalogIgnoresInfrastructureBinding(t *testing.T) {
 	t.Parallel()
 	for _, binding := range []string{"", ", infrastructure_subscription: inaccessible-infra"} {

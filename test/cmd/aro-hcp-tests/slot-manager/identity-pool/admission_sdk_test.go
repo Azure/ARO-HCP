@@ -144,6 +144,12 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 		if a.scenario == "role list failure" {
 			return nil, fmt.Errorf("fake role list failure")
 		}
+		switch a.scenario {
+		case "empty role principal":
+			principal = ""
+		case "whitespace role principal":
+			principal = " \t\n"
+		}
 
 		roles := []map[string]any{
 			{"id": "/subscriptions/sub/providers/Microsoft.Authorization/roleAssignments/foreign", "properties": map[string]string{"principalId": "ffffffff-ffff-ffff-ffff-ffffffffffff"}},
@@ -310,6 +316,8 @@ func TestAdmissionFailsClosedBeforeCleanup(t *testing.T) {
 		{"list failure", "fake identity list failure"},
 		{"FIC list failure", "fake FIC list failure"},
 		{"role list failure", "fake role list failure"},
+		{"empty role principal", "without a principal ID"},
+		{"whitespace role principal", "without a principal ID"},
 		{"delete failure", "fake delete failure"},
 	} {
 		t.Run(tc.scenario, func(t *testing.T) {

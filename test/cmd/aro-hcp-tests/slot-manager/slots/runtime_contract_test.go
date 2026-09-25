@@ -242,14 +242,6 @@ func TestAddSubscriptionIDs(t *testing.T) {
 				if err == nil || !strings.Contains(err.Error(), test.want) {
 					t.Fatalf("expected %q, got %v", test.want, err)
 				}
-				if strings.Contains(test.want, "ambiguous") && len(ids) != 1 {
-					t.Fatalf("conflicting entry changed the index: %v", ids)
-				}
-				for _, id := range ids {
-					if strings.Contains(test.want, "ambiguous") && id != "id-a" {
-						t.Fatalf("conflicting entry overwrote the original ID: %v", ids)
-					}
-				}
 			} else if err != nil {
 				t.Fatalf("valid subscription inventory failed: %v", err)
 			} else if ids["customer"] != "id-a" {

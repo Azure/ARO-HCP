@@ -9,8 +9,8 @@ ARO HCP E2E uses three related Boskos-backed leasing mechanisms:
 
 The important operational distinction today is that the managed identity container pool is acquired in two different ways:
 
-- DEV, INT, and STG `e2e-parallel` jobs use `slot-manager` through the `aro-hcp-local-e2e` workflow
-- PROD is being migrated onto the same slot-manager model; until its `openshift/release` job wiring lands it still uses the older ci-operator `leases:` path directly
+- DEV `e2e-parallel` jobs use `slot-manager` through the `aro-hcp-local-e2e` workflow; INT, STG, and PROD parallel jobs use `aro-hcp-persistent-e2e`
+- jobs using the older `aro-hcp-e2e` workflow acquire identity containers through ci-operator `leases:` directly
 
 The high-level execution flow is summarized in [CI Execution](execution.md).
 This document covers test-framework leasing, capacity planning, workflow wiring,
@@ -263,8 +263,8 @@ Every input above has a stated derivation, so the whole calculation can be re-ru
 
 For the current live capacity model:
 
-- DEV `e2e-parallel` capacity is determined by the sum of available slots across the eligible shard pools in `test/e2e-config/e2e-slots.yaml`
-- higher-environment capacity is still determined by the legacy Boskos pool sizes in `openshift/release: core-services/prow/02_config/generate-boskos.py`
+- slot-managed DEV, INT, STG, and PROD parallel-job capacity is determined by the available slots across eligible pools in `test/e2e-config/e2e-slots.yaml`, backed by the matching release-side Boskos inventory
+- jobs using legacy ci-operator leases remain bounded by their lease counts and the flat Boskos pool sizes in `openshift/release: core-services/prow/02_config/generate-boskos.py`
 - the active job wiring and runtime-region overrides are defined in the live `openshift/release` ci-operator config
 
 ### Scaling Constraints
@@ -281,7 +281,7 @@ Three bottlenecks matter:
 max-concurrent-runs = floor(pool-size / per-job-lease-count)
 ```
 
-- In the slot-managed DEV model, concurrency is instead bounded by the number of available slots across the shard pools that the job is allowed to consume.
+- In the slot-managed model, concurrency is instead bounded by the number of available slots across the pools that the job is allowed to consume.
 
 **Bottleneck 2: parallelism within a single run.** How many HCP clusters a single suite execution holds at once is bounded by both the leased identity-container set and the effective suite parallelism, whichever is smaller — see `hcp-concurrency` above. When the suite has more specs requiring HCPs than can run concurrently, specs run in waves — the first wave runs, and the remaining specs block inside `AssignIdentityContainers()` until containers are released. This means adding more test specs increases total suite runtime even if the specs themselves are fast.
 
@@ -304,19 +304,19 @@ where `identity-container-count-per-slot` is the pool's `slot_assets.e2e_identit
 
 The RP is expected to consolidate the per-cluster deny assignments into a single deny assignment with all managed identities excluded once Azure raises the excluded-principals limit from 10 to 25. When that lands, this per-subscription HCP ceiling is lifted and the PROD `slot_count` can be raised accordingly.
 
-The path to higher throughput is still adding subscription capacity, because each additional customer subscription brings its own role-assignment budget and its own managed identity container fleet. In DEV, slot-manager is what lets CI consume that extra capacity through one job family rather than through separate workflows.
+The path to higher throughput is still adding subscription capacity, because each additional customer subscription brings its own role-assignment budget and its own managed identity container fleet. Slot-manager lets CI consume that extra capacity through one job family rather than through separate workflows.
 
 ### Managing Identity-Container Capacity
 
-For the live DEV slot-managed path:
+For slot-managed jobs:
 
 - update `test/e2e-config/e2e-slots.yaml`
 - sync or validate the release-side Boskos inventory with `./test/aro-hcp-tests slot-manager sync-boskos-config` and `./test/aro-hcp-tests slot-manager validate-boskos-config`
-- apply declared assets with `make -C test apply-pool-assets ENVIRONMENT=dev`
+- apply declared assets for the target environment, for example `make -C test apply-pool-assets ENVIRONMENT=dev`
   (the `apply-identity-pool` target remains a compatibility alias)
 
   Always apply through this Make target rather than `go run` or a hand-built binary. The target rebuilds `aro-hcp-tests` and, as part of that, regenerates the Bicep-derived ARM artifacts (e.g. `msi-pools.json`) from the source-of-truth Bicep in `test/e2e-setup/bicep/`. The generated artifacts under `test/e2e/test-artifacts/generated-test-artifacts/` are git-ignored build outputs, so bypassing the Make build can embed and apply a stale template — which manifests as resource groups being deleted and recreated instead of updated in place.
-- follow [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md) for the full operator runbook when adding another customer subscription
+- follow [E2E Subscription Onboarding](e2e-subscription-onboarding.md) for the operator runbook when adding another customer subscription
 
 #### Reconcile And Validate An Identity Pool
 
@@ -350,7 +350,11 @@ insufficient RBAC, an unregistered `Microsoft.ManagedIdentity` provider,
 subscription quota exhaustion, or another deployment operation holding the
 stack in a non-terminal state.
 
-For higher environments, the identity-container acquisition path is still the older ci-operator `leases:` model. Those jobs are not yet wired to slot-manager acquire or release, so changes there still have to respect the existing `openshift/release` Boskos inventory and job configuration.
+INT, STG, and PROD parallel jobs use the same catalog-driven acquisition and
+release path without provisioning infrastructure. Catalog changes must stay
+aligned with the release-side Boskos inventory and job selectors. For jobs
+using the older `aro-hcp-e2e` workflow, manage their ci-operator lease counts and
+flat identity-container pools separately.
 
 ### Operational Notes And Troubleshooting
 
@@ -366,8 +370,8 @@ Common failure modes:
     and [acquired-state recovery rules](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquired-state)
     before retrying or manually returning a lease
 - **`expected envvar LEASED_MSI_CONTAINERS to not be empty`**
-  - on the slot-managed DEV path, inspect `aro-hcp-lease-acquire` and the runtime slot env export
-  - on the legacy higher-environment path, the job likely did not receive the ci-operator lease it expected
+  - on the slot-managed path, inspect `aro-hcp-lease-acquire` and the runtime slot env export
+  - on the legacy path, the job likely did not receive the ci-operator lease it expected
 - **`no assigned identity containers available for <specID>`**
   - the spec tried to consume more containers than it reserved, or skipped the normal reservation path
 - **persistent FIC or role-assignment leakage in identity-container resource groups**
@@ -502,7 +506,8 @@ When you need to change or debug identity leasing, start here:
 - ARO HCP test framework: `test/util/framework/identities_helper.go`
 - slot-managed identity-pool code: `test/cmd/aro-hcp-tests/slot-manager/identity-pool/`
 - release-side local workflow: `openshift/release: ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml`
-- release-side persistent workflow: `openshift/release: ci-operator/step-registry/aro-hcp/e2e/aro-hcp-e2e-workflow.yaml`
+- release-side persistent workflow: `openshift/release: ci-operator/step-registry/aro-hcp/persistent-e2e/aro-hcp-persistent-e2e-workflow.yaml`
+- release-side legacy workflow: `openshift/release: ci-operator/step-registry/aro-hcp/e2e/aro-hcp-e2e-workflow.yaml`
 - release-side acquire step: `openshift/release: ci-operator/step-registry/aro-hcp/lease/acquire/`
 - release-side provision step: `openshift/release: ci-operator/step-registry/aro-hcp/provision/environment/`
 - slot catalog: `test/e2e-config/e2e-slots.yaml`

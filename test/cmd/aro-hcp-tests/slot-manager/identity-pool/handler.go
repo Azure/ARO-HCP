@@ -52,6 +52,7 @@ func (h *Handler) AcquireLease(_ context.Context, request assets.LeaseRequest) e
 	slot := &request.State.Slot
 	if slot.Assets.E2EIdentities == nil {
 		slot.Assets.E2EIdentities = &slots.ResolvedE2EIdentitiesAsset{
+			Allocation:     slots.AllocationDedicated,
 			ResourceGroups: slot.IdentityContainerNames(),
 		}
 	}

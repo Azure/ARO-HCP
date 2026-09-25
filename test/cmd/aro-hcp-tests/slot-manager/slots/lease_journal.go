@@ -46,6 +46,16 @@ func (j *LeaseJournal) AcquireAsset(ctx context.Context, kind AssetKind, invento
 	if err := ValidateLeasedResourceName(name); err != nil {
 		return Lease{}, fmt.Errorf("asset lease acquisition returned an invalid name for type %q: %w", inventory.Pool.ResourceType, err)
 	}
+	if name == j.State.Leases.Primary.ResourceName {
+		return Lease{}, fmt.Errorf("asset lease acquisition returned already journaled resource name %q", name)
+	}
+	for _, leases := range j.State.Leases.Assets {
+		for _, existing := range leases {
+			if existing.ResourceName == name {
+				return Lease{}, fmt.Errorf("asset lease acquisition returned already journaled resource name %q", name)
+			}
+		}
+	}
 	lease := Lease{ResourceType: inventory.Pool.ResourceType, ResourceName: name}
 	if j.State.Leases.Assets == nil {
 		j.State.Leases.Assets = map[AssetKind][]Lease{}
