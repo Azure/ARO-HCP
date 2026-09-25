@@ -112,8 +112,8 @@ spec:
             drop: ['ALL']
         resources:
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: 10m
+            memory: 20Mi
 ---
 # Source: aro-hcp-exporter/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

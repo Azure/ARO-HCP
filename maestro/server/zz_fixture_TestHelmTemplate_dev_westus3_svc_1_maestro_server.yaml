@@ -250,8 +250,8 @@ spec:
         - --db-auth-method=az-entra
         resources:
           requests:
-            cpu: '200m'
-            memory: '512Mi'
+            cpu: '150m'
+            memory: '60Mi'
         # NOTE: liveness uses /livez, a process-only endpoint that does NOT touch
         # Postgres (openshift-online/maestro#543), so a transient DB slowdown no
         # longer fails this probe. Readiness keeps using /healthcheck (which does a

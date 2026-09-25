@@ -1294,8 +1294,8 @@ clouds:
         forwarder:
           resources:
             requests:
-              cpu: 450m
-              memory: 472Mi
+              cpu: 970m
+              memory: 380Mi
         mdsd:
           enabled: false
         kusto:
@@ -1359,6 +1359,11 @@ clouds:
         server:
           certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           certCN: 'server.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
+          k8s:
+            resources:
+              requests:
+                cpu: 150m
+                memory: 60Mi
         agent:
           certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
@@ -1369,7 +1374,8 @@ clouds:
         k8s:
           resources:
             requests:
-              cpu: 630m
+              cpu: 560m
+              memory: 170Mi
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
@@ -1384,22 +1390,38 @@ clouds:
         cert:
           san: 'admin.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 30Mi
       # Sessiongate
       sessiongate:
         cert:
           san: 'sessiongate.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 30Mi
       # Frontend
       frontend:
         cert:
           san: 'rp.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
+        k8s:
+          resources:
+            requests:
+              cpu: 20m
+              memory: 30Mi
       # Backend
       backend:
         k8s:
           resources:
             requests:
-              cpu: 700m
+              cpu: 1020m
+              memory: 400Mi
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
         clusterScopedIdentitiesConfig:
@@ -1410,13 +1432,14 @@ clouds:
           resources:
             requests:
               cpu: 231m
-              memory: 224Mi
+              memory: 190Mi
       # Management Agent
       mgmtAgent:
         k8s:
           resources:
             requests:
-              cpu: 313m
+              cpu: 390m
+              memory: 470Mi
       # Image Sync
       imageSync:
         ocMirror:
@@ -1535,6 +1558,24 @@ clouds:
           certificate:
             issuer: Self
             san: genevaAction.hcp-global.osadev.cloud
+      customExporter:
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+      fleet:
+        k8s:
+          resources:
+            requests:
+              cpu: 80m
+              memory: 60Mi
+      kubeEvents:
+        k8s:
+          resources:
+            requests:
+              cpu: 110m
+              memory: 70Mi
     environments:
       dev:
         # this is the integrated DEV environment
