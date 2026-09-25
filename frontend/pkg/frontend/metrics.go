@@ -15,6 +15,7 @@
 package frontend
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -39,6 +40,7 @@ func muxPatternRoute(pattern string) string {
 type MetricsMiddleware struct {
 	requestCounter  *prometheus.CounterVec
 	requestDuration *prometheus.HistogramVec
+	phaseDuration   *prometheus.HistogramVec
 }
 
 type logResponseWriter struct {
@@ -54,6 +56,14 @@ func (lrw *logResponseWriter) WriteHeader(code int) {
 
 func NewMetricsMiddleware(r prometheus.Registerer) *MetricsMiddleware {
 	mm := &MetricsMiddleware{
+		phaseDuration: promauto.With(r).NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    phaseDurationName,
+				Help:    "Duration of frontend request phases. Parent phases include dotted children; durations are not additive.",
+				Buckets: []float64{0.0001, 0.0005, 0.001, 0.005, 0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1, 1.25, 1.5, 2, 3, 4, 5, 6, 8, 10, 15},
+			},
+			[]string{"route", "method", "phase"},
+		),
 		requestCounter: promauto.With(r).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: requestCounterName,
@@ -82,6 +92,10 @@ func NewMetricsMiddleware(r prometheus.Registerer) *MetricsMiddleware {
 func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 	return func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		startTime := time.Now()
+		r = r.WithContext(context.WithValue(r.Context(), phaseMetricsKey{}, &phaseMetrics{
+			duration: mm.phaseDuration,
+			method:   r.Method,
+		}))
 
 		lrw := &logResponseWriter{ResponseWriter: w}
 

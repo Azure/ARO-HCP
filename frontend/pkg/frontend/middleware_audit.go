@@ -58,7 +58,10 @@ func (h *middlewareAudit) handleRequest(w http.ResponseWriter, r *http.Request, 
 		msg.Record.OperationResultDescription = fmt.Sprintf("Status code: %d", auditWriter.StatusCode())
 	}
 
-	if err := h.auditClient.Send(ctx, msg); err != nil {
+	timer := startPhase(ctx, PhaseAuditSend)
+	err := h.auditClient.Send(ctx, msg)
+	timer.End()
+	if err != nil {
 		logger.Error(err, "error sending audit log")
 	}
 }

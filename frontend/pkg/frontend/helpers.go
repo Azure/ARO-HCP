@@ -134,10 +134,12 @@ func checkForProvisioningStateConflict(
 }
 
 func (f *Frontend) DeleteAllResourcesInSubscription(ctx context.Context, subscriptionID string) error {
+	prepareTimer := startPhase(ctx, PhasePersistPrepare)
 	transaction := f.resourcesDBClient.NewTransaction(subscriptionID)
 
 	clusterIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
 	if err != nil {
+		prepareTimer.End()
 		return utils.TrackError(err)
 	}
 	for _, cluster := range clusterIterator.Items(ctx) {
@@ -147,14 +149,19 @@ func (f *Frontend) DeleteAllResourcesInSubscription(ctx context.Context, subscri
 			continue
 		}
 		if err := f.addDeleteClusterToTransaction(ctx, nil, nil, transaction, cluster); err != nil {
+			prepareTimer.End()
 			return utils.TrackError(err)
 		}
 	}
 	if err = clusterIterator.GetError(); err != nil {
+		prepareTimer.End()
 		return utils.TrackError(err)
 	}
 
+	prepareTimer.End()
+	executeTimer := startPhase(ctx, PhasePersistExecute)
 	_, err = transaction.Execute(ctx, nil)
+	executeTimer.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}

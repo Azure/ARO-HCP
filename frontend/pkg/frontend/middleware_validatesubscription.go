@@ -48,9 +48,11 @@ func newMiddlewareValidateSubscriptionState(resourcesDBClient corecosmosstorage.
 func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
 	logger := utils.LoggerFromContext(ctx)
+	timer := startPhase(ctx, PhaseSubscriptionValidation)
 
 	subscriptionId := r.PathValue(PathSegmentSubscriptionID)
 	if subscriptionId == "" {
+		timer.End()
 		coreapihelpers.WriteError(
 			w, http.StatusBadRequest,
 			coreapi.CloudErrorCodeInvalidParameter, "",
@@ -59,8 +61,11 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 		return
 	}
 
+	readTimer := startPhase(ctx, PhaseSubscriptionValidationRead)
 	subscription, err := h.resourcesDBClient.Subscriptions().Get(ctx, subscriptionId)
+	readTimer.End()
 	if err != nil {
+		timer.End()
 		logger.Error(err, "failed to get subscription document", "subscriptionId", subscriptionId)
 
 		// subscription not found, treat as unregistered
@@ -101,8 +106,10 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 
 	switch subscription.State {
 	case coreapi.SubscriptionStateRegistered:
+		timer.End()
 		next(w, r)
 	case coreapi.SubscriptionStateUnregistered:
+		timer.End()
 		logger.Error(nil, "subscription document indicates unregistered", "subscriptionId", subscriptionId)
 		coreapihelpers.WriteError(
 			w, http.StatusBadRequest,
@@ -110,6 +117,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 			UnregisteredSubscriptionStateMessage,
 			subscriptionId)
 	case coreapi.SubscriptionStateWarned, coreapi.SubscriptionStateSuspended:
+		timer.End()
 		if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 			logger.Error(nil, "subscription document indicates restricted state", "subscriptionId", subscriptionId, "state", subscription.State)
 			coreapihelpers.WriteError(w, http.StatusConflict,
@@ -120,6 +128,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 		}
 		next(w, r)
 	case coreapi.SubscriptionStateDeleted:
+		timer.End()
 		logger.Error(nil, "subscription document indicates deleted", "subscriptionId", subscriptionId)
 		coreapihelpers.WriteError(
 			w, http.StatusBadRequest,
@@ -127,6 +136,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 			InvalidSubscriptionStateMessage,
 			subscription.State)
 	default:
+		timer.End()
 		logger.Error(nil, "unsupported subscription state", "subscriptionState", subscription.State)
 		coreapihelpers.WriteInternalServerError(w)
 	}

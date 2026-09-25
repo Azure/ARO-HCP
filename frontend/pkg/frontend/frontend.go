@@ -202,10 +202,12 @@ func (f *Frontend) Run(ctx context.Context) error {
 }
 
 func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
+	responseWrite := startPhase(request.Context(), PhaseResponseWrite)
 	coreapihelpers.WriteError(
 		writer, http.StatusNotFound,
 		coreapi.CloudErrorCodeNotFound, "",
 		"The requested path could not be found.")
+	responseWrite.End()
 }
 
 func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
@@ -256,6 +258,7 @@ func (f *Frontend) ArmResourceListVersion(writer http.ResponseWriter, request *h
 
 	pagedResponse := coreapi.NewPagedResponse()
 
+	resourceList := startPhase(ctx, PhaseResourceList)
 	csIterator := f.clusterServiceClient.ListVersions()
 	for csVersion := range csIterator.Items(ctx) {
 		versionName := strings.Replace(csVersion.ID(), metadataapi.OpenShiftVersionPrefix, "", 1)
@@ -263,22 +266,27 @@ func (f *Frontend) ArmResourceListVersion(writer http.ResponseWriter, request *h
 			"/locations/" + location + "/" + coreapi.VersionResourceTypeName + "/" + versionName
 		resourceID, err := azcorearm.ParseResourceID(stringResource)
 		if err != nil {
+			resourceList.End()
 			return utils.TrackError(err)
 		}
 		value, err := marshalCSVersion(resourceID, csVersion, versionedInterface)
 		if err != nil {
+			resourceList.End()
 			return utils.TrackError(err)
 		}
 		pagedResponse.AddValue(value)
 	}
 	err = csIterator.GetError()
+	resourceList.End()
 
 	// Check for iteration error.
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	responseWrite := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	responseWrite.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -301,16 +309,22 @@ func (f *Frontend) GetOpenshiftVersions(writer http.ResponseWriter, request *htt
 	}
 
 	versionName := resourceID.Name
+	resourceRead := startPhase(ctx, PhaseResourceRead)
 	version, err := f.clusterServiceClient.GetVersion(ctx, versionName)
+	resourceRead.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	responseEncode := startPhase(ctx, PhaseResponseEncode)
 	responseBody, err := marshalCSVersion(resourceID, version, versionedInterface)
+	responseEncode.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	responseWrite := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, responseBody)
+	responseWrite.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -352,7 +366,9 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	var certificateSigningRequest string
 	if len(body) > 0 {
+		decode := startPhase(ctx, PhaseDecode)
 		credentialRequest, err := versionedInterface.UnmarshalHCPOpenShiftClusterAdminCredentialRequest(body)
+		decode.End()
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -361,6 +377,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		}
 	}
 
+	admissionValidate := startPhase(ctx, PhaseAdmissionValidate)
 	var errs field.ErrorList
 	csrPath := field.NewPath("certificateSigningRequest")
 	if certificateSigningRequest == "" {
@@ -368,17 +385,24 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	} else {
 		errs = append(errs, validateCSRSubject(certificateSigningRequest, csrPath)...)
 	}
-	if err := coreapi.CloudErrorFromFieldErrors(errs); err != nil {
+	err = coreapi.CloudErrorFromFieldErrors(errs)
+	admissionValidate.End()
+	if err != nil {
 		return err
 	}
 
+	resourceRead := startPhase(ctx, PhaseResourceRead)
 	cluster, err := f.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
+	resourceRead.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+	admissionValidate = startPhase(ctx, PhaseAdmissionConflict)
+	err = checkForProvisioningStateConflict(ctx, f.resourcesDBClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState)
+	admissionValidate.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
@@ -391,6 +415,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return coreapi.NewConflictError(clusterResourceID, "Cannot request credential while credentials are being revoked")
 	}
 
+	persistPrepare := startPhase(ctx, PhasePersistPrepare)
 	transaction := f.resourcesDBClient.NewTransaction(clusterResourceID.SubscriptionID)
 
 	operationDoc := cosmosstorageutils.NewOperation(
@@ -409,16 +434,21 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	}
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	_, err = f.resourcesDBClient.Operations(clusterResourceID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	persistPrepare.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	persistExecute := startPhase(ctx, PhasePersistExecute)
 	_, err = transaction.Execute(ctx, nil)
+	persistExecute.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	responseWrite := startPhase(ctx, PhaseResponseWrite)
 	writer.WriteHeader(http.StatusAccepted)
+	responseWrite.End()
 	return nil
 }
 
@@ -441,13 +471,18 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return utils.TrackError(err)
 	}
 
+	resourceRead := startPhase(ctx, PhaseResourceRead)
 	cluster, err := f.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
+	resourceRead.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+	admissionValidate := startPhase(ctx, PhaseAdmissionConflict)
+	err = checkForProvisioningStateConflict(ctx, f.resourcesDBClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState)
+	admissionValidate.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
@@ -460,6 +495,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return coreapi.NewConflictError(clusterResourceID, "Credentials are already being revoked")
 	}
 
+	persistPrepare := startPhase(ctx, PhasePersistPrepare)
 	transaction := f.resourcesDBClient.NewTransaction(clusterResourceID.SubscriptionID)
 
 	// Just as deleting an ARM resource cancels any other operations on the resource,
@@ -469,6 +505,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		ExternalID: clusterResourceID,
 	})
 	if err != nil {
+		persistPrepare.End()
 		return utils.TrackError(err)
 	}
 	if len(operationsToCancel) > 0 {
@@ -488,6 +525,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	_, err = f.resourcesDBClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
+		persistPrepare.End()
 		return utils.TrackError(err)
 	}
 
@@ -496,25 +534,33 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	cluster.ServiceProviderProperties.RevokeCredentialsOperationID = operationDoc.OperationID.Name
 
 	_, err = f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, cluster, nil)
+	persistPrepare.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	persistExecute := startPhase(ctx, PhasePersistExecute)
 	_, err = transaction.Execute(ctx, nil)
+	persistExecute.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	responseWrite := startPhase(ctx, PhaseResponseWrite)
 	writer.WriteHeader(http.StatusAccepted)
+	responseWrite.End()
 	return nil
 }
 
 func (f *Frontend) ArmOperationsList(writer http.ResponseWriter, request *http.Request) error {
+	ctx := request.Context()
+	resourceList := startPhase(ctx, PhaseResourceList)
 	pagedResponse := coreapi.NewPagedResponse()
 
 	for _, operation := range AvailableOperations {
 		jsonBytes, err := coreapi.MarshalJSON(operation)
 		if err != nil {
+			resourceList.End()
 			return utils.TrackError(err)
 		}
 		pagedResponse.AddValue(jsonBytes)
@@ -525,12 +571,16 @@ func (f *Frontend) ArmOperationsList(writer http.ResponseWriter, request *http.R
 	for _, operation := range AvailableClassicOperations {
 		jsonBytes, err := coreapi.MarshalJSON(operation)
 		if err != nil {
+			resourceList.End()
 			return utils.TrackError(err)
 		}
 		pagedResponse.AddValue(jsonBytes)
 	}
+	resourceList.End()
 
+	responseWrite := startPhase(ctx, PhaseResponseWrite)
 	_, err := coreapihelpers.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	responseWrite.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -548,7 +598,9 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
+	resourceRead := startPhase(ctx, PhaseResourceRead)
 	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, subscriptionID)
+	resourceRead.End()
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return coreapi.NewResourceNotFoundError(resourceID)
 	}
@@ -556,7 +608,9 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
+	responseWrite := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, subscription)
+	responseWrite.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -574,7 +628,9 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
 	var requestSubscription coreapi.Subscription
+	decode := startPhase(ctx, PhaseDecode)
 	err = json.Unmarshal(body, &requestSubscription)
+	decode.End()
 	if err != nil {
 		return coreapi.NewInvalidRequestContentError(err)
 	}
@@ -586,15 +642,22 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	}
 	requestSubscription.SetPartitionKey(subscriptionID)
 
+	admissionValidate := startPhase(ctx, PhaseAdmissionValidate)
 	validationErrs := validation.ValidateSubscriptionCreate(ctx, &requestSubscription)
-	if err := coreapi.CloudErrorFromFieldErrors(validationErrs); err != nil {
+	err = coreapi.CloudErrorFromFieldErrors(validationErrs)
+	admissionValidate.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	var resultingSubscription *coreapi.Subscription
+	resourceRead := startPhase(ctx, PhaseResourceRead)
 	existingSubscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, subscriptionID)
+	resourceRead.End()
 	if cosmosstorageutils.IsNotFoundError(err) {
+		persistExecute := startPhase(ctx, PhasePersistExecute)
 		resultingSubscription, err = f.resourcesDBClient.Subscriptions().Create(ctx, &requestSubscription, nil)
+		persistExecute.End()
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -610,7 +673,9 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 			// Carry the etag of the just-read document forward so Replace
 			// is conditional on it; the DB layer refuses unconditional updates.
 			requestSubscription.CosmosMetadata = *existingSubscription.CosmosMetadata.DeepCopy()
+			persistExecute := startPhase(ctx, PhasePersistExecute)
 			resultingSubscription, err = f.resourcesDBClient.Subscriptions().Replace(ctx, &requestSubscription, nil)
+			persistExecute.End()
 			if err != nil {
 				return utils.TrackError(err)
 			}
@@ -627,7 +692,9 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		}
 	}
 
+	responseWrite := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, resultingSubscription)
+	responseWrite.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -652,13 +719,16 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	}
 
 	// TODO explain why it is safe to decode this directly into an internal type
+	decode := startPhase(ctx, PhaseDecode)
 	deploymentPreflight, err := coreapihelpers.UnmarshalDeploymentPreflight(body)
+	decode.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	preflightErrors := []coreapi.CloudErrorBody{}
 
+	admissionPhase := startPhase(ctx, PhaseAdmission)
 	availableAROHCPVersions := f.apiRegistry.ListVersions()
 	for index, raw := range deploymentPreflight.Resources {
 		var preflightErr error
@@ -733,6 +803,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 			newInternalCluster.ID, err = azcorearm.ParseResourceID(strings.Join(parts, "/"))
 			if err != nil {
+				admissionPhase.End()
 				// this indicates something really strange happened, return an error for it.
 				return utils.TrackError(err)
 			}
@@ -742,6 +813,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 			admissionContext, ctxErr := f.newClusterAdmissionContext(ctx, op, subscription, newInternalCluster, nil)
 			if ctxErr != nil {
+				admissionPhase.End()
 				return utils.TrackError(ctxErr)
 			}
 			// Apply the same mutations that real cluster creation applies
@@ -785,6 +857,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 			newInternalNodePool.ID, err = azcorearm.ParseResourceID(strings.Join(parts, "/"))
 			if err != nil {
+				admissionPhase.End()
 				// this indicates something really strange happened, return an error for it.
 				return utils.TrackError(err)
 			}
@@ -830,6 +903,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 			newInternalAuth.ID, err = azcorearm.ParseResourceID(strings.Join(parts, "/"))
 			if err != nil {
+				admissionPhase.End()
 				// this indicates something really strange happened, return an error for it.
 				return utils.TrackError(err)
 			}
@@ -891,8 +965,11 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 		// FIXME Further preflight steps go here.
 	}
+	admissionPhase.End()
 
+	responseWrite := startPhase(ctx, PhaseResponseWrite)
 	coreapihelpers.WriteDeploymentPreflightResponse(writer, preflightErrors)
+	responseWrite.End()
 	return nil
 }
 
@@ -905,7 +982,9 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 		return utils.TrackError(err)
 	}
 
+	resourceRead := startPhase(ctx, PhaseResourceRead)
 	operation, err := f.resourcesDBClient.Operations(resourceID.SubscriptionID).Get(ctx, resourceID.Name)
+	resourceRead.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -914,11 +993,15 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	// same identity that triggered the operation. Return 404 if not.
 	if !f.OperationIsVisible(request, operation) {
 		logger.Info("operation result not visible to requester")
+		responseWrite := startPhase(ctx, PhaseResponseWrite)
 		writer.WriteHeader(http.StatusNotFound)
+		responseWrite.End()
 		return nil
 	}
 
+	responseWrite := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, cosmosstorageutils.ToStatus(operation))
+	responseWrite.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -985,7 +1068,9 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return utils.TrackError(err)
 	}
 
+	resourceRead := startPhase(ctx, PhaseResourceRead)
 	operation, err := f.resourcesDBClient.Operations(resourceID.SubscriptionID).Get(ctx, resourceID.Name)
+	resourceRead.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -1023,8 +1108,10 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return fmt.Errorf("invalid operation status: %s", operation.Status)
 	default:
 		// Operation is still in progress.
+		responseWrite := startPhase(ctx, PhaseResponseWrite)
 		AddLocationHeader(writer, request, operation.OperationID)
 		writer.WriteHeader(http.StatusAccepted)
+		responseWrite.End()
 		return nil
 	}
 
@@ -1039,12 +1126,16 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	case cosmosstorageutils.OperationRequestUpdate:
 		successStatusCode = http.StatusOK
 	case cosmosstorageutils.OperationRequestDelete:
+		responseWrite := startPhase(ctx, PhaseResponseWrite)
 		writer.WriteHeader(http.StatusNoContent)
+		responseWrite.End()
 		return nil
 	case cosmosstorageutils.OperationRequestSystemAdminCredentialRequest:
 		successStatusCode = http.StatusOK
 	case cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation:
+		responseWrite := startPhase(ctx, PhaseResponseWrite)
 		writer.WriteHeader(http.StatusNoContent)
+		responseWrite.End()
 		return nil
 	default:
 		return fmt.Errorf("unhandled request type: %s", operation.Request)
@@ -1058,11 +1149,15 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	// removed.
 	switch {
 	case operation.SystemAdminCredentialRequest != nil:
+		resourceRead := startPhase(ctx, PhaseResourceRead)
 		adminCred, err := f.assembleAdminCredentialFromCosmos(ctx, operation)
+		resourceRead.End()
 		if err != nil {
 			return utils.TrackError(err)
 		}
+		responseEncode := startPhase(ctx, PhaseResponseEncode)
 		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(adminCred)
+		responseEncode.End()
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -1082,31 +1177,43 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 			"admin credential operation is missing its SystemAdminCredentialRequest payload")
 
 	case metadataapi.ResourceTypeEqual(operation.ExternalID.ResourceType, coreapi.ClusterResourceType):
+		resourceRead := startPhase(ctx, PhaseResourceRead)
 		resultingInternalCluster, err := f.getInternalClusterFromStorage(ctx, operation.ExternalID)
+		resourceRead.End()
 		if err != nil {
 			return utils.TrackError(err)
 		}
+		responseEncode := startPhase(ctx, PhaseResponseEncode)
 		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(resultingInternalCluster))
+		responseEncode.End()
 		if err != nil {
 			return utils.TrackError(err)
 		}
 
 	case operation.ExternalID.ResourceType.String() == coreapi.NodePoolResourceType.String():
+		resourceRead := startPhase(ctx, PhaseResourceRead)
 		resultingInternalNodePool, err := f.getInternalNodePoolFromStorage(ctx, operation.ExternalID)
+		resourceRead.End()
 		if err != nil {
 			return utils.TrackError(err)
 		}
+		responseEncode := startPhase(ctx, PhaseResponseEncode)
 		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterNodePool(resultingInternalNodePool))
+		responseEncode.End()
 		if err != nil {
 			return utils.TrackError(err)
 		}
 
 	case operation.ExternalID.ResourceType.String() == coreapi.ExternalAuthResourceType.String():
+		resourceRead := startPhase(ctx, PhaseResourceRead)
 		resultingInternalExternalAuth, err := f.getInternalExternalAuthFromStorage(ctx, operation.ExternalID)
+		resourceRead.End()
 		if err != nil {
 			return utils.TrackError(err)
 		}
+		responseEncode := startPhase(ctx, PhaseResponseEncode)
 		responseBody, err = coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterExternalAuth(resultingInternalExternalAuth))
+		responseEncode.End()
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -1115,7 +1222,9 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return fmt.Errorf("unsupported operation reference: %s", operation.ExternalID)
 	}
 
+	responseWrite := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, successStatusCode, responseBody)
+	responseWrite.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}

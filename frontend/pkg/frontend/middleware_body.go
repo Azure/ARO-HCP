@@ -29,10 +29,12 @@ const megabyte int64 = (1 << 20)
 func MiddlewareBody(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	switch r.Method {
 	case http.MethodPatch, http.MethodPost, http.MethodPut:
+		timer := startPhase(r.Context(), PhaseBodyRead)
 		// Max request body size accepted by ARM is 4 MB (assuming units in powers of 2).
 		// See https://github.com/Azure/azure-resource-manager-rpc/blob/master/v1.0/common-api-details.md#max-request-body-size
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 4*megabyte))
 		if err != nil {
+			timer.End()
 			coreapihelpers.WriteError(
 				w, http.StatusBadRequest,
 				coreapi.CloudErrorCodeInvalidResource, "",
@@ -43,6 +45,7 @@ func MiddlewareBody(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 		contentType := strings.SplitN(r.Header.Get("Content-Type"), ";", 2)[0]
 
 		if !strings.EqualFold(contentType, "application/json") && (len(body) > 0 || contentType != "") {
+			timer.End()
 			coreapihelpers.WriteError(
 				w, http.StatusUnsupportedMediaType,
 				coreapi.CloudErrorCodeUnsupportedMediaType, "",
@@ -53,6 +56,7 @@ func MiddlewareBody(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 
 		ctx := ContextWithBody(r.Context(), body)
 		r = r.WithContext(ctx)
+		timer.End()
 	}
 
 	next(w, r)
