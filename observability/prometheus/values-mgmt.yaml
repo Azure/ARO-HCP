@@ -81,6 +81,8 @@ kube-prometheus-stack:
       registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
       sha: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
+    extraArgs:
+    - --metric-annotations-allowlist=namespaces=[azure.microsoft.com/hcp-cluster-azure-resource-id]
     rbac:
       extraRules:
       - apiGroups: ["hypershift.openshift.io"]
