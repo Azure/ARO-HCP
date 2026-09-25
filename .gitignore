@@ -36,6 +36,7 @@ resourcegroups
 report.json
 _artifacts
 must-gather-*
+snapshot-*
 /hcpctl
 timing-metadata-*
 /.claude/

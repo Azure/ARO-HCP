@@ -68,6 +68,18 @@ type GatherInput struct {
 	// the relevant clusters.
 	ServiceClusterName    string
 	ManagementClusterName string
+
+	// SeedClusterResourceID and SeedSubscriptionID bootstrap resource discovery
+	// directly from a cluster identity instead of from frontend ARM request logs.
+	// Used by the `from-cluster` entrypoint so per-resource queries (backend state,
+	// HyperShift conditions, velero backup health) run even when the cluster had no
+	// ARM traffic in the window. When SeedClusterResourceID is set it is used
+	// directly (and its subscription is parsed from it). When only
+	// SeedSubscriptionID is set, the gatherer resolves the cluster resource id from
+	// the resource group via the backend/clusterByResourceGroup query. When both are
+	// empty, discovery is seeded the default way, from ARM requests.
+	SeedClusterResourceID string
+	SeedSubscriptionID    string
 }
 
 // validate checks that all required fields are set.
@@ -282,6 +294,23 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		seedData.ManagementClusterNames = []string{seedData.ManagementClusterName}
 	}
 
+	// Identity seeding (from-cluster entrypoint): resolve the cluster resource id
+	// from the input, without relying on ARM request logs. When resolved, seed it
+	// onto seedData so resource discovery runs even for a cluster with no ARM
+	// traffic in the window. When no identity seed is provided, this is a no-op and
+	// discovery falls back to the ARM-request path (from-resource).
+	seedMode := "request"
+	seedClusterID, seedSubscriptionID, err := g.resolveSeedCluster(ctx, input, seedData)
+	if err != nil {
+		return nil, nil, err
+	}
+	if seedClusterID != "" {
+		seedData.ClusterResourceID = seedClusterID
+		seedData.SubscriptionID = seedSubscriptionID
+		seedMode = "identity"
+		logger.Info("Identity-seeded discovery", "clusterResourceID", seedClusterID)
+	}
+
 	pool := &queryPool{gatherer: g, input: input}
 
 	// =========================================================================
@@ -324,10 +353,12 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			TestStartTime:    input.TestStartTime,
 			CleanupStartTime: input.CleanupStartTime,
 		},
-		ResourceGroup:   input.ResourceGroup,
-		KustoCluster:    input.ClusterURI,
-		KustoDatabase:   input.ServiceDatabase,
-		DirectoryLayout: directoryLayout(),
+		ResourceGroup:     input.ResourceGroup,
+		KustoCluster:      input.ClusterURI,
+		KustoDatabase:     input.ServiceDatabase,
+		SeedMode:          seedMode,
+		ClusterResourceID: seedData.ClusterResourceID,
+		DirectoryLayout:   directoryLayout(),
 	}
 
 	for _, phase := range phases {
@@ -367,6 +398,68 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 	}
 
 	return manifest, report, nil
+}
+
+// resolveSeedCluster determines the cluster resource id (and its subscription id)
+// to seed discovery with when running identity-seeded (from-cluster entrypoint).
+// It returns ("", "", nil) when no identity seed was provided, in which case the
+// caller falls back to the ARM-request seeding path (from-resource).
+//
+// An explicit SeedClusterResourceID is used directly, with its subscription parsed
+// from the ARM id. Otherwise, when only SeedSubscriptionID is set, the cluster is
+// resolved from the resource group via the backend/clusterByResourceGroup query.
+func (g *Gatherer) resolveSeedCluster(ctx context.Context, input GatherInput, seedData queryData) (clusterResourceID, subscriptionID string, err error) {
+	if input.SeedClusterResourceID != "" {
+		sub := input.SeedSubscriptionID
+		if sub == "" {
+			parsed, perr := azcorearm.ParseResourceID(input.SeedClusterResourceID)
+			if perr != nil {
+				return "", "", fmt.Errorf("invalid SeedClusterResourceID %q: %w", input.SeedClusterResourceID, perr)
+			}
+			sub = parsed.SubscriptionID
+		}
+		return input.SeedClusterResourceID, sub, nil
+	}
+	if input.SeedSubscriptionID == "" {
+		return "", "", nil
+	}
+
+	// Resolve the cluster from subscription + resource group via Cosmos snapshots.
+	d := seedData
+	d.SubscriptionID = input.SeedSubscriptionID
+	rendered, err := renderQuery("queries/backend/clusterByResourceGroup/query.kql", d)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to render clusterByResourceGroup query: %w", err)
+	}
+	rows, err := g.executeKQL(ctx, rendered, seedData.ServiceDatabase, 2*time.Minute)
+	if err != nil {
+		return "", "", fmt.Errorf("clusterByResourceGroup query failed: %w", err)
+	}
+	resolved, err := resolveClusterFromResourceGroup(rows, input.SeedSubscriptionID, input.ResourceGroup)
+	if err != nil {
+		return "", "", err
+	}
+	return resolved, input.SeedSubscriptionID, nil
+}
+
+// resolveClusterFromResourceGroup picks the single cluster resource id from the
+// clusterByResourceGroup query rows, returning a descriptive error for the
+// zero-row (wrong scope / outside window) and multi-row (ambiguous) cases.
+func resolveClusterFromResourceGroup(rows []resultRow, subscriptionID, resourceGroup string) (string, error) {
+	var ids []string
+	for _, r := range rows {
+		if len(r.values) > 0 && r.values[0] != "" {
+			ids = append(ids, r.values[0])
+		}
+	}
+	switch len(ids) {
+	case 0:
+		return "", fmt.Errorf("no HCP cluster found in subscription %q resource group %q within the time window", subscriptionID, resourceGroup)
+	case 1:
+		return ids[0], nil
+	default:
+		return "", fmt.Errorf("resource group %q in subscription %q contains %d HCP clusters (%s); re-run with --cluster-resource-id to select one", resourceGroup, subscriptionID, len(ids), strings.Join(ids, ", "))
+	}
 }
 
 // runDiscovery executes request-level and resource-level discovery queries,
@@ -454,6 +547,12 @@ func (g *Gatherer) runDiscovery(
 			cosmosDiscoveryData.SubscriptionID = trackedReqs[i].data.SubscriptionID
 			break
 		}
+	}
+	// Identity-seeded fallback: when no ARM request supplied the seed (from-cluster
+	// entrypoint, or an idle cluster with no traffic), use the cluster identity
+	// seeded onto seedData in Gather.
+	if cosmosDiscoveryData.ClusterResourceID == "" && seedData.ClusterResourceID != "" && seedData.SubscriptionID != "" {
+		cosmosDiscoveryData = seedData
 	}
 
 	// cosmosChildTypes maps lowercased parent resource ID → set of child resource types.
