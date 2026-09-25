@@ -169,6 +169,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 	}
 	for _, currItemObj := range iter.Items(ctx) {
 		currObj := InternalAPITypePointer(currItemObj)
+		LogCosmosListItem(ctx, c.cosmosContainerName, currItemObj)
 		resourceIDToInstanceVersion.Store(strings.ToLower(currObj.GetResourceID().String()), currObj.GetInstanceVersion())
 
 		list.Items = append(list.Items,
@@ -446,19 +447,8 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		return utils.TrackError(err)
 	}
 
-	// When a Cosmos container is configured, emit objectMetadata so this item is ingested into
-	// cosmosResourceSnapshots with full resource identity, and derive the HCP cluster name for
-	// documents (e.g. operations) whose own ResourceID can't provide it. See
-	// changeFeedItemObjectMetadata for the details. This mirrors dump_data.go so change-feed-
-	// sourced snapshots carry the same metadata columns as request-triggered dumps.
-	if len(c.cosmosContainerName) > 0 {
-		objectMetadata := changeFeedItemObjectMetadata(c.cosmosContainerName, any(internalObj), internalObj.GetResourceID())
-		if objectMetadata.ClusterResourceID != "" {
-			logger = logger.WithValues(utils.LogValues{}.AddHCPClusterName(objectMetadata.ClusterResourceID)...)
-		}
-		logger = logger.WithValues("objectMetadata", objectMetadata)
-		ctx = utils.ContextWithLogger(ctx, logger)
-	}
+	logger = CosmosSnapshotLogger(ctx, c.cosmosContainerName, internalObj, internalObj.GetResourceID())
+	ctx = utils.ContextWithLogger(ctx, logger)
 
 	canonicalResourceID := strings.ToLower(internalObj.GetResourceID().String())
 	initialInstanceVersion, objPreviouslySeen := c.resourceIDToInstanceVersion.Load(canonicalResourceID)

@@ -42,7 +42,6 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/capacityreporting"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/clustersserviceregistration"
-	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/datadump"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/hcpresourcerequirements"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/lifecycle"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
@@ -202,14 +201,6 @@ func (m *Manager) runControllersUnderLeaderElection(
 		base.StampWatchingControllerConfig{Cooldown: base.DefaultRegistrationAwareCooldown(managementClusterLister)},
 	)
 
-	dataDumpController := datadump.NewStampDataDumpController(
-		stampInformer,
-		managementClusterInformer,
-		stampLister,
-		managementClusterLister,
-		base.StampWatchingControllerConfig{CooldownPeriod: 4 * time.Minute},
-	)
-
 	unionKubeApplierInformersController := unionkubeapplierinformers.NewUnionKubeApplierInformersController(
 		managementClusterInformer,
 		managementClusterLister,
@@ -306,7 +297,6 @@ func (m *Manager) runControllersUnderLeaderElection(
 				go csRegistrationController.Run(ctx, 4)
 				go maestroRegistrationController.Run(ctx, 4)
 				go lifecycleController.Run(ctx, 1)
-				go dataDumpController.Run(ctx, 1)
 				go ensureCapacityReadDesireController.Run(ctx, 1)
 				go capacityReportingController.Run(ctx, 1)
 				go ensureSharedIngressReadDesireController.Run(ctx, 1)

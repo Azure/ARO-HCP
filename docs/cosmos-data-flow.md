@@ -5,7 +5,7 @@ fleet, kube-applier, management-agent, sessiongate, and shared informer manageme
 It maps their inputs, decisions and effects across Cosmos DB, Azure, Cluster Service
 and Kubernetes. Source baseline: `7997fa34a240560a792c3dd410396cd7651a9f39`.
 Targeted update baseline: `4c1bf7d74e714d2ce24a8175a0d4846cc78d7113`;
-scope: ContainerRegistry pull-credential validation controller for ARO-24037.
+scope: ContainerRegistry pull-credential validation and Cosmos snapshots moved from periodic dump controllers to informer lists.
 
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
@@ -34,6 +34,36 @@ field to nil, and any stale value is always reset first; a nil field is omitted
 from JSON. Legacy documents may omit it; it is populated when they are next
 written through these helpers. This metadata does not change controller
 dependencies or the resource lifecycle diagrams.
+
+## Cosmos snapshots from informer lists
+
+Sources: [shared list/watch](../internal/database/informers/informerutils/changefeed_list_watch.go),
+[snapshot logging](../internal/database/informers/informerutils/snapshot.go), and
+[polling informers](../internal/database/informers/coreinformers/informers.go).
+
+Every initial list and relist emits a snapshot for each returned object, including
+unchanged objects. Resources, Fleet, and kube-applier change feeds continue to emit
+snapshots as documents change. Billing and management-cluster-content polling lists
+also emit snapshots. Logging reuses the objects already read by the informer and
+makes no additional Cosmos queries. The backend Cosmos dump controllers and Fleet's
+StampDataDump controller have been removed; Clusters Service state dumps and explicit
+frontend/admin request-triggered dumps remain.
+
+Snapshots retain `snapshotType=cosmos`, `currentResourceID`, `objectMetadata`, and
+`content`, plus the inherited context fields and per-item `subscription_id`,
+`resource_group`, `resource_id`, `resource_type`, `resource_name`, `hcp_cluster_name`,
+and `cluster_id` where applicable. Operations derive their cluster and resource group
+from `ExternalID`; kube-applier desires carry `managementCluster`. List snapshots
+use the Cosmos document envelope already used by change-feed snapshots; billing
+keeps its existing billing document shape. System-data caller identities are redacted
+on a detached serialized copy. Snapshot failures are logged without exposing content
+or interrupting the list, and cached objects are never redacted in place.
+
+Snapshot cadence now follows the existing informer relist intervals: typically
+30 minutes for Resources and kube-applier, 2 minutes for Fleet, and 30 seconds for
+billing and management-cluster contents, with change-feed updates between relists.
+Informer resyncs that replay the cache do not produce additional snapshots.
+No resource lifecycle edges change.
 
 ## Request Unit (RU) attribution
 
@@ -981,35 +1011,11 @@ Logs documents missing resource IDs; deletes only those whose nonempty resource 
 
 Finds Cluster Service clusters absent from the Cosmos inventory. Requires a creation timestamp at least one hour old and a live Cosmos not-found recheck using Azure metadata before calling Cluster Service DELETE; missing metadata/errors skip deletion. No Cosmos domain write.
 
-#### DataDump
-
-[Source](../backend/pkg/controllers/datadump/dump_cluster_recursive.go) · **Trigger:** Cluster; 1m.
-
-Logs recursive cluster Cosmos snapshots, including children; no domain mutation.
-
 #### CSStateDump
 
 [Source](../backend/pkg/controllers/datadump/cs_state_dump.go) · **Trigger:** Cluster; 1m.
 
 Reads and logs Cluster Service state; no domain mutation.
-
-#### BillingDump
-
-[Source](../backend/pkg/controllers/datadump/billing_dump.go) · **Trigger:** Cluster; 1m.
-
-Reads and logs billing state; no domain mutation.
-
-#### ManagementClusterDataDump
-
-[Source](../backend/pkg/controllers/datadump/dump_management_cluster.go) · **Trigger:** Management cluster; 5m, 4m cooldown.
-
-Logs management-cluster Cosmos and kube-applier snapshots; no domain mutation.
-
-#### SubscriptionNonClusterDataDump
-
-[Source](../backend/pkg/controllers/datadump/dump_subscription_non_cluster.go) · **Trigger:** Subscription; 5m, 4m cooldown.
-
-Logs subscription-scoped documents outside cluster subtrees; no domain mutation.
 
 #### FPAVirtualMachineResourceSKUsCachedReader
 
@@ -1074,12 +1080,6 @@ Requires approved stamp; ensures a Maestro consumer and records registration sta
 [Source](../fleet/pkg/controllers/lifecycle/controller.go) · **Trigger:** Stamp watcher.
 
 Aggregates `ClustersServiceRegistered`, `MaestroRegistered` and `SharedIngressAvailable` into `ManagementCluster.Status.Conditions[Ready]`. Preserves existing Ready until all three conditions exist; thereafter True requires all three True, otherwise Ready becomes False. Placement consumes Ready. No Azure mutation.
-
-#### StampDataDump
-
-[Source](../fleet/pkg/controllers/datadump/stamp_data_dumper.go) · **Trigger:** Stamp; 5m.
-
-Logs stamp and child documents; no domain mutation.
 
 #### EnsureCapacityReadDesireController
 

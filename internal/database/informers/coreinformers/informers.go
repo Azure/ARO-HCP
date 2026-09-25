@@ -106,8 +106,11 @@ func NewBillingInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 
 			list := &billingcosmosstorage.BillingDocumentList{}
 			list.ResourceVersion = "0"
-			for docID, doc := range iter.Items(ctx) {
-				_ = docID
+			for _, doc := range iter.Items(ctx) {
+				informerutils.CosmosSnapshotLogger(ctx, "billing", doc, doc.ResourceID).Info(
+					fmt.Sprintf("dumping billing document for resourceID %v", doc.ResourceID),
+					"snapshotType", "cosmos", "content", doc,
+				)
 				list.Items = append(list.Items, *doc)
 			}
 			if err := iter.GetError(); err != nil {
@@ -283,6 +286,7 @@ func NewManagementClusterContentInformerWithRelistDuration(lister cosmosstorageu
 			list := &coreapi.ManagementClusterContentList{}
 			list.ResourceVersion = "0"
 			for _, mcc := range iter.Items(ctx) {
+				informerutils.LogCosmosListItem(ctx, "resources", mcc)
 				list.Items = append(list.Items, *mcc)
 			}
 			if err := iter.GetError(); err != nil {
