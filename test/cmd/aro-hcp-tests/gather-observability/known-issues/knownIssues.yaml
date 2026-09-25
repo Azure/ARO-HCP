@@ -1,4 +1,10 @@
 knownIssues:
+- name: "FrontendPathMedianLatency"
+  reason: "Temporarily acknowledged while frontend median latency alert firings are investigated (https://issues.redhat.com/browse/AROSLSRE-2098; https://issues.redhat.com/browse/AROSLSRE-2232)."
+  expiresAfter: "2026-10-05"
+- name: "BackendControllerQueueDepthHigh"
+  reason: "Temporarily acknowledged while backend controller queue depth alert firings are investigated (https://issues.redhat.com/browse/ARO-29202)."
+  expiresAfter: "2026-10-05"
 - name: "BackendControllerRetryHotLoop"
   labels:
     name: "triggernodepoolupgrade"
