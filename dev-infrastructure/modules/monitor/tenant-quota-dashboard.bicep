@@ -78,7 +78,9 @@ func networkQuery(region string, subscriptionIdPattern string) string =>
 func rbacQuery(subscriptionIdPattern string) string =>
   'sum(azure_quota_usage{source="rbac",subscription_id=~"${subscriptionIdPattern}"}) by (subscription_name) / sum(azure_quota_limit{source="rbac",subscription_id=~"${subscriptionIdPattern}"}) by (subscription_name) * 100'
 
-func directoryQuery(tenantName string) string => 'sum(tenant_quota_usage_percentage{tenant_name="${tenantName}"}) by (tenant_name)'
+// Uses max by (not sum by) to collapse duplicate series from Azure Managed Prometheus HA replica
+// pairs without double-counting the value, matching the dedup pattern used in alerting.bicep.
+func directoryQuery(tenantName string) string => 'max by (tenant_name) (tenant_quota_usage_percentage{tenant_name="${tenantName}"})'
 
 // Hours elapsed since each E2E resource group's deleteAfter TTL tag expired.
 // Subscriptions in this dashboard that are not E2E subscriptions (e.g. the
