@@ -51,8 +51,8 @@ func (p *amaPrometheusClient) expectMetric(ctx context.Context, g Gomega, query,
 	g.Expect(resp.Data.Result).NotTo(BeEmpty(), "expected %s metrics but got no results (query: %s)", description, query)
 }
 
-var _ = Describe("AMA Metrics", func() {
-	It("service metrics from SVC and MGMT clusters should be present in Azure Monitor",
+var _ = Describe("Engineering", func() {
+	It("want metrics from SVC and MGMT clusters to be present in Azure Monitor WOrkspace",
 		labels.RequireNothing,
 		labels.Medium,
 		labels.Positive,

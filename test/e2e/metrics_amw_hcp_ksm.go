@@ -29,8 +29,8 @@ import (
 	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 )
 
-var _ = Describe("KSM HCP Metrics", func() {
-	It("metrics should be present in HCP Azure Monitoring Workspace",
+var _ = Describe("Engineering", func() {
+	It("want metrics from HCP to be present in Azure Monitor Workspace",
 		labels.Medium,
 		labels.Positive,
 		labels.RequireNothing,
