@@ -214,6 +214,9 @@ model VersionProfile {
    *  Each version belongs to only a single set.
    *
    *  If not specified, the default value is 'stable'.
+   *
+   *  This property is intended to be updateable, but that support is not yet
+   *  complete. Until then, changing this value after cluster creation is rejected.
    */
   //  Note: The default value is not declared in the API specification because
   //        of a TypeSpec bug with updatable fields. The default value will be
@@ -898,6 +901,9 @@ model NodePoolVersionProfile {
    *  Each version belongs to only a single set.
    *
    *  If not specified, the default value is 'stable'.
+   *
+   *  This property is intended to be updateable, but that support is not yet
+   *  complete. Until then, changing this value after node pool creation is rejected.
    */
   // Note: The default value is not declared in the API specification because
   //       of a TypeSpec bug with updatable fields. The default value will be
