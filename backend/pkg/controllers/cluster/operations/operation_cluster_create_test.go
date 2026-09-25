@@ -213,7 +213,9 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "cluster creation did not complete before the deadline")
+				assert.Contains(t, op.Error.Message, "cluster service is installing")
 			},
 		},
 		{
@@ -243,7 +245,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, op.Error.Code)
 			},
 		},
 		{
@@ -481,7 +483,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 			managementClusterAssigned: true,
 			placementCondition:        insufficientCapacity,
 			wantOperationState:        coreapi.ProvisioningStateFailed,
-			wantErrorCode:             coreapi.CloudErrorCodeInternalServerError,
+			wantErrorCode:             coreapi.CloudErrorCodeDeadlineExceeded,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -951,7 +953,8 @@ func TestDetermineOperationState(t *testing.T) {
 					}),
 				},
 			},
-			expectedState: coreapi.ProvisioningStateProvisioning,
+			expectedState:     coreapi.ProvisioningStateProvisioning,
+			wantMessageSubstr: "cluster service is installing",
 		},
 		{
 			name: "cluster ClusterServiceID unset → Provisioning",
