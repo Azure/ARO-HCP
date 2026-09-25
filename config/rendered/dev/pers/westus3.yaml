@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:dee5ad43f13c3788318d64258e24d1cb757620eb3144ee795a16fbba80797719
+      digest: sha256:42ffbc7ae53cd6e340086d334bc8c05f35f7b9c6cafe033e96492cf6e5d88a3c
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
   operator:
     bundle:
-      digest: sha256:5feb873869aae2336037eedf1af482588b8ed5a0b57f5fb89857ce0a97c12c44
+      digest: sha256:4d334e98a881ce5545d9ca84e63d6de6f92b089d421f59ee80dacdc26b5f6854
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
 acr:
@@ -82,7 +82,7 @@ armHelperTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 arobit:
   forwarder:
     image:
-      digest: sha256:896786b164eeb428107e507afd4b314ab5c32836de71178951dfbd8f30b5d8eb
+      digest: sha256:eb3e2e068172121a9ca133c5d17784df770dacc104f20c7d4a7df5f1c70e8a08
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
     resources:
@@ -184,7 +184,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcppers
   image:
-    digest: sha256:f6ce7ab4fcba8c99652110b15746ff40396e22018fe0cf0752d0fd94faecc0bb
+    digest: sha256:39b62d34c0ae6caad264fcc2a086fe84c7a97da3f7baab017f01c28e10c3ba6f
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -481,7 +481,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:10dc567238762de26cefbf684999925bae1c596c8270002f8a1854c9f65b9655
+    digest: sha256:60eff695e3facbaffd0096f6cd69b97745eb64230f27350abf2cb23bf516081a
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
