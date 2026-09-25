@@ -80,7 +80,8 @@ func rbacQuery(subscriptionIdPattern string) string =>
 
 // Uses max by (not sum by) to collapse duplicate series from Azure Managed Prometheus HA replica
 // pairs without double-counting the value, matching the dedup pattern used in alerting.bicep.
-func directoryQuery(tenantName string) string => 'max by (tenant_name) (tenant_quota_usage_percentage{tenant_name="${tenantName}"})'
+func directoryQuery(tenantName string) string =>
+  'max by (tenant_name) (tenant_quota_usage_percentage{tenant_name="${tenantName}"})'
 
 // Hours elapsed since each E2E resource group's deleteAfter TTL tag expired.
 // Subscriptions in this dashboard that are not E2E subscriptions (e.g. the
@@ -93,7 +94,6 @@ func directoryQuery(tenantName string) string => 'max by (tenant_name) (tenant_q
 // duplicates (which report identical values) into a single series per resource group.
 func e2eExpiryQuery(subscriptionIdPattern string) string =>
   '(time() - max without (prometheus_replica) (e2e_resource_group_expiry_timestamp{subscription_id=~"${subscriptionIdPattern}"} < time())) / 3600'
-
 
 // Builds one Extension/HubsExtension/PartType/MonitorChartPart tile querying
 // the Azure Monitor Workspace with PromQL. `queries` is one or more PromQL
