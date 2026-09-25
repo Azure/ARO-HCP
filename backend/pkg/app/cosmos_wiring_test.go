@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 
 type storageTestTransport func(*http.Request) (*http.Response, error)
@@ -180,6 +181,13 @@ func TestStorageFactoryRejectsInvalidConfiguration(t *testing.T) {
 		{"missing name", func(o *StorageFactoryOptions) { o.ControllerNames = []string{""} }},
 		{"duplicate", func(o *StorageFactoryOptions) { o.ControllerNames = []string{"one", "one"} }},
 		{"unknown override", func(o *StorageFactoryOptions) { o.ControllerFractions = map[string]float64{"typo": .1} }},
+		{"unknown unlimited controller", func(o *StorageFactoryOptions) { o.UnlimitedControllerNames = []string{"typo"} }},
+		{"duplicate unlimited controller", func(o *StorageFactoryOptions) { o.UnlimitedControllerNames = []string{"one", "one"} }},
+		{"unlimited controller fraction", func(o *StorageFactoryOptions) {
+			o.ControllerNames = []string{"one", "two"}
+			o.UnlimitedControllerNames = []string{"one"}
+			o.ControllerFractions = map[string]float64{"one": .1}
+		}},
 		{"invalid Resources budget", func(o *StorageFactoryOptions) { o.ResourcesRUsPerSecond = 0 }},
 		{"invalid Billing budget", func(o *StorageFactoryOptions) { o.BillingRUsPerSecond = 0 }},
 		{"invalid Fleet budget", func(o *StorageFactoryOptions) { o.FleetRUsPerSecond = 0 }},
@@ -234,4 +242,38 @@ func TestBackendStorageRegistrations(t *testing.T) {
 		}
 		require.PanicsWithValue(t, `unregistered storage controller "typo"`, func() { factory.ResourcesStorageClient("typo") })
 	}
+}
+
+func TestBackendInformerStorageIsUnlimited(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		options := BackendStorageFactoryOptions(false)
+		require.ElementsMatch(t, []string{
+			BackendInformersStorageName,
+			FleetInformersStorageName,
+			unionkubeapplierinformers.UnionKubeApplierInformersControllerName,
+		}, options.UnlimitedControllerNames)
+		factory, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), options)
+		require.NoError(t, err)
+		for _, name := range options.UnlimitedControllerNames {
+			for _, container := range []string{"Resources", "Billing", "Fleet", "new-mc"} {
+				bucket, err := factory.tokenBucket(container, name)
+				require.NoError(t, err)
+				bucket.Consume(1e9)
+				ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+				start := time.Now()
+				require.NoError(t, bucket.Wait(ctx), "%s/%s must not throttle informer reads", name, container)
+				require.Equal(t, start, time.Now())
+				cancel()
+			}
+		}
+		// Unlimited informers must not reduce the normal controllers' allocation.
+		budget := options.ResourcesRUsPerSecond * cosmosratelimit.DefaultControllerUtilization /
+			float64(len(options.ControllerNames)-len(options.UnlimitedControllerNames))
+		bucket, err := factory.tokenBucket("Resources", BackfillClusterUIDControllerName)
+		require.NoError(t, err)
+		bucket.Consume(2 * budget)
+		start := time.Now()
+		require.NoError(t, bucket.Wait(t.Context()))
+		require.InDelta(t, float64(time.Second), float64(time.Since(start)), 1, "controllers retain their budget and throttling")
+	})
 }

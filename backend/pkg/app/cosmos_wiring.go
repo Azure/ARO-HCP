@@ -54,6 +54,9 @@ type StorageFactoryOptions struct {
 	Utilization            float64
 	ControllerNames        []string
 	ControllerFractions    map[string]float64
+	// UnlimitedControllerNames is a subset of ControllerNames whose clients
+	// bypass throttling and do not reserve a share of the controller budget.
+	UnlimitedControllerNames []string
 }
 
 type controllerStorageClients struct {
@@ -71,7 +74,8 @@ type cosmosStorageFactory struct {
 	databaseName                string
 	clientOptions               cosmosclient.Options
 	// Immutable after construction; the contained clients are concurrency-safe.
-	clients map[string]*controllerStorageClients
+	clients          map[string]*controllerStorageClients
+	unlimitedBuckets map[string]*cosmosratelimit.TokenBucket
 }
 
 var _ StorageFactory = (*cosmosStorageFactory)(nil)
@@ -79,7 +83,7 @@ var _ StorageFactory = (*cosmosStorageFactory)(nil)
 // NewStorageFactory creates container clients for each registered controller.
 // Each container has its own ControllerRateLimits. Each client owns its Cosmos
 // pipeline and uses the bucket for that controller and container. The count is
-// derived from all registered storage consumers; unused shares stay reserved.
+// derived from registered, limited storage consumers; unused shares stay reserved.
 func NewStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclient.Options, options StorageFactoryOptions) (StorageFactory, error) {
 	return newStorageFactory(cosmosURL, databaseName, clientOptions, options)
 }
@@ -95,13 +99,26 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 		}
 		names[name] = struct{}{}
 	}
+	unlimitedBuckets := make(map[string]*cosmosratelimit.TokenBucket, len(options.UnlimitedControllerNames))
+	for _, name := range options.UnlimitedControllerNames {
+		if _, found := names[name]; !found {
+			return nil, fmt.Errorf("unlimited usage specified for unregistered storage controller %q", name)
+		}
+		if _, found := unlimitedBuckets[name]; found {
+			return nil, fmt.Errorf("duplicate unlimited storage controller %q", name)
+		}
+		unlimitedBuckets[name] = cosmosratelimit.NewUnlimitedTokenBucket(name)
+	}
 	for name := range options.ControllerFractions {
 		if _, found := names[name]; !found {
 			return nil, fmt.Errorf("RU fraction specified for unregistered storage controller %q", name)
 		}
+		if _, found := unlimitedBuckets[name]; found {
+			return nil, fmt.Errorf("RU fraction specified for unlimited storage controller %q", name)
+		}
 	}
 	commonOptions := cosmosratelimit.ControllerRateLimitOptions{
-		ControllerCount: len(names), Utilization: options.Utilization,
+		ControllerCount: len(names) - len(unlimitedBuckets), Utilization: options.Utilization,
 		ControllerFractions: maps.Clone(options.ControllerFractions),
 	}
 	limitsByContainer := make(map[string]*cosmosratelimit.ControllerRateLimits)
@@ -134,7 +151,8 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 	factory := &cosmosStorageFactory{
 		rateLimits: limitsByContainer, kubeApplierRateLimitOptions: kubeApplierOptions,
 		cosmosURL: cosmosURL, databaseName: databaseName, clientOptions: clientOptions,
-		clients: make(map[string]*controllerStorageClients, len(names)),
+		clients:          make(map[string]*controllerStorageClients, len(names)),
+		unlimitedBuckets: unlimitedBuckets,
 	}
 	for _, name := range options.ControllerNames {
 		clients, err := factory.newControllerClients(name)
@@ -150,6 +168,9 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 // three fixed containers are preconfigured; MC containers use the kube-applier
 // allocation and are registered when their names become known.
 func (f *cosmosStorageFactory) tokenBucket(containerName, controllerName string) (*cosmosratelimit.TokenBucket, error) {
+	if bucket, found := f.unlimitedBuckets[controllerName]; found {
+		return bucket, nil
+	}
 	f.rateLimitsMu.Lock()
 	defer f.rateLimitsMu.Unlock()
 	limits, found := f.rateLimits[containerName]

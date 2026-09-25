@@ -6,6 +6,8 @@ It maps their inputs, decisions and effects across Cosmos DB, Azure, Cluster Ser
 and Kubernetes. Source baseline: `7997fa34a240560a792c3dd410396cd7651a9f39`.
 Targeted update baseline: `4c1bf7d74e714d2ce24a8175a0d4846cc78d7113`;
 scope: ContainerRegistry pull-credential validation controller for ARO-24037.
+RU budget update baseline: `e50c6077a32b443e8ccb8d6a01a858b3a4c3d595`;
+scope: unrestricted backend informer clients and logging each RU refill wait.
 
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
@@ -127,9 +129,10 @@ transaction execution, global queries, change feeds, individual pages, and SDK
 retries. No token bucket is carried in context. Context still supplies cancellation,
 logging, and source attribution. Canceled waits return the context error without
 dispatching. Blocked calls log the bucket name, RU balance, refill rate, and an
-estimated wait; later in-flight charges can extend that estimate. A transaction
-pays the batch's reported RU charge once per HTTP attempt, independently of its
-step count.
+estimated wait on every wait iteration; later in-flight charges can extend that
+estimate and produce another log. Wait metrics count the entire blocked call
+once. A transaction pays the batch's reported RU charge once per HTTP attempt,
+independently of its step count.
 
 [CRUD layers](../internal/database/cosmosstorage/cosmosstorageutils/crud_layer.go)
 remain available for `ResourceCRUD` and `ValidatingResourceCRUD`; a bucket can
@@ -152,11 +155,13 @@ containers, have independent allocations and debt.
 
 The factory initializes Resources, Billing, and Fleet clients for the
 [registered storage consumers](../backend/pkg/app/storage_controller_names.go)
-before startup. Their count determines the per-controller allocation. The list
-includes shared backend, Fleet, and union kube-applier informer budgets; the
-FPA-only controller is included only when enabled. Each MC container's limiter
-set is created lazily and cached when its name is resolved through Fleet. Fleet
-lookups themselves use the controller's Fleet bucket.
+before startup. Shared backend, Fleet, and union kube-applier informers use
+unlimited buckets for their lists, change-feed polls, and Fleet discovery reads.
+These informer clients retain request metrics but do not reserve a controller
+budget share or wait for RU refill. Only limited consumers count toward the
+per-controller allocation; the FPA-only controller is included only when enabled.
+Each MC container's limiter set is created lazily and cached when its name is
+resolved through Fleet. Fleet lookups themselves use the controller's Fleet bucket.
 
 The allocations are hardcoded in `BackendStorageFactoryOptions` and the
 [kube-applier startup](../kube-applier/cmd/root.go), using these container maxima:
@@ -169,11 +174,12 @@ The allocations are hardcoded in `BackendStorageFactoryOptions` and the
 | Each kube-applier MC container | 19,000 | 30% = 5,700 RU/s | 50% = 9,500 RU/s |
 
 For the backend, each container's share is divided by the number of registered
-storage consumers. Both bucket capacity (RUs) and refill rate (RU/s) equal that
-per-controller allocation, allowing one second of burst capacity. The kube-applier
-binary shares its 9,500 RU bucket across its controllers and informers. The 30%
-and 50% shares together leave 20% headroom; no additional 80% factor is applied to
-those shares. There are no rate-allocation flags.
+limited storage consumers. Both bucket capacity (RUs) and refill rate (RU/s) equal
+that per-controller allocation, allowing one second of burst capacity. The
+kube-applier binary shares its 9,500 RU bucket across its controllers and informers.
+The 30% and 50% limited shares together leave 20% headroom for unrestricted informer
+and other traffic; no additional 80% factor is applied to those shares.
+There are no rate-allocation flags.
 
 The backend reduces orphaned Cosmos, orphaned billing, placement pending, orphaned
 managed resource group, and revoked credential garbage collection budgets to 10%
