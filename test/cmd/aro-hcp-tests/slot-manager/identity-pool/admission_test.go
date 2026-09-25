@@ -82,23 +82,16 @@ func TestIdentityLeaseValidationBackoff(t *testing.T) {
 	}
 }
 
-func TestRunBoundedPanicFailsClosedWithoutStrandingProducer(t *testing.T) {
+func TestRunSerialPanicFailsClosed(t *testing.T) {
 	previous := utilruntime.ReallyCrash
 	utilruntime.ReallyCrash = false
 	defer func() { utilruntime.ReallyCrash = previous }()
 
-	operations := make([]func(context.Context) error, 32)
-	for i := range operations {
-		operations[i] = func(context.Context) error { panic("inventory unavailable") }
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	err := runBounded(ctx, 2, operations)
+	err := runSerial(t.Context(), []func(context.Context) error{
+		func(context.Context) error { panic("inventory unavailable") },
+	})
 	if err == nil || !strings.Contains(err.Error(), "panicked: inventory unavailable") {
 		t.Fatalf("panic must become admission error, got %v", err)
-	}
-	if ctx.Err() != nil {
-		t.Fatal("workers stranded the producer until timeout")
 	}
 }
 
@@ -114,15 +107,17 @@ func TestRunOperationPreservesCrashPolicy(t *testing.T) {
 	_ = runOperation(context.Background(), func(context.Context) error { panic("crash policy") })
 }
 
-func TestRunBoundedConcurrencyAndCancellation(t *testing.T) {
+func TestRunSerialCancellation(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		var active atomic.Int32
+		var started atomic.Int32
 		operations := make([]func(context.Context) error, 100)
 		for i := range operations {
 			operations[i] = func(ctx context.Context) error {
+				started.Add(1)
 				active.Add(1)
 				defer active.Add(-1)
 				<-ctx.Done()
@@ -130,35 +125,38 @@ func TestRunBoundedConcurrencyAndCancellation(t *testing.T) {
 			}
 		}
 		done := make(chan error, 1)
-		go func() { done <- runBounded(ctx, 3, operations) }()
+		go func() { done <- runSerial(ctx, operations) }()
 		synctest.Wait()
-		if active.Load() != 3 {
-			t.Fatalf("expected exactly three blocked workers, got %d", active.Load())
+		if active.Load() != 1 {
+			t.Fatalf("expected one blocked operation, got %d", active.Load())
 		}
 		cancel()
 		if err := <-done; !errors.Is(err, context.Canceled) || active.Load() != 0 {
 			t.Fatalf("cancellation failed: err=%v active=%d", err, active.Load())
 		}
+		if started.Load() != 1 {
+			t.Fatalf("started more operations after cancellation: %d", started.Load())
+		}
 	})
 }
 
-func TestRunBoundedRunsEveryOperationAndJoinsErrors(t *testing.T) {
+func TestRunSerialRunsEveryOperationAndJoinsErrors(t *testing.T) {
 	t.Parallel()
 
-	var calls atomic.Int32
+	calls := 0
 	expectedErr := errors.New("operation failed")
 	var operations []func(context.Context) error
 	for _, err := range []error{nil, expectedErr, nil} {
 		operations = append(operations, func(context.Context) error {
-			calls.Add(1)
+			calls++
 			return err
 		})
 	}
-	err := runBounded(context.Background(), 2, operations)
+	err := runSerial(context.Background(), operations)
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("expected joined error to preserve operation failure, got %v", err)
 	}
-	if calls.Load() != int32(len(operations)) {
-		t.Fatalf("expected all operations to run, got %d of %d", calls.Load(), len(operations))
+	if calls != len(operations) {
+		t.Fatalf("expected all operations to run, got %d of %d", calls, len(operations))
 	}
 }

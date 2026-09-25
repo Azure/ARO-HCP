@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -47,6 +49,8 @@ func (admissionCredential) GetToken(context.Context, policy.TokenRequestOptions)
 // This transport never opens a socket. All SDK requests, including deletes and
 // subscription-wide role enumeration, are handled by a bounded fake inventory.
 type admissionTransport struct {
+	active        atomic.Int32
+	latency       time.Duration
 	mu            sync.Mutex
 	scenario      string
 	fic, role     bool
@@ -55,12 +59,20 @@ type admissionTransport struct {
 	identityLists int
 	roleReads     []time.Time
 	ficReads      int
+	requests      []string
 }
 
 func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
+	active := a.active.Add(1)
+	defer a.active.Add(-1)
+	if active != 1 {
+		return nil, errors.New("admission issued concurrent ARM requests")
+	}
+	time.Sleep(a.latency)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	path := request.URL.Path
+	a.requests = append(a.requests, path)
 	status := http.StatusOK
 	var payload any
 	names := framework.NewDefaultIdentities().ToSlice()
@@ -121,11 +133,13 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 			}
 			identities = append(identities, map[string]any{"name": name, "properties": map[string]string{"principalId": id}})
 		}
+		identities = append(identities,
+			map[string]any{"name": "unrelated", "properties": map[string]string{"principalId": "ffffffff-ffff-ffff-ffff-ffffffffffff"}},
+			map[string]any{"name": "unrelated-without-principal"},
+		)
 		switch a.scenario {
 		case "missing identity":
 			identities = identities[1:]
-		case "extra identity":
-			identities = append(identities, map[string]any{"name": "unexpected", "properties": map[string]string{"principalId": principal}})
 		case "duplicate identity":
 			identities = append(identities, identities[0])
 		}
@@ -207,9 +221,9 @@ func TestWaitForCleanIdentityLease(t *testing.T) {
 		{name: "cancelled before reads", checkRole: true, cancelAt: -time.Second, wantErr: context.Canceled},
 		{name: "read error fails immediately even with dirty FIC", scenario: "role get failure", checkRole: true, checkFIC: true, wantReads: []time.Duration{0}, wantText: "fake role read throttling"},
 		{name: "FIC read error fails immediately", scenario: "FIC get failure", checkFIC: true, wantText: "fake FIC read failure"},
-		{name: "FIC convergence deadline", checkFIC: true, wantErr: context.DeadlineExceeded, wantText: "still exists after preparation", wantElapsed: admissionValidationTimeout},
+		{name: "FIC convergence deadline", checkFIC: true, wantErr: context.DeadlineExceeded, wantText: "still exists after preparation", wantElapsed: admissionConvergenceTimeout},
 		{name: "cancel during backoff", checkRole: true, cancelAt: time.Second, wantReads: []time.Duration{0}, wantErr: context.Canceled, wantElapsed: time.Second},
-		{name: "convergence deadline", checkRole: true, wantReads: []time.Duration{0, 5 * time.Second, 15 * time.Second, 35 * time.Second, 75 * time.Second}, wantErr: context.DeadlineExceeded, wantText: "still exists after preparation", wantElapsed: admissionValidationTimeout},
+		{name: "convergence deadline", checkRole: true, wantReads: []time.Duration{0, 5 * time.Second, 15 * time.Second, 35 * time.Second, 75 * time.Second}, wantErr: context.DeadlineExceeded, wantText: "still exists after preparation", wantElapsed: admissionConvergenceTimeout},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -264,24 +278,36 @@ func TestWaitForCleanIdentityLease(t *testing.T) {
 func TestAdmissionCleansOnlyLeasedPrincipalsAndValidatesFreshInventory(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		transport := &admissionTransport{scenario: "eventual consistency", fic: true, role: true}
+		transport := &admissionTransport{scenario: "eventual consistency", fic: true, role: true, latency: time.Millisecond}
 		factory, roles := admissionSDKClients(t, transport)
+		groups := []string{"identity-rg-00", "identity-rg-01"}
 		request := assets.LeaseRequest{State: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
 			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
-				Allocation: slots.AllocationDedicated, ResourceGroups: []string{"identity-rg"},
+				Allocation: slots.AllocationDedicated, ResourceGroups: groups,
 			}},
 		}}}
 		ctx := context.Background()
 		if err := prepareIdentityLeaseWithClients(ctx, request, factory, roles); err != nil {
 			t.Fatalf("preparation failed: %v", err)
 		}
-		if transport.roleLists != 1 || transport.identityLists != 1 {
+		if transport.roleLists != 1 || transport.identityLists != len(groups) {
 			t.Fatalf("preparation must load inventory once, got %d role lists and %d identity lists", transport.roleLists, transport.identityLists)
 		}
-		if len(transport.roleReads) != 3 || transport.ficReads != 1 {
+		var wantInventory []string
+		for _, group := range groups {
+			path := "/subscriptions/sub/resourceGroups/" + group + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities"
+			wantInventory = append(wantInventory, path)
+			for _, name := range framework.NewDefaultIdentities().ToSlice() {
+				wantInventory = append(wantInventory, path+"/"+name+"/federatedIdentityCredentials")
+			}
+		}
+		if len(transport.requests) < len(wantInventory) || !slices.Equal(transport.requests[:len(wantInventory)], wantInventory) {
+			t.Fatalf("inventory must finish each container and read only expected identities: %v", transport.requests)
+		}
+		if len(transport.roleReads) != 3 || transport.ficReads != len(groups) {
 			t.Fatalf("only pending deletions should be rechecked, got %d role reads and %d FIC reads", len(transport.roleReads), transport.ficReads)
 		}
-		if len(transport.deletes) != 2 {
+		if len(transport.deletes) != len(groups)+1 {
 			t.Fatalf("expected only leased FIC and child-scope role deletion, got %v", transport.deletes)
 		}
 		for _, path := range transport.deletes {
@@ -292,7 +318,7 @@ func TestAdmissionCleansOnlyLeasedPrincipalsAndValidatesFreshInventory(t *testin
 		if err := validateCleanIdentityLease(ctx, request, factory, roles); err != nil {
 			t.Fatalf("final validation failed: %v", err)
 		}
-		if transport.roleLists != 2 || transport.identityLists != 2 {
+		if transport.roleLists != 2 || transport.identityLists != 2*len(groups) {
 			t.Fatalf("final validation must independently reload inventory, got %d role lists and %d identity lists", transport.roleLists, transport.identityLists)
 		}
 		transport.role = true
@@ -310,7 +336,6 @@ func TestAdmissionFailsClosedBeforeCleanup(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ scenario, want string }{
 		{"missing identity", "missing=[" + framework.NewDefaultIdentities().ToSlice()[0] + "]"},
-		{"extra identity", "unexpected=[unexpected]"},
 		{"duplicate identity", "duplicate identity"},
 		{"bad principal", "invalid principal ID"},
 		{"list failure", "fake identity list failure"},

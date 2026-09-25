@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,10 +39,8 @@ import (
 )
 
 const (
-	admissionInventoryParallelism = 8
-	admissionDeleteParallelism    = 8
-	admissionPreparationTimeout   = 10 * time.Minute
-	admissionValidationTimeout    = 2 * time.Minute
+	admissionPhaseTimeout       = 10 * time.Minute
+	admissionConvergenceTimeout = 2 * time.Minute
 )
 
 type identityLeaseInventory struct {
@@ -57,11 +54,6 @@ type federatedCredentialReference struct {
 	name          string
 }
 
-type resolvedIdentityReference struct {
-	resourceGroup string
-	name          string
-}
-
 type dirtyIdentityLeaseError struct {
 	message string
 }
@@ -71,7 +63,7 @@ func (e *dirtyIdentityLeaseError) Error() string {
 }
 
 func prepareE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) error {
-	ctx, cancel := context.WithTimeout(ctx, admissionPreparationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, admissionPhaseTimeout)
 	defer cancel()
 
 	credential, subscriptionID, err := leaseCredential(request)
@@ -127,14 +119,14 @@ func prepareIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRe
 		})
 	}
 
-	if err := runBounded(ctx, admissionDeleteParallelism, deleteOperations); err != nil {
+	if err := runSerial(ctx, deleteOperations); err != nil {
 		return fmt.Errorf("failed cleaning E2E identity lease: %w", err)
 	}
 	return waitForCleanIdentityLease(ctx, inventory, msiFactory, roleAssignmentsClient)
 }
 
 func validateE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) error {
-	ctx, cancel := context.WithTimeout(ctx, admissionValidationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, admissionPhaseTimeout)
 	defer cancel()
 
 	credential, subscriptionID, err := leaseCredential(request)
@@ -192,85 +184,58 @@ func loadIdentityLeaseInventory(
 	federatedCredentialsClient := msiFactory.NewFederatedIdentityCredentialsClient()
 	identitiesClient := msiFactory.NewUserAssignedIdentitiesClient()
 
-	var inventoryLock sync.Mutex
-	resolvedIdentities := make([]resolvedIdentityReference, 0)
-	identityInventoryOperations := make([]func(context.Context) error, 0, len(request.State.Slot.IdentityContainerNames()))
 	for _, resourceGroup := range request.State.Slot.IdentityContainerNames() {
-		identityInventoryOperations = append(identityInventoryOperations, func(ctx context.Context) error {
-			actualIdentities := map[string]string{}
-			var localPrincipalIDs []string
-			pager := identitiesClient.NewListByResourceGroupPager(resourceGroup, nil)
-			for pager.More() {
-				page, err := pager.NextPage(ctx)
-				if err != nil {
-					return fmt.Errorf("failed listing identities in resource group %q: %w", resourceGroup, err)
+		actualIdentities := map[string]string{}
+		pager := identitiesClient.NewListByResourceGroupPager(resourceGroup, nil)
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed listing identities in resource group %q: %w", resourceGroup, err)
+			}
+			for _, identity := range page.Value {
+				if identity == nil || identity.Name == nil || strings.TrimSpace(*identity.Name) == "" {
+					return nil, fmt.Errorf("identity list for resource group %q returned an entry without a name", resourceGroup)
 				}
-				for _, identity := range page.Value {
-					if identity == nil || identity.Name == nil || identity.Properties == nil || identity.Properties.PrincipalID == nil || strings.TrimSpace(*identity.Properties.PrincipalID) == "" {
-						return fmt.Errorf("identity list for resource group %q returned an entry without name or principal ID", resourceGroup)
-					}
-					if _, err := uuid.Parse(*identity.Properties.PrincipalID); err != nil {
-						return fmt.Errorf("identity %q has invalid principal ID: %w", *identity.Name, err)
-					}
-					normalizedName := strings.ToLower(*identity.Name)
-					if _, found := actualIdentities[normalizedName]; found {
-						return fmt.Errorf("identity list for resource group %q returned duplicate identity %q", resourceGroup, *identity.Name)
-					}
-					actualIdentities[normalizedName] = *identity.Name
-					localPrincipalIDs = append(localPrincipalIDs, strings.ToLower(*identity.Properties.PrincipalID))
+				normalizedName := strings.ToLower(*identity.Name)
+				if _, expected := expectedIdentities[normalizedName]; !expected {
+					continue
 				}
+				if identity.Properties == nil || identity.Properties.PrincipalID == nil || strings.TrimSpace(*identity.Properties.PrincipalID) == "" {
+					return nil, fmt.Errorf("identity %q in resource group %q has no principal ID", *identity.Name, resourceGroup)
+				}
+				if _, err := uuid.Parse(*identity.Properties.PrincipalID); err != nil {
+					return nil, fmt.Errorf("identity %q has invalid principal ID: %w", *identity.Name, err)
+				}
+				if _, found := actualIdentities[normalizedName]; found {
+					return nil, fmt.Errorf("identity list for resource group %q returned duplicate identity %q", resourceGroup, *identity.Name)
+				}
+				actualIdentities[normalizedName] = *identity.Name
+				principalIDs[strings.ToLower(*identity.Properties.PrincipalID)] = struct{}{}
 			}
-			if err := validateIdentityNames(resourceGroup, expectedIdentities, actualIdentities); err != nil {
-				return err
-			}
+		}
+		if err := validateIdentityNames(resourceGroup, expectedIdentities, actualIdentities); err != nil {
+			return nil, err
+		}
 
-			inventoryLock.Lock()
-			for _, identityName := range expectedIdentityNames {
-				resolvedIdentities = append(resolvedIdentities, resolvedIdentityReference{
-					resourceGroup: resourceGroup,
-					name:          identityName,
-				})
-			}
-			for _, principalID := range localPrincipalIDs {
-				principalIDs[principalID] = struct{}{}
-			}
-			inventoryLock.Unlock()
-			return nil
-		})
-	}
-	if err := runBounded(ctx, admissionInventoryParallelism, identityInventoryOperations); err != nil {
-		return nil, fmt.Errorf("failed loading E2E identity inventory: %w", err)
-	}
-
-	ficInventoryOperations := make([]func(context.Context) error, 0, len(resolvedIdentities))
-	for _, identity := range resolvedIdentities {
-		ficInventoryOperations = append(ficInventoryOperations, func(ctx context.Context) error {
-			localCredentials := make([]federatedCredentialReference, 0)
-			ficPager := federatedCredentialsClient.NewListPager(identity.resourceGroup, identity.name, nil)
+		for _, identityName := range expectedIdentityNames {
+			ficPager := federatedCredentialsClient.NewListPager(resourceGroup, identityName, nil)
 			for ficPager.More() {
 				page, err := ficPager.NextPage(ctx)
 				if err != nil {
-					return fmt.Errorf("failed listing FICs for identity %q in resource group %q: %w", identity.name, identity.resourceGroup, err)
+					return nil, fmt.Errorf("failed listing FICs for identity %q in resource group %q: %w", identityName, resourceGroup, err)
 				}
 				for _, credential := range page.Value {
 					if credential == nil || credential.Name == nil || strings.TrimSpace(*credential.Name) == "" {
-						return fmt.Errorf("FIC list for identity %q in resource group %q returned an entry without a name", identity.name, identity.resourceGroup)
+						return nil, fmt.Errorf("FIC list for identity %q in resource group %q returned an entry without a name", identityName, resourceGroup)
 					}
-					localCredentials = append(localCredentials, federatedCredentialReference{
-						resourceGroup: identity.resourceGroup,
-						identityName:  identity.name,
+					inventory.federatedCredentials = append(inventory.federatedCredentials, federatedCredentialReference{
+						resourceGroup: resourceGroup,
+						identityName:  identityName,
 						name:          *credential.Name,
 					})
 				}
 			}
-			inventoryLock.Lock()
-			inventory.federatedCredentials = append(inventory.federatedCredentials, localCredentials...)
-			inventoryLock.Unlock()
-			return nil
-		})
-	}
-	if err := runBounded(ctx, admissionInventoryParallelism, ficInventoryOperations); err != nil {
-		return nil, fmt.Errorf("failed loading E2E federated identity credential inventory: %w", err)
+		}
 	}
 
 	rolePager := roleAssignmentsClient.NewListForSubscriptionPager(nil)
@@ -292,21 +257,15 @@ func loadIdentityLeaseInventory(
 }
 
 func validateIdentityNames(resourceGroup string, expected map[string]struct{}, actual map[string]string) error {
-	var missing, unexpected []string
+	var missing []string
 	for name := range expected {
 		if _, found := actual[name]; !found {
 			missing = append(missing, name)
 		}
 	}
-	for normalizedName, name := range actual {
-		if _, found := expected[normalizedName]; !found {
-			unexpected = append(unexpected, name)
-		}
-	}
 	sort.Strings(missing)
-	sort.Strings(unexpected)
-	if len(missing) > 0 || len(unexpected) > 0 {
-		return fmt.Errorf("identity inventory drift in resource group %q: missing=%v unexpected=%v", resourceGroup, missing, unexpected)
+	if len(missing) > 0 {
+		return fmt.Errorf("identity inventory drift in resource group %q: missing=%v", resourceGroup, missing)
 	}
 	return nil
 }
@@ -327,7 +286,7 @@ func waitForCleanIdentityLease(
 	msiFactory *armmsi.ClientFactory,
 	roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
 ) error {
-	waitCtx, cancel := context.WithTimeout(ctx, admissionValidationTimeout)
+	waitCtx, cancel := context.WithTimeout(ctx, admissionConvergenceTimeout)
 	defer cancel()
 
 	// Only re-read resources we deleted. ValidateLease independently reloads the
@@ -378,7 +337,7 @@ func waitForCleanIdentityLease(
 				return results[i]
 			}
 		}
-		if err := runBounded(ctx, admissionInventoryParallelism, operations); err != nil {
+		if err := runSerial(ctx, operations); err != nil {
 			return false, err
 		}
 		pending := checks[:0]
@@ -419,56 +378,23 @@ func validateCleanIdentityLease(
 	return nil
 }
 
-func runBounded(ctx context.Context, parallelism int, operations []func(context.Context) error) error {
-	if len(operations) == 0 {
-		return nil
-	}
-	if parallelism <= 0 {
-		return fmt.Errorf("parallelism must be greater than zero")
-	}
-
-	jobs := make(chan func(context.Context) error)
-	errCh := make(chan error, len(operations))
-	var wg sync.WaitGroup
-	workers := min(parallelism, len(operations))
-	wg.Add(workers)
-	for range workers {
-		go func() {
-			defer utilruntime.HandleCrash()
-			defer wg.Done()
-			for operation := range jobs {
-				if ctx.Err() != nil {
-					continue
-				}
-				if err := runOperation(ctx, operation); err != nil {
-					errCh <- err
-				}
-			}
-		}()
-	}
-enqueue:
-	for _, operation := range operations {
-		select {
-		case <-ctx.Done():
-			break enqueue
-		case jobs <- operation:
-		}
-	}
-	close(jobs)
-	wg.Wait()
-	close(errCh)
-
+func runSerial(ctx context.Context, operations []func(context.Context) error) error {
 	var errs []error
-	for err := range errCh {
-		errs = append(errs, err)
+	for _, operation := range operations {
+		if ctx.Err() != nil {
+			break
+		}
+		if err := runOperation(ctx, operation); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	errs = append(errs, ctx.Err())
 	return errors.Join(errs...)
 }
 
 func runOperation(ctx context.Context, operation func(context.Context) error) (err error) {
-	// Recover at the operation boundary so workers keep draining the producer
-	// when ReallyCrash is false. HandleCrash still owns the process crash policy.
+	// Preserve fail-closed errors when ReallyCrash is false without bypassing
+	// the process crash policy when it is true.
 	defer utilruntime.HandleCrash(func(value interface{}) {
 		err = fmt.Errorf("identity admission operation panicked: %v", value)
 	})

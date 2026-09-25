@@ -354,7 +354,7 @@ Downstream provisioning cannot start with a partially prepared slot.
 
 Admission is fail-closed:
 
-- an unknown or missing resource fails;
+- a missing required resource fails;
 - incomplete inventory fails;
 - an Azure list or delete error fails;
 - unexpected resource shape fails;
@@ -528,8 +528,9 @@ therefore modify unmanaged backing resources.
 For every resolved resource group, the handler:
 
 1. enumerates all user-assigned managed identities;
-2. requires the exact standard identity set and valid principal IDs;
-3. enumerates every federated identity credential on those identities;
+2. selects the 13 standard identities and requires valid principal IDs,
+   ignoring other identities in the resource group;
+3. enumerates every federated identity credential on those standard identities;
 4. enumerates role assignments for their principal IDs across the E2E
    subscription, including child scopes;
 5. deletes all discovered federated identity credentials and role assignments;
@@ -540,8 +541,10 @@ Initial discovery lists role assignments once per subscription and indexes them
 by principal ID. Convergence checks only the FICs and role assignments deleted
 in that preparation, removing confirmed deletions from subsequent checks.
 It does not repeat subscription-wide enumeration or re-read unchanged identities.
-Identity and credential inventory, as well as deletion, use bounded
-concurrency. The complete preparation has an overall deadline.
+All admission ARM requests run serially, finishing each container's identity
+and credential inventory before moving to the next container. Azure SDK
+throttling retries remain enabled. Preparation and independent validation each
+have a ten-minute budget to accommodate serial scans.
 Convergence reads use exponential backoff starting at five seconds, doubling
 to a one-minute maximum between attempts. The convergence wait has a two-minute
 deadline, and cancellation interrupts both reads and backoff waits.
@@ -549,8 +552,7 @@ deadline, and cancellation interrupts both reads and backoff waits.
 The reusable baseline is:
 
 - every expected managed identity exists;
-- no unexpected managed identity exists;
-- no federated identity credentials exist; and
+- no federated identity credentials exist on expected identities; and
 - no role assignments exist for the leased principals.
 
 ### Validation
@@ -562,8 +564,10 @@ resources added after initial discovery cannot be hidden by cached results.
 Successful admission therefore performs two full inventory passes, regardless
 of the number of deletion-convergence checks.
 
-An extra or missing identity, incomplete enumeration, remaining credential, or
-remaining role assignment fails acquisition before runtime publication.
+A missing required identity, incomplete enumeration, remaining credential on
+an expected identity, or remaining role assignment for its principal fails
+acquisition before runtime publication. Extra identities are not used by the
+tests and are neither admitted nor cleaned by this asset.
 
 The normal E2E framework cleanup remains the fast path after each test. Asset
 admission is authoritative because it also handles interrupted jobs and
