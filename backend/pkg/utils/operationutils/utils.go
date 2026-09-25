@@ -23,7 +23,10 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"k8s.io/component-base/metrics/legacyregistry"
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -41,6 +44,18 @@ import (
 
 const (
 	InflightChecksFailedProvisionErrorCode = "OCM4001"
+)
+
+var (
+	// ExternalAuthStateTransitionsTotal counts provisioning state transitions
+	// for ExternalAuth resources. Labels: from_state, to_state, resource_type.
+	ExternalAuthStateTransitionsTotal = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "backend_externalauth_state_transitions_total",
+			Help: "Total number of provisioning state transitions for ExternalAuth resources.",
+		},
+		[]string{"from_state", "to_state", "resource_type"},
+	)
 )
 
 type PostAsyncNotificationFunc func(ctx context.Context, operation *coreapi.Operation) error
@@ -117,6 +132,12 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 	// Conditionally add a resource document update to the transaction.
 	// The resource update is skipped in several edge cases
 	// but the operation document is always updated via the transaction below.
+	//
+	// externalAuthOldResourceState / externalAuthNewResourceState track the
+	// resource-level provisioning state transition so we can emit accurate
+	// metrics after the transaction commits. They are set only when the
+	// resource document is actually updated.
+	var externalAuthOldResourceState, externalAuthNewResourceState coreapi.ProvisioningState
 	logger.Info("Updating external ID", "externalID", existingOperation.ExternalID)
 	switch {
 	case existingOperation.ExternalID == nil:
@@ -151,7 +172,7 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), coreapi.ExternalAuthResourceType.String()):
 		dbClient := resourcesDBClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).ExternalAuth(existingOperation.ExternalID.Parent.Name)
-		updated, err := getExternalAuthForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
+		oldResourceState, updated, err := getExternalAuthForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
 			return err
 		}
@@ -160,6 +181,8 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updated, nil); err != nil {
 				return utils.TrackError(err)
 			}
+			externalAuthOldResourceState = oldResourceState
+			externalAuthNewResourceState = newOperationStatus
 		}
 
 	default:
@@ -171,6 +194,16 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 	logger.Info("Updating operation status", "oldStatus", existingOperation.Status, "newStatus", newOperationStatus, "operationError", newOperationError)
 	if _, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{}); err != nil {
 		return utils.TrackError(err)
+	}
+
+	// Emit a state-transition counter only when the resource document was
+	// actually updated and the resource's provisioning state changed.
+	if externalAuthOldResourceState != "" && externalAuthOldResourceState != externalAuthNewResourceState {
+		ExternalAuthStateTransitionsTotal.WithLabelValues(
+			strings.ToLower(string(externalAuthOldResourceState)),
+			strings.ToLower(string(externalAuthNewResourceState)),
+			strings.ToLower(existingOperation.ExternalID.ResourceType.String()),
+		).Inc()
 	}
 
 	notifyOperationOwner(ctx, resourcesDBClient, updatedOperation, postAsyncNotificationFn)
@@ -246,38 +279,41 @@ func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient core
 	return updated, nil
 }
 
-// getExternalAuthForUpdate returns a deep copy of the external auth with updated
-// provisioning state, or nil if the resource update should be skipped.
-func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.ExternalAuthsCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.HCPOpenShiftClusterExternalAuth, error) {
+// getExternalAuthForUpdate returns the resource's pre-update provisioning state
+// and a deep copy with the new state applied, or ("", nil, nil) when the update
+// should be skipped. The caller uses oldState to emit accurate resource-level
+// state transition metrics.
+func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.ExternalAuthsCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (coreapi.ProvisioningState, *coreapi.HCPOpenShiftClusterExternalAuth, error) {
 	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
 		logger.Info("Resource not found, skipping resource update")
-		return nil, nil
+		return "", nil, nil
 	}
 	if err != nil {
-		return nil, utils.TrackError(err)
+		return "", nil, utils.TrackError(err)
 	}
 	if existingOperation.OperationID == nil {
-		return nil, utils.TrackError(fmt.Errorf("missing operation ID"))
+		return "", nil, utils.TrackError(fmt.Errorf("missing operation ID"))
 	}
 	if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
 		logger.Info("Resource has a different active operation, skipping resource update",
 			"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
 			"thisOperationID", existingOperation.OperationID.Name)
-		return nil, nil
+		return "", nil, nil
 	}
 	if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
 		logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
-		return nil, nil
+		return "", nil, nil
 	}
 
+	oldState := curr.Properties.ProvisioningState
 	updated := curr.DeepCopy()
 	updated.Properties.ProvisioningState = newOperationStatus
 	if newOperationStatus.IsTerminal() {
 		updated.ServiceProviderProperties.ActiveOperationID = ""
 	}
-	return updated, nil
+	return oldState, updated, nil
 }
 
 func NeedToPatchOperation(oldOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState, newOperationError *coreapi.CloudErrorBody) bool {
