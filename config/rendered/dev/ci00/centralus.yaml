@@ -90,7 +90,7 @@ arobit:
         memory: 1248Mi
       requests:
         cpu: 450m
-        memory: 416Mi
+        memory: 472Mi
   kusto:
     buffering: true
     enabled: true
@@ -525,7 +525,7 @@ kubeApplier:
       limits:
         memory: unlimited
       requests:
-        cpu: 100m
+        cpu: 231m
         memory: 224Mi
     serviceAccountName: kube-applier
   managedIdentityName: kube-applier
@@ -780,7 +780,7 @@ mgmtAgent:
     replicas: 2
     resources:
       requests:
-        cpu: 180m
+        cpu: 313m
         memory: 768Mi
     serviceAccountName: mgmt-agent
   managedIdentityName: mgmt-agent

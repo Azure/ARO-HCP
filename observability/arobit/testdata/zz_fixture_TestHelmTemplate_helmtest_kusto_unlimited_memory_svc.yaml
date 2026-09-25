@@ -798,7 +798,7 @@ spec:
           resources:
             requests:
               cpu: 450m
-              memory: 416Mi
+              memory: 472Mi
           volumeMounts:
             - name: var-kusto
               mountPath: /var/kusto
