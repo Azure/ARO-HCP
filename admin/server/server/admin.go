@@ -132,6 +132,10 @@ func NewAdminAPI(
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient).ServeHTTP)),
 	)
 	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("POST", "/versionpin"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPVersionPinHandler(resourcesDBClient).ServeHTTP)),
+	)
+	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("GET", "/backupschedules"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPGetBackupScheduleHandler(resourcesDBClient, kubeApplierDBClients).ServeHTTP)),
 	)
