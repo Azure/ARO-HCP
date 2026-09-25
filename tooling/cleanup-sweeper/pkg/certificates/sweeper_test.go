@@ -352,7 +352,7 @@ func TestDryRunInventoryAndLimit(t *testing.T) {
 	var logs bytes.Buffer
 	ctx := logr.NewContext(t.Context(), logr.FromSlogHandler(slog.NewJSONHandler(&logs, nil)))
 	opts := options(true)
-	opts.MaxDeletions = 2
+	opts.MaxDeletions = 1
 	opts.MaxPurges = 2
 	if err := s.run(ctx, opts); err != nil {
 		t.Fatal(err)
@@ -376,22 +376,25 @@ func TestDryRunInventoryAndLimit(t *testing.T) {
 	}
 }
 
-func TestInventoryLimitsCountInspectedCertificates(t *testing.T) {
+func TestMutationLimitsScanPastIneligibleCertificates(t *testing.T) {
 	t.Run("active", func(t *testing.T) {
 		s, f, _, _ := newTestSweeper("frontend-cert-dev-j1234567")
-		f.pages = append(f.pages, []*azcertificates.CertificateProperties{oldCertificate("maestro-server-j2345678")})
-		f.listError = 2
+		f.pages = append(f.pages,
+			[]*azcertificates.CertificateProperties{oldCertificate("maestro-server-j2345678")},
+			nil,
+		)
+		f.listError = 3
 		opts := options(true)
 		opts.PurgeDeleted = false
 		opts.MaxDeletions = 1
 		if err := s.run(t.Context(), opts); err != nil {
 			t.Fatal(err)
 		}
-		if f.activePagesRead != 1 {
-			t.Fatalf("must stop active inventory after inspecting limit; read %d pages", f.activePagesRead)
+		if f.activePagesRead != 2 {
+			t.Fatalf("must scan past ineligible active metadata to fill mutation budget; read %d pages", f.activePagesRead)
 		}
 		if len(f.gets) != 0 || len(f.deletes) != 0 {
-			t.Fatalf("ineligible inspected certificate must not be selected: gets=%v deletes=%v", f.gets, f.deletes)
+			t.Fatalf("dry run accessed certificates or wrote: gets=%v deletes=%v", f.gets, f.deletes)
 		}
 	})
 
@@ -402,19 +405,20 @@ func TestInventoryLimitsCountInspectedCertificates(t *testing.T) {
 		f.deletedPages = [][]*azcertificates.DeletedCertificateProperties{
 			{ineligible},
 			{deletedCertificate("maestro-server-j2345678")},
+			nil,
 		}
-		f.deletedListError = 2
+		f.deletedListError = 3
 		opts := options(true)
 		opts.DeleteActive = false
 		opts.MaxPurges = 1
 		if err := s.run(t.Context(), opts); err != nil {
 			t.Fatal(err)
 		}
-		if f.deletedPagesRead != 1 {
-			t.Fatalf("must stop deleted inventory after inspecting limit; read %d pages", f.deletedPagesRead)
+		if f.deletedPagesRead != 2 {
+			t.Fatalf("must scan past ineligible deleted metadata to fill mutation budget; read %d pages", f.deletedPagesRead)
 		}
 		if len(f.deletedGets) != 0 || len(f.purges) != 0 {
-			t.Fatalf("ineligible inspected tombstone must not be selected: gets=%v purges=%v", f.deletedGets, f.purges)
+			t.Fatalf("dry run accessed deleted certificates or purged: gets=%v purges=%v", f.deletedGets, f.purges)
 		}
 	})
 }
