@@ -243,19 +243,44 @@ clouds:
               - westus3
               - centralus
               - canadacentral
+            # INT also runs E2E in westus3, not just uksouth (see
+            # test/e2e-config/e2e-slots.yaml shard0/westus3-shard0 pools).
             - name: "ARO SRE Team - INT (EA Subscription 3)"
               regions:
               - uksouth
+              - westus3
             - name: "ARO HCP E2E Hosted Clusters - Stage - 00"
               regions:
               - uksouth
               - westus3
+            # Prod-00 and Prod-01 run E2E across every production region, not
+            # just uksouth: e2e-slots.yaml pins their runtime-selected region
+            # to uksouth today, but the prod canary job also leases these subs
+            # in eastus2euap (see e2e-slots.yaml), and quota must be tracked
+            # across all prod regions to catch exhaustion before a regional
+            # failover or canary run needs it.
             - name: "ARO HCP E2E Hosted Clusters - Prod - 00"
               regions:
+              - eastus2euap
               - uksouth
+              - switzerlandnorth
+              - canadacentral
+              - australiaeast
+              - westeurope
+              - centralindia
+              - brazilsouth
+              - eastus2
             - name: "ARO HCP E2E Hosted Clusters - Prod - 01"
               regions:
+              - eastus2euap
               - uksouth
+              - switzerlandnorth
+              - canadacentral
+              - australiaeast
+              - westeurope
+              - centralindia
+              - brazilsouth
+              - eastus2
           # Test Test Azure Red Hat OpenShift (Microsoft E2E tenant); directory quota off — subscription ARM only.
           - tenantId: "93b21e64-4824-439a-b893-46c9b2a51082"
             tenantName: "TestTestARO"
@@ -278,6 +303,12 @@ clouds:
         dev:
           bot:
             applicationName: "OpenShift Release Bot"
+          # Regions charted on the Dev quota dashboard: the three regions the
+          # dev tenant-quota subscriptions actually collect quota for above.
+          dashboardRegions:
+          - westus3
+          - centralus
+          - canadacentral
           e2eSubscriptions:
           - name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
             id: "974ebd46-8ad3-41e3-afef-7ef25fd5c371"
@@ -320,6 +351,11 @@ clouds:
         int:
           bot:
             applicationName: "OpenShift Release Bot - INT"
+          # Regions charted on the Int quota dashboard (see e2e-slots.yaml
+          # shard0/westus3-shard0 pools for the INT subscription).
+          dashboardRegions:
+          - uksouth
+          - westus3
           e2eSubscriptions:
           - name: "ARO SRE Team - INT (EA Subscription 3)"
             id: "64f0619f-ebc2-4156-9d91-c4c781de7e54"
@@ -349,12 +385,29 @@ clouds:
         stg:
           bot:
             applicationName: "OpenShift Release Bot - STG"
+          # Regions charted on the Stg quota dashboard.
+          dashboardRegions:
+          - uksouth
+          - westus3
           e2eSubscriptions:
           - name: "ARO HCP E2E Hosted Clusters - Stage - 00"
             id: "dee2f1be-a999-4e19-b027-221e7adaf7d3"
         prod:
           bot:
             applicationName: "OpenShift Release Bot - Prod"
+          # Regions charted on the Prod quota dashboard: all production
+          # regions, shared identically by every Prod E2E subscription (see
+          # opstool.tenantQuota.tenants[RedHat0].subscriptions above).
+          dashboardRegions:
+          - eastus2euap
+          - uksouth
+          - switzerlandnorth
+          - canadacentral
+          - australiaeast
+          - westeurope
+          - centralindia
+          - brazilsouth
+          - eastus2
           e2eSubscriptions:
           - name: "ARO HCP E2E Hosted Clusters - Prod - 00"
             id: "8d696692-794f-4cdb-ba25-9250c9e9ec4c"
