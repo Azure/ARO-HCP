@@ -29,6 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
@@ -196,13 +197,22 @@ var _ = Describe("Customer", func() {
 			Expect(ok).To(BeTrue(), "registry.redhat.io credentials not found in pull-secret file")
 
 			By("updating additional-pull-secret to add registry.redhat.io credentials")
-			currentSecret, err := kubeClient.CoreV1().Secrets(pullSecretNamespace).Get(ctx, pullSecretName, metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to get existing additional-pull-secret")
-
-			err = framework.AddRegistryAuthToSecret(currentSecret, redhatRegistryHost, redhatRegistryAuth)
-			Expect(err).NotTo(HaveOccurred(), "failed to add registry.redhat.io credentials to additional-pull-secret")
-
-			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Update(ctx, currentSecret, metav1.UpdateOptions{})
+			// A single Get/Update fails with 409 Conflict if anything else writes
+			// the Secret between the two calls. The new content is derived from
+			// the current content (the registry is merged into the existing
+			// auths), so on conflict re-read and re-merge rather than overwrite
+			// with a server-side apply.
+			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				currentSecret, err := kubeClient.CoreV1().Secrets(pullSecretNamespace).Get(ctx, pullSecretName, metav1.GetOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to get existing additional-pull-secret: %w", err)
+				}
+				if err := framework.AddRegistryAuthToSecret(currentSecret, redhatRegistryHost, redhatRegistryAuth); err != nil {
+					return fmt.Errorf("failed to add registry.redhat.io credentials to additional-pull-secret: %w", err)
+				}
+				_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Update(ctx, currentSecret, metav1.UpdateOptions{})
+				return err
+			})
 			Expect(err).NotTo(HaveOccurred(), "failed to update additional-pull-secret with registry.redhat.io credentials")
 
 			By("waiting for HCCO to merge the updated pull secret (with registry.redhat.io) into global pull secret")
