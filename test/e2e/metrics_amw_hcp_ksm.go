@@ -40,8 +40,7 @@ var _ = Describe("Engineering", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
-				customerClusterName  = "ksm-hcp-metrics"
-				customerNodePoolName = "nodepool"
+				customerClusterName = "ksm-hcp-metrics"
 			)
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
