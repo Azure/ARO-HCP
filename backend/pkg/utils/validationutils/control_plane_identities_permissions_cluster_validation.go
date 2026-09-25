@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/blang/semver/v4"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -248,6 +250,82 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) findMissingActionsF
 	}
 	if rtResult != nil {
 		results = append(results, rtResult)
+	}
+
+	conditionalResults, err := v.checkMissingPermissionsForConditionalRequirements(ctx, checkAccessV2Client, cluster, operatorName, identity, token)
+	if err != nil {
+		return nil, err
+	}
+	results = append(results, conditionalResults...)
+
+	return results, nil
+}
+
+// checkMissingPermissionsForConditionalRequirements evaluates the operator identity's
+// ConditionalResourcePermissionRequirements (see internal/azure/cluster_scoped_identities_config.go),
+// skipping any whose Applies returns false for this cluster. A requirement whose Precondition is
+// violated is recorded as a missing-permission entry without calling CheckAccess; otherwise its
+// explicit Actions are checked against the resolved target using the access token already minted
+// for the identity's other permission checks.
+func (v *ControlPlaneIdentitiesPermissionsClusterValidation) checkMissingPermissionsForConditionalRequirements(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, cluster *coreapi.HCPOpenShiftCluster, operatorName string, identity *azcorearm.ResourceID, token azcore.AccessToken) ([]*identityResourceMissingPermissions, error) {
+	operatorIdentity, ok := v.clusterScopedIdentitiesConfig.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)]
+	if !ok || operatorIdentity == nil {
+		return nil, nil
+	}
+
+	// Unlike the fixed NSG/VNet/Subnet/RouteTable checks above (which ran unconditionally before
+	// this mechanism existed, and must keep doing so), these conditional requirements are new:
+	// gate them on the identity's supported OpenShift version range. Some existing cluster records
+	// predate the version field being required (see internal/validation/validate_cluster.go's
+	// validateVersionProfile), so an unparseable version intentionally does not gate here - it just
+	// means the version-based skip below doesn't apply, and every requirement is still evaluated.
+	if clusterVersion, err := semver.ParseTolerant(cluster.CustomerProperties.Version.ID); err == nil {
+		if !operatorIdentity.IsSupportedForOpenshiftVersion(&clusterVersion) {
+			return nil, nil
+		}
+	}
+
+	var results []*identityResourceMissingPermissions
+	for _, requirement := range operatorIdentity.AdditionalPermissionRequirements {
+		if !requirement.Applies(cluster) {
+			continue
+		}
+
+		target, err := requirement.ResolveTarget(cluster)
+		if err != nil {
+			return nil, utils.TrackError(fmt.Errorf("failed to resolve target for permission requirement %q: %w", requirement.Name, err))
+		}
+
+		if requirement.Precondition != nil {
+			if violated, reason, message := requirement.Precondition(cluster, target); violated {
+				results = append(results, &identityResourceMissingPermissions{
+					Resource: target,
+					Identity: identity,
+					Reason:   reason,
+					Message:  message,
+				})
+				continue
+			}
+		}
+
+		decisions, err := v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, target, requirement.Actions, nil, token)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		if len(decisions) == 0 {
+			continue
+		}
+
+		var remediation string
+		if requirement.Remediation != nil {
+			remediation = requirement.Remediation(identity, target)
+		}
+		results = append(results, &identityResourceMissingPermissions{
+			Resource:    target,
+			Identity:    identity,
+			Decisions:   decisions,
+			Remediation: remediation,
+		})
 	}
 
 	return results, nil
