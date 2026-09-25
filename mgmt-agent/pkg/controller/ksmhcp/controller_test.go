@@ -15,9 +15,15 @@
 package ksmhcp
 
 import (
+	"context"
 	"testing"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	"github.com/Azure/ARO-Tools/testutil"
 
@@ -114,7 +120,7 @@ func TestBuildService(t *testing.T) {
 }
 
 func TestBuildServiceMonitor(t *testing.T) {
-	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", metav1.OwnerReference{
+	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", DefaultMonitoringAPIGroup, metav1.OwnerReference{
 		APIVersion: "hypershift.openshift.io/v1beta1",
 		Kind:       "HostedControlPlane",
 		Name:       "test-hcp",
@@ -125,4 +131,66 @@ func TestBuildServiceMonitor(t *testing.T) {
 	}
 
 	testutil.CompareWithFixture(t, sm)
+}
+
+// TestBuildServiceMonitorAMAGroup verifies that in AMA mode the KSM monitor is
+// emitted directly as the azmonitoring.coreos.com type AMA discovers, so it does
+// not have to be created as monitoring.coreos.com and translated (which would
+// duplicate the microsoft_metrics_include_label relabel rule).
+func TestBuildServiceMonitorAMAGroup(t *testing.T) {
+	const amaGroup = "azmonitoring.coreos.com"
+	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", amaGroup, metav1.OwnerReference{
+		APIVersion: "hypershift.openshift.io/v1beta1",
+		Kind:       "HostedControlPlane",
+		Name:       "test-hcp",
+		UID:        "uid-123",
+	})
+	if err != nil {
+		t.Fatalf("buildServiceMonitor() error: %v", err)
+	}
+
+	if got, want := sm.GetAPIVersion(), amaGroup+"/v1"; got != want {
+		t.Errorf("apiVersion = %q, want %q", got, want)
+	}
+	if got, want := ServiceMonitorGVRForGroup(amaGroup).Group, amaGroup; got != want {
+		t.Errorf("ServiceMonitorGVRForGroup group = %q, want %q", got, want)
+	}
+}
+
+// TestDeleteStaleServiceMonitor verifies that when the controller runs in AMA
+// mode it removes the leftover monitoring.coreos.com kube-state-metrics monitor
+// created before the monitoringApiGroup switch, so only a single active monitor
+// remains and the translator does not collide with it.
+func TestDeleteStaleServiceMonitor(t *testing.T) {
+	ossGVR := ServiceMonitorGVRForGroup(DefaultMonitoringAPIGroup)
+	gvrToListKind := map[schema.GroupVersionResource]string{
+		ossGVR: "ServiceMonitorList",
+		ServiceMonitorGVRForGroup(AMAMonitoringAPIGroup): "ServiceMonitorList",
+	}
+
+	stale := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": DefaultMonitoringAPIGroup + "/v1",
+		"kind":       "ServiceMonitor",
+		"metadata": map[string]any{
+			"name":      resourceName,
+			"namespace": "ocm-test",
+		},
+	}}
+
+	dc := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gvrToListKind, stale)
+	c := &KSMHCPController{dynamicClient: dc, monitoringAPIGroup: AMAMonitoringAPIGroup}
+
+	if err := c.deleteStaleServiceMonitor(context.Background(), "ocm-test"); err != nil {
+		t.Fatalf("deleteStaleServiceMonitor() error: %v", err)
+	}
+
+	_, err := dc.Resource(ossGVR).Namespace("ocm-test").Get(context.Background(), resourceName, metav1.GetOptions{})
+	if !apierrors.IsNotFound(err) {
+		t.Errorf("expected stale monitor to be deleted, got err %v", err)
+	}
+
+	// Idempotent: deleting again when nothing is left is not an error.
+	if err := c.deleteStaleServiceMonitor(context.Background(), "ocm-test"); err != nil {
+		t.Errorf("deleteStaleServiceMonitor() second call error: %v", err)
+	}
 }

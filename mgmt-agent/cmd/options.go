@@ -344,8 +344,9 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			ksmKubeInformers.Apps().V1().Deployments().Informer(),
 			ksmKubeInformers.Core().V1().Services().Informer(),
 			ksmKubeInformers.Core().V1().ConfigMaps().Informer(),
-			dynInformers.ForResource(ksmhcp.ServiceMonitorGVR).Informer(),
+			dynInformers.ForResource(ksmhcp.ServiceMonitorGVRForGroup(o.MonitoringAPIGroup)).Informer(),
 			o.KSMImage,
+			o.MonitoringAPIGroup,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
@@ -373,7 +374,14 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			return nil, fmt.Errorf("failed to create AMA NetworkPolicy controller: %w", err)
 		}
 
-		translatorDynInformers = dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 10*time.Minute)
+		// Exclude the kube-state-metrics monitor that the ksmhcp controller emits
+		// directly in the target group; translating it would collide on the same
+		// object (see monitortranslator.ExcludeKSMSelector).
+		translatorDynInformers = dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 10*time.Minute, metav1.NamespaceAll,
+			func(opts *metav1.ListOptions) {
+				opts.LabelSelector = monitortranslator.ExcludeKSMSelector
+			},
+		)
 		monitorTranslatorCtrl, err = monitortranslator.NewMonitorTranslatorController(
 			dynamicClient,
 			translatorDynInformers.ForResource(monitortranslator.SourceServiceMonitorGVR).Informer(),

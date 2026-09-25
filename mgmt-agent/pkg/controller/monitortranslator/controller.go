@@ -39,6 +39,16 @@ import (
 const (
 	MonitorTranslatorControllerName = "monitor-translator"
 	fieldManager                    = "mgmt-agent-monitor-translator"
+
+	// ksmNameLabelKey/ksmNameLabelValue identify the per-HCP kube-state-metrics
+	// monitor that the ksmhcp controller creates directly in the configured
+	// monitoring API group (must stay in sync with ksmhcp's resource label). The
+	// translator must never translate it: in AMA mode ksmhcp already emits the
+	// azmonitoring resource, so translating the source would collide on the same
+	// name/namespace object. ExcludeKSMSelector filters it out at the informer.
+	ksmNameLabelKey    = "app.kubernetes.io/name"
+	ksmNameLabelValue  = "kube-state-metrics-hcp"
+	ExcludeKSMSelector = ksmNameLabelKey + "!=" + ksmNameLabelValue
 )
 
 var (
@@ -67,7 +77,16 @@ var (
 // MonitorTranslatorController watches monitoring.coreos.com/v1 ServiceMonitors
 // and PodMonitors that are owned by a HostedControlPlane and creates equivalent
 // azmonitoring.coreos.com/v1 resources so AMA can discover them. Monitors that
-// are not owned by a HostedControlPlane (see hasHCPOwner) are ignored.
+// are not owned by a HostedControlPlane (see hasHCPOwner) are ignored, as is the
+// kube-state-metrics monitor the ksmhcp controller emits directly in the target
+// group (see isKSMManaged / ExcludeKSMSelector).
+//
+// Each translated resource carries an OwnerReference to its source monitor, so
+// deleting the source garbage-collects the translation. Known limitation: on an
+// AMA -> OSS rollback the controller stops running and no longer prunes the
+// azmonitoring.coreos.com resources it created; they are orphaned until the
+// owning HostedControlPlane (a transitive owner via the source monitor) is
+// deleted, which garbage-collects them. Cleanup relies on HCP GC only.
 type MonitorTranslatorController struct {
 	dynamicClient dynamic.Interface
 	hasSynced     []cache.InformerSynced
@@ -195,6 +214,12 @@ func hasHCPOwner(obj *unstructured.Unstructured) bool {
 	return false
 }
 
+// isKSMManaged reports whether the monitor is the kube-state-metrics monitor the
+// ksmhcp controller manages directly, which the translator must leave alone.
+func isKSMManaged(obj *unstructured.Unstructured) bool {
+	return obj.GetLabels()[ksmNameLabelKey] == ksmNameLabelValue
+}
+
 func (c *MonitorTranslatorController) syncHandler(ctx context.Context, key string) error {
 	resource, nsName, found := strings.Cut(key, "/")
 	if !found {
@@ -238,6 +263,14 @@ func (c *MonitorTranslatorController) syncHandler(ctx context.Context, key strin
 		return nil
 	}
 
+	if isKSMManaged(source) {
+		// Backstop for the informer-level ExcludeKSMSelector: the ksmhcp
+		// controller already emits this monitor in the target group directly, so
+		// translating it would collide on the same object.
+		logger.V(4).Info("Skipping KSM-managed monitor; created directly by the ksmhcp controller")
+		return nil
+	}
+
 	translated := Translate(source, sourceGVR, targetGVR)
 	if err := c.applyResource(ctx, targetGVR, translated); err != nil {
 		return fmt.Errorf("failed to apply translated %s %s/%s: %w", resource, namespace, name, err)
@@ -259,6 +292,8 @@ func (c *MonitorTranslatorController) applyResource(ctx context.Context, gvr sch
 	return err
 }
 
+const includeLabelTargetLabel = "microsoft_metrics_include_label"
+
 func injectIncludeLabel(spec map[string]any, key string) {
 	endpoints, ok := spec[key].([]any)
 	if !ok {
@@ -270,12 +305,30 @@ func injectIncludeLabel(spec map[string]any, key string) {
 			continue
 		}
 		relabelConfigs, _ := endpointMap["metricRelabelings"].([]any)
+		if hasIncludeLabel(relabelConfigs) {
+			// The source already carries the marker (e.g. the KSM monitor sets
+			// it at creation time); avoid appending a duplicate relabel rule.
+			continue
+		}
 		endpointMap["metricRelabelings"] = append(relabelConfigs, map[string]any{
-			"targetLabel": "microsoft_metrics_include_label",
+			"targetLabel": includeLabelTargetLabel,
 			"replacement": "hcp",
 			"action":      "replace",
 		})
 	}
+}
+
+func hasIncludeLabel(relabelConfigs []any) bool {
+	for _, rc := range relabelConfigs {
+		rcMap, ok := rc.(map[string]any)
+		if !ok {
+			continue
+		}
+		if target, _ := rcMap["targetLabel"].(string); target == includeLabelTargetLabel {
+			return true
+		}
+	}
+	return false
 }
 
 // Translate creates an azmonitoring.coreos.com/v1 resource from a monitoring.coreos.com/v1 source.

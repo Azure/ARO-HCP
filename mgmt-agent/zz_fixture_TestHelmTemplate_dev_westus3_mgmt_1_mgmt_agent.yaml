@@ -329,6 +329,7 @@ rules:
   - watch
   - create
   - patch
+  - delete
 - apiGroups:
   - azmonitoring.coreos.com
   resources:

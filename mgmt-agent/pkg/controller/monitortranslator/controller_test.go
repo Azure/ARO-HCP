@@ -163,6 +163,57 @@ func TestTranslateNoLabels(t *testing.T) {
 	}
 }
 
+// TestTranslateIncludeLabelIdempotent verifies that translating a source that
+// already carries the microsoft_metrics_include_label marker (e.g. one created
+// directly with it) does not append a duplicate relabel rule.
+func TestTranslateIncludeLabelIdempotent(t *testing.T) {
+	source := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "monitoring.coreos.com/v1",
+			"kind":       "ServiceMonitor",
+			"metadata": map[string]any{
+				"name":      "already-marked",
+				"namespace": "ocm-test",
+				"uid":       "uid-marked",
+			},
+			"spec": map[string]any{
+				"endpoints": []any{
+					map[string]any{
+						"port": "metrics",
+						"metricRelabelings": []any{
+							map[string]any{
+								"targetLabel": "microsoft_metrics_include_label",
+								"replacement": "hcp",
+								"action":      "replace",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result := Translate(source, SourceServiceMonitorGVR, TargetServiceMonitorGVR)
+
+	endpoints, _, err := unstructured.NestedSlice(result.Object, "spec", "endpoints")
+	if err != nil || len(endpoints) != 1 {
+		t.Fatalf("unexpected endpoints %v (err %v)", endpoints, err)
+	}
+	relabelings, _, err := unstructured.NestedSlice(endpoints[0].(map[string]any), "metricRelabelings")
+	if err != nil {
+		t.Fatalf("failed to read metricRelabelings: %v", err)
+	}
+	count := 0
+	for _, rc := range relabelings {
+		if target, _ := rc.(map[string]any)["targetLabel"].(string); target == "microsoft_metrics_include_label" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected exactly 1 microsoft_metrics_include_label relabel rule, got %d", count)
+	}
+}
+
 func newTestMonitorController(t *testing.T, dynamicClient *dynamicfake.FakeDynamicClient, sources ...*unstructured.Unstructured) *MonitorTranslatorController {
 	t.Helper()
 
@@ -253,6 +304,26 @@ func TestSyncHandler(t *testing.T) {
 						"name":      "test-sm",
 						"namespace": "other-ns",
 						"uid":       "uid-no-owner",
+					},
+					"spec": map[string]any{},
+				},
+			},
+		},
+		{
+			name: "KSM-managed monitor — skip (created directly by ksmhcp)",
+			key:  "servicemonitors/ocm-test/kube-state-metrics-hcp",
+			source: &unstructured.Unstructured{
+				Object: map[string]any{
+					"apiVersion": "monitoring.coreos.com/v1",
+					"kind":       "ServiceMonitor",
+					"metadata": map[string]any{
+						"name":            "kube-state-metrics-hcp",
+						"namespace":       "ocm-test",
+						"uid":             "uid-ksm",
+						"ownerReferences": []any{hcpOwnerRef},
+						"labels": map[string]any{
+							ksmNameLabelKey: ksmNameLabelValue,
+						},
 					},
 					"spec": map[string]any{},
 				},
