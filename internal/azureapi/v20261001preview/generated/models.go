@@ -58,8 +58,9 @@ type ClusterImageRegistryProfile struct {
 
 // ClusterResourceStatus represents the observed status of the cluster resource.
 type ClusterResourceStatus struct {
-	// READ-ONLY; The activeVersions of a resource. This field is an array because during upgrades there can be more than one
-	// active version.
+	// READ-ONLY; The observed active versions of the cluster. During upgrades, both the previous and target versions may be active
+	// simultaneously until the rollout completes, so this array can contain more than one
+	// entry. The ordering of entries has no meaning.
 	ActiveVersions []*ClusterActiveVersion
 
 	// READ-ONLY; The conditions on the resource
@@ -686,8 +687,9 @@ type NodePoolProperties struct {
 
 // NodePoolResourceStatus represents the observed status of the nodepool resource.
 type NodePoolResourceStatus struct {
-	// READ-ONLY; The activeVersions of a resource. This field is an array because during upgrades there can be more than one
-	// active version.
+	// READ-ONLY; The observed active versions of the node pool. During upgrades, it is common for multiple versions to be active
+	// at the same time while old nodes are drained and replaced. The ordering of entries has
+	// no meaning.
 	ActiveVersions []*NodePoolActiveVersion
 
 	// READ-ONLY; The conditions on the resource
