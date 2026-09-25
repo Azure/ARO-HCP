@@ -1,0 +1,47 @@
+.create-merge table rawMaestroMqttConnections (
+    records: dynamic
+)
+with (docstring = "Staging table for Event Grid MQTT connection diagnostics")
+
+.alter-merge table rawMaestroMqttConnections policy retention softdelete = 0s recoverability = disabled
+
+.create-or-alter table rawMaestroMqttConnections ingestion json mapping "rawMaestroMqttConnectionsMapping"
+```
+[
+  {"column":"records","path":"$['records']","datatype":"dynamic"}
+]
+```
+
+.create-merge table maestroMqttConnections (
+    timestamp: datetime,
+    resourceId: string,
+    category: string,
+    sessionName: string,
+    clientIdentity: string,
+    authenticationType: string,
+    protocol: string,
+    resultSignature: string,
+    resultDescription: string,
+    record: dynamic
+)
+with (docstring = "Event Grid MQTT connection outcomes for Maestro clients")
+
+.create-or-alter function
+with (docstring = 'Extract Event Grid MQTT connection diagnostics', skipvalidation = "true")
+rawMaestroMqttConnectionsTransform() {
+    rawMaestroMqttConnections
+    | mv-expand records
+    | project
+        timestamp = todatetime(records["time"]),
+        resourceId = tolower(tostring(records["resourceId"])),
+        category = tostring(records["category"]),
+        sessionName = tostring(records["properties"]["sessionName"]),
+        clientIdentity = tostring(records["identity"]["clientIdentity"]),
+        authenticationType = tostring(records["identity"]["authenticationType"]),
+        protocol = tostring(records["properties"]["protocol"]),
+        resultSignature = tostring(records["resultSignature"]),
+        resultDescription = tostring(records["resultDescription"]),
+        record = records
+}
+
+.alter table maestroMqttConnections policy update @'[{"IsEnabled": true, "Source": "rawMaestroMqttConnections", "Query": "rawMaestroMqttConnectionsTransform()", "IsTransactional": true, "PropagateIngestionProperties": false}]'
