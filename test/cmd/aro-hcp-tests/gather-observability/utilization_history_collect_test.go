@@ -81,7 +81,7 @@ func TestUtilizationRequestHistoryWorkspaceSumAndDedup(t *testing.T) {
 }
 
 func TestUtilizationRequestHistoryUnknownCoverage(t *testing.T) {
-	for _, test := range []string{"empty HTTP", "missing query", "failed query", "missing phase", "missing containers", "missing placement", "UID conflict", "missing UID", "node conflict", "request node conflict", "missing node"} {
+	for _, test := range []string{"empty HTTP", "missing query", "failed query", "missing phase", "missing containers", "missing placement", "UID conflict", "missing UID", "node conflict", "request node conflict"} {
 		t.Run(test, func(t *testing.T) {
 			samples, results := utilizationTestRequestHistory(1)
 			utilizationTestHistoryPod(results, 0, samples[0].Time, "pod", "uid", "node", "Running", 2)
@@ -108,13 +108,332 @@ func TestUtilizationRequestHistoryUnknownCoverage(t *testing.T) {
 				utilizationTestHistoryPod(results, 2, samples[0].Time, "pod", "uid", "other", "Running", 999)
 			case "request node conflict":
 				results[1].series[0].Metric["node"] = "other"
-			case "missing node":
-				samples[0].Nodes[0].Name = "other"
 			}
 			utilizationBuildRequestHistory(samples, results, []string{"mgmt"})
 			got := samples[0].Nodes[0].Requests
 			if got.CPU != nil || got.Memory != nil || got.SwiftNIC != nil || len(samples[0].Warnings) == 0 {
 				t.Errorf("unknown coverage fabricated totals: %+v warnings=%v", got, samples[0].Warnings)
+			}
+		})
+	}
+}
+
+func TestUtilizationRequestHistoryScopedPartialSums(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		affected []string
+	}{
+		{"missing phase", []string{"node"}},
+		{"missing containers", []string{"node"}},
+		{"missing node inventory", []string{"node"}},
+		{"node conflict", []string{"node", "other"}},
+		{"request node conflict", []string{"node", "other"}},
+		{"request nodes without info", []string{"node", "other"}},
+		{"UID conflict", []string{"node", "other"}},
+		{"unplaced UID conflict", []string{"node", "other", "unrelated"}},
+		{"request-only UID conflict", []string{"node", "other", "unrelated"}},
+		{"unplaced terminal UID conflict", []string{"node"}},
+		{"unplaced unscheduled UID conflict", []string{"node"}},
+		{"missing UID", []string{"node", "other", "unrelated"}},
+		{"terminal live overlap", []string{"node"}},
+		{"terminal live incarnations", []string{"node", "other"}},
+		{"unscheduled assigned conflict", []string{"node"}},
+		{"scheduled conditions conflict", []string{"node", "other", "unrelated"}},
+		{"assigned scheduled conditions conflict", []string{"node"}},
+		{"running unscheduled conflict", []string{"node", "other", "unrelated"}},
+		{"scheduled pending without node", []string{"node", "other", "unrelated"}},
+		{"unplaced demand", []string{"node", "other", "unrelated"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// Reversing all inputs must not select a different UID, phase or node.
+			for _, reverse := range []bool{false, true} {
+				samples, results := utilizationTestRequestHistory(1)
+				sample := &samples[0]
+				base := sample.Nodes[0]
+				sample.Nodes = nil
+				for i, name := range []string{"node", "other", "unrelated"} {
+					node := base
+					node.Name, node.Pool = name, name+"-pool"
+					sample.Nodes = append(sample.Nodes, node)
+					utilizationTestHistoryPod(results, 0, sample.Time, name+"-good", name+"-uid", name, "Running", float64(i+1))
+				}
+				utilizationTestHistoryPod(results, 2, sample.Time, "problem", "uid", "node", "Running", 999)
+				switch test.name {
+				case "missing phase", "missing containers":
+					metric := "kube_pod_status_phase"
+					if test.name == "missing containers" {
+						metric = "kube_pod_container_info"
+						results[3].series = nil
+					}
+					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == metric })
+				case "missing node inventory":
+					sample.Nodes[0].Inventory = false
+					results[2].series, results[3].series = nil, nil
+				case "node conflict":
+					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "uid", "other", "Running", 999)
+				case "request node conflict":
+					results[3].series[0].Metric["node"] = "other"
+				case "request nodes without info":
+					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_info" })
+					results[3].series[0].Metric["node"] = "node"
+					results[3].series[1].Metric["node"] = "other"
+				case "UID conflict":
+					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "old-uid", "other", "Running", 999)
+				case "unplaced UID conflict":
+					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "old-uid", "", "Running", 999)
+				case "request-only UID conflict":
+					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "old-uid", "", "Running", 999)
+					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["uid"] == "old-uid" })
+				case "unplaced terminal UID conflict":
+					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "old-uid", "", "Succeeded", 999)
+				case "unplaced unscheduled UID conflict":
+					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "old-uid", "", "Pending", 999)
+					results[2].series = append(results[2].series, utilizationTestSeries(sample.Time, 1, "__name__", "kube_pod_status_scheduled", "cluster", "mgmt", "namespace", "ns", "pod", "problem", "uid", "old-uid", "condition", "false"))
+				case "missing UID":
+					delete(results[3].series[0].Metric, "uid")
+				case "terminal live overlap":
+					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "uid", "node", "Succeeded", 999)
+				case "terminal live incarnations":
+					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "old-uid", "other", "Failed", 999)
+				case "unscheduled assigned conflict":
+					results[2].series = append(results[2].series, utilizationTestSeries(sample.Time, 1, "__name__", "kube_pod_status_scheduled", "cluster", "mgmt", "namespace", "ns", "pod", "problem", "uid", "uid", "condition", "false"))
+				case "assigned scheduled conditions conflict":
+					for _, s := range results[2].series {
+						if s.Metric["__name__"] == "kube_pod_status_phase" {
+							s.Metric["phase"] = "Pending"
+						}
+					}
+					for _, condition := range []string{"true", "false"} {
+						results[2].series = append(results[2].series, utilizationTestSeries(sample.Time, 1, "__name__", "kube_pod_status_scheduled", "cluster", "mgmt", "namespace", "ns", "pod", "problem", "uid", "uid", "condition", condition))
+					}
+				case "scheduled conditions conflict", "running unscheduled conflict", "scheduled pending without node":
+					results[2].series, results[3].series = nil, nil
+					phase := "Pending"
+					if test.name == "running unscheduled conflict" {
+						phase = "Running"
+					}
+					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "uid", "", phase, 999)
+					// Exercise scheduling contradictions with and without pod info.
+					if test.name != "scheduled pending without node" {
+						results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_info" })
+					}
+					for _, condition := range []string{"true", "false"} {
+						if (test.name == "running unscheduled conflict" && condition == "true") || (test.name == "scheduled pending without node" && condition == "false") {
+							continue
+						}
+						results[2].series = append(results[2].series, utilizationTestSeries(sample.Time, 1, "__name__", "kube_pod_status_scheduled", "cluster", "mgmt", "namespace", "ns", "pod", "problem", "uid", "uid", "condition", condition))
+					}
+				case "unplaced demand":
+					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_info" })
+				}
+				if reverse {
+					for i := range results {
+						slices.Reverse(results[i].series)
+					}
+					slices.Reverse(results)
+				}
+				utilizationBuildRequestHistory(samples, results, []string{"mgmt"})
+				for i, node := range sample.Nodes {
+					got, empty := node.Requests, node.PartialRequests
+					if slices.Contains(test.affected, node.Name) {
+						got, empty = node.PartialRequests, node.Requests
+					}
+					want := float64(i + 1)
+					if got.CPU == nil || *got.CPU != want || got.Memory == nil || *got.Memory != 2*want || got.SwiftNIC == nil || *got.SwiftNIC != 3*want || empty != (utilizationHistoryResources{}) {
+						t.Errorf("node %s pool %s reverse=%v: requests=%+v partial=%+v; want retained %v without ambiguous demand; warnings=%v", node.Name, node.Pool, reverse, node.Requests, node.PartialRequests, want, sample.Warnings)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestUtilizationRequestHistoryAbsentCandidateNodes(t *testing.T) {
+	for _, test := range []string{"assigned", "request node fallback", "conflicting nodes", "conflicting UIDs", "unknown phase", "zero CPU only", "no requests", "terminal"} {
+		t.Run(test, func(t *testing.T) {
+			for _, reverse := range []bool{false, true} {
+				samples, results := utilizationTestRequestHistory(1)
+				sample := &samples[0]
+				other := sample.Nodes[0]
+				other.Name, other.Pool = "other", "other-pool"
+				sample.Nodes = append(sample.Nodes, other)
+				for i, node := range sample.Nodes {
+					utilizationTestHistoryPod(results, 0, sample.Time, node.Name+"-good", node.Name+"-uid", node.Name, "Running", float64(i+1))
+				}
+				utilizationTestHistoryPod(results, 2, sample.Time, "problem", "uid", "absent", "Running", 3)
+				switch test {
+				case "request node fallback":
+					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_info" })
+					for _, s := range results[3].series {
+						s.Metric["node"] = "absent"
+					}
+				case "conflicting nodes", "conflicting UIDs":
+					uid := "uid"
+					if test == "conflicting UIDs" {
+						uid = "old-uid"
+					}
+					utilizationTestHistoryPod(results, 2, sample.Time, "problem", uid, "also-absent", "Running", 999)
+					// A safe pod on one missing candidate must still contribute once.
+					utilizationTestHistoryPod(results, 2, sample.Time, "safe", "safe-uid", "absent", "Running", 3)
+				case "unknown phase":
+					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_status_phase" })
+				case "zero CPU only":
+					results[3].series = results[3].series[:1]
+					results[3].series[0].Values[0][1] = "0"
+				case "no requests":
+					results[3].series = nil
+				case "terminal":
+					for _, s := range results[2].series {
+						if s.Metric["__name__"] == "kube_pod_status_phase" {
+							s.Metric["phase"] = "Succeeded"
+						}
+					}
+				}
+				if reverse {
+					for i := range results {
+						slices.Reverse(results[i].series)
+					}
+					slices.Reverse(results)
+				}
+				utilizationBuildRequestHistory(samples, results, []string{"mgmt"})
+				wantNames := []string{"absent", "node", "other"}
+				if strings.HasPrefix(test, "conflicting") {
+					wantNames = []string{"absent", "also-absent", "node", "other"}
+				} else if test == "terminal" {
+					wantNames = []string{"node", "other"}
+				}
+				var names []string
+				for _, node := range sample.Nodes {
+					names = append(names, node.Name)
+					if node.Name == "node" || node.Name == "other" {
+						want := 1.0
+						if node.Name == "other" {
+							want = 2
+						}
+						if node.Requests.CPU == nil || *node.Requests.CPU != want || node.PartialRequests != (utilizationHistoryResources{}) {
+							t.Errorf("healthy node %s must remain complete: %+v", node.Name, node)
+						}
+						continue
+					}
+					if node.Inventory || node.Pool != "" || node.SKU != "" || node.SwiftAdvertised != nil || node.Capacity != (utilizationHistoryResources{}) || node.Allocatable != (utilizationHistoryResources{}) || node.Usage != (utilizationHistoryResources{}) || node.Requests != (utilizationHistoryResources{}) {
+						t.Errorf("missing node must not invent inventory or complete requests: %+v", node)
+					}
+					got := node.PartialRequests
+					if node.Name == "also-absent" || test == "unknown phase" || test == "no requests" {
+						if got != (utilizationHistoryResources{}) {
+							t.Errorf("no safe observations on %s must remain null: %+v", node.Name, got)
+						}
+					} else if test == "zero CPU only" {
+						if got.CPU == nil || *got.CPU != 0 || got.Memory != nil || got.SwiftNIC != nil {
+							t.Errorf("only explicitly observed zero should be retained: %+v", got)
+						}
+					} else if got.CPU == nil || *got.CPU != 3 || got.Memory == nil || *got.Memory != 6 || got.SwiftNIC == nil || *got.SwiftNIC != 9 {
+						t.Errorf("safe missing-node demand lost or ambiguous values included: %+v", got)
+					}
+				}
+				if !slices.Equal(names, wantNames) {
+					t.Errorf("reverse=%v: missing or unsorted candidate nodes: %v, want %v", reverse, names, wantNames)
+				}
+			}
+		})
+	}
+}
+
+func TestUtilizationRequestHistoryPartialEvidence(t *testing.T) {
+	for _, gap := range []string{"failed metadata", "failed requests", "missing query", "missing heartbeat"} {
+		for _, evidence := range []string{"all resources", "zero CPU only", "no requests", "unknown phase", "ambiguous UID"} {
+			t.Run(gap+"/"+evidence, func(t *testing.T) {
+				samples, results := utilizationTestRequestHistory(1)
+				// HCP evidence alone cannot establish shared collector coverage.
+				utilizationTestHistoryPod(results, 2, samples[0].Time, "pod", "uid", "node", "Running", 2)
+				switch evidence {
+				case "zero CPU only":
+					results[3].series = results[3].series[:1]
+					results[3].series[0].Values[0][1] = "0"
+				case "no requests":
+					results[3].series = nil
+				case "unknown phase":
+					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_status_phase" })
+				case "ambiguous UID":
+					utilizationTestHistoryPod(results, 2, samples[0].Time, "pod", "old-uid", "node", "Running", 999)
+				}
+				for i := range results {
+					results[i].series = append(results[i].series, results[i].series...)
+				}
+				switch gap {
+				case "failed metadata":
+					results[0].err = errors.New("denied")
+				case "failed requests":
+					results[1].err = errors.New("denied")
+				case "missing query":
+					results = results[1:]
+				case "missing heartbeat":
+					results[0].series = nil
+				}
+				utilizationBuildRequestHistory(samples, results, []string{"mgmt"})
+				node := samples[0].Nodes[0]
+				if node.Requests != (utilizationHistoryResources{}) || len(samples[0].Warnings) == 0 {
+					t.Fatalf("incomplete telemetry must not produce complete requests: %+v warnings=%v", node, samples[0].Warnings)
+				}
+				got := node.PartialRequests
+				switch evidence {
+				case "all resources":
+					if got.CPU == nil || *got.CPU != 2 || got.Memory == nil || *got.Memory != 4 || got.SwiftNIC == nil || *got.SwiftNIC != 6 {
+						t.Errorf("safe observed requests lost: %+v", got)
+					}
+				case "zero CPU only":
+					if got.CPU == nil || *got.CPU != 0 || got.Memory != nil || got.SwiftNIC != nil {
+						t.Errorf("only explicitly observed zero should be retained: %+v", got)
+					}
+				default:
+					if got != (utilizationHistoryResources{}) {
+						t.Errorf("no safe observations must remain null, not invented zero or stale sums: %+v", got)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestUtilizationRequestHistoryWithoutPodInfo(t *testing.T) {
+	for _, test := range []struct {
+		name, phase string
+		unscheduled bool
+		requestNode string
+		want        float64
+	}{
+		{"explicit unscheduled", "Pending", true, "", 2},
+		{"unscheduled without phase", "", true, "", 2},
+		{"inactive scheduled condition", "Pending", true, "", 2},
+		{"inactive unscheduled condition", "Running", false, "node", 5},
+		{"request node fallback", "Running", false, "node", 5},
+		{"pending request node fallback", "Pending", false, "node", 5},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			samples, results := utilizationTestRequestHistory(1)
+			at := samples[0].Time
+			utilizationTestHistoryPod(results, 0, at, "known", "known-uid", "node", "Running", 2)
+			utilizationTestHistoryPod(results, 2, at, "pod", "uid", "", test.phase, 3)
+			results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool {
+				return s.Metric["__name__"] == "kube_pod_info" || (test.phase == "" && s.Metric["__name__"] == "kube_pod_status_phase")
+			})
+			if test.unscheduled {
+				results[2].series = append(results[2].series, utilizationTestSeries(at, 1, "__name__", "kube_pod_status_scheduled", "cluster", "mgmt", "namespace", "ns", "pod", "pod", "uid", "uid", "condition", "false"))
+			}
+			if strings.HasPrefix(test.name, "inactive") {
+				condition := "true"
+				if test.name == "inactive unscheduled condition" {
+					condition = "false"
+				}
+				results[2].series = append(results[2].series, utilizationTestSeries(at, 0, "__name__", "kube_pod_status_scheduled", "cluster", "mgmt", "namespace", "ns", "pod", "pod", "uid", "uid", "condition", condition))
+			}
+			for _, s := range results[3].series {
+				s.Metric["node"] = test.requestNode
+			}
+			utilizationBuildRequestHistory(samples, results, []string{"mgmt"})
+			node := samples[0].Nodes[0]
+			if node.Requests.CPU == nil || *node.Requests.CPU != test.want || node.PartialRequests != (utilizationHistoryResources{}) || len(samples[0].Warnings) != 0 {
+				t.Errorf("missing pod info should not invalidate otherwise established placement: %+v warnings=%v", node, samples[0].Warnings)
 			}
 		})
 	}
@@ -153,6 +472,21 @@ func TestUtilizationRequestHistorySharedCollectorCoverage(t *testing.T) {
 			if !test.known {
 				if got.CPU != nil || got.Memory != nil || got.SwiftNIC != nil || len(samples[0].Warnings) == 0 {
 					t.Fatalf("uncovered requests must remain unknown: %+v warnings=%v", got, samples[0].Warnings)
+				}
+				partial := samples[0].Nodes[0].PartialRequests
+				want := 0.0
+				if test.inventory {
+					want += 2
+				}
+				if test.hcpPod {
+					want += 3
+				}
+				if want == 0 {
+					if partial != (utilizationHistoryResources{}) {
+						t.Errorf("no observations must not invent zero partial sums: %+v", partial)
+					}
+				} else if partial.CPU == nil || *partial.CPU != want || partial.Memory == nil || *partial.Memory != 2*want || partial.SwiftNIC == nil || *partial.SwiftNIC != 3*want {
+					t.Errorf("coverage gap discarded safe observations: %+v, want %v", partial, want)
 				}
 				return
 			}

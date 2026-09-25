@@ -62,6 +62,8 @@ type utilizationHistoryEntry struct {
 	Allocatable     utilizationHistoryResources `json:"allocatable"`
 	Usage           utilizationHistoryResources `json:"usage"`
 	Requests        utilizationHistoryResources `json:"requests"`
+	// Lower bounds from retained observations when complete requests are unknown.
+	PartialRequests utilizationHistoryResources `json:"partialRequests,omitempty"`
 }
 
 // Intervals contain inclusive UTC minute samples. Adjacent samples with the

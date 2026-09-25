@@ -76,7 +76,7 @@ func validateUtilizationHistory(report utilizationReport) error {
 				return fmt.Errorf("%s: nodes must have unique nonempty identities in declared clusters", path)
 			}
 			nodes[key] = true
-			for _, value := range []utilizationHistoryResources{node.Capacity, node.Allocatable, node.Usage, node.Requests} {
+			for _, value := range []utilizationHistoryResources{node.Capacity, node.Allocatable, node.Usage, node.Requests, node.PartialRequests} {
 				for _, measurement := range []*float64{value.CPU, value.Memory, value.SwiftNIC} {
 					if measurement != nil && (math.IsNaN(*measurement) || math.IsInf(*measurement, 0) || *measurement < 0) {
 						return fmt.Errorf("%s: resource values must be finite and nonnegative", path)
@@ -134,14 +134,14 @@ type historyHTMLSample struct {
 	Time     time.Time `json:"time"`
 	Expected []string  `json:"expected"`
 	// Pairs index metadata and quantities, respectively. Quantities retain the
-	// capacity, allocatable, usage, requests order used by the renderer.
+	// capacity, allocatable, usage, requests, partial requests order used by the renderer.
 	Nodes    [][2]int `json:"nodes"`
 	Warnings []int    `json:"warnings,omitempty"`
 }
 
 func marshalResourceHistoryHTML(report utilizationReport) ([]byte, error) {
 	metadata := historyInternTable[historyHTMLMetadata]{}
-	quantities := historyInternTable[[4]utilizationHistoryResources]{}
+	quantities := historyInternTable[[5]utilizationHistoryResources]{}
 	warnings := historyInternTable[string]{}
 	history := make([]historyHTMLSample, len(report.History))
 	for i, sample := range report.History {
@@ -154,7 +154,7 @@ func marshalResourceHistoryHTML(report utilizationReport) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
-			q, err := quantities.intern([4]utilizationHistoryResources{node.Capacity, node.Allocatable, node.Usage, node.Requests})
+			q, err := quantities.intern([5]utilizationHistoryResources{node.Capacity, node.Allocatable, node.Usage, node.Requests, node.PartialRequests})
 			if err != nil {
 				return nil, err
 			}
