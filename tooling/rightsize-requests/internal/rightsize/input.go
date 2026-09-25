@@ -157,8 +157,11 @@ func readInput(path string) (inputReport, error) {
 	if err := d.Decode(&report); err != nil {
 		return report, fmt.Errorf("decode input: %w", err)
 	}
-	if report.Version != 1 || report.Headroom != 1.2 || (report.CPUWindow != "10m" && report.CPUWindow != "2m") {
-		return report, fmt.Errorf("input requires version=1, headroom=1.2 and cpuWindow=10m or 2m")
+	if report.Version != 2 {
+		return report, fmt.Errorf("input requires right-sizing report version=2; version 1 nearest-rounded reports are incompatible: rerender replica peaks via render-right-sizing")
+	}
+	if report.Headroom != 1.2 || (report.CPUWindow != "10m" && report.CPUWindow != "2m") {
+		return report, fmt.Errorf("input requires headroom=1.2 and cpuWindow=10m or 2m")
 	}
 	if !finiteNonnegative(report.ChangeThreshold) || report.ChangeThreshold > 1 {
 		return report, fmt.Errorf("input changeThreshold must be finite and between 0 and 1")
@@ -224,16 +227,9 @@ func readInput(path string) (inputReport, error) {
 			if r.Resource == "memory" {
 				unit = 10 * (1 << 20)
 			}
-			// Correct floating-point noise just below an exact half-unit tie.
-			want := math.Max(1, math.Round(*r.Peak*1.2/unit+1e-12)) * unit
-			// Nearest rounding at low requests must not leave peak/request >1.2.
-			floorUnits := *r.Peak / 1.2 / unit
-			if inputEqual(floorUnits, math.Round(floorUnits)) {
-				floorUnits = math.Round(floorUnits)
-			}
-			want = math.Max(want, math.Ceil(floorUnits)*unit)
+			want := math.Max(1, math.Ceil(*r.Peak*1.2/unit)) * unit
 			if !finiteNonnegative(want) || !inputEqual(want, *r.Suggested) {
-				return invalid("suggested must equal 1.2 * peak rounded to nearest 10m/10Mi (minimum 10m/10Mi), with a rounded-up peak/1.2 floor")
+				return invalid("suggested must equal 1.2 * peak rounded up to 10m/10Mi (minimum 10m/10Mi)")
 			}
 		}
 	}

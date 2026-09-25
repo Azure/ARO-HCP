@@ -39,7 +39,7 @@ func NewRootCommand() *cobra.Command {
 		LimitMultiple:   2.0,
 		SourcePrefix:    "defaults",
 	}
-	var grafanaURL, input string
+	var grafanaURL, input, sizingTemplate, namespacePrefix string
 
 	cmd := &cobra.Command{
 		Use:   "rightsize-requests",
@@ -56,7 +56,9 @@ Authentication uses your ambient Azure credentials (az login / managed identity)
 scoped to the Azure Managed Grafana service application.
 
 Alternatively, --input right-sizing.json consumes a validated offline report
-without credentials and writes only clouds.dev.defaults request overrides.`,
+without credentials and writes only clouds.dev.defaults request overrides.
+With --sizing-template and --namespace-prefix it instead updates existing
+e2e_minimal requests in the limitClusterSizes=true branch of the Helm template.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
@@ -68,6 +70,16 @@ without credentials and writes only clouds.dev.defaults request overrides.`,
 			}
 			if cmd.Flags().Changed("input") && cmd.Flags().Changed("grafana-url") {
 				return fmt.Errorf("--input and --grafana-url are mutually exclusive")
+			}
+			if cmd.Flags().Changed("sizing-template") || cmd.Flags().Changed("namespace-prefix") {
+				if input == "" || sizingTemplate == "" || namespacePrefix == "" {
+					return fmt.Errorf("--sizing-template and --namespace-prefix require --input and must both be nonempty")
+				}
+				for _, flag := range []string{"config", "source-prefix", "write-config", "write-prefix"} {
+					if cmd.Flags().Changed(flag) {
+						return fmt.Errorf("--%s cannot be used with --sizing-template", flag)
+					}
+				}
 			}
 			if input != "" {
 				for _, flag := range []string{"window", "step", "margin", "percentile", "fleet-percentile", "datasource-pattern", "limit-multiple", "commit", "render-cmd"} {
@@ -90,6 +102,9 @@ without credentials and writes only clouds.dev.defaults request overrides.`,
 			ctx := cmd.Context()
 			log := logr.FromContextOrDiscard(ctx)
 			if input != "" {
+				if sizingTemplate != "" {
+					return rightsize.RunSizingInput(ctx, log, input, sizingTemplate, namespacePrefix, opts)
+				}
 				return rightsize.RunInput(ctx, log, input, opts)
 			}
 
@@ -112,6 +127,8 @@ without credentials and writes only clouds.dev.defaults request overrides.`,
 
 	cmd.Flags().StringVar(&grafanaURL, "grafana-url", "", "Azure Managed Grafana base URL (alternative to --input)")
 	cmd.Flags().StringVar(&input, "input", "", "offline right-sizing.json report; writes only clouds.dev.defaults requests without Azure credentials")
+	cmd.Flags().StringVar(&sizingTemplate, "sizing-template", "", "with --input, edit limited-branch e2e_minimal requests in this Hypershift Helm template instead of config.yaml")
+	cmd.Flags().StringVar(&namespacePrefix, "namespace-prefix", "", "literal HCP namespace prefix for --sizing-template (e.g. ocm-arohcpci01-); use only evidence from e2e_minimal clusters")
 	cmd.Flags().Float64Var(&opts.ChangeThreshold, "change-threshold", opts.ChangeThreshold, "input-only fractional deadband in [0,1] against effective current requests; 0 disables; overrides report threshold")
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "../../config/config.yaml", "config file to read CURRENT request values from")
 	cmd.Flags().StringVar(&opts.SourcePrefix, "source-prefix", opts.SourcePrefix, "dotted key prefix in the source config (e.g. defaults)")

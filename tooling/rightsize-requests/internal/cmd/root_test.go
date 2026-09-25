@@ -22,13 +22,13 @@ import (
 )
 
 const cliInput = `{
-  "version": 1, "start": "2026-09-01T00:00:00Z", "end": "2026-09-02T00:00:00Z",
+  "version": 2, "start": "2026-09-01T00:00:00Z", "end": "2026-09-02T00:00:00Z",
   "headroom": 1.2, "changeThreshold": 0.1, "cpuWindow": "2m", "warnings": [], "recommendations": [{
     "cluster": "svc", "namespace": "aro-hcp", "kind": "Deployment", "workload": "backend",
     "container": "aro-hcp-backend", "resource": "cpu", "initContainer": false,
     "replicas": 1, "measuredReplicas": 1, "peak": 0.2, "burstPeak": 0.4,
     "requestMin": 0.1, "requestMax": 0.1, "suggested": 0.24, "suggestedQuantity": "240m",
-    "delta": 0.14, "direction": "increase", "eligible": true, "actionable": false, "alertRisk": false, "warnings": []
+    "delta": -0.14, "direction": "under", "eligible": true, "actionable": false, "alertRisk": false, "warnings": []
   }]
 }`
 
@@ -100,6 +100,67 @@ func TestGrafanaCLIStillUsesCredentials(t *testing.T) {
 	cmd.SetArgs([]string{"--grafana-url=https://example.com"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "failed to obtain Azure credentials") {
 		t.Fatalf("Grafana path did not authenticate: %v", err)
+	}
+}
+
+func TestSizingInputCLI(t *testing.T) {
+	t.Setenv("AZURE_TOKEN_CREDENTIALS", "not-a-credential")
+	for _, dry := range []bool{true, false} {
+		dir := t.TempDir()
+		input, templatePath := filepath.Join(dir, "input.json"), filepath.Join(dir, "sizing.yaml")
+		data := strings.NewReplacer(`"namespace": "aro-hcp"`, `"namespace": "ocm-arohcpci01-cluster"`, `"workload": "backend"`, `"workload": "etcd"`, `"container": "aro-hcp-backend"`, `"container": "etcd"`, `"kind": "Deployment"`, `"kind": "StatefulSet"`).Replace(cliInput)
+		template, err := os.ReadFile("../../../../hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(input, []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(templatePath, template, 0600); err != nil {
+			t.Fatal(err)
+		}
+		cmd := NewRootCommand()
+		args := []string{"--input", input, "--sizing-template", templatePath, "--namespace-prefix", "ocm-arohcpci01-"}
+		if dry {
+			args = append(args, "--dry-run")
+		}
+		cmd.SetArgs(args)
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(templatePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := string(template)
+		if !dry {
+			want = strings.Replace(want, "deploymentName: etcd\n            memory: 100Mi\n            cpu: 100m", "deploymentName: etcd\n            memory: 100Mi\n            cpu: 240m", 1)
+		}
+		if string(got) != want {
+			t.Fatal("sizing CLI changed unexpected template content")
+		}
+	}
+}
+
+func TestSizingInputFlags(t *testing.T) {
+	t.Setenv("AZURE_TOKEN_CREDENTIALS", "not-a-credential")
+	for _, extra := range []string{"--config=x", "--source-prefix=defaults", "--write-config=x", "--write-prefix=clouds.dev.defaults", "--commit", "--render-cmd=x", "--namespace-prefix=", "--sizing-template="} {
+		cmd := NewRootCommand()
+		cmd.SetArgs([]string{"--input=x", "--sizing-template=x", "--namespace-prefix=ocm-arohcpci01-", extra})
+		if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "--") || strings.Contains(err.Error(), "credentials") {
+			t.Fatalf("expected flag rejection for %s, got %v", extra, err)
+		}
+	}
+	for _, args := range [][]string{
+		{"--input=x", "--sizing-template=x"},
+		{"--input=x", "--namespace-prefix=ocm-arohcpci01-"},
+		{"--grafana-url=https://example.com", "--sizing-template=x", "--namespace-prefix=ocm-arohcpci01-"},
+	} {
+		cmd := NewRootCommand()
+		cmd.SetArgs(args)
+		if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "--sizing-template") {
+			t.Fatalf("expected paired input flags, got %v", err)
+		}
 	}
 }
 

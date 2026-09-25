@@ -45,8 +45,8 @@
   <details id="method" class="panel">
     <summary>Method, tolerance and safety limits</summary>
     <p id="policy"></p>
-    <p>Start with the busiest replica's measured peak times 1.2 headroom. Round to the nearest 10m CPU or 10Mi memory, with a minimum of 10m or 10Mi. CPU sizing normally uses a sustained 10m rate; the separate 2m burst peak remains visible. Memory uses peak working set.</p>
-    <p>The alert safety floor raises the rounded suggestion when needed so observed usage / suggested request &lt;= 1.2, using the sustained CPU sizing peak or memory peak, not the CPU burst peak. Alert risk means that sizing peak / minimum request exceeds 1.2; it bypasses the change deadband, not eligibility checks. This is an observational guard, not a guarantee that alerts will never fire or that rounding preserves the full 20% headroom.</p>
+    <p>Start with the busiest replica's measured peak times 1.2 headroom. Round up (ceil) to 10m CPU or 10Mi memory, with a minimum of 10m or 10Mi, preserving the full 20% headroom. CPU sizing normally uses a sustained 10m rate; the separate 2m burst peak remains visible. Memory uses peak working set.</p>
+    <p>Alert risk means that sizing peak / minimum request exceeds 1.2; it bypasses the change deadband, not eligibility checks. This uses the sustained CPU sizing peak or memory peak, not the CPU burst peak, and is not a guarantee that alerts will never fire.</p>
     <p>Gap = minimum observed request - suggestion. Positive means over-requested; negative means under-requested. Relative gap divides this signed gap by the minimum request; a zero or missing request has no relative percentage. A configurable deadband (10% by default) suppresses small changes unless alert risk requires attention.</p>
     <p>Requests show their full observed min-to-max range, not the current deployment configuration. Coverage counts measured historical pod UIDs, not concurrent or desired replicas. Eligibility requires usable ownership, requests and sample coverage; expand a row for its evidence and reasons. Unknown is not zero, and an ineligible suggestion must not be applied automatically.</p>
   </details>

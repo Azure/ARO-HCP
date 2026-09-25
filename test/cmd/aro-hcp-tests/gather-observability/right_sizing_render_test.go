@@ -46,14 +46,14 @@ func TestRenderRightSizingHTML(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(html)
-	for _, want := range []string{"<!DOCTYPE html>", `name="viewport"`, `id="cpu-rows"`, `id="memory-rows"`, `\u003c/script\u003e`, `\u0026`, `\u2028`, `\u2029`, "Within tolerance", "Insufficient evidence"} {
+	for _, want := range []string{"<!DOCTYPE html>", `name="viewport"`, `id="cpu-rows"`, `id="memory-rows"`, `\u003c/script\u003e`, `\u0026`, `\u2028`, `\u2029`, "Within tolerance", "Insufficient evidence", "Round up (ceil)", "preserving the full 20% headroom"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("rendered report missing %q", want)
 		}
 	}
-	for _, forbidden := range []string{attack, "innerHTML", "#ZgotmplZ", "https://", "http://", "<script src=", "fetch("} {
+	for _, forbidden := range []string{attack, "innerHTML", "#ZgotmplZ", "https://", "http://", "<script src=", "fetch(", "nearest", "safety floor"} {
 		if strings.Contains(text, forbidden) {
-			t.Errorf("unsafe or non-self-contained report: %q", forbidden)
+			t.Errorf("unsafe, non-self-contained or outdated report: %q", forbidden)
 		}
 	}
 	const marker = `<script id="right-sizing-data" type="application/json">`
@@ -77,7 +77,8 @@ func TestRenderRightSizingHTMLValidation(t *testing.T) {
 		edit func(*rightSizingReport)
 		want string
 	}{
-		{"version", func(r *rightSizingReport) { r.Version = 2 }, "version"},
+		{"old rounding policy", func(r *rightSizingReport) { r.Version = 1 }, "regenerate from replica-peaks.json using render-right-sizing"},
+		{"version", func(r *rightSizingReport) { r.Version = 3 }, "version"},
 		{"start", func(r *rightSizingReport) { r.Start = time.Time{} }, "timestamps"},
 		{"end", func(r *rightSizingReport) { r.End = time.Time{} }, "timestamps"},
 		{"reversed", func(r *rightSizingReport) { r.End = r.Start.Add(-time.Second) }, "start <= end"},

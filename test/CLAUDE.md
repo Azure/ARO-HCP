@@ -43,8 +43,10 @@ replica peaks. Keep the operational commands and policy in
 duplicating them here.
 
 Preserve the max-across-replicas 10m CPU / peak working-set policy, 20% headroom,
-nearest 10m/10Mi rounding with its `ceil(peak / 1.2 / unit)` floor, and inclusive
-configurable deadband. Legacy 2m fallback must be labeled; missing new 10m evidence
+ceil 10m/10Mi rounding (`max(1, ceil(peak * 1.2 / unit)) * unit`), and inclusive
+configurable deadband. Right-sizing reports are version 2; reject old version 1
+sizing reports and regenerate from the original version 1 replica peaks instead
+of relabeling old suggestions. Legacy 2m fallback must be labeled; missing new 10m evidence
 must never trigger fallback. Eligibility checks all observed replicas' exact-UID
 ownership and usage/request coverage (10 points, 90% of each own observed span),
 not actual full lifetimes or absence of ingestion loss. Amounts are per container,

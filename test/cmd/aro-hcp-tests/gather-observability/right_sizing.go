@@ -67,7 +67,7 @@ type rightSizingRecommendation struct {
 
 // changeThreshold is a CLI-validated fraction in [0, 1], normally 0.1.
 func buildRightSizingReport(peaks replicaPeakReport, changeThreshold float64) rightSizingReport {
-	r := rightSizingReport{Version: 1, Start: peaks.Start, End: peaks.End, Headroom: 1.2,
+	r := rightSizingReport{Version: 2, Start: peaks.Start, End: peaks.End, Headroom: 1.2,
 		ChangeThreshold: changeThreshold, CPUWindow: peaks.SizingCPUWindow, Warnings: []string{}, Recommendations: []rightSizingRecommendation{}}
 	cpuQuery := "cpuSustained"
 	if peaks.SizingCPUWindow == "" {
@@ -331,11 +331,7 @@ func buildRightSizingReport(peaks replicaPeakReport, changeThreshold float64) ri
 				if resource == "memory" {
 					unit, suffix, scale = 10*1024*1024, "Mi", 1.0/(1024*1024)
 				}
-				// The floor avoids a peak/request ratio above 1.2 after rounding.
-				// Nearest rounding still does not guarantee 20% headroom. Epsilons
-				// preserve exact ceiling boundaries and half-up ties despite float noise.
-				floor := math.Ceil(*row.Peak/1.2/unit - 1e-12)
-				suggested := math.Max(math.Max(1, math.Round(*row.Peak*r.Headroom/unit+1e-12)), floor) * unit
+				suggested := math.Max(1, math.Ceil(*row.Peak*r.Headroom/unit)) * unit
 				if math.IsInf(suggested, 0) {
 					warn("suggestion exceeds finite numeric range", true)
 				} else {

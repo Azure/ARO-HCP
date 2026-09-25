@@ -48,7 +48,7 @@ func inputJSON(t *testing.T, rows ...inputRecommendation) string {
 		rows = []inputRecommendation{}
 	}
 	data, err := json.Marshal(inputReport{
-		Version: 1, Start: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), End: time.Date(2026, 9, 2, 0, 0, 0, 0, time.UTC),
+		Version: 2, Start: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), End: time.Date(2026, 9, 2, 0, 0, 0, 0, time.UTC),
 		Headroom: 1.2, ChangeThreshold: 0.1, CPUWindow: "10m", Warnings: []string{}, Recommendations: rows,
 	})
 	if err != nil {
@@ -105,9 +105,9 @@ func TestInputValidation(t *testing.T) {
 		"valid":                  valid,
 		"2m":                     strings.Replace(valid, `"10m"`, `"2m"`, 1),
 		"signed delta":           strings.Replace(valid, `"delta":0.`, `"delta":-0.`, 1),
-		"unknown field":          strings.Replace(valid, `"version":1`, `"version":1,"extra":true`, 1),
+		"unknown field":          strings.Replace(valid, `"version":2`, `"version":2,"extra":true`, 1),
 		"unknown row field":      strings.Replace(valid, `"eligible":true`, `"eligible":true,"extra":0`, 1),
-		"duplicate":              strings.Replace(valid, `"version":1`, `"version":1,"version":1`, 1),
+		"duplicate":              strings.Replace(valid, `"version":2`, `"version":2,"version":2`, 1),
 		"case insensitive field": strings.Replace(valid, `"eligible"`, `"Eligible"`, 1),
 		"missing bool":           strings.Replace(valid, `"initContainer":false,`, ``, 1),
 		"null bool":              strings.Replace(valid, `"initContainer":false`, `"initContainer":null`, 1),
@@ -115,7 +115,8 @@ func TestInputValidation(t *testing.T) {
 		"trailing object":        valid + `{}`,
 		"trailing junk":          valid + `oops`,
 		"top level null":         `null`,
-		"version":                strings.Replace(valid, `"version":1`, `"version":2`, 1),
+		"old version":            strings.Replace(valid, `"version":2`, `"version":1`, 1),
+		"future version":         strings.Replace(valid, `"version":2`, `"version":3`, 1),
 		"headroom":               strings.Replace(valid, `"headroom":1.2`, `"headroom":1.25`, 1),
 		"threshold missing":      strings.Replace(valid, `"changeThreshold":0.1,`, ``, 1),
 		"threshold negative":     strings.Replace(valid, `"changeThreshold":0.1`, `"changeThreshold":-0.1`, 1),
@@ -150,6 +151,9 @@ func TestInputValidation(t *testing.T) {
 			if (err == nil) != wantValid {
 				t.Fatalf("valid=%v, err=%v", wantValid, err)
 			}
+			if name == "old version" && !strings.Contains(err.Error(), "rerender replica peaks via render-right-sizing") {
+				t.Fatalf("missing report migration guidance: %v", err)
+			}
 		})
 	}
 	for _, threshold := range []string{"0", "1"} {
@@ -164,23 +168,29 @@ func TestInputRounding(t *testing.T) {
 	const mi = 1 << 20
 	for _, row := range []inputRecommendation{
 		inputRow("cpu", 0, .01, .1, "10m"),
-		inputRow("cpu", .012, .01, .1, "10m"),  // equality at 120% is safe
-		inputRow("cpu", .0124, .02, .1, "20m"), // guard overrides nearest rounding
-		inputRow("cpu", .201, .24, .1, "240m"),
+		inputRow("cpu", .012, .02, .1, "20m"),
+		inputRow("cpu", .0124, .02, .1, "20m"),
+		inputRow("cpu", .201, .25, .1, "250m"),
 		inputRow("cpu", .207, .25, .1, "250m"),
 		inputRow("cpu", .125, .15, .1, "150m"),
 		inputRow("cpu", .1875, .23, .1, "230m"),
-		inputRow("cpu", .1875-1e-10, .22, .1, "220m"),
+		inputRow("cpu", .1875-1e-10, .23, .1, "230m"),
 		inputRow("cpu", .1875+1e-10, .23, .1, "230m"),
 		inputRow("cpu", .1, .12, .1, "120m"),
+		inputRow("cpu", .1-1e-10, .12, .1, "120m"),
+		inputRow("cpu", .1+1e-10, .13, .1, "130m"),
+		inputRow("cpu", math.Nextafter(.1, math.Inf(1)), .13, .1, "130m"),
 		inputRow("memory", 0, 10*mi, 20*mi, "10Mi"),
-		inputRow("memory", 12*mi, 10*mi, 20*mi, "10Mi"),
+		inputRow("memory", 12*mi, 20*mi, 20*mi, "20Mi"),
 		inputRow("memory", 12.4*mi, 20*mi, 20*mi, "20Mi"),
-		inputRow("memory", 100.1*mi, 120*mi, 20*mi, "120Mi"),
+		inputRow("memory", 100.1*mi, 130*mi, 20*mi, "130Mi"),
 		inputRow("memory", 105*mi, 130*mi, 20*mi, "130Mi"),
 		inputRow("memory", 100*mi, 120*mi, 20*mi, "120Mi"),
+		inputRow("memory", (100-1e-7)*mi, 120*mi, 20*mi, "120Mi"),
+		inputRow("memory", (100+1e-7)*mi, 130*mi, 20*mi, "130Mi"),
+		inputRow("memory", math.Nextafter(100*mi, math.Inf(1)), 130*mi, 20*mi, "130Mi"),
 		inputRow("memory", 187.5*mi, 230*mi, 20*mi, "230Mi"),
-		inputRow("memory", (187.5-1e-7)*mi, 220*mi, 20*mi, "220Mi"),
+		inputRow("memory", (187.5-1e-7)*mi, 230*mi, 20*mi, "230Mi"),
 		inputRow("memory", (187.5+1e-7)*mi, 230*mi, 20*mi, "230Mi"),
 	} {
 		if _, err := readInput(inputFile(t, "input.json", inputJSON(t, row))); err != nil {
@@ -193,16 +203,22 @@ func TestInputRounding(t *testing.T) {
 		}
 	}
 	for _, row := range []inputRecommendation{
-		inputRow("cpu", .201, .25, .1, "250m"),  // ceiling instead of nearest
-		inputRow("cpu", .1875, .22, .1, "220m"), // half tie must round up despite noise
-		inputRow("cpu", .1875-1e-10, .23, .1, "230m"),
+		inputRow("cpu", .201, .24, .1, "240m"), // nearest rounding is incompatible
+		inputRow("cpu", .1875, .22, .1, "220m"),
+		inputRow("cpu", .1875-1e-10, .22, .1, "220m"),
 		inputRow("cpu", .1875+1e-10, .22, .1, "220m"),
 		inputRow("memory", 187.5*mi, 220*mi, 20*mi, "220Mi"),
-		inputRow("memory", (187.5-1e-7)*mi, 230*mi, 20*mi, "230Mi"),
-		inputRow("cpu", .0124, .01, .1, "10m"), // nearest rounding without guard
-		inputRow("cpu", .012, .02, .1, "20m"),  // equality must not trigger guard
+		inputRow("memory", (187.5-1e-7)*mi, 220*mi, 20*mi, "220Mi"),
+		inputRow("cpu", .0124, .01, .1, "10m"),
+		inputRow("cpu", .012, .01, .1, "10m"),
+		inputRow("cpu", .1, .13, .1, "130m"), // exact chunks must not round up again
+		inputRow("cpu", .1+1e-10, .12, .1, "120m"),
+		inputRow("cpu", math.Nextafter(.1, math.Inf(1)), .12, .1, "120m"),
 		inputRow("memory", 12.4*mi, 10*mi, 20*mi, "10Mi"),
-		inputRow("memory", 12*mi, 20*mi, 20*mi, "20Mi"),
+		inputRow("memory", 12*mi, 10*mi, 20*mi, "10Mi"),
+		inputRow("memory", 100*mi, 130*mi, 20*mi, "130Mi"),
+		inputRow("memory", (100+1e-7)*mi, 120*mi, 20*mi, "120Mi"),
+		inputRow("memory", math.Nextafter(100*mi, math.Inf(1)), 120*mi, 20*mi, "120Mi"),
 		inputRow("memory", 100.1*mi, 121*mi, 20*mi, "121Mi"),
 		inputRow("memory", 100*mi, 128*mi, 20*mi, "128Mi"), // Grafana rounding
 		inputRow("cpu", 0, 0, .1, "0m"),
@@ -441,17 +457,17 @@ clouds:
 
 func TestRunInputMaxScopeAndIdempotence(t *testing.T) {
 	const mi = 1 << 20
-	large := inputRow("cpu", .4, .48, .2, "480m")
+	large := inputRow("cpu", .401, .49, .2, "490m")
 	small := inputRow("cpu", .2, .24, .2, "240m")
 	small.Cluster = "mgmt"
-	memory := inputRow("memory", 200*mi, 240*mi, 200*mi, "240Mi")
+	memory := inputRow("memory", 200.1*mi, 250*mi, 200*mi, "250Mi")
 	for _, rows := range [][]inputRecommendation{{large, small, memory}, {memory, small, large}} {
 		config := inputFile(t, "config.yaml", inputConfig)
 		input := inputFile(t, "input.json", inputJSON(t, rows...))
 		opts := Options{ConfigPath: config}
 		runInputOutput(t, input, opts)
-		want := strings.Replace(inputConfig, "200m #", "480m #", 1)
-		want = strings.Replace(want, "memory: 200Mi", "memory: 240Mi", 1)
+		want := strings.Replace(inputConfig, "200m #", "490m #", 1)
+		want = strings.Replace(want, "memory: 200Mi", "memory: 250Mi", 1)
 		if got := fileContents(t, config); got != want {
 			t.Fatalf("edits outside dev requests or incorrect max:\n%s", got)
 		}
@@ -633,10 +649,10 @@ func TestRunInputDeadband(t *testing.T) {
 	}{
 		{name: "increase boundary", peak: .183, suggested: .22, quantity: "220m", threshold: .1, want: "SKIP deadband", rowActionable: true},
 		{name: "increase below boundary", peak: .175, suggested: .21, quantity: "210m", threshold: .1, want: "SKIP deadband"},
-		{name: "increase above boundary", peak: .192, suggested: .23, quantity: "230m", threshold: .1, want: "CHANGE"},
+		{name: "increase above boundary", peak: .192, suggested: .24, quantity: "240m", threshold: .1, want: "CHANGE"},
 		{name: "decrease boundary", peak: .15, suggested: .18, quantity: "180m", threshold: .1, allow: true, want: "SKIP deadband"},
-		{name: "decrease above boundary", peak: .142, suggested: .17, quantity: "170m", threshold: .1, allow: true, want: "CHANGE"},
-		{name: "decrease permission", peak: .142, suggested: .17, quantity: "170m", threshold: .1, want: "requires --allow-decrease"},
+		{name: "decrease above boundary", peak: .14, suggested: .17, quantity: "170m", threshold: .1, allow: true, want: "CHANGE"},
+		{name: "decrease permission", peak: .14, suggested: .17, quantity: "170m", threshold: .1, want: "requires --allow-decrease"},
 		{name: "zero disables", peak: .175, suggested: .21, quantity: "210m", threshold: 0, want: "CHANGE"},
 		{name: "fraction epsilon", peak: .183, suggested: .22, quantity: "220m", threshold: .1 - 1e-14, want: "SKIP deadband"},
 		{name: "beyond epsilon", peak: .183, suggested: .22, quantity: "220m", threshold: .1 - 1e-8, want: "CHANGE"},
@@ -674,8 +690,8 @@ func TestRunInputDeadbandAcrossClusters(t *testing.T) {
 		want      string
 	}{
 		{
-			name: "max crosses deadband", threshold: .1, want: "230m",
-			rows: []inputRecommendation{inputRow("cpu", .192, .23, .2, "230m"), inputRow("cpu", .175, .21, .2, "210m")},
+			name: "max crosses deadband", threshold: .1, want: "240m",
+			rows: []inputRecommendation{inputRow("cpu", .192, .24, .2, "240m"), inputRow("cpu", .175, .21, .2, "210m")},
 		},
 		{
 			name: "max stays in deadband despite actionable decrease", threshold: .1, want: "200m",
@@ -704,14 +720,15 @@ func TestRunInputDeadbandAcrossClusters(t *testing.T) {
 	}
 }
 
-func TestRunInputRiskGuardAndSafety(t *testing.T) {
+func TestRunInputRiskBypassAndSafety(t *testing.T) {
 	for _, tc := range []struct {
 		name, current, want string
 		peak, suggested     float64
 		eligible            bool
 	}{
-		{name: "guard increase bypasses 100 percent deadband", current: "10m", peak: .0124, suggested: .02, eligible: true, want: "CHANGE"},
-		{name: "guard boundary noop", current: "10m", peak: .012, suggested: .01, eligible: true, want: "NOOP"},
+		{name: "risk increase bypasses 100 percent deadband", current: "10m", peak: .0124, suggested: .02, eligible: true, want: "CHANGE"},
+		{name: "risk equality respects deadband", current: "10m", peak: .012, suggested: .02, eligible: true, want: "SKIP deadband"},
+		{name: "minimum noop", current: "10m", peak: .008, suggested: .01, eligible: true, want: "NOOP"},
 		{name: "risk does not bypass stale", current: "9m", peak: .0124, suggested: .02, eligible: true, want: "WARNING stale"},
 		{name: "risk does not bypass ineligible", current: "10m", peak: .0124, suggested: .02, eligible: false, want: "SKIP blocked"},
 		{name: "zero current increase", current: "0m", peak: 0, suggested: .01, eligible: true, want: "CHANGE"},
@@ -738,7 +755,7 @@ func TestRunInputRiskGuardAndSafety(t *testing.T) {
 				want = strings.Replace(want, tc.current+" #", quantity+" #", 1)
 			}
 			if fileContents(t, config) != want {
-				t.Fatal("unexpected risk guard edits")
+				t.Fatal("unexpected risk bypass edits")
 			}
 		})
 	}

@@ -283,6 +283,13 @@ contains legacy 2-minute CPU evidence):
 
 ![Right-sizing filters at a 390px mobile viewport](images/right-sizing-mobile.png)
 
+For HCP components, the updater also accepts `--sizing-template` and an explicit
+`--namespace-prefix`. This edits only existing `e2e_minimal` request entries in
+the `limitClusterSizes=true` branch of the Hypershift Helm template, not ordinary
+service config. The unrestricted branch and other size classes remain unchanged.
+See [the HCP sizing workflow](../../tooling/rightsize-requests/README.md) for
+scope and evidence requirements; incomplete HCP measurements block updates.
+
 The **Right-Sizing** tab groups evidence by cluster, namespace, owning workload,
 and container. CPU sizing uses the maximum ten-minute rate across all observed
 replicas and the report window, plus 20% headroom; the two-minute burst peak is
@@ -291,16 +298,15 @@ plus 20%. Amounts and deltas are **per container**, not workload totals or
 concurrent demand. Replica counts include historical pod UIDs, not just replicas
 running together.
 
-Suggestions round to the nearest 10m CPU or 10Mi memory, ties up, with a minimum
+Suggestions round up (ceil) to 10m CPU or 10Mi memory, with a minimum
 of one step. For `unit = 0.01` cores or `10 * 1024 * 1024` bytes:
 
 ```text
-nearest = max(1, round(1.2 * peak / unit)) * unit
-suggested = max(nearest, ceil(peak / 1.2 / unit) * unit)
+suggested = max(1, ceil(peak * 1.2 / unit)) * unit
 ```
 
-The floor prevents rounding from leaving `peak > 120%` of the suggestion;
-nearest rounding does not guarantee the full 20% headroom. The default deadband
+Ceiling preserves the full 20% headroom. For example, a CPU peak of 0.1875 cores
+suggests 0.23 cores (230m). The default deadband
 suppresses changes **at or below 10%** of the current request. `--change-threshold`
 accepts finite fractions from 0 through 1; 0 disables it. A measured sizing peak
 above 120% of current bypasses the deadband, not other safety checks.
@@ -319,10 +325,14 @@ ten-minute sizing never fall back when `cpuSustained` evidence is missing.
 
 The actual `ServiceCPUDrift` and `ServiceMemoryDrift` alerts use a **30-minute
 average usage/request ratio >1.2 for 5 minutes**, with CPU based on a **five-minute
-rate**. These differ from sizing peaks; neither the guard nor applying suggestions
+rate**. These differ from sizing peaks; neither the risk check nor applying suggestions
 guarantees alert clearance. Investigate throttling, startup and unobserved load
 before accepting changes.
 
+The ceil policy is the **version 2** `right-sizing.json` contract, with no new
+rounding field. Persisted version 1 sizing reports used the old rounding policy
+and are rejected; regenerate them from their original `replica-peaks.json`, not
+by changing their version number. Raw replica-peak reports remain version 1.
 Rebuild both right-sizing artifacts offline, without Azure credentials or rendered
 configuration:
 

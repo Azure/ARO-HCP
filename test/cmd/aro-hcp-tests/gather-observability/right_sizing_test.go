@@ -108,7 +108,7 @@ func TestRightSizingReplicaPeaks(t *testing.T) {
 		}
 	}
 	r := buildRightSizingReport(p, 0.1)
-	if r.Version != 1 || r.Headroom != 1.2 || r.ChangeThreshold != 0.1 || r.CPUWindow != "10m" || r.Start != p.Start || r.End != p.End || len(r.Warnings) != 0 {
+	if r.Version != 2 || r.Headroom != 1.2 || r.ChangeThreshold != 0.1 || r.CPUWindow != "10m" || r.Start != p.Start || r.End != p.End || len(r.Warnings) != 0 {
 		t.Fatalf("unexpected report envelope: %+v", r)
 	}
 	for _, resource := range []string{"cpu", "memory"} {
@@ -121,10 +121,10 @@ func TestRightSizingReplicaPeaks(t *testing.T) {
 			rightSizingNumber(t, "burst peak", row.BurstPeak, 0.2)
 			rightSizingNumber(t, "request min", row.RequestMin, 0.1)
 			rightSizingNumber(t, "request max", row.RequestMax, 0.1)
-			rightSizingNumber(t, "suggested", row.Suggested, 0.02)
-			rightSizingNumber(t, "delta", row.Delta, 0.08)
-			if row.SuggestedQuantity != "20m" {
-				t.Fatalf("expected 20m, got %s", row.SuggestedQuantity)
+			rightSizingNumber(t, "suggested", row.Suggested, 0.03)
+			rightSizingNumber(t, "delta", row.Delta, 0.07)
+			if row.SuggestedQuantity != "30m" {
+				t.Fatalf("expected 30m, got %s", row.SuggestedQuantity)
 			}
 		} else {
 			rightSizingNumber(t, "memory peak", row.Peak, 25*1024*1024)
@@ -522,13 +522,15 @@ func TestRightSizingRounding(t *testing.T) {
 		cpu, memory string
 	}{
 		{0, "10m", "10Mi"}, {0.001, "10m", "10Mi"},
-		{12, "10m", "10Mi"}, {12.4, "20m", "20Mi"},
-		{12.5, "20m", "20Mi"}, // 15 rounds up, not banker's rounding.
-		{20, "20m", "20Mi"}, {21, "30m", "30Mi"}, {25, "30m", "30Mi"},
-		{187.5, "230m", "230Mi"}, // CPU arithmetic lands just below the 22.5 tie.
+		{12, "20m", "20Mi"}, {12.4, "20m", "20Mi"},
+		{12.5, "20m", "20Mi"}, // Half-chunks round up too.
+		{20, "30m", "30Mi"}, {21, "30m", "30Mi"},
+		{25, "30m", "30Mi"}, // Exactly three chunks after headroom.
+		{25 - 1e-8, "30m", "30Mi"}, {25 + 1e-8, "40m", "40Mi"},
+		{187.5, "230m", "230Mi"}, // 0.1875 cores must suggest 0.23 cores.
 		{math.Nextafter(187.5, 0), "230m", "230Mi"},
 		{math.Nextafter(187.5, math.Inf(1)), "230m", "230Mi"},
-		{187.5 - 1e-8, "220m", "220Mi"}, // Genuine sides outside tie tolerance.
+		{187.5 - 1e-8, "230m", "230Mi"},
 		{187.5 + 1e-8, "230m", "230Mi"},
 	} {
 		t.Run(fmt.Sprint(tc.peak), func(t *testing.T) {
@@ -543,11 +545,16 @@ func TestRightSizingRounding(t *testing.T) {
 			}
 			r := buildRightSizingReport(p, 0.1)
 			if cpu, memory := rightSizingRow(t, r, "cpu"), rightSizingRow(t, r, "memory"); cpu.SuggestedQuantity != tc.cpu || memory.SuggestedQuantity != tc.memory || !cpu.Eligible || !memory.Eligible {
-				t.Fatalf("nearest ten with one headroom factor and minimum ten: CPU=%+v memory=%+v", cpu, memory)
+				t.Fatalf("ceil to ten with one headroom factor and minimum ten: CPU=%+v memory=%+v", cpu, memory)
+			}
+			for _, row := range r.Recommendations {
+				if row.Suggested == nil || *row.Suggested < *row.Peak*r.Headroom {
+					t.Fatalf("%s suggestion must retain full headroom: %+v", row.Resource, row)
+				}
 			}
 		})
 	}
-	for _, request := range []float64{0, 0.02, 0.1} {
+	for _, request := range []float64{0, 0.03, 0.1} {
 		p := rightSizingFixture()
 		for _, c := range p.Containers {
 			if c.QueryName == "requests" && c.Labels["resource"] == "cpu" {
@@ -556,9 +563,9 @@ func TestRightSizingRounding(t *testing.T) {
 		}
 		row := rightSizingRow(t, buildRightSizingReport(p, 0.1), "cpu")
 		want := "matched"
-		if request < 0.02 {
+		if request < 0.03 {
 			want = "under"
-		} else if request > 0.02 {
+		} else if request > 0.03 {
 			want = "over"
 		}
 		if row.Direction != want || !row.Eligible {
@@ -609,7 +616,7 @@ func TestRightSizingJSONAndOrder(t *testing.T) {
 	if err := json.Unmarshal(want, &object); err != nil {
 		t.Fatal(err)
 	}
-	if len(object) != 8 || string(object["warnings"]) != "[]" || string(object["changeThreshold"]) != "0.1" {
+	if len(object) != 8 || string(object["version"]) != "2" || string(object["warnings"]) != "[]" || string(object["changeThreshold"]) != "0.1" {
 		t.Fatalf("unexpected envelope fields: %s", want)
 	}
 	var rows []map[string]json.RawMessage
@@ -629,7 +636,7 @@ func TestRightSizingActionableAndAlertRisk(t *testing.T) {
 	p := rightSizingFixture()
 	for _, c := range p.Containers {
 		if c.QueryName == "requests" && c.Labels["resource"] == "cpu" {
-			c.Summary["min"], c.Summary["max"] = 0.02, 0.02
+			c.Summary["min"], c.Summary["max"] = 0.03, 0.03
 		}
 	}
 	if row := rightSizingRow(t, buildRightSizingReport(p, 0.1), "cpu"); row.AlertRisk || row.Actionable || row.Direction != "matched" || *row.BurstPeak <= 1.2*(*row.RequestMin) {
@@ -646,9 +653,9 @@ func TestRightSizingActionableAndAlertRisk(t *testing.T) {
 			{"over exact boundary", 75, 100, 0.1, false, false, false, "over"},
 			{"over float boundary", 75, math.Nextafter(100, math.Inf(1)), 0.1, false, false, false, "over"},
 			{"over above boundary", 75, 100.001, 0.1, true, false, false, "over"},
-			{"under below boundary", 92, 101, 0.1, false, false, false, "under"},
-			{"under exact boundary", 92, 100, 0.1, false, false, false, "under"},
-			{"under above boundary", 92, 99.999, 0.1, true, false, false, "under"},
+			{"under below boundary", 91, 101, 0.1, false, false, false, "under"},
+			{"under exact boundary", 91, 100, 0.1, false, false, false, "under"},
+			{"under above boundary", 91, 99.999, 0.1, true, false, false, "under"},
 			{"custom threshold", 75, 100, 0.05, true, false, false, "over"},
 			{"zero threshold", 75, 90.00001, 0, true, false, false, "over"},
 			{"matched", 75, 90, 0, false, false, false, "matched"},
@@ -656,7 +663,7 @@ func TestRightSizingActionableAndAlertRisk(t *testing.T) {
 			{"risk bypass", 124, 100, 0.5, true, true, false, "under"},
 			{"risk bypass maximum threshold", 124, 100, 1, true, true, false, "under"},
 			{"risk does not bypass eligibility", 124, 100, 1, false, true, true, "under"},
-			{"risk exact ratio", 12, 10, 0.1, false, false, false, "matched"},
+			{"risk exact ratio", 12, 10, 0.1, true, false, false, "under"},
 			{"risk above ratio", 12.4, 10, 1, true, true, false, "under"},
 			{"zero request positive peak", 1, 0, 1, true, true, false, "under"},
 			{"zero request zero peak", 0, 0, 1, true, false, false, "under"},
@@ -754,7 +761,7 @@ func TestRightSizingCollectedEvidence(t *testing.T) {
 		t.Fatalf("fixture must survive real collector without warnings: %v", peaks.Warnings)
 	}
 	r := buildRightSizingReport(peaks, 0.1)
-	if cpu := rightSizingRow(t, r, "cpu"); !cpu.Eligible || cpu.SuggestedQuantity != "20m" || cpu.Replicas != 2 {
+	if cpu := rightSizingRow(t, r, "cpu"); !cpu.Eligible || cpu.SuggestedQuantity != "30m" || cpu.Replicas != 2 {
 		t.Fatalf("collected evidence did not produce expected sizing: %+v", cpu)
 	}
 }

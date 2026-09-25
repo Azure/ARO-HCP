@@ -29,8 +29,8 @@ import (
 )
 
 func renderRightSizingHTML(report rightSizingReport) ([]byte, error) {
-	if report.Version != 1 {
-		return nil, fmt.Errorf("unsupported right-sizing version %d (expected 1)", report.Version)
+	if report.Version != 2 {
+		return nil, fmt.Errorf("unsupported right-sizing version %d (expected 2 with ceil rounding); regenerate from replica-peaks.json using render-right-sizing", report.Version)
 	}
 	if report.Start.IsZero() || report.End.IsZero() || report.End.Before(report.Start) {
 		return nil, fmt.Errorf("right-sizing start and end must be nonzero timestamps with start <= end")

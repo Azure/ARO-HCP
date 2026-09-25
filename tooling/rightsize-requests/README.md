@@ -72,7 +72,7 @@ not trusted from individual rows or their observed request bounds.
 The drift alerts use a **30-minute-average usage/request ratio >1.2 for 5
 minutes**, with CPU usage based on a **5-minute rate**. Offline CPU sizing normally
 uses the report's **10-minute rate** (or its declared legacy 2-minute window).
-The peak guard and deadband bypass indicate risk, not a guarantee that an actual
+The peak-based deadband bypass indicates risk, not a guarantee that an actual
 alert will fire or be prevented; their measurement windows differ from the alerts.
 
 Exactly one of `--input` and `--grafana-url` is required. In input mode, explicitly
@@ -83,19 +83,71 @@ setting any of `--window`, `--step`, `--margin`, `--percentile`,
 and `clouds.dev.defaults`, respectively. Offline mode never renders or commits.
 Explicit `--change-threshold` is supported only with `--input`, not Grafana.
 
+### HCP Sizing Template
+
+Use `--sizing-template PATH` with `--input` to target HCP requests instead of normal
+config overrides. An explicit environment namespace prefix is required:
+
+```bash
+go run . --input right-sizing.json \
+  --sizing-template ../../hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml \
+  --namespace-prefix ocm-arohcpci01- \
+  --dry-run
+```
+
+**Do not apply actual values yet: the available CI data is incomplete.** Review
+dry-run output only until a complete, representative minimal-cluster sample is
+available and live pod limits have been verified.
+
+The prefix must match `^ocm-[a-z0-9][a-z0-9-]*-$`; matching uses a literal prefix,
+not regular-expression semantics, and requires a nonempty namespace suffix.
+Select the environment explicitly. The prefix is a **user assertion only**:
+the report does not prove size class. Use only an `e2e_minimal` cluster sample.
+Management-cluster names are not inferred or filtered; all matching HCP namespaces
+across all reported clusters participate.
+
+Only existing CPU/memory scalars under `e2e_minimal` in the
+`limitClusterSizes=true` branch are edited at their original source positions.
+No entries or missing resource scalars are added. Other size classes, the entire
+`else` branch, comments and formatting are preserved. No normal config files or
+limits are edited. Explicit `--config`, `--write-config` and `--write-prefix`
+are incompatible with this mode; `--source-prefix` may only be `defaults`.
+
+Mapping requires exact workload/container names from the selected template and
+explicit controller kinds: Deployment for the six supported deployment entries,
+and StatefulSet for etcd. No aliases or size classes are inferred. The maximum
+suggestion across matching HCPs is used. Any ineligible or incomplete mapped row
+blocks that entry/resource across all namespaces and clusters. A wrong kind for
+an exact workload/container also blocks it. Unresolved owners, including Pod
+rows, conservatively block every supported entry sharing that container name.
+Resolved different workloads and unknown containers are skipped, not guessed.
+CPU and memory retain independent stale checks, deadbands and decrease permission
+against the selected template's effective current scalar.
+
+**Live pod limits are not present in the report or sizing request source and are
+not checked.** Verify them before applying requests. Dry-run output warns about
+this limitation and the unproven size class; normal config-mode limit checks
+described above do not apply to the sizing-template mode.
+
 ### Report Contract
 
 The entire report is validated before any writes. All fields below are required,
 with exact key spelling; unknown/duplicate fields, null nonnullable fields and
-trailing JSON are rejected. `version` must be `1`, `headroom` must be `1.2`, and
+trailing JSON are rejected. `version` must be `2`, `headroom` must be `1.2`, and
 `cpuWindow` must be `10m` or `2m`. `start` and `end` are nonzero RFC3339 timestamps
 with `start <= end`. `changeThreshold` is a required finite number in `[0,1]`
 (the producer defaults to `0.1`); `actionable` and `alertRisk` are required booleans
 on every recommendation. Empty arrays are allowed.
 
+Version 1 right-sizing reports used incompatible nearest rounding and are
+rejected, even when an individual suggestion happens to agree. Rerender the
+original replica peaks via `render-right-sizing`; do not just change the report's
+version field. The raw `replica-peaks` artifact remains version 1, independently
+of the version 2 right-sizing report consumed here.
+
 ```json
 {
-  "version": 1,
+  "version": 2,
   "start": "2026-09-01T00:00:00Z",
   "end": "2026-09-02T00:00:00Z",
   "headroom": 1.2,
@@ -118,8 +170,8 @@ on every recommendation. Empty arrays are allowed.
     "requestMax": 0.1,
     "suggested": 0.24,
     "suggestedQuantity": "240m",
-    "delta": 0.14,
-    "direction": "increase",
+    "delta": -0.14,
+    "direction": "under",
     "eligible": true,
     "actionable": true,
     "alertRisk": true,
@@ -139,17 +191,14 @@ The numeric `suggested` and parsed `suggestedQuantity` must agree with this form
 where `unit` is 10m CPU (0.01 cores) or 10Mi memory:
 
 ```text
-rounded = max(1, round(1.2 * peak / unit + 1e-12)) * unit
-guard   = ceil(peak / 1.2 / unit) * unit
-suggested = max(rounded, guard)
+suggested = max(1, ceil(1.2 * peak / unit)) * unit
 ```
 
-Rounding uses nearest units with ties up, minimum 10m/10Mi, and tolerance for
-floating-point noise at half-unit ties and exact guard boundaries. For example,
-a 187.5m CPU peak yields 230m even if multiplication lands just below the tie.
-The guard prevents rounding down
-to a request whose measured peak exceeds 120%: a 12.4m CPU peak requires 20m,
-whereas a 12m peak may use 10m (exactly 120%). Input values are written directly:
+Rounding uses ceiling chunks with a minimum of 10m/10Mi, without a separate
+safety floor or nearest-rounding tolerance. Exact chunks remain unchanged and
+values just above a chunk round up: a 100m CPU peak yields 120m, while a 100.1m
+peak yields 130m. A 12m CPU peak yields 20m; a 100.1Mi memory peak yields 130Mi.
+Input values are written directly:
 headroom and rounding are not applied again, nor is Grafana's 16Mi memory rounding
 used. `burstPeak`, `delta`, `direction`, `actionable` and `alertRisk` are
 informational; decisions compare the validated suggestion and peak against current
@@ -220,7 +269,9 @@ go build -o rightsize-requests .
 | Flag | Default | Description |
 | --- | --- | --- |
 | `--grafana-url` | *(one source required)* | Azure Managed Grafana base URL; alternative to `--input` |
-| `--input` | *(one source required)* | Offline report; dev request overrides only, no credentials |
+| `--input` | *(one source required)* | Version 2 offline report; dev request overrides or HCP sizing template, no credentials |
+| `--sizing-template` | *(none)* | Input only: edit existing limited-branch `e2e_minimal` requests in this Helm template |
+| `--namespace-prefix` | *(none)* | Required with `--sizing-template`: explicit literal HCP environment prefix, e.g. `ocm-arohcpci01-` |
 | `--change-threshold` | `0.1` | Input only: fractional deadband against effective current requests, inclusive; 0 disables; overrides report threshold |
 | `--config` | `../../config/config.yaml` | config file to edit |
 | `--window` | `14d` | PromQL lookback window for peak usage |
@@ -270,8 +321,9 @@ consider `grafanactl clean`), re-run when more are reachable.
 
 ## After running
 
-The tool edits the source `config/config.yaml` only. Regenerate the rendered
-configs afterward from the repo root:
+The tool edits only the selected config/overlay or sizing template, not generated
+fixtures. After an approved write, regenerate the rendered configs from the repo
+root:
 
 ```bash
 make -C config materialize
