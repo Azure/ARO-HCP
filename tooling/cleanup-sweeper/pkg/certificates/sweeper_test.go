@@ -384,14 +384,21 @@ func TestMutationLimitsScanPastIneligibleCertificates(t *testing.T) {
 			nil,
 		)
 		f.listError = 3
+		var logs bytes.Buffer
+		ctx := logr.NewContext(t.Context(), logr.FromSlogHandler(slog.NewJSONHandler(&logs, nil)))
 		opts := options(true)
 		opts.PurgeDeleted = false
 		opts.MaxDeletions = 1
-		if err := s.run(t.Context(), opts); err != nil {
+		if err := s.run(ctx, opts); err != nil {
 			t.Fatal(err)
 		}
 		if f.activePagesRead != 2 {
 			t.Fatalf("must scan past ineligible active metadata to fill mutation budget; read %d pages", f.activePagesRead)
+		}
+		for _, expected := range []string{`"Scanned":2`, `"Eligible":1`, `"Selected":1`, `"name":"maestro-server-j2345678"`} {
+			if !strings.Contains(logs.String(), expected) {
+				t.Errorf("missing %s in %s", expected, logs.String())
+			}
 		}
 		if len(f.gets) != 0 || len(f.deletes) != 0 {
 			t.Fatalf("dry run accessed certificates or wrote: gets=%v deletes=%v", f.gets, f.deletes)
@@ -408,14 +415,21 @@ func TestMutationLimitsScanPastIneligibleCertificates(t *testing.T) {
 			nil,
 		}
 		f.deletedListError = 3
+		var logs bytes.Buffer
+		ctx := logr.NewContext(t.Context(), logr.FromSlogHandler(slog.NewJSONHandler(&logs, nil)))
 		opts := options(true)
 		opts.DeleteActive = false
 		opts.MaxPurges = 1
-		if err := s.run(t.Context(), opts); err != nil {
+		if err := s.run(ctx, opts); err != nil {
 			t.Fatal(err)
 		}
 		if f.deletedPagesRead != 2 {
 			t.Fatalf("must scan past ineligible deleted metadata to fill mutation budget; read %d pages", f.deletedPagesRead)
+		}
+		for _, expected := range []string{`"DeletedScanned":2`, `"PurgeEligible":1`, `"PurgeSelected":1`, `"name":"maestro-server-j2345678"`} {
+			if !strings.Contains(logs.String(), expected) {
+				t.Errorf("missing %s in %s", expected, logs.String())
+			}
 		}
 		if len(f.deletedGets) != 0 || len(f.purges) != 0 {
 			t.Fatalf("dry run accessed deleted certificates or purged: gets=%v purges=%v", f.deletedGets, f.purges)
