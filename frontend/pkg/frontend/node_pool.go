@@ -53,15 +53,21 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 		return utils.TrackError(err)
 	}
 
+	readPhase := startPhase(ctx, PhaseResourceRead)
 	resultingInternalNodePool, err := f.getInternalNodePoolFromStorage(ctx, resourceID)
+	readPhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	encodePhase := startPhase(ctx, PhaseResponseEncode)
 	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterNodePool(resultingInternalNodePool))
+	encodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, responseBytes)
+	writePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -83,36 +89,46 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 
 	// Verify the parent cluster exists so we return 404 instead of an empty
 	// list for a non-existent cluster (Cosmos List is prefix-based).
-	if _, err := f.resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, clusterName); err != nil {
+	readPhase := startPhase(ctx, PhaseResourceRead)
+	_, err = f.resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, clusterName)
+	readPhase.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	pagedResponse := coreapi.NewPagedResponse()
 
+	listPhase := startPhase(ctx, PhaseResourceList)
 	internalNodePoolIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).List(ctx, dbListOptionsFromRequest(request))
 	if err != nil {
+		listPhase.End()
 		return utils.TrackError(err)
 	}
 	for _, nodePool := range internalNodePoolIterator.Items(ctx) {
 		resultingExternalNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(nodePool)
 		jsonBytes, err := coreapi.MarshalJSON(resultingExternalNodePool)
 		if err != nil {
+			listPhase.End()
 			return utils.TrackError(err)
 		}
 		pagedResponse.AddValue(jsonBytes)
 	}
 	err = internalNodePoolIterator.GetError()
 	if err != nil {
+		listPhase.End()
 		return utils.TrackError(err)
 	}
 
 	// MiddlewareReferer ensures Referer is present.
 	err = pagedResponse.SetNextLink(request.Referer(), internalNodePoolIterator.GetContinuationToken())
+	listPhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	writePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -142,14 +158,19 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 
 	nodePoolCosmosClient := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name)
+	readPhase := startPhase(ctx, PhaseResourceRead)
 	oldInternalNodePool, err := nodePoolCosmosClient.Get(ctx, resourceID.Name)
+	readPhase.End()
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(err)
 	}
 
 	updating := oldInternalNodePool != nil
 	if updating {
-		if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestUpdate, oldInternalNodePool.ID, oldInternalNodePool.Properties.ProvisioningState); err != nil {
+		admissionPhase := startPhase(ctx, PhaseAdmissionConflict)
+		err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestUpdate, oldInternalNodePool.ID, oldInternalNodePool.Properties.ProvisioningState)
+		admissionPhase.End()
+		if err != nil {
 			return utils.TrackError(err)
 		}
 		switch request.Method {
@@ -265,13 +286,17 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
+	decodePhase := startPhase(ctx, PhaseDecode)
 	newInternalNodePool, err := decodeDesiredNodePoolCreate(ctx, f.azureLocation)
+	decodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	prefetchPhase := startPhase(ctx, PhaseAdmissionPrefetch)
 	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, resourceID.SubscriptionID)
 	if err != nil {
+		prefetchPhase.End()
 		return err
 	}
 
@@ -279,9 +304,11 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	// so we have to request the cluster from Cluster Service.
 	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
 	if err != nil {
+		prefetchPhase.End()
 		return utils.TrackError(err)
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+		prefetchPhase.End()
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
@@ -291,6 +318,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		resourceID.Parent.Name,
 	).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if err != nil {
+		prefetchPhase.End()
 		return utils.TrackError(err)
 	}
 
@@ -299,25 +327,35 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), metadataapi.APIVersion(versionedInterface.String())),
 	}
 	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster, serviceProviderCluster, nil)
+	prefetchPhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if mutationErrs := admission.MutateNodePool(ctx, admissionContext, restOperation, newInternalNodePool, nil); len(mutationErrs) > 0 {
+	mutatePhase := startPhase(ctx, PhaseAdmissionMutate)
+	mutationErrs := admission.MutateNodePool(ctx, admissionContext, restOperation, newInternalNodePool, nil)
+	mutatePhase.End()
+	if len(mutationErrs) > 0 {
 		return utils.TrackError(coreapi.CloudErrorFromFieldErrors(mutationErrs))
 	}
 
+	validatePhase := startPhase(ctx, PhaseAdmissionValidate)
 	validationErrs := validation.ValidateNodePool(ctx, restOperation, newInternalNodePool, nil)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
 	validationErrs = append(validationErrs, admission.AdmitNodePool(ctx, admissionContext, restOperation, newInternalNodePool, nil)...)
+	validatePhase.End()
 	if err := coreapi.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
 
 	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.Properties.ProvisioningState); err != nil {
+	admissionPhase := startPhase(ctx, PhaseAdmissionConflict)
+	err = checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.Properties.ProvisioningState)
+	admissionPhase.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	preparePhase := startPhase(ctx, PhasePersistPrepare)
 	transaction := f.resourcesDBClient.NewTransaction(newInternalNodePool.ID.SubscriptionID)
 
 	createNodePoolOperation := cosmosstorageutils.NewOperation(
@@ -332,6 +370,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, createNodePoolOperation.NotificationURI, createNodePoolOperation.OperationID))
 	_, err = f.resourcesDBClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createNodePoolOperation, nil)
 	if err != nil {
+		preparePhase.End()
 		return utils.TrackError(err)
 	}
 
@@ -342,32 +381,41 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 
 	nodePoolCosmosClient := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name)
 	cosmosUID, err := nodePoolCosmosClient.AddCreateToTransaction(ctx, transaction, newInternalNodePool, nil)
+	preparePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	executePhase := startPhase(ctx, PhasePersistExecute)
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
 	})
+	executePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// Read back the resource document so the response body is accurate.
+	encodePhase := startPhase(ctx, PhaseResponseEncode)
 	resultingUncastInternalNodePool, err := transactionResult.GetItem(cosmosUID)
 	if err != nil {
+		encodePhase.End()
 		return utils.TrackError(err)
 	}
 	resultingInternalNodePool, ok := resultingUncastInternalNodePool.(*coreapi.HCPOpenShiftClusterNodePool)
 	if !ok {
+		encodePhase.End()
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalNodePool)
 	}
 	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterNodePool(resultingInternalNodePool))
+	encodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusCreated, responseBytes)
+	writePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -458,7 +506,9 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *core
 func (f *Frontend) updateNodePool(writer http.ResponseWriter, request *http.Request, oldInternalNodePool *coreapi.HCPOpenShiftClusterNodePool) error {
 	ctx := request.Context()
 
+	decodePhase := startPhase(ctx, PhaseDecode)
 	newInternalNodePool, err := decodeDesiredNodePoolReplace(ctx, oldInternalNodePool)
+	decodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -527,7 +577,9 @@ func (f *Frontend) patchNodePool(writer http.ResponseWriter, request *http.Reque
 	// that represents an existing resource to be updated.
 	ctx := request.Context()
 
+	decodePhase := startPhase(ctx, PhaseDecode)
 	newInternalNodePool, err := decodeDesiredNodePoolPatch(ctx, oldInternalNodePool)
+	decodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -538,23 +590,28 @@ func (f *Frontend) patchNodePool(writer http.ResponseWriter, request *http.Reque
 func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalNodePool, oldInternalNodePool *coreapi.HCPOpenShiftClusterNodePool) error {
 	logger := utils.LoggerFromContext(ctx)
 
+	prefetchPhase := startPhase(ctx, PhaseAdmissionPrefetch)
 	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, oldInternalNodePool.ID.SubscriptionID)
 	if err != nil {
+		prefetchPhase.End()
 		return err
 	}
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
+		prefetchPhase.End()
 		return utils.TrackError(err)
 	}
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
+		prefetchPhase.End()
 		return utils.TrackError(err)
 	}
 	// Node pool validation checks some fields against the parent cluster
 	// so we have to request the cluster from Cluster Service.
 	cluster, err := f.getInternalClusterFromStorage(ctx, oldInternalNodePool.ID.Parent)
 	if err != nil {
+		prefetchPhase.End()
 		return utils.TrackError(err)
 	}
 
@@ -562,11 +619,13 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	clusterID := oldInternalNodePool.ID.Parent
 	spCluster, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, f.resourcesDBClient, clusterID)
 	if err != nil {
+		prefetchPhase.End()
 		return utils.TrackError(err)
 	}
 
 	spNodePool, err := corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, f.resourcesDBClient, oldInternalNodePool.ID)
 	if err != nil {
+		prefetchPhase.End()
 		return utils.TrackError(err)
 	}
 
@@ -575,15 +634,21 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), metadataapi.APIVersion(versionedInterface.String())),
 	}
 	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster, spCluster, spNodePool)
+	prefetchPhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if mutationErrs := admission.MutateNodePool(ctx, admissionContext, restOperation, newInternalNodePool, oldInternalNodePool); len(mutationErrs) > 0 {
+	mutatePhase := startPhase(ctx, PhaseAdmissionMutate)
+	mutationErrs := admission.MutateNodePool(ctx, admissionContext, restOperation, newInternalNodePool, oldInternalNodePool)
+	mutatePhase.End()
+	if len(mutationErrs) > 0 {
 		return utils.TrackError(coreapi.CloudErrorFromFieldErrors(mutationErrs))
 	}
 
+	validatePhase := startPhase(ctx, PhaseAdmissionValidate)
 	validationErrs := validation.ValidateNodePool(ctx, restOperation, newInternalNodePool, oldInternalNodePool)
 	validationErrs = append(validationErrs, admission.AdmitNodePool(ctx, admissionContext, restOperation, newInternalNodePool, oldInternalNodePool)...)
+	validatePhase.End()
 	if err := coreapi.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -593,6 +658,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	// The cosmos representation the new desired version
 	// The controllers will take care of handle the upgrade
 
+	preparePhase := startPhase(ctx, PhasePersistPrepare)
 	transaction := f.resourcesDBClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID)
 
 	nodePoolUpdateOperation := cosmosstorageutils.NewOperation(
@@ -607,6 +673,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, nodePoolUpdateOperation.NotificationURI, nodePoolUpdateOperation.OperationID))
 	_, err = f.resourcesDBClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, nodePoolUpdateOperation, nil)
 	if err != nil {
+		preparePhase.End()
 		return utils.TrackError(err)
 	}
 
@@ -618,32 +685,41 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	_, err = f.resourcesDBClient.HCPClusters(newInternalNodePool.ID.SubscriptionID, newInternalNodePool.ID.ResourceGroupName).
 		NodePools(newInternalNodePool.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, newInternalNodePool, nil)
+	preparePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	executePhase := startPhase(ctx, PhasePersistExecute)
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
 	})
+	executePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// Read back the resource document so the response body is accurate.
+	encodePhase := startPhase(ctx, PhaseResponseEncode)
 	resultingUncastInternalNodePool, err := transactionResult.GetItem(oldInternalNodePool.GetCosmosData().GetCosmosUID())
 	if err != nil {
+		encodePhase.End()
 		return utils.TrackError(err)
 	}
 	resultingInternalNodePool, ok := resultingUncastInternalNodePool.(*coreapi.HCPOpenShiftClusterNodePool)
 	if !ok {
+		encodePhase.End()
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalNodePool)
 	}
 	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterNodePool(resultingInternalNodePool))
+	encodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, httpStatusCode, responseBytes)
+	writePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -663,17 +739,24 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
+	readPhase := startPhase(ctx, PhaseResourceRead)
 	nodePool, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).Get(ctx, resourceID.Name)
+	readPhase.End()
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// For resource not found errors on deletion, ARM requires
+		writePhase := startPhase(ctx, PhaseResponseWrite)
 		writer.WriteHeader(http.StatusNoContent)
+		writePhase.End()
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, nodePool.ID, nodePool.Properties.ProvisioningState); err != nil {
+	admissionPhase := startPhase(ctx, PhaseAdmissionConflict)
+	err = checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, nodePool.ID, nodePool.Properties.ProvisioningState)
+	admissionPhase.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -683,36 +766,49 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	// delete, and we pass them to the delete admission validation.
 	// TODO once OCPBUGS-86702 is resolved, we should remove this retrieval and the check of last nodepool being
 	// deleted in the delete admission validation when we decide we want to allow the deletion of the last node pool.
+	prefetchPhase := startPhase(ctx, PhaseAdmissionPrefetch)
 	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).List(ctx, nil)
 	if err != nil {
+		prefetchPhase.End()
 		return utils.TrackError(err)
 	}
 	clusterNodePools := make([]*coreapi.HCPOpenShiftClusterNodePool, 0)
 	for _, clusterNodePool := range nodePoolIterator.Items(ctx) {
 		clusterNodePools = append(clusterNodePools, clusterNodePool)
 	}
-	if err := nodePoolIterator.GetError(); err != nil {
+	err = nodePoolIterator.GetError()
+	prefetchPhase.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	validatePhase := startPhase(ctx, PhaseAdmissionValidate)
 	nodePoolDeleteAdmissionContext := &admission.NodePoolDeleteAdmissionContext{
 		ClusterNodePools: clusterNodePools,
 	}
 	err = coreapi.CloudErrorFromFieldErrors(admission.AdmitNodePoolOnDelete(ctx, nodePoolDeleteAdmissionContext, nodePool))
+	validatePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	preparePhase := startPhase(ctx, PhasePersistPrepare)
 	transaction := f.resourcesDBClient.NewTransaction(nodePool.ID.SubscriptionID)
-	if err := f.addDeleteNodePoolToTransaction(ctx, writer, request, transaction, nodePool); err != nil {
+	err = f.addDeleteNodePoolToTransaction(ctx, writer, request, transaction, nodePool)
+	preparePhase.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
+	executePhase := startPhase(ctx, PhasePersistExecute)
 	_, err = transaction.Execute(ctx, nil)
+	executePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	writer.WriteHeader(http.StatusAccepted)
+	writePhase.End()
 	return nil
 }
 

@@ -359,7 +359,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		MiddlewareSystemData,
 	)
 
-	middlewareMux.HandleFunc("/", f.NotFound)
+	middlewareMux.Handle("/", NewMiddleware().HandlerFunc(f.NotFound))
 
 	// Resource list endpoints
 	postMuxMiddleware := NewMiddleware(

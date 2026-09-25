@@ -51,6 +51,28 @@ panels:
     unit: seconds
     workspace: svc
     step: "60s"
+  - title: "Frontend Request Phase Latency (p50, diagnostic)"
+    description: "Median (p50) frontend request phase latency by method/route/phase/cluster over a trailing 30-minute window. Diagnostic only, not a CI gate. Phase times are inclusive: parent/child times overlap and quantiles are not additive. Excludes hcpoperationresults (same as the frontend path latency charts)."
+    query: |
+      histogram_quantile(0.5,
+        sum by (le, route, method, phase, cluster) (
+          rate(frontend_http_request_phase_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+        )
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Frontend Request Phase Latency (p99, diagnostic)"
+    description: "P99 frontend request phase latency by method/route/phase/cluster over a trailing 30-minute window. Diagnostic only, not a CI gate; at low sample counts this is an outlier check. Phase times are inclusive: parent/child times overlap and quantiles are not additive. Excludes hcpoperationresults (same as the frontend path latency charts)."
+    query: |
+      histogram_quantile(0.99,
+        sum by (le, route, method, phase, cluster) (
+          rate(frontend_http_request_phase_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+        )
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
   - title: "Frontend Request Count (30m sliding)"
     description: "Frontend HTTP requests served in the trailing thirty-minute window (matching the alert evaluation window), broken down by method and route per svc cluster (same breakdown as the latency panels, but counting every route including hcpoperationresults). Uses increase() over frontend_http_requests_total, deduplicating HA Prometheus replicas with max without(prometheus_replica) before summing. At each point the value is the request count for the preceding thirty minutes (a sliding block); use it to see which series clear the alert volume gates (>=50/30m for FrontendPathLatency, >=10/30m for FrontendPathMedianLatency)."
     query: |

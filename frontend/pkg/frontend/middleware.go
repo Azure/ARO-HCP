@@ -61,6 +61,10 @@ func (m *Middleware) nextMiddleware(el *list.Element, handler http.Handler) http
 // wildcards are available via http.Request.PathValue.
 func (m *Middleware) Handler(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Publish the route before post-mux middleware emits phase observations.
+		if pattern := PatternFromContext(r.Context()); pattern != nil && r.Pattern != "" {
+			*pattern = r.Pattern
+		}
 		m.nextMiddleware(m.functions.Front(), handler)(w, r)
 	})
 }
@@ -112,5 +116,7 @@ func (mux *MiddlewareMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		mux.ServeMux.ServeHTTP(w, r)
 	})
 
-	mux.middleware.Handler(mainHandler).ServeHTTP(w, r)
+	// This is the pre-mux chain: r.Pattern may still identify an outer mux.
+	// Only registered post-mux handlers should publish the matched pattern.
+	mux.middleware.nextMiddleware(mux.middleware.functions.Front(), mainHandler)(w, r)
 }

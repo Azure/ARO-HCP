@@ -57,16 +57,22 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
+	readPhase := startPhase(ctx, PhaseResourceRead)
 	resultingInternalCluster, err := f.getInternalClusterFromStorage(ctx, resourceID)
+	readPhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	encodePhase := startPhase(ctx, PhaseResponseEncode)
 	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(resultingInternalCluster))
+	encodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, responseBytes)
+	writePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -91,29 +97,36 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	// the requirements of a skipToken for ARM pagination, so it is used directly as the
 	// nextLink token below.
 
+	listPhase := startPhase(ctx, PhaseResourceList)
 	internalClusterIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).List(ctx, dbListOptionsFromRequest(request))
 	if err != nil {
+		listPhase.End()
 		return utils.TrackError(err)
 	}
 	for _, internalCluster := range internalClusterIterator.Items(ctx) {
 		resultingExternalCluster := versionedInterface.NewHCPOpenShiftCluster(internalCluster)
 		jsonBytes, err := coreapi.MarshalJSON(resultingExternalCluster)
 		if err != nil {
+			listPhase.End()
 			return utils.TrackError(err)
 		}
 		pagedResponse.AddValue(jsonBytes)
 	}
 	err = internalClusterIterator.GetError()
 	if err != nil {
+		listPhase.End()
 		return utils.TrackError(err)
 	}
 	// MiddlewareReferer ensures Referer is present.
 	err = pagedResponse.SetNextLink(request.Referer(), internalClusterIterator.GetContinuationToken())
+	listPhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	writePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -158,7 +171,9 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 		return utils.TrackError(err)
 	}
 
+	readPhase := startPhase(ctx, PhaseResourceRead)
 	oldInternalCluster, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
+	readPhase.End()
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(err)
 	}
@@ -167,7 +182,10 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	if updating {
 		// CheckForProvisioningStateConflict does not log conflict errors
 		// but does log unexpected errors like database failures.
-		if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestUpdate, oldInternalCluster.ID, oldInternalCluster.ServiceProviderProperties.ProvisioningState); err != nil {
+		admissionPhase := startPhase(ctx, PhaseAdmissionConflict)
+		err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestUpdate, oldInternalCluster.ID, oldInternalCluster.ServiceProviderProperties.ProvisioningState)
+		admissionPhase.End()
+		if err != nil {
 			return utils.TrackError(err)
 		}
 
@@ -372,7 +390,9 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
+	decodePhase := startPhase(ctx, PhaseDecode)
 	newInternalCluster, err := decodeDesiredClusterCreate(ctx, f.azureLocation, request.Header)
+	decodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -381,19 +401,27 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		Type:    operation.Create,
 		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), metadataapi.APIVersion(versionedInterface.String())),
 	}
+	prefetchPhase := startPhase(ctx, PhaseAdmissionPrefetch)
 	admissionContext, err := f.newClusterAdmissionContext(ctx, validationOp, subscription, newInternalCluster, nil)
+	prefetchPhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if mutationErrs := admission.MutateCluster(ctx, admissionContext, validationOp, newInternalCluster, nil); len(mutationErrs) > 0 {
+	mutatePhase := startPhase(ctx, PhaseAdmissionMutate)
+	mutationErrs := admission.MutateCluster(ctx, admissionContext, validationOp, newInternalCluster, nil)
+	mutatePhase.End()
+	if len(mutationErrs) > 0 {
 		return utils.TrackError(coreapi.CloudErrorFromFieldErrors(mutationErrs))
 	}
+	validatePhase := startPhase(ctx, PhaseAdmissionValidate)
 	validationErrs := validation.ValidateCluster(ctx, validationOp, newInternalCluster, nil, metadataapi.Must(versionedInterface.ValidationPathRewriter(&coreapi.HCPOpenShiftCluster{})))
 	validationErrs = append(validationErrs, admission.AdmitCluster(ctx, admissionContext, validationOp, newInternalCluster, nil)...)
+	validatePhase.End()
 	if err := coreapi.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
 
+	preparePhase := startPhase(ctx, PhasePersistPrepare)
 	// we must validate using user provided .Identity.UserAssignedIdentities because that is the intent expressed by the user to allow
 	// us to use these identities. The information contained in those key is not trusted to be accurate, so we clear this field and set to
 	// a valid, but empty set of information
@@ -419,6 +447,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterCreateOperation.NotificationURI, clusterCreateOperation.OperationID))
 	_, err = f.resourcesDBClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterCreateOperation, nil)
 	if err != nil {
+		preparePhase.End()
 		return utils.TrackError(err)
 	}
 
@@ -428,33 +457,42 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterCreateOperation.Status
 
 	cosmosUID, err := f.resourcesDBClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddCreateToTransaction(ctx, transaction, newInternalCluster, nil)
+	preparePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	executePhase := startPhase(ctx, PhasePersistExecute)
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
 	})
+	executePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// Read back the resource document so the response body is accurate.
+	encodePhase := startPhase(ctx, PhaseResponseEncode)
 	resultingUncastInternalCluster, err := transactionResult.GetItem(cosmosUID)
 	if err != nil {
+		encodePhase.End()
 		return utils.TrackError(err)
 	}
 	resultingInternalCluster, ok := resultingUncastInternalCluster.(*coreapi.HCPOpenShiftCluster)
 	if !ok {
+		encodePhase.End()
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalCluster)
 	}
 
 	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(resultingInternalCluster))
+	encodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusCreated, responseBytes)
+	writePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -541,7 +579,9 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 
 	ctx := request.Context()
 
+	decodePhase := startPhase(ctx, PhaseDecode)
 	newInternalCluster, err := decodeDesiredClusterReplace(ctx, oldInternalCluster)
+	decodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -611,7 +651,9 @@ func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Req
 	// that represents an existing resource to be updated.
 	ctx := request.Context()
 
+	decodePhase := startPhase(ctx, PhaseDecode)
 	newInternalCluster, err := decodeDesiredClusterPatch(ctx, oldInternalCluster)
+	decodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -620,17 +662,21 @@ func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Req
 }
 
 func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalCluster, oldInternalCluster *coreapi.HCPOpenShiftCluster) error {
+	prefetchPhase := startPhase(ctx, PhaseAdmissionPrefetch)
 	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, oldInternalCluster.ID.SubscriptionID)
 	if err != nil {
+		prefetchPhase.End()
 		return utils.TrackError(err)
 	}
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
+		prefetchPhase.End()
 		return utils.TrackError(err)
 	}
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
+		prefetchPhase.End()
 		return utils.TrackError(err)
 	}
 
@@ -639,19 +685,26 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), metadataapi.APIVersion(versionedInterface.String())),
 	}
 	admissionContext, err := f.newClusterAdmissionContext(ctx, validationOp, subscription, newInternalCluster, oldInternalCluster.ID)
+	prefetchPhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if mutationErrs := admission.MutateCluster(ctx, admissionContext, validationOp, newInternalCluster, oldInternalCluster); len(mutationErrs) > 0 {
+	mutatePhase := startPhase(ctx, PhaseAdmissionMutate)
+	mutationErrs := admission.MutateCluster(ctx, admissionContext, validationOp, newInternalCluster, oldInternalCluster)
+	mutatePhase.End()
+	if len(mutationErrs) > 0 {
 		return utils.TrackError(coreapi.CloudErrorFromFieldErrors(mutationErrs))
 	}
 
+	validatePhase := startPhase(ctx, PhaseAdmissionValidate)
 	validationErrs := validation.ValidateCluster(ctx, validationOp, newInternalCluster, oldInternalCluster, metadataapi.Must(versionedInterface.ValidationPathRewriter(&coreapi.HCPOpenShiftCluster{})))
 	validationErrs = append(validationErrs, admission.AdmitCluster(ctx, admissionContext, validationOp, newInternalCluster, oldInternalCluster)...)
+	validatePhase.End()
 	if err := coreapi.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
 
+	preparePhase := startPhase(ctx, PhasePersistPrepare)
 	// we must validate using user provided .Identity.UserAssignedIdentities because that is the intent expressed by the user to allow
 	// us to use these identities. The information contained in those key is not trusted to be accurate, so we clear this field and set to
 	// a valid, but empty set of information
@@ -677,6 +730,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterUpdateOperation.NotificationURI, clusterUpdateOperation.OperationID))
 	_, err = f.resourcesDBClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterUpdateOperation, nil)
 	if err != nil {
+		preparePhase.End()
 		return utils.TrackError(err)
 	}
 
@@ -686,30 +740,38 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterUpdateOperation.Status
 
 	_, err = f.resourcesDBClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, newInternalCluster, nil)
+	preparePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	executePhase := startPhase(ctx, PhasePersistExecute)
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
 	})
+	executePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// Read back the resource document so the response body is accurate.
+	encodePhase := startPhase(ctx, PhaseResponseEncode)
 	resultingUncastObj, err := transactionResult.GetItem(oldInternalCluster.GetCosmosData().GetCosmosUID())
 	if err != nil {
+		encodePhase.End()
 		return utils.TrackError(err)
 	}
 	resultingInternalCluster := resultingUncastObj.(*coreapi.HCPOpenShiftCluster)
 
 	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(resultingInternalCluster))
+	encodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, httpStatusCode, responseBytes)
+	writePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -729,33 +791,47 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
+	readPhase := startPhase(ctx, PhaseResourceRead)
 	cluster, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
+	readPhase.End()
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// For resource not found errors on deletion, ARM requires
+		writePhase := startPhase(ctx, PhaseResponseWrite)
 		writer.WriteHeader(http.StatusNoContent)
+		writePhase.End()
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+	admissionPhase := startPhase(ctx, PhaseAdmissionConflict)
+	err = checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState)
+	admissionPhase.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	logger.Info(fmt.Sprintf("deleting resource %s", cluster.ID))
 
+	preparePhase := startPhase(ctx, PhasePersistPrepare)
 	transaction := f.resourcesDBClient.NewTransaction(cluster.ID.SubscriptionID)
-	if err := f.addDeleteClusterToTransaction(ctx, writer, request, transaction, cluster); err != nil {
+	err = f.addDeleteClusterToTransaction(ctx, writer, request, transaction, cluster)
+	preparePhase.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
+	executePhase := startPhase(ctx, PhasePersistExecute)
 	_, err = transaction.Execute(ctx, nil)
+	executePhase.End()
 	if err != nil {
 		logger.Error(err, "failed executing transaction", "transaction", transaction)
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	writer.WriteHeader(http.StatusAccepted)
+	writePhase.End()
 	return nil
 }
 

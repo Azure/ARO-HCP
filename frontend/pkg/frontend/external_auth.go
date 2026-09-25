@@ -52,15 +52,21 @@ func (f *Frontend) GetExternalAuth(writer http.ResponseWriter, request *http.Req
 		return utils.TrackError(err)
 	}
 
+	readPhase := startPhase(ctx, PhaseResourceRead)
 	resultingInternalExternalAuth, err := f.getInternalExternalAuthFromStorage(ctx, resourceID)
+	readPhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	encodePhase := startPhase(ctx, PhaseResponseEncode)
 	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterExternalAuth(resultingInternalExternalAuth))
+	encodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, responseBytes)
+	writePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -81,37 +87,46 @@ func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, requ
 	resourceName := request.PathValue(PathSegmentResourceName)
 
 	// Verify the parent cluster exists so we return 404 instead of an empty list for a non-existent cluster (Cosmos List is prefix-based)
+	readPhase := startPhase(ctx, PhaseResourceRead)
 	_, err = f.resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
+	readPhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	pagedResponse := coreapi.NewPagedResponse()
 
+	listPhase := startPhase(ctx, PhaseResourceList)
 	internalExternalAuthIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(resourceName).List(ctx, dbListOptionsFromRequest(request))
 	if err != nil {
+		listPhase.End()
 		return utils.TrackError(err)
 	}
 	for _, externalAuth := range internalExternalAuthIterator.Items(ctx) {
 		resultingExternalExternalAuth := versionedInterface.NewHCPOpenShiftClusterExternalAuth(externalAuth)
 		jsonBytes, err := coreapi.MarshalJSON(resultingExternalExternalAuth)
 		if err != nil {
+			listPhase.End()
 			return utils.TrackError(err)
 		}
 		pagedResponse.AddValue(jsonBytes)
 	}
 	err = internalExternalAuthIterator.GetError()
 	if err != nil {
+		listPhase.End()
 		return utils.TrackError(err)
 	}
 
 	// MiddlewareReferer ensures Referer is present.
 	err = pagedResponse.SetNextLink(request.Referer(), internalExternalAuthIterator.GetContinuationToken())
+	listPhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	writePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -141,14 +156,19 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	}
 
 	externalAuthCosmosClient := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name)
+	readPhase := startPhase(ctx, PhaseResourceRead)
 	oldInternalExternalAuth, err := externalAuthCosmosClient.Get(ctx, resourceID.Name)
+	readPhase.End()
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(err)
 	}
 
 	updating := oldInternalExternalAuth != nil
 	if updating {
-		if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestUpdate, oldInternalExternalAuth.ID, oldInternalExternalAuth.Properties.ProvisioningState); err != nil {
+		admissionPhase := startPhase(ctx, PhaseAdmissionConflict)
+		err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestUpdate, oldInternalExternalAuth.ID, oldInternalExternalAuth.Properties.ProvisioningState)
+		admissionPhase.End()
+		if err != nil {
 			return utils.TrackError(err)
 		}
 		switch request.Method {
@@ -238,21 +258,27 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
+	decodePhase := startPhase(ctx, PhaseDecode)
 	newInternalExternalAuth, err := decodeDesiredExternalAuthCreate(ctx)
+	decodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// We retrieve all external auths for the cluster. Used for admission validation.
+	prefetchPhase := startPhase(ctx, PhaseAdmissionPrefetch)
 	externalAuthIterator, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).List(ctx, nil)
 	if err != nil {
+		prefetchPhase.End()
 		return utils.TrackError(err)
 	}
 	clusterExternalAuths := make([]*coreapi.HCPOpenShiftClusterExternalAuth, 0)
 	for _, clusterExternalAuth := range externalAuthIterator.Items(ctx) {
 		clusterExternalAuths = append(clusterExternalAuths, clusterExternalAuth)
 	}
-	if err := externalAuthIterator.GetError(); err != nil {
+	err = externalAuthIterator.GetError()
+	prefetchPhase.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -264,26 +290,34 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 		ClusterExternalAuths: clusterExternalAuths,
 	}
 
+	validatePhase := startPhase(ctx, PhaseAdmissionValidate)
 	validationErrs := validation.ValidateExternalAuthCreate(ctx, newInternalExternalAuth)
 	validationErrs = append(validationErrs, admission.AdmitExternalAuth(ctx, externalAuthAdmissionContext, restOperation, newInternalExternalAuth, nil)...)
+	validatePhase.End()
 	if err := coreapi.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
 
 	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
+	admissionPhase := startPhase(ctx, PhaseAdmissionConflict)
 	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
 	if err != nil {
+		admissionPhase.End()
 		return utils.TrackError(err)
 	}
 	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestCreate, newInternalExternalAuth.ID, newInternalExternalAuth.Properties.ProvisioningState); err != nil {
+		admissionPhase.End()
 		return utils.TrackError(err)
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+		admissionPhase.End()
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
+	admissionPhase.End()
 
 	operationRequest := cosmosstorageutils.OperationRequestCreate
 
+	preparePhase := startPhase(ctx, PhasePersistPrepare)
 	transaction := f.resourcesDBClient.NewTransaction(newInternalExternalAuth.ID.SubscriptionID)
 
 	createExternalAuthOperation := cosmosstorageutils.NewOperation(
@@ -298,6 +332,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, createExternalAuthOperation.NotificationURI, createExternalAuthOperation.OperationID))
 	_, err = f.resourcesDBClient.Operations(newInternalExternalAuth.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createExternalAuthOperation, nil)
 	if err != nil {
+		preparePhase.End()
 		return utils.TrackError(err)
 	}
 
@@ -308,32 +343,41 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 
 	externalAuthCosmosClient := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name)
 	cosmosUID, err := externalAuthCosmosClient.AddCreateToTransaction(ctx, transaction, newInternalExternalAuth, nil)
+	preparePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	executePhase := startPhase(ctx, PhasePersistExecute)
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
 	})
+	executePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// Read back the resource document so the response body is accurate.
+	encodePhase := startPhase(ctx, PhaseResponseEncode)
 	resultingUncastInternalExternalAuth, err := transactionResult.GetItem(cosmosUID)
 	if err != nil {
+		encodePhase.End()
 		return utils.TrackError(err)
 	}
 	resultingInternalExternalAuth, ok := resultingUncastInternalExternalAuth.(*coreapi.HCPOpenShiftClusterExternalAuth)
 	if !ok {
+		encodePhase.End()
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalExternalAuth)
 	}
 	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterExternalAuth(resultingInternalExternalAuth))
+	encodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusCreated, responseBytes)
+	writePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -402,7 +446,9 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 func (f *Frontend) updateExternalAuth(writer http.ResponseWriter, request *http.Request, oldInternalExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth) error {
 	ctx := request.Context()
 
+	decodePhase := startPhase(ctx, PhaseDecode)
 	newInternalExternalAuth, err := decodeDesiredExternalAuthReplace(ctx, oldInternalExternalAuth)
+	decodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -457,7 +503,9 @@ func (f *Frontend) patchExternalAuth(writer http.ResponseWriter, request *http.R
 	// that represents an existing resource to be updated.
 	ctx := request.Context()
 
+	decodePhase := startPhase(ctx, PhaseDecode)
 	newInternalExternalAuth, err := decodeDesiredExternalAuthPatch(ctx, oldInternalExternalAuth)
+	decodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -477,13 +525,16 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 		return utils.TrackError(err)
 	}
 
+	validatePhase := startPhase(ctx, PhaseAdmissionValidate)
 	validationErrs := validation.ValidateExternalAuthUpdate(ctx, newInternalExternalAuth, oldInternalExternalAuth)
+	validatePhase.End()
 	if err := coreapi.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
 
 	logger.Info(fmt.Sprintf("updating resource %s", oldInternalExternalAuth.ID))
 
+	preparePhase := startPhase(ctx, PhasePersistPrepare)
 	transaction := f.resourcesDBClient.NewTransaction(oldInternalExternalAuth.ID.SubscriptionID)
 
 	externalAuthUpdateOperation := cosmosstorageutils.NewOperation(
@@ -498,6 +549,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, externalAuthUpdateOperation.NotificationURI, externalAuthUpdateOperation.OperationID))
 	_, err = f.resourcesDBClient.Operations(newInternalExternalAuth.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, externalAuthUpdateOperation, nil)
 	if err != nil {
+		preparePhase.End()
 		return utils.TrackError(err)
 	}
 
@@ -509,32 +561,41 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	_, err = f.resourcesDBClient.HCPClusters(newInternalExternalAuth.ID.SubscriptionID, newInternalExternalAuth.ID.ResourceGroupName).
 		ExternalAuth(newInternalExternalAuth.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, newInternalExternalAuth, nil)
+	preparePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	executePhase := startPhase(ctx, PhasePersistExecute)
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
 	})
+	executePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// Read back the resource document so the response body is accurate.
+	encodePhase := startPhase(ctx, PhaseResponseEncode)
 	resultingUncastInternalExternalAuth, err := transactionResult.GetItem(oldInternalExternalAuth.GetCosmosData().GetCosmosUID())
 	if err != nil {
+		encodePhase.End()
 		return utils.TrackError(err)
 	}
 	resultingInternalExternalAuth, ok := resultingUncastInternalExternalAuth.(*coreapi.HCPOpenShiftClusterExternalAuth)
 	if !ok {
+		encodePhase.End()
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalExternalAuth)
 	}
 	responseBytes, err := coreapi.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterExternalAuth(resultingInternalExternalAuth))
+	encodePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	_, err = coreapihelpers.WriteJSONResponse(writer, httpStatusCode, responseBytes)
+	writePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -554,32 +615,46 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
+	readPhase := startPhase(ctx, PhaseResourceRead)
 	externalAuth, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).Get(ctx, resourceID.Name)
+	readPhase.End()
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// For resource not found errors on deletion, ARM requires
+		writePhase := startPhase(ctx, PhaseResponseWrite)
 		writer.WriteHeader(http.StatusNoContent)
+		writePhase.End()
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, externalAuth.ID, externalAuth.Properties.ProvisioningState); err != nil {
+	admissionPhase := startPhase(ctx, PhaseAdmissionConflict)
+	err = checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, externalAuth.ID, externalAuth.Properties.ProvisioningState)
+	admissionPhase.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	logger.Info(fmt.Sprintf("deleting resource %s", externalAuth.ID))
 
+	preparePhase := startPhase(ctx, PhasePersistPrepare)
 	transaction := f.resourcesDBClient.NewTransaction(externalAuth.ID.SubscriptionID)
-	if err := f.addDeleteExternalAuthToTransaction(ctx, writer, request, transaction, externalAuth); err != nil {
+	err = f.addDeleteExternalAuthToTransaction(ctx, writer, request, transaction, externalAuth)
+	preparePhase.End()
+	if err != nil {
 		return utils.TrackError(err)
 	}
+	executePhase := startPhase(ctx, PhasePersistExecute)
 	_, err = transaction.Execute(ctx, nil)
+	executePhase.End()
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	writePhase := startPhase(ctx, PhaseResponseWrite)
 	writer.WriteHeader(http.StatusAccepted)
+	writePhase.End()
 	return nil
 }
 

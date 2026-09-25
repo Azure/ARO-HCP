@@ -38,15 +38,18 @@ func newMiddlewareValidatedAPIVersion(apiRegistry coreapi.APIRegistry) *middlewa
 func (h *middlewareValidatedAPIVersion) handleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
 	logger := utils.LoggerFromContext(ctx)
+	timer := startPhase(ctx, PhaseAPIVersionValidation)
 
 	apiVersion := r.URL.Query().Get(APIVersionKey)
 	if apiVersion == "" {
+		timer.End()
 		coreapihelpers.WriteError(
 			w, http.StatusBadRequest,
 			coreapi.CloudErrorCodeInvalidParameter, "",
 			"The request is missing required parameter '%s'.",
 			APIVersionKey)
 	} else if version, ok := h.apiRegistry.Lookup(apiVersion); !ok {
+		timer.End()
 		coreapihelpers.WriteError(
 			w, http.StatusBadRequest,
 			coreapi.CloudErrorCodeInvalidResourceType, "",
@@ -62,6 +65,7 @@ func (h *middlewareValidatedAPIVersion) handleRequest(w http.ResponseWriter, r *
 		span := trace.SpanFromContext(ctx)
 		span.SetAttributes(attribute.String("aro.api_version", apiVersion))
 
+		timer.End()
 		next(w, r)
 	}
 }
