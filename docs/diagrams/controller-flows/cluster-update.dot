@@ -10,6 +10,7 @@ digraph cluster_update {
   kube [label="ClusterResources → ApplyDesireController\nKubernetes / HyperShift convergence", fillcolor="#fff0da", color="#b27624"];
   mirror [label="ReadDesireKubernetesController", fillcolor="#e6f0fa", color="#35648a"];
   active [label="ControlPlaneActiveVersions", fillcolor="#e6f0fa", color="#35648a"];
+  validation [label="Cluster validation controllers\nServiceProviderCluster.Status.Validations", fillcolor="#e6f0fa", color="#35648a"];
   op [label="OperationClusterUpdate", fillcolor="#e6f0fa", color="#35648a"];
   done [label="ARM terminal operation state\nSucceeded or Failed", fillcolor="#e4f2e5", color="#4c8053"];
   put -> dispatch [label="changed dispatchable\nconfiguration"];
@@ -23,6 +24,7 @@ digraph cluster_update {
   cs -> op [label="Cluster Service state"];
   mirror -> op [label="observed readiness / version"];
   upgrade -> op [label="upgrade intent failure, if\nrejected"];
+  validation -> op [label="False: Provisioning + InvalidResource;\nfailure and operation each >= 5m: Failed;\nall True: ready"];
   op -> done [label="completion or failure checks"];
   observed [label="Customer resource Status.ActiveVersions\nmajor.minor versions", fillcolor="#e4f2e5", color="#4c8053"];
   active -> observed [label="separate Cosmos replace"];

@@ -167,7 +167,7 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 	var persistErr *coreapi.CloudErrorBody
 	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
 		persistErr = &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeInvalidRequestContent,
+			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
 		}
 	}
@@ -201,6 +201,7 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	errs := []error{}
 	operationStates := []*operationbase.OperationState{}
 
+	operationStates = append(operationStates, c.clusterValidation(operation, existingServiceProviderCluster).WithSource("clusterValidation"))
 	if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation, existingCluster, existingServiceProviderCluster); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
@@ -299,10 +300,10 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 			existingCluster.CustomerProperties.Version.ID,
 		)
 		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-		return operationbase.NewOperationState(coreapi.ProvisioningStateFailed, msg), nil
+		return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInternalServerError, msg, nil), nil
 	}
 	c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-	return operationbase.NewOperationState(coreapi.ProvisioningStateFailed, intentFailedCondition.Message), nil
+	return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInternalServerError, intentFailedCondition.Message, nil), nil
 }
 
 func (c *operationClusterUpdate) clusterServiceClusterStatusOperationState(ctx context.Context, operation *coreapi.Operation, existingCSClusterStatus *arohcpv1alpha1.ClusterStatus, clusterServiceID metadataapi.InternalID) (*operationbase.OperationState, error) {
@@ -313,10 +314,11 @@ func (c *operationClusterUpdate) clusterServiceClusterStatusOperationState(ctx c
 		return nil, utils.TrackError(err)
 	}
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
-	msg := ""
+	state := operationbase.NewOperationState(newOperationStatus, "")
 	if opError != nil {
-		msg = opError.Message
+		state.Message = opError.Message
+		state.WithCloudErrorCode(opError.Code)
 	}
 
-	return operationbase.NewOperationState(newOperationStatus, msg), nil
+	return state, nil
 }

@@ -78,10 +78,149 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		existingCluster   *coreapi.Cluster
 		existingOperation *coreapi.Operation
 		readDesireLister  kubeapplierlisters.ReadDesireLister
+		validations       []metav1.Condition
 		setupCSMock       func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
 		wantErr           bool
 		verifyDB          func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
+		{
+			name:              "cluster service error code is persisted",
+			existingCluster:   newClusterWithAPIURL("https://api.example.com", &createdAt),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
+					State(arohcpv1alpha1.ClusterStateError).
+					ProvisionErrorCode(coreapi.CloudErrorCodeInvalidParameter).
+					ProvisionErrorMessage("invalid cluster configuration").
+					Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().
+					GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).
+					Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidParameter, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "invalid cluster configuration")
+			},
+		},
+
+		{
+			name:  "recent validation failure keeps create provisioning",
+			clock: clocktesting.NewFakePassiveClock(createdAt),
+			existingCluster: func() *coreapi.Cluster {
+				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
+				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
+				return cluster
+			}(),
+			existingOperation: func() *coreapi.Operation {
+				operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+				operation.StartTime = createdAt.Add(-time.Hour)
+				return operation
+			}(),
+			validations: []metav1.Condition{{
+				Type: "SubnetValidation", Status: metav1.ConditionFalse,
+				Reason: "InvalidSubnet", Message: "subnet is unavailable",
+				LastTransitionTime: metav1.NewTime(createdAt.Add(-(4 * time.Minute))),
+			}},
+			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().State(arohcpv1alpha1.ClusterStateReady).Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
+				assert.Nil(t, op.Error)
+				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, operationtesting.TestOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+		{
+			name:  "old validation failure keeps a new create operation provisioning",
+			clock: clocktesting.NewFakePassiveClock(createdAt),
+			existingCluster: func() *coreapi.Cluster {
+				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
+				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
+				return cluster
+			}(),
+			existingOperation: func() *coreapi.Operation {
+				operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+				operation.StartTime = createdAt.Add(-4 * time.Minute)
+				return operation
+			}(),
+			validations: []metav1.Condition{{
+				Type: "SubnetValidation", Status: metav1.ConditionFalse,
+				Reason: "InvalidSubnet", Message: "subnet is unavailable",
+				LastTransitionTime: metav1.NewTime(createdAt.Add(-time.Hour)),
+			}},
+			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().State(arohcpv1alpha1.ClusterStateReady).Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
+				assert.Nil(t, op.Error)
+				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, operationtesting.TestOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+
+		{
+			name:  "persistent validation failure fails create",
+			clock: clocktesting.NewFakePassiveClock(createdAt),
+			existingCluster: func() *coreapi.Cluster {
+				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
+				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
+				return cluster
+			}(),
+			existingOperation: func() *coreapi.Operation {
+				operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+				operation.StartTime = createdAt.Add(-time.Hour)
+				return operation
+			}(),
+			validations: []metav1.Condition{{
+				Type: "SubnetValidation", Status: metav1.ConditionFalse,
+				Reason: "InvalidSubnet", Message: "subnet is unavailable",
+				LastTransitionTime: metav1.NewTime(createdAt.Add(-(5*time.Minute + time.Second))),
+			}},
+			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().State(arohcpv1alpha1.ClusterStateReady).Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidResource, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "SubnetValidation: InvalidSubnet: subnet is unavailable")
+				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
 		{
 			name:              "successful create updates operation to succeeded",
 			existingCluster:   newClusterWithAPIURL("https://api.example.com", &createdAt),
@@ -320,6 +459,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 									"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/service/providers/Microsoft.RedHatOpenShift/managementClusters/test")),
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
+								Validations:     tc.validations,
 								ServingCABundle: "fake-ca-data",
 								AzureResources: coreapi.AzureResources{
 									RoleAssignments: coreapi.AzureMultiReference{
@@ -1008,6 +1148,7 @@ func TestDetermineOperationState(t *testing.T) {
 			}
 
 			controller := &operationClusterCreate{
+				clock:                utilsclock.RealClock{},
 				clusterLister:        tt.clusterLister,
 				readDesireLister:     tt.readDesireLister,
 				clusterServiceClient: setupCSMock(ctrl),
