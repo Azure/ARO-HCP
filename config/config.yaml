@@ -1292,7 +1292,7 @@ clouds:
           resources:
             requests:
               cpu: 450m
-              memory: 416Mi
+              memory: 472Mi
         mdsd:
           enabled: false
         kusto:
@@ -1406,13 +1406,14 @@ clouds:
         k8s:
           resources:
             requests:
+              cpu: 231m
               memory: 224Mi
       # Management Agent
       mgmtAgent:
         k8s:
           resources:
             requests:
-              cpu: 180m
+              cpu: 313m
       # Image Sync
       imageSync:
         ocMirror:
