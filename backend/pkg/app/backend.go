@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	utilsclock "k8s.io/utils/clock"
@@ -1132,6 +1133,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				// start the SharedInformers
 				go backendInformers.RunWithContext(ctx)
 				go fleetInformers.RunWithContext(ctx)
+
+				if !cache.WaitForNamedCacheSyncWithContext(
+					ctx,
+					backendInformers.HasSynced,
+					fleetInformers.HasSynced,
+				) {
+					return
+				}
 
 				// start the union kube-applier informers controller +
 				// any consumers of its union surface. The controller
