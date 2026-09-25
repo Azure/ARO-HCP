@@ -24,6 +24,7 @@ import (
 	"go/token"
 	"net/http"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -165,6 +166,9 @@ func TestControllerRegistryManifest(t *testing.T) {
 		require.Equal(t, expected.name, strings.ToLower(expected.name))
 		require.Equal(t, expected.workers, entry.Workers, expected.name)
 		require.NotNil(t, entry.instantiate, expected.name)
+		function := runtime.FuncForPC(reflect.ValueOf(entry.instantiate).Pointer())
+		require.Contains(t, function.Name(), ".instantiate", expected.name)
+		require.NotContains(t, function.Name(), ".func", expected.name)
 		if expected.name == "clusterdenyassignment" {
 			require.NotNil(t, entry.Enabled)
 			require.False(t, entry.Enabled(ControllerContext{}))
@@ -203,7 +207,7 @@ func testControllerContext(t *testing.T, hasRealFPA bool) ControllerContext {
 	}
 	controllerContext := backend.newControllerContext(t.Context())
 	require.Same(t, backend.clock, controllerContext.Clock)
-	require.Same(t, http.DefaultClient, controllerContext.HTTPClient)
+	require.Same(t, http.DefaultClient, controllerContext.AsyncOperationNotificationClient)
 	require.Same(t, backend.options.ResourcesDBClient, controllerContext.ResourcesDBClient)
 	return controllerContext
 }
@@ -247,29 +251,125 @@ func TestControllerRegistrySharedInstances(t *testing.T) {
 	require.Same(t, controllerContext.UnionKubeApplierInformers, controllerContext.UnionKubeApplierInformersController.Union())
 	_, readLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	_, applyLister := controllerContext.UnionKubeApplierInformers.ApplyDesires()
-	require.Same(t, readLister, controllerContext.UnionReadDesireLister)
-	require.Same(t, applyLister, controllerContext.UnionApplyDesireLister)
-	clusterInformer, clusterLister := controllerContext.BackendInformers.Clusters()
-	require.Same(t, clusterInformer, controllerContext.ClusterInformer)
-	require.Same(t, clusterLister, controllerContext.ClusterLister)
+	_, clusterLister := controllerContext.BackendInformers.Clusters()
+	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+	activeVersionsController, err := registry[controlPlaneActiveVersionsControllerName].Instantiate(controllerContext)
+	require.NoError(t, err)
+	requireControllerDependency(t, activeVersionsController, clusterLister, "syncer", "syncer", "clusterLister")
+	requireControllerDependency(t, activeVersionsController, serviceProviderClusterLister, "syncer", "syncer", "serviceProviderClusterLister")
+	requireControllerDependency(t, activeVersionsController, readLister, "syncer", "syncer", "readDesireLister")
+	revocationController, err := registry[systemAdminCredentialRevocationDesiresControllerName].Instantiate(controllerContext)
+	require.NoError(t, err)
+	requireControllerDependency(t, revocationController, applyLister, "syncer", "syncer", "applyDesireLister")
+	requireControllerDependency(t, revocationController, readLister, "syncer", "syncer", "readDesireLister")
 	managementInformer, managementLister := controllerContext.FleetInformers.ManagementClusters()
-	require.Same(t, managementInformer, controllerContext.ManagementClusterInformer)
-	require.Same(t, managementLister, controllerContext.ManagementClusterLister)
+	requireControllerDependency(t, unionController, managementInformer, "mcInformer")
+	requireControllerDependency(t, unionController, managementLister, "mcLister")
+	dumpController, err := registry[clusterRecursiveDataDumpControllerName].Instantiate(controllerContext)
+	require.NoError(t, err)
+	requireControllerDependency(t, dumpController, managementLister, "syncer", "syncer", "managementClusterLister")
 	skuController, err := registry["fpavirtualmachineresourceskuscachedreader"].Instantiate(controllerContext)
 	require.NoError(t, err)
 	require.Same(t, controllerContext.VirtualMachineResourceSKUsCachedReaderController, skuController)
 	for _, name := range []string{"nodepoolvalidationazurevmsizesupportsephemeralosdiskvalidation", "nodepoolvalidationazurenodepoolvmquotavalidation"} {
 		controller, err := registry[name].Instantiate(controllerContext)
 		require.NoError(t, err)
-		field := reflect.ValueOf(controller)
-		for _, name := range []string{"syncer", "syncer", "validation", "resourceSKUsCachedReader"} {
-			for field.Kind() == reflect.Pointer || field.Kind() == reflect.Interface {
-				field = field.Elem()
-			}
-			field = field.FieldByName(name)
-			require.True(t, field.IsValid(), name)
+		requireControllerDependency(t, controller, skuController, "syncer", "syncer", "validation", "resourceSKUsCachedReader")
+	}
+}
+
+func requireControllerDependency(t *testing.T, controller Runnable, expected any, fields ...string) {
+	t.Helper()
+	field := reflect.ValueOf(controller)
+	for _, name := range fields {
+		for field.Kind() == reflect.Pointer || field.Kind() == reflect.Interface {
+			field = field.Elem()
 		}
-		require.Equal(t, reflect.ValueOf(skuController).Pointer(), field.Elem().Pointer())
+		field = field.FieldByName(name)
+		require.True(t, field.IsValid(), name)
+	}
+	for field.Kind() == reflect.Interface {
+		field = field.Elem()
+	}
+	require.Equal(t, reflect.ValueOf(expected).Pointer(), field.Pointer(), strings.Join(fields, "."))
+}
+
+func TestControllerContextKeepsFactoriesNotIndividualInformers(t *testing.T) {
+	contextType := reflect.TypeOf(ControllerContext{})
+	for index := range contextType.NumField() {
+		field := contextType.Field(index)
+		require.False(t, strings.HasSuffix(field.Name, "Lister"), field.Name)
+		require.False(t, strings.HasSuffix(field.Name, "Informer"), field.Name)
+	}
+	_, hasOldClientName := contextType.FieldByName("HTTPClient")
+	require.False(t, hasOldClientName)
+	for _, name := range []string{"BackendInformers", "FleetInformers", "UnionKubeApplierInformers", "AsyncOperationNotificationClient"} {
+		_, exists := contextType.FieldByName(name)
+		require.True(t, exists, name)
+	}
+}
+
+func TestControllerRegistryNamedZoneRegistrations(t *testing.T) {
+	files := token.NewFileSet()
+	builders := map[string]bool{}
+	constants := map[string]bool{}
+	for zone, expectedCount := range map[string]int{
+		"billing": 2, "cluster": 56, "clusterresources": 1, "cosmosmigration": 1,
+		"datadump": 5, "externalauth": 10, "metrics": 6, "mismatch": 4,
+		"nodepool": 19, "support": 2,
+	} {
+		source, err := parser.ParseFile(files, "controller_registry_"+zone+".go", nil, 0)
+		require.NoError(t, err)
+		var builderCount, adapterCount, constantCount int
+		for _, declaration := range source.Decls {
+			switch declaration := declaration.(type) {
+			case *ast.FuncDecl:
+				if strings.HasPrefix(declaration.Name.Name, "register") {
+					builders[declaration.Name.Name] = true
+					builderCount++
+				}
+				if strings.HasPrefix(declaration.Name.Name, "instantiate") {
+					adapterCount++
+				}
+			case *ast.GenDecl:
+				if declaration.Tok == token.CONST {
+					for _, spec := range declaration.Specs {
+						for _, name := range spec.(*ast.ValueSpec).Names {
+							constants[name.Name] = true
+							constantCount++
+						}
+					}
+				}
+			}
+		}
+		require.Equal(t, expectedCount, builderCount, zone)
+		require.Equal(t, expectedCount, adapterCount, zone)
+		require.Equal(t, expectedCount, constantCount, zone)
+	}
+	source, err := parser.ParseFile(files, "controller_registry.go", nil, 0)
+	require.NoError(t, err)
+	for _, declaration := range source.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		switch function.Name.Name {
+		case "newControllerRegistry", "controllerConstructionOrder", "controllerLaunchOrder":
+			returned := function.Body.List[0].(*ast.ReturnStmt).Results[0].(*ast.CompositeLit)
+			require.Len(t, returned.Elts, 106, function.Name.Name)
+			for _, element := range returned.Elts {
+				if entry, ok := element.(*ast.KeyValueExpr); ok {
+					call, ok := entry.Value.(*ast.CallExpr)
+					require.True(t, ok, "registry entry must call a named builder")
+					require.Empty(t, call.Args)
+					require.True(t, builders[call.Fun.(*ast.Ident).Name])
+					element = entry.Key
+				}
+				name, ok := element.(*ast.Ident)
+				require.True(t, ok, "map and order lists must reference zone name constants")
+				require.True(t, constants[name.Name], name.Name)
+			}
+		}
 	}
 }
 

@@ -379,6 +379,22 @@ backend instances plus the separately counted shared union controller.
 `ClusterDenyAssignment` is instantiated and launched only when `HasRealFPA` is
 true; otherwise 105 controllers run. The flag is also passed to cluster creation.
 
+Each zone has a `controller_registry_<zone>.go` file alongside the central
+registry: [billing](../backend/pkg/app/controller_registry_billing.go),
+[cluster](../backend/pkg/app/controller_registry_cluster.go),
+[clusterresources](../backend/pkg/app/controller_registry_clusterresources.go),
+[cosmosmigration](../backend/pkg/app/controller_registry_cosmosmigration.go),
+[datadump](../backend/pkg/app/controller_registry_datadump.go),
+[externalauth](../backend/pkg/app/controller_registry_externalauth.go),
+[metrics](../backend/pkg/app/controller_registry_metrics.go),
+[mismatch](../backend/pkg/app/controller_registry_mismatch.go), and
+[nodepool](../backend/pkg/app/controller_registry_nodepool.go).
+The [supporting registrations](../backend/pkg/app/controller_registry_support.go)
+return the shared SKU cached-reader and union informer controller instances.
+Each registration has a named builder and instantiation adapter. Lowercase name
+constants declared in the zone files are reused by the central map and both
+construction and launch order lists, without changing runtime controller names.
+
 Controller construction precedes leader election. Once leading, the backend
 launches the backend and fleet informers, then the union informer controller,
 then its consumers in the registry's explicit launch order. This is goroutine
@@ -387,6 +403,13 @@ management clusters using the shared fleet informer/lister and the default
 per-management-cluster relist durations. All consumers use the same backend,
 fleet, and union informer/lister instances. The SKU cached reader passed to both
 VM validation instances is the same instance that is launched.
+
+`ControllerContext` carries the shared informer factories rather than individual
+informers or listers. Each named instantiation adapter obtains only the
+informer/lister pairs its constructor needs through those factories' accessors;
+it does not create new factories or caches. The context's
+`AsyncOperationNotificationClient` remains `http.DefaultClient`, used by
+operation controllers to POST status notifications to `Operation.NotificationURI`.
 
 Registry entries retain the existing worker counts: 20 by default, one for each
 of the six metrics controllers and the union informer controller, five for

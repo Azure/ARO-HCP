@@ -20,7 +20,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
@@ -34,9 +33,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
-	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
-	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
-	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -61,32 +57,13 @@ type ControllerContext struct {
 	ResourcesDBClient                                   corecosmosstorage.ResourcesDBClient
 	SMIClientBuilder                                    azureclient.ServiceManagedIdentityClientBuilder
 	Clock                                               utilsclock.PassiveClock
-	HTTPClient                                          *http.Client
+	AsyncOperationNotificationClient                    *http.Client
 
 	BackendInformers                                 coreinformers.BackendInformers
 	FleetInformers                                   fleetinformers.FleetInformers
 	UnionKubeApplierInformers                        *unionkubeapplierinformers.UnionKubeApplierInformers
 	UnionKubeApplierInformersController              *unionkubeapplierinformers.UnionKubeApplierInformersController
 	VirtualMachineResourceSKUsCachedReaderController *cachedreader.FPAVirtualMachineResourceSKUsCachedReaderController
-	SubscriptionLister                               corelisters.SubscriptionLister
-	ActiveOperationInformer                          cache.SharedIndexInformer
-	ActiveOperationLister                            corelisters.ActiveOperationLister
-	ManagementClusterInformer                        cache.SharedIndexInformer
-	ManagementClusterLister                          fleetlisters.ManagementClusterLister
-	UnionReadDesireLister                            kubeapplierlisters.ReadDesireLister
-	UnionApplyDesireLister                           kubeapplierlisters.ApplyDesireLister
-	ClusterInformer                                  cache.SharedIndexInformer
-	ClusterLister                                    corelisters.ClusterLister
-	ServiceProviderClusterInformer                   cache.SharedIndexInformer
-	BillingLister                                    corelisters.BillingLister
-	NodePoolInformer                                 cache.SharedIndexInformer
-	NodePoolLister                                   corelisters.NodePoolLister
-	ExternalAuthInformer                             cache.SharedIndexInformer
-	ExternalAuthLister                               corelisters.ExternalAuthLister
-	ControllerLister                                 corelisters.ControllerLister
-	ServiceProviderClusterLister                     corelisters.ServiceProviderClusterLister
-	ServiceProviderNodePoolLister                    corelisters.ServiceProviderNodePoolLister
-	ManagementClusterSchedulingLister                fleetlisters.ManagementClusterSchedulingLister
 }
 
 func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
@@ -103,18 +80,6 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		unionkubeapplierinformers.NewKubeApplierInformerFactory(b.options.KubeApplierDBClients, nil),
 	)
 	unionKubeApplierInformers := unionKubeApplierInformersController.Union()
-	_, unionReadDesireLister := unionKubeApplierInformers.ReadDesires()
-	_, unionApplyDesireLister := unionKubeApplierInformers.ApplyDesires()
-	_, subscriptionLister := backendInformers.Subscriptions()
-	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
-	clusterInformer, clusterLister := backendInformers.Clusters()
-	serviceProviderClusterInformer, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
-	_, billingLister := backendInformers.BillingDocs()
-	nodePoolInformer, nodePoolLister := backendInformers.NodePools()
-	externalAuthInformer, externalAuthLister := backendInformers.ExternalAuths()
-	_, controllerLister := backendInformers.Controllers()
-	_, serviceProviderNodePoolLister := backendInformers.ServiceProviderNodePools()
-	_, managementClusterSchedulingLister := fleetInformers.ManagementClusterSchedulings()
 	virtualMachineResourceSKUsCachedReaderController := cachedreader.NewFPAVirtualMachineResourceSKUsCachedReaderController(
 		b.options.FPAClientBuilder,
 		b.options.AzureLocation,
@@ -140,30 +105,11 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		ResourcesDBClient:                                   b.options.ResourcesDBClient,
 		SMIClientBuilder:                                    b.options.SMIClientBuilder,
 		Clock:                                               b.clock,
-		HTTPClient:                                          http.DefaultClient,
+		AsyncOperationNotificationClient:                    http.DefaultClient,
 		BackendInformers:                                    backendInformers,
 		FleetInformers:                                      fleetInformers,
 		UnionKubeApplierInformers:                           unionKubeApplierInformers,
 		UnionKubeApplierInformersController:                 unionKubeApplierInformersController,
-		VirtualMachineResourceSKUsCachedReaderController: virtualMachineResourceSKUsCachedReaderController,
-		SubscriptionLister:                subscriptionLister,
-		ActiveOperationInformer:           activeOperationInformer,
-		ActiveOperationLister:             activeOperationLister,
-		ManagementClusterInformer:         managementClusterInformer,
-		ManagementClusterLister:           managementClusterLister,
-		UnionReadDesireLister:             unionReadDesireLister,
-		UnionApplyDesireLister:            unionApplyDesireLister,
-		ClusterInformer:                   clusterInformer,
-		ClusterLister:                     clusterLister,
-		ServiceProviderClusterInformer:    serviceProviderClusterInformer,
-		BillingLister:                     billingLister,
-		NodePoolInformer:                  nodePoolInformer,
-		NodePoolLister:                    nodePoolLister,
-		ExternalAuthInformer:              externalAuthInformer,
-		ExternalAuthLister:                externalAuthLister,
-		ControllerLister:                  controllerLister,
-		ServiceProviderClusterLister:      serviceProviderClusterLister,
-		ServiceProviderNodePoolLister:     serviceProviderNodePoolLister,
-		ManagementClusterSchedulingLister: managementClusterSchedulingLister,
+		VirtualMachineResourceSKUsCachedReaderController:    virtualMachineResourceSKUsCachedReaderController,
 	}
 }
