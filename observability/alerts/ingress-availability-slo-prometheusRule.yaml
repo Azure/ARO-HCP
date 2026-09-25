@@ -13,7 +13,7 @@ spec:
   # ========================================
   # Ingress Availability SLO Alerts
   # ========================================
-  # Multi-window burn-rate alerting adapted for gauge metrics.
+  # Multi-window burn-rate alerting, volume-aware.
   # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
   #
   # SLO: 99.5% ingress canary availability
@@ -24,10 +24,18 @@ spec:
   #   Medium (6x):  6 * 0.005 = 0.030    → error rate > 3.0%
   #   Slow (1x):    1 * 0.005 = 0.005    → error rate > 0.5%
   #
-  # ingress_canary_route_reachable is a gauge representing end-to-end synthetic
-  # route checks (0/1 per observation), not a counter. The 'for' duration provides
-  # the short-window check, approximating multi-window burn rate alerting for gauge
-  # metrics (see access-cluster-slo-prometheusRule.yaml).
+  # Each tier reads the windowed error_rate_{1h,6h,3d} records (see
+  # ingress-availability-slo-recordingRule.yaml), which accumulate real
+  # observation counts over the named window via sum_over_time/count_over_time
+  # -- not the instantaneous last-scrape ratio. Each tier also requires a
+  # volume floor on the matching total_{1h,6h,3d} record so a handful of
+  # samples on a sparse or freshly-started window cannot page: with few
+  # redundant canary routes, a single failed observation is a 50%+
+  # instantaneous ratio that would otherwise cross every threshold outright,
+  # regardless of how much real history backs it. Floors assume the canary is
+  # scraped roughly once per minute per route (see recording rule comments);
+  # they are a "the window is not near-empty" guard, not a statistical
+  # significance bound. Pattern mirrors cluster-provision-slo-prometheusRule.yaml.
   #
   # Lane: alerts-rp-hcps.yaml → generatedRPHCPPrometheusAlertingRules.bicep
   #       → icm-action-group-rp (ARO-RP on-call queue)
@@ -40,11 +48,13 @@ spec:
     # ----------------------------------------
     # Fast Burn Alert (IcM Sev 3 — customer-facing UJ degraded)
     # ----------------------------------------
-    # 14.4x burn rate → >7.2% error rate sustained for 5 minutes
-    # Would exhaust 30-day error budget in ~50 hours
+    # 14.4x burn rate → >7.2% error rate over 1h, >=10 observations in-window,
+    # sustained for 5 minutes. Would exhaust 30-day error budget in ~50 hours.
     - alert: userJourneyIngressAvailability1h5m
       expr: |
-        errors:ingress_canary:error_rate > 0.072
+        errors:ingress_canary:total_1h >= 10
+        and
+        errors:ingress_canary:error_rate_1h > 0.072
       for: 5m
       labels:
         severity: "3"
@@ -53,17 +63,19 @@ spec:
         short_window: 5m
       annotations:
         summary: "Ingress canary availability critically degraded for {{ $labels._id }}"
-        description: "More than 7.2% of synthetic canary route observations are failing for HCP cluster {{ $labels._id }}, indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        description: "More than 7.2% of synthetic canary route observations failed over the last hour for HCP cluster {{ $labels._id }} (at least 10 observations), indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "{{ $labels._id }}"
     # ----------------------------------------
     # Medium Burn Alert (IcM Sev 3)
     # ----------------------------------------
-    # 6x burn rate → >3.0% error rate sustained for 30 minutes
-    # Would exhaust 30-day error budget in ~5 days
+    # 6x burn rate → >3.0% error rate over 6h, >=30 observations in-window,
+    # sustained for 30 minutes. Would exhaust 30-day error budget in ~5 days.
     - alert: userJourneyIngressAvailability6h30m
       expr: |
-        errors:ingress_canary:error_rate > 0.030
+        errors:ingress_canary:total_6h >= 30
+        and
+        errors:ingress_canary:error_rate_6h > 0.030
       for: 30m
       labels:
         severity: "3"
@@ -72,17 +84,22 @@ spec:
         short_window: 30m
       annotations:
         summary: "Ingress canary availability degraded for {{ $labels._id }}"
-        description: "More than 3% of synthetic canary route observations are failing for HCP cluster {{ $labels._id }}, indicating a medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
+        description: "More than 3% of synthetic canary route observations failed over the last 6 hours for HCP cluster {{ $labels._id }} (at least 30 observations), indicating a medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "{{ $labels._id }}"
     # ----------------------------------------
     # Slow Burn Alert (IcM Sev 4 — no immediate customer impact)
     # ----------------------------------------
-    # 1x burn rate → >0.5% error rate sustained for 6 hours
-    # Consuming error budget at exactly the SLO rate — trend alert
+    # 1x burn rate → >0.5% error rate over 3d, >=60 observations and >=2
+    # failures in-window, sustained for 6 hours. Consuming error budget at
+    # exactly the SLO rate — trend alert.
     - alert: userJourneyIngressAvailability3d
       expr: |
-        errors:ingress_canary:error_rate > 0.005
+        errors:ingress_canary:total_3d >= 60
+        and
+        errors:ingress_canary:failed_3d >= 2
+        and
+        errors:ingress_canary:error_rate_3d > 0.005
       for: 6h
       labels:
         severity: "4"
@@ -90,14 +107,18 @@ spec:
         long_window: 3d
       annotations:
         summary: "Ingress canary availability trending below SLO for {{ $labels._id }}"
-        description: "More than 0.5% of synthetic canary route observations are failing for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
+        description: "More than 0.5% of synthetic canary route observations failed over the last 3 days for HCP cluster {{ $labels._id }} (at least 60 observations and 2 failures), consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "{{ $labels._id }}"
   # ========================================
   # Ingress Latency SLO Alerts
   # ========================================
-  # Multi-window burn-rate alerting for the ingress canary latency SLI.
-  # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
+  # Multi-window burn-rate alerting for the ingress canary latency SLI,
+  # volume-aware. Same rationale as the availability group above: each tier
+  # reads the windowed error_rate_{1h,6h,3d} records (see
+  # ingress-availability-slo-recordingRule.yaml) plus a volume floor on the
+  # matching total_{1h,6h,3d} check count, instead of gating an instantaneous
+  # ratio purely on `for:`.
   #
   # SLO: 99.5% of synthetic canary route checks complete within 200ms
   # Error Budget: 0.5% (1 - 0.995)
@@ -107,11 +128,8 @@ spec:
   #   Medium (6x):  6 * 0.005 = 0.030    → error rate > 3.0%
   #   Slow (1x):    1 * 0.005 = 0.005    → error rate > 0.5%
   #
-  # errors:ingress_canary_latency:error_rate is the fraction of synthetic canary
-  # route checks exceeding 200ms, derived from the ingress_canary_check_duration
-  # histogram (see ingress-availability-slo-recordingRule.yaml). A breach means the
-  # ingress data path is slow end to end (DNS, load balancer, routing, or router
-  # pods), not a single component.
+  # A breach means the ingress data path is slow end to end (DNS, load
+  # balancer, routing, or router pods), not a single component.
   #
   # Lane: alerts-rp-hcps.yaml → generatedRPHCPPrometheusAlertingRules.bicep
   #       → icm-action-group-rp (ARO-RP on-call queue)
@@ -124,11 +142,13 @@ spec:
     # ----------------------------------------
     # Fast Burn Alert (IcM Sev 3 — customer-facing UJ degraded)
     # ----------------------------------------
-    # 14.4x burn rate → >7.2% error rate sustained for 5 minutes
-    # Would exhaust 30-day error budget in ~50 hours
+    # 14.4x burn rate → >7.2% error rate over 1h, >=10 checks in-window,
+    # sustained for 5 minutes. Would exhaust 30-day error budget in ~50 hours.
     - alert: userJourneyIngressLatency1h5m
       expr: |
-        errors:ingress_canary_latency:error_rate > 0.072
+        errors:ingress_canary_latency:total_1h >= 10
+        and
+        errors:ingress_canary_latency:error_rate_1h > 0.072
       for: 5m
       labels:
         severity: "3"
@@ -137,17 +157,19 @@ spec:
         short_window: 5m
       annotations:
         summary: "Ingress canary latency critically degraded for {{ $labels._id }}"
-        description: "More than 7.2% of synthetic canary route checks are exceeding 200ms for HCP cluster {{ $labels._id }}, indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        description: "More than 7.2% of synthetic canary route checks exceeded 200ms over the last hour for HCP cluster {{ $labels._id }} (at least 10 checks), indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "{{ $labels._id }}"
     # ----------------------------------------
     # Medium Burn Alert (IcM Sev 3)
     # ----------------------------------------
-    # 6x burn rate → >3.0% error rate sustained for 30 minutes
-    # Would exhaust 30-day error budget in ~5 days
+    # 6x burn rate → >3.0% error rate over 6h, >=30 checks in-window,
+    # sustained for 30 minutes. Would exhaust 30-day error budget in ~5 days.
     - alert: userJourneyIngressLatency6h30m
       expr: |
-        errors:ingress_canary_latency:error_rate > 0.030
+        errors:ingress_canary_latency:total_6h >= 30
+        and
+        errors:ingress_canary_latency:error_rate_6h > 0.030
       for: 30m
       labels:
         severity: "3"
@@ -156,17 +178,22 @@ spec:
         short_window: 30m
       annotations:
         summary: "Ingress canary latency degraded for {{ $labels._id }}"
-        description: "More than 3% of synthetic canary route checks are exceeding 200ms for HCP cluster {{ $labels._id }}, indicating a medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
+        description: "More than 3% of synthetic canary route checks exceeded 200ms over the last 6 hours for HCP cluster {{ $labels._id }} (at least 30 checks), indicating a medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "{{ $labels._id }}"
     # ----------------------------------------
     # Slow Burn Alert (IcM Sev 4 — no immediate customer impact)
     # ----------------------------------------
-    # 1x burn rate → >0.5% error rate sustained for 6 hours
-    # Consuming error budget at exactly the SLO rate — trend alert
+    # 1x burn rate → >0.5% error rate over 3d, >=60 checks and >=2 slow checks
+    # in-window, sustained for 6 hours. Consuming error budget at exactly the
+    # SLO rate — trend alert.
     - alert: userJourneyIngressLatency3d
       expr: |
-        errors:ingress_canary_latency:error_rate > 0.005
+        errors:ingress_canary_latency:total_3d >= 60
+        and
+        errors:ingress_canary_latency:slow_3d >= 2
+        and
+        errors:ingress_canary_latency:error_rate_3d > 0.005
       for: 6h
       labels:
         severity: "4"
@@ -174,6 +201,6 @@ spec:
         long_window: 3d
       annotations:
         summary: "Ingress canary latency trending below SLO for {{ $labels._id }}"
-        description: "More than 0.5% of synthetic canary route checks are exceeding 200ms for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
+        description: "More than 0.5% of synthetic canary route checks exceeded 200ms over the last 3 days for HCP cluster {{ $labels._id }} (at least 60 checks and 2 slow checks), consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "{{ $labels._id }}"
