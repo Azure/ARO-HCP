@@ -36,6 +36,8 @@ import (
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	hcpinformers "github.com/openshift/hypershift/client/informers/externalversions/hypershift/v1beta1"
 	hcplisters "github.com/openshift/hypershift/client/listers/hypershift/v1beta1"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -145,7 +147,9 @@ func (c *AMANetworkPolicyController) Run(ctx context.Context, workers int) error
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
-	logger := klog.FromContext(ctx)
+	ctx = utils.ContextWithControllerName(ctx, AMANetworkPolicyControllerName)
+	logger := klog.FromContext(ctx).WithValues(utils.LogValues{}.AddControllerName(AMANetworkPolicyControllerName)...)
+	ctx = klog.NewContext(ctx, logger)
 	logger.Info("Starting AMA NetworkPolicy controller")
 
 	logger.Info("Waiting for informer caches to sync")
@@ -177,6 +181,8 @@ func (c *AMANetworkPolicyController) processNextWorkItem(ctx context.Context) bo
 	}
 	defer c.workqueue.Done(key)
 
+	ctx = utils.ContextWithLogger(ctx, utils.AddLoggerValues(utils.LoggerFromContext(ctx), key))
+
 	err := c.syncHandler(ctx, key)
 	if err == nil {
 		c.workqueue.Forget(key)
@@ -204,6 +210,11 @@ func (c *AMANetworkPolicyController) syncHandler(ctx context.Context, key string
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get HostedControlPlane %q: %w", key, err)
+	}
+
+	if !hcp.DeletionTimestamp.IsZero() {
+		logger.V(4).Info("HostedControlPlane is being deleted, letting GC clean up the NetworkPolicy")
+		return nil
 	}
 
 	return c.reconcile(ctx, hcp)
@@ -239,6 +250,14 @@ func BuildNetworkPolicy(namespace, hcpName string, hcpUID types.UID) *networking
 				WithUID(hcpUID),
 		).
 		WithSpec(networkingac.NetworkPolicySpec().
+			// An empty pod selector intentionally selects every pod in the HCP
+			// namespace so AMA can reach any Prometheus scrape endpoint without
+			// having to enumerate scrape-target labels. Because this is an
+			// ingress policy, selected pods become isolated for ingress and
+			// only accept traffic from the kube-system ama-metrics pods (plus
+			// whatever other NetworkPolicies in the namespace allow); ensure the
+			// HCP namespace's existing policies still permit required
+			// control-plane/workload ingress before enabling this controller.
 			WithPodSelector(metaac.LabelSelector()).
 			WithPolicyTypes(networkingv1.PolicyTypeIngress).
 			WithIngress(networkingac.NetworkPolicyIngressRule().

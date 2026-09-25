@@ -22,6 +22,9 @@ spec:
       sourceLabels:
       - exported_namespace
       targetLabel: namespace
+    - action: replace
+      replacement: hcp
+      targetLabel: microsoft_metrics_include_label
     port: http-metrics
   namespaceSelector:
     matchNames:

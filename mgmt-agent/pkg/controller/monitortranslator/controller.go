@@ -32,6 +32,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -63,8 +65,9 @@ var (
 )
 
 // MonitorTranslatorController watches monitoring.coreos.com/v1 ServiceMonitors
-// and PodMonitors and creates equivalent azmonitoring.coreos.com/v1 resources
-// in namespaces matching a configurable prefix.
+// and PodMonitors that are owned by a HostedControlPlane and creates equivalent
+// azmonitoring.coreos.com/v1 resources so AMA can discover them. Monitors that
+// are not owned by a HostedControlPlane (see hasHCPOwner) are ignored.
 type MonitorTranslatorController struct {
 	dynamicClient dynamic.Interface
 	hasSynced     []cache.InformerSynced
@@ -135,7 +138,9 @@ func (c *MonitorTranslatorController) Run(ctx context.Context, workers int) erro
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
-	logger := klog.FromContext(ctx)
+	ctx = utils.ContextWithControllerName(ctx, MonitorTranslatorControllerName)
+	logger := klog.FromContext(ctx).WithValues(utils.LogValues{}.AddControllerName(MonitorTranslatorControllerName)...)
+	ctx = klog.NewContext(ctx, logger)
 	logger.Info("Starting MonitorTranslator controller")
 
 	logger.Info("Waiting for informer caches to sync")
@@ -166,6 +171,8 @@ func (c *MonitorTranslatorController) processNextWorkItem(ctx context.Context) b
 		return false
 	}
 	defer c.workqueue.Done(key)
+
+	ctx = utils.ContextWithLogger(ctx, utils.AddLoggerValues(utils.LoggerFromContext(ctx), key))
 
 	err := c.syncHandler(ctx, key)
 	if err == nil {
