@@ -103,5 +103,56 @@ The command never deletes keys or secrets directly.`,
 	cmd.Flags().IntVar(&opts.MaxPurges, "max-purges", opts.MaxPurges, "Maximum total purge operations selected per run; immediate purges reserve capacity before deleted-certificate metadata is inspected (must be positive; also caps dry-run).")
 	cmd.Flags().IntVar(&opts.Workers, "workers", opts.Workers, "Maximum concurrent certificate delete/purge chains (must be positive).")
 	cmd.Flags().DurationVar(&timeout, "timeout", 30*time.Minute, "Overall timeout, including discovery and all Azure requests (must be positive).")
+	cmd.AddCommand(newInventoryCommand())
 	return cmd
+}
+
+func newInventoryCommand() *cobra.Command {
+	opts := certificates.InventoryOptions{IncludePending: true}
+	var timeout time.Duration
+	cmd := &cobra.Command{
+		Use:   "inventory",
+		Short: "Stream active certificate metadata from the shared dev service vault as CSV.",
+		Long: `Read every active certificate metadata page from aro-hcp-dev-svc-kv.vault.azure.net and stream CSV to stdout.
+This command does not apply cleanup eligibility rules, inventory resource groups, read certificate contents, or mutate Key Vault.
+Progress is written to stderr after each page. Scope and output format cannot be overridden.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := rejectParentFlags(cmd, "ci-certificates inventory"); err != nil {
+				return err
+			}
+			if err := opts.Validate(); err != nil {
+				return err
+			}
+			if timeout <= 0 {
+				return fmt.Errorf("--timeout must be positive")
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
+			defer cancel()
+			cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
+			if err != nil {
+				return fmt.Errorf("create Azure credential: %w", err)
+			}
+			return certificates.Inventory(ctx, cred, opts, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		},
+	}
+	cmd.Flags().BoolVar(&opts.IncludePending, "include-pending", opts.IncludePending, "Include certificates whose creation is still pending.")
+	cmd.Flags().IntVar(&opts.MaxItems, "max-items", opts.MaxItems, "Maximum certificate rows to write; zero inventories every page.")
+	cmd.Flags().DurationVar(&timeout, "timeout", 2*time.Hour, "Overall inventory timeout (must be positive).")
+	return cmd
+}
+
+func rejectParentFlags(cmd *cobra.Command, command string) error {
+	var parentFlags []string
+	for parent := cmd.Parent(); parent != nil; parent = parent.Parent() {
+		parent.LocalNonPersistentFlags().VisitAll(func(flag *pflag.Flag) {
+			if flag.Changed {
+				parentFlags = append(parentFlags, "--"+flag.Name)
+			}
+		})
+	}
+	if len(parentFlags) > 0 {
+		return fmt.Errorf("%s rejects parent command flags %s; scope is fixed to %s", command, strings.Join(parentFlags, ", "), certificates.VaultURL)
+	}
+	return nil
 }

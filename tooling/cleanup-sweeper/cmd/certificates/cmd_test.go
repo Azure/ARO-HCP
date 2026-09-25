@@ -52,6 +52,21 @@ func TestDefaultsAndRegistration(t *testing.T) {
 	if minAge, _ := child.Flags().GetDuration("min-age"); minAge != 24*time.Hour {
 		t.Fatalf("min-age = %s", minAge)
 	}
+
+	inventory, _, err := child.Find([]string{"inventory"})
+	if err != nil || inventory.Name() != "inventory" {
+		t.Fatalf("inventory subcommand not registered: %v", err)
+	}
+	for flag, expected := range map[string]string{"include-pending": "true", "max-items": "0", "timeout": "2h0m0s"} {
+		if actual := inventory.Flags().Lookup(flag).DefValue; actual != expected {
+			t.Errorf("inventory --%s default = %s, want %s", flag, actual, expected)
+		}
+	}
+	for _, flag := range []string{"dry-run", "delete-active", "purge-deleted", "min-age", "max-deletions", "max-purges", "workers", "vault"} {
+		if inventory.Flags().Lookup(flag) != nil {
+			t.Errorf("unexpected inventory mutation/scope flag --%s", flag)
+		}
+	}
 }
 
 func TestInvalidFlagsFailBeforeCredentials(t *testing.T) {
@@ -132,6 +147,31 @@ func TestRootFlagIsolation(t *testing.T) {
 			}
 			if strings.Contains(test.message, "rejects parent") && !strings.Contains(err.Error(), "scope is fixed to https://aro-hcp-dev-svc-kv.vault.azure.net and both DEV infrastructure guard subscriptions") {
 				t.Fatalf("error does not explain the fixed scope: %v", err)
+			}
+		})
+	}
+}
+
+func TestInventoryInvalidFlagsFailBeforeCredentials(t *testing.T) {
+	t.Setenv("AZURE_TOKEN_CREDENTIALS", "")
+	for _, test := range []struct {
+		args    []string
+		message string
+	}{
+		{[]string{"inventory", "--max-items=-1"}, "--max-items must not be negative"},
+		{[]string{"inventory", "--timeout=0s"}, "--timeout must be positive"},
+		{[]string{"inventory", "--timeout=-1s"}, "--timeout must be positive"},
+		{[]string{"inventory", "--dry-run"}, "unknown flag"},
+		{[]string{"--dry-run", "inventory"}, "unknown flag"},
+	} {
+		t.Run(strings.Join(test.args, " "), func(t *testing.T) {
+			cmd := certificates.NewCommand()
+			cmd.SetOut(io.Discard)
+			cmd.SetErr(io.Discard)
+			cmd.SetArgs(test.args)
+			err := cmd.ExecuteContext(t.Context())
+			if err == nil || !strings.Contains(err.Error(), test.message) {
+				t.Fatalf("error = %v, want %q", err, test.message)
 			}
 		})
 	}

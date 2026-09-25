@@ -117,6 +117,22 @@ AZURE_CONFIG_DIR="$HOME/.azure-redhat" AZURE_TOKEN_CREDENTIALS=AzureCLICredentia
     --max-purges=1000 --workers=2 --timeout=30m
 ```
 
+To inspect every active certificate without applying cleanup eligibility rules
+or loading resource-group owners, use the read-only inventory subcommand:
+
+```bash
+AZURE_TOKEN_CREDENTIALS=dev \
+  go run ./tooling/cleanup-sweeper ci-certificates inventory \
+    --timeout=2h > aro-hcp-dev-svc-kv-certificates.csv
+```
+
+The command follows every Key Vault page through the SDK and streams CSV rows to
+stdout as they arrive. Page-level progress is written to stderr, so redirecting
+stdout produces a valid CSV while retaining visible progress. `--max-items`
+provides a bounded rehearsal and defaults to zero, meaning no item limit. The
+inventory command is fixed to the shared DEV service vault, includes pending
+certificates by default, reads metadata only, and has no mutation path.
+
 The command defaults to dry-run and has no vault or subscription override. It
 targets only `aro-hcp-dev-svc-kv` and checks resource groups in both DEV
 infrastructure subscriptions, `1d3378d3-5a3f-4712-85a1-2485495dfc4b` and
