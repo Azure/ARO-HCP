@@ -172,6 +172,48 @@ func TestServiceLogs_NoClusterIds(t *testing.T) {
 	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
+func TestOperationIdsQuery(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	def, err := f.GetBuiltinQueryDefinition("operationIds")
+	require.NoError(t, err)
+	for _, scoped := range []bool{false, true} {
+		t.Run(fmt.Sprintf("clusterScoped_%t", scoped), func(t *testing.T) {
+			data := NewTemplateDataFromOptions(baseOptions())
+			if scoped {
+				WithClusterIds([]string{"cid1", "cid2"})(&data)
+			}
+			queries, err := f.Build(*def, data)
+			require.NoError(t, err)
+			require.Len(t, queries, 1)
+			testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+		})
+	}
+}
+
+func TestFrontendQueriesWithOperationIds(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	for _, name := range []string{"serviceLogs", "debugQueries", "detailedServiceLogs"} {
+		t.Run(name, func(t *testing.T) {
+			var def *QueryDefinition
+			var err error
+			if name == "serviceLogs" {
+				def, err = f.GetBuiltinQueryDefinition(name)
+			} else {
+				def, err = f.GetCustomQueryDefinition(name)
+			}
+			require.NoError(t, err)
+			queries, err := f.Build(*def, NewTemplateDataFromOptions(baseOptions(),
+				WithTable("frontendLogs"), WithClusterIds([]string{"cid1"}),
+				WithOperationIds([]string{"773f5d4a-cd7a-4e25-ac56-58130cbed2d2", "operation'quoted"}),
+			))
+			require.NoError(t, err)
+			testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+		})
+	}
+}
+
 func TestVersionRolloutQueries(t *testing.T) {
 	for _, name := range []string{"versionRolloutLogs", "versionRolloutSnapshots"} {
 		for _, limit := range []int{100, -1} {

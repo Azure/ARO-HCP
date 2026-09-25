@@ -1,0 +1,12 @@
+database: ServiceLogs
+kql: |
+  frontendLogs
+  | where timestamp between(datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+  | where column_ifexists("cid", "") in ('cid1')
+      or (log has '/subscriptions/test-sub/resourceGroups/test-rg' and log has_any ('cid1'))
+      or resource_name in~ ('773f5d4a-cd7a-4e25-ac56-58130cbed2d2', 'operation''quoted')
+  | project timestamp, log, cluster, namespace_name, container_name
+  | order by timestamp asc
+  | limit 100
+name: serviceLogs
+unlimited: false

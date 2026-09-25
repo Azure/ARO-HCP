@@ -133,9 +133,11 @@ type TemplateData struct {
 	ClusterName        string
 	ClusterNames       string
 	SubResourceGroupId string
+	SubscriptionId     string
 	ResourceGroupName  string
 	ClusterId          string
 	ClusterIds         string
+	OperationIds       string
 	FilterClusterName  string
 	HCPNamespacePrefix string
 	// Namespace is the Kubernetes namespace to scope a query to (e.g. an
@@ -164,6 +166,12 @@ func WithClusterId(clusterId string) TemplateDataOptions {
 func WithClusterIds(clusterIds []string) TemplateDataOptions {
 	return func(d *TemplateData) {
 		d.ClusterIds = kqlEscStrList(clusterIds)
+	}
+}
+
+func WithOperationIds(operationIds []string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.OperationIds = kqlEscStrList(operationIds)
 	}
 }
 
@@ -214,6 +222,7 @@ func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDa
 		NoTruncation:       queryOptions.Limit < 0,
 		Limit:              max(queryOptions.Limit, 0),
 		SubResourceGroupId: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", kqlEscStr(queryOptions.SubscriptionId), kqlEscStr(queryOptions.ResourceGroupName)),
+		SubscriptionId:     kqlEscStr(queryOptions.SubscriptionId),
 		ResourceGroupName:  kqlEscStr(queryOptions.ResourceGroupName),
 		SplitByPod:         queryOptions.SplitByPod,
 		OrderBy:            queryOptions.OrderBy.String(),

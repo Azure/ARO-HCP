@@ -1,0 +1,13 @@
+database: ServiceLogs
+kql: |
+  // RP Frontend: this component serves customer requests as proxied from ARM, we should see requests come in and
+  // be dispatched to the user without errors. Anomalous requests or errors in this log are a bug in the frontend,
+  // if there are no anomalies here, check the backend logs for why our RP failed to correctly provision a cluster.
+  database('ServiceLogs').table('frontendLogs')
+  | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+  | where resource_group == 'test-rg'
+      or resource_name in~ ('773f5d4a-cd7a-4e25-ac56-58130cbed2d2', 'operation''quoted')
+  | where msg == 'request received' or msg == 'response complete'
+  | project timestamp, msg, request_method, request_path, request_query, response_status_code
+name: debugFrontendLogs
+unlimited: false
