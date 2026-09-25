@@ -8,3 +8,4 @@ param kustoConsumerGroupName = '{{ .maestroMqttEventHub.kustoConsumerGroupName }
 param kustoDataConnectionName = '{{ .maestroMqttEventHub.kustoDataConnectionName }}'
 param kustoEnabled = {{ .arobit.kusto.enabled }}
 param eventhubEnabled = {{ .auditLogsEventHub.enabled }}
+param bootstrapTables = {{ .maestroMqttEventHub.bootstrapTables }}

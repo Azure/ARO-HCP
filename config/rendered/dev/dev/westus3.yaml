@@ -634,6 +634,7 @@ maestro:
     managedIdentityName: maestro-server
     mqttClientName: maestro-server-usw3-dev
 maestroMqttEventHub:
+  bootstrapTables: true
   kustoConsumerGroupName: MaestroMqttToKusto
   kustoDataConnectionName: dev-westus3-maestro-mqtt
   name: maestro-mqtt-connections

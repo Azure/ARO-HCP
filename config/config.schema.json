@@ -2390,13 +2390,18 @@
         "kustoDataConnectionName": {
           "type": "string",
           "description": "Name of the Kusto data connection for Maestro MQTT diagnostics"
+        },
+        "bootstrapTables": {
+          "type": "boolean",
+          "description": "Create the MQTT connection tables before the dev Region data connection"
         }
       },
       "additionalProperties": false,
       "required": [
         "name",
         "kustoConsumerGroupName",
-        "kustoDataConnectionName"
+        "kustoDataConnectionName",
+        "bootstrapTables"
       ]
     },
     "mise": {
