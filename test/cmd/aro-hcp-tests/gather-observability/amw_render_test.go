@@ -95,6 +95,29 @@ func TestAMWRenderCapacityPairing(t *testing.T) {
 	}
 }
 
+func TestAMWRenderUnsplitWorkspace(t *testing.T) {
+	end := amwRenderStart.Add(time.Minute)
+	u, warnings := amwReadRenderSeries(amwRenderTestMetric("ActiveTimeSeries", amwRenderTestSeries(nil, to.Ptr(50.0))), amwRenderStart, end)
+	l, _ := amwReadRenderSeries(amwRenderTestMetric("ActiveTimeSeriesLimit", amwRenderTestSeries(nil, to.Ptr(100.0))), amwRenderStart, end)
+	rows := amwCapacityRows(u, l, amwRenderStart)
+	if len(warnings) != 0 || len(rows) != 1 || rows[0].Label != "Workspace (unsplit)" || rows[0].Utilization != "50%" {
+		t.Fatalf("unsplit workspace capacity must render without a StampColor dimension: rows=%+v warnings=%v", rows, warnings)
+	}
+	for _, name := range []string{"EventsDropped", "TimeSeriesSamplesDropped"} {
+		series, warnings := amwReadRenderSeries(amwRenderTestMetric(name, amwRenderTestSeries(map[string]string{"reason": "LimitThrottling"}, to.Ptr(12.0))), amwRenderStart, end)
+		if len(series) != 1 || len(warnings) != 0 || series[0].Dimensions["reason"] != "LimitThrottling" {
+			t.Fatalf("%s: Reason-only series rejected: %+v %v", name, series, warnings)
+		}
+	}
+	// An unsplit response must not borrow a limit from a split response.
+	l, _ = amwReadRenderSeries(amwRenderTestMetric("ActiveTimeSeriesLimit", amwRenderTestSeries(map[string]string{"StampColor": "blue"}, to.Ptr(100.0))), amwRenderStart, end)
+	for _, row := range amwCapacityRows(u, l, amwRenderStart) {
+		if row.Utilization != "unknown" {
+			t.Fatalf("mixed scopes paired: %+v", row)
+		}
+	}
+}
+
 func TestAMWRenderCapacityLimits(t *testing.T) {
 	for _, tc := range []struct {
 		name                  string
@@ -136,7 +159,7 @@ func TestAMWRenderValidation(t *testing.T) {
 		{"nil metric", func(m *amwMetric) { m.Response.Value = []*armmonitor.Metric{nil} }, false, "exactly once"},
 		{"duplicate metric", func(m *amwMetric) { m.Response.Value = append(m.Response.Value, m.Response.Value[0]) }, false, "exactly once"},
 		{"wrong aggregation", func(m *amwMetric) { m.Aggregation = "Total" }, false, "aggregation"},
-		{"missing stamp", func(m *amwMetric) { m.Response.Value[0].Timeseries[0].Metadatavalues = nil }, false, "dimensions"},
+		{"unsplit workspace", func(m *amwMetric) { m.Response.Value[0].Timeseries[0].Metadatavalues = nil }, true, ""},
 		{"duplicate stamp", func(m *amwMetric) {
 			s := m.Response.Value[0].Timeseries[0]
 			s.Metadatavalues = append(s.Metadatavalues, &armmonitor.MetadataValue{Name: &armmonitor.LocalizableString{Value: to.Ptr("stampcolor")}, Value: to.Ptr("green")})
@@ -179,8 +202,19 @@ func TestAMWRenderSamplesAndGaps(t *testing.T) {
 	}
 	chart, budget := amwRenderChart{Series: series}, 96
 	amwPrepareChart(&chart, amwRenderStart, &budget)
-	if path := chart.Series[0].Path; strings.Count(path, "M") != 3 || strings.Contains(path, "L") || strings.Contains(path, "NaN") || strings.Contains(path, "Inf") {
-		t.Fatalf("isolated numeric observations must remain visible without bridging gaps: %q", path)
+	var options struct {
+		Series []struct {
+			Data []struct {
+				Value []any `json:"value"`
+			} `json:"data"`
+			ConnectNulls bool `json:"connectNulls"`
+		} `json:"series"`
+	}
+	if err := json.Unmarshal([]byte(chart.Options), &options); err != nil {
+		t.Fatal(err)
+	}
+	if len(options.Series) != 1 || options.Series[0].ConnectNulls || len(options.Series[0].Data) != 8 || options.Series[0].Data[1].Value[1] != nil || options.Series[0].Data[0].Value[1] != float64(0) {
+		t.Fatalf("ECharts must preserve zero and missing minutes without connecting gaps: %s", chart.Options)
 	}
 	if chart.Rows[0].Usage != "7" || chart.Rows[0].At != "2026-09-20T12:07:00Z" {
 		t.Fatalf("latest must exclude the End sample: %+v", chart.Rows)
@@ -282,23 +316,32 @@ func TestAMWRenderHTML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render synthetic report: %v", err)
 	}
-	for _, want := range []string{"ActiveTimeSeries + limit", "EventsPerMinuteIngested + limit", "EventsDropped | Reason=LimitThrottling", "TimeSeriesSamplesDropped | Reason=LimitThrottling", "FutureUnknownReason", "InvalidLabel", "InputStreamId=", "ResponseCode=429", "15,000 requests/min", "50 GB/min", "Original requested bounds", "Synthetic partial response", `href="amw.json"`, "aggregation=Maximum", "aggregation=Total", "Table summary remains available", "stroke-dasharray", `name="viewport"`, "grid-template-columns: minmax(0, 1fr)"} {
+	for _, want := range []string{"Active time series", "Events per minute", "EventsDropped", "TimeSeriesSamplesDropped", "FutureUnknownReason", "InvalidLabel", "InputStreamId=", "Synthetic partial response", `href="amw.json"`, `"type":"dashed"`, `"trigger":"axis"`, `"useUTC":true`, `name="viewport"`, "grid-template-columns:minmax(0,1fr)"} {
 		if !strings.Contains(html.UnescapeString(string(output)), want) {
 			t.Errorf("HTML missing %q", want)
 		}
 	}
-	if strings.Contains(string(output), "<script") || strings.Contains(string(output), "echarts") || strings.Contains(string(output), "ZgotmplZ") {
-		t.Fatal("offline rendering must not require scripts or contain rejected template values")
+	if !strings.Contains(string(output), "echarts.init") || strings.Contains(string(output), "ZgotmplZ") {
+		t.Fatal("expected ECharts initialization without rejected template values")
 	}
 	doc, err := html.Parse(strings.NewReader(string(output)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	articles := 0
+	figures := 0
 	var walk func(*html.Node)
 	walk = func(node *html.Node) {
-		if node.Type == html.ElementNode && node.Data == "article" {
-			articles++
+		if node.Type == html.ElementNode && node.Data == "th" {
+			scoped := false
+			for _, attribute := range node.Attr {
+				scoped = scoped || attribute.Key == "scope" && attribute.Val == "col"
+			}
+			if !scoped {
+				t.Error("table header missing column scope")
+			}
+		}
+		if node.Type == html.ElementNode && node.Data == "figure" {
+			figures++
 			var text strings.Builder
 			var collect func(*html.Node)
 			collect = func(n *html.Node) {
@@ -311,11 +354,12 @@ func TestAMWRenderHTML(t *testing.T) {
 			}
 			collect(node)
 			content := text.String()
-			if strings.Contains(content, "| Reason=LimitThrottling") && (strings.Contains(content, "FutureUnknownReason") || strings.Contains(content, "InvalidLabel")) {
-				t.Error("throttling chart mixed in other drop reasons")
-			}
-			if strings.Contains(content, "| ResponseCode=429") && (strings.Contains(content, `ResponseCode="204"`) || strings.Contains(content, `ResponseCode="503"`)) {
-				t.Error("429 chart mixed in other response codes")
+			if strings.Contains(content, "EventsDropped") || strings.Contains(content, "TimeSeriesSamplesDropped") {
+				for _, reason := range []string{"LimitThrottling", "FutureUnknownReason", "InvalidLabel"} {
+					if !strings.Contains(content, reason) {
+						t.Errorf("drop chart must include all reasons, missing %s", reason)
+					}
+				}
 			}
 		}
 		for child := node.FirstChild; child != nil; child = child.NextSibling {
@@ -323,8 +367,11 @@ func TestAMWRenderHTML(t *testing.T) {
 		}
 	}
 	walk(doc)
-	if articles != 8 {
-		t.Errorf("want six workspace and two DCR plots, got %d", articles)
+	if figures != 5 {
+		t.Errorf("want four workspace and one DCR plots, got %d", figures)
+	}
+	if !strings.Contains(string(output), `<th scope="col">Utilization</th>`) || strings.Contains(string(output), ">Used</th>") {
+		t.Error("capacity percentage must be labeled Utilization")
 	}
 	if directory := os.Getenv("AMW_RENDER_FIXTURE"); directory != "" {
 		if err := os.WriteFile(filepath.Join(directory, "amw.html"), output, 0600); err != nil {
@@ -337,6 +384,65 @@ func TestAMWRenderHTML(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(directory, "amw.json"), raw, 0600); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestAMWRenderInitiallyMinimal(t *testing.T) {
+	report := amwRenderFixture()
+	second := report.Resources[0]
+	second.Name = "second-workspace"
+	// CI returns DCRs before workspaces; presentation must not use that order.
+	report.Resources = []amwResource{report.Resources[1], second, report.Resources[0]}
+	output, err := renderAMWHTML(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(output), "/subscriptions/") {
+		t.Fatal("full ARM IDs must not appear in the pane")
+	}
+	doc, err := html.Parse(strings.NewReader(string(output)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibleGraphs, openSections := 0, 0
+	var resources []string
+	var walk func(*html.Node, bool)
+	walk = func(node *html.Node, hidden bool) {
+		if node.Type == html.ElementNode && node.Data == "details" {
+			open, resource := false, false
+			for _, attr := range node.Attr {
+				open = open || attr.Key == "open"
+				resource = resource || attr.Key == "class" && attr.Val == "resource"
+			}
+			if open {
+				openSections++
+			}
+			if resource {
+				var text strings.Builder
+				var collect func(*html.Node)
+				collect = func(n *html.Node) {
+					if n.Type == html.TextNode {
+						text.WriteString(n.Data)
+					}
+					for c := n.FirstChild; c != nil; c = c.NextSibling {
+						collect(c)
+					}
+				}
+				collect(node.FirstChild.NextSibling)
+				resources = append(resources, text.String())
+			}
+			hidden = hidden || !open
+		}
+		if node.Type == html.ElementNode && node.Data == "figure" && !hidden {
+			visibleGraphs++
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child, hidden)
+		}
+	}
+	walk(doc, false)
+	if visibleGraphs != 2 || openSections != 1 || len(resources) != 3 || !strings.Contains(resources[0], "int-uksouth-monitor") || !strings.Contains(resources[1], "second-workspace") || !strings.Contains(resources[2], "DCR") {
+		t.Fatalf("initial view: %d graphs, %d open sections, resources=%v", visibleGraphs, openSections, resources)
 	}
 }
 
@@ -354,7 +460,7 @@ func TestAMWRenderEscapingAndErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"<script>", "<img", "RAW-SDK-BODY-NOT-FOR-HTML"} {
+	for _, forbidden := range []string{"<script>alert", "<img", "RAW-SDK-BODY-NOT-FOR-HTML"} {
 		if strings.Contains(string(output), forbidden) {
 			t.Errorf("HTML contains unsafe or raw content %q", forbidden)
 		}
@@ -416,5 +522,23 @@ func TestAMWRenderBoundsAndFallback(t *testing.T) {
 	b, _ := amwReadRenderSeries(duplicate, amwRenderStart, amwRenderStart.Add(time.Minute))
 	if len(a) != 1 || len(b) != 1 || a[0].Key != b[0].Key {
 		t.Fatalf("duplicate suppression must be order independent: %v, %v", a, b)
+	}
+}
+
+func TestAMWChartBudgetIgnoresMissingSeries(t *testing.T) {
+	for _, budgetSize := range []int{1, 96} {
+		var series []amwRenderSeries
+		for i := 0; i < amwPlotSeriesLimit; i++ {
+			series = append(series, amwRenderSeries{Label: fmt.Sprintf("empty-%d", i), Values: []*float64{nil}})
+		}
+		series = append(series, amwRenderSeries{Label: "measured", Values: []*float64{to.Ptr(0.0)}})
+		chart, budget := amwRenderChart{Series: series}, budgetSize
+		amwPrepareChart(&chart, amwRenderStart, &budget)
+		if len(chart.Series) != 1 || chart.Series[0].Label != "measured" || chart.Options == "" || budget != budgetSize-1 || len(chart.Warnings) != 0 {
+			t.Fatalf("empty series consumed plot budget: budget=%d chart=%+v", budget, chart)
+		}
+		if len(chart.Rows) != amwPlotSeriesLimit+1 || chart.Rows[0].Usage != "unknown" {
+			t.Fatal("unknown series must remain in the value table")
+		}
 	}
 }
