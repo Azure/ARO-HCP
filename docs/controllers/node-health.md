@@ -36,9 +36,32 @@ linked Jira evidence record.
 
 Detectors are tested Go units in
 [`mgmt-agent/pkg/controller/nodehealth/detectors`](../../mgmt-agent/pkg/controller/nodehealth/detectors).
-The registry uses stable names and the `Detector` interface: `Applies`,
-`Evaluate`, `MeetsThreshold`, `Name` and `Reason`. Signatures, thresholds and
-applicability are code constants, not runtime expressions.
+Each detector has its own implementation and a stable name in
+`registeredDetectors`. The shared `Detector` interface defines `Name`, `Scope`,
+`Reason`, `Applies` and `Window`. Signatures, thresholds and applicability are
+code constants, not runtime expressions.
+
+| Detector | Result scope | Evaluation interface |
+| --- | --- | --- |
+| `swift-vf-teardown` | Node | `PodDetector`: `Evaluate` and `MeetsThreshold`. |
+| `cni-plugin-not-initialized` | Node | `PodDetector`: `Evaluate` and `MeetsThreshold`. |
+| `never-ready` | Node | `NodeDetector`: `EvaluateNode`. |
+| `swift-pod-sandbox-stalled` | Pod | `PodScopedDetector`: `EvaluatePod`. |
+
+Scope describes the result, not the source of evidence: a `PodDetector` uses
+Pods and Events to diagnose a whole node. Each detector implements exactly one
+evaluation interface.
+
+| Consumer | Selection and responsibility |
+| --- | --- |
+| `node-health` | `Decide` evaluates node-scoped detectors for health labels, preserving detector precedence, positive recovery and Unknown semantics. |
+| `node-mitigation` | `CollectDetections` supplies the node-wide verdict and independent Pod faults; the separate [mitigator registry](node-mitigation.md#named-mitigators) routes supported detector names to actions. |
+
+Pod-scoped faults do not establish node-label ownership. Successful neighbors
+can suppress a node-wide wedge without suppressing an individual Pod fault.
+Candidate collection and fresh action admission use the same registered
+detector logic, including current applicability. Registering a detector does
+not authorize disruption.
 
 Evaluation reads current Node, Pod and retained Event state with an injected
 clock. Shared informers enqueue affected Nodes; an Event index uses
@@ -131,6 +154,11 @@ wedge. It is separate from the strong node-health label.
 | Fault | Matching sandbox failures correlated by Pod UID, namespace and `Event.Source.Host`. |
 | Duration | Sustained matching fault span of at least 60 seconds, with matching activity within the last 60 seconds. |
 | Lower bound | Span starts no earlier than scheduling, Pod creation and the sandbox-false transition. |
+
+Each contributing Event must have activity within the last 60 seconds. Only
+overlapping or touching first/last timestamp intervals form a shared span;
+disconnected Events cannot supply the dwell. Aggregated Events do not expose
+the timing of every retry within an interval.
 
 Successful neighbors do not suppress this pod-scoped signal. A lone warning,
 cumulative Event count, image-pull delay or ordinary application-readiness

@@ -170,6 +170,8 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - SWIFT pod eviction, gated never-ready AKS deletion, and durable budget/operation accounting
 - [Node Health and Mitigation Evidence](controllers/node-mitigation-evidence.md)
   - Rationale, validation methodology and the access-controlled evidence record
+- [Node Mitigation Operations](controllers/node-mitigation-operations.md)
+  - SWIFT pod eviction, workload and placement checks, configuration and durable accounting
 - [Node Rollout Pre-Merge Check](node-rollout-premerge-check.md)
   - Pre-merge check procedure to avoid unexpected node rollouts in production
 - [DEV CI Telemetry Exporter (`tenant-quota`)](../tooling/tenant-quota/README.md)
