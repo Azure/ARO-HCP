@@ -66,6 +66,8 @@ type neverReadyDetector struct{}
 // Name returns the detector's stable identifier.
 func (neverReadyDetector) Name() string { return "never-ready" }
 
+func (neverReadyDetector) Scope() Scope { return NodeScope }
+
 // Reason returns the human-readable explanation recorded on a labeled node.
 func (neverReadyDetector) Reason() string {
 	return "node registered but never reached Ready: node lifecycle does not rescue a node that never started, so it needs reimaging"
