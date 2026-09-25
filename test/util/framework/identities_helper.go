@@ -592,6 +592,7 @@ func (tc *perItOrDescribeTestContext) cleanupRoleAssignments(ctx context.Context
 
 	// Delete only the role assignments we created
 	var errs []error
+	deleted := make(map[string]bool, len(assignmentIDsToDelete))
 	for _, assignmentID := range assignmentIDsToDelete {
 		ginkgo.GinkgoLogr.Info("Deleting role assignment created by this test",
 			"assignmentID", assignmentID)
@@ -601,13 +602,21 @@ func (tc *perItOrDescribeTestContext) cleanupRoleAssignments(ctx context.Context
 			var respErr *azcore.ResponseError
 			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
 				ginkgo.GinkgoLogr.Info("Role assignment already deleted", "assignmentID", assignmentID)
+				deleted[assignmentID] = true
 				continue
 			}
 			errs = append(errs, fmt.Errorf("failed to delete role assignment %s: %w", assignmentID, err))
 		} else {
 			ginkgo.GinkgoLogr.Info("Successfully deleted role assignment", "assignmentID", assignmentID)
+			deleted[assignmentID] = true
 		}
 	}
+
+	// Drop already-deleted assignments so a later cleanup pass (the deferred
+	// releaseLeasedIdentities) does not re-delete them and generate spurious 404s.
+	tc.contextLock.Lock()
+	tc.createdRoleAssignmentIDs = slices.DeleteFunc(tc.createdRoleAssignmentIDs, func(id string) bool { return deleted[id] })
+	tc.contextLock.Unlock()
 
 	if len(errs) > 0 {
 		return fmt.Errorf("failed to delete some role assignments: %w", errors.Join(errs...))

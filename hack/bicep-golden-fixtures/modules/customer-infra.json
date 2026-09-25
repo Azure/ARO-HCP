@@ -6,111 +6,167 @@
       "name": "bicep"
     }
   },
-  "parameters": {
-    "persistTagValue": {
-      "type": "bool",
-      "defaultValue": false,
-      "metadata": {
-        "description": "If set to true, the cluster will not be deleted automatically after few days."
-      }
-    },
-    "customerNsgName": {
-      "type": "string",
-      "defaultValue": "customer-nsg",
-      "metadata": {
-        "description": "Network Security Group Name"
-      }
-    },
-    "customerVnetName": {
-      "type": "string",
-      "defaultValue": "customer-vnet",
-      "metadata": {
-        "description": "Virtual Network Name"
-      }
-    },
-    "customerVnetSubnetName": {
-      "type": "string",
-      "defaultValue": "customer-subnet-1",
-      "metadata": {
-        "description": "Subnet Name"
-      }
-    },
-    "customerEtcdEncryptionKeyName": {
-      "type": "string",
-      "defaultValue": "etcd-data-kms-encryption-key",
+  "outputs": {
+    "etcdEncryptionKeyName": {
       "metadata": {
         "description": "The name of the encryption key for etcd"
-      }
-    },
-    "clusterName": {
+      },
       "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Cluster name used to ensure unique resource names within the resource group"
-      }
+      "value": "[parameters('customerEtcdEncryptionKeyName')]"
     },
-    "privateKeyVault": {
-      "type": "bool",
-      "defaultValue": false,
+    "etcdEncryptionKeyVersion": {
       "metadata": {
-        "description": "If set to true, creates a private KeyVault with publicNetworkAccess disabled"
-      }
+        "description": "The version of the etcd encryption key"
+      },
+      "type": "string",
+      "value": "[last(split(reference(resourceId('Microsoft.KeyVault/vaults/keys', variables('customerKeyVaultName'), parameters('customerEtcdEncryptionKeyName')), '2024-12-01-preview').keyUriWithVersion, '/'))]"
     },
+    "keyVaultName": {
+      "metadata": {
+        "description": "Key Vault Name"
+      },
+      "type": "string",
+      "value": "[variables('customerKeyVaultName')]"
+    },
+    "nsgID": {
+      "metadata": {
+        "description": "Network Security Group Resource ID"
+      },
+      "type": "string",
+      "value": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('customerNsgName'))]"
+    },
+    "nsgName": {
+      "metadata": {
+        "description": "Network Security Group Name"
+      },
+      "type": "string",
+      "value": "[parameters('customerNsgName')]"
+    },
+    "vnetIntegrationSubnetID": {
+      "metadata": {
+        "description": "Customer VNet Integration Subnet Resource ID"
+      },
+      "type": "string",
+      "value": "[format('{0}/subnets/customer-vnet-integration-subnet', resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName')))]"
+    },
+    "vnetName": {
+      "metadata": {
+        "description": "Virtual Network Name"
+      },
+      "type": "string",
+      "value": "[parameters('customerVnetName')]"
+    },
+    "vnetSubnetID": {
+      "metadata": {
+        "description": "Customer VNet Subnet Resource ID"
+      },
+      "type": "string",
+      "value": "[format('{0}/subnets/{1}', resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName')), parameters('customerVnetSubnetName'))]"
+    },
+    "vnetSubnetName": {
+      "metadata": {
+        "description": "Subnet Name"
+      },
+      "type": "string",
+      "value": "[parameters('customerVnetSubnetName')]"
+    }
+  },
+  "parameters": {
     "assignKeyVaultCryptoOfficer": {
-      "type": "bool",
       "defaultValue": false,
       "metadata": {
         "description": "Assign Key Vault Crypto Officer role to the deployer on the customer KeyVault that contains etcd encryption key"
-      }
+      },
+      "type": "bool"
     },
-    "enableKeyVaultSoftDelete": {
-      "type": "bool",
-      "defaultValue": false,
+    "clusterName": {
+      "defaultValue": "",
       "metadata": {
-        "description": "Enable soft delete on the customer Key Vault"
-      }
+        "description": "Cluster name used to ensure unique resource names within the resource group"
+      },
+      "type": "string"
+    },
+    "customerEtcdEncryptionKeyName": {
+      "defaultValue": "etcd-data-kms-encryption-key",
+      "metadata": {
+        "description": "The name of the encryption key for etcd"
+      },
+      "type": "string"
+    },
+    "customerNsgName": {
+      "defaultValue": "customer-nsg",
+      "metadata": {
+        "description": "Network Security Group Name"
+      },
+      "type": "string"
+    },
+    "customerVnetName": {
+      "defaultValue": "customer-vnet",
+      "metadata": {
+        "description": "Virtual Network Name"
+      },
+      "type": "string"
+    },
+    "customerVnetSubnetName": {
+      "defaultValue": "customer-subnet-1",
+      "metadata": {
+        "description": "Subnet Name"
+      },
+      "type": "string"
     },
     "enableKeyVaultPurgeProtection": {
-      "type": "bool",
       "defaultValue": false,
       "metadata": {
         "description": "Enable purge protection on the customer Key Vault (requires soft delete)"
-      }
+      },
+      "type": "bool"
+    },
+    "enableKeyVaultSoftDelete": {
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable soft delete on the customer Key Vault"
+      },
+      "type": "bool"
     },
     "keyVaultSoftDeleteRetentionInDays": {
-      "type": "int",
       "defaultValue": 7,
       "metadata": {
         "description": "Soft delete retention in days"
-      }
+      },
+      "type": "int"
+    },
+    "persistTagValue": {
+      "defaultValue": false,
+      "metadata": {
+        "description": "If set to true, the cluster will not be deleted automatically after few days."
+      },
+      "type": "bool"
+    },
+    "privateKeyVault": {
+      "defaultValue": false,
+      "metadata": {
+        "description": "If set to true, creates a private KeyVault with publicNetworkAccess disabled"
+      },
+      "type": "bool"
     }
-  },
-  "variables": {
-    "randomSuffix": "[toLower(uniqueString(resourceGroup().id, parameters('clusterName')))]",
-    "customerKeyVaultName": "[format('cust-kv-{0}', variables('randomSuffix'))]",
-    "addressPrefix": "10.0.0.0/16",
-    "subnetPrefix": "10.0.0.0/24",
-    "vnetIntegrationSubnetPrefix": "10.0.1.0/24",
-    "keyVaultCryptoOfficerRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]"
   },
   "resources": [
     {
-      "type": "Microsoft.Network/networkSecurityGroups",
       "apiVersion": "2023-05-01",
+      "location": "[resourceGroup().location]",
       "name": "[parameters('customerNsgName')]",
-      "location": "[resourceGroup().location]",
-      "tags": {
-        "persist": "[string(parameters('persistTagValue'))]"
-      }
-    },
-    {
-      "type": "Microsoft.Network/virtualNetworks",
-      "apiVersion": "2023-05-01",
-      "name": "[parameters('customerVnetName')]",
-      "location": "[resourceGroup().location]",
       "tags": {
         "persist": "[string(parameters('persistTagValue'))]"
       },
+      "type": "Microsoft.Network/networkSecurityGroups"
+    },
+    {
+      "apiVersion": "2023-05-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('customerNsgName'))]"
+      ],
+      "location": "[resourceGroup().location]",
+      "name": "[parameters('customerVnetName')]",
       "properties": {
         "addressSpace": {
           "addressPrefixes": [
@@ -143,80 +199,85 @@
           }
         ]
       },
-      "dependsOn": [
-        "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('customerNsgName'))]"
-      ]
+      "tags": {
+        "persist": "[string(parameters('persistTagValue'))]"
+      },
+      "type": "Microsoft.Network/virtualNetworks"
     },
     {
-      "type": "Microsoft.KeyVault/vaults",
       "apiVersion": "2024-12-01-preview",
-      "name": "[variables('customerKeyVaultName')]",
       "location": "[resourceGroup().location]",
+      "name": "[variables('customerKeyVaultName')]",
       "properties": {
+        "enablePurgeProtection": "[if(parameters('enableKeyVaultPurgeProtection'), true(), null())]",
         "enableRbacAuthorization": true,
         "enableSoftDelete": "[if(parameters('enableKeyVaultSoftDelete'), true(), null())]",
-        "enablePurgeProtection": "[if(parameters('enableKeyVaultPurgeProtection'), true(), null())]",
-        "softDeleteRetentionInDays": "[if(parameters('enableKeyVaultSoftDelete'), parameters('keyVaultSoftDeleteRetentionInDays'), null())]",
-        "tenantId": "[subscription().tenantId]",
         "publicNetworkAccess": "[if(parameters('privateKeyVault'), 'Disabled', 'Enabled')]",
         "sku": {
           "family": "A",
           "name": "standard"
-        }
-      }
+        },
+        "softDeleteRetentionInDays": "[if(parameters('enableKeyVaultSoftDelete'), parameters('keyVaultSoftDeleteRetentionInDays'), null())]",
+        "tenantId": "[subscription().tenantId]"
+      },
+      "type": "Microsoft.KeyVault/vaults"
     },
     {
-      "type": "Microsoft.KeyVault/vaults/keys",
       "apiVersion": "2024-12-01-preview",
-      "name": "[format('{0}/{1}', variables('customerKeyVaultName'), parameters('customerEtcdEncryptionKeyName'))]",
-      "properties": {
-        "kty": "RSA",
-        "keySize": 2048
-      },
       "dependsOn": [
         "[resourceId('Microsoft.KeyVault/vaults', variables('customerKeyVaultName'))]"
-      ]
+      ],
+      "name": "[format('{0}/{1}', variables('customerKeyVaultName'), parameters('customerEtcdEncryptionKeyName'))]",
+      "properties": {
+        "keySize": 2048,
+        "kty": "RSA"
+      },
+      "type": "Microsoft.KeyVault/vaults/keys"
     },
     {
-      "condition": "[parameters('assignKeyVaultCryptoOfficer')]",
-      "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "scope": "[resourceId('Microsoft.KeyVault/vaults', variables('customerKeyVaultName'))]",
+      "condition": "[parameters('assignKeyVaultCryptoOfficer')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('customerKeyVaultName'))]"
+      ],
       "name": "[guid(resourceGroup().id, deployer().objectId, variables('keyVaultCryptoOfficerRoleId'), resourceId('Microsoft.KeyVault/vaults', variables('customerKeyVaultName')))]",
       "properties": {
         "principalId": "[deployer().objectId]",
         "principalType": "[if(and(contains(deployer(), 'userPrincipalName'), not(empty(deployer().userPrincipalName))), 'User', 'ServicePrincipal')]",
         "roleDefinitionId": "[variables('keyVaultCryptoOfficerRoleId')]"
       },
-      "dependsOn": [
-        "[resourceId('Microsoft.KeyVault/vaults', variables('customerKeyVaultName'))]"
-      ]
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', variables('customerKeyVaultName'))]",
+      "type": "Microsoft.Authorization/roleAssignments"
     },
     {
-      "condition": "[parameters('privateKeyVault')]",
-      "type": "Microsoft.Network/privateDnsZones",
       "apiVersion": "2020-06-01",
-      "name": "privatelink.vaultcore.azure.net",
-      "location": "global",
-      "properties": {},
+      "condition": "[parameters('privateKeyVault')]",
       "dependsOn": [
         "[resourceId('Microsoft.Network/privateEndpoints', 'kv-private-endpoint')]"
-      ]
+      ],
+      "location": "global",
+      "name": "privatelink.vaultcore.azure.net",
+      "properties": {},
+      "type": "Microsoft.Network/privateDnsZones"
     },
     {
-      "condition": "[parameters('privateKeyVault')]",
-      "type": "Microsoft.Network/privateEndpoints",
       "apiVersion": "2023-09-01",
+      "condition": "[parameters('privateKeyVault')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('customerKeyVaultName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName'))]"
+      ],
+      "location": "[resourceGroup().location]",
       "name": "kv-private-endpoint",
       "properties": {
         "privateLinkServiceConnections": [
           {
             "name": "kv-private-endpoint",
             "properties": {
-              "privateLinkServiceId": "[resourceId('Microsoft.KeyVault/vaults', variables('customerKeyVaultName'))]",
               "groupIds": [
                 "vault"
-              ]
+              ],
+              "privateLinkServiceId": "[resourceId('Microsoft.KeyVault/vaults', variables('customerKeyVaultName'))]"
             }
           }
         ],
@@ -224,16 +285,16 @@
           "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName')), '2023-05-01').subnets[0].id]"
         }
       },
-      "location": "[resourceGroup().location]",
-      "dependsOn": [
-        "[resourceId('Microsoft.KeyVault/vaults', variables('customerKeyVaultName'))]",
-        "[resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName'))]"
-      ]
+      "type": "Microsoft.Network/privateEndpoints"
     },
     {
-      "condition": "[parameters('privateKeyVault')]",
-      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
       "apiVersion": "2023-09-01",
+      "condition": "[parameters('privateKeyVault')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones/virtualNetworkLinks', 'privatelink.vaultcore.azure.net', uniqueString('kv-private-dns-zone-link'))]",
+        "[resourceId('Microsoft.Network/privateEndpoints', 'kv-private-endpoint')]",
+        "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]"
+      ],
       "name": "[format('{0}/{1}', 'kv-private-endpoint', 'kv-private-ep-dns-group')]",
       "properties": {
         "privateDnsZoneConfigs": [
@@ -245,93 +306,32 @@
           }
         ]
       },
-      "dependsOn": [
-        "[resourceId('Microsoft.Network/privateDnsZones/virtualNetworkLinks', 'privatelink.vaultcore.azure.net', uniqueString('kv-private-dns-zone-link'))]",
-        "[resourceId('Microsoft.Network/privateEndpoints', 'kv-private-endpoint')]",
-        "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]"
-      ]
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups"
     },
     {
-      "condition": "[parameters('privateKeyVault')]",
-      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
       "apiVersion": "2020-06-01",
-      "name": "[format('{0}/{1}', 'privatelink.vaultcore.azure.net', uniqueString('kv-private-dns-zone-link'))]",
+      "condition": "[parameters('privateKeyVault')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName'))]",
+        "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]"
+      ],
       "location": "global",
+      "name": "[format('{0}/{1}', 'privatelink.vaultcore.azure.net', uniqueString('kv-private-dns-zone-link'))]",
       "properties": {
         "registrationEnabled": false,
         "virtualNetwork": {
           "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName'))]"
         }
       },
-      "dependsOn": [
-        "[resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName'))]",
-        "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]"
-      ]
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks"
     }
   ],
-  "outputs": {
-    "nsgName": {
-      "type": "string",
-      "metadata": {
-        "description": "Network Security Group Name"
-      },
-      "value": "[parameters('customerNsgName')]"
-    },
-    "vnetName": {
-      "type": "string",
-      "metadata": {
-        "description": "Virtual Network Name"
-      },
-      "value": "[parameters('customerVnetName')]"
-    },
-    "vnetSubnetName": {
-      "type": "string",
-      "metadata": {
-        "description": "Subnet Name"
-      },
-      "value": "[parameters('customerVnetSubnetName')]"
-    },
-    "keyVaultName": {
-      "type": "string",
-      "metadata": {
-        "description": "Key Vault Name"
-      },
-      "value": "[variables('customerKeyVaultName')]"
-    },
-    "etcdEncryptionKeyName": {
-      "type": "string",
-      "metadata": {
-        "description": "The name of the encryption key for etcd"
-      },
-      "value": "[parameters('customerEtcdEncryptionKeyName')]"
-    },
-    "nsgID": {
-      "type": "string",
-      "metadata": {
-        "description": "Network Security Group Resource ID"
-      },
-      "value": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('customerNsgName'))]"
-    },
-    "vnetSubnetID": {
-      "type": "string",
-      "metadata": {
-        "description": "Customer VNet Subnet Resource ID"
-      },
-      "value": "[format('{0}/subnets/{1}', resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName')), parameters('customerVnetSubnetName'))]"
-    },
-    "vnetIntegrationSubnetID": {
-      "type": "string",
-      "metadata": {
-        "description": "Customer VNet Integration Subnet Resource ID"
-      },
-      "value": "[format('{0}/subnets/customer-vnet-integration-subnet', resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName')))]"
-    },
-    "etcdEncryptionKeyVersion": {
-      "type": "string",
-      "metadata": {
-        "description": "The version of the etcd encryption key"
-      },
-      "value": "[last(split(reference(resourceId('Microsoft.KeyVault/vaults/keys', variables('customerKeyVaultName'), parameters('customerEtcdEncryptionKeyName')), '2024-12-01-preview').keyUriWithVersion, '/'))]"
-    }
+  "variables": {
+    "addressPrefix": "10.0.0.0/16",
+    "customerKeyVaultName": "[format('cust-kv-{0}', variables('randomSuffix'))]",
+    "keyVaultCryptoOfficerRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
+    "randomSuffix": "[toLower(uniqueString(resourceGroup().id, parameters('clusterName')))]",
+    "subnetPrefix": "10.0.0.0/24",
+    "vnetIntegrationSubnetPrefix": "10.0.1.0/24"
   }
 }

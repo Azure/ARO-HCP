@@ -24,7 +24,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20261001preview "github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -55,13 +55,13 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams := framework.NewDefaultClusterParams20261001()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20261001(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -110,7 +110,7 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create disk encryption set")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20251223(ctx,
+			err = tc.CreateHCPClusterFromParam20261001(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -120,12 +120,12 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			By("creating the nodepool with disk encryption set")
-			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
+			nodePoolParams := framework.NewDefaultNodePoolParams20261001()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.EncryptionSetID = desResourceID
 
-			err = tc.CreateNodePoolFromParam20251223(ctx,
+			err = tc.CreateNodePoolFromParam20261001(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -136,8 +136,8 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s with DES", customerNodePoolName)
 
 			By("verifying nodepool ARM resource has encryptionSetId")
-			created, err := framework.GetNodePool20251223(ctx,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			created, err := framework.GetNodePool20261001(ctx,
+				tc.Get20261001ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
@@ -145,7 +145,7 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get nodepool %s", customerNodePoolName)
 			Expect(created.Properties).ToNot(BeNil(), "nodepool Properties was nil")
 			Expect(created.Properties.ProvisioningState).ToNot(BeNil(), "nodepool ProvisioningState was nil")
-			Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20251223preview.ProvisioningStateSucceeded), "nodepool %s should be Succeeded", customerNodePoolName)
+			Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20261001preview.ProvisioningStateSucceeded), "nodepool %s should be Succeeded", customerNodePoolName)
 			Expect(created.Properties.Platform).ToNot(BeNil(), "nodepool Platform was nil")
 			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil(), "nodepool OSDisk was nil")
 			Expect(created.Properties.Platform.OSDisk.EncryptionSetID).ToNot(BeNil(),

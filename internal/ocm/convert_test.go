@@ -466,7 +466,7 @@ func TestBuildCSNodePool(t *testing.T) {
 		{
 			name: "passes disk encryption set ID to CS",
 			hcpNodePool: getHCPNodePoolResource(
-				func(hsc *coreapi.HCPOpenShiftClusterNodePool) {
+				func(hsc *coreapi.NodePool) {
 					hsc.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID(
 						"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
 				},
@@ -2001,6 +2001,36 @@ func TestConvertCSContainerRegistryPullCredentialsToRP(t *testing.T) {
 				require.NotNil(t, result)
 				assert.Equal(t, tt.expected.String(), result.String())
 			}
+		})
+	}
+}
+
+func TestConvertKmsKeyVaultTypeRPToCS(t *testing.T) {
+	tests := []struct {
+		name      string
+		vaultType string
+		want      arohcpv1alpha1.AzureKmsEncryptionKeyVaultType
+	}{
+		{
+			name:      "ManagedHSM maps to CS ManagedHsm",
+			vaultType: coreapi.KmsKeyVaultTypeManagedHSM,
+			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeManagedHsm,
+		},
+		{
+			name:      "KeyVault maps to CS KeyVault",
+			vaultType: coreapi.KmsKeyVaultTypeKeyVault,
+			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault,
+		},
+		{
+			name:      "empty defaults to CS KeyVault",
+			vaultType: "",
+			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, convertKmsKeyVaultTypeRPToCS(tt.vaultType))
 		})
 	}
 }

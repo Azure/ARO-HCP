@@ -1377,7 +1377,7 @@ func TestValidateClusterCreate(t *testing.T) {
 		},
 		{
 			name: "Managed HSM KMS on 4.22 - create",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.22"
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
@@ -1387,7 +1387,7 @@ func TestValidateClusterCreate(t *testing.T) {
 		},
 		{
 			name: "Managed HSM KMS below 4.22 rejected - create",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.21"
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
@@ -1399,7 +1399,7 @@ func TestValidateClusterCreate(t *testing.T) {
 		},
 		{
 			name: "KeyVault KMS below 4.22 allowed - create",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.21"
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeKeyVault
@@ -1409,7 +1409,7 @@ func TestValidateClusterCreate(t *testing.T) {
 		},
 		{
 			name: "invalid KMS keyVaultType rejected - create",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = "InvalidType"
 				return c
@@ -2705,6 +2705,58 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "valid cluster update - unchanged KMS keyVaultType",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "immutable KMS keyVaultType - change rejected on update",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeKeyVault
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType"},
+			},
+		},
+		{
+			name: "immutable KMS keyVaultType - clearing rejected on update",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = ""
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType"},
+			},
 		},
 	}
 
