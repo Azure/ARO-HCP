@@ -377,9 +377,11 @@ func (c *Controller) snapshot(ctx context.Context) (ClusterSnapshot, error) {
 	}
 	snapshot.Events = events.Items
 	snapshot.Faulted = map[string]bool{}
+	snapshot.Detections = map[string][]detectors.Detection{}
 	for _, node := range snapshot.Nodes {
 		detections := nodeEvidence(node, snapshot.Pods, events.Items, c.clock())
 		snapshot.Faulted[node.Name] = len(detections) > 0
+		snapshot.Detections[node.Name] = detections
 	}
 	namespaces, err := c.kube.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {

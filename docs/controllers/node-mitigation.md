@@ -114,7 +114,9 @@ every replica to be Ready, which would prevent rescue of multiple stuck replicas
 Unreleased MTPNC allocations count against NIC capacity; Pod deletion or a fixed
 sleep does not prove release.
 Final placement uses the admitted Pod's current resource requests and a fresh
-cluster snapshot. Failed or stale reads hold the attempt. Cross-resource reads
+cluster snapshot. Same-node placement excludes only the candidate's own scoped
+SWIFT detection; node-wide and other Pods' faults still block that destination.
+Failed or stale reads hold the attempt. Cross-resource reads
 are not atomic and do not reserve scheduler capacity.
 
 ### Pod protection

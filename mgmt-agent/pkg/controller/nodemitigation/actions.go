@@ -146,7 +146,15 @@ func (c *Controller) checkPlacement(cfg Config, snapshot ClusterSnapshot, pod *c
 	snapshot.Pods[index] = pod
 	faulted := make(map[string]bool, len(snapshot.Faulted))
 	for name, value := range snapshot.Faulted {
-		faulted[name] = name != pod.Spec.NodeName && value
+		faulted[name] = value
+	}
+	detections := snapshot.Detections[pod.Spec.NodeName]
+	nodeIndex := slices.IndexFunc(snapshot.Nodes, func(n *corev1.Node) bool { return n.Name == pod.Spec.NodeName })
+	if nodeIndex >= 0 && len(detections) > 0 {
+		faulted[pod.Spec.NodeName] = slices.ContainsFunc(detections, func(d detectors.Detection) bool {
+			return d.Detector != detectors.SwiftPodSandboxStalled || d.Scope != detectors.PodScope ||
+				d.NodeUID != snapshot.Nodes[nodeIndex].UID || len(d.PodUIDs) != 1 || d.PodUIDs[0] != pod.UID
+		})
 	}
 	snapshot.Faulted = faulted
 	return placement(snapshot, excluded, []*corev1.Pod{pod})

@@ -31,6 +31,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/Azure/ARO-HCP/internal/kuberesources"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
 )
 
 type ClusterSnapshot struct {
@@ -40,6 +41,7 @@ type ClusterSnapshot struct {
 	Events     []corev1.Event
 	Namespaces map[string]*corev1.Namespace
 	Faulted    map[string]bool
+	Detections map[string][]detectors.Detection
 	// NICs includes allocations whose original pods have already disappeared.
 	NICs map[string]map[types.UID]int64
 }

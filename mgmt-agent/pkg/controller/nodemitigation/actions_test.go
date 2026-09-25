@@ -16,6 +16,7 @@ package nodemitigation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -34,6 +35,7 @@ import (
 	ktesting "k8s.io/client-go/testing"
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/ARO-HCP/internal/kuberesources"
 	api "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
 )
@@ -560,6 +562,10 @@ func TestPlacementUsesAdmittedPod(t *testing.T) {
 				snapshot.Pods = []*corev1.Pod{pod.DeepCopy()}
 			}
 			snapshot.Faulted[pod.Spec.NodeName] = true
+			snapshot.Detections[pod.Spec.NodeName] = []detectors.Detection{{
+				Detector: detectors.SwiftPodSandboxStalled, Scope: detectors.PodScope,
+				NodeUID: snapshot.Nodes[0].UID, PodUIDs: []types.UID{pod.UID},
+			}}
 			pod.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse(test.request)
 			err = f.controller.checkPlacement(f.cfg, snapshot, pod, nil)
 			if test.wantError == "" {
@@ -577,6 +583,159 @@ func TestPlacementUsesAdmittedPod(t *testing.T) {
 				if request.Cmp(resource.MustParse("1")) != 0 {
 					t.Fatal("placement mutated the shared Pod snapshot")
 				}
+			}
+		})
+	}
+}
+
+func TestPlacementPreservesIndependentFaults(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		change func(*ClusterSnapshot, *corev1.Pod)
+		held   bool
+	}{
+		{name: "candidate fault only"},
+		{name: "node fault", held: true, change: func(s *ClusterSnapshot, p *corev1.Pod) {
+			s.Detections[p.Spec.NodeName] = append(s.Detections[p.Spec.NodeName], detectors.Detection{
+				Detector: "swift-vf-teardown", Scope: detectors.NodeScope, NodeUID: s.Nodes[0].UID,
+			})
+		}},
+		{name: "another pod fault", held: true, change: func(s *ClusterSnapshot, p *corev1.Pod) {
+			other := s.Detections[p.Spec.NodeName][0]
+			other.PodUIDs = []types.UID{"another-pod"}
+			s.Detections[p.Spec.NodeName] = append(s.Detections[p.Spec.NodeName], other)
+		}},
+		{name: "multiple pod identities", held: true, change: func(s *ClusterSnapshot, p *corev1.Pod) {
+			s.Detections[p.Spec.NodeName][0].PodUIDs = append(s.Detections[p.Spec.NodeName][0].PodUIDs, "another-pod")
+		}},
+		{name: "other detector", held: true, change: func(s *ClusterSnapshot, p *corev1.Pod) {
+			s.Detections[p.Spec.NodeName][0].Detector = "another-detector"
+		}},
+		{name: "missing evidence", held: true, change: func(s *ClusterSnapshot, _ *corev1.Pod) {
+			s.Detections = nil
+		}},
+		{name: "wrong node identity", held: true, change: func(s *ClusterSnapshot, p *corev1.Pod) {
+			s.Detections[p.Spec.NodeName][0].NodeUID = "another-node"
+		}},
+		{name: "missing pod identity", held: true, change: func(s *ClusterSnapshot, p *corev1.Pod) {
+			s.Detections[p.Spec.NodeName][0].PodUIDs = nil
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			f := swiftFixture(t)
+			snapshot, err := f.controller.snapshot(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			pod, err := f.kube.CoreV1().Pods("test").Get(context.Background(), "router-stalled", metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, node := range snapshot.Nodes {
+				node.Labels[corev1.LabelHostname] = node.Name
+			}
+			pod.Spec.NodeSelector = map[string]string{corev1.LabelHostname: pod.Spec.NodeName}
+			if len(snapshot.Detections[pod.Spec.NodeName]) != 1 || !snapshot.Faulted[pod.Spec.NodeName] {
+				t.Fatal("snapshot did not retain the candidate's scoped fault")
+			}
+			if test.change != nil {
+				test.change(&snapshot, pod)
+			}
+			before, err := json.Marshal(snapshot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = f.controller.checkPlacement(f.cfg, snapshot, pod, nil)
+			if test.held {
+				if err == nil || !strings.Contains(err.Error(), "no feasible replacement capacity") {
+					t.Fatalf("independent fault did not hold placement: %v", err)
+				}
+			} else if err != nil {
+				t.Fatalf("candidate-only fault blocked same-node placement: %v", err)
+			}
+			after, err := json.Marshal(snapshot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(before) != string(after) {
+				t.Fatal("placement mutated shared snapshot evidence")
+			}
+		})
+	}
+}
+
+func TestIndependentFaultGuardsAccountingAndEviction(t *testing.T) {
+	for _, afterClaim := range []bool{false, true} {
+		t.Run(fmt.Sprintf("afterClaim=%t", afterClaim), func(t *testing.T) {
+			f := swiftFixture(t)
+			nodeResource := corev1.SchemeGroupVersion.WithResource("nodes")
+			podResource := corev1.SchemeGroupVersion.WithResource("pods")
+			node, err := f.kube.CoreV1().Nodes().Get(context.Background(), "node-00", metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			node.Labels[corev1.LabelHostname] = node.Name
+			node.Status.Allocatable[kuberesources.SwiftNICResourceName] = resource.MustParse("10")
+			if err := f.kube.Tracker().Update(nodeResource, node, ""); err != nil {
+				t.Fatal(err)
+			}
+			pod, err := f.kube.CoreV1().Pods("test").Get(context.Background(), "router-stalled", metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			pod.Spec.NodeSelector = map[string]string{corev1.LabelHostname: node.Name}
+			if err := f.kube.Tracker().Update(podResource, pod, pod.Namespace); err != nil {
+				t.Fatal(err)
+			}
+			event, err := f.kube.CoreV1().Events("test").Get(context.Background(), "sandbox", metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			addFault := func() {
+				other := pod.DeepCopy()
+				other.Name, other.UID = "another-stalled", "another-stalled"
+				event := event.DeepCopy()
+				event.Name = "another-sandbox"
+				event.InvolvedObject.Name, event.InvolvedObject.UID = other.Name, other.UID
+				for _, obj := range []runtime.Object{other, event} {
+					if err := f.kube.Tracker().Add(obj); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			claims := 0
+			f.kube.PrependReactor("patch", "pods", func(ktesting.Action) (bool, runtime.Object, error) {
+				claims++
+				if afterClaim {
+					addFault()
+				}
+				return false, nil, nil
+			})
+			if !afterClaim {
+				addFault()
+			}
+			if err := f.records.Tracker().Add(&api.NodeMitigationBudget{
+				ObjectMeta: metav1.ObjectMeta{Name: budgetName, Namespace: "mgmt-agent"},
+				Status:     api.NodeMitigationBudgetStatus{Version: 1},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			f.syncCaches(t)
+			f.records.ClearActions()
+			err = f.controller.reconcile(context.Background())
+			if err == nil || !strings.Contains(err.Error(), "no feasible replacement capacity") {
+				t.Fatalf("independent fault did not block eviction: %v", err)
+			}
+			wantClaims := 0
+			if afterClaim {
+				wantClaims = 1
+			}
+			if claims != wantClaims {
+				t.Fatalf("claims = %d, want %d", claims, wantClaims)
+			}
+			if evictionCount(f.kube.Actions()) != 0 || len(mutations(f.records.Actions())) != 0 ||
+				len(f.ledger(t).Status.Evictions) != 0 {
+				t.Fatal("independent fault permitted accounting or eviction")
 			}
 		})
 	}

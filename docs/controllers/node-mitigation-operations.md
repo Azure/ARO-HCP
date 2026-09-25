@@ -89,7 +89,10 @@ before rescuing another stalled pod. A Ready pod on the original node is valid.
 
 Placement checks cover requests, init containers, restartable sidecars, overhead,
 pod slots, outstanding SWIFT NIC allocations, taints, required affinity and hard
-topology spread. The original node remains a possible destination. Eviction
+topology spread. The original node remains a possible destination only when
+excluding the candidate's own `swift-pod-sandbox-stalled` detection leaves no
+node-wide or unrelated Pod fault. Missing scoped evidence retains the node's
+fault verdict. Eviction
 does not prove NIC release or guarantee a different destination.
 
 Placement uses deterministic backtracking to reconsider simulated assignments
