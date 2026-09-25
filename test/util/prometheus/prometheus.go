@@ -33,10 +33,12 @@ import (
 
 // Response is the top-level Prometheus HTTP API response.
 type Response struct {
-	Status    string `json:"status"`
-	Data      Data   `json:"data"`
-	ErrorType string `json:"errorType,omitempty"`
-	Error     string `json:"error,omitempty"`
+	Status    string   `json:"status"`
+	Data      Data     `json:"data"`
+	ErrorType string   `json:"errorType,omitempty"`
+	Error     string   `json:"error,omitempty"`
+	Warnings  []string `json:"warnings,omitempty"`
+	Infos     []string `json:"infos,omitempty"`
 }
 
 // Data holds the result set from a query_range call.

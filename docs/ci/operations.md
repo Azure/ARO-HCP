@@ -37,6 +37,10 @@ run's bounded time window from the regional Azure Monitor workspaces.
   correlate their cluster, namespace, pod, and container labels with the test
   logs.
 - `alerts.json` contains the alert data used by the summary.
+- `alert-diagnostics.json` contains the versioned, deduplicated query results
+  behind each alert card's **Metric history** pane. Its `alerts` array follows
+  the same order as `alerts.json`; chart queries reference the shared `queries`
+  array by index.
 - `utilization.json` contains the versioned data behind the summary's Utilization
   and Resource History tabs, including minute-by-minute node resources,
   selected peak minutes, node capacity, workload demand, and
@@ -68,6 +72,62 @@ environment is deleted, subject to OpenShift CI artifact retention. It is not a
 raw cross-run metrics store. The chart descriptions and copyable PromQL are the
 source of truth for interpreting each signal; the maintained query catalog is
 [`queries.yaml`](../../test/cmd/aro-hcp-tests/gather-observability/queries.yaml).
+
+### Alert Metric History
+
+Synthetic-data examples of the alert card before metric history, the expanded
+desktop pane, and the mobile pane:
+
+![Alert card before metric history](images/alert-metric-history-before.png)
+
+![Alert metric history with threshold and recorded firing shading](images/alert-metric-history-after.png)
+
+![Alert metric history on mobile](images/alert-metric-history-after-mobile.png)
+
+Every displayed alert, including known issues and alerts that do not fail JUnit,
+has an expandable **Metric history** pane. Collection is automatic. For PromQL
+alerts, it graphs the evaluated signal with outer thresholds removed, across all
+matching series, not just those that fired. Rates, aggregation, lookbacks,
+offsets, recording rules, internal guards, and supported exclusions are preserved.
+Compound conditions have separate charts; vector comparisons show both operands.
+The original expression and the actual queried expressions remain visible.
+
+Shading indicates that card's **recorded Azure firing interval**, not an inferred
+threshold crossing and not a claim that every plotted series fired. Unresolved
+alerts extend to the collected endpoint. Unknown or inconsistent timestamps are
+identified rather than guessed. Threshold lines are shown when extraction finds
+finite scalar thresholds. Missing samples remain gaps, not zeros.
+
+The graph spans the existing test/report window, including the cleanup allowance,
+capped at diagnostic collection start. Its step matches the currently deployed
+rule group's evaluation interval when name, expression, and available group ID
+match unambiguously; otherwise it uses one minute with a warning. This is a
+historical query, not an exact replay of alert evaluations: timing alignment,
+ingestion delays, and subsequent rule changes can affect correspondence.
+
+Expressions that cannot be safely extracted are queried unchanged and explicitly
+labeled as fallback output. Alerts without PromQL, unavailable workspaces, query
+errors, and empty results get explanations instead of disappearing. Query errors
+do not alter JUnit classification. Collection runs after the existing collectors
+with a ten-minute budget, two concurrent requests, and 30-second request timeouts;
+completed results survive cancellation. Artifact-writing failures remain fatal.
+
+Samples are embedded in the HTML, so viewing them requires no Azure credentials.
+Chart rendering uses the existing ECharts CDN; expressions and diagnostic messages
+remain available if that asset cannot load. All returned series are retained, so
+high-cardinality alerts can produce large artifacts and expensive charts.
+
+The extractor and repository-wide golden fixture live in
+[`test/util/alertdiagnostics`](../../test/util/alertdiagnostics). To review changes
+to all authored and committed generated alert expressions, run from `test/`:
+
+```sh
+UPDATE=1 go test ./util/alertdiagnostics -run '^TestRepositoryCorpus$' -count=1
+go test ./util/alertdiagnostics ./cmd/aro-hcp-tests/gather-observability
+```
+
+Review the fixture diff before accepting it: syntactic validity alone does not
+prove that an extracted signal explains the alert correctly.
 
 ### Utilization Snapshots
 
