@@ -25,6 +25,7 @@ package editor
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -66,15 +67,24 @@ func New(filePath string) (*Editor, error) {
 	return &Editor{filePath: filePath, root: &root}, nil
 }
 
+// ErrPathNotFound distinguishes an absent override from a malformed value.
+var ErrPathNotFound = errors.New("path not found")
+
 // Get returns the current scalar value and its 1-based line number for the
 // given dotted path.
 func (e *Editor) Get(path string) (value string, line int, err error) {
 	parts := strings.Split(path, ".")
 	node := e.root
 	for _, part := range parts {
+		if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
+			node = node.Content[0]
+		}
+		if node.Kind != yaml.MappingNode && node.Kind != 0 && (node.Kind != yaml.DocumentNode || len(node.Content) != 0) {
+			return "", 0, fmt.Errorf("path %s traverses a non-mapping value", path)
+		}
 		node = findChild(node, part)
 		if node == nil {
-			return "", 0, fmt.Errorf("path %s not found", path)
+			return "", 0, fmt.Errorf("%w: %s", ErrPathNotFound, path)
 		}
 	}
 	if node.Kind != yaml.ScalarNode {

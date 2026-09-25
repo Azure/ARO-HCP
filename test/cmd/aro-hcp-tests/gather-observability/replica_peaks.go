@@ -28,18 +28,19 @@ import (
 )
 
 type replicaPeakReport struct {
-	Version      int                    `json:"version"`
-	Start        time.Time              `json:"start"`
-	End          time.Time              `json:"end"`
-	GeneratedAt  time.Time              `json:"generatedAt"`
-	GridStep     string                 `json:"gridStep"`
-	CPUWindow    string                 `json:"cpuWindow"`
-	MemoryWindow string                 `json:"memoryWindow"`
-	Clusters     []string               `json:"clusters"`
-	Warnings     []string               `json:"warnings,omitempty"`
-	Queries      []replicaPeakQuery     `json:"queries"`
-	Containers   []replicaPeakContainer `json:"containers"`
-	Metadata     []replicaPeakMetadata  `json:"metadata"`
+	Version         int                    `json:"version"`
+	Start           time.Time              `json:"start"`
+	End             time.Time              `json:"end"`
+	GeneratedAt     time.Time              `json:"generatedAt"`
+	GridStep        string                 `json:"gridStep"`
+	CPUWindow       string                 `json:"cpuWindow"`
+	SizingCPUWindow string                 `json:"sizingCPUWindow,omitempty"`
+	MemoryWindow    string                 `json:"memoryWindow"`
+	Clusters        []string               `json:"clusters"`
+	Warnings        []string               `json:"warnings,omitempty"`
+	Queries         []replicaPeakQuery     `json:"queries"`
+	Containers      []replicaPeakContainer `json:"containers"`
+	Metadata        []replicaPeakMetadata  `json:"metadata"`
 }
 
 type replicaPeakQuery struct {
@@ -103,7 +104,7 @@ func collectReplicaPeaks(ctx context.Context, start, end, now time.Time, query u
 	if end.After(now) {
 		end = now
 	}
-	r := replicaPeakReport{Version: 1, Start: start.UTC(), End: end.UTC(), GeneratedAt: now.UTC(), GridStep: "60s", CPUWindow: "2m", MemoryWindow: "60s", Clusters: []string{}, Queries: []replicaPeakQuery{}, Containers: []replicaPeakContainer{}, Metadata: []replicaPeakMetadata{}}
+	r := replicaPeakReport{Version: 1, Start: start.UTC(), End: end.UTC(), GeneratedAt: now.UTC(), GridStep: "60s", CPUWindow: "2m", SizingCPUWindow: "10m", MemoryWindow: "60s", Clusters: []string{}, Queries: []replicaPeakQuery{}, Containers: []replicaPeakContainer{}, Metadata: []replicaPeakMetadata{}}
 	first, last := start.UTC().Truncate(time.Minute), end.UTC().Truncate(time.Minute)
 	if first.Before(start) {
 		first = first.Add(time.Minute)
@@ -240,7 +241,7 @@ func collectReplicaPeaks(ctx context.Context, start, end, now time.Time, query u
 		if len(row.Summary) != expected {
 			r.Warnings = append(r.Warnings, row.Cluster+"/"+row.Namespace+"/"+row.Pod+"/"+row.Container+": "+row.Workspace+" "+row.QueryName+" summary incomplete")
 		}
-		if row.QueryName == "cpu" || row.QueryName == "memory" {
+		if row.QueryName == "cpu" || row.QueryName == "cpuSustained" || row.QueryName == "memory" {
 			id := row.Labels["id"]
 			row.PodUID = ""
 			if match := utilizationCgroupUID.FindStringSubmatch(id); len(match) > 1 {

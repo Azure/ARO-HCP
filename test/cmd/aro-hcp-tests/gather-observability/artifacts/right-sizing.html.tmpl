@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Container right-sizing</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0d1117; color: #e6edf3; font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    main { max-width: 1800px; margin: auto; padding: 24px; }
+    h1 { margin: 0; font-size: 26px; } h2 { font-size: 19px; margin: 0 0 8px; }
+    p { margin: 8px 0; } small, .muted { color: #9da7b3; } small { display: block; }
+    .eyebrow { color: #58a6ff; text-transform: uppercase; font-size: 11px; letter-spacing: .12em; }
+    .panel { margin-top: 24px; padding: 16px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; }
+    .cpu { border-top: 3px solid #79b8ff; } .memory { border-top: 3px solid #c4a4ef; }
+    .controls, .pagination { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 16px 0; }
+    label { display: flex; flex-direction: column; gap: 5px; color: #9da7b3; }
+    select, input, button { max-width: 100%; font: inherit; color: #e6edf3; background: #21262d; border: 1px solid #484f58; border-radius: 4px; padding: 8px 10px; }
+    select { min-width: 160px; } input[type="search"] { min-width: 280px; } .checkbox { flex-direction: row; align-items: center; padding: 8px 0; color: #e6edf3; }
+    input[type="checkbox"] { width: 18px; height: 18px; accent-color: #58a6ff; }
+    button, summary { cursor: pointer; } button:hover:not(:disabled) { border-color: #58a6ff; } button:disabled { opacity: .5; cursor: default; }
+    :focus-visible { outline: 2px solid #58a6ff; outline-offset: 3px; }
+    .table-scroll { width: 100%; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    caption { text-align: left; color: #9da7b3; padding: 0 0 12px; }
+    th, td { padding: 10px; text-align: left; vertical-align: top; border-bottom: 1px solid #30363d; }
+    thead th { color: #9da7b3; white-space: nowrap; } tbody th { min-width: 220px; max-width: 340px; font-weight: normal; overflow-wrap: anywhere; }
+    .numeric { white-space: nowrap; font-variant-numeric: tabular-nums; } .rank { color: #9da7b3; }
+    .over { color: #79c0ff; } .under, .risk { color: #ffb4a9; } .matched { color: #a5d6a7; } .unknown { color: #e3b341; }
+    .badge { display: inline-block; border: 1px solid currentColor; border-radius: 3px; padding: 1px 5px; margin-bottom: 6px; white-space: nowrap; }
+    details { max-width: 600px; } summary { color: #79c0ff; } .evidence { min-width: 220px; max-width: 420px; overflow-wrap: anywhere; }
+    .evidence ul, #warnings ul { padding-left: 20px; } .warning { border-left: 4px solid #d29922; background: #292315; padding: 12px 16px; margin: 12px 0; overflow-wrap: anywhere; }
+    .pagination { align-items: center; } .empty { padding: 20px; color: #9da7b3; }
+    #method { max-width: none; } #method summary { font-size: 17px; } #method p { max-width: 1100px; }
+    @media (max-width: 650px) { main { padding: 12px; } .panel { padding: 12px; } h1 { font-size: 23px; } .controls > label { width: 100%; } select, input[type="search"] { width: 100%; min-width: 0; } }
+  </style>
+</head>
+<body>
+<main>
+  <header><div class="eyebrow">Observability / Per-container requests</div><h1>Container right-sizing</h1><p id="window" class="muted"></p></header>
+  <p>Start with the largest per-container gaps. CPU and memory are ranked separately; gaps are never multiplied by replica counts or summed as fleet savings.</p>
+  <p class="warning">Review candidates, not safe-to-apply guarantees. Historical peaks cannot predict future load, throttling, OOMs, failover or scheduling constraints.</p>
+  <noscript><p class="warning">JavaScript is required to explore this report. All data and code are embedded; no network access or Azure credentials are needed. The companion right-sizing.json contains the same evidence.</p></noscript>
+  <details id="method" class="panel">
+    <summary>Method, tolerance and safety limits</summary>
+    <p id="policy"></p>
+    <p>Start with the busiest replica's measured peak times 1.2 headroom. Round to the nearest 10m CPU or 10Mi memory, with a minimum of 10m or 10Mi. CPU sizing normally uses a sustained 10m rate; the separate 2m burst peak remains visible. Memory uses peak working set.</p>
+    <p>The alert safety floor raises the rounded suggestion when needed so observed usage / suggested request &lt;= 1.2, using the sustained CPU sizing peak or memory peak, not the CPU burst peak. Alert risk means that sizing peak / minimum request exceeds 1.2; it bypasses the change deadband, not eligibility checks. This is an observational guard, not a guarantee that alerts will never fire or that rounding preserves the full 20% headroom.</p>
+    <p>Gap = minimum observed request - suggestion. Positive means over-requested; negative means under-requested. Relative gap divides this signed gap by the minimum request; a zero or missing request has no relative percentage. A configurable deadband (10% by default) suppresses small changes unless alert risk requires attention.</p>
+    <p>Requests show their full observed min-to-max range, not the current deployment configuration. Coverage counts measured historical pod UIDs, not concurrent or desired replicas. Eligibility requires usable ownership, requests and sample coverage; expand a row for its evidence and reasons. Unknown is not zero, and an ineligible suggestion must not be applied automatically.</p>
+  </details>
+  <div id="warnings" class="warning" hidden><h2>Collection and sizing warnings</h2><ul></ul></div>
+  <div class="controls" role="search" aria-label="Filter recommendations">
+    <label for="cluster">Cluster<select id="cluster"><option value="">All clusters</option></select></label>
+    <label for="search">Workload search<input id="search" type="search" placeholder="Namespace, kind, workload or container"></label>
+    <label for="direction">Direction<select id="direction"><option value="all">All directions</option><option value="over">Over-requested</option><option value="under">Under-requested</option><option value="matched">Within tolerance</option><option value="unknown">Insufficient evidence</option></select></label>
+    <label class="checkbox" for="actionable"><input id="actionable" type="checkbox" checked>Actionable only</label>
+    <button id="reset" type="button">Reset filters</button>
+  </div>
+  <p id="filter-status" class="muted" role="status" aria-live="polite"></p>
+  <section class="panel cpu" aria-labelledby="cpu-title">
+    <div class="eyebrow">01 / Millicores</div><h2 id="cpu-title">CPU candidates</h2>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="CPU recommendations, scroll horizontally for all columns">
+      <table><caption>Largest absolute gap first, per container. Sizing and burst peaks may come from different replicas or times.</caption><thead><tr><th scope="col">Rank</th><th scope="col">Workload / container</th><th scope="col">Observed requests</th><th scope="col" id="cpu-peak-heading">Sizing / burst peak</th><th scope="col">Suggested request</th><th scope="col">Gap / relative</th><th scope="col">Replica coverage</th><th scope="col">Eligibility / reasons</th></tr></thead><tbody id="cpu-rows"></tbody></table>
+    </div>
+    <nav id="cpu-pages" class="pagination" aria-label="CPU pages"><button id="cpu-prev" type="button">Previous</button><span id="cpu-page" role="status"></span><button id="cpu-next" type="button">Next</button></nav>
+  </section>
+  <section class="panel memory" aria-labelledby="memory-title">
+    <div class="eyebrow">02 / Mebibytes</div><h2 id="memory-title">Memory candidates</h2>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Memory recommendations, scroll horizontally for all columns">
+      <table><caption>Largest absolute gap first, per container. Working-set peaks are not memory limits or OOM guarantees.</caption><thead><tr><th scope="col">Rank</th><th scope="col">Workload / container</th><th scope="col">Observed requests</th><th scope="col">Working-set peak</th><th scope="col">Suggested request</th><th scope="col">Gap / relative</th><th scope="col">Replica coverage</th><th scope="col">Eligibility / reasons</th></tr></thead><tbody id="memory-rows"></tbody></table>
+    </div>
+    <nav id="memory-pages" class="pagination" aria-label="Memory pages"><button id="memory-prev" type="button">Previous</button><span id="memory-page" role="status"></span><button id="memory-next" type="button">Next</button></nav>
+  </section>
+</main>
+<script id="right-sizing-data" type="application/json">{{.}}</script>
+<script>
+'use strict';
+const report = JSON.parse(document.getElementById('right-sizing-data').textContent);
+const $ = id => document.getElementById(id);
+const known = value => typeof value === 'number' && Number.isFinite(value);
+const number = new Intl.NumberFormat('en-US', {maximumFractionDigits: 2});
+const percent = new Intl.NumberFormat('en-US', {maximumFractionDigits: 1});
+const resources = ['cpu', 'memory'], pageSize = 30, pages = {cpu: 0, memory: 0};
+const labels = {over: 'Over-requested', under: 'Under-requested', matched: 'Within tolerance', unknown: 'Insufficient evidence'};
+const rows = report.recommendations || [];
+function el(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+function quantity(value, resource) {
+  return known(value) ? number.format(resource === 'cpu' ? value * 1000 : value / 1048576) + (resource === 'cpu' ? 'm' : 'Mi') : 'Unknown';
+}
+function category(row) {
+  if (!row.eligible || row.direction === 'unknown') return 'unknown';
+  return row.actionable ? row.direction : 'matched';
+}
+function gap(row) { return known(row.delta) ? Math.abs(row.delta) : -1; }
+// Sort once; filtering preserves per-resource rank without building off-page DOM.
+const ranked = rows.slice().sort((a, b) => gap(b) - gap(a));
+for (const cluster of [...new Set(rows.map(row => row.cluster))].sort()) {
+  const option = el('option', cluster); option.value = cluster; $('cluster').append(option);
+}
+$('window').textContent = report.start + ' to ' + report.end + ' (UTC offsets shown)';
+$('policy').textContent = 'This report: ' + number.format(report.headroom) + 'x headroom; CPU sizing window ' + (report.cpuWindow || 'unknown') + '; change deadband ' + percent.format(report.changeThreshold * 100) + '% of minimum observed request.';
+$('cpu-peak-heading').textContent = 'Sizing (' + (report.cpuWindow || 'unknown') + ') / burst (2m)';
+for (const warning of report.warnings || []) $('warnings').querySelector('ul').append(el('li', warning));
+$('warnings').hidden = !(report.warnings || []).length;
+function renderTable(resource, filtered) {
+  const count = filtered.length, lastPage = Math.max(0, Math.ceil(count / pageSize) - 1);
+  pages[resource] = Math.min(pages[resource], lastPage);
+  const start = pages[resource] * pageSize, body = $(resource + '-rows');
+  body.replaceChildren();
+  for (const [index, row] of filtered.slice(start, start + pageSize).entries()) {
+    const tr = el('tr'), state = category(row);
+    tr.append(el('td', start + index + 1, 'rank'));
+    const identity = el('th'); identity.scope = 'row';
+    identity.append(el('strong', row.workload), el('small', row.cluster + ' / ' + row.namespace), el('small', row.kind + ' / ' + row.container + (row.initContainer ? ' (init container)' : '')));
+    tr.append(identity);
+    const requests = el('td', quantity(row.requestMin, resource) + ' to ' + quantity(row.requestMax, resource), 'numeric');
+    requests.append(el('small', 'Observed min to max')); tr.append(requests);
+    const peak = el('td', quantity(row.peak, resource), 'numeric');
+    if (resource === 'cpu') peak.append(el('small', 'Burst: ' + quantity(row.burstPeak, resource)));
+    tr.append(peak);
+    const suggestion = el('td', known(row.suggested) ? row.suggestedQuantity || quantity(row.suggested, resource) : 'Unknown', 'numeric');
+    if (!row.eligible && known(row.suggested)) suggestion.append(el('small', 'Ineligible estimate'));
+    tr.append(suggestion);
+    const delta = el('td', (known(row.delta) && row.delta > 0 ? '+' : '') + quantity(row.delta, resource), 'numeric ' + state);
+    const relative = known(row.delta) && known(row.requestMin) && row.requestMin > 0 ? row.delta / row.requestMin * 100 : null;
+    delta.append(el('small', known(relative) ? (relative > 0 ? '+' : '') + percent.format(relative) + '%' : 'Relative: unknown'));
+    tr.append(delta);
+    const coverage = el('td', row.measuredReplicas + ' / ' + row.replicas, 'numeric');
+    coverage.append(el('small', 'Measured / historical')); tr.append(coverage);
+    const evidence = el('td'); evidence.append(el('span', labels[state] || labels.unknown, 'badge ' + state));
+    if (row.alertRisk) evidence.append(el('small', 'Alert risk', 'risk'));
+    const details = el('details'), warnings = row.warnings || [];
+    details.append(el('summary', (row.eligible ? 'Eligible' : 'Ineligible') + ' / ' + (row.actionable ? 'actionable' : 'not actionable') + ' (' + warnings.length + ' reasons)'));
+    const content = el('div', undefined, 'evidence');
+    content.append(el('p', 'Raw direction: ' + (labels[row.direction] || labels.unknown) + '. ' + (row.eligible ? 'Evidence passed eligibility checks.' : 'Evidence is insufficient; do not apply automatically.')));
+    if (row.eligible && !row.actionable) content.append(el('p', 'No actionable change at this report\'s tolerance.'));
+    if (row.alertRisk) content.append(el('p', 'The sizing peak exceeds 1.2 times the minimum request. Alert risk bypasses the deadband, but does not override missing evidence.'));
+    const list = el('ul'); for (const warning of warnings) list.append(el('li', warning)); content.append(list);
+    details.append(content); evidence.append(details); tr.append(evidence); body.append(tr);
+  }
+  if (!count) {
+    const tr = el('tr'), td = el('td', 'No matching candidates. Clear filters or turn off Actionable only to inspect all evidence.', 'empty');
+    td.colSpan = 8; tr.append(td); body.append(tr);
+  }
+  $(resource + '-page').textContent = count ? (start + 1) + '-' + Math.min(start + pageSize, count) + ' of ' + count + ' | Page ' + (pages[resource] + 1) + ' of ' + (lastPage + 1) : '0 candidates';
+  $(resource + '-prev').disabled = pages[resource] === 0;
+  $(resource + '-next').disabled = pages[resource] >= lastPage;
+}
+function render() {
+  const search = $('search').value.trim().toLowerCase();
+  const filtered = ranked.filter(row => (!$('cluster').value || row.cluster === $('cluster').value) &&
+    (!$('actionable').checked || row.actionable) && ($('direction').value === 'all' || category(row) === $('direction').value) &&
+    (!search || [row.cluster, row.namespace, row.kind, row.workload, row.container].join(' ').toLowerCase().includes(search)));
+  $('filter-status').textContent = filtered.length + ' of ' + rows.length + ' resource candidates. ' + ($('actionable').checked ? 'Actionable only; turn off to expose all evidence.' : 'All evidence, including ineligible and within-tolerance rows.');
+  for (const resource of resources) renderTable(resource, filtered.filter(row => row.resource === resource));
+}
+function resetPages() { pages.cpu = 0; pages.memory = 0; render(); }
+for (const id of ['cluster', 'search', 'direction', 'actionable']) $(id).addEventListener('input', () => {
+  if (id === 'direction' && ['matched', 'unknown'].includes($('direction').value)) $('actionable').checked = false;
+  resetPages();
+});
+for (const resource of resources) {
+  $(resource + '-prev').addEventListener('click', () => { pages[resource]--; render(); });
+  $(resource + '-next').addEventListener('click', () => { pages[resource]++; render(); });
+}
+$('reset').addEventListener('click', () => { $('cluster').value = ''; $('search').value = ''; $('direction').value = 'all'; $('actionable').checked = true; resetPages(); });
+render();
+</script>
+</body>
+</html>

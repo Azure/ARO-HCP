@@ -119,7 +119,7 @@ func TestReplicaPeakIdentitiesAndSources(t *testing.T) {
 		return collectReplicaPeaks(context.Background(), replicaPeakTestTime.Add(-time.Hour), replicaPeakTestTime, replicaPeakTestTime, replicaPeakTestQuery(t, data, ""))
 	}
 	r := run()
-	if len(r.Queries) != 9 || len(r.Containers) != 7 || len(r.Metadata) != 5 {
+	if len(r.Queries) != 10 || len(r.Containers) != 7 || len(r.Metadata) != 5 {
 		t.Fatalf("unexpected artifact sizes: queries=%d containers=%d metadata=%d", len(r.Queries), len(r.Containers), len(r.Metadata))
 	}
 	for _, row := range r.Containers {
@@ -171,6 +171,85 @@ func TestReplicaPeakIdentitiesAndSources(t *testing.T) {
 	got, _ := json.Marshal(duplicate)
 	if string(got) != string(want) {
 		t.Fatalf("duplicates/order changed compact evidence\nwant %s\ngot %s", want, got)
+	}
+}
+
+func TestReplicaPeakSustainedCPU(t *testing.T) {
+	uid := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	for _, tc := range []struct {
+		name, id, metadataUID, wantUID string
+	}{
+		{"cgroup", "/kubepods/pod" + uid + "/runtime", "", uid},
+		{"systemd", "/kubepods-pod" + strings.ReplaceAll(uid, "-", "_") + ".slice/cri-containerd-runtime.scope", "", uid},
+		{"runtime", "/cri-containerd-runtime.scope", uid, uid},
+		{"unmatched", "/unknown", "", ""},
+		{"conflicting", "/kubepods/pod" + uid + "/runtime", "other", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			labels := map[string]string{"cluster": "cluster", "namespace": "ns", "pod": "pod", "container": "app", "node": "node", "instance": "exporter", "id": tc.id, "uid": "untrusted"}
+			data := map[string][]PrometheusResult{
+				"svc/cpu":          replicaPeakTestSummary(labels, 6, false),
+				"svc/cpuSustained": replicaPeakTestSummary(labels, 1, false),
+			}
+			if tc.metadataUID != "" {
+				info := maps.Clone(labels)
+				info["metric"], info["container_id"], info["uid"] = "kube_pod_container_info", "containerd://runtime", tc.metadataUID
+				data["hcp/metadata"] = []PrometheusResult{replicaPeakTestSeries(info, "1")}
+			}
+			r := collectReplicaPeaks(context.Background(), replicaPeakTestTime.Add(-time.Hour), replicaPeakTestTime, replicaPeakTestTime, replicaPeakTestQuery(t, data, ""))
+			if r.CPUWindow != "2m" || r.SizingCPUWindow != "10m" || len(r.Containers) != 2 {
+				t.Fatalf("CPU windows or independent records lost: %+v", r)
+			}
+			for _, row := range r.Containers {
+				maximum := float64(6)
+				if row.QueryName == "cpuSustained" {
+					maximum = 1
+				}
+				if row.PodUID != tc.wantUID || !maps.Equal(row.Labels, labels) || len(row.Summary) != 4 || row.Summary["max"] != maximum {
+					t.Errorf("CPU identity or summary changed: %+v", row)
+				}
+				if _, found := row.Summary["min"]; found {
+					t.Errorf("usage must not have a minimum: %+v", row)
+				}
+			}
+			if strings.Contains(strings.Join(r.Warnings, " "), "summary incomplete") {
+				t.Fatalf("four usage statistics should be complete: %v", r.Warnings)
+			}
+			bad := maps.Clone(labels)
+			bad["statistic"] = "min"
+			data["svc/cpuSustained"] = append(data["svc/cpuSustained"], replicaPeakTestSeries(bad, 0))
+			r = collectReplicaPeaks(context.Background(), replicaPeakTestTime.Add(-time.Hour), replicaPeakTestTime, replicaPeakTestTime, replicaPeakTestQuery(t, data, ""))
+			for _, q := range r.Queries {
+				if q.Name == "cpuSustained" && q.Status != "error" {
+					t.Errorf("sustained CPU minimum must be rejected: %+v", q)
+				}
+			}
+			for _, row := range r.Containers {
+				if len(row.Summary) != 4 {
+					t.Errorf("invalid minimum leaked into usage: %+v", row)
+				}
+			}
+		})
+	}
+}
+
+func TestReplicaPeakCPUWindowJSON(t *testing.T) {
+	for _, window := range []string{"", "10m"} {
+		r := replicaPeakReport{CPUWindow: "2m", SizingCPUWindow: window}
+		data, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), `"sizingCPUWindow"`) != (window != "") {
+			t.Fatalf("legacy reports must omit sizingCPUWindow: %s", data)
+		}
+		var decoded replicaPeakReport
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if decoded.CPUWindow != "2m" || decoded.SizingCPUWindow != window {
+			t.Fatalf("CPU windows failed round trip: %+v", decoded)
+		}
 	}
 }
 
@@ -238,7 +317,7 @@ func TestReplicaPeakWindowsAndCancellation(t *testing.T) {
 		calls.Add(1)
 		return query(ctx, ws, expression, start, end)
 	})
-	if !r.End.Equal(replicaPeakTestTime) || calls.Load() != 9 || !strings.Contains(strings.Join(r.Warnings, " "), "no container observations") {
+	if !r.End.Equal(replicaPeakTestTime) || calls.Load() != 10 || !strings.Contains(strings.Join(r.Warnings, " "), "no container observations") {
 		t.Fatalf("capping/empty cluster failed: %+v", r)
 	}
 }
@@ -293,7 +372,7 @@ func TestReplicaPeakCancellationDuringBatch(t *testing.T) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	})
-	if calls.Load() > 2 || len(r.Queries) != 9 {
+	if calls.Load() > 2 || len(r.Queries) != 10 {
 		t.Fatalf("canceled batch should retain all statuses without launching more work: calls=%d queries=%d", calls.Load(), len(r.Queries))
 	}
 	for _, q := range r.Queries[1:] {

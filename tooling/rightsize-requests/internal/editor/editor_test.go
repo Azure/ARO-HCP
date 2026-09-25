@@ -15,11 +15,39 @@
 package editor
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestGetDistinguishesMissingAndMalformed(t *testing.T) {
+	for _, tc := range []struct {
+		content string
+		missing bool
+	}{
+		{content: "", missing: true},
+		{content: "# empty overlay\n", missing: true},
+		{content: "limits:\n  memory: 1Gi\n", missing: true},
+		{content: "limits: invalid\n"},
+		{content: "limits: []\n"},
+		{content: "limits:\n  cpu: {}\n"},
+	} {
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		if err := os.WriteFile(path, []byte(tc.content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		ed, err := New(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _, err = ed.Get("limits.cpu")
+		if err == nil || errors.Is(err, ErrPathNotFound) != tc.missing {
+			t.Errorf("content %q: expected missing=%v, got %v", tc.content, tc.missing, err)
+		}
+	}
+}
 
 const sample = `# top comment
 defaults:

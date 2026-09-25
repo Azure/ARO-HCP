@@ -47,7 +47,7 @@ func TestReplicaPeakQueries(t *testing.T) {
 				}
 				return
 			}
-			want := map[string]int{"cpu/" + workspaceSvc: 1, "memory/" + workspaceSvc: 1}
+			want := map[string]int{"cpu/" + workspaceSvc: 1, "cpuSustained/" + workspaceSvc: 1, "memory/" + workspaceSvc: 1}
 			for _, ws := range []string{workspaceSvc, workspaceHcp} {
 				for _, name := range []string{"requests", "initRequests", "metadata"} {
 					want[name+"/"+ws] = 1
@@ -109,7 +109,7 @@ func TestReplicaPeakQueriesPromtool(t *testing.T) {
 			}
 			var metric, labels, excludedValues string
 			switch query.name {
-			case "cpu":
+			case "cpu", "cpuSustained":
 				metric, labels, excludedValues = "container_cpu_usage_seconds_total", oldUsage, "0+3000x13"
 				// 30-second counter scrapes: deleted incarnation, replacement, and
 				// an unequal live pod. Duplicate exporters must not double peaks/counts.
@@ -120,10 +120,19 @@ func TestReplicaPeakQueriesPromtool(t *testing.T) {
 				add(metric, otherUsage, "0+7.5x12")
 				resetUsage := strings.ReplaceAll(otherUsage, "/other", "/reset")
 				add(metric, resetUsage, "0 15 30 45 60 120 180 0 30 60 90 120 150")
-				summary(oldUsage, 1, 0, 2, 120, 180)
-				summary(newUsage, 2, 0, 4, 180, 360)
-				summary(otherUsage, .25, 0, 5, 120, 360)
-				summary(resetUsage, 1.5, 0, 5, 120, 360)
+				if query.name == "cpu" {
+					summary(oldUsage, 1, 0, 2, 120, 180)
+					summary(newUsage, 2, 0, 4, 180, 360)
+					summary(otherUsage, .25, 0, 5, 120, 360)
+					summary(resetUsage, 1.5, 0, 5, 120, 360)
+				} else {
+					// With less than 10m of history, rate extrapolates only near
+					// the scrapes (and never before counter zero), then divides by 600s.
+					summary(oldUsage, .225, 0, 5, 120, 360)
+					summary(newUsage, .75, 0, 4, 180, 360)
+					summary(otherUsage, .15, 0, 5, 120, 360)
+					summary(resetUsage, .55, 0, 5, 120, 360)
+				}
 			case "memory":
 				metric, labels, excludedValues = "container_memory_working_set_bytes", oldUsage, "99999+0x13"
 				add(metric, oldUsage+`,prometheus_replica="a"`, "99999 99999 99999 900 100 stale _x7")
@@ -170,7 +179,7 @@ func TestReplicaPeakQueriesPromtool(t *testing.T) {
 			// Older promtool versions compare floats exactly. Round only in the
 			// test harness to tolerate rate extrapolation's floating-point error.
 			testExpression := func(expression string) string {
-				if query.name == "cpu" {
+				if query.name == "cpu" || query.name == "cpuSustained" {
 					return "round((" + expression + ") * 1e9) / 1e9"
 				}
 				return expression
@@ -192,13 +201,16 @@ func TestReplicaPeakQueriesPromtool(t *testing.T) {
 				{time.Unix(120, 1), time.Unix(360, 0), 4, 180, 360},
 			} {
 				values := "1+0x12"
-				if query.name == "cpu" {
+				if query.name == "cpu" || query.name == "cpuSustained" {
 					values = "0+30x12"
 				}
 				expected = nil
-				if query.name == "metadata" {
+				switch query.name {
+				case "metadata":
 					expected = append(expected, sample{fmt.Sprintf(`{%s,metric=%q}`, labels, metric), 1})
-				} else {
+				case "cpuSustained":
+					summary(labels, window.last/600, 0, window.count, window.first, window.last)
+				default:
 					summary(labels, 1, 1, window.count, window.first, window.last)
 				}
 				for _, bounded := range replicaPeakQueries("cluster.a", window.start, window.end) {
@@ -209,6 +221,27 @@ func TestReplicaPeakQueriesPromtool(t *testing.T) {
 						"interval": "30s", "input_series": []inputSeries{{metric + "{" + labels + "}", values}},
 						"promql_expr_test": []any{map[string]any{
 							"expr": testExpression(bounded.expression), "eval_time": fmt.Sprintf("%ds", window.end.Unix()), "exp_samples": expected,
+						}},
+					})
+				}
+			}
+			if query.name == "cpu" || query.name == "cpuSustained" {
+				// A 30s burst after a full 10m baseline has the same identity
+				// in both queries, but a much lower sustained peak.
+				for _, spike := range replicaPeakQueries("cluster.a", time.Unix(600, 0), time.Unix(720, 0)) {
+					if spike.name != query.name {
+						continue
+					}
+					maximum := 6.666666667 // 600 CPU seconds / 90 sampled seconds
+					if query.name == "cpuSustained" {
+						maximum = 1.052631579 // 600 CPU seconds / 570 sampled seconds
+					}
+					expected = nil
+					summary(oldUsage, maximum, 0, 3, 600, 720)
+					fixtureTests = append(fixtureTests, map[string]any{
+						"interval": "30s", "input_series": []inputSeries{{metric + "{" + oldUsage + "}", "600+0x20 1200+0x3"}},
+						"promql_expr_test": []any{map[string]any{
+							"expr": testExpression(spike.expression), "eval_time": "12m", "exp_samples": expected,
 						}},
 					})
 				}

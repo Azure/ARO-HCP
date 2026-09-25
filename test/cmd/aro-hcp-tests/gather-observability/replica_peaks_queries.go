@@ -32,11 +32,12 @@ import (
 // First/last are Unix seconds of those grid points, NOT times of extrema or raw
 // samples. Missing requests remain absent; observed zero requests are retained.
 //
-// CPU uses rate over (t-2m,t]. Memory uses the raw maximum over (t-60s,t], not an
-// average, covering between-minute spikes. Thus the first point can inspect data
-// before start, and data after floor(end) is excluded. Range functions can still
-// observe pre-staleness samples in those lookbacks. Requests and metadata use
-// instant selectors with normal Prometheus lookback/staleness semantics.
+// CPU uses rate over (t-2m,t], and sustained CPU over (t-10m,t]. Memory uses the raw
+// maximum over (t-60s,t], not an average, covering between-minute spikes. Thus the
+// first point can inspect data before start, and data after floor(end) is excluded.
+// Range functions can still observe pre-staleness samples in those lookbacks.
+// Requests and metadata use instant selectors with normal Prometheus
+// lookback/staleness semantics.
 func replicaPeakQueries(cluster string, start, end time.Time) []utilizationQuery {
 	first, last := start.UTC().Truncate(time.Minute), end.UTC().Truncate(time.Minute)
 	if first.Before(start) {
@@ -50,6 +51,7 @@ func replicaPeakQueries(cluster string, start, end time.Time) []utilizationQuery
 	usageLabels := "cluster, namespace, pod, container, node, instance, id"
 	queries := []utilizationQuery{
 		{"cpu", workspaceSvc, `max by (` + usageLabels + `) (rate(container_cpu_usage_seconds_total{` + selector + `,container!="",container!="POD",pod!=""}[2m]))`},
+		{"cpuSustained", workspaceSvc, `max by (` + usageLabels + `) (rate(container_cpu_usage_seconds_total{` + selector + `,container!="",container!="POD",pod!=""}[10m]))`},
 		{"memory", workspaceSvc, `max by (` + usageLabels + `) (max_over_time(container_memory_working_set_bytes{` + selector + `,container!="",container!="POD",pod!=""}[60s]))`},
 	}
 	metadata := `max by (__name__, cluster, namespace, pod, uid, container, container_id, owner_kind, owner_name, owner_is_controller, replicaset, job_name, replicationcontroller) ((` + utilizationMetricUnion(selector,
@@ -72,7 +74,7 @@ func replicaPeakQueries(cluster string, start, end time.Time) []utilizationQuery
 		}
 		var summaries []string
 		for _, statistic := range []string{"max", "min", "count", "first", "last"} {
-			if statistic == "min" && (query.name == "cpu" || query.name == "memory") {
+			if statistic == "min" && (query.name == "cpu" || query.name == "cpuSustained" || query.name == "memory") {
 				continue
 			}
 			expression, reduction := query.expression, statistic

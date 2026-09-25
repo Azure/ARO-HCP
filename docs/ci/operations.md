@@ -41,6 +41,9 @@ run's bounded time window from the regional Azure Monitor workspaces.
   and Resource History tabs, including minute-by-minute node resources,
   selected peak minutes, node capacity, workload demand, and
   completeness warnings. It can be rendered again without Azure access.
+- The **Right-Sizing** tab and standalone `right-sizing.html` show per-container
+  request suggestions derived from `replica-peaks.json`; `right-sizing.json` is
+  the machine-readable input for the offline request updater described below.
 - `junit_alerts.xml` records unexpected fired alerts as test failures for Prow.
 
 Known alert firings can be temporarily excluded from this CI gate in
@@ -210,8 +213,8 @@ metadata. No kubeconfig, Kusto access, or additional flags are required.
 
 The version-1 artifact contains:
 
-- `start`, `end`, `generatedAt`, `gridStep`, `cpuWindow`, and `memoryWindow`;
-  the end is capped at collection start.
+- `start`, `end`, `generatedAt`, `gridStep`, `cpuWindow`, `sizingCPUWindow`, and
+  `memoryWindow`; the end is capped at collection start.
 - `clusters`: underlay clusters discovered across the report window, including
   clusters no longer present at collection time.
 - `queries`: each cluster/workspace/query's `success`, `empty`, or `error` status,
@@ -225,9 +228,11 @@ The version-1 artifact contains:
   both workspaces. The `metric` label identifies the original KSM metric family.
 - `warnings`: collection failures, invalid observations, and unresolved identities.
 
-`cpu` is the maximum two-minute CPU rate in cores, evaluated on UTC minute
-boundaries. `memory` is the maximum raw working-set measurement in bytes within
-the preceding 60 seconds at those boundaries, not an average. The grid runs from
+The three usage queries are `cpu` (maximum two-minute burst CPU rate),
+`cpuSustained` (maximum ten-minute CPU rate for sizing), and `memory` (maximum
+raw working-set measurement within the preceding 60 seconds, not an average).
+CPU is in cores and memory in bytes, evaluated on UTC minute boundaries.
+The grid runs from
 `ceil(start)` through `floor(end)`: lookbacks at its first point can include
 pre-start activity, and the trailing fractional minute is excluded. `count` is
 the number of observed grid points after HA deduplication, not scrape count or
@@ -257,16 +262,100 @@ evidence for a shared container request. CPU and memory peaks may occur at
 different times. Summing independent container or replica maxima does not yield
 a measured simultaneous peak, and a low observed peak alone is not a safe
 production request recommendation. Request changes, CPU throttling, startup,
-missing telemetry, and unobserved load still require investigation. Choosing
-new requests, collecting scheduling constraints, and simulating placement are
-intentionally separate steps.
+missing telemetry, and unobserved load still require investigation. The
+Right-Sizing report below proposes requests; collecting scheduling constraints
+and simulating placement remain separate steps.
 
 Collection has a three-minute total budget, 30-second HTTP timeouts, and at most
 two in-flight queries. Each cluster is queried separately with one evaluation
 per request; full workload histories are neither downloaded nor persisted.
 Query failures and Prometheus warning responses are reported as unavailable
 evidence without failing alert/JUnit checks. An artifact-write failure remains
-fatal. Existing HTML tabs are unchanged.
+fatal.
+
+### Right-Sizing Requests
+
+Desktop and mobile previews replaying the first replica-peak artifact (which
+contains legacy 2-minute CPU evidence):
+
+![Right-sizing stack ranks on desktop](images/right-sizing-desktop.png)
+
+![Right-sizing filters at a 390px mobile viewport](images/right-sizing-mobile.png)
+
+The **Right-Sizing** tab groups evidence by cluster, namespace, owning workload,
+and container. CPU sizing uses the maximum ten-minute rate across all observed
+replicas and the report window, plus 20% headroom; the two-minute burst peak is
+displayed separately. Memory uses peak working set across those replicas, also
+plus 20%. Amounts and deltas are **per container**, not workload totals or
+concurrent demand. Replica counts include historical pod UIDs, not just replicas
+running together.
+
+Suggestions round to the nearest 10m CPU or 10Mi memory, ties up, with a minimum
+of one step. For `unit = 0.01` cores or `10 * 1024 * 1024` bytes:
+
+```text
+nearest = max(1, round(1.2 * peak / unit)) * unit
+suggested = max(nearest, ceil(peak / 1.2 / unit) * unit)
+```
+
+The floor prevents rounding from leaving `peak > 120%` of the suggestion;
+nearest rounding does not guarantee the full 20% headroom. The default deadband
+suppresses changes **at or below 10%** of the current request. `--change-threshold`
+accepts finite fractions from 0 through 1; 0 disables it. A measured sizing peak
+above 120% of current bypasses the deadband, not other safety checks.
+The report compares against observed `requestMin`; the updater recomputes against
+effective current config rather than trusting report `actionable`/`alertRisk` flags.
+
+Eligibility requires an exact pod-UID owner chain and, for **every observed
+replica**, both usage and request evidence with at least 10 grid points covering
+at least 90% of each signal's own first-to-last observation span. Missing,
+conflicting, or failed evidence is not zero and can make a row ineligible.
+This is **not proof of actual full-lifetime coverage or absence of ingestion
+loss**: wholly unobserved replicas and missing leading/trailing samples can escape
+these checks. Old collected artifacts without `sizingCPUWindow` use the legacy
+two-minute CPU peak with an explicit fallback warning. New artifacts declaring
+ten-minute sizing never fall back when `cpuSustained` evidence is missing.
+
+The actual `ServiceCPUDrift` and `ServiceMemoryDrift` alerts use a **30-minute
+average usage/request ratio >1.2 for 5 minutes**, with CPU based on a **five-minute
+rate**. These differ from sizing peaks; neither the guard nor applying suggestions
+guarantees alert clearance. Investigate throttling, startup and unobserved load
+before accepting changes.
+
+Rebuild both right-sizing artifacts offline, without Azure credentials or rendered
+configuration:
+
+```bash
+./test/aro-hcp-tests gather-observability render-right-sizing \
+  --input replica-peaks.json --output DIR --change-threshold .1
+```
+
+Review `DIR/right-sizing.html`, then use `DIR/right-sizing.json` as the updater's
+input. From the repository root (below, `right-sizing.json` is the downloaded report):
+
+```bash
+go run ./tooling/rightsize-requests --input right-sizing.json \
+  --config config/config.yaml --allow-decrease --dry-run
+# After reviewing the preview, apply to the local config:
+go run ./tooling/rightsize-requests --input right-sizing.json \
+  --config config/config.yaml --allow-decrease
+```
+
+JSON input mode uses a fixed, explicit `(namespace, container)` mapping and writes
+only `clouds.dev.defaults.*.resources.requests.cpu`/`.memory`. It takes the maximum
+suggestion across all cluster/workload records mapping to each resource, never
+sums them. Unknown mappings are skipped; an ineligible, unknown-owner, init-container
+or incomplete mapped row blocks that mapped resource. CPU and memory are independent.
+Stale protection requires effective current config to lie in at least one contributing
+observed request range (not a gap between ranges), unless already equal to the
+suggestion. Decreases require `--allow-decrease`. Limits stay unchanged; suggestions
+exceeding an effective limit are skipped. The updater's own `--change-threshold`
+(default `.1`) controls its decisions independently of the report's threshold.
+This mode obtains no credentials, makes no network queries, and neither renders
+configuration nor commits. Review the diff and follow the normal configuration
+materialization workflow separately. See the
+[updater reference](../../tooling/rightsize-requests/README.md#offline-input)
+for validation and mapping details.
 
 ## Modifying CI Configuration
 
