@@ -5,7 +5,8 @@ digraph cluster_create {
   put [label="Frontend PUT cluster\nCluster + Create Operation", fillcolor="#eee7fb", color="#7b59a4"];
   sp [label="CreateServiceProviderCluster", fillcolor="#e6f0fa", color="#35648a"];
   id [label="ClusterPendingClusterServiceID\nAssign", fillcolor="#e6f0fa", color="#35648a"];
-  ver [label="ControlPlaneDesiredVersion", fillcolor="#e6f0fa", color="#35648a"];
+  ver [label="InitialNormalClusterDesiredVersion\nor ForcedClusterDesiredVersion", fillcolor="#e6f0fa", color="#35648a"];
+  rollout [label="Channel best / forced version\nSee version-rollout panel", fillcolor="#e4f2e5", color="#4c8053"];
   place [label="Placement", fillcolor="#e6f0fa", color="#35648a"];
   fleet [label="Fleet readiness + capacity\nSee placement panel", fillcolor="#e4f2e5", color="#4c8053"];
   azure [label="Azure prerequisites panel\nconfirmed group + deny assignments", fillcolor="#e4f2e5", color="#4c8053"];
@@ -13,7 +14,8 @@ digraph cluster_create {
   cs [label="Cluster Service cluster exists\nClusterServiceID confirmed\nContinue in convergence panel", fillcolor="#e4f2e5", color="#4c8053"];
   put -> sp [label="missing service-provider\ndocument"];
   put -> id [label="missing pending/confirmed ID"];
-  sp -> ver [label="customer version + channel"];
+  sp -> ver [label="nil desired version +\nrequested channel / override"];
+  rollout -> ver [label="selected target"];
   sp -> place [label="placement unresolved"];
   fleet -> place [label="Ready + schedulable +\ncurrent capacity"];
   place -> place [label="no fit: record condition;\nretry after 29s", style=dashed, color="#857456", constraint=false];

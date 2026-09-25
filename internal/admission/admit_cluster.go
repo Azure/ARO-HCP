@@ -236,7 +236,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift)
+	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterZStreamUpdatePolicy, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -245,6 +245,16 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	}
 
 	var experimentalFeatures coreapi.ExperimentalFeatures
+
+	if hasTag(tags, metadataapi.TagClusterZStreamUpdatePolicy) {
+		value := lookupTag(tags, metadataapi.TagClusterZStreamUpdatePolicy)
+		if coreapi.ZStreamUpdatePolicy(value) != coreapi.ImmediateZStreamUpdatePolicy {
+			errs = append(errs, field.Invalid(tagsPath.Key(metadataapi.TagClusterZStreamUpdatePolicy), value,
+				fmt.Sprintf("must be %q", coreapi.ImmediateZStreamUpdatePolicy)))
+		} else {
+			experimentalFeatures.ZStreamUpdatePolicy = coreapi.ImmediateZStreamUpdatePolicy
+		}
+	}
 
 	singleReplicaValue := lookupTag(tags, metadataapi.TagClusterSingleReplica)
 	switch coreapi.ControlPlaneAvailability(singleReplicaValue) {

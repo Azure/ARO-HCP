@@ -50,6 +50,45 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
+	for _, tc := range []struct {
+		name, desired, pin, exact string
+		want                      coreapi.ProvisioningState
+	}{
+		{name: "initial assignment pending", want: coreapi.ProvisioningStateAccepted},
+		{name: "minor assignment pending", desired: "4.21.6", want: coreapi.ProvisioningStateAccepted},
+		{name: "requested minor resolved", desired: "4.22.8", want: coreapi.ProvisioningStateSucceeded},
+		{name: "incompatible pin fails immediately", desired: "4.21.6", pin: "4.21.6", want: coreapi.ProvisioningStateFailed},
+		{name: "incompatible exact override fails immediately", desired: "4.21.6", exact: "4.21.6", want: coreapi.ProvisioningStateFailed},
+		{name: "pin takes precedence over experimental override", desired: "4.22.8", pin: "4.22.8", exact: "4.21.6", want: coreapi.ProvisioningStateSucceeded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := operationtesting.NewClusterTestFixture()
+			cluster := fixture.NewCluster(nil)
+			cluster.CustomerProperties.Version.ID = "4.22"
+			spc := &coreapi.ServiceProviderCluster{}
+			if tc.desired != "" {
+				spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse(tc.desired))
+			}
+			if tc.pin != "" {
+				spc.Spec.PinnedVersion.ExactVersion = ptr.To(semver.MustParse(tc.pin))
+			}
+			if tc.exact != "" {
+				cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(semver.MustParse(tc.exact))
+			}
+			// No DB client: resolution must not read or create a legacy controller
+			// document now that the rollout controllers own desired versions.
+			syncer := &operationClusterUpdate{
+				clock:                           clocktesting.NewFakeClock(time.Now()),
+				desiredVersionMismatchFirstSeen: lru.New(10),
+			}
+			state, err := syncer.desiredVersionResolutionOperationState(context.Background(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), cluster, spc)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, state.ProvisioningState)
+		})
+	}
+}
+
 func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 	testClockNow := operationtesting.MustParseTime("2024-06-01T12:00:00Z")
 	fixture := operationtesting.NewClusterTestFixture()
@@ -246,8 +285,10 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                           "customer minor mismatch with IntentFailed on ControlPlaneDesiredVersion controller marks operation failed",
-			existingCluster:                newClusterWithCustomerVersion("4.20"),
+			name: "customer minor mismatch with forced version marks operation failed",
+			existingCluster: newClusterWithCustomerVersion("4.20", func(cluster *coreapi.Cluster) {
+				cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(semver.MustParse("4.19.6"))
+			}),
 			existingOperation:              newOperationAccepted(),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
 			existingControlPlaneDesiredVersionController: newControlPlaneDesiredVersionControllerWithConditions([]metav1.Condition{
@@ -270,7 +311,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
 				assert.Equal(t, coreapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
-				assert.Contains(t, op.Error.Message, "example intent failed message")
+				assert.Contains(t, op.Error.Message, "conflicts with forced control plane version 4.19.6")
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
