@@ -462,6 +462,11 @@ and rejects leases already being returned. Acquisition runs full validation
 before admission, and runtime publication validates again. These are local
 resolved-state checks, not additional Azure inventory scans.
 
+Resolved infrastructure assets must use leased allocation and contain exactly
+the resource-group names recorded for that asset in the journal, without
+duplicates. Ordering may differ. These checks do not restrict partial-journal
+persistence or release.
+
 ## Runtime contract
 
 After successful admission, slot-manager writes
@@ -508,6 +513,10 @@ For slot index `N`, the handler expands the configured prefix and count into:
 
 where `M` ranges from zero to `resource_group_count - 1`.
 
+V2 catalog validation checks the generated names against Azure resource-group
+naming rules, including the 90-character limit with both numeric suffixes.
+Suffix widths grow beyond two digits when an index exceeds 99.
+
 The resolved names are persisted in state and later published as
 `LEASED_MSI_CONTAINERS`. Runtime validation requires dedicated allocation and
 the complete deterministic list above, not merely a nonempty set, before
@@ -539,7 +548,7 @@ For every resolved resource group, the handler:
 
 1. enumerates all user-assigned managed identities;
 2. selects the 13 standard identities and requires valid principal IDs,
-   ignoring other identities in the resource group;
+   reporting unexpected names without inspecting or cleaning those identities;
 3. enumerates every federated identity credential on those standard identities;
 4. enumerates role assignments for their principal IDs across the E2E
    subscription, including child scopes;
@@ -559,8 +568,16 @@ budget. A clean inventory returns without deletion calls.
 
 A missing required identity, invalid principal metadata, incomplete enumeration,
 or deletion error (including exhausted SDK retries) fails acquisition before
-runtime publication. Extra identities are not used by the tests and are neither
-admitted nor cleaned by this asset.
+runtime publication. Expected identity and enumerated role-assignment principal
+IDs must be hyphenated UUIDs without surrounding whitespace; matching is
+case-insensitive. Invalid role principal IDs fail rather than being silently
+classified as foreign.
+
+Extra identities are not used by the tests and are neither
+admitted nor cleaned by this asset. They produce one informational log entry
+per affected resource group, listing the group and unexpected identity names.
+This reporting adds no ARM requests and does not block admission, including for
+unmanaged pools.
 
 The normal E2E framework cleanup remains the fast path after each test. Asset
 admission is authoritative because it also handles interrupted jobs and

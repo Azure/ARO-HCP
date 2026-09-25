@@ -181,6 +181,43 @@ func TestLoadV2CatalogRejectsDuplicatePoolNames(t *testing.T) {
 	}
 }
 
+func TestDedicatedIdentityResourceGroupNames(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name              string
+		prefix            string
+		slots, containers int
+		valid             bool
+	}{
+		{"punctuation", "_prefix.()-", 2, 3, true},
+		{"unicode letters and digits", "\u00e9\u0661", 2, 3, true},
+		{"quote", "prefix'quote", 2, 3, false},
+		{"newline", "prefix\nnewline", 2, 3, false},
+		{"slash", "prefix/slash", 2, 3, false},
+		{"90 characters", strings.Repeat("a", 84), 100, 100, true},
+		{"91 characters", strings.Repeat("a", 85), 2, 3, false},
+		{"three digit slot suffix", strings.Repeat("a", 84), 101, 3, false},
+		{"three digit container suffix", strings.Repeat("a", 84), 2, 101, false},
+		{"long suffixes within limit", strings.Repeat("a", 82), 101, 101, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			catalog := loadCatalogFromYAML(t, dedicatedCatalog)
+			pool := &catalog.Environments["dev"].Pools[0]
+			pool.SlotCount = tc.slots
+			pool.SlotAssets.E2EIdentities.ResourceGroupPrefix = tc.prefix
+			pool.SlotAssets.E2EIdentities.ResourceGroupCount = tc.containers
+			err := catalog.Validate()
+			if tc.valid {
+				if err != nil {
+					t.Fatalf("valid generated resource-group names rejected: %v", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "invalid identity resource group name") {
+				t.Fatalf("expected generated resource-group name rejection, got %v", err)
+			}
+		})
+	}
+}
+
 func loadCatalogFromYAMLWithError(t *testing.T, catalogYAML string) (*Catalog, error) {
 	t.Helper()
 	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")

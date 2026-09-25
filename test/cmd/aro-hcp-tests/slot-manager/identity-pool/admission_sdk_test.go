@@ -29,6 +29,9 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/go-logr/logr"
+	"github.com/go-logr/logr/funcr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -74,7 +77,7 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 	status := http.StatusOK
 	var payload any
 	names := framework.NewDefaultIdentities().ToSlice()
-	principal := "00000000-0000-0000-0000-000000000001"
+	principal := "00000000-0000-0000-0000-0000000000AB"
 	switch {
 	case request.Method == http.MethodDelete:
 		isFIC := strings.Contains(path, "federatedIdentityCredentials")
@@ -98,15 +101,23 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 		identities := []map[string]any{}
 		for i, name := range names {
 			id := fmt.Sprintf("00000000-0000-0000-0000-%012d", i+1)
-			if a.scenario == "bad principal" {
+			if i == 0 {
+				id = strings.ToLower(principal)
+			}
+			switch a.scenario {
+			case "bad principal":
 				id = "not-a-uuid"
+			case "padded identity principal":
+				id = " " + id + " "
 			}
 			identities = append(identities, map[string]any{"name": name, "properties": map[string]string{"principalId": id}})
 		}
-		identities = append(identities,
-			map[string]any{"name": "unrelated", "properties": map[string]string{"principalId": "ffffffff-ffff-ffff-ffff-ffffffffffff"}},
-			map[string]any{"name": "unrelated-without-principal"},
-		)
+		if a.scenario != "no extras" {
+			identities = append(identities,
+				map[string]any{"name": "unrelated", "properties": map[string]string{"principalId": "ffffffff-ffff-ffff-ffff-ffffffffffff"}},
+				map[string]any{"name": "unrelated-without-principal"},
+			)
+		}
 		switch a.scenario {
 		case "missing identity":
 			identities = identities[1:]
@@ -133,6 +144,10 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 			principal = ""
 		case "whitespace role principal":
 			principal = " \t\n"
+		case "padded role principal":
+			principal = " " + principal + " "
+		case "malformed role principal":
+			principal = "not-a-uuid"
 		}
 
 		roles := []map[string]any{
@@ -176,10 +191,10 @@ func admissionSDKClients(t *testing.T, transport *admissionTransport) (*armmsi.C
 
 func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []string{"clean", "residue", "already deleted"} {
+	for _, scenario := range []string{"clean", "residue", "already deleted", "no extras"} {
 		t.Run(scenario, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				dirty := scenario != "clean"
+				dirty := scenario == "residue" || scenario == "already deleted"
 				transport := &admissionTransport{scenario: scenario, fic: dirty, role: dirty, latency: time.Millisecond}
 				factory, roles := admissionSDKClients(t, transport)
 				groups := []string{"identity-rg-00", "identity-rg-01"}
@@ -188,9 +203,31 @@ func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 						Allocation: slots.AllocationDedicated, ResourceGroups: groups,
 					}},
 				}}}
-				ctx := context.Background()
+				var reports []string
+				ctx := logr.NewContext(t.Context(), funcr.NewJSON(func(report string) {
+					reports = append(reports, report)
+				}, funcr.Options{}))
 				if err := admitIdentityLeaseWithClients(ctx, request, factory, roles); err != nil {
 					t.Fatalf("admission failed: %v", err)
+				}
+				wantReports := len(groups)
+				if scenario == "no extras" {
+					wantReports = 0
+				}
+				if len(reports) != wantReports {
+					t.Fatalf("expected %d resource-group drift reports, got %v", wantReports, reports)
+				}
+				for i, data := range reports {
+					var report struct {
+						ResourceGroup string
+						IdentityNames []string
+					}
+					if err := json.Unmarshal([]byte(data), &report); err != nil {
+						t.Fatal(err)
+					}
+					if report.ResourceGroup != groups[i] || !slices.Equal(report.IdentityNames, []string{"unrelated", "unrelated-without-principal"}) {
+						t.Fatalf("drift report must identify only unexpected names and their resource group: %s", data)
+					}
 				}
 				if transport.roleLists != 1 || transport.identityLists != len(groups) {
 					t.Fatalf("admission must load inventory once, got %d role lists and %d identity lists", transport.roleLists, transport.identityLists)
@@ -232,11 +269,14 @@ func TestAdmissionFailsClosed(t *testing.T) {
 		{"missing identity", "missing=[" + framework.NewDefaultIdentities().ToSlice()[0] + "]"},
 		{"duplicate identity", "duplicate identity"},
 		{"bad principal", "invalid principal ID"},
+		{"padded identity principal", "invalid principal ID"},
 		{"list failure", "fake identity list failure"},
 		{"FIC list failure", "fake FIC list failure"},
 		{"role list failure", "fake role list failure"},
 		{"empty role principal", "without a principal ID"},
 		{"whitespace role principal", "without a principal ID"},
+		{"padded role principal", "invalid principal ID"},
+		{"malformed role principal", "invalid principal ID"},
 		{"FIC delete failure", "failed deleting FIC"},
 		{"role delete failure", "failed deleting role assignment"},
 	} {

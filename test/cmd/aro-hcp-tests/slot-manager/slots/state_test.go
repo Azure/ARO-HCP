@@ -138,6 +138,9 @@ func TestWriteV2AcquiredSlotStateAndRuntimeContract(t *testing.T) {
 	state.Slot.Requirements = []AssetRequirement{
 		{Kind: KindInfrastructureIdentities, Allocation: AllocationLeased, UnitsPerSlot: 1},
 	}
+	state.Leases.Assets = map[AssetKind][]Lease{
+		KindInfrastructureIdentities: {{ResourceType: "bundle", ResourceName: "bundle-00"}},
+	}
 	state.Slot.Assets = ResolvedAssets{
 		InfrastructureIdentities: &ResolvedInfrastructureIdentities{
 			Allocation: AllocationLeased, ResourceGroups: []string{"bundle-00"}, Identities: []string{"service"},
@@ -302,6 +305,66 @@ func resolvedV2TestState() *AcquiredSlotState {
 				Infrastructure: ResolvedSubscription{Name: "dev-infra", ID: "infra-id"},
 			},
 		},
+	}
+}
+
+func TestInfrastructureRuntimeMatchesJournal(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		mutate func(*AcquiredSlotState)
+		want   string
+	}{
+		{"reordered groups", func(s *AcquiredSlotState) {
+			s.Slot.Assets.InfrastructureIdentities.ResourceGroups = []string{"bundle-01", "bundle-00"}
+		}, ""},
+		{"wrong resolved allocation", func(s *AcquiredSlotState) {
+			s.Slot.Assets.InfrastructureIdentities.Allocation = AllocationDedicated
+		}, "requires leased allocation"},
+		{"wrong demanded allocation", func(s *AcquiredSlotState) {
+			s.Slot.Requirements[0].Allocation = AllocationDedicated
+		}, "requires leased allocation"},
+		{"foreign group", func(s *AcquiredSlotState) {
+			s.Slot.Assets.InfrastructureIdentities.ResourceGroups[0] = "foreign-00"
+		}, "does not match acquired leases"},
+		{"duplicate group", func(s *AcquiredSlotState) {
+			s.Slot.Assets.InfrastructureIdentities.ResourceGroups[1] = "bundle-00"
+		}, "does not match acquired leases"},
+		{"missing journal", func(s *AcquiredSlotState) {
+			s.Leases.Assets = nil
+		}, "does not match acquired leases"},
+		{"zero demand", func(s *AcquiredSlotState) {
+			s.Slot.Requirements[0].UnitsPerSlot = 0
+			s.Slot.Assets.InfrastructureIdentities.ResourceGroups = nil
+			s.Leases.Assets = nil
+		}, "unresolved demanded asset"},
+		{"extra lease", func(s *AcquiredSlotState) {
+			s.Leases.Assets[KindInfrastructureIdentities] = append(s.Leases.Assets[KindInfrastructureIdentities], Lease{ResourceType: "bundle", ResourceName: "bundle-02"})
+		}, "does not match acquired leases"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := resolvedV2TestState()
+			state.Slot.Requirements = []AssetRequirement{{Kind: KindInfrastructureIdentities, Allocation: AllocationLeased, UnitsPerSlot: 2}}
+			state.Slot.Assets.InfrastructureIdentities = &ResolvedInfrastructureIdentities{
+				Allocation: AllocationLeased, ResourceGroups: []string{"bundle-00", "bundle-01"}, Identities: []string{"service"},
+			}
+			state.Leases.Assets = map[AssetKind][]Lease{KindInfrastructureIdentities: {
+				{ResourceType: "bundle", ResourceName: "bundle-00"},
+				{ResourceType: "bundle", ResourceName: "bundle-01"},
+			}}
+			tc.mutate(state)
+			if err := state.ValidateForRelease(); err != nil {
+				t.Fatalf("resolved asset mismatch must not prevent release: %v", err)
+			}
+			err := AddCoreRuntimeExports(NewRuntimeContractBuilder(), state, "dev-e2e", "profile")
+			if tc.want == "" {
+				if err != nil {
+					t.Fatalf("matching journal and resolved groups rejected: %v", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected runtime rejection containing %q, got %v", tc.want, err)
+			}
+		})
 	}
 }
 

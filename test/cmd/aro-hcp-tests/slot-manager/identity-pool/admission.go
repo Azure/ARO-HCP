@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -150,12 +151,13 @@ func loadIdentityLeaseInventory(
 	}
 
 	inventory := &identityLeaseInventory{}
-	principalIDs := map[string]struct{}{}
+	principalIDs := map[uuid.UUID]struct{}{}
 	federatedCredentialsClient := msiFactory.NewFederatedIdentityCredentialsClient()
 	identitiesClient := msiFactory.NewUserAssignedIdentitiesClient()
 
 	for _, resourceGroup := range request.State.Slot.IdentityContainerNames() {
 		actualIdentities := map[string]string{}
+		var unexpectedIdentities []string
 		pager := identitiesClient.NewListByResourceGroupPager(resourceGroup, nil)
 		for pager.More() {
 			page, err := pager.NextPage(ctx)
@@ -168,20 +170,29 @@ func loadIdentityLeaseInventory(
 				}
 				normalizedName := strings.ToLower(*identity.Name)
 				if _, expected := expectedIdentities[normalizedName]; !expected {
+					unexpectedIdentities = append(unexpectedIdentities, *identity.Name)
 					continue
 				}
 				if identity.Properties == nil || identity.Properties.PrincipalID == nil || strings.TrimSpace(*identity.Properties.PrincipalID) == "" {
 					return nil, fmt.Errorf("identity %q in resource group %q has no principal ID", *identity.Name, resourceGroup)
 				}
-				if _, err := uuid.Parse(*identity.Properties.PrincipalID); err != nil {
+				principalID, err := parsePrincipalID(*identity.Properties.PrincipalID)
+				if err != nil {
 					return nil, fmt.Errorf("identity %q has invalid principal ID: %w", *identity.Name, err)
 				}
 				if _, found := actualIdentities[normalizedName]; found {
 					return nil, fmt.Errorf("identity list for resource group %q returned duplicate identity %q", resourceGroup, *identity.Name)
 				}
 				actualIdentities[normalizedName] = *identity.Name
-				principalIDs[strings.ToLower(*identity.Properties.PrincipalID)] = struct{}{}
+				principalIDs[principalID] = struct{}{}
 			}
+		}
+		if len(unexpectedIdentities) > 0 {
+			sort.Strings(unexpectedIdentities)
+			logr.FromContextOrDiscard(ctx).Info("Unexpected identities in leased resource group; excluded from admission cleanup",
+				"resourceGroup", resourceGroup,
+				"identityNames", unexpectedIdentities,
+			)
 		}
 		if err := validateIdentityNames(resourceGroup, expectedIdentities, actualIdentities); err != nil {
 			return nil, err
@@ -218,12 +229,27 @@ func loadIdentityLeaseInventory(
 			if assignment == nil || assignment.Properties == nil || assignment.Properties.PrincipalID == nil || strings.TrimSpace(*assignment.Properties.PrincipalID) == "" {
 				return nil, errors.New("role assignment list returned an entry without a principal ID")
 			}
-			if _, found := principalIDs[strings.ToLower(*assignment.Properties.PrincipalID)]; found {
+			principalID, err := parsePrincipalID(*assignment.Properties.PrincipalID)
+			if err != nil {
+				return nil, fmt.Errorf("role assignment list returned invalid principal ID %q: %w", *assignment.Properties.PrincipalID, err)
+			}
+			if _, found := principalIDs[principalID]; found {
 				inventory.roleAssignments = append(inventory.roleAssignments, assignment)
 			}
 		}
 	}
 	return inventory, nil
+}
+
+func parsePrincipalID(value string) (uuid.UUID, error) {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if !strings.EqualFold(value, id.String()) {
+		return uuid.Nil, errors.New("principal ID must be a hyphenated UUID without surrounding whitespace")
+	}
+	return id, nil
 }
 
 func validateIdentityNames(resourceGroup string, expected map[string]struct{}, actual map[string]string) error {

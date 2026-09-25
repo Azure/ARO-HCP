@@ -128,8 +128,11 @@ func (s ExpandedSlot) ValidateResolvedAssets() error {
 			}
 		case KindInfrastructureIdentities:
 			asset := s.Assets.InfrastructureIdentities
-			if asset == nil || len(asset.ResourceGroups) != requirement.UnitsPerSlot || len(asset.Identities) == 0 {
+			if asset == nil || requirement.UnitsPerSlot <= 0 || len(asset.ResourceGroups) != requirement.UnitsPerSlot || len(asset.Identities) == 0 {
 				return fmt.Errorf("unresolved demanded asset %q", requirement.Kind)
+			}
+			if requirement.Allocation != AllocationLeased || asset.Allocation != AllocationLeased {
+				return fmt.Errorf("demanded asset %q requires leased allocation", requirement.Kind)
 			}
 		default:
 			return fmt.Errorf("unknown demanded asset %q", requirement.Kind)
@@ -214,6 +217,9 @@ func (c *Catalog) AssetInventories() ([]AssetInventory, error) {
 
 var inventoryName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 
+// https://learn.microsoft.com/azure/azure-resource-manager/management/resource-name-rules#microsoftresources
+var identityResourceGroupName = regexp.MustCompile(`^[\p{L}\p{Nd}_().-]{0,89}[\p{L}\p{Nd}_()-]$`)
+
 func (c *Catalog) validateAssetPools(resourceTypes map[string]string) error {
 	if c.Version == 1 {
 		if len(c.AssetPools) > 0 {
@@ -230,6 +236,11 @@ func (c *Catalog) validateAssetPools(resourceTypes map[string]string) error {
 			}
 			prefixes[pool.ResourceType] = environment + "/" + pool.Name
 			if asset := pool.SlotAssets.E2EIdentities; asset != nil {
+				// Check the longest generated name without expanding the inventory.
+				name := fmt.Sprintf("%s-%0*d-%0*d", asset.ResourceGroupPrefix, defaultSlotIndexWidth, pool.SlotCount-1, defaultContainerIndexWidth, asset.ResourceGroupCount-1)
+				if !identityResourceGroupName.MatchString(name) {
+					return fmt.Errorf("environment %q pool %q has invalid identity resource group name %q from resource_group_prefix: must be at most 90 characters using letters, decimal digits, underscores, hyphens, periods or parentheses", environment, pool.Name, name)
+				}
 				// Both suffixes are decimal indices without hyphens, so removing
 				// the final two segments uniquely recovers the pool prefix.
 				key := strings.ToLower(pool.E2ESubscriptionName() + "/" + asset.ResourceGroupPrefix)

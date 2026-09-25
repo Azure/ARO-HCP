@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -230,7 +231,22 @@ func (s *AcquiredSlotState) Validate() error {
 				}
 			}
 		}
-		return s.Slot.ValidateResolvedAssets()
+		if err := s.Slot.ValidateResolvedAssets(); err != nil {
+			return err
+		}
+		if s.Slot.RequiresInfrastructureSubscription() {
+			leases := s.Leases.Assets[KindInfrastructureIdentities]
+			leaseNames := make([]string, len(leases))
+			for i, lease := range leases {
+				leaseNames[i] = lease.ResourceName
+			}
+			groups := slices.Clone(s.Slot.Assets.InfrastructureIdentities.ResourceGroups)
+			sort.Strings(leaseNames)
+			sort.Strings(groups)
+			if !slices.Equal(groups, leaseNames) {
+				return fmt.Errorf("resolved demanded asset %q does not match acquired leases", KindInfrastructureIdentities)
+			}
+		}
 	}
 	return nil
 }
