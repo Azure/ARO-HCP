@@ -237,7 +237,102 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 	}
 }
 
+// alwaysRequiredControlPlaneOperators and alwaysRequiredDataPlaneOperators mirror the identity
+// config's Always requirements. They are spelled out rather than derived so that a change to the
+// config shows up here as a deliberate edit.
+var (
+	alwaysRequiredControlPlaneOperators = []string{
+		"cloud-controller-manager", "cloud-network-config", "cluster-api-azure",
+		"control-plane", "disk-csi-driver", "file-csi-driver", "image-registry", "ingress",
+	}
+	alwaysRequiredDataPlaneOperators = []string{"disk-csi-driver", "file-csi-driver", "image-registry"}
+)
+
+// withRequiredOperatorIdentities fills in the operator identities a create requires, so the
+// inline payloads below only have to spell out the fields each round-trip case is about.
+// Control plane identities are also assigned under .identity; data plane identities must not be.
+// kms is added only when the payload enables customer-managed etcd encryption, mirroring the
+// OnEnablement requirement rather than the Always ones.
+func withRequiredOperatorIdentities(payload []byte, subscriptionID string) []byte {
+	identityResourceID := func(name string) string {
+		return fmt.Sprintf("/subscriptions/%s/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", subscriptionID, name)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(payload, &doc); err != nil {
+		panic(err)
+	}
+
+	identity := doc["identity"].(map[string]any)
+	assigned := identity["userAssignedIdentities"].(map[string]any)
+	properties := doc["properties"].(map[string]any)
+	platform := properties["platform"].(map[string]any)
+	operatorsAuthentication, ok := platform["operatorsAuthentication"].(map[string]any)
+	if !ok {
+		operatorsAuthentication = map[string]any{}
+		platform["operatorsAuthentication"] = operatorsAuthentication
+	}
+	userAssignedIdentities, ok := operatorsAuthentication["userAssignedIdentities"].(map[string]any)
+	if !ok {
+		userAssignedIdentities = map[string]any{}
+		operatorsAuthentication["userAssignedIdentities"] = userAssignedIdentities
+	}
+	controlPlaneOperators, ok := userAssignedIdentities["controlPlaneOperators"].(map[string]any)
+	if !ok {
+		controlPlaneOperators = map[string]any{}
+		userAssignedIdentities["controlPlaneOperators"] = controlPlaneOperators
+	}
+
+	controlPlaneOperatorNames := append([]string{}, alwaysRequiredControlPlaneOperators...)
+	if etcdUsesCustomerManagedKeys(properties) {
+		controlPlaneOperatorNames = append(controlPlaneOperatorNames, "kms")
+	}
+	for _, operatorName := range controlPlaneOperatorNames {
+		if _, ok := controlPlaneOperators[operatorName]; ok {
+			continue
+		}
+		resourceID := identityResourceID(operatorName + "-identity")
+		controlPlaneOperators[operatorName] = resourceID
+		assigned[resourceID] = map[string]any{}
+	}
+
+	dataPlaneOperators, ok := userAssignedIdentities["dataPlaneOperators"].(map[string]any)
+	if !ok {
+		dataPlaneOperators = map[string]any{}
+		userAssignedIdentities["dataPlaneOperators"] = dataPlaneOperators
+	}
+	for _, operatorName := range alwaysRequiredDataPlaneOperators {
+		if _, ok := dataPlaneOperators[operatorName]; ok {
+			continue
+		}
+		dataPlaneOperators[operatorName] = identityResourceID(operatorName + "-dataplane-identity")
+	}
+
+	out, err := json.Marshal(doc)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
+func etcdUsesCustomerManagedKeys(properties map[string]any) bool {
+	etcd, ok := properties["etcd"].(map[string]any)
+	if !ok {
+		return false
+	}
+	dataEncryption, ok := etcd["dataEncryption"].(map[string]any)
+	if !ok {
+		return false
+	}
+	return dataEncryption["keyManagementMode"] == "CustomerManaged"
+}
+
 func clusterCreatePayload(clusterName, apiVersion string) []byte {
+	const subscriptionID = "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+	return withRequiredOperatorIdentities(clusterCreatePayloadTemplate(clusterName, apiVersion), subscriptionID)
+}
+
+func clusterCreatePayloadTemplate(clusterName, apiVersion string) []byte {
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
 
 	switch apiVersion {

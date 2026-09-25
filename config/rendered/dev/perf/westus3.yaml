@@ -303,6 +303,8 @@ frontend:
     issuer: Self
     name: frontend-cert-perf-usw3ptest
     san: rp.usw3ptest.hcpsvc.osadev.cloud
+  clusterScopedIdentitiesConfig:
+    roleSetName: dev
   cosmosDB:
     billingContainerMaxScale: 4000
     disableLocalAuth: true

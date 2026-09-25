@@ -303,6 +303,8 @@ frontend:
     issuer: Self
     name: frontend-cert-cspr-usw3
     san: rp.westus3-cs.hcpsvc.osadev.cloud
+  clusterScopedIdentitiesConfig:
+    roleSetName: dev
   cosmosDB:
     billingContainerMaxScale: 4000
     disableLocalAuth: true

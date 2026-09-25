@@ -55,7 +55,24 @@
 				"managedResourceGroup": "managed-resource-group-name",
 				"networkSecurityGroupId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
 				"operatorsAuthentication": {
-					"userAssignedIdentities": {}
+					"userAssignedIdentities": {
+						"controlPlaneOperators": {
+							"cloud-controller-manager": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager-identity",
+							"cloud-network-config": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config-identity",
+							"cluster-api-azure": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure-identity",
+							"control-plane": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane-identity",
+							"disk-csi-driver": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver-identity",
+							"file-csi-driver": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver-identity",
+							"image-registry": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry-identity",
+							"ingress": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress-identity",
+							"kms": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
+						},
+						"dataPlaneOperators": {
+							"disk-csi-driver": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver-dataplane-identity",
+							"file-csi-driver": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver-dataplane-identity",
+							"image-registry": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry-dataplane-identity"
+						}
+					}
 				},
 				"outboundType": "LoadBalancer",
 				"subnetId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
@@ -66,7 +83,18 @@
 		},
 		"id": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 		"identity": {
-			"type": "UserAssigned"
+			"type": "UserAssigned",
+			"userAssignedIdentities": {
+				"/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager-identity": {},
+				"/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config-identity": {},
+				"/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure-identity": {},
+				"/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane-identity": {},
+				"/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver-identity": {},
+				"/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver-identity": {},
+				"/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry-identity": {},
+				"/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress-identity": {},
+				"/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity": {}
+			}
 		},
 		"internalId": "/api/clusters_mgmt/v1/clusters/dv8blqb5g9",
 		"location": "fake-location",

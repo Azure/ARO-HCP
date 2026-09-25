@@ -46,3 +46,5 @@ virtualService:
 adminApiHost: "admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
 exitOnPanic: {{ .frontend.exitOnPanic }}
 logVerbosity: {{ .frontend.logVerbosity }}
+clusterScopedIdentitiesConfig:
+  roleSetName: "{{ .frontend.clusterScopedIdentitiesConfig.roleSetName }}"

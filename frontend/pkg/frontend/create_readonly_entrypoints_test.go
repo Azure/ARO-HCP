@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -35,7 +36,7 @@ import (
 func TestSubscriptionReadOnlyMetadataHTTP(t *testing.T) {
 	db := corecosmosstoragetesting.NewMockResourcesDBClient()
 	reg := prometheus.NewRegistry()
-	f := NewFrontend(testr.New(t), nil, nil, reg, reg, db, nil, newNoopAuditClient(t), coreapitesting.TestLocation, true)
+	f := NewFrontend(testr.New(t), nil, nil, reg, reg, db, nil, newNoopAuditClient(t), coreapitesting.TestLocation, true, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 	ts := newHTTPServer(ctx, f, db, nil)
 	t.Cleanup(ts.Close)
@@ -110,7 +111,7 @@ func TestSubscriptionReadOnlyMetadataHTTP(t *testing.T) {
 func TestPreflightReadOnlyParityHTTP(t *testing.T) {
 	db := corecosmosstoragetesting.NewMockResourcesDBClient()
 	reg := prometheus.NewRegistry()
-	f := NewFrontend(testr.New(t), nil, nil, reg, reg, db, nil, newNoopAuditClient(t), coreapitesting.TestLocation, true)
+	f := NewFrontend(testr.New(t), nil, nil, reg, reg, db, nil, newNoopAuditClient(t), coreapitesting.TestLocation, true, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 	ts := newHTTPServer(ctx, f, db, map[string]*coreapi.Subscription{
 		coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),

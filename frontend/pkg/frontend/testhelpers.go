@@ -23,6 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
 
@@ -49,6 +50,7 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		newNoopAuditClient(t),
 		coreapitesting.TestLocation,
 		true,
+		azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 	)
 	return f
 }

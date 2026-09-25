@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/azure"
 )
 
 const (
@@ -260,6 +261,27 @@ func ocmCluster(t *testing.T, builders ...*arohcpv1alpha1.ClusterBuilder) *arohc
 	return cluster
 }
 
+// testControlPlaneOperatorIdentities is the control plane operator identity set produced by
+// converting a minimally valid RP cluster, which uses CustomerManaged etcd encryption and so
+// carries the "kms" operator identity.
+func testControlPlaneOperatorIdentities() map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder {
+	identities := map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder{}
+	for operatorName := range azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev).ControlPlaneOperatorsIdentities {
+		identities[string(operatorName)] = arohcpv1alpha1.NewAzureControlPlaneManagedIdentity().
+			ResourceID(coreapitesting.NewTestOperatorUserAssignedIdentity(string(operatorName) + "-identity").String())
+	}
+	return identities
+}
+
+func testDataPlaneOperatorIdentities() map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder {
+	identities := map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder{}
+	for operatorName := range azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev).DataPlaneOperatorsIdentities {
+		identities[string(operatorName)] = arohcpv1alpha1.NewAzureDataPlaneManagedIdentity().
+			ResourceID(coreapitesting.NewTestOperatorUserAssignedIdentity(string(operatorName) + "-dataplane-identity").String())
+	}
+	return identities
+}
+
 func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 	// This reflects how the immutable attributes get set when passed a minimally
 	// valid RP cluster, using constants from internal/api/testhelpers.go.
@@ -273,8 +295,8 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 				OutboundType(csOutboundType)).
 			OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
 				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
-					ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
-					DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+					ControlPlaneOperatorsManagedIdentities(testControlPlaneOperatorIdentities()).
+					DataPlaneOperatorsManagedIdentities(testDataPlaneOperatorIdentities()).
 					ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
 			ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
 			ResourceName(strings.ToLower(coreapitesting.TestClusterName)).
@@ -713,8 +735,8 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 				OutboundType(csOutboundType)).
 			OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
 				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
-					ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
-					DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+					ControlPlaneOperatorsManagedIdentities(testControlPlaneOperatorIdentities()).
+					DataPlaneOperatorsManagedIdentities(testDataPlaneOperatorIdentities()).
 					ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
 			ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
 			ResourceName(strings.ToLower(coreapitesting.TestClusterName)).
@@ -1157,8 +1179,8 @@ func TestBuildCSCluster(t *testing.T) {
 						OutboundType(csOutboundType)).
 					OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
 						ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
-							ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
-							DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+							ControlPlaneOperatorsManagedIdentities(testControlPlaneOperatorIdentities()).
+							DataPlaneOperatorsManagedIdentities(testDataPlaneOperatorIdentities()).
 							ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
 					ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
 					ResourceName(strings.ToLower(coreapitesting.TestClusterName)).
@@ -1227,8 +1249,8 @@ func TestBuildCSCluster(t *testing.T) {
 						OutboundType(csOutboundType)).
 					OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
 						ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
-							ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
-							DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+							ControlPlaneOperatorsManagedIdentities(testControlPlaneOperatorIdentities()).
+							DataPlaneOperatorsManagedIdentities(testDataPlaneOperatorIdentities()).
 							ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
 					ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
 					ResourceName(strings.ToLower(coreapitesting.TestClusterName)).
@@ -1271,8 +1293,8 @@ func TestBuildCSCluster(t *testing.T) {
 						OutboundType(csOutboundType)).
 					OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
 						ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
-							ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
-							DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+							ControlPlaneOperatorsManagedIdentities(testControlPlaneOperatorIdentities()).
+							DataPlaneOperatorsManagedIdentities(testDataPlaneOperatorIdentities()).
 							ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
 					ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
 					ResourceName(strings.ToLower(coreapitesting.TestClusterName)).

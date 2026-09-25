@@ -303,6 +303,8 @@ frontend:
     issuer: Self
     name: frontend-cert-ci00-j7654321
     san: rp.j7654321.hcpsvc.osadev.cloud
+  clusterScopedIdentitiesConfig:
+    roleSetName: dev
   cosmosDB:
     billingContainerMaxScale: 4000
     disableLocalAuth: true
