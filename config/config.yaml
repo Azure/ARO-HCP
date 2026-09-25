@@ -1406,14 +1406,14 @@ clouds:
         k8s:
           resources:
             requests:
-              cpu: 231m
+              cpu: 260m
               memory: 224Mi
       # Management Agent
       mgmtAgent:
         k8s:
           resources:
             requests:
-              cpu: 313m
+              cpu: 350m
       # Image Sync
       imageSync:
         ocMirror:
