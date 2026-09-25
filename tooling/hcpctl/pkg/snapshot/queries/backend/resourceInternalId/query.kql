@@ -7,4 +7,5 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosRes
 | where resourceGroup =~ '{{ .ResourceGroup }}'
 | where resourceID =~ '{{ .ResourceID }}'
 | extend internalId=tostring(content.properties.serviceProviderProperties.clusterServiceID)
+| where isnotempty(internalId)
 | distinct internalId
