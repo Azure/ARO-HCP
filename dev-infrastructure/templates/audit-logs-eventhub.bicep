@@ -140,7 +140,9 @@ resource maestroMqttEventHubDataReceiverRoleAssignment 'Microsoft.Authorization/
 
 output auditLogsEventHubId string = kustoEnabled && eventhubEnabled ? eventHubNamespace::eventHub.id : ''
 output alertEventsEventHubId string = kustoEnabled && eventhubEnabled ? eventHubNamespace::alertEventsEventHub.id : ''
-output maestroMqttEventHubId string = kustoEnabled && eventhubEnabled && maestroMqttEnabled ? eventHubNamespace::maestroMqttEventHub.id : ''
+output maestroMqttEventHubId string = kustoEnabled && eventhubEnabled && maestroMqttEnabled
+  ? eventHubNamespace::maestroMqttEventHub.id
+  : ''
 output eventHubNamespaceName string = kustoEnabled && eventhubEnabled ? eventHubNamespace.name : ''
 output auditLogsEventHubAuthRuleId string = kustoEnabled && eventhubEnabled
   ? eventHubNamespace::diagnosticSettingsAuthRule.id
