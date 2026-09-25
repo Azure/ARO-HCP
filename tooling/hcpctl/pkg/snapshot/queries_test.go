@@ -25,7 +25,7 @@ import (
 func fullQueryData() queryData {
 	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	return queryData{
-		ClusterURI:                  "https://example.kusto.windows.net",
+		ClusterURI:                  "https://example.kusto.example.com",
 		ServiceDatabase:             "ServiceLogs",
 		HCPDatabase:                 "HostedControlPlaneLogs",
 		MonitoringEventsDatabase:    "MonitoringEvents",

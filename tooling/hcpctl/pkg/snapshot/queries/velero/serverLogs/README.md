@@ -6,8 +6,9 @@ Velero **server** error/warning logs on the management cluster(s) hosting this H
 `discovery/velero/mgmtCluster.md`, or the PR-job hint). Deliberately **not** filtered to
 this HCP: the velero server is shared per management cluster, so an infrastructure-level
 failure (object-store auth, plugin crash, BackupStorageLocation unavailable) breaks backups
-for every HCP on the cluster and carries no per-HCP token. Aggregated by `cluster`, `level`,
-`msg`, and extracted `err`.
+for every HCP on the cluster and carries no per-HCP token. Also includes the `node-agent`
+DaemonSet logs, which are likewise management-cluster-wide and part of the cross-HCP signal.
+Aggregated by `cluster`, `level`, `msg`, and extracted `err`.
 
 ## What to Look For
 

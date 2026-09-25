@@ -277,7 +277,7 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		PhaseEndTime:   input.TimeWindow.End,
 	}
 	// Seed the management-cluster list from the PR-job hint. When absent, the
-	// velero/mgmtCluster discovery query fills it from container logs.
+	// velero/mgmtCluster discovery query fills it from the HCP's Velero Backup CR snapshots (kubernetesResourceSnapshots).
 	if seedData.ManagementClusterName != "" {
 		seedData.ManagementClusterNames = []string{seedData.ManagementClusterName}
 	}

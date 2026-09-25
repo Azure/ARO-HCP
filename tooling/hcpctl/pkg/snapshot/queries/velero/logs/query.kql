@@ -4,7 +4,7 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('container
 | where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
 {{- end }}
 | where namespace_name == 'velero'
-| where log has_any ('{{ .HostedClusterNamespace }}', '{{ .HostedControlPlaneNamespace }}')
+| where log contains '{{ .HostedClusterNamespace }}' or log contains '{{ .HostedControlPlaneNamespace }}'
 | extend
     level = tostring(extract('level=([a-zA-Z]+)', 1, tostring(log))),
     msg = tostring(extract('msg="([^"]*)"', 1, tostring(log)))
