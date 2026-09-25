@@ -509,12 +509,16 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 		return utils.TrackError(err)
 	}
 
+	oldProvisioningState := oldInternalExternalAuth.Properties.ProvisioningState
+
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
 	})
 	if err != nil {
 		return utils.TrackError(err)
 	}
+
+	emitExternalAuthStateTransition(oldProvisioningState, newInternalExternalAuth.Properties.ProvisioningState, newInternalExternalAuth.ID.ResourceType.String())
 
 	// Read back the resource document so the response body is accurate.
 	resultingUncastInternalExternalAuth, err := transactionResult.GetItem(oldInternalExternalAuth.GetCosmosData().GetCosmosUID())
@@ -566,6 +570,8 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 
 	logger.Info(fmt.Sprintf("deleting resource %s", externalAuth.ID))
 
+	oldProvisioningState := externalAuth.Properties.ProvisioningState
+
 	transaction := f.resourcesDBClient.NewTransaction(externalAuth.ID.SubscriptionID)
 	if err := f.addDeleteExternalAuthToTransaction(ctx, writer, request, transaction, externalAuth); err != nil {
 		return utils.TrackError(err)
@@ -574,6 +580,8 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return utils.TrackError(err)
 	}
+
+	emitExternalAuthStateTransition(oldProvisioningState, externalAuth.Properties.ProvisioningState, externalAuth.ID.ResourceType.String())
 
 	writer.WriteHeader(http.StatusAccepted)
 	return nil
