@@ -249,7 +249,7 @@ resourceGroups:
     - resourceGroup: regional
       step: infra
     variables:
-    - name: auditLogsEventHubAuthRuleId
+    - name: eventHubAuthorizationRuleId
       input:
         resourceGroup: auditLogs
         step: auditLogsEventHub
