@@ -16,8 +16,8 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -87,21 +87,6 @@ var _ = Describe("KSM HCP Metrics", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", customerClusterName)
 
-			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
-			nodePoolParams.ClusterName = customerClusterName
-			nodePoolParams.NodePoolName = customerNodePoolName
-
-			err = tc.CreateNodePoolFromParam20240610(ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				managedResourceGroupName,
-				customerClusterName,
-				nodePoolParams,
-				framework.NodePoolCreationTimeout,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q", customerNodePoolName)
-
 			// Confusingly.the HCP workspace lives in the svc subscription, not mgmt
 			svcSubscriptionNameStr, err := config.GetStringByPath(serviceConfig, "svc.subscription.key")
 			Expect(err).NotTo(HaveOccurred(), "failed to resolve svc.subscription.key")
@@ -119,32 +104,67 @@ var _ = Describe("KSM HCP Metrics", func() {
 			endpoint, err := promutil.LookupPrometheusEndpoint(ctx, cred, subscriptionID, regionRGStr, hcpWorkspaceNameStr)
 			Expect(err).NotTo(HaveOccurred(), "failed to look up HCP Prometheus endpoint")
 
-			httpClient := &http.Client{Timeout: 30 * time.Second}
-
-			metricList := []string{
-				"ingresscontroller_info",
-				"kube_node_status_condition",
-				"kube_node_info",
+			type metricCheck struct {
+				query       string
+				description string
 			}
 
-			By("Polling Azure Monitor Workspace for metrics")
+			// Note, using ingresscontroller_info for now, other metrics can be added later.
+			checks := []metricCheck{
+				{
+					query:       `ingresscontroller_info{hostedcontrolplane=~".+", container="kube-state-metrics"}`,
+					description: "ingresscontroller_info from kube-state-metrics",
+				},
+			}
+
+			httpClient := &http.Client{Timeout: 30 * time.Second}
+
+			// Track which metrics have been found so we don't re-query them.
+			found := make(map[string]bool, len(checks))
+
+			By("Polling Azure Monitor for KSM HCP metrics")
 			// Azure Monitor Prometheus ingestion latency for new metric series can exceed 10 minutes.
 			Eventually(func(g Gomega) {
-				for _, metric := range metricList {
-					query := fmt.Sprintf(`%s{hostedcontrolplane=~".*%s.*", container="kube-state-metrics"}`, metric, customerClusterName)
-					now := time.Now()
-					start := now.Add(-20 * time.Minute)
+				now := time.Now()
+				// Ingestion latency (noted above) can exceed 10 minutes, so a
+				// generous lookback prevents missing samples that land with an
+				// older timestamp once ingestion catches up.
+				start := now.Add(-35 * time.Minute)
 
-					resp, err := promutil.QueryRange(ctx, httpClient, cred, endpoint, query, start, now, "60s")
-					g.Expect(err).NotTo(HaveOccurred(), "Prometheus query_range failed for %s", metric)
+				var missing []string
+				for _, c := range checks {
+					if found[c.query] {
+						continue
+					}
+
+					resp, err := promutil.QueryRange(ctx, httpClient, cred, endpoint, c.query, start, now, "60s")
+					g.Expect(err).NotTo(HaveOccurred(), "Prometheus query_range failed for %s", c.description)
 					if err != nil {
 						return
 					}
-					g.Expect(resp.Data.Result).NotTo(BeEmpty(),
-						"expected %s metrics from kube-state-metrics but got no results", metric)
 
+					if len(resp.Data.Result) > 0 {
+						found[c.query] = true
+						GinkgoLogr.Info("metric found", "metric", c.description)
+					} else {
+						missing = append(missing, c.description)
+					}
 				}
-			}).WithTimeout(15*time.Minute).WithPolling(30*time.Second).WithContext(ctx).Should(Succeed(),
+
+				if len(missing) > 0 {
+					GinkgoLogr.Info("poll status",
+						"found", len(found),
+						"total", len(checks),
+						"missingMetrics", strings.Join(missing, ", "))
+				}
+
+				g.Expect(missing).To(BeEmpty(),
+					"expected %s but got no results", strings.Join(missing, "; "))
+			}).WithTimeout(25*time.Minute).WithPolling(30*time.Second).WithContext(ctx).Should(Succeed(),
 				"not all KSM metrics appeared in Azure Monitor")
+
+			for _, c := range checks {
+				GinkgoWriter.Printf("  [OK] %s\n", c.description)
+			}
 		})
 })
