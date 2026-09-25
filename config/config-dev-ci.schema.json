@@ -423,7 +423,7 @@
           "$ref": "#/$defs/MockIdentities"
         }
       },
-      "required": ["bot", "e2eSubscriptions"]
+      "required": ["bot", "e2eSubscriptions", "dashboardRegions"]
     },
     "CIBot": {
       "type": "object",

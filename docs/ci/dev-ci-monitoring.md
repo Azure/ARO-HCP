@@ -18,7 +18,7 @@ For a regional provision-health incident, use
 | Azure Action Group | `opstool-pagerduty` |
 | Azure Monitor Workspace | `opstool-monitor-usw3` |
 | Exporter | Deployment and service `tenant-quota-collector` in namespace `tenant-quota` |
-| Azure dashboard | [Dev](https://portal.azure.com/#@redhat0.onmicrosoft.com/dashboard/arm/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/opstool-westus3/providers/microsoft.portal/dashboards/arohcpdevci-quota-dev) · [Int](https://portal.azure.com/#@redhat0.onmicrosoft.com/dashboard/arm/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/opstool-westus3/providers/microsoft.portal/dashboards/arohcpdevci-quota-int) · [Stg](https://portal.azure.com/#@redhat0.onmicrosoft.com/dashboard/arm/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/opstool-westus3/providers/microsoft.portal/dashboards/arohcpdevci-quota-stg) · [Prod](https://portal.azure.com/#@redhat0.onmicrosoft.com/dashboard/arm/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/opstool-westus3/providers/microsoft.portal/dashboards/arohcpdevci-quota-prod) |
+| Azure dashboard | `opstool-westus3` resource group → dashboards `arohcpdevci-quota-{dev,int,stg,prod}` (Azure Portal → Dashboards → filter by name; see [dashboards.bicep](../../tooling/tenant-quota/dashboards.bicep) for the deployed resource names) |
 
 ## Scope and Name
 
