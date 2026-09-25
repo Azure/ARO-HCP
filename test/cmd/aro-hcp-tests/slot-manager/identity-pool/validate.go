@@ -21,8 +21,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/spf13/cobra"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
@@ -31,21 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
-type RawValidateOptions struct {
-	Environment   string
-	SlotCatalog   string
-	Subscriptions []string
-	Out           io.Writer
-}
-
-type validatedValidateOptions struct {
-	*RawValidateOptions
-}
-
-type ValidatedValidateOptions struct {
-	*validatedValidateOptions
-}
-
 type subscriptionInventory struct {
 	ResourceGroups []string
 	Identities     map[string][]string
@@ -53,14 +36,10 @@ type subscriptionInventory struct {
 
 type inventoryLoaderFunc func(ctx context.Context, subscriptionID string) (subscriptionInventory, error)
 
-type completedValidateOptions struct {
+type ValidateOptions struct {
 	IdentityPools []identityPool
 	LoadInventory inventoryLoaderFunc
 	Out           io.Writer
-}
-
-type ValidateOptions struct {
-	*completedValidateOptions
 }
 
 type identityReference struct {
@@ -78,69 +57,6 @@ type validationResult struct {
 	UnexpectedResourceGroups []string
 	MissingIdentities        []identityReference
 	UnexpectedIdentities     []identityReference
-}
-
-func DefaultValidateOptions() *RawValidateOptions {
-	return &RawValidateOptions{}
-}
-
-func BindValidateOptions(opts *RawValidateOptions, cmd *cobra.Command) error {
-	cmd.Flags().StringVar(&opts.Environment, "environment", opts.Environment, "Environment short name. One of: int, stg, dev, prod")
-	cmd.Flags().StringVar(&opts.SlotCatalog, "slot-catalog", opts.SlotCatalog, "Path to the canonical E2E slot catalog")
-	cmd.Flags().StringSliceVar(&opts.Subscriptions, "subscription", opts.Subscriptions, "Limit validation to the named subscription(s). When set, unmanaged pools matching the filter are included.")
-	if err := cmd.MarkFlagRequired("environment"); err != nil {
-		return fmt.Errorf("failed to mark flag %q as required: %w", "environment", err)
-	}
-	return nil
-}
-
-func (o *RawValidateOptions) Validate() (*ValidatedValidateOptions, error) {
-	if o.Environment == "" {
-		return nil, fmt.Errorf("--environment must not be empty")
-	}
-	if o.Out == nil {
-		o.Out = io.Discard
-	}
-
-	return &ValidatedValidateOptions{
-		validatedValidateOptions: &validatedValidateOptions{
-			RawValidateOptions: o,
-		},
-	}, nil
-}
-
-func (o *ValidatedValidateOptions) Complete(ctx context.Context) (*ValidateOptions, error) {
-	tc := framework.NewTestContext()
-	cred, err := tc.AzureCredential()
-	if err != nil {
-		return nil, fmt.Errorf("failed getting Azure credential: %w", err)
-	}
-
-	subscriptionClientFactory, err := tc.GetARMSubscriptionsClientFactory()
-	if err != nil {
-		return nil, fmt.Errorf("failed getting ARM subscriptions client factory: %w", err)
-	}
-	subscriptionClient := subscriptionClientFactory.NewClient()
-
-	pools, err := loadIdentityPools(ctx, o.SlotCatalog, o.Environment, o.Subscriptions, func(ctx context.Context, name string) (string, error) {
-		return framework.GetSubscriptionID(ctx, subscriptionClient, name)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed loading identity pools from slot catalog: %w", err)
-	}
-	if len(pools) == 0 {
-		return nil, fmt.Errorf("no identity pools matched environment %q and the requested subscription filter", o.Environment)
-	}
-
-	return &ValidateOptions{
-		completedValidateOptions: &completedValidateOptions{
-			IdentityPools: pools,
-			LoadInventory: func(ctx context.Context, subscriptionID string) (subscriptionInventory, error) {
-				return loadSubscriptionInventory(ctx, subscriptionID, cred)
-			},
-			Out: o.Out,
-		},
-	}, nil
 }
 
 func (o *ValidateOptions) Run(ctx context.Context) error {

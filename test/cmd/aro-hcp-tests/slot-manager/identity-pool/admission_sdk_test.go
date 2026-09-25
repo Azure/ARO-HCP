@@ -52,7 +52,7 @@ type admissionTransport struct {
 	fic, role     bool
 	deletes       []string
 	roleLists     int
-	identityReads []time.Time
+	identityLists int
 	roleReads     []time.Time
 	ficReads      int
 }
@@ -109,7 +109,7 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 			payload = map[string]any{"error": map[string]string{"code": "RoleAssignmentNotFound", "message": "role assignment was deleted"}}
 		}
 	case strings.HasSuffix(path, "/userAssignedIdentities"):
-		a.identityReads = append(a.identityReads, time.Now())
+		a.identityLists++
 		if a.scenario == "list failure" {
 			return nil, fmt.Errorf("fake identity list failure")
 		}
@@ -242,8 +242,8 @@ func TestWaitForCleanIdentityLease(t *testing.T) {
 				if elapsed := time.Since(start); elapsed != tc.wantElapsed {
 					t.Fatalf("expected elapsed %s, got %s", tc.wantElapsed, elapsed)
 				}
-				if transport.roleLists != 0 || len(transport.identityReads) != 0 {
-					t.Fatalf("convergence must not reload inventory, got %d role lists and %d identity lists", transport.roleLists, len(transport.identityReads))
+				if transport.roleLists != 0 || transport.identityLists != 0 {
+					t.Fatalf("convergence must not reload inventory, got %d role lists and %d identity lists", transport.roleLists, transport.identityLists)
 				}
 				if len(transport.roleReads) != len(tc.wantReads) {
 					t.Fatalf("expected %d targeted reads, got %d", len(tc.wantReads), len(transport.roleReads))
@@ -272,8 +272,8 @@ func TestAdmissionConvergenceAvoidsRepeatedInventory(t *testing.T) {
 		if err := prepareIdentityLeaseWithClients(ctx, request, factory, roles); err != nil {
 			t.Fatalf("preparation failed: %v", err)
 		}
-		if transport.roleLists != 1 || len(transport.identityReads) != 1 {
-			t.Fatalf("preparation must load inventory once, got %d role lists and %d identity lists", transport.roleLists, len(transport.identityReads))
+		if transport.roleLists != 1 || transport.identityLists != 1 {
+			t.Fatalf("preparation must load inventory once, got %d role lists and %d identity lists", transport.roleLists, transport.identityLists)
 		}
 		if len(transport.roleReads) != 3 || transport.ficReads != 1 {
 			t.Fatalf("only pending deletions should be rechecked, got %d role reads and %d FIC reads", len(transport.roleReads), transport.ficReads)
@@ -281,8 +281,8 @@ func TestAdmissionConvergenceAvoidsRepeatedInventory(t *testing.T) {
 		if err := validateCleanIdentityLease(ctx, request, factory, roles); err != nil {
 			t.Fatalf("final validation failed: %v", err)
 		}
-		if transport.roleLists != 2 || len(transport.identityReads) != 2 {
-			t.Fatalf("final validation must independently reload inventory, got %d role lists and %d identity lists", transport.roleLists, len(transport.identityReads))
+		if transport.roleLists != 2 || transport.identityLists != 2 {
+			t.Fatalf("final validation must independently reload inventory, got %d role lists and %d identity lists", transport.roleLists, transport.identityLists)
 		}
 		transport.role = true
 		if err := validateCleanIdentityLease(ctx, request, factory, roles); err == nil {
@@ -328,9 +328,9 @@ func TestDedicatedIdentityAdmissionWithFakeSDK(t *testing.T) {
 			if err := handler.PublishLease(ctx, request, contract); err != nil {
 				t.Fatal(err)
 			}
-			data, err := contract.MarshalShell()
-			if err != nil || !strings.Contains(string(data), "LEASED_MSI_CONTAINERS='identity-rg'") {
-				t.Fatalf("incorrect dedicated asset contract: %s, %v", data, err)
+			data := contract.MarshalShell()
+			if !strings.Contains(string(data), "LEASED_MSI_CONTAINERS='identity-rg'") {
+				t.Fatalf("incorrect dedicated asset contract: %s", data)
 			}
 			transport.fic = true
 			if err := validateCleanIdentityLease(ctx, request, factory, roles); err == nil {

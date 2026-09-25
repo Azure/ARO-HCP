@@ -120,21 +120,9 @@ func resolvePoolSubscriptions(
 	if strings.TrimSpace(e2eSubscriptionName) == "" {
 		return ResolvedSubscriptions{}, errors.New("E2E subscription name is empty")
 	}
-	tenantID, err := ReadRequiredProfileFile(clusterProfileDir, "tenant")
+	credential, err := NewClusterProfileCredential(clusterProfileDir, credentialOptions)
 	if err != nil {
 		return ResolvedSubscriptions{}, err
-	}
-	clientID, err := ReadRequiredProfileFile(clusterProfileDir, "client-id")
-	if err != nil {
-		return ResolvedSubscriptions{}, err
-	}
-	clientSecret, err := ReadRequiredProfileFile(clusterProfileDir, "client-secret")
-	if err != nil {
-		return ResolvedSubscriptions{}, err
-	}
-	credential, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, credentialOptions)
-	if err != nil {
-		return ResolvedSubscriptions{}, fmt.Errorf("failed creating Azure credential from cluster profile %q: %w", clusterProfileDir, err)
 	}
 	clientFactory, err := armsubscriptions.NewClientFactory(credential, clientOptions)
 	if err != nil {
@@ -216,6 +204,26 @@ func addSubscriptionIDs(ids map[string]string, subscriptions []*armsubscriptions
 		ids[name] = id
 	}
 	return nil
+}
+
+func NewClusterProfileCredential(clusterProfileDir string, options *azidentity.ClientSecretCredentialOptions) (*azidentity.ClientSecretCredential, error) {
+	tenantID, err := ReadRequiredProfileFile(clusterProfileDir, "tenant")
+	if err != nil {
+		return nil, err
+	}
+	clientID, err := ReadRequiredProfileFile(clusterProfileDir, "client-id")
+	if err != nil {
+		return nil, err
+	}
+	clientSecret, err := ReadRequiredProfileFile(clusterProfileDir, "client-secret")
+	if err != nil {
+		return nil, err
+	}
+	credential, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating Azure credential from cluster profile %q: %w", clusterProfileDir, err)
+	}
+	return credential, nil
 }
 
 func ReadRequiredProfileFile(clusterProfileDir, fileName string) (string, error) {

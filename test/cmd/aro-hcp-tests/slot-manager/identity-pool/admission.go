@@ -31,7 +31,6 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
@@ -48,7 +47,6 @@ const (
 )
 
 type identityLeaseInventory struct {
-	principalIDs         map[string]struct{}
 	federatedCredentials []federatedCredentialReference
 	roleAssignments      []*armauthorization.RoleAssignment
 }
@@ -62,7 +60,6 @@ type federatedCredentialReference struct {
 type resolvedIdentityReference struct {
 	resourceGroup string
 	name          string
-	principalID   string
 }
 
 type dirtyIdentityLeaseError struct {
@@ -103,7 +100,6 @@ func prepareIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRe
 	federatedCredentialsClient := msiFactory.NewFederatedIdentityCredentialsClient()
 	deleteOperations := make([]func(context.Context) error, 0, len(inventory.federatedCredentials)+len(inventory.roleAssignments))
 	for _, reference := range inventory.federatedCredentials {
-		reference := reference
 		deleteOperations = append(deleteOperations, func(ctx context.Context) error {
 			_, err := federatedCredentialsClient.Delete(ctx, reference.resourceGroup, reference.identityName, reference.name, nil)
 			if isNotFound(err) {
@@ -116,7 +112,6 @@ func prepareIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRe
 		})
 	}
 	for _, assignment := range inventory.roleAssignments {
-		assignment := assignment
 		deleteOperations = append(deleteOperations, func(ctx context.Context) error {
 			if assignment.ID == nil {
 				return errors.New("role assignment has no ID")
@@ -170,21 +165,9 @@ func leaseCredential(request assets.LeaseRequest) (azcore.TokenCredential, strin
 		return nil, "", errors.New("selected cluster profile dir is empty")
 	}
 
-	tenantID, err := slots.ReadRequiredProfileFile(profileDir, "tenant")
+	credential, err := slots.NewClusterProfileCredential(profileDir, nil)
 	if err != nil {
 		return nil, "", err
-	}
-	clientID, err := slots.ReadRequiredProfileFile(profileDir, "client-id")
-	if err != nil {
-		return nil, "", err
-	}
-	clientSecret, err := slots.ReadRequiredProfileFile(profileDir, "client-secret")
-	if err != nil {
-		return nil, "", err
-	}
-	credential, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed creating credential from cluster profile %q: %w", profileDir, err)
 	}
 	return credential, subscriptionID, nil
 }
@@ -204,7 +187,8 @@ func loadIdentityLeaseInventory(
 		expectedIdentities[strings.ToLower(identityName)] = struct{}{}
 	}
 
-	inventory := &identityLeaseInventory{principalIDs: map[string]struct{}{}}
+	inventory := &identityLeaseInventory{}
+	principalIDs := map[string]struct{}{}
 	federatedCredentialsClient := msiFactory.NewFederatedIdentityCredentialsClient()
 	identitiesClient := msiFactory.NewUserAssignedIdentitiesClient()
 
@@ -212,10 +196,9 @@ func loadIdentityLeaseInventory(
 	resolvedIdentities := make([]resolvedIdentityReference, 0)
 	identityInventoryOperations := make([]func(context.Context) error, 0, len(request.State.Slot.IdentityContainerNames()))
 	for _, resourceGroup := range request.State.Slot.IdentityContainerNames() {
-		resourceGroup := resourceGroup
 		identityInventoryOperations = append(identityInventoryOperations, func(ctx context.Context) error {
 			actualIdentities := map[string]string{}
-			principalIDs := map[string]string{}
+			var localPrincipalIDs []string
 			pager := identitiesClient.NewListByResourceGroupPager(resourceGroup, nil)
 			for pager.More() {
 				page, err := pager.NextPage(ctx)
@@ -234,26 +217,23 @@ func loadIdentityLeaseInventory(
 						return fmt.Errorf("identity list for resource group %q returned duplicate identity %q", resourceGroup, *identity.Name)
 					}
 					actualIdentities[normalizedName] = *identity.Name
-					principalIDs[normalizedName] = *identity.Properties.PrincipalID
+					localPrincipalIDs = append(localPrincipalIDs, strings.ToLower(*identity.Properties.PrincipalID))
 				}
 			}
 			if err := validateIdentityNames(resourceGroup, expectedIdentities, actualIdentities); err != nil {
 				return err
 			}
 
-			localIdentities := make([]resolvedIdentityReference, 0, len(expectedIdentityNames))
+			inventoryLock.Lock()
 			for _, identityName := range expectedIdentityNames {
-				localIdentities = append(localIdentities, resolvedIdentityReference{
+				resolvedIdentities = append(resolvedIdentities, resolvedIdentityReference{
 					resourceGroup: resourceGroup,
 					name:          identityName,
-					principalID:   principalIDs[strings.ToLower(identityName)],
 				})
 			}
-			inventoryLock.Lock()
-			for _, identity := range localIdentities {
-				inventory.principalIDs[strings.ToLower(identity.principalID)] = struct{}{}
+			for _, principalID := range localPrincipalIDs {
+				principalIDs[principalID] = struct{}{}
 			}
-			resolvedIdentities = append(resolvedIdentities, localIdentities...)
 			inventoryLock.Unlock()
 			return nil
 		})
@@ -264,7 +244,6 @@ func loadIdentityLeaseInventory(
 
 	ficInventoryOperations := make([]func(context.Context) error, 0, len(resolvedIdentities))
 	for _, identity := range resolvedIdentities {
-		identity := identity
 		ficInventoryOperations = append(ficInventoryOperations, func(ctx context.Context) error {
 			localCredentials := make([]federatedCredentialReference, 0)
 			ficPager := federatedCredentialsClient.NewListPager(identity.resourceGroup, identity.name, nil)
@@ -304,7 +283,7 @@ func loadIdentityLeaseInventory(
 			if assignment == nil || assignment.Properties == nil || assignment.Properties.PrincipalID == nil {
 				return nil, errors.New("role assignment list returned an entry without a principal ID")
 			}
-			if _, found := inventory.principalIDs[strings.ToLower(*assignment.Properties.PrincipalID)]; found {
+			if _, found := principalIDs[strings.ToLower(*assignment.Properties.PrincipalID)]; found {
 				inventory.roleAssignments = append(inventory.roleAssignments, assignment)
 			}
 		}

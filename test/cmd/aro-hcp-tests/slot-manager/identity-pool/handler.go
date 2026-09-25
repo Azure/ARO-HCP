@@ -80,11 +80,11 @@ func (h *Handler) ApplyPools(ctx context.Context, request assets.PoolRequest) er
 		return fmt.Errorf("failed to unmarshal Bicep template JSON: %w", err)
 	}
 
-	return (&ApplyOptions{completedApplyOptions: &completedApplyOptions{
+	return (&ApplyOptions{
 		Template:        bicepTemplateMap,
 		IdentityPools:   pools,
 		AzureCredential: credential,
-	}}).Run(ctx)
+	}).Run(ctx)
 }
 
 func (h *Handler) ValidatePools(ctx context.Context, request assets.PoolRequest) error {
@@ -96,13 +96,13 @@ func (h *Handler) ValidatePools(ctx context.Context, request assets.PoolRequest)
 	if out == nil {
 		out = io.Discard
 	}
-	return (&ValidateOptions{completedValidateOptions: &completedValidateOptions{
+	return (&ValidateOptions{
 		IdentityPools: pools,
 		LoadInventory: func(ctx context.Context, subscriptionID string) (subscriptionInventory, error) {
 			return loadSubscriptionInventory(ctx, subscriptionID, credential)
 		},
 		Out: out,
-	}}).Run(ctx)
+	}).Run(ctx)
 }
 
 func (h *Handler) resolvePools(ctx context.Context, request assets.PoolRequest) (azcore.TokenCredential, []identityPool, error) {

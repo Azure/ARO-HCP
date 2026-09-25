@@ -701,13 +701,6 @@ func (p Pool) InfrastructureSubscriptionName() string {
 	return p.Subscriptions.Infrastructure
 }
 
-func (p Pool) EffectiveDeployEnvironment(requested string) string {
-	if p.DeployEnv != "" {
-		return p.DeployEnv
-	}
-	return requested
-}
-
 func (p Pool) EffectiveRegionMode() RegionMode {
 	return p.RegionMode
 }

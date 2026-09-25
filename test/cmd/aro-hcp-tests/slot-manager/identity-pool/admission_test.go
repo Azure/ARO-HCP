@@ -175,19 +175,12 @@ func TestRunBoundedRunsEveryOperationAndJoinsErrors(t *testing.T) {
 
 	var calls atomic.Int32
 	expectedErr := errors.New("operation failed")
-	operations := []func(context.Context) error{
-		func(context.Context) error {
+	var operations []func(context.Context) error
+	for _, err := range []error{nil, expectedErr, nil} {
+		operations = append(operations, func(context.Context) error {
 			calls.Add(1)
-			return nil
-		},
-		func(context.Context) error {
-			calls.Add(1)
-			return expectedErr
-		},
-		func(context.Context) error {
-			calls.Add(1)
-			return nil
-		},
+			return err
+		})
 	}
 	err := runBounded(context.Background(), 2, operations)
 	if !errors.Is(err, expectedErr) {

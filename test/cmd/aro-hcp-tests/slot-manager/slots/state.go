@@ -294,11 +294,7 @@ func WriteRuntimeContract(sharedDir string, contract *RuntimeContractBuilder) er
 	if err != nil {
 		return err
 	}
-	data, err := contract.MarshalShell()
-	if err != nil {
-		return err
-	}
-	if err := writeFileAtomically(envFile, data, 0o644); err != nil {
+	if err := writeFileAtomically(envFile, contract.MarshalShell(), 0o644); err != nil {
 		return fmt.Errorf("failed to write env file %q: %w", envFile, err)
 	}
 	return nil
@@ -340,7 +336,7 @@ func (b *RuntimeContractBuilder) Add(owner, key, value string) error {
 	return nil
 }
 
-func (b *RuntimeContractBuilder) MarshalShell() ([]byte, error) {
+func (b *RuntimeContractBuilder) MarshalShell() []byte {
 	keys := make([]string, 0, len(b.exports))
 	for key := range b.exports {
 		keys = append(keys, key)
@@ -350,11 +346,9 @@ func (b *RuntimeContractBuilder) MarshalShell() ([]byte, error) {
 	var builder strings.Builder
 	for _, key := range keys {
 		value := strings.ReplaceAll(b.exports[key].value, "'", "'\"'\"'")
-		if _, err := fmt.Fprintf(&builder, "export %s='%s'\n", key, value); err != nil {
-			return nil, fmt.Errorf("failed building runtime contract: %w", err)
-		}
+		fmt.Fprintf(&builder, "export %s='%s'\n", key, value)
 	}
-	return []byte(builder.String()), nil
+	return []byte(builder.String())
 }
 
 func writeFileAtomically(path string, data []byte, mode os.FileMode) error {

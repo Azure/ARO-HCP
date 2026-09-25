@@ -85,33 +85,12 @@ func NewRegistry(handlers ...Handler) (*Registry, error) {
 	return registry, nil
 }
 
-func (r *Registry) Handler(kind Kind) (Handler, bool) {
-	handler, found := r.byKind[kind]
-	return handler, found
-}
-
 func (r *Registry) ApplyPools(ctx context.Context, request PoolRequest, selectedKinds ...Kind) error {
-	return r.forDeclaredPoolHandlers(request, selectedKinds, func(handler Handler, pools []slots.Pool) error {
-		filtered := request
-		filtered.Pools = pools
-		filtered.Inventories = selectedInventories(request.Inventories, pools, handler.Kind())
-		if err := handler.ApplyPools(ctx, filtered); err != nil {
-			return fmt.Errorf("applying asset %q: %w", handler.Kind(), err)
-		}
-		return nil
-	})
+	return r.forDeclaredPoolHandlers(ctx, request, selectedKinds, "applying", Handler.ApplyPools)
 }
 
 func (r *Registry) ValidatePools(ctx context.Context, request PoolRequest, selectedKinds ...Kind) error {
-	return r.forDeclaredPoolHandlers(request, selectedKinds, func(handler Handler, pools []slots.Pool) error {
-		filtered := request
-		filtered.Pools = pools
-		filtered.Inventories = selectedInventories(request.Inventories, pools, handler.Kind())
-		if err := handler.ValidatePools(ctx, filtered); err != nil {
-			return fmt.Errorf("validating asset %q: %w", handler.Kind(), err)
-		}
-		return nil
-	})
+	return r.forDeclaredPoolHandlers(ctx, request, selectedKinds, "validating", Handler.ValidatePools)
 }
 
 func (r *Registry) AcquireLease(ctx context.Context, request LeaseRequest) error {
@@ -214,7 +193,7 @@ func (r *Registry) PublishLease(ctx context.Context, request LeaseRequest, contr
 	})
 }
 
-func (r *Registry) forDeclaredPoolHandlers(request PoolRequest, selectedKinds []Kind, operation func(Handler, []slots.Pool) error) error {
+func (r *Registry) forDeclaredPoolHandlers(ctx context.Context, request PoolRequest, selectedKinds []Kind, action string, operation func(Handler, context.Context, PoolRequest) error) error {
 	if err := r.ValidateRequirements(request.Pools); err != nil {
 		return err
 	}
@@ -249,8 +228,11 @@ func (r *Registry) forDeclaredPoolHandlers(request PoolRequest, selectedKinds []
 		if len(pools) == 0 {
 			continue
 		}
-		if err := operation(handler, pools); err != nil {
-			return err
+		filtered := request
+		filtered.Pools = pools
+		filtered.Inventories = selectedInventories(request.Inventories, pools, handler.Kind())
+		if err := operation(handler, ctx, filtered); err != nil {
+			return fmt.Errorf("%s asset %q: %w", action, handler.Kind(), err)
 		}
 	}
 	return nil
@@ -291,9 +273,6 @@ func (r *Registry) selectedHandlers(selectedKinds []Kind) ([]Handler, error) {
 	selected := map[Kind]struct{}{}
 	for _, kind := range selectedKinds {
 		kind = Kind(strings.TrimSpace(string(kind)))
-		if _, found := selected[kind]; found {
-			continue
-		}
 		if _, found := r.byKind[kind]; !found {
 			return nil, fmt.Errorf("unknown asset kind %q", kind)
 		}

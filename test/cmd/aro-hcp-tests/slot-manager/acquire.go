@@ -267,17 +267,8 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 	if err != nil {
 		return nil, err
 	}
-	if catalog.Version == 2 && o.DeployEnv != "" {
-		filteredPools := make([]slots.Pool, 0, len(candidatePools))
-		for _, pool := range candidatePools {
-			if pool.DeployEnv == o.DeployEnv {
-				filteredPools = append(filteredPools, pool)
-			}
-		}
-		if len(filteredPools) == 0 {
-			return nil, fmt.Errorf("environment %q has no candidate pool with deploy_env %q", environment, o.DeployEnv)
-		}
-		candidatePools = filteredPools
+	if catalog.Version == 2 && o.DeployEnv != "" && o.DeployEnv != catalog.Environments[environment].DeploymentEnvironment.Name {
+		return nil, fmt.Errorf("environment %q has no candidate pool with deploy_env %q", environment, o.DeployEnv)
 	}
 
 	regionMode, err := catalog.RegionModeForEnvironment(environment)
@@ -640,15 +631,11 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, logger logr.
 		return err
 	}
 
-	deployEnvironment := pool.EffectiveDeployEnvironment(o.DeployEnvironment)
-	if o.DeployEnvironment != "" && deployEnvironment != o.DeployEnvironment {
-		return fmt.Errorf("acquired pool deploy_env %q does not match requested deploy environment %q", deployEnvironment, o.DeployEnvironment)
-	}
-	slot.DeployEnvironment = deployEnvironment
+	slot.DeployEnvironment = o.DeployEnvironment
 
 	state := &slots.AcquiredSlotState{
 		Version:            1,
-		DeployEnvironment:  deployEnvironment,
+		DeployEnvironment:  o.DeployEnvironment,
 		RuntimeRegion:      o.runtimeRegionForPool(pool),
 		Slot:               *slot,
 		LeasedResourceName: leasedName,

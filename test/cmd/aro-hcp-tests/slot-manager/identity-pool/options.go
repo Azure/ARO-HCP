@@ -16,12 +16,10 @@ package identitypool
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/spf13/cobra"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -29,102 +27,16 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
-	"github.com/Azure/ARO-HCP/test/e2e"
-	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 const (
 	deploymentStackNamePrefix = "aro-hcp-slot-msi-pool"
 )
 
-func DefaultApplyOptions() *RawApplyOptions {
-	return &RawApplyOptions{}
-}
-
-func BindApplyOptions(opts *RawApplyOptions, cmd *cobra.Command) error {
-	cmd.Flags().StringVar(&opts.Environment, "environment", opts.Environment, "Environment short name. One of: int, stg, dev, prod")
-	cmd.Flags().StringVar(&opts.SlotCatalog, "slot-catalog", opts.SlotCatalog, "Path to the canonical E2E slot catalog")
-	cmd.Flags().StringSliceVar(&opts.Subscriptions, "subscription", opts.Subscriptions, "Limit provisioning to the named subscription(s). When set, unmanaged pools matching the filter are included.")
-	if err := cmd.MarkFlagRequired("environment"); err != nil {
-		return fmt.Errorf("failed to mark flag %q as required: %w", "environment", err)
-	}
-	return nil
-}
-
-type RawApplyOptions struct {
-	Environment   string
-	SlotCatalog   string
-	Subscriptions []string
-}
-
-type validatedApplyOptions struct {
-	*RawApplyOptions
-}
-
-type ValidatedApplyOptions struct {
-	*validatedApplyOptions
-}
-
-type completedApplyOptions struct {
+type ApplyOptions struct {
 	Template        map[string]interface{}
 	IdentityPools   []identityPool
 	AzureCredential azcore.TokenCredential
-}
-
-type ApplyOptions struct {
-	*completedApplyOptions
-}
-
-func (o *RawApplyOptions) Validate() (*ValidatedApplyOptions, error) {
-	if o.Environment == "" {
-		return nil, fmt.Errorf("--environment must not be empty")
-	}
-
-	return &ValidatedApplyOptions{
-		validatedApplyOptions: &validatedApplyOptions{
-			RawApplyOptions: o,
-		},
-	}, nil
-}
-
-func (o *ValidatedApplyOptions) Complete(ctx context.Context) (*ApplyOptions, error) {
-	tc := framework.NewTestContext()
-	cred, err := tc.AzureCredential()
-	if err != nil {
-		return nil, fmt.Errorf("failed getting Azure credential: %w", err)
-	}
-
-	subscriptionClientFactory, err := tc.GetARMSubscriptionsClientFactory()
-	if err != nil {
-		return nil, fmt.Errorf("failed getting ARM subscriptions client factory: %w", err)
-	}
-	subscriptionClient := subscriptionClientFactory.NewClient()
-
-	pools, err := loadIdentityPools(ctx, o.SlotCatalog, o.Environment, o.Subscriptions, func(ctx context.Context, name string) (string, error) {
-		return framework.GetSubscriptionID(ctx, subscriptionClient, name)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed loading identity pools from slot catalog: %w", err)
-	}
-
-	// Deployment Stacks require an ARM JSON template. The test suite embeds pre-generated
-	// templates under test/e2e/test-artifacts/generated-test-artifacts.
-	template, err := e2e.TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/msi-pools.json")
-	if err != nil {
-		return nil, fmt.Errorf("failed reading template file: %w", err)
-	}
-	bicepTemplateMap := map[string]interface{}{}
-	if err := json.Unmarshal(template, &bicepTemplateMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Bicep template JSON: %w", err)
-	}
-
-	return &ApplyOptions{
-		completedApplyOptions: &completedApplyOptions{
-			Template:        bicepTemplateMap,
-			IdentityPools:   pools,
-			AzureCredential: cred,
-		},
-	}, nil
 }
 
 func (o *ApplyOptions) Run(ctx context.Context) error {

@@ -267,9 +267,8 @@ func TestRuntimeContractShellIdentifiers(t *testing.T) {
 	if err := contract.Add("asset", "VALUE", "one'$(not-executed)"); err != nil {
 		t.Fatal(err)
 	}
-	data, err := contract.MarshalShell()
-	if err != nil || string(data) != "export VALUE='one'\"'\"'$(not-executed)'\n" {
-		t.Fatalf("value was not shell escaped: %q, %v", data, err)
+	if data := contract.MarshalShell(); string(data) != "export VALUE='one'\"'\"'$(not-executed)'\n" {
+		t.Fatalf("value was not shell escaped: %q", data)
 	}
 }
 
@@ -407,8 +406,8 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 			if err := AddCoreRuntimeExports(contract, state, "dev-e2e", "profile"); err == nil {
 				t.Fatal("invalid runtime state published core exports")
 			}
-			if data, err := contract.MarshalShell(); err != nil || len(data) != 0 {
-				t.Fatalf("failed validation partially published core exports: %q, %v", data, err)
+			if data := contract.MarshalShell(); len(data) != 0 {
+				t.Fatalf("failed validation partially published core exports: %q", data)
 			}
 			if err := WriteEnvFile(dir, state, "dev-e2e", "profile"); err == nil {
 				t.Fatal("invalid runtime state published an env file")

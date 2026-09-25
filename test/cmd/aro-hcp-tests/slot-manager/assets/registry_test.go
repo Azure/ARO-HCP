@@ -27,7 +27,6 @@ import (
 type fakeHandler struct {
 	kind       Kind
 	declared   bool
-	lease      bool
 	calls      *[]string
 	prepareErr error
 }
@@ -161,11 +160,13 @@ func TestRegistryUsesRegistrationOrderWithFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected registry construction to succeed: %v", err)
 	}
-	err = registry.ApplyPools(context.Background(), PoolRequest{Pools: []slots.Pool{{}}}, "second", "first")
-	if err != nil {
-		t.Fatalf("expected filtered apply to succeed: %v", err)
+	for _, operation := range []func(context.Context, PoolRequest, ...Kind) error{registry.ApplyPools, registry.ValidatePools} {
+		err = operation(context.Background(), PoolRequest{Pools: []slots.Pool{{}}}, "second", "first", "second")
+		if err != nil {
+			t.Fatalf("expected filtered operation to succeed: %v", err)
+		}
 	}
-	if want := []string{"apply:first", "apply:second"}; !reflect.DeepEqual(calls, want) {
+	if want := []string{"apply:first", "apply:second", "validate-pool:first", "validate-pool:second"}; !reflect.DeepEqual(calls, want) {
 		t.Fatalf("unexpected handler order: got %v want %v", calls, want)
 	}
 }
@@ -176,8 +177,8 @@ func TestRegistryStopsLeaseAdmissionOnFirstFailure(t *testing.T) {
 	calls := []string{}
 	expectedErr := errors.New("dirty asset")
 	registry, err := NewRegistry(
-		&fakeHandler{kind: "first", lease: true, calls: &calls, prepareErr: expectedErr},
-		&fakeHandler{kind: "second", lease: true, calls: &calls},
+		&fakeHandler{kind: "first", calls: &calls, prepareErr: expectedErr},
+		&fakeHandler{kind: "second", calls: &calls},
 	)
 	if err != nil {
 		t.Fatalf("expected registry construction to succeed: %v", err)
@@ -199,8 +200,8 @@ func TestRegistryPublishesEveryLeasedAsset(t *testing.T) {
 
 	calls := []string{}
 	registry, err := NewRegistry(
-		&fakeHandler{kind: "first", lease: true, calls: &calls},
-		&fakeHandler{kind: "second", lease: true, calls: &calls},
+		&fakeHandler{kind: "first", calls: &calls},
+		&fakeHandler{kind: "second", calls: &calls},
 	)
 	if err != nil {
 		t.Fatalf("expected registry construction to succeed: %v", err)
