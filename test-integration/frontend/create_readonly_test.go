@@ -20,12 +20,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
@@ -73,6 +70,7 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 				}
 				if !t.Run(name, func(t *testing.T) {
 					ctx, cancel := context.WithCancel(t.Context())
+					defer cancel()
 					ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
 					ti, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, true)
 					require.NoError(t, err)
@@ -82,25 +80,11 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					go func() { adminErr <- ti.AdminAPI.Run(ctx) }()
 					defer func() {
 						cancel()
-						require.NoError(t, <-frontendErr)
-						require.NoError(t, <-adminErr)
+						frontendResult, adminResult := <-frontendErr, <-adminErr
+						require.NoError(t, frontendResult)
+						require.NoError(t, adminResult)
 					}()
-					require.NoError(t, wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 30*time.Second, true, func(ctx context.Context) (bool, error) {
-						for _, url := range []string{ti.FrontendURL, ti.AdminURL} {
-							request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-							if err != nil {
-								return false, err
-							}
-							response, err := http.DefaultClient.Do(request)
-							if err != nil {
-								return false, nil
-							}
-							if err := response.Body.Close(); err != nil {
-								return false, err
-							}
-						}
-						return true, nil
-					}))
+					require.NoError(t, integrationutils.WaitForHTTPReady(ctx, ti.FrontendURL+"/healthz", ti.AdminURL+"/healthz/ready"))
 
 					accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(ti.FrontendURL, v20261001)
 					subscription, err := artifacts.ReadFile("artifacts/VersionCompliance/subscription.json")

@@ -2,7 +2,7 @@ digraph cluster_update {
   graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Cluster update · configuration and version feedback", dpi=110];
   node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
-  put [label="Frontend PUT / PATCH cluster\nreplace desired state + Update Operation", fillcolor="#eee7fb", color="#7b59a4"];
+  put [label="Frontend PUT / PATCH cluster\nadmission: cached pools + live provider state\nthen replace desired state + Update Operation", fillcolor="#eee7fb", color="#7b59a4"];
   dispatch [label="ClusterClusterServiceUpdate\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
   desired [label="ControlPlaneDesiredVersion", fillcolor="#e6f0fa", color="#35648a"];
   upgrade [label="TriggerControlPlaneUpgrade", fillcolor="#e6f0fa", color="#35648a"];

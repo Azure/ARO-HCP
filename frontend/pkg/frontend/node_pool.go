@@ -683,15 +683,8 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	// delete, and we pass them to the delete admission validation.
 	// TODO once OCPBUGS-86702 is resolved, we should remove this retrieval and the check of last nodepool being
 	// deleted in the delete admission validation when we decide we want to allow the deletion of the last node pool.
-	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).List(ctx, nil)
+	nodePools, err := f.nodePoolLister.ListForCluster(ctx, nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName, nodePool.ID.Parent.Name)
 	if err != nil {
-		return utils.TrackError(err)
-	}
-	nodePools := make([]*coreapi.NodePool, 0)
-	for _, nodePool := range nodePoolIterator.Items(ctx) {
-		nodePools = append(nodePools, nodePool)
-	}
-	if err := nodePoolIterator.GetError(); err != nil {
 		return utils.TrackError(err)
 	}
 

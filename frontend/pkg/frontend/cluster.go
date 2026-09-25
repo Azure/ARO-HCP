@@ -254,6 +254,8 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 // ServiceProviderCluster and the list of node pools (plus their service-provider
 // records) so admission can validate version skew without hitting the DB itself.
 // On CREATE pass a nil clusterResourceID — no prior state exists to prefetch.
+// Cluster and node pool inventories are read-only, eventually consistent cache
+// data; service-provider records are always read live from Cosmos.
 //
 // Architectural rule: the frontend must NEVER reach the management cluster
 // directly (no kube-applier, no ReadDesireLister, no Maestro, no HostedCluster
@@ -280,26 +282,18 @@ func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.
 
 	if op.Type == operation.Create {
 		subscriptionID := originalCluster.ID.SubscriptionID
-		clusterIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+		clusters, err := f.clusterLister.ListForSubscription(ctx, subscriptionID)
 		if err != nil {
 			return nil, fmt.Errorf("cannot list clusters for cluster admission: %w", err)
 		}
-		for _, cluster := range clusterIterator.Items(ctx) {
+		for _, cluster := range clusters {
 			admissionContext.SubscriptionClusters = append(admissionContext.SubscriptionClusters, cluster)
 
-			nodePoolIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
+			nodePools, err := f.nodePoolLister.ListForCluster(ctx, subscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
 			if err != nil {
 				return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
 			}
-			for _, nodePool := range nodePoolIterator.Items(ctx) {
-				admissionContext.SubscriptionNodePools = append(admissionContext.SubscriptionNodePools, nodePool)
-			}
-			if err := nodePoolIterator.GetError(); err != nil {
-				return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
-			}
-		}
-		if err := clusterIterator.GetError(); err != nil {
-			return nil, fmt.Errorf("cannot list clusters for cluster admission: %w", err)
+			admissionContext.SubscriptionNodePools = append(admissionContext.SubscriptionNodePools, nodePools...)
 		}
 		return admissionContext, nil
 	}
@@ -318,22 +312,31 @@ func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.
 	}
 	admissionContext.ServiceProviderCluster = spCluster
 
-	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).NodePools(clusterResourceID.Name).List(ctx, nil)
+	nodePools, err := f.nodePoolLister.ListForCluster(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
 	if err != nil {
 		return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
 	}
-	for _, nodePool := range nodePoolIterator.Items(ctx) {
-		spNodePool, err := corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, f.resourcesDBClient, nodePool.ID)
+	for _, nodePool := range nodePools {
+		nodePoolID := nodePool.ID
+		spNodePool, err := f.resourcesDBClient.ServiceProviderNodePools(nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName, nodePoolID.Parent.Name, nodePoolID.Name).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
+		if cosmosstorageutils.IsNotFoundError(err) {
+			// A stale cache entry must not recreate service-provider state for a deleted pool.
+			nodePool, err = f.resourcesDBClient.HCPClusters(nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName).NodePools(nodePoolID.Parent.Name).Get(ctx, nodePoolID.Name)
+			if cosmosstorageutils.IsNotFoundError(err) {
+				continue
+			}
+			if err != nil {
+				return nil, fmt.Errorf("cannot load node pool %s: %w", nodePoolID, err)
+			}
+			spNodePool, err = corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, f.resourcesDBClient, nodePool.ID)
+		}
 		if err != nil {
-			return nil, fmt.Errorf("cannot load service provider node pool %s: %w", nodePool.ID, err)
+			return nil, fmt.Errorf("cannot load service provider node pool %s: %w", nodePoolID, err)
 		}
 		admissionContext.ClusterNodePools = append(admissionContext.ClusterNodePools, admission.ClusterAdmissionNodePool{
 			NodePool:                nodePool,
 			ServiceProviderNodePool: spNodePool,
 		})
-	}
-	if err := nodePoolIterator.GetError(); err != nil {
-		return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
 	}
 
 	return admissionContext, nil

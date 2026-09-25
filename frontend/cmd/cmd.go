@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -258,7 +259,10 @@ func (opts *FrontendOpts) Run() error {
 	f := frontend.NewFrontend(
 		logger, listener, metricsListener,
 		legacyregistry.Registerer(), legacyregistry.DefaultGatherer,
-		resourcesDBClient, csClient, auditClient, opts.location, opts.exitOnPanic,
+		resourcesDBClient,
+		coreinformers.NewClusterInformer(resourcesDBClient.ResourcesGlobalListers().Clusters(), resourcesDBClient),
+		coreinformers.NewNodePoolInformer(resourcesDBClient.ResourcesGlobalListers().NodePools(), resourcesDBClient),
+		csClient, auditClient, opts.location, opts.exitOnPanic,
 	)
 
 	runErrCh := make(chan error, 1)

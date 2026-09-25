@@ -1,0 +1,20 @@
+{
+  "id": "e53233e1-1f88-5089-85ea-6e88fdf638ae",
+  "partitionKey": "sub-a",
+  "resourceID": "/subscriptions/Sub-A/resourceGroups/RG-one/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
+  "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+  "_etag": "fixture-cluster-etag",
+  "_ts": 1234567890,
+  "unknownFixtureField": "preserve me",
+  "properties": {
+    "cosmosMetadata": {
+      "instanceVersion": 7,
+      "partitionKey": "sub-a",
+      "resourceID": "/subscriptions/Sub-A/resourceGroups/RG-one/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"
+    },
+    "id": "/subscriptions/Sub-A/resourceGroups/RG-one/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
+    "name": "cluster",
+    "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+    "location": "eastus"
+  }
+}

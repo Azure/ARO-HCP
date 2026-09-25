@@ -51,6 +51,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -191,7 +192,12 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	}
 	fakeAuditClient := &FakeOTELClient{}
 	metricsRegistry := prometheus.NewRegistry()
-	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, storageIntegrationTestInfo.ResourcesDBClient(), clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", true)
+	resourcesDBClient := storageIntegrationTestInfo.ResourcesDBClient()
+	// Fixtures can replace documents without advancing instanceVersion, and hard
+	// deletes have no change-feed event. Relist quickly in tests only.
+	clusterInformer := coreinformers.NewClusterInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Clusters(), resourcesDBClient, time.Second)
+	nodePoolInformer := coreinformers.NewNodePoolInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().NodePools(), resourcesDBClient, time.Second)
+	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, resourcesDBClient, clusterInformer, nodePoolInformer, clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", true)
 
 	mockKubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	testMCResourceID, err := azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
@@ -268,6 +274,8 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		ArtifactsDir:               storageIntegrationTestInfo.GetArtifactDir(),
 		FrontendURL:                frontendURL,
 		Frontend:                   aroHCPFrontend,
+		ClusterInformer:            clusterInformer,
+		NodePoolInformer:           nodePoolInformer,
 		AdminURL:                   adminURL,
 		AdminAPI:                   adminAPI,
 		adminAPIListener:           adminListener,

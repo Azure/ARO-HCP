@@ -715,6 +715,9 @@ type errorClusterLister struct {
 func (l *errorClusterLister) List(_ context.Context) ([]*coreapi.Cluster, error) {
 	return nil, l.err
 }
+func (l *errorClusterLister) ListForSubscription(_ context.Context, _ string) ([]*coreapi.Cluster, error) {
+	return nil, l.err
+}
 func (l *errorClusterLister) Get(_ context.Context, _, _, _ string) (*coreapi.Cluster, error) {
 	return nil, l.err
 }
