@@ -53,22 +53,45 @@ build: $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS)
 #
 # Set the optional SUBSCRIPTION variable to limit provisioning to the named
 # subscription(s); this is required to provision unmanaged pools
-# (identity_provisioning: unmanaged), which are skipped otherwise. Example:
+# (slot_assets.e2e_identities.provisioning: unmanaged), which are skipped otherwise. Example:
 #   make -C test apply-identity-pool ENVIRONMENT=dev SUBSCRIPTION="Hypershift Managed Azure"
+# Keep selectors out of recipe source; expand them only as quoted shell values.
+apply-identity-pool validate-identity-pool apply-pool-assets validate-pool-assets: override export ASSET := $(value ASSET)
+apply-identity-pool validate-identity-pool apply-pool-assets validate-pool-assets: override export POOL := $(value POOL)
+apply-identity-pool validate-identity-pool apply-pool-assets validate-pool-assets: override export SUBSCRIPTION := $(value SUBSCRIPTION)
+
 apply-identity-pool: $(ARO_HCP_TESTS)
-	$(ARO_HCP_TESTS) slot-manager apply-identity-pool \
+	$(ARO_HCP_TESTS) slot-manager apply-pool-assets \
 		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
-		$(if $(SUBSCRIPTION),--subscription "$(SUBSCRIPTION)")
+		--asset e2e_identities \
+		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
 .PHONY: apply-identity-pool
+
+apply-pool-assets: $(ARO_HCP_TESTS)
+	$(ARO_HCP_TESTS) slot-manager apply-pool-assets \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		$${ASSET:+--asset "$$ASSET"} \
+		$${POOL:+--pool "$$POOL"} \
+		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
+.PHONY: apply-pool-assets
 
 # Validate the slot-managed identity pool against the canonical catalog using
 # read-only Azure list operations. SUBSCRIPTION has the same filtering semantics
 # as apply-identity-pool.
 validate-identity-pool: $(ARO_HCP_TESTS)
-	$(ARO_HCP_TESTS) slot-manager validate-identity-pool \
+	$(ARO_HCP_TESTS) slot-manager validate-pool-assets \
 		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
-		$(if $(SUBSCRIPTION),--subscription "$(SUBSCRIPTION)")
+		--asset e2e_identities \
+		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
 .PHONY: validate-identity-pool
+
+validate-pool-assets: $(ARO_HCP_TESTS)
+	$(ARO_HCP_TESTS) slot-manager validate-pool-assets \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		$${ASSET:+--asset "$$ASSET"} \
+		$${POOL:+--pool "$$POOL"} \
+		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
+.PHONY: validate-pool-assets
 
 int-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.int.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \

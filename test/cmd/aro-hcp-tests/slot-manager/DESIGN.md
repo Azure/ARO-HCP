@@ -1,259 +1,636 @@
-# Slot Manager
+# Slot Manager Asset Model
 
-Slot manager assigns an E2E job a customer-subscription slot and an Azure
-runtime region. It uses Boskos for exclusive slot ownership and
-`test/e2e-config/e2e-slots.yaml` as the canonical inventory.
+Slot-manager leases a complete E2E environment allocation rather than an
+isolated Boskos resource. The acquired slot is the source of truth for:
 
-Its responsibilities are:
+- the deployment environment;
+- the E2E subscription and any required infrastructure subscription;
+- the runtime region;
+- the primary and asset Boskos resources;
+- every asset assigned to the job; and
+- the runtime contract consumed by downstream CI steps.
 
-- select an eligible customer-subscription pool,
-- acquire one slot from that pool,
-- select the runtime region according to the pool's region mode,
-- resolve the cluster profile that owns the selected subscription,
-- export the non-secret runtime contract for downstream CI steps, and
-- release the exact Boskos resource acquired by the job.
+The catalog describes pool intent. Acquired state records the exact resolved
+allocation. Asset handlers own provisioning, admission, and publication for
+their asset type.
 
-Slot manager does not enforce regional concurrency, evaluate region health, or
-change routing weights automatically.
+## Implementation status
 
-## Catalog contract
+Dedicated E2E identity assets are implemented. The v2 catalog, whole-catalog
+independent inventory calculation, Boskos generation, multi-lease journal, and
+registry lifecycle are implemented and exercised with fake independent asset
+handlers. The checked-in live catalog uses v2 with only dedicated E2E identity
+assets. It preserves the existing Boskos resources, identity-container names,
+capacity, subscription ownership, and region policies. Acquisition now runs
+credential-backed identity admission and uses the v2 release journal.
 
-The catalog groups pools into logical environments and maps deploy environment
-names such as `ci01`, `int`, `stg`, and `prod` to one of them.
+The live catalog declares no infrastructure subscription, infrastructure asset
+demand, or independent asset pool. Slot-manager therefore does not resolve or
+access an infrastructure subscription. Existing `--deploy-env` callers remain
+supported; switching to `--environment` is not a rollout prerequisite.
+
+Infrastructure identities below describe the forward product contract, not a
+working Azure provisioner. Their typed demand and inventory can be validated
+and rendered to Boskos, but acquisition and pool management reject that demand
+before any network operation because no production handler is registered.
+An infrastructure identity handler, its product Bicep consumers, rollout, and
+mock identity assets are future work. Generating Boskos inventory does not
+prove backing Azure resources exist or admit a lease.
+
+## Design goals
+
+The model must:
+
+- make pool identity independent of subscription and region;
+- keep deployment and subscription bindings in one authoritative place;
+- derive asset-pool capacity from complete catalog demand;
+- let new asset types join the lifecycle without adding asset-specific command
+  orchestration;
+- persist enough state to release every lease after interruption;
+- admit mutable assets for reuse before provisioning starts;
+- fail closed when an asset cannot be completely inspected or cleaned;
+- publish one collision-checked, non-secret runtime contract; and
+- preserve stable Azure and Boskos resource names where inventory already
+  exists.
+
+## Catalog
+
+The catalog groups named pools into logical environments:
 
 ```yaml
-version: 1
+version: 2
+
+asset_pools:
+- name: dev-infrastructure-identities
+  kind: infrastructure_identities
+  provisioning: managed
+  boskos_resource_type: aro-hcp-dev-infrastructure-identities
+  resource_name_prefix: aro-hcp-dev-infrastructure-identities
+
 environments:
   dev:
-    deploy_envs:
-    - ci00
-    - ci01
+    deployment_environment:
+      name: ci01
+      infrastructure_subscription: "ARO HCP E2E Infrastructure (EA Subscription)"
+
     pools:
-    - subscription_name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
+    - name: shard0
+
       region_mode: weighted
       regions:
       - westus3
       - centralus
       - canadacentral
-      identity_provisioning_region: westus3
-      resource_type: aro-hcp-dev-shard0-slot
+
       slot_count: 5
-      identity_container_prefix: aro-hcp-msi-container-dev-shard0
-      identity_container_count: 60
+
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters (EA Subscription)"
+
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard0
+          resource_group_count: 60
+
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
 ```
 
-Each pool defines:
+### Pool identity
 
-| Field | Meaning |
-| --- | --- |
-| `subscription_name` | Name used to resolve the customer subscription from cluster profiles. |
-| `region_mode` | `fixed`, `runtime-selected`, or `weighted`. Defaults to `fixed` when omitted. |
-| `region` | Required for `fixed` and `runtime-selected`; the fixed or fallback runtime region. |
-| `regions` | Ordered runtime-region allowlist for `weighted`. |
-| `resource_type` | Boskos resource type containing the pool's slots. |
-| `slot_count` | Number of independently leasable jobs in the pool. |
-| `identity_container_prefix` | Prefix used to derive identity-container resource-group names. |
-| `identity_container_count` | Number of identity containers assigned to each slot. |
-| `identity_provisioning_region` | Location for identity-pool infrastructure, independent of the runtime region. It defaults to `region`; weighted pools must set it explicitly. |
-| `identity_provisioning: unmanaged` | Marks identity infrastructure as externally managed. It does not remove the pool from runtime selection. |
+`name` is the stable identity of a pool within an environment. Subscription and
+region are pool properties, not pool identifiers.
 
-All pools in one environment must use the same `region_mode`. Weighted pools
-must also declare the same non-empty, duplicate-free, ordered `regions` list.
-Resource types are unique across the complete catalog.
-
-For slot index `N`, slot manager expands a pool into:
+New Boskos and asset names derive from:
 
 ```text
-resource name:             <resource_type>-<N, two digits>
-identity container prefix: <identity_container_prefix>-<N, two digits>
-identity containers:       <slot prefix>-<M, two digits>
+<environment> + <pool name> + <slot index>
 ```
 
-## Acquire inputs
-
-The CI acquire step provides these selectors and runtime inputs:
-
-| Environment variable | Purpose |
-| --- | --- |
-| `ARO_HCP_DEPLOY_ENV` | Resolves the catalog environment. |
-| `ALLOWED_SUBSCRIPTIONS` | Optional comma/newline-separated allowlist of catalog `subscription_name` values. |
-| `ALLOWED_LOCATIONS` | Optional location allowlist used only by `fixed` mode. |
-| `MULTISTAGE_PARAM_OVERRIDE_LOCATION` | Highest-precedence concrete runtime location. |
-| `LOCATION_WEIGHTS` | Weighted-mode entries in `location=weight` form, required only when no explicit location override is set. |
-| `BUILD_ID` | Stable per-Prow-run key for deterministic weighted selection. |
-| `CLUSTER_PROFILE_DIRS` | Optional comma/newline-separated cluster profile directories. |
-| `CLUSTER_PROFILE_DIR` | Backward-compatible single profile directory used when `CLUSTER_PROFILE_DIRS` is unset. |
-| `LEASE_PROXY_SERVER_URL` | Ci-operator Boskos proxy endpoint. |
-| `SHARED_DIR` | Directory for the state and exported environment files. |
-
-Command-line flags exist for the acquire options except the explicit location
-override, which is supplied through the CI environment contract. The override
-takes precedence over other location selectors.
-
-## Region modes
-
-### `fixed`
-
-The pool represents a subscription+region coordinate:
-
-- `region` is the runtime region.
-- `ALLOWED_SUBSCRIPTIONS` filters by subscription.
-- `MULTISTAGE_PARAM_OVERRIDE_LOCATION`, when set, filters pools to that region.
-- Otherwise `ALLOWED_LOCATIONS` can restrict eligible regions.
-
-The leased pool determines `SELECTED_LOCATION`.
-
-### `runtime-selected`
-
-The pool represents subscription capacity; the caller chooses the runtime
-region:
-
-- `ALLOWED_SUBSCRIPTIONS` filters candidate pools.
-- `ALLOWED_LOCATIONS` does not affect pool selection.
-- `MULTISTAGE_PARAM_OVERRIDE_LOCATION` becomes `SELECTED_LOCATION`.
-- If no override is supplied, the pool's `region` is the fallback.
-
-This mode is intended for jobs, such as regional gating, whose external caller
-already knows the target region.
-
-### `weighted`
-
-The pool represents subscription capacity and the job supplies the desired
-regional distribution:
-
-- `ALLOWED_SUBSCRIPTIONS` filters candidate pools.
-- The catalog `regions` list is the authoritative location allowlist.
-- Without an explicit override, `LOCATION_WEIGHTS` controls the approximate
-  distribution for new runs.
-- `ALLOWED_LOCATIONS` is ignored.
-- `MULTISTAGE_PARAM_OVERRIDE_LOCATION` bypasses weighted selection but must
-  name a catalog-allowed region.
-
-Example equal distribution:
+For example:
 
 ```text
-LOCATION_WEIGHTS=westus3=1,centralus=1,canadacentral=1
+resource type: aro-hcp-dev-shard0-slot
+slot name:     aro-hcp-dev-shard0-slot-00
 ```
 
-Example drain:
+Explicit naming overrides are allowed when required to preserve existing
+inventory. There is no hidden global ordinal that maps slots to assets.
+
+### Deployment environment
+
+Every logical environment declares exactly one deployment environment.
+Its infrastructure subscription is required only when a pool in that environment
+declares an infrastructure asset. Acquiring any pool in that environment determines
+the deployment environment used by all downstream steps:
 
 ```text
-LOCATION_WEIGHTS=westus3=0,centralus=1,canadacentral=1
+select logical environment
+  -> acquire pool slot
+  -> use environment deployment_environment
 ```
 
-When an explicit override is set, `LOCATION_WEIGHTS` and `BUILD_ID` are not
-required and any supplied weights are ignored. This allows callers already
-pinned to a valid catalog region to continue working when an environment moves
-from `runtime-selected` to `weighted`.
+`deployment_environment.name` must match `[A-Za-z0-9][A-Za-z0-9_-]*`.
+It is used as part of a cluster-profile filename and cannot contain path
+separators or traversal components.
 
-Without an explicit override, weights are required and must be non-negative
-integers. Every catalog region must appear exactly once, unknown regions are
-rejected, and at least one weight must be non-zero. Duplicate, missing,
-negative, non-integer, and overflowing values are errors. `BUILD_ID` must also
-be non-empty. Slot manager uses 64-bit FNV-1a over its UTF-8 bytes:
+Workflow configuration must not override the acquired deployment environment.
+An alternative deployment environment is a separate logical environment with
+its own infrastructure footprint and asset demand, not a fallback within the
+same environment.
+
+### Subscriptions
+
+Every pool declares `subscriptions.e2e`, where tests create HCP resources and
+where E2E identity assets live. The environment's
+optional `deployment_environment.infrastructure_subscription` locates declared
+infrastructure assets. A persistent environment can omit it entirely: the test
+identity does not need access to the service's infrastructure tenant or subscription.
+
+For example, an E2E-only pool in a persistent environment needs only this
+deployment binding, alongside its customer subscription and E2E asset declaration:
+
+```yaml
+deployment_environment:
+  name: int
+```
+
+Infrastructure demand makes the environment binding mandatory. In an environment
+with mixed pool requirements, an E2E-only selection still does not resolve or
+access the infrastructure subscription, even if another pool requires it.
+
+Cluster profiles distribute credentials but do not define slot behavior. After
+selecting a pool, slot-manager:
+
+1. resolves the pool's E2E subscription to exactly one cluster profile;
+2. resolves the E2E subscription name to its Azure subscription ID;
+3. only when the selected pool demands an infrastructure asset, resolves the
+   environment infrastructure subscription and verifies it against the profile's
+   `infra-<deployment-environment>-subscription-id` binding; and
+4. persists the required resolved subscription names and IDs.
+
+Missing or mismatched required bindings fail acquisition. Without infrastructure
+demand, no infrastructure profile file is read and no infrastructure subscription
+is required in acquired state or runtime exports.
+
+### Credentials
+
+Acquisition and identity admission read `tenant`, `client-id`, and `client-secret`
+from the selected mounted cluster profile and construct an explicit Azure SDK
+`ClientSecretCredential`. They do not require an earlier `az login`, Azure CLI
+credentials, or exported `AZURE_*` variables.
+
+The acquire step must mount the same applicable profile credentials used by the
+test step. The selected identity needs permission to enumerate the E2E identity
+inventory and role assignments, and delete leased principals' FICs and role
+assignments. Missing credential files or insufficient permissions fail admission.
+No credentials are written to shared runtime state.
+
+### Region selection
+
+Each pool has one region mode:
+
+- `fixed`: the pool declares one authoritative runtime region;
+- `runtime-selected`: the caller supplies a permitted runtime region, with the
+  pool region as fallback; or
+- `weighted`: the pool declares an ordered region allowlist and the job
+  supplies weights.
+
+Weighted selection is deterministic for one CI run:
 
 ```text
 bucket = fnv1a64(BUILD_ID) % sum(weights)
 ```
 
-The selected region is the first region in catalog order whose cumulative
-positive weight contains `bucket`. Map iteration order must not affect the
-result.
+The first region whose cumulative positive weight contains the bucket wins.
+An explicit permitted location override takes precedence. Downstream steps use
+the selected region from the runtime contract and must not repeat selection.
 
-This produces a reproducible choice within one Prow run and approximate
-weighted distribution over time. It does not provide exact distribution or a
-hard per-region concurrency limit. A retry is a new Prow run and may select a
-different subscription or region. Setting a weight to zero affects new runs
-only.
+### Asset declarations
 
-## Pool selection and lease acquisition
+The presence of an entry under `slot_assets` means that each slot requires that
+asset and slot-manager must acquire or resolve, admit, and publish
+it.
 
-Acquire follows this sequence:
+Absence means slot-manager has no contract for that asset. There is no
+`mode: none` or `mode: on-demand`.
 
-1. Load and validate the catalog.
-2. Resolve `ARO_HCP_DEPLOY_ENV` to one slot environment.
-3. Validate mode-specific selectors before acquiring a lease.
-4. Build the candidate pool list:
-   - all modes apply `ALLOWED_SUBSCRIPTIONS`;
-   - only `fixed` applies location filtering to pool identity.
-5. Rotate the initial candidate once per acquire invocation, preserving catalog
-   order for the remaining candidates.
-6. Probe each candidate's Boskos resource type until one returns a lease.
-7. Resolve the leased resource name back to an expanded catalog slot.
-8. Resolve the runtime region according to the environment's region mode.
-9. Find exactly one cluster profile whose
-   `customer-*-subscription-name` matches the pool's `subscription_name`.
-10. Persist the acquired state, then write the downstream environment file.
+Every declared asset uses one allocation strategy:
 
-Candidate rotation spreads subscription demand without changing the stable
-fallback order. Region selection is independent from subscription selection in
-`runtime-selected` and `weighted` modes.
+- `dedicated`: the asset is deterministically derived from the primary slot and
+  does not require another Boskos lease; or
+- `leased`: slot-manager acquires an additional resource from a referenced
+  top-level `asset_pool`.
 
-### Waiting and errors
+`allocation` describes assignment topology, not whether an asset is required.
+Asset presence already means required.
 
-One candidate probe is bounded by `lease-proxy-timeout`, which defaults to
-`30s`. Proxy timeouts and retryable proxy/server responses mean that the pool
-did not yield an immediate lease; slot manager continues with the next
-candidate.
+`provisioning` controls pool-management behavior:
 
-After every candidate is temporarily unavailable, slot manager waits
-`lease_wait_interval` (default `1m`) and retries the full candidate list.
-`max_wait_for_lease` defaults to `30m`; zero means wait indefinitely.
+- omitted or `managed`: slot-manager may create or update backing resources;
+- `unmanaged`: another owner provisions the backing resources.
 
-Non-retryable proxy errors, invalid configuration, unknown leased resources,
-and ambiguous or missing cluster-profile matches fail immediately. If
-finalization fails before durable state is written, slot manager attempts to
-return the lease.
+Provisioning ownership does not alter admission. Every declared asset must pass
+admission before publication.
 
-## Runtime output contract
+Implementation details that are intrinsic to an asset, such as the standard
+E2E identity set, belong in the handler and its provisioning code rather than
+in the catalog.
 
-Acquire writes `${SHARED_DIR}/aro-hcp-slot.env` with:
+### Independent asset pools
 
-| Variable | Meaning |
-| --- | --- |
-| `CUSTOMER_SUBSCRIPTION` | Selected catalog subscription name, verified against the cluster profile. |
-| `SELECTED_LOCATION` | Authoritative runtime region. |
-| `SELECTED_CLUSTER_PROFILE_DIR` | Profile containing the selected subscription's tenant and service-principal credentials. |
-| `LEASED_MSI_CONTAINERS` | Space-separated identity-container resource groups assigned to the slot. |
-| `ARO_HCP_E2E_SLOT_NAME` | Leased Boskos resource name. |
-| `ARO_HCP_E2E_SLOT_RESOURCE_TYPE` | Boskos resource type used for acquisition. |
+Top-level `asset_pools` define independently leased inventory. An asset-pool
+definition owns:
 
-Downstream steps may map `SELECTED_LOCATION` to `LOCATION`, but must not repeat
-region selection or substitute a job default.
+- one globally unique name;
+- one asset kind;
+- managed or unmanaged provisioning;
+- one Boskos resource type;
+- stable resource naming; and
+- asset-specific provisioning configuration.
 
-The selection log must include the candidate pool, catalog region order,
-normalized weights when applicable, whether an override was used, the
-selection-key source, and the selected runtime region. These values are
-non-secret.
+It does not declare an independently chosen capacity or repeat a concrete
+subscription. Consumers contribute demand, and the asset kind determines
+whether its resources use the consumer environment's E2E or infrastructure
+subscription.
 
-## State and release
+For each asset pool, slot-manager computes:
 
-Acquire writes `${SHARED_DIR}/aro-hcp-slot-state.yaml` before writing the env
-file. The state records:
+```text
+required capacity =
+  sum(consumer pool slot_count * units_per_slot)
+```
 
-- deploy environment,
-- runtime region,
-- expanded slot,
-- exact Boskos resource name.
+`units_per_slot` defaults to one. This capacity covers the full catalog demand
+without hidden oversubscription.
 
-Writing state first ensures the post-step can return the lease if the process
-stops before the env file is complete.
+All consumers of one asset pool must resolve to a compatible subscription and
+asset configuration. For infrastructure identities, every consumer must
+resolve to the same environment infrastructure subscription. Incompatible
+references are invalid.
 
-`slot-manager release` loads the state file, returns the exact leased resource
-through the Boskos proxy, and removes both state files. A missing state file is
-treated as nothing to release. A failed lease return is an error; failure to
-remove local files after a successful return is logged.
+Slot-manager uses the derived capacity to generate and validate Boskos
+resources. For managed pools it also creates or reconciles the backing Azure
+resources. For unmanaged pools it validates that the external inventory
+contains enough matching resources. Unknown, unused, under-capacity, or
+multiply defined asset pools are invalid.
+
+## Asset registry
+
+Slot-manager constructs one deterministic registry of asset handlers. Commands
+and acquisition orchestration operate only on the registry; they do not switch
+on concrete asset types.
+
+Each handler implements:
+
+- `Kind`: returns the stable asset type identifier;
+- `Declared`: reports whether a pool declares the asset;
+- `AcquireLease`: resolves a dedicated asset or acquires the required
+  independent Boskos resources and records them in state;
+- `ReleaseLease`: attempts to return every independent Boskos resource recorded
+  for the asset;
+- `ApplyPools`: creates or updates managed backing resources;
+- `ValidatePools`: validates declared backing resources;
+- `AdmitLease`: inspects and, where necessary, cleans or prepares the allocated
+  asset for reuse, returning success only when its readiness requirements are
+  met; and
+- `PublishLease`: contributes owned values to the runtime contract.
+
+Registry dispatch preserves registration order, filters by requested asset
+kind, adds asset context to failures, and stops lease admission on the first
+failure.
+
+Admission is one handler-owned phase, not mandatory preparation and validation
+passes. Each handler decides which observations it can reuse and whether an
+operation requires confirmation, such as waiting for asynchronous completion.
+`ValidatePools` remains a separate read-only operator command.
+
+Adding an asset requires:
+
+1. typed catalog and resolved-state fields;
+2. one handler implementing the lifecycle; and
+3. one registry registration.
+
+The generic commands and acquisition path then understand the asset
+automatically.
+
+## Acquisition and admission
+
+Acquisition follows this sequence:
+
+```text
+load and validate catalog
+  -> select logical environment and candidate pools
+  -> acquire primary Boskos slot
+  -> immediately persist the primary lease
+  -> resolve cluster profile and subscriptions
+  -> acquire or resolve all declared assets in registry order
+     (persist each independent lease immediately, before resolving its assets)
+  -> admit all declared assets
+  -> build core and asset runtime exports
+  -> atomically publish runtime contract
+```
+
+Independent asset leases are acquired in deterministic registry order, with a
+separate `--lease-proxy-timeout` budget for every required Boskos acquisition.
+The primary slot's optional infinite `--max-wait-for-lease` is never reused for
+secondary acquisitions. This prevents indefinite hold-and-wait when one asset
+pool is exhausted.
+
+State is updated with every resolved lease before admission begins. The
+release step can therefore return the primary slot and every independently
+leased asset if admission fails or the process is interrupted.
+Malformed or already-journaled names are rejected before changing the journal,
+so a duplicate acquisition response cannot prevent cleanup of existing leases.
+
+If acquisition fails after obtaining only part of the required lease set,
+slot-manager immediately attempts to release everything recorded so far. If
+that cleanup or the process itself fails, Test Platform's job-lifecycle
+reconciliation provides the same eventual lease cleanup guarantee as static
+ci-operator Boskos leases.
+
+The runtime contract is withheld until every declared asset passes admission.
+Downstream provisioning cannot start with a partially prepared slot.
+
+Admission assumes exclusive ownership of the allocated assets: previous
+consumers must no longer modify them, and handlers must not invalidate another
+asset's readiness. It does not protect against concurrent external writers.
+
+### Failure behavior
+
+Admission is fail-closed:
+
+- a missing required resource fails;
+- incomplete inventory fails;
+- an Azure list or delete error fails;
+- unexpected resource shape fails;
+- failure to establish the asset's readiness fails; and
+- a runtime-export ownership conflict fails.
+
+Admission is idempotent so a later acquisition can safely retry after an
+interruption. Repeated failures identify the environment, pool, slot, and asset
+in logs so operators can remove the Boskos resource from circulation while
+repairing it.
+
+Release is best-effort across the complete recorded lease set: one failed
+return does not prevent attempts for the remaining asset leases or the primary
+slot. Slot-manager reports the joined errors after every return has been
+attempted.
+
+## Acquired state
+
+Resolved state records the exact allocation:
+
+```yaml
+version: 2
+deploy_environment: ci01
+runtime_region: westus3
+
+leases:
+  primary:
+    resource_type: aro-hcp-dev-shard0-slot
+    resource_name: aro-hcp-dev-shard0-slot-00
+  assets:
+    infrastructure_identities:
+    - resource_type: aro-hcp-dev-infrastructure-identities
+      resource_name: aro-hcp-dev-infrastructure-identities-03
+
+slot:
+  environment: dev
+  pool_name: shard0
+  deploy_environment: ci01
+  resource_type: aro-hcp-dev-shard0-slot
+  resource_name: aro-hcp-dev-shard0-slot-00
+  slot_index: 0
+
+  subscriptions:
+    e2e:
+      name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
+      id: ...
+    infrastructure:
+      name: "ARO HCP E2E Infrastructure (EA Subscription)"
+      id: ...
+
+  assets:
+    e2e_identities:
+      allocation: dedicated
+      provisioning_region: westus3
+      resource_groups:
+      - aro-hcp-msi-container-dev-shard0-00-00
+      - aro-hcp-msi-container-dev-shard0-00-01
+    infrastructure_identities:
+      allocation: leased
+      resource_groups:
+      - aro-hcp-dev-infrastructure-identities-03
+      identities:
+      - service-cluster-...
+      - management-cluster-...
+```
+
+The state file is `${SHARED_DIR}/aro-hcp-slot-state.yaml`.
+
+`slot-manager release` reads the exact primary and asset lease names, attempts
+to return all of them through the Boskos proxy, and removes the local state and
+runtime-contract files after successful release. A missing state file means
+there is nothing to release. Any failed Boskos return is reported after all
+recorded returns have been attempted.
+
+The v2 state is also a write-ahead release journal. Successful returns are
+persisted individually and skipped on retry; failures leave only the remaining
+leases to return. A `returning` marker is persisted before each request, then
+changed to `returned` on success. An interrupted request or a failed
+post-return state write leaves an uncertain outcome: do not blindly return that
+name again, since it may already belong to another job. The command reports the
+uncertainty and leaves ownership reconciliation to Test Platform. If even the
+return intent cannot be persisted, cleanup fails closed rather than creating
+an unsafe retry. Other recorded leases are still attempted with independent,
+uncancelled bounded contexts.
+
+Partial v2 state does not need resolved subscriptions, a catalog, or installed
+asset handlers to release its recorded names. Resolved-state checks instead
+gate admission and runtime publication. An existing state file must be released
+before starting another acquisition in the same shared directory.
+
+`ValidateForRelease` checks journal integrity without requiring resolution.
+State persistence and loading use this check, so loading a journal does not
+imply runtime readiness. `Validate` checks the complete resolved allocation,
+including agreement between the primary lease, slot, and deployment bindings,
+and rejects leases already being returned. Acquisition runs full validation
+before admission, and runtime publication validates again. These are local
+resolved-state checks, not additional Azure inventory scans.
+
+Resolved infrastructure assets must use leased allocation and contain exactly
+the resource-group names recorded for that asset in the journal, without
+duplicates. Ordering may differ. These checks do not restrict partial-journal
+persistence or release.
+
+## Runtime contract
+
+After successful admission, slot-manager writes
+`${SHARED_DIR}/aro-hcp-slot.env`.
+
+Core exports include:
+
+- `ARO_HCP_DEPLOY_ENV`;
+- `CUSTOMER_SUBSCRIPTION`;
+- `SELECTED_CLUSTER_PROFILE_DIR`;
+- `SELECTED_LOCATION`;
+- `ARO_HCP_E2E_SLOT_NAME`; and
+- `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`.
+
+Asset handlers contribute asset-specific exports. The E2E identity handler
+owns `LEASED_MSI_CONTAINERS`.
+`INFRA_SUBSCRIPTION_ID` is exported only when the selected pool demands an
+infrastructure asset and that subscription has been resolved.
+
+Every export has one owner. Duplicate names fail contract construction. Export
+names must be valid shell identifiers, and values are shell-escaped before the
+file is atomically published.
+
+The contract contains no credentials. Downstream steps source it and use the
+acquired values without re-resolving pool behavior.
+
+## E2E identity asset
+
+The current asset assigns each slot a fixed set of persistent managed-identity
+resource groups. Each resource group contains the standard per-HCP identity set
+created by `test/e2e-setup/bicep/modules/managed-identities.bicep`.
+
+E2E identities use `allocation: dedicated`. Their resource groups are
+deterministically attached to the primary slot because each set must be cleaned
+and validated before that same slot can be admitted.
+
+### Resolution
+
+For slot index `N`, the handler expands the configured prefix and count into:
+
+```text
+<resource_group_prefix>-<N, two digits>-<M, two digits>
+```
+
+where `M` ranges from zero to `resource_group_count - 1`.
+
+V2 catalog validation checks the generated names against Azure resource-group
+naming rules, including the 90-character limit with both numeric suffixes.
+Suffix widths grow beyond two digits when an index exceeds 99.
+
+The resolved names are persisted in state and later published as
+`LEASED_MSI_CONTAINERS`. Runtime validation requires dedicated allocation and
+the complete deterministic list above, not merely a nonempty set, before
+admission or publication.
+
+### Pool management
+
+`ApplyPools` creates or updates managed identity resource groups declared by
+the selected pools. `ValidatePools` performs read-only validation of their
+expected shape.
+
+Generic commands expose these operations:
+
+```text
+slot-manager apply-pool-assets
+slot-manager validate-pool-assets
+```
+
+Both commands can filter by environment, pool, subscription, or asset type.
+The canonical E2E identity selector is `--asset e2e_identities`.
+For E2E identities, both commands skip unmanaged pools by default. An explicit
+pool or subscription selection includes them, preserving the operator override
+used by the identity-pool commands. Explicitly applying such a selection can
+therefore modify unmanaged backing resources.
+
+### Admission
+
+For every resolved resource group, the handler:
+
+1. enumerates all user-assigned managed identities;
+2. selects the 13 standard identities and requires valid principal IDs,
+   reporting unexpected names without inspecting or cleaning those identities;
+3. enumerates every federated identity credential on those standard identities;
+4. enumerates role assignments for their principal IDs across the E2E
+   subscription, including child scopes;
+5. deletes all discovered federated identity credentials and role assignments.
+
+Discovery lists role assignments once for the E2E subscription and matches them
+against the expected identities' principal IDs. Each synchronous deletion must
+complete successfully or return `404` (already absent). No confirmation reads,
+deletion polling, or second inventory scan are performed. Azure authorization
+propagation can still lag behind successful deletion; checking resource absence
+would not guarantee authorization-cache convergence.
+
+All admission ARM requests run serially, finishing each container's identity
+and credential inventory before moving to the next container. Azure SDK
+throttling retries remain enabled. The single admission phase has a ten-minute
+budget. A clean inventory returns without deletion calls.
+
+A missing required identity, invalid principal metadata, incomplete enumeration,
+or deletion error (including exhausted SDK retries) fails acquisition before
+runtime publication. Expected identity and enumerated role-assignment principal
+IDs must be hyphenated UUIDs without surrounding whitespace; matching is
+case-insensitive. Invalid role principal IDs fail rather than being silently
+classified as foreign.
+
+Extra identities are not used by the tests and are neither
+admitted nor cleaned by this asset. They produce one informational log entry
+per affected resource group, listing the group and unexpected identity names.
+This reporting adds no ARM requests and does not block admission, including for
+unmanaged pools.
+
+The normal E2E framework cleanup remains the fast path after each test. Asset
+admission is authoritative because it also handles interrupted jobs and
+best-effort cleanup failures.
 
 ## Inventory maintenance
 
-The ARO-HCP catalog is the source of truth for slot shape. Slot-manager commands
-derive related infrastructure from it:
+The catalog is the source of truth for pool and slot shape. Generic
+slot-manager commands derive related infrastructure from it:
 
-- `sync-boskos-config` and `validate-boskos-config` reconcile the managed block
-  in `openshift/release`.
-- `apply-identity-pool` and `validate-identity-pool` reconcile or inspect the
-  slot-expanded managed identity containers.
+- `sync-boskos-config` and `validate-boskos-config` reconcile the managed
+  Boskos inventory for primary slots and independently leased asset pools;
+- `apply-pool-assets` reconciles managed backing resources; and
+- `validate-pool-assets` validates all declared assets, including unmanaged
+  assets when explicitly selected.
+
+Inventory generation first expands all primary slots, then computes aggregate
+demand for every top-level asset pool. The same derived counts drive Boskos
+configuration, managed resource provisioning, and unmanaged inventory
+validation so those surfaces cannot drift independently.
 
 Operational onboarding, capacity calculations, and recovery procedures live in
 [`docs/ci/identity-leasing.md`](../../../../docs/ci/identity-leasing.md) and
 [`docs/ci/e2e-subscription-onboarding.md`](../../../../docs/ci/e2e-subscription-onboarding.md).
+
+## Future assets
+
+The registry allows future assets to be added independently.
+
+### Mock identities
+
+A slot may own an MSI mock service principal, backend ARM helper, and
+clusters-service ARM helper. Names derive from environment, pool, and slot.
+Their persistent credentials and baseline RBAC require an asset-specific
+preparation policy.
+
+### Infrastructure identities
+
+Infrastructure identities use `allocation: leased` and come from a dedicated
+top-level asset pool. A lease resolves one complete identity bundle containing
+the explicit UAMIs required by one ephemeral service and management
+environment.
+
+There is no value in pinning an empty identity bundle to one primary slot.
+Before use, the identities have no per-run RBAC or federated credentials, so any
+compatible primary slot may consume any free bundle from the infrastructure
+identity pool.
+
+The asset pool lives in the consumer environment's infrastructure subscription.
+Its required bundle count is derived from the total slot count of every
+consumer. Slot-manager generates the corresponding Boskos resources and, when
+managed provisioning is enabled, creates or reconciles every identity bundle.
+
+The handler validates the persistent identity set and removes per-run
+federated credentials and role assignments during admission. AKS-created
+kubelet and Key Vault provider identities remain outside this asset.

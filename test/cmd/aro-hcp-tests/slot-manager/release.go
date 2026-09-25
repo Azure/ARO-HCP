@@ -25,6 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
 
@@ -131,8 +132,19 @@ func (o *ReleaseOptions) Run(ctx context.Context) error {
 		}
 		return err
 	}
+	if state.Version == 2 {
+		journal := newLeaseJournal(state, o.SharedDir, o.LeaseProxyURL, o.LeaseProxyTimeout)
+		registry, err := newAssetRegistry()
+		if err != nil {
+			return err
+		}
+		if err := registry.ReleaseLease(ctx, assets.LeaseRequest{State: state, Journal: journal}); err != nil {
+			return err
+		}
+		return slots.RemoveStateFiles(o.SharedDir)
+	}
 
-	if err := slots.ReleaseLease(ctx, o.LeaseProxyURL, state.LeasedResourceName, o.LeaseProxyTimeout); err != nil {
+	if err := slots.ReleaseLease(context.WithoutCancel(ctx), o.LeaseProxyURL, state.LeasedResourceName, o.LeaseProxyTimeout); err != nil {
 		return err
 	}
 
@@ -142,4 +154,18 @@ func (o *ReleaseOptions) Run(ctx context.Context) error {
 
 	logger.Info("Released slot", "slotName", state.Slot.ResourceName, "sharedDir", o.SharedDir)
 	return nil
+}
+
+func newLeaseJournal(state *slots.AcquiredSlotState, sharedDir, proxyURL string, timeout time.Duration) *slots.LeaseJournal {
+	return &slots.LeaseJournal{
+		State:   state,
+		Timeout: timeout,
+		Persist: func() error { return slots.WriteAcquiredSlotState(sharedDir, state) },
+		Acquire: func(ctx context.Context, resourceType string, budget time.Duration) (string, error) {
+			return slots.AcquireLease(ctx, proxyURL, resourceType, budget)
+		},
+		Return: func(ctx context.Context, name string, budget time.Duration) error {
+			return slots.ReleaseLease(ctx, proxyURL, name, budget)
+		},
+	}
 }

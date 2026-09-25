@@ -84,6 +84,16 @@ func (e *retryableLeaseProxyError) Unwrap() error {
 	return e.Cause
 }
 
+func ValidateLeasedResourceName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("empty resource name")
+	}
+	if strings.TrimSpace(name) != name {
+		return fmt.Errorf("resource name %q contains leading or trailing whitespace", name)
+	}
+	return nil
+}
+
 func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string, timeout time.Duration) (string, error) {
 	query := url.Values{}
 	query.Set("type", resourceType)
@@ -127,6 +137,9 @@ func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string,
 	}
 	if len(acquireResponse.Names) != 1 {
 		return "", fmt.Errorf("expected exactly one leased resource name for type %q, got %d", resourceType, len(acquireResponse.Names))
+	}
+	if err := ValidateLeasedResourceName(acquireResponse.Names[0]); err != nil {
+		return "", fmt.Errorf("lease proxy returned an invalid name for type %q: %w", resourceType, err)
 	}
 	return acquireResponse.Names[0], nil
 }

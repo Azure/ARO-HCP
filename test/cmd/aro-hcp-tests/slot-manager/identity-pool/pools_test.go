@@ -20,7 +20,22 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
+
+func loadIdentityPools(ctx context.Context, catalogPath, environment string, subscriptionFilter []string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
+	catalog, err := slots.LoadCatalog(catalogPath)
+	if err != nil {
+		return nil, err
+	}
+
+	environmentConfig, found := catalog.Environments[environment]
+	if !found {
+		return nil, fmt.Errorf("unknown environment %q", environment)
+	}
+	return resolveIdentityPools(ctx, environment, environmentConfig.Pools, subscriptionFilter, resolveSubscriptionID)
+}
 
 func fakeResolver(ids map[string]string) subscriptionIDResolverFunc {
 	return func(_ context.Context, name string) (string, error) {

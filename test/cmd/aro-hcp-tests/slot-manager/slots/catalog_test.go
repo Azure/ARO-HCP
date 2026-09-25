@@ -54,13 +54,7 @@ environments:
 
 func loadCatalogFromYAML(t *testing.T, catalogYAML string) *Catalog {
 	t.Helper()
-
-	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
-	if err := os.WriteFile(catalogPath, []byte(catalogYAML), 0o644); err != nil {
-		t.Fatalf("expected synthetic catalog write to succeed: %v", err)
-	}
-
-	catalog, err := LoadCatalog(catalogPath)
+	catalog, err := loadCatalogFromYAMLWithError(t, catalogYAML)
 	if err != nil {
 		t.Fatalf("expected synthetic catalog to load: %v", err)
 	}
@@ -111,6 +105,126 @@ func TestLoadCatalogAndExpandSlots(t *testing.T) {
 	if identityContainers[19] != "aro-hcp-msi-container-dev-a-00-19" {
 		t.Fatalf("unexpected last identity container %q", identityContainers[19])
 	}
+}
+
+const dedicatedCatalog = `version: 2
+environments:
+  dev:
+    deployment_environment: {name: ci01, infrastructure_subscription: dev-infra}
+    pools:
+    - name: shard0
+      region_mode: weighted
+      regions: [westus3, centralus, canadacentral]
+      resource_type: aro-hcp-dev-shard0-slot
+      slot_count: 2
+      subscriptions:
+        e2e: dev-e2e
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard0
+          resource_group_count: 3
+`
+
+func TestLoadV2CatalogAndExpandSlots(t *testing.T) {
+	t.Parallel()
+	catalog := loadCatalogFromYAML(t, dedicatedCatalog)
+
+	environment, err := catalog.ResolveEnvironmentForDeployEnv("ci01")
+	if err != nil {
+		t.Fatalf("expected v2 deploy environment resolution to succeed: %v", err)
+	}
+	if environment != "dev" {
+		t.Fatalf("expected environment %q, got %q", "dev", environment)
+	}
+
+	expandedSlots, err := catalog.ExpandedSlotsForEnvironment("dev")
+	if err != nil {
+		t.Fatalf("expected v2 slots to expand: %v", err)
+	}
+	if len(expandedSlots) != 2 {
+		t.Fatalf("expected 2 v2 slots, got %d", len(expandedSlots))
+	}
+	slot := expandedSlots[1]
+	if slot.PoolName != "shard0" {
+		t.Fatalf("expected pool name %q, got %q", "shard0", slot.PoolName)
+	}
+	if slot.DeployEnvironment != "ci01" {
+		t.Fatalf("expected deploy environment %q, got %q", "ci01", slot.DeployEnvironment)
+	}
+	if slot.Subscriptions.E2E.Name != "dev-e2e" || slot.Subscriptions.Infrastructure != (ResolvedSubscription{}) {
+		t.Fatalf("unexpected resolved subscription names: %#v", slot.Subscriptions)
+	}
+	if got, want := slot.IdentityContainerNames(), []string{
+		"aro-hcp-msi-container-dev-shard0-01-00",
+		"aro-hcp-msi-container-dev-shard0-01-01",
+		"aro-hcp-msi-container-dev-shard0-01-02",
+	}; !slices.Equal(got, want) {
+		t.Fatalf("unexpected v2 identity resource groups: got %v want %v", got, want)
+	}
+}
+
+func TestLoadV2CatalogRejectsDuplicatePoolNames(t *testing.T) {
+	t.Parallel()
+	catalog := loadCatalogFromYAML(t, dedicatedCatalog)
+	environment := catalog.Environments["dev"]
+	duplicate := environment.Pools[0]
+	duplicate.ResourceType = "second"
+	duplicate.Subscriptions.E2E = "other-customer"
+	duplicate.SlotAssets = SlotAssets{}
+	environment.Pools = append(environment.Pools, duplicate)
+	catalog.Environments["dev"] = environment
+	err := catalog.Validate()
+	if err == nil || !strings.Contains(err.Error(), "duplicate pool name") {
+		t.Fatalf("expected duplicate v2 pool name error, got %v", err)
+	}
+}
+
+func TestDedicatedIdentityResourceGroupNames(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name              string
+		prefix            string
+		slots, containers int
+		valid             bool
+	}{
+		{"punctuation", "_prefix.()-", 2, 3, true},
+		{"unicode letters and digits", "\u00e9\u0661", 2, 3, true},
+		{"quote", "prefix'quote", 2, 3, false},
+		{"newline", "prefix\nnewline", 2, 3, false},
+		{"slash", "prefix/slash", 2, 3, false},
+		{"90 characters", strings.Repeat("a", 84), 100, 100, true},
+		{"91 characters", strings.Repeat("a", 85), 2, 3, false},
+		{"three digit slot suffix", strings.Repeat("a", 84), 101, 3, false},
+		{"three digit container suffix", strings.Repeat("a", 84), 2, 101, false},
+		{"long suffixes within limit", strings.Repeat("a", 82), 101, 101, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			catalog := loadCatalogFromYAML(t, dedicatedCatalog)
+			pool := &catalog.Environments["dev"].Pools[0]
+			pool.SlotCount = tc.slots
+			pool.SlotAssets.E2EIdentities.ResourceGroupPrefix = tc.prefix
+			pool.SlotAssets.E2EIdentities.ResourceGroupCount = tc.containers
+			err := catalog.Validate()
+			if tc.valid {
+				if err != nil {
+					t.Fatalf("valid generated resource-group names rejected: %v", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "invalid identity resource group name") {
+				t.Fatalf("expected generated resource-group name rejection, got %v", err)
+			}
+		})
+	}
+}
+
+func loadCatalogFromYAMLWithError(t *testing.T, catalogYAML string) (*Catalog, error) {
+	t.Helper()
+	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
+	if err := os.WriteFile(catalogPath, []byte(catalogYAML), 0o644); err != nil {
+		t.Fatalf("expected synthetic catalog write to succeed: %v", err)
+	}
+	return LoadCatalog(catalogPath)
 }
 
 func TestResolvePool(t *testing.T) {
@@ -643,6 +757,31 @@ func TestResolveCatalogPath(t *testing.T) {
 	expectedPath := filepath.Join(catalogDir, "e2e-slots.yaml")
 	if resolvedPath != expectedPath {
 		t.Fatalf("expected %q, got %q", expectedPath, resolvedPath)
+	}
+}
+
+func TestV2E2EOnlyCatalogIgnoresInfrastructureBinding(t *testing.T) {
+	t.Parallel()
+	for _, binding := range []string{"", ", infrastructure_subscription: inaccessible-infra"} {
+		input := strings.Replace(dedicatedCatalog, "name: ci01, infrastructure_subscription: dev-infra", "name: stg"+binding, 1)
+		catalog := loadCatalogFromYAML(t, input)
+		if err := catalog.Validate(); err != nil {
+			t.Fatalf("revalidating E2E-only catalog: %v", err)
+		}
+		pool := catalog.Environments["dev"].Pools[0]
+		if pool.DeployEnv != "stg" || pool.InfrastructureSubscriptionName() != "" || pool.Subscriptions.Infrastructure != "" {
+			t.Fatalf("E2E-only normalization retained infrastructure demand: %+v", pool)
+		}
+		slot := ExpandSlotsForPool("dev", pool)[0]
+		if slot.RequiresInfrastructureSubscription() || slot.Subscriptions.Infrastructure != (ResolvedSubscription{}) || slot.Assets.E2EIdentities == nil {
+			t.Fatalf("E2E-only expansion added infrastructure binding or lost identities: %+v", slot)
+		}
+		if resolved, err := catalog.ResolveEnvironmentForDeployEnv("stg"); err != nil || resolved != "dev" {
+			t.Fatalf("logical deployment environment lost: %q, %v", resolved, err)
+		}
+		if inventories, err := catalog.AssetInventories(); err != nil || len(inventories) != 0 {
+			t.Fatalf("E2E-only catalog created infrastructure inventory: %+v, %v", inventories, err)
+		}
 	}
 }
 

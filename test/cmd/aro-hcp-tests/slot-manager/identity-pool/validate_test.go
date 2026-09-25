@@ -103,7 +103,7 @@ func TestValidateOptionsRun(t *testing.T) {
 		t.Parallel()
 
 		var output bytes.Buffer
-		opts := &ValidateOptions{completedValidateOptions: &completedValidateOptions{
+		opts := &ValidateOptions{
 			IdentityPools: []identityPool{pool},
 			LoadInventory: func(context.Context, string) (subscriptionInventory, error) {
 				identityNames := framework.NewDefaultIdentities().ToSlice()
@@ -118,7 +118,7 @@ func TestValidateOptionsRun(t *testing.T) {
 				}, nil
 			},
 			Out: &output,
-		}}
+		}
 
 		if err := opts.Run(context.Background()); err != nil {
 			t.Fatalf("expected validation to succeed: %v", err)
@@ -132,13 +132,13 @@ func TestValidateOptionsRun(t *testing.T) {
 		t.Parallel()
 
 		var output bytes.Buffer
-		opts := &ValidateOptions{completedValidateOptions: &completedValidateOptions{
+		opts := &ValidateOptions{
 			IdentityPools: []identityPool{pool},
 			LoadInventory: func(context.Context, string) (subscriptionInventory, error) {
 				return subscriptionInventory{}, nil
 			},
 			Out: &output,
-		}}
+		}
 
 		err := opts.Run(context.Background())
 		if err == nil {

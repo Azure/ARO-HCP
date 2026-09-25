@@ -51,6 +51,9 @@ func BoskosYAMLPath(releaseRepo string) string {
 }
 
 func RewriteGenerateBoskos(releaseRepo string, catalog *Catalog) error {
+	if err := catalog.Validate(); err != nil {
+		return err
+	}
 	generateBoskosPath := GenerateBoskosPythonPath(releaseRepo)
 	data, err := os.ReadFile(generateBoskosPath)
 	if err != nil {
@@ -62,7 +65,11 @@ func RewriteGenerateBoskos(releaseRepo string, catalog *Catalog) error {
 	if err != nil {
 		return err
 	}
-	content, err = replaceMarkerBlock(content, BoskosResourcesBeginMarker, BoskosResourcesEndMarker, RenderBoskosResourcesBlock(catalog))
+	resources, err := RenderBoskosResourcesBlock(catalog)
+	if err != nil {
+		return err
+	}
+	content, err = replaceMarkerBlock(content, BoskosResourcesBeginMarker, BoskosResourcesEndMarker, resources)
 	if err != nil {
 		return err
 	}
@@ -80,11 +87,14 @@ func RenderBoskosTypesBlock(catalog *Catalog) string {
 			lines = append(lines, fmt.Sprintf("    '%s': {},", pool.ResourceType))
 		}
 	}
+	for _, pool := range catalog.AssetPools {
+		lines = append(lines, fmt.Sprintf("    '%s': {},", pool.ResourceType))
+	}
 	lines = append(lines, BoskosTypesEndMarker)
 	return strings.Join(lines, "\n")
 }
 
-func RenderBoskosResourcesBlock(catalog *Catalog) string {
+func RenderBoskosResourcesBlock(catalog *Catalog) (string, error) {
 	lines := []string{BoskosResourcesBeginMarker}
 	for _, environmentName := range catalog.EnvironmentNames() {
 		for _, pool := range catalog.Environments[environmentName].Pools {
@@ -92,8 +102,16 @@ func RenderBoskosResourcesBlock(catalog *Catalog) string {
 			lines = append(lines, fmt.Sprintf("    CONFIG['%s']['%s-{i:0>2}'.format(i=i)] = 1", pool.ResourceType, pool.ResourceType))
 		}
 	}
+	inventories, err := catalog.AssetInventories()
+	if err != nil {
+		return "", fmt.Errorf("invalid asset inventory: %w", err)
+	}
+	for _, inventory := range inventories {
+		lines = append(lines, fmt.Sprintf("for i in range(%d):", inventory.Capacity))
+		lines = append(lines, fmt.Sprintf("    CONFIG['%s']['%s-{i:0>2}'.format(i=i)] = 1", inventory.Pool.ResourceType, inventory.Pool.ResourceNamePrefix))
+	}
 	lines = append(lines, BoskosResourcesEndMarker)
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), nil
 }
 
 // ValidateBoskosConfig checks that the generated Boskos YAML in releaseRepo
@@ -120,9 +138,19 @@ func ValidateBoskosConfig(releaseRepo string, catalog *Catalog) error {
 	}
 
 	actualResources := map[string][]string{}
+	actualNamesSeen := map[string]string{}
 	for _, resource := range actual.Resources {
 		if len(resource.Names) == 0 {
 			continue
+		}
+		if _, found := actualResources[resource.Type]; found {
+			return fmt.Errorf("duplicate Boskos resource type %q", resource.Type)
+		}
+		for _, name := range resource.Names {
+			if previous, found := actualNamesSeen[name]; found {
+				return fmt.Errorf("duplicate Boskos resource name %q in types %q and %q", name, previous, resource.Type)
+			}
+			actualNamesSeen[name] = resource.Type
 		}
 		actualResources[resource.Type] = append([]string{}, resource.Names...)
 		sort.Strings(actualResources[resource.Type])
@@ -142,6 +170,9 @@ func ValidateBoskosConfig(releaseRepo string, catalog *Catalog) error {
 }
 
 func ExpectedBoskosResources(catalog *Catalog) (map[string][]string, error) {
+	if err := catalog.Validate(); err != nil {
+		return nil, err
+	}
 	expected := map[string][]string{}
 	for _, environmentName := range catalog.EnvironmentNames() {
 		slots, err := catalog.ExpandedSlotsForEnvironment(environmentName)
@@ -153,6 +184,15 @@ func ExpectedBoskosResources(catalog *Catalog) (map[string][]string, error) {
 		}
 	}
 
+	inventories, err := catalog.AssetInventories()
+	if err != nil {
+		return nil, err
+	}
+	for _, inventory := range inventories {
+		for i := range inventory.Capacity {
+			expected[inventory.Pool.ResourceType] = append(expected[inventory.Pool.ResourceType], inventory.ResourceName(i))
+		}
+	}
 	for resourceType := range expected {
 		sort.Strings(expected[resourceType])
 	}
