@@ -2,6 +2,9 @@
 // Replaces the manually-authored dashboard (resource group "dashboards",
 // name 901b128a-124f-43e6-a797-5fcf3d1e83fe) with fully IaC dashboards, one
 // per environment, each scoped to that environment's subscriptions/regions.
+// The old manually-authored dashboard has been manually deleted from Azure;
+// ARM does not track/manage it (it predates this template), so its removal
+// isn't part of this deployment.
 // All four dashboards query the same DEV-only Azure Monitor Workspace: the
 // tenant-quota-collector runs once, centrally, in DEV, and remotely collects
 // quota for every environment's subscriptions.
