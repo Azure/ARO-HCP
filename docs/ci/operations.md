@@ -200,6 +200,74 @@ can also be used as input for local UI testing.
 For history previews, use
 `test/cmd/aro-hcp-tests/gather-observability/testdata/utilization-history-synthetic.json`.
 
+### Replica Peak Evidence
+
+`gather-observability` also writes `replica-peaks.json` automatically, before the
+metrics panels and utilization collector. This is compact input for offline
+request sizing, not another time-series chart. Prometheus evaluates the full
+report window server-side and returns only per-container summaries and ownership
+metadata. No kubeconfig, Kusto access, or additional flags are required.
+
+The version-1 artifact contains:
+
+- `start`, `end`, `generatedAt`, `gridStep`, `cpuWindow`, and `memoryWindow`;
+  the end is capped at collection start.
+- `clusters`: underlay clusters discovered across the report window, including
+  clusters no longer present at collection time.
+- `queries`: each cluster/workspace/query's `success`, `empty`, or `error` status,
+  returned series count, and error details. Check these before using the data.
+- `containers`: normalized summary records, one per metric identity and source,
+  **not one row per pod**. Each retains cluster, namespace, pod, container,
+  `podUID` when resolvable, workspace, query name, original identity labels, and
+  a `summary` with `max`, `count`, `first`, and `last`. Request summaries also
+  include `min`; their `labels.resource` identifies CPU or memory.
+- `metadata`: deduplicated runtime-container and controller-owner evidence from
+  both workspaces. The `metric` label identifies the original KSM metric family.
+- `warnings`: collection failures, invalid observations, and unresolved identities.
+
+`cpu` is the maximum two-minute CPU rate in cores, evaluated on UTC minute
+boundaries. `memory` is the maximum raw working-set measurement in bytes within
+the preceding 60 seconds at those boundaries, not an average. The grid runs from
+`ceil(start)` through `floor(end)`: lookbacks at its first point can include
+pre-start activity, and the trailing fractional minute is excluded. `count` is
+the number of observed grid points after HA deduplication, not scrape count or
+replica count. `first` and `last` are Unix seconds of those observations, **not
+timestamps of the peaks**. Instant request/metadata selectors use Prometheus's
+normal lookback and staleness behavior. Short-lived containers between grid
+points may be missed; sparse observations do not establish lifetime coverage.
+
+`requests` and `initRequests` retain ordinary and init-container request ranges
+separately, including native sidecars when their metrics are exported. These are
+observed ranges, not necessarily requests at the usage peak. Missing metrics are
+unknown, never zero. In particular, absent request metrics do not establish that
+a container requests zero. This artifact does not calculate scheduler-effective
+pod requests, pod overhead, or concurrent pod/workload peaks.
+
+Match records using cluster, namespace, pod, **pod UID**, and container. Usage
+records preserve cgroup IDs, node, and instance labels to distinguish restarts;
+UIDs come from cgroup paths or unambiguous runtime-container metadata, never
+pod-name guessing. Unmatched usage is retained with a warning. Controller
+metadata preserves candidate ownership edges; ambiguous historical owner chains
+must not be guessed. Request summaries from the svc and hcp workspaces remain
+separate: **do not sum their counts or requests**. Similarly, separate exporters
+for the same container must not be treated as additional replicas.
+
+For request sizing, inspect each replica first and use the busiest replica as
+evidence for a shared container request. CPU and memory peaks may occur at
+different times. Summing independent container or replica maxima does not yield
+a measured simultaneous peak, and a low observed peak alone is not a safe
+production request recommendation. Request changes, CPU throttling, startup,
+missing telemetry, and unobserved load still require investigation. Choosing
+new requests, collecting scheduling constraints, and simulating placement are
+intentionally separate steps.
+
+Collection has a three-minute total budget, 30-second HTTP timeouts, and at most
+two in-flight queries. Each cluster is queried separately with one evaluation
+per request; full workload histories are neither downloaded nor persisted.
+Query failures and Prometheus warning responses are reported as unavailable
+evidence without failing alert/JUnit checks. An artifact-write failure remains
+fatal. Existing HTML tabs are unchanged.
+
 ## Modifying CI Configuration
 
 ARO HCP Prow job definitions are maintained in `openshift/release`, not in this repository. The generated job manifests under `ci-operator/jobs/Azure/ARO-HCP/` are outputs and should not be edited directly.
