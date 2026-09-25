@@ -417,6 +417,111 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
   }
 }
 
+resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_idms_mirror_slo_error_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyIDMSMirrorErrorsFastBurn'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'idms-mirror-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyIDMSMirrorErrorsFastBurn/{{ $labels.cluster }}'
+          description: 'More than 72% of clusters on {{ $labels.cluster }} whose latest update completed in the last hour have it in failed state (at least 3 failures), a 14.4x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          info: 'More than 72% of clusters on {{ $labels.cluster }} whose latest update completed in the last hour have it in failed state (at least 3 failures), a 14.4x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-idms'
+          summary: '{{ $labels.cluster }}: Cluster updates failing fast (>72% over 1h)'
+          title: '{{ $labels.cluster }}: Cluster updates failing fast (>72% over 1h)'
+        }
+        expression: 'errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyIDMSMirrorErrorsMediumBurn'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'idms-mirror-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyIDMSMirrorErrorsMediumBurn/{{ $labels.cluster }}'
+          description: 'More than 30% of clusters on {{ $labels.cluster }} whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), a 6x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          info: 'More than 30% of clusters on {{ $labels.cluster }} whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), a 6x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-idms'
+          summary: '{{ $labels.cluster }}: Cluster update error rate elevated (>30% over 6h)'
+          title: '{{ $labels.cluster }}: Cluster update error rate elevated (>30% over 6h)'
+        }
+        expression: 'errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyIDMSMirrorErrorsSlowBurn'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          slo: 'idms-mirror-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyIDMSMirrorErrorsSlowBurn/{{ $labels.cluster }}'
+          description: 'More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed.'
+          info: 'More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-idms'
+          summary: '{{ $labels.cluster }}: Cluster update failures persistent (>5% over 3d)'
+          title: '{{ $labels.cluster }}: Cluster update failures persistent (>5% over 3d)'
+        }
+        expression: 'errors:backend_cluster_update:total_3d >= 10 and errors:backend_cluster_update:failed_3d >= 2 and errors:backend_cluster_update:error_rate_3d > 0.05'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource rpUserJourneyClusterUpgradeMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'rp-user-journey-cluster-upgrade-monitor-rules'
   location: location

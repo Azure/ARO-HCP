@@ -1,0 +1,143 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: idms-mirror-slo-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # IDMS Image Registry Mirror SLO Alerts — Errors
+  # ========================================
+  # Recording rules for these alerts live in
+  # backend/alerts/backend-cluster-update-slo-recordingRule.yaml, which defines
+  # the errors:backend_cluster_update:* series. They are backend-owned and are
+  # not IDMS-specific.
+  #
+  # !!! SCOPE CAVEAT — READ BEFORE ACTING ON THESE ALERTS !!!
+  #
+  # These alerts are named for the IDMS (imageDigestMirrors) user journey, but
+  # the underlying SLI cannot distinguish an imageDigestMirrors change from any
+  # other cluster update. operation_type="update" covers mirror changes,
+  # authorizedCIDRs changes, and control plane version upgrades alike — hence
+  # the series is named for the operation, not the journey.
+  #
+  # When one of these fires, FIRST confirm the affected operation actually
+  # carried an imageDigestMirrors change from the Backend logs.
+  # If it did not, the IDMS journey is not the correct triage path.
+  #
+  # See backend/alerts/backend-cluster-update-slo-recordingRule.yaml for the
+  # full rationale and the instrumentation needed to make this genuinely
+  # IDMS-scoped.
+  #
+  # Coverage boundaries — this file deliberately contains ONLY error alerts:
+  #   - Stuck (non-terminal) update operations:
+  #     BackendAsyncOperationClusterUpdateStuck in
+  #     backend/alerts/backend-async-operations-prometheusRule.yaml, on exactly
+  #     the same series. It fires only on phase=~"accepted|updating" and so is
+  #     disjoint from the terminal-"failed" condition alerted on here.
+  #   - Controller saturation (queue depth, retry hot loop):
+  #     BackendControllerQueueDepthHigh in backend/alerts/backend-prometheusRule.yaml
+  #     and BackendControllerRetryHotLoop in
+  #     backend/alerts/backend-retryhotloop-prometheusRule.yaml. Both are
+  #     unfiltered across controllers in namespace "aro-hcp" and therefore
+  #     already cover OperationClusterUpdate at the same thresholds.
+  #   Duplicating either here would double-page on a single condition.
+  #
+  # Windowed burn-rate alerting, following the cluster provisioning SLO.
+  # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
+  #
+  # These read the windowed recording rules
+  # (errors:backend_cluster_update:{failed,total,error_rate}_{1h,6h,3d}), which
+  # count only clusters whose latest update's terminal transition landed inside
+  # the window. Each tier therefore evaluates a real event window rather than the
+  # trailing 7-day gauge ratio, so a stale failure ages out instead of paging for
+  # the full Cosmos TTL.
+  #
+  # These are counts of clusters by the outcome of their latest update, not
+  # counts of LROs: a failed update later retried successfully is overwritten
+  # and never counted, so the rates under-report LRO failures. See the
+  # recording rules file for the instrumentation a per-LRO rate would need.
+  #
+  # Burn rate thresholds calculated from 95% SLO (5% error budget):
+  #   Fast (14.4x): 14.4 * 0.05 = 0.72 → 72% error rate over 1h
+  #   Medium (6x):  6 * 0.05 = 0.30 → 30% error rate over 6h
+  #   Slow (1x):    1 * 0.05 = 0.05 → 5% error rate over 3d
+  #
+  # Volume guard: each tier requires an absolute floor of completions/failures
+  # in the window so a single failure on a quiet window cannot page. The floors
+  # match the cluster provisioning SLO.
+  - name: arohcp_idms_mirror_slo_error_alerts
+    labels:
+      component: slo
+    rules:
+    # ----------------------------------------
+    # Fast Burn Alert (IcM Sev 3 — RP lane / customer-facing UJ)
+    # ----------------------------------------
+    # 14.4x burn: >72% failures over 1h, at least 3 failures.
+    - alert: userJourneyIDMSMirrorErrorsFastBurn
+      expr: |
+        errors:backend_cluster_update:failed_1h >= 3
+        and
+        errors:backend_cluster_update:error_rate_1h > 0.72
+      for: 5m
+      labels:
+        severity: "3"
+        slo: idms-mirror-errors
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "{{ $labels.cluster }}: Cluster updates failing fast (>72% over 1h)"
+        description: "More than 72% of clusters on {{ $labels.cluster }} whose latest update completed in the last hour have it in failed state (at least 3 failures), a 14.4x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
+        runbook_url: "https://aka.ms/arohcp-runbook-idms"
+    # ----------------------------------------
+    # Medium Burn Alert (IcM Sev 3)
+    # ----------------------------------------
+    # 6x burn: >30% failures over 6h, at least 5 completions.
+    - alert: userJourneyIDMSMirrorErrorsMediumBurn
+      expr: |
+        errors:backend_cluster_update:total_6h >= 5
+        and
+        errors:backend_cluster_update:error_rate_6h > 0.30
+      for: 30m
+      labels:
+        severity: "3"
+        slo: idms-mirror-errors
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "{{ $labels.cluster }}: Cluster update error rate elevated (>30% over 6h)"
+        description: "More than 30% of clusters on {{ $labels.cluster }} whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), a 6x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
+        runbook_url: "https://aka.ms/arohcp-runbook-idms"
+    # ----------------------------------------
+    # Slow Burn Alert (IcM Sev 4 — ticket)
+    # ----------------------------------------
+    # Per ADR: slow burn alerts generate a ticket, not a page.
+    # 1x burn: >5% failures over 3d, at least 10 completions and 2 failures.
+    - alert: userJourneyIDMSMirrorErrorsSlowBurn
+      expr: |
+        errors:backend_cluster_update:total_3d >= 10
+        and
+        errors:backend_cluster_update:failed_3d >= 2
+        and
+        errors:backend_cluster_update:error_rate_3d > 0.05
+      for: 6h
+      labels:
+        severity: "4"
+        slo: idms-mirror-errors
+        long_window: 3d
+      annotations:
+        summary: "{{ $labels.cluster }}: Cluster update failures persistent (>5% over 3d)"
+        description: "More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed."
+        runbook_url: "https://aka.ms/arohcp-runbook-idms"
+    # ----------------------------------------
+    # Note: there is deliberately no separate "degradation" precursor alert.
+    # A >15% / 30m precursor was considered and rejected: above 30% it fires at
+    # exactly the same time as MediumBurn (same 30m 'for'), producing a Sev 4
+    # ticket shadowing every Sev 3 page for one condition. Its only unique
+    # coverage was the 15-30% band, where SlowBurn already tickets at 6h.
+    # ----------------------------------------
