@@ -339,3 +339,25 @@ resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prome
     ]
   }
 }
+
+resource arohcpNamespaceHcpClusterResourceIdRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_namespace_hcp_cluster_resource_id_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'info:kube_namespace:hcp_cluster_resource_id'
+        expression: 'label_replace(max without (prometheus_replica, instance, pod, container, endpoint, service) (kube_namespace_annotations{annotation_azure_microsoft_com_hcp_cluster_azure_resource_id!="",job="kube-state-metrics"}), "hcp_cluster_resource_id", "$1", "annotation_azure_microsoft_com_hcp_cluster_azure_resource_id", "(.*)")'
+      }
+      {
+        record: 'info:kube_namespace:hcp_cluster_subscription_id'
+        expression: 'label_replace(max without (prometheus_replica, instance, pod, container, endpoint, service) (kube_namespace_annotations{annotation_azure_microsoft_com_hcp_cluster_azure_resource_id!="",job="kube-state-metrics"}), "hcp_cluster_subscription_id", "$1", "annotation_azure_microsoft_com_hcp_cluster_azure_resource_id", "(?i)/subscriptions/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/resourcegroups/.*")'
+      }
+    ]
+  }
+}
