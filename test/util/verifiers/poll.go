@@ -30,6 +30,8 @@ const (
 	DefaultPollInterval = 15 * time.Second
 	// DefaultDiagnoseTimeout is the timeout for collecting failure diagnostics after a poll times out.
 	DefaultDiagnoseTimeout = 30 * time.Second
+	// finalCheckTimeout bounds the one last check made after the poll deadline expires.
+	finalCheckTimeout = 30 * time.Second
 )
 
 type diagnoseFunc func(ctx context.Context, restConfig *rest.Config) string
@@ -97,6 +99,21 @@ func pollUntilReady(
 		}
 		return fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), ctx.Err())
 	}
+
+	// The loop stops looking at the deadline, so a condition that became true between the last
+	// check and the deadline reads as a timeout even though it was met within the budget. Look
+	// once more before failing. Worth up to one extra interval of wall clock only on the path
+	// that was going to fail anyway, and it is the difference between a real timeout and a
+	// near-miss: ARO-26775 failed on a control plane upgrade that landed 22s inside a 45m
+	// budget, missed because the preceding poll had fired 2m earlier.
+	finalCtx, cancelFinal := context.WithTimeout(ctx, finalCheckTimeout)
+	finalErr := check(finalCtx)
+	cancelFinal()
+	if finalErr == nil {
+		logVerifierTiming(name, "succeeded on the final check after the deadline", time.Since(startTime))
+		return nil
+	}
+	lastErr = finalErr
 
 	logVerifierTiming(name, "timed out", elapsed)
 	if diagnose != nil {

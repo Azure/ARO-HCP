@@ -16,7 +16,6 @@ package e2e
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -232,12 +231,17 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
 			By("verifying control plane reached the target minor")
-			Eventually(func() error {
-				return errors.Join(
-					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion).Verify(ctx, adminRESTConfig),
-					verifiers.VerifyHostedControlPlaneYStreamUpgrade(installVersionId, upgradeVersionId).Verify(ctx, adminRESTConfig),
-				)
-			}).WithContext(ctx).WithTimeout(framework.HCPClusterVersionUpgradeTimeout).WithPolling(2*time.Minute).Should(Succeed(), "control plane did not reach %s on cluster %q with deny-pod ValidatingAdmissionPolicy", upgradeVersionId, clusterName)
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.VerifyKubeAPIServerServerVersionUpgraded(
+					preUpgradeKubeAPIServerVersion,
+					framework.HCPClusterVersionUpgradeTimeout),
+				verifiers.VerifyHostedControlPlaneYStreamUpgrade(
+					installVersionId,
+					upgradeVersionId,
+					framework.HCPClusterVersionUpgradeTimeout))
+			Expect(err).NotTo(HaveOccurred(),
+				"control plane did not reach %s on cluster %q with deny-pod ValidatingAdmissionPolicy",
+				upgradeVersionId, clusterName)
 
 			By("verifying cluster API remains reachable after control plane upgrade")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
