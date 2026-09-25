@@ -25,6 +25,7 @@ import (
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metrics"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 
 const (
@@ -74,6 +75,7 @@ func BackendCleanupControllerFractions(fraction float64) map[string]float64 {
 // container. Resources, Billing, and Fleet use 80% of their configured maxima.
 // Each MC container reserves 30% for the backend and 50% for kube-applier, leaving
 // 20% headroom. Cleanup controllers get 10% of a normal controller's share.
+// Shared backend informers use unlimited clients outside these allocations.
 func BackendStorageFactoryOptions(hasRealFPA bool) StorageFactoryOptions {
 	return StorageFactoryOptions{
 		ResourcesRUsPerSecond:   19000,
@@ -83,5 +85,10 @@ func BackendStorageFactoryOptions(hasRealFPA bool) StorageFactoryOptions {
 		KubeApplierUtilization:  0.3,
 		ControllerNames:         BackendStorageControllerNames(hasRealFPA),
 		ControllerFractions:     BackendCleanupControllerFractions(0.1),
+		UnlimitedControllerNames: []string{
+			BackendInformersStorageName,
+			FleetInformersStorageName,
+			unionkubeapplierinformers.ControllerName,
+		},
 	}
 }

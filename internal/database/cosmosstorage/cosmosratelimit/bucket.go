@@ -80,7 +80,7 @@ func (b *TokenBucket) Wait(ctx context.Context) error {
 	if b.unlimited {
 		return ctx.Err()
 	}
-	logged := false
+	waitStarted := false
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -91,13 +91,13 @@ func (b *TokenBucket) Wait(ctx context.Context) error {
 		if delay == 0 {
 			return nil
 		}
-		if !logged {
+		if !waitStarted {
 			finishWait := b.metrics.beginWait(ctx)
 			defer finishWait()
-			utils.LoggerFromContext(ctx).Info("Cosmos requests are being rate limited; waiting for RU bucket to refill",
-				"rate_limiter", b.name, "available_rus", tokens, "refill_rus_per_second", b.refillPerSecond, "estimated_wait", delay.String())
-			logged = true
+			waitStarted = true
 		}
+		utils.LoggerFromContext(ctx).Info("Cosmos requests are being rate limited; waiting for RU bucket to refill",
+			"rate_limiter", b.name, "available_rus", tokens, "refill_rus_per_second", b.refillPerSecond, "estimated_wait", delay.String())
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():

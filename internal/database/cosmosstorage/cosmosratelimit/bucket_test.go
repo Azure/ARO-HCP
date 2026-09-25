@@ -85,6 +85,26 @@ func TestTokenBucketCancellation(t *testing.T) {
 	})
 }
 
+func TestTokenBucketLogsEveryWait(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		bucket, err := NewTokenBucket("cleanup", 1, 1)
+		require.NoError(t, err)
+		bucket.Consume(3)
+		var logs []string
+		ctx := utils.ContextWithLogger(t.Context(), funcr.New(func(_, message string) { logs = append(logs, message) }, funcr.Options{}))
+		done := make(chan error, 1)
+		go func() { done <- bucket.Wait(ctx) }()
+		synctest.Wait()
+		require.Len(t, logs, 1)
+		require.Contains(t, logs[0], `"estimated_wait"="2s"`)
+		time.Sleep(time.Second)
+		bucket.Consume(3) // Extend the wait after its initial estimate was logged.
+		require.NoError(t, <-done)
+		require.Len(t, logs, 2, "additional debt must produce another wait log")
+		require.Contains(t, logs[1], `"estimated_wait"="3s"`)
+	})
+}
+
 func TestTokenBucketConcurrentChargesAndWaiters(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		bucket, err := NewTokenBucket("test", 1, 10)
