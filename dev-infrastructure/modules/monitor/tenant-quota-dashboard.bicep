@@ -86,8 +86,10 @@ func directoryQuery(tenantName string) string => 'max by (tenant_name) (tenant_q
 // Subscriptions in this dashboard that are not E2E subscriptions (e.g. the
 // shared infra subscriptions) simply have no matching series and render no
 // lines.
+// max without (prometheus_replica) collapses Azure Managed Prometheus HA replica
+// duplicates (which report identical values) into a single series per resource group.
 func e2eExpiryQuery(subscriptionIdPattern string) string =>
-  '(time() - e2e_resource_group_expiry_timestamp{subscription_id=~"${subscriptionIdPattern}"}) / 3600'
+  '(time() - max without (prometheus_replica) (e2e_resource_group_expiry_timestamp{subscription_id=~"${subscriptionIdPattern}"})) / 3600'
 
 // Builds one Extension/HubsExtension/PartType/MonitorChartPart tile querying
 // the Azure Monitor Workspace with PromQL. `queries` is one or more PromQL
