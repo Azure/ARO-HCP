@@ -238,6 +238,10 @@ defaults:
     # environment to opt out.
     nodeHealth:
       enabled: true
+    nodeMitigation:
+      enabled: false
+      configuration: |
+        mode: disabled
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: mgmt-agent

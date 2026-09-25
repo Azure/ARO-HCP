@@ -789,6 +789,10 @@ mgmtAgent:
   managedIdentityName: mgmt-agent
   nodeHealth:
     enabled: true
+  nodeMitigation:
+    configuration: |
+      mode: disabled
+    enabled: false
 mgmtKeyVault:
   name: ah-ci01-mg-j7654321-1
   private: false

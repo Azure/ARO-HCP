@@ -28,6 +28,11 @@ spec:
         - "--log-verbosity={{ .Values.logVerbosity }}"
         - "--node-health-configmap={{ .Values.nodeHealth.configMapName }}"
         - "--node-health-config-key={{ .Values.nodeHealth.configKey }}"
+        {{- if .Values.nodeMitigation.enabled }}
+        - "--node-mitigation-enabled=true"
+        - "--node-mitigation-configmap={{ .Values.nodeMitigation.configMapName }}"
+        - "--node-mitigation-config-key={{ .Values.nodeMitigation.configKey }}"
+        {{- end }}
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         name: mgmt-agent-controller
         env:
