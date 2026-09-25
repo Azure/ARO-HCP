@@ -55,12 +55,13 @@ type timeWindow struct {
 
 // alertsOutput is written to alerts.json and passed to the HTML template.
 type alertsOutput struct {
-	TimeWindow       timeWindow          `json:"timeWindow"`
-	Summary          alertsSummary       `json:"summary"`
-	Alerts           []alert             `json:"alerts"`
-	FilterKeys       []string            `json:"filterKeys"`
-	FilterOptions    map[string][]string `json:"filterOptions"`
-	CollectionErrors []string            `json:"collectionErrors,omitempty"`
+	TimeWindow       timeWindow              `json:"timeWindow"`
+	Summary          alertsSummary           `json:"summary"`
+	Alerts           []alert                 `json:"alerts"`
+	FilterKeys       []string                `json:"filterKeys"`
+	FilterOptions    map[string][]string     `json:"filterOptions"`
+	CollectionErrors []string                `json:"collectionErrors,omitempty"`
+	Diagnostics      *alertDiagnosticsReport `json:"diagnostics,omitempty"`
 }
 
 // Template helpers for the HTML template.
@@ -177,6 +178,8 @@ func incompleteHTML(partial []byte, err error) []byte {
 // renderAlertsHTML renders the Azure Monitor alerts page to HTML bytes.
 func renderAlertsHTML(data any) ([]byte, error) {
 	funcMap := template.FuncMap{
+		"alertDiagnosticsJSON":   alertDiagnosticsJSON,
+		"alertDiagnosticsScript": alertDiagnosticsScript,
 		"formatTime": func(t *time.Time) string {
 			if t == nil {
 				return "-"

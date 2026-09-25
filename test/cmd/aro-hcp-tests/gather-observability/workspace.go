@@ -35,6 +35,7 @@ type workspaceData struct {
 	PromError       error
 	CollectionError error
 	AlertRules      []string
+	RuleDefinitions []alertRuleDefinition
 	FiredAlerts     []alert
 }
 
