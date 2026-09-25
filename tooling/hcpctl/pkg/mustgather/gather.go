@@ -481,7 +481,15 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		customQueryDefinitions := queryFactory.GetAllCustomQueryDefinitions()
 		for _, def := range customQueryDefinitions {
 			if def.IncludeInMustGather {
-				q, err := queryFactory.Build(def, kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithClusterNames(clusterNames), kusto.WithOperationIds(operationIds)))
+				data := kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithClusterNames(clusterNames), kusto.WithOperationIds(operationIds))
+				var q []kusto.Query
+				if def.Name == "backendControllerConditions" {
+					// Expanding every controller condition repeats large snapshots;
+					// bound each response while retaining the entire requested range.
+					q, err = queryFactory.BuildTimeWindows(def, data, g.opts.QueryOptions.TimestampMin, g.opts.QueryOptions.TimestampMax, 5*time.Minute)
+				} else {
+					q, err = queryFactory.Build(def, data)
+				}
 				if err != nil {
 					return fmt.Errorf("failed to build custom query %q: %w", def.Name, err)
 				}

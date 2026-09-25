@@ -16,6 +16,7 @@ package kusto
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -189,6 +190,54 @@ func TestOperationIdsQuery(t *testing.T) {
 			testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 		})
 	}
+}
+
+func TestBuildTimeWindows(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	def, err := f.GetCustomQueryDefinition("backendControllerConditions")
+	require.NoError(t, err)
+	start := time.Date(2026, 9, 25, 12, 34, 15, 0, time.UTC)
+	for _, tc := range []struct {
+		name     string
+		duration time.Duration
+		count    int
+	}{
+		{"reported interval", 58*time.Minute + 50*time.Second, 12},
+		{"exact multiple", 10 * time.Minute, 2},
+		{"one window", 5 * time.Minute, 1},
+		{"single timestamp", 0, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			end := start.Add(tc.duration)
+			queries, err := f.BuildTimeWindows(*def, NewTemplateDataFromOptions(baseOptions()), start, end, 5*time.Minute)
+			require.NoError(t, err)
+			require.Len(t, queries, 1)
+			windows := queries
+			if sequence, ok := queries[0].(*TimeWindowQuery); ok {
+				windows = sequence.Windows
+			}
+			require.Len(t, windows, tc.count)
+			next := start
+			for i, query := range windows {
+				assert.Equal(t, "backendControllerConditions", query.GetName())
+				bounds := regexp.MustCompile(`datetime\(([^)]+)\)`).FindAllStringSubmatch(query.GetQuery().String(), -1)
+				require.Len(t, bounds, 2)
+				minTime, err := time.Parse(time.RFC3339Nano, bounds[0][1])
+				require.NoError(t, err)
+				maxTime, err := time.Parse(time.RFC3339Nano, bounds[1][1])
+				require.NoError(t, err)
+				assert.True(t, minTime.Equal(next), "window %d must start immediately after the preceding inclusive end", i)
+				assert.LessOrEqual(t, maxTime.Sub(minTime), 5*time.Minute)
+				next = maxTime.Add(100 * time.Nanosecond)
+			}
+			assert.True(t, next.Equal(end.Add(100*time.Nanosecond)), "last window must include the requested end")
+		})
+	}
+	_, err = f.BuildTimeWindows(*def, NewTemplateDataFromOptions(baseOptions()), start, start, 0)
+	require.Error(t, err)
+	_, err = f.BuildTimeWindows(*def, NewTemplateDataFromOptions(baseOptions()), start, start.Add(-time.Second), time.Minute)
+	require.Error(t, err)
 }
 
 func TestFrontendQueriesWithOperationIds(t *testing.T) {
