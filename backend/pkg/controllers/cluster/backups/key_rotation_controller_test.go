@@ -202,6 +202,13 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		BackupCadenceProfile: BackupCadenceProduction,
 	}
 
+	testBackupConfigOrDefault := func(override, fallback *BackupConfig) *BackupConfig {
+		if override != nil {
+			return override
+		}
+		return fallback
+	}
+
 	testMgmtClusterResourceID := func() *azcorearm.ResourceID {
 		return metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(testStampID))
 	}
@@ -223,12 +230,12 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		}
 	}
 
-	completedRotationHC := func(t *testing.T) *kubeapplierapi.ReadDesire {
+	completedRotationHCWithVersion := func(t *testing.T, version string) *kubeapplierapi.ReadDesire {
 		t.Helper()
 		hc := &hyperv1beta1.HostedCluster{}
 		hc.Status.SecretEncryption = hyperv1beta1.SecretEncryptionStatus{
 			ActiveKey: hyperv1beta1.SecretEncryptionKeyStatus{
-				Azure: hyperv1beta1.AzureKMSKey{KeyVaultName: "vault1", KeyName: "key1", KeyVersion: "v2"},
+				Azure: hyperv1beta1.AzureKMSKey{KeyVaultName: "vault1", KeyName: "key1", KeyVersion: version},
 			},
 			History: []hyperv1beta1.EncryptionMigrationHistory{
 				{State: hyperv1beta1.EncryptionMigrationStateCompleted},
@@ -249,6 +256,11 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 				KubeContent: &runtime.RawExtension{Raw: raw},
 			},
 		}
+	}
+
+	completedRotationHC := func(t *testing.T) *kubeapplierapi.ReadDesire {
+		t.Helper()
+		return completedRotationHCWithVersion(t, "v2")
 	}
 
 	migratingHC := func(t *testing.T) *kubeapplierapi.ReadDesire {
@@ -291,6 +303,11 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 	staleFingerprint := backup.AzureKMSKeyFingerprint("vault1", "key1", "v1")
 	staleBackupName := keyRotationBackupName(hostedClusterNamespace, staleFingerprint)
 	staleDesireName := keyRotationDesireName(staleBackupName)
+
+	// A later rotation's fingerprint (v3), used to verify that pause suppressing
+	// one rotation does not suppress a subsequent rotation to a different key.
+	laterFingerprint := backup.AzureKMSKeyFingerprint("vault1", "key1", "v3")
+	laterDesireName := keyRotationDesireName(keyRotationBackupName(hostedClusterNamespace, laterFingerprint))
 
 	// seedOnDemandDesire creates an on-demand key-rotation ApplyDesire (and,
 	// optionally, its companion ReadDesire) for backupName, mimicking a desire
@@ -439,6 +456,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		seedServiceProviderCluster func(spc *coreapi.ServiceProviderCluster)
 		seedHCReadDesire           func(t *testing.T) *kubeapplierapi.ReadDesire
 		seedKubeApplier            func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient)
+		backupConfig               *BackupConfig
 		syncCount                  int
 		expectError                bool
 		verify                     func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient)
@@ -891,6 +909,227 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
+			name:             "does not create backup when schedules are paused and none has started",
+			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			hasPlacement:     true,
+			seedHCReadDesire: completedRotationHC,
+			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateDisabled
+			},
+			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = applyDesireCRUD.Get(ctx, expectedDesireName)
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err), "no on-demand backup should be created while schedules are paused")
+
+				readDesireCRUD, err := mockKubeApplier.ReadDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = readDesireCRUD.Get(ctx, expectedDesireName)
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err), "no on-demand backup ReadDesire should be created while schedules are paused")
+
+				spc, err := mockDB.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, expectedFingerprint, spc.Status.KeyRotationBackupFingerprint, "rotation should be durably recorded as handled even though it was skipped")
+			},
+		},
+		{
+			name:             "does not create backup when paused fleet-wide via BackupConfig even though the cluster itself is enabled",
+			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			hasPlacement:     true,
+			seedHCReadDesire: completedRotationHC,
+			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateEnabled
+			},
+			backupConfig: &BackupConfig{
+				BackupCadenceProfile: BackupCadenceProduction,
+				BackupScheduleState:  coreapi.BackupScheduleStateDisabled,
+			},
+			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = applyDesireCRUD.Get(ctx, expectedDesireName)
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err), "no on-demand backup should be created while backups are paused fleet-wide, even if the cluster's own state is Enabled")
+
+				spc, err := mockDB.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, expectedFingerprint, spc.Status.KeyRotationBackupFingerprint, "rotation should be durably recorded as handled even though it was skipped")
+			},
+		},
+		{
+			name:             "does not create backup for a fingerprint already recorded as skipped, even after resuming",
+			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			hasPlacement:     true,
+			seedHCReadDesire: completedRotationHC,
+			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
+				// Schedules are resumed (Enabled), but this exact rotation was
+				// already recorded as skipped on a previous sync while paused.
+				spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateEnabled
+				spc.Status.KeyRotationBackupFingerprint = expectedFingerprint
+			},
+			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = applyDesireCRUD.Get(ctx, expectedDesireName)
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err), "a rotation already recorded as skipped must not be backed up after resuming; only a later rotation is eligible")
+			},
+		},
+		{
+			name:             "creates backup for a later rotation even though a prior rotation was skipped",
+			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			hasPlacement:     true,
+			seedHCReadDesire: func(t *testing.T) *kubeapplierapi.ReadDesire { return completedRotationHCWithVersion(t, "v3") },
+			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
+				// Schedules are enabled again; a previous rotation (v2) was
+				// skipped while paused, but this sync observes a later
+				// rotation (v3), which must remain eligible for a backup.
+				spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateEnabled
+				spc.Status.KeyRotationBackupFingerprint = expectedFingerprint
+			},
+			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = applyDesireCRUD.Get(ctx, laterDesireName)
+				assert.NoError(t, err, "a later rotation to a new key must still be backed up even though a prior rotation was skipped")
+			},
+		},
+		{
+			name:             "continues reconciling an in-progress backup while schedules are paused",
+			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			hasPlacement:     true,
+			seedHCReadDesire: completedRotationHC,
+			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateDisabled
+			},
+			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				// An ApplyDesire for the current rotation already exists (e.g.
+				// created just before the pause took effect); it must not be
+				// abandoned just because schedules are now paused.
+				seedOnDemandDesire(t, ctx, mockKubeApplier, expectedBackupName, true)
+			},
+			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				ad, err := applyDesireCRUD.Get(ctx, expectedDesireName)
+				require.NoError(t, err, "an in-flight on-demand backup must not be abandoned while schedules are paused")
+				assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, ad.Spec.Type)
+
+				spc, err := mockDB.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Empty(t, spc.Status.KeyRotationBackupFingerprint, "an in-flight backup must not be recorded as handled until it completes")
+			},
+		},
+		{
+			name:             "recreates a missing ReadDesire for an in-progress backup while schedules are paused",
+			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			hasPlacement:     true,
+			seedHCReadDesire: completedRotationHC,
+			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateDisabled
+			},
+			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				// Crash recovery: an ApplyDesire exists but its companion ReadDesire
+				// doesn't (e.g. the controller crashed between the two creates, right
+				// before pause took effect). Without the ReadDesire, the cleanup sweep
+				// can never observe the Velero phase, so it must be recreated even
+				// though the ApplyDesire itself is left untouched while paused.
+				seedOnDemandDesire(t, ctx, mockKubeApplier, expectedBackupName, false)
+			},
+			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				readDesireCRUD, err := mockKubeApplier.ReadDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = readDesireCRUD.Get(ctx, expectedDesireName)
+				assert.NoError(t, err, "missing ReadDesire for an in-flight backup should be recreated even while paused")
+
+				spc, err := mockDB.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Empty(t, spc.Status.KeyRotationBackupFingerprint, "an in-flight backup must not be recorded as handled until it completes")
+			},
+		},
+		{
+			name:             "records success for an in-progress backup that completes while schedules are paused",
+			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			hasPlacement:     true,
+			seedHCReadDesire: completedRotationHC,
+			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateDisabled
+			},
+			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				seedCompletedOnDemandDesire(t, ctx, mockKubeApplier, expectedBackupName, expectedFingerprint)
+			},
+			// sync1 reconciles the seeded ApplyDesire's spec; sync2 records the
+			// fingerprint on ServiceProviderCluster.Status (pause does not block
+			// completion of an already in-flight backup).
+			syncCount: 2,
+			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				spc, err := mockDB.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, expectedFingerprint, spc.Status.KeyRotationBackupFingerprint, "a backup that completes while paused must still be recorded as successful")
+			},
+		},
+		{
+			name:             "cleans up an orphaned ReadDesire left by a race with pause",
+			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			hasPlacement:     true,
+			seedHCReadDesire: completedRotationHC,
+			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateDisabled
+			},
+			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				// Simulates the ReadDesire having been created (EnsureReadDesire
+				// runs before EnsureApplyDesire) on a sync just before pause was
+				// observed on a subsequent sync, so no ApplyDesire ever exists.
+				rdResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
+					testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, expectedDesireName,
+				)
+				rd := &kubeapplierapi.ReadDesire{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(rdResourceIDStr)),
+						PartitionKey: strings.ToLower(testMgmtClusterResourceID().String()),
+					},
+					Status: kubeapplierapi.ReadDesireStatus{
+						Conditions: []metav1.Condition{
+							{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue},
+						},
+					},
+					Tags: map[string]string{backup.DesireTagKeyOndemandBackup: ""},
+				}
+				readDesireCRUD, err := mockKubeApplier.ReadDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = readDesireCRUD.Create(ctx, rd, nil)
+				require.NoError(t, err)
+			},
+			// sync1 records the skip (no ApplyDesire exists yet); sync2 observes
+			// the durable skip and cleans up the orphaned ReadDesire.
+			syncCount: 2,
+			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				spc, err := mockDB.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, expectedFingerprint, spc.Status.KeyRotationBackupFingerprint, "rotation should be durably recorded as handled even though it was skipped")
+
+				readDesireCRUD, err := mockKubeApplier.ReadDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = readDesireCRUD.Get(ctx, expectedDesireName)
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err), "orphaned ReadDesire from the pause race should be cleaned up once the skip is durably recorded")
+
+				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = applyDesireCRUD.Get(ctx, expectedDesireName)
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err), "no ApplyDesire (and therefore no Velero Backup) should ever be created for the skipped rotation")
+			},
+		},
+		{
 			name: "purges on-demand desires when cluster is being deleted",
 			clusterOpts: []func(*coreapi.Cluster){withKMS, func(c *coreapi.Cluster) {
 				now := metav1.Now()
@@ -969,7 +1208,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 				kubeApplierDBClients:         mockKubeApplierDBClients,
 				applyDesireLister:            &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
 				readDesireLister:             &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
-				backupConfig:                 testBackupConfig,
+				backupConfig:                 testBackupConfigOrDefault(tt.backupConfig, testBackupConfig),
 			}
 
 			syncCount := max(tt.syncCount, 1)
