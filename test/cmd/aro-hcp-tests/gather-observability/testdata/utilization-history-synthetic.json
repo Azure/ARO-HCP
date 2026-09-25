@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-21T12:05:00Z",
+  "start": "2026-09-21T12:00:00Z",
+  "end": "2026-09-21T12:04:00Z",
+  "step": "1m",
+  "cpuWindow": "2m",
+  "memoryWindow": "1m",
+  "clusters": ["synthetic-svc", "synthetic-mgmt"],
+  "warnings": ["SYNTHETIC RESOURCE HISTORY: artificial scaling, pool changes and telemetry gaps; not an actual collection."],
+  "snapshots": [],
+  "history": [
+    {
+      "time": "2026-09-21T12:00:00Z",
+      "expected": ["synthetic-svc", "synthetic-mgmt"],
+      "nodes": [
+        {"cluster":"synthetic-svc","name":"svc-a","pool":"system","sku":"D4","inventory":true,"swiftAdvertised":false,"capacity":{"cpu":4,"memory":17179869184,"swiftNIC":null},"allocatable":{"cpu":3,"memory":15032385536,"swiftNIC":null},"usage":{"cpu":1,"memory":4294967296,"swiftNIC":null},"requests":{"cpu":2,"memory":8589934592,"swiftNIC":0}},
+        {"cluster":"synthetic-mgmt","name":"mgmt-old","pool":"hcp","sku":"D8","inventory":true,"swiftAdvertised":true,"capacity":{"cpu":8,"memory":34359738368,"swiftNIC":8},"allocatable":{"cpu":7,"memory":32212254720,"swiftNIC":7},"usage":{"cpu":2,"memory":8589934592,"swiftNIC":null},"requests":{"cpu":4,"memory":17179869184,"swiftNIC":3}},
+        {"cluster":"synthetic-mgmt","name":"mgmt-b","pool":"hcp","sku":"D16","inventory":true,"swiftAdvertised":true,"capacity":{"cpu":16,"memory":68719476736,"swiftNIC":16},"allocatable":{"cpu":15,"memory":66571993088,"swiftNIC":15},"usage":{"cpu":12,"memory":34359738368,"swiftNIC":null},"requests":{"cpu":8,"memory":34359738368,"swiftNIC":4}}
+      ]
+    },
+    {
+      "time": "2026-09-21T12:01:00Z",
+      "expected": ["synthetic-svc", "synthetic-mgmt"],
+      "warnings": ["Synthetic: missing CPU usage/capacity and SWIFT requests, unknown new-node advertisement."],
+      "nodes": [
+        {"cluster":"synthetic-svc","name":"svc-a","pool":"system","sku":"D4","inventory":true,"swiftAdvertised":false,"capacity":{"cpu":4,"memory":17179869184,"swiftNIC":null},"allocatable":{"cpu":3,"memory":15032385536,"swiftNIC":null},"usage":{"cpu":0,"memory":4294967296,"swiftNIC":null},"requests":{"cpu":2,"memory":8589934592,"swiftNIC":0}},
+        {"cluster":"synthetic-mgmt","name":"mgmt-old","pool":"hcp","sku":"D8","inventory":true,"swiftAdvertised":true,"capacity":{"cpu":8,"memory":34359738368,"swiftNIC":8},"allocatable":{"cpu":7,"memory":32212254720,"swiftNIC":7},"usage":{"cpu":null,"memory":8589934592,"swiftNIC":null},"requests":{"cpu":4,"memory":17179869184,"swiftNIC":3}},
+        {"cluster":"synthetic-mgmt","name":"mgmt-b","pool":"infra","sku":"D16","inventory":true,"swiftAdvertised":true,"capacity":{"cpu":null,"memory":68719476736,"swiftNIC":16},"allocatable":{"cpu":15,"memory":66571993088,"swiftNIC":15},"usage":{"cpu":12,"memory":34359738368,"swiftNIC":null},"requests":{"cpu":8,"memory":34359738368,"swiftNIC":null}},
+        {"cluster":"synthetic-mgmt","name":"mgmt-new","pool":"hcp","sku":"D4","inventory":true,"swiftAdvertised":null,"capacity":{"cpu":4,"memory":17179869184,"swiftNIC":null},"allocatable":{"cpu":3,"memory":15032385536,"swiftNIC":null},"usage":{"cpu":1,"memory":4294967296,"swiftNIC":null},"requests":{"cpu":1,"memory":4294967296,"swiftNIC":null}}
+      ]
+    },
+    {
+      "time": "2026-09-21T12:02:00Z",
+      "expected": ["synthetic-svc", "synthetic-mgmt"],
+      "warnings": ["Synthetic: deleted mgmt-old; svc inventory and mgmt-b pool label missing."],
+      "nodes": [
+        {"cluster":"synthetic-svc","name":"svc-a","pool":"system","sku":"D4","inventory":false,"swiftAdvertised":false,"capacity":{"cpu":4,"memory":17179869184,"swiftNIC":null},"allocatable":{"cpu":3,"memory":15032385536,"swiftNIC":null},"usage":{"cpu":1,"memory":4294967296,"swiftNIC":null},"requests":{"cpu":2,"memory":8589934592,"swiftNIC":null}},
+        {"cluster":"synthetic-mgmt","name":"mgmt-b","pool":"","sku":"D16","inventory":true,"swiftAdvertised":true,"capacity":{"cpu":16,"memory":68719476736,"swiftNIC":16},"allocatable":{"cpu":15,"memory":66571993088,"swiftNIC":15},"usage":{"cpu":12,"memory":34359738368,"swiftNIC":null},"requests":{"cpu":8,"memory":34359738368,"swiftNIC":4}},
+        {"cluster":"synthetic-mgmt","name":"mgmt-new","pool":"hcp","sku":"D4","inventory":true,"swiftAdvertised":true,"capacity":{"cpu":4,"memory":17179869184,"swiftNIC":4},"allocatable":{"cpu":3,"memory":15032385536,"swiftNIC":3},"usage":{"cpu":1,"memory":4294967296,"swiftNIC":null},"requests":{"cpu":1,"memory":4294967296,"swiftNIC":0}}
+      ]
+    },
+    {
+      "time": "2026-09-21T12:03:00Z",
+      "expected": ["synthetic-svc"],
+      "warnings": ["Synthetic: management cluster inventory absent even though node metrics remain."],
+      "nodes": [
+        {"cluster":"synthetic-svc","name":"svc-a","pool":"system","sku":"D4","inventory":true,"swiftAdvertised":false,"capacity":{"cpu":4,"memory":17179869184,"swiftNIC":null},"allocatable":{"cpu":3,"memory":15032385536,"swiftNIC":null},"usage":{"cpu":1,"memory":4294967296,"swiftNIC":null},"requests":{"cpu":2,"memory":8589934592,"swiftNIC":0}},
+        {"cluster":"synthetic-mgmt","name":"mgmt-new","pool":"hcp","sku":"D4","inventory":true,"swiftAdvertised":true,"capacity":{"cpu":4,"memory":17179869184,"swiftNIC":4},"allocatable":{"cpu":3,"memory":15032385536,"swiftNIC":3},"usage":{"cpu":1,"memory":4294967296,"swiftNIC":null},"requests":{"cpu":1,"memory":4294967296,"swiftNIC":0}}
+      ]
+    },
+    {
+      "time": "2026-09-21T12:04:00Z",
+      "expected": ["synthetic-svc", "synthetic-mgmt"],
+      "nodes": [
+        {"cluster":"synthetic-svc","name":"svc-a","pool":"system","sku":"D4","inventory":true,"swiftAdvertised":false,"capacity":{"cpu":4,"memory":17179869184,"swiftNIC":null},"allocatable":{"cpu":3,"memory":15032385536,"swiftNIC":null},"usage":{"cpu":1,"memory":4294967296,"swiftNIC":null},"requests":{"cpu":2,"memory":8589934592,"swiftNIC":0}},
+        {"cluster":"synthetic-mgmt","name":"mgmt-new","pool":"hcp","sku":"D4","inventory":true,"swiftAdvertised":true,"capacity":{"cpu":4,"memory":17179869184,"swiftNIC":4},"allocatable":{"cpu":3,"memory":15032385536,"swiftNIC":3},"usage":{"cpu":1,"memory":4294967296,"swiftNIC":null},"requests":{"cpu":1,"memory":4294967296,"swiftNIC":0}}
+      ]
+    }
+  ]
+}

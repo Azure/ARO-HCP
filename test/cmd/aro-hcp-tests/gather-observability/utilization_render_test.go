@@ -342,11 +342,17 @@ func TestRenderUtilizationCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	withHistory, err := json.Marshal(resourceHistoryFixture(t))
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		name, input, want string
 	}{
 		{"valid", string(valid) + "\n \t", ""},
 		{"coverage", string(withCoverage), ""},
+		{"history", string(withHistory), ""},
+		{"invalid history", strings.Replace(string(withHistory), `"step":"1m"`, `"step":"5m"`, 1), "history step"},
 		{"invalid coverage", strings.Replace(string(withCoverage), `"resource":"cpu"`, `"resource":"disk"`, 1), "scope/resource"},
 		{"null unlimited", strings.Replace(string(valid), `"unlimitedCPU":0`, `"unlimitedCPU":null`, 1), ""},
 		{"empty report", `{"schemaVersion":1,"generatedAt":"2026-09-18T12:35:00Z","start":"2026-09-18T12:00:00Z","end":"2026-09-18T12:30:00Z","snapshots":null}`, ""},
@@ -411,6 +417,17 @@ func TestRenderUtilizationCommand(t *testing.T) {
 			}
 			if !bytes.Equal(actual, want) {
 				t.Fatal("offline child did not use the shared renderer")
+			}
+			actual, err = os.ReadFile(filepath.Join(output, "resource-history-summary.html"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err = renderResourceHistoryHTML(expected)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(actual, want) {
+				t.Fatal("offline child did not use the shared history renderer")
 			}
 		})
 	}

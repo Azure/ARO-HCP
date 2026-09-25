@@ -155,6 +155,9 @@ func renderUtilizationHTML(report utilizationReport) ([]byte, error) {
 			}
 		}
 	}
+	// The history tab embeds its own samples; do not duplicate the full history
+	// in the peak-only iframe (or retain it in that iframe's JavaScript heap).
+	report.History = nil
 	data, err := json.Marshal(report)
 	if err != nil {
 		return nil, fmt.Errorf("marshal utilization report: %w", err)
@@ -235,16 +238,23 @@ func newRenderUtilizationCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			historyHTML, err := renderResourceHistoryHTML(report)
+			if err != nil {
+				return err
+			}
 			if err := os.MkdirAll(output, 0755); err != nil {
 				return fmt.Errorf("create utilization output directory: %w", err)
 			}
 			if err := os.WriteFile(filepath.Join(output, "utilization-summary.html"), html, 0644); err != nil {
 				return fmt.Errorf("write utilization HTML: %w", err)
 			}
+			if err := os.WriteFile(filepath.Join(output, "resource-history-summary.html"), historyHTML, 0644); err != nil {
+				return fmt.Errorf("write resource history HTML: %w", err)
+			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&input, "input", "", "Saved utilization JSON report.")
-	cmd.Flags().StringVar(&output, "output", "", "Directory for utilization-summary.html.")
+	cmd.Flags().StringVar(&output, "output", "", "Directory for utilization-summary.html and resource-history-summary.html.")
 	return cmd
 }

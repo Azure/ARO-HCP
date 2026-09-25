@@ -314,6 +314,7 @@ type gatherDependencies struct {
 	renderAlerts          func(any) ([]byte, error)
 	renderPanel           func(panelPageData) ([]byte, error)
 	renderUtilization     func(utilizationReport) ([]byte, error)
+	renderResourceHistory func(utilizationReport) ([]byte, error)
 	renderPage            func(string, []observabilityTab) error
 	writeFile             func(string, []byte, os.FileMode) error
 	writeJUnit            func(string, *junit.TestSuites) error
@@ -326,7 +327,8 @@ func (o Options) dependencies() gatherDependencies {
 		queryRange: queryRange, queryMetrics: queryAzureMonitorMetrics,
 		collectUtilization: o.collectUtilization, renderUtilization: renderUtilizationHTML,
 		collectAMW: o.collectAMW, renderAMW: renderAMWHTML,
-		renderAlerts: renderAlertsHTML, renderPanel: renderPanelHTML,
+		renderResourceHistory: renderResourceHistoryHTML,
+		renderAlerts:          renderAlertsHTML, renderPanel: renderPanelHTML,
 		renderPage: renderObservabilityPage, writeFile: os.WriteFile, writeJUnit: junit.Write,
 	}
 }
@@ -541,6 +543,11 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 		record(fmt.Errorf("failed to render utilization HTML: %w", err))
 	}
 	tabs = append(tabs, observabilityTab{Title: "Utilization", HTML: string(incompleteHTML(utilizationHTML, err))})
+	historyHTML, err := deps.renderResourceHistory(report)
+	if err != nil {
+		record(fmt.Errorf("failed to render resource history HTML: %w", err))
+	}
+	tabs = append(tabs, observabilityTab{Title: "Resource History", HTML: string(incompleteHTML(historyHTML, err))})
 
 	// Emit a single tabbed HTML page. The filename must match the Spyglass HTML
 	// lens regex .*-summary.*\.html so Prow renders it inline as one iframe.

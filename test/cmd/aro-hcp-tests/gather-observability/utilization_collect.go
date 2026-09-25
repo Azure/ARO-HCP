@@ -49,9 +49,10 @@ type utilizationNodeKey struct{ cluster, node string }
 type utilizationInstanceKey struct{ cluster, instance string }
 type utilizationHistoryNode struct {
 	utilizationNode
-	inventory        bool
-	total, available *float64
-	ksmMemory        *float64
+	inventory                       bool
+	total, available                *float64
+	ksmMemory                       *float64
+	swiftCapacity, swiftAllocatable *float64
 }
 type utilizationMinute struct {
 	nodes    map[utilizationNodeKey]*utilizationHistoryNode
@@ -79,11 +80,13 @@ func collectUtilization(ctx context.Context, start, end, now time.Time, query ut
 	history, clusters := utilizationBuildHistory(results, first, last)
 	report.Clusters = clusters
 	report.Snapshots, report.Coverage, report.Warnings = utilizationSelectSnapshots(history, clusters, first, last, report.Warnings)
+	report.History = utilizationRetainHistory(history, first, last, utilizationQueryWarnings(results))
 	if len(clusters) == 0 {
 		report.Warnings = append(report.Warnings, "expected underlay cluster inventory unavailable; no peaks selected")
 		return report
 	}
 	logger := logr.FromContextOrDiscard(ctx)
+	utilizationCollectRequestHistory(ctx, query, &report, clusters)
 	logger.Info("selected utilization snapshots", "clusters", clusters, "snapshots", len(report.Snapshots), "start", first, "end", last)
 	for _, warning := range report.Warnings {
 		logger.Info("utilization coverage warning", "warning", warning)
@@ -230,6 +233,13 @@ func utilizationBuildHistory(results []utilizationQueryResult, start, end time.T
 							node.Pool = label
 						}
 					case "kube_node_status_capacity", "kube_node_status_allocatable":
+						if m["resource"] == "aro_openshift_io_swift_nic" {
+							if m["__name__"] == "kube_node_status_capacity" {
+								utilizationMax(&node.swiftCapacity, v)
+							} else {
+								utilizationMax(&node.swiftAllocatable, v)
+							}
+						}
 						resources := &node.Capacity
 						if m["__name__"] == "kube_node_status_allocatable" {
 							resources = &node.Allocatable
