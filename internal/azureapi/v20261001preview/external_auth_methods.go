@@ -31,7 +31,7 @@ type ExternalAuth struct {
 	generated.ExternalAuth
 }
 
-var _ coreapi.VersionedCreatableResource[coreapi.HCPOpenShiftClusterExternalAuth] = &ExternalAuth{}
+var _ coreapi.VersionedCreatableResource[coreapi.ExternalAuth] = &ExternalAuth{}
 
 func (h *ExternalAuth) NewExternal() any {
 	return &ExternalAuth{}
@@ -73,8 +73,8 @@ func (h *ExternalAuth) GetVersion() coreapi.Version {
 	return versionedInterface
 }
 
-func (h *ExternalAuth) ConvertToInternal(existing *coreapi.HCPOpenShiftClusterExternalAuth) (*coreapi.HCPOpenShiftClusterExternalAuth, error) {
-	out := &coreapi.HCPOpenShiftClusterExternalAuth{}
+func (h *ExternalAuth) ConvertToInternal(existing *coreapi.ExternalAuth) (*coreapi.ExternalAuth, error) {
+	out := &coreapi.ExternalAuth{}
 
 	if h.ID != nil {
 		out.ID = metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
@@ -133,7 +133,7 @@ func (h *ExternalAuth) ConvertToInternal(existing *coreapi.HCPOpenShiftClusterEx
 // preserveUnknownExternalAuthFields copies customer-facing fields from existing that
 // this API version doesn't know about. Currently empty — no cross-version
 // customer fields exist yet between v20240610preview and v20260630preview.
-func preserveUnknownExternalAuthFields(from, to *coreapi.HCPOpenShiftClusterExternalAuth) {
+func preserveUnknownExternalAuthFields(from, to *coreapi.ExternalAuth) {
 }
 
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *coreapi.ExternalAuthClientProfile) {
@@ -299,7 +299,7 @@ func newTokenRequiredClaim(from *coreapi.TokenRequiredClaim) generated.TokenRequ
 	}
 }
 
-func (v version) NewHCPOpenShiftClusterExternalAuth(from *coreapi.HCPOpenShiftClusterExternalAuth) coreapi.VersionedHCPOpenShiftClusterExternalAuth {
+func (v version) NewExternalAuth(from *coreapi.ExternalAuth) coreapi.VersionedExternalAuth {
 	if from == nil {
 		ret := &ExternalAuth{}
 		SetDefaultValuesExternalAuth(ret)
@@ -337,7 +337,7 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *coreapi.HCPOpenShiftCl
 	return out
 }
 
-func newExternalAuthResourceStatus(from *coreapi.HCPOpenShiftClusterExternalAuthStatus) generated.ExternalAuthResourceStatus {
+func newExternalAuthResourceStatus(from *coreapi.ExternalAuthStatus) generated.ExternalAuthResourceStatus {
 	if from == nil {
 		return generated.ExternalAuthResourceStatus{}
 	}

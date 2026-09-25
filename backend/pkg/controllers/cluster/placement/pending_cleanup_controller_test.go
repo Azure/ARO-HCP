@@ -174,7 +174,7 @@ func TestPendingCleanupSyncer_ReservationAfterPlacementStops(t *testing.T) {
 					const stamp = "1"
 					mc := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp))
 					clusterID := pendingClusterResourceID("interrupted-create")
-					cluster := &coreapi.HCPOpenShiftCluster{
+					cluster := &coreapi.Cluster{
 						CosmosMetadata: coreapi.CosmosMetadata{ResourceID: clusterID},
 					}
 					cluster.ID = clusterID
@@ -205,7 +205,7 @@ func TestPendingCleanupSyncer_ReservationAfterPlacementStops(t *testing.T) {
 							ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc},
 						},
 						clusterLister: &corelistertesting.SliceClusterLister{
-							Clusters: []*coreapi.HCPOpenShiftCluster{cluster},
+							Clusters: []*coreapi.Cluster{cluster},
 						},
 						managementClusterSchedulingLister: schedulingLister,
 						fleetDBClient:                     fleetDB,

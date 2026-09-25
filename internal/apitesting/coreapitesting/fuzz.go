@@ -169,17 +169,17 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			c.FillNoCustom(j)
 			j.MirrorSourcePolicy = metadataapi.MirrorSourcePolicyAllowContactingSource
 		},
-		func(j *coreapi.HCPOpenShiftClusterStatus, c randfill.Continue) {
-			*j = coreapi.HCPOpenShiftClusterStatus{}
+		func(j *coreapi.ClusterStatus, c randfill.Continue) {
+			*j = coreapi.ClusterStatus{}
 		},
-		func(j *coreapi.HCPOpenShiftClusterNodePoolStatus, c randfill.Continue) {
-			*j = coreapi.HCPOpenShiftClusterNodePoolStatus{}
+		func(j *coreapi.NodePoolStatus, c randfill.Continue) {
+			*j = coreapi.NodePoolStatus{}
 		},
-		func(j *coreapi.HCPOpenShiftClusterExternalAuthStatus, c randfill.Continue) {
-			*j = coreapi.HCPOpenShiftClusterExternalAuthStatus{}
+		func(j *coreapi.ExternalAuthStatus, c randfill.Continue) {
+			*j = coreapi.ExternalAuthStatus{}
 		},
 		// Override: zero internal-only fields instead of populating them.
-		func(j *coreapi.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
+		func(j *coreapi.ClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			j.ActiveOperationID = ""
 			j.RevokeCredentialsOperationID = ""
@@ -193,13 +193,13 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			j.DeleteOperationCompletionTimeout = nil
 			j.DeleteOperationCompletionDeadline = nil
 		},
-		func(j *coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
+		func(j *coreapi.NodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			j.ActiveOperationID = ""
 			j.ClusterServiceID = nil
 			j.UsesNewNodePoolDeletionApproach = false
 		},
-		func(j *coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
+		func(j *coreapi.ExternalAuthServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			j.ActiveOperationID = ""
 			j.ClusterServiceID = nil
@@ -271,7 +271,7 @@ func CommonDeepCopyFuzzFuncs() []interface{} {
 				j.EncryptionSetID = FuzzArmResourceID("Microsoft.Compute/diskEncryptionSets", GenName(c))
 			}
 		},
-		func(j *coreapi.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
+		func(j *coreapi.ClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
@@ -279,14 +279,14 @@ func CommonDeepCopyFuzzFuncs() []interface{} {
 			j.ClusterServiceID = metadataapihelpers.Ptr(FuzzInternalID(GenName(c)))
 			j.PendingClusterServiceID = metadataapihelpers.Ptr(FuzzInternalID(GenName(c)))
 		},
-		func(j *coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
+		func(j *coreapi.NodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
 			}
 			j.ClusterServiceID = metadataapihelpers.Ptr(FuzzInternalID(GenName(c)))
 		},
-		func(j *coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
+		func(j *coreapi.ExternalAuthServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return

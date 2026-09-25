@@ -430,7 +430,7 @@ func WriteController(ctx context.Context, controllerCRUD cosmosstorageutils.Reso
 	return nil
 }
 
-func ClusterServiceIDForCluster(cluster *coreapi.HCPOpenShiftCluster) string {
+func ClusterServiceIDForCluster(cluster *coreapi.Cluster) string {
 	if cluster.ServiceProviderProperties.PendingClusterServiceID != nil {
 		return cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()
 	}

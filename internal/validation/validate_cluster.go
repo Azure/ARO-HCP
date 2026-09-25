@@ -44,28 +44,28 @@ const (
 
 // ToClusterTrackedResource returns a pointer to the TrackedResource field of
 // a cluster. Exported so admission can traverse the same field path.
-func ToClusterTrackedResource(oldObj *coreapi.HCPOpenShiftCluster) *coreapi.TrackedResource {
+func ToClusterTrackedResource(oldObj *coreapi.Cluster) *coreapi.TrackedResource {
 	return &oldObj.TrackedResource
 }
 
 // ToClusterCustomerProperties returns a pointer to the CustomerProperties
 // field of a cluster. Exported so admission can traverse the same field path.
-func ToClusterCustomerProperties(oldObj *coreapi.HCPOpenShiftCluster) *coreapi.HCPOpenShiftClusterCustomerProperties {
+func ToClusterCustomerProperties(oldObj *coreapi.Cluster) *coreapi.ClusterCustomerProperties {
 	return &oldObj.CustomerProperties
 }
 
 // ToClusterServiceProviderProperties returns a pointer to the
 // ServiceProviderProperties field of a cluster. Exported so admission can
 // traverse the same field path.
-func ToClusterServiceProviderProperties(oldObj *coreapi.HCPOpenShiftCluster) *coreapi.HCPOpenShiftClusterServiceProviderProperties {
+func ToClusterServiceProviderProperties(oldObj *coreapi.Cluster) *coreapi.ClusterServiceProviderProperties {
 	return &oldObj.ServiceProviderProperties
 }
 
 var (
-	toClusterIdentity = func(oldObj *coreapi.HCPOpenShiftCluster) *coreapi.ManagedServiceIdentity { return oldObj.Identity }
+	toClusterIdentity = func(oldObj *coreapi.Cluster) *coreapi.ManagedServiceIdentity { return oldObj.Identity }
 )
 
-func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, oldCluster *coreapi.HCPOpenShiftCluster, validationPathMapper coreapi.ValidationPathMapperFunc) field.ErrorList {
+func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, oldCluster *coreapi.Cluster, validationPathMapper coreapi.ValidationPathMapperFunc) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//coreapi.TrackedResource
@@ -76,10 +76,10 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("id"), &newCluster.ID.Name, nil, clusterResourceNameRegex, clusterResourceNameErrorString)...)
 	}
 
-	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty"`
+	// Properties ClusterCustomerProperties `json:"properties,omitempty"`
 	errs = append(errs, validateClusterCustomerProperties(ctx, op, field.NewPath("customerProperties"), &newCluster.CustomerProperties, safe.Field(oldCluster, ToClusterCustomerProperties))...)
 
-	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty"`
+	// Properties ClusterCustomerProperties `json:"properties,omitempty"`
 	errs = append(errs, validateClusterServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newCluster.ServiceProviderProperties, safe.Field(oldCluster, ToClusterServiceProviderProperties))...)
 
 	// Identity   *coreapi.ManagedServiceIdentity   `json:"identity,omitempty"`
@@ -106,7 +106,7 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	return errs
 }
 
-func validateClusterVNetIntegrationSubnetID(_ context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+func validateClusterVNetIntegrationSubnetID(_ context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
 	errs := field.ErrorList{}
 	subnetPath := field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId")
 	subnet := newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID
@@ -153,7 +153,7 @@ var minPrivateKASOpenShiftVersion = semver.Version{Major: 4, Minor: 22}
 
 // validatePrivateKASRequiresMinimumVersion rejects Private API visibility when
 // the requested OpenShift version is below 4.22.
-func validatePrivateKASRequiresMinimumVersion(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+func validatePrivateKASRequiresMinimumVersion(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
 	if newCluster.CustomerProperties.API.Visibility != metadataapi.VisibilityPrivate {
 		return nil
 	}
@@ -196,7 +196,7 @@ func validatePrivateKASRequiresMinimumVersion(_ context.Context, _ operation.Ope
 // therefore maps that internal exact pin back to the external version.id it
 // represents and validates the mapped value, so a nightly install is accepted
 // only when the effective version.id is a full version.
-func validateNightlyChannelRequiresFullVersion(_ context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+func validateNightlyChannelRequiresFullVersion(_ context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
 	// Nightly is only selectable with the experimental feature; without it the
 	// channelGroup enum already rejects the request, so skip here to avoid a
 	// duplicate error.
@@ -231,7 +231,7 @@ func validateNightlyChannelRequiresFullVersion(_ context.Context, op operation.O
 	return nil
 }
 
-func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// Verify that every key in Identity.UserAssignedIdentities is referenced
@@ -301,7 +301,7 @@ func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op ope
 	return errs
 }
 
-func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
 	if newCluster.ID == nil {
 		return nil
 	}
@@ -338,45 +338,45 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 // ToClusterCustomerPropertiesVersion returns a pointer to the Version field
 // of cluster customer properties. Exported so admission can traverse the same
 // field path.
-func ToClusterCustomerPropertiesVersion(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.VersionProfile {
+func ToClusterCustomerPropertiesVersion(oldObj *coreapi.ClusterCustomerProperties) *coreapi.VersionProfile {
 	return &oldObj.Version
 }
 
 var (
-	toCustomerDNS = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.CustomerDNSProfile {
+	toCustomerDNS = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.CustomerDNSProfile {
 		return &oldObj.DNS
 	}
-	toNetwork = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.NetworkProfile {
+	toNetwork = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.NetworkProfile {
 		return &oldObj.Network
 	}
-	toCustomerAPI = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.CustomerAPIProfile {
+	toCustomerAPI = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.CustomerAPIProfile {
 		return &oldObj.API
 	}
-	toCustomerIngress = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.CustomerIngressProfile {
+	toCustomerIngress = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.CustomerIngressProfile {
 		return &oldObj.Ingress
 	}
-	toCustomerPlatform = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.CustomerPlatformProfile {
+	toCustomerPlatform = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.CustomerPlatformProfile {
 		return &oldObj.Platform
 	}
-	toClusterAutoscaling = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.ClusterAutoscalingProfile {
+	toClusterAutoscaling = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.ClusterAutoscalingProfile {
 		return &oldObj.Autoscaling
 	}
-	toNodeDrainTimeoutMinutes = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *int32 {
+	toNodeDrainTimeoutMinutes = func(oldObj *coreapi.ClusterCustomerProperties) *int32 {
 		return &oldObj.NodeDrainTimeoutMinutes
 	}
-	toEtcd                 = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.EtcdProfile { return &oldObj.Etcd }
-	toClusterImageRegistry = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *coreapi.ClusterImageRegistryProfile {
+	toEtcd                 = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.EtcdProfile { return &oldObj.Etcd }
+	toClusterImageRegistry = func(oldObj *coreapi.ClusterCustomerProperties) *coreapi.ClusterImageRegistryProfile {
 		return &oldObj.ClusterImageRegistry
 	}
-	toImageDigestMirrors = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) []coreapi.ImageDigestMirror {
+	toImageDigestMirrors = func(oldObj *coreapi.ClusterCustomerProperties) []coreapi.ImageDigestMirror {
 		return oldObj.ImageDigestMirrors
 	}
-	toCryptoRestrictions = func(oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) *metadataapi.CryptoRestrictions {
+	toCryptoRestrictions = func(oldObj *coreapi.ClusterCustomerProperties) *metadataapi.CryptoRestrictions {
 		return &oldObj.CryptoRestrictions
 	}
 )
 
-func validateClusterCustomerProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
+func validateClusterCustomerProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterCustomerProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// Version                 VersionProfile              `json:"version,omitempty"`
@@ -429,25 +429,25 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 }
 
 var (
-	toHCPOpenShiftClusterServiceProviderPropertiesProvisioningState = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *coreapi.ProvisioningState {
+	toClusterServiceProviderPropertiesProvisioningState = func(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ProvisioningState {
 		return &oldObj.ProvisioningState
 	}
-	toServiceProviderDNS = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *coreapi.ServiceProviderDNSProfile {
+	toServiceProviderDNS = func(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ServiceProviderDNSProfile {
 		return &oldObj.DNS
 	}
-	toServiceProviderClusterServiceID = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *metadataapi.InternalID {
+	toServiceProviderClusterServiceID = func(oldObj *coreapi.ClusterServiceProviderProperties) *metadataapi.InternalID {
 		return oldObj.ClusterServiceID
 	}
-	toServiceProviderConsole = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *coreapi.ServiceProviderConsoleProfile {
+	toServiceProviderConsole = func(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ServiceProviderConsoleProfile {
 		return &oldObj.Console
 	}
-	toServiceProviderAPI = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *coreapi.ServiceProviderAPIProfile {
+	toServiceProviderAPI = func(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ServiceProviderAPIProfile {
 		return &oldObj.API
 	}
-	toServiceProviderPlatform = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *coreapi.ServiceProviderPlatformProfile {
+	toServiceProviderPlatform = func(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ServiceProviderPlatformProfile {
 		return &oldObj.Platform
 	}
-	toServiceProviderManagedIdentitiesDataPlaneIdentityURL = func(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *string {
+	toServiceProviderManagedIdentitiesDataPlaneIdentityURL = func(oldObj *coreapi.ClusterServiceProviderProperties) *string {
 		return &oldObj.ManagedIdentitiesDataPlaneIdentityURL
 	}
 )
@@ -455,15 +455,15 @@ var (
 // ToClusterServiceProviderPropertiesClusterUID returns a pointer to the
 // ClusterUID field of cluster service provider properties. Exported so
 // admission can traverse the same field path.
-func ToClusterServiceProviderPropertiesClusterUID(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *string {
+func ToClusterServiceProviderPropertiesClusterUID(oldObj *coreapi.ClusterServiceProviderProperties) *string {
 	return &oldObj.ClusterUID
 }
 
-func validateClusterServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
+func validateClusterServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// ProvisioningState       coreapi.ProvisioningState       `json:"provisioningState,omitempty"`
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toHCPOpenShiftClusterServiceProviderPropertiesProvisioningState))...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toClusterServiceProviderPropertiesProvisioningState))...)
 
 	//ClusterServiceID  *InternalID                    `json:"clusterServiceID,omitempty"`
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), newObj.ClusterServiceID, safe.Field(oldObj, toServiceProviderClusterServiceID))...)

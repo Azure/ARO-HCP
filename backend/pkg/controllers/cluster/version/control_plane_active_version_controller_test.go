@@ -320,7 +320,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			// because this controller writes it back (step 5); the read itself is served
 			// from the cache. See TestControlPlaneActiveVersionSyncer_SyncOnce_ReadsClusterFromCache
 			// for the revert-proof guard that keeps the cluster out of the DB entirely.
-			var cachedClusters []*coreapi.HCPOpenShiftCluster
+			var cachedClusters []*coreapi.Cluster
 			if cluster, getErr := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Get(runCtx, testClusterName); getErr == nil {
 				cachedClusters = append(cachedClusters, cluster)
 			}
@@ -373,7 +373,7 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 
 	syncer := &controlPlaneActiveVersionSyncer{
 		resourcesDBClient:            mockResourcesDBClient,
-		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cachedCluster}},
+		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cachedCluster}},
 		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 	}
@@ -408,12 +408,12 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce_ReadsClusterFromCache(t *testi
 	// (the value derived from the ReadDesire below), so the cluster write is a no-op
 	// and the cluster never has to exist in the DB.
 	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
-	cachedCluster := &coreapi.HCPOpenShiftCluster{
+	cachedCluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: clusterResourceID},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{ID: clusterResourceID, Name: testClusterName, Type: coreapi.ClusterResourceType.String()},
 		},
-		Status: coreapi.HCPOpenShiftClusterStatus{
+		Status: coreapi.ClusterStatus{
 			ActiveVersions: []coreapi.HCPClusterActiveVersion{{Version: "4.19"}},
 		},
 	}
@@ -426,7 +426,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce_ReadsClusterFromCache(t *testi
 
 	syncer := &controlPlaneActiveVersionSyncer{
 		resourcesDBClient:            mockResourcesDBClient,
-		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cachedCluster}},
+		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cachedCluster}},
 		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 	}
@@ -550,7 +550,7 @@ func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClie
 	clusterInternalID, err := metadataapi.NewInternalID(testCSClusterIDStr)
 	require.NoError(t, err)
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
@@ -563,7 +563,7 @@ func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClie
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &clusterInternalID,
 		},

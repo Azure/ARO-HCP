@@ -36,7 +36,7 @@ import (
 )
 
 // nodePoolDegradedAggregator rolls per-controller Degraded conditions up
-// onto HCPOpenShiftClusterNodePool.Status.Conditions. See the package and
+// onto NodePool.Status.Conditions. See the package and
 // clusterDegradedAggregator docs for the overall design.
 type nodePoolDegradedAggregator struct {
 	nodePoolLister    corelisters.NodePoolLister
@@ -64,7 +64,7 @@ func nodePoolDegradedAggregatorInertia() statusutils.Inertia {
 
 // NewNodePoolDegradedAggregatorController creates a controller that
 // aggregates the Degraded condition from every api.Controller under a
-// given HCPOpenShiftClusterNodePool onto the node pool's
+// given NodePool onto the node pool's
 // Status.Conditions.
 //
 // See NewClusterDegradedAggregatorController for the clock semantics —

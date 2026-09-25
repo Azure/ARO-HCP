@@ -13,7 +13,7 @@ Cosmos documents lack that field. ARO-HCP has two independent Cosmos readers
 
 We use **two-layer defaulting**:
 
-1. **Constructor defaults** (write path): `NewHCPOpenShiftCluster(nil)` calls
+1. **Constructor defaults** (write path): `NewCluster(nil)` calls
    `SetDefaultValuesCluster()` internally, populating version-specific defaults
    before `json.Unmarshal` overlays the request body. Absent fields keep their
    defaults because `json.Unmarshal` into a pre-populated struct preserves
@@ -45,7 +45,7 @@ approach (`api.SetDefaults` on write, `clusterEnricher.Enrich` on read).
 sequenceDiagram
     participant Client
     participant FE as Frontend
-    participant Ctor as NewHCPOpenShiftCluster(nil)
+    participant Ctor as NewCluster(nil)
     participant CI as ConvertToInternal
     participant Cosmos
 
@@ -69,7 +69,7 @@ sequenceDiagram
     participant Client
     participant FE as Frontend
     participant Cosmos
-    participant Ctor as NewHCPOpenShiftCluster(nil)
+    participant Ctor as NewCluster(nil)
     participant CI as ConvertToInternal
 
     Client->>FE: PUT /clusters/foo (existing)
@@ -103,7 +103,7 @@ sequenceDiagram
     FE->>CS: Get cluster state
     CS-->>FE: CS response
     FE->>FE: mergeToInternal(csData, cosmosData)<br/>CS fields overwrite Cosmos for<br/>operational data. ARM metadata<br/>kept from Cosmos.
-    FE->>Conv: NewHCPOpenShiftCluster(internal)<br/>Ptr() preserves zero/false values.
+    FE->>Conv: NewCluster(internal)<br/>Ptr() preserves zero/false values.
     Conv-->>Client: JSON response
 ```
 
@@ -127,7 +127,7 @@ sequenceDiagram
     FE->>Cosmos: Get existing document
     Cosmos-->>FE: raw JSON
     FE->>FE: CosmosToInternal(doc)<br/>Canonical defaults applied.
-    FE->>Conv: NewHCPOpenShiftCluster(internal)<br/>Create base document.<br/>Ptr() preserves all values.
+    FE->>Conv: NewCluster(internal)<br/>Create base document.<br/>Ptr() preserves all values.
     Conv-->>FE: externalBase
     FE->>FE: json.Marshal(base) → base JSON
     FE->>FE: JSON Merge Patch (RFC 7396)
@@ -192,7 +192,7 @@ flowchart LR
 
 Normalize functions should use **unconditional writes** (`api.Deref()`) for
 leaf fields. On PATCH, the external type is pre-populated from the existing
-resource via `NewHCPOpenShiftCluster(internal)`, so nil only occurs when the
+resource via `NewCluster(internal)`, so nil only occurs when the
 customer explicitly sent `null`. Parent struct nil checks remain for panic
 prevention and section-level null clearing (RFC 7396).
 
@@ -279,15 +279,15 @@ flowchart TD
 **2. Versioned conversion** (`internal/api/v*/methods.go`)
 - [ ] `SetDefaultValues*()`: `if field == nil { field = default }`
 - [ ] `ConvertToInternal`: normalize + null rejection for required fields
-- [ ] `NewHCPOpenShiftCluster*()`: internal→external mapping. Use `Ptr()` (not
+- [ ] `NewCluster*()`: internal→external mapping. Use `Ptr()` (not
   `PtrOrNil()`) for fields where zero is valid user input.
 - [ ] Older API versions that don't expose the field: add to their
   `preserveUnknown*Fields` function so it survives PUT/PATCH via that version.
 
 **3. Canonical defaults** (`internal/api/types_*.go`)
 - [ ] Add to the `EnsureDefaults()` method on the internal type
-  (`HCPOpenShiftCluster`, `HCPOpenShiftClusterNodePool`, or
-  `HCPOpenShiftClusterExternalAuth`).
+  (`Cluster`, `NodePool`, or
+  `ExternalAuth`).
 - [ ] Only default if safe (zero never valid) or pointer type (nil = unset).
 - [ ] Never default ARM-managed fields (`provisioningState`, `systemData`,
   `id`/`name`/`type`, `tags`) — these come from `ResourceDocument`.
@@ -374,11 +374,11 @@ pointer types or remove `omitempty` to avoid this. See existing precedent:
 | Layer | Cluster | NodePool | ExternalAuth | File |
 |-------|---------|----------|--------------|------|
 | Constructor defaults | `SetDefaultValuesCluster()` | `SetDefaultValuesNodePool()` | `SetDefaultValuesExternalAuth()` | `v*/methods.go` |
-| Canonical defaults | `HCPOpenShiftCluster.EnsureDefaults()` | `HCPOpenShiftClusterNodePool.EnsureDefaults()` | `HCPOpenShiftClusterExternalAuth.EnsureDefaults()` | `internal/api/types_*.go` |
+| Canonical defaults | `Cluster.EnsureDefaults()` | `NodePool.EnsureDefaults()` | `ExternalAuth.EnsureDefaults()` | `internal/api/types_*.go` |
 | Cross-version preservation | `preserveUnknownClusterFields()` | `preserveUnknownNodePoolFields()` | `preserveUnknownExternalAuthFields()` | `v*/methods.go` |
 | Read-only field restoration | `CopyReadOnlyClusterValues()` | `CopyReadOnlyNodePoolValues()` | `CopyReadOnlyExternalAuthValues()` | `internal/conversion/readonly_*.go` |
 | CS→RP defaults | `convertVersionIDCSToRP()` | `convertDiskStorageAccountTypeCSToRP()` | — | `internal/ocm/convert.go` |
-| Internal constructors | `NewDefaultHCPOpenShiftCluster()` | `NewDefaultHCPOpenShiftClusterNodePool()` | — | `internal/api/types_*.go` |
+| Internal constructors | `NewDefaultCluster()` | `NewDefaultNodePool()` | — | `internal/api/types_*.go` |
 | Canonical constants | `DefaultClusterVersionID`, etc. | `DiskStorageAccountTypePremium_LRS`, etc. | `UsernameClaimPrefixPolicyNone` | `internal/api/defaults.go`, `enums.go` |
 | Migration | `MigrateCosmosOrDie()` | (included in cluster loop) | (included in cluster loop) | `frontend/pkg/frontend/migrate_cosmos.go` |
 

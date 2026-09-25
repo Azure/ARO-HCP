@@ -52,7 +52,7 @@ type ClusterAdmissionContext struct {
 	// of truth for fields (like tags) that are *consumed* during mutation but
 	// whose new-object value may already have been overwritten by the time the
 	// mutation actually runs.
-	OriginalCluster        *coreapi.HCPOpenShiftCluster
+	OriginalCluster        *coreapi.Cluster
 	ServiceProviderCluster *coreapi.ServiceProviderCluster
 	// ClusterNodePools is the list of node pools belonging to the cluster, used
 	// for minor-version skew checks against the desired cluster version.
@@ -61,19 +61,19 @@ type ClusterAdmissionContext struct {
 	// (not including the current cluster being admitted), used
 	// for cross-cluster platform resource uniqueness on CREATE.
 	// The list is empty on UPDATE.
-	SubscriptionClusters []*coreapi.HCPOpenShiftCluster
+	SubscriptionClusters []*coreapi.Cluster
 	// SubscriptionNodePools lists node pool documents under SubscriptionClusters,
 	// used to ensure a cluster subnet is not already assigned to another cluster's
 	// node pool on CREATE.
 	// The list is empty on UPDATE.
-	SubscriptionNodePools []*coreapi.HCPOpenShiftClusterNodePool
+	SubscriptionNodePools []*coreapi.NodePool
 }
 
 // ClusterAdmissionNodePool is a single node pool plus its prefetched service
 // provider record. The cluster admission walks these to validate version skew
 // of every node pool against the desired cluster version.
 type ClusterAdmissionNodePool struct {
-	NodePool                *coreapi.HCPOpenShiftClusterNodePool
+	NodePool                *coreapi.NodePool
 	ServiceProviderNodePool *coreapi.ServiceProviderNodePool
 }
 
@@ -81,10 +81,10 @@ type ClusterAdmissionNodePool struct {
 // the ClusterUID on CREATE and translating experimental tags into
 // ServiceProviderProperties.ExperimentalFeatures). It returns any field errors
 // produced by the mutation step.
-func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftCluster) field.ErrorList {
+func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.Cluster) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	// ServiceProviderProperties ClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, mutateClusterServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, validation.ToClusterServiceProviderProperties))...)
 
 	// Relocate an exact version supplied through version.id onto the
@@ -123,7 +123,7 @@ func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContex
 // Tags are read from admissionContext.OriginalCluster (the pre-mutation source
 // of truth) while version.id is read from and written back to the object being
 // mutated.
-func mutateClusterControlPlaneExactVersion(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftCluster) field.ErrorList {
+func mutateClusterControlPlaneExactVersion(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, newObj, oldObj *coreapi.Cluster) field.ErrorList {
 	subscription := admissionContext.Subscription
 	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
 		return nil
@@ -187,7 +187,7 @@ func mutateClusterControlPlaneExactVersion(_ context.Context, admissionContext *
 
 // mutateClusterServiceProviderProperties applies mutations that live on the
 // service-provider half of the cluster.
-func mutateClusterServiceProviderProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
+func mutateClusterServiceProviderProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, mutateClusterUID(ctx, admissionContext, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, validation.ToClusterServiceProviderPropertiesClusterUID))...)
@@ -207,7 +207,7 @@ func mutateClusterUID(_ context.Context, _ *ClusterAdmissionContext, op operatio
 	return nil
 }
 
-func toSPExperimentalFeatures(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *coreapi.ExperimentalFeatures {
+func toSPExperimentalFeatures(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ExperimentalFeatures {
 	return &oldObj.ExperimentalFeatures
 }
 
@@ -411,14 +411,14 @@ func mutateDeleteOperationCompletionTimeout(_ context.Context, admissionContext 
 // information than is contained inside of the cluster instance itself. For
 // UPDATE operations that may change the cluster version, the admissionContext
 // must carry the prefetched ServiceProviderCluster and ClusterNodePools.
-func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftCluster) field.ErrorList {
+func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.Cluster) field.ErrorList {
 	if op.Type == operation.Update && oldObj != nil && oldObj.ServiceProviderProperties.DeletionTimestamp != nil {
 		return field.ErrorList{field.Forbidden(field.NewPath(""), "cluster is being deleted and cannot be updated")}
 	}
 
 	errs := field.ErrorList{}
 
-	// CustomerProperties HCPOpenShiftClusterCustomerProperties `json:"customerProperties,omitempty"`
+	// CustomerProperties ClusterCustomerProperties `json:"customerProperties,omitempty"`
 	errs = append(errs, admitClusterCustomerProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.CustomerProperties, safe.Field(oldObj, validation.ToClusterCustomerProperties))...)
 
 	return errs
@@ -426,7 +426,7 @@ func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext
 
 // admitClusterCustomerProperties drills down into the customer-facing portion
 // of the cluster.
-func admitClusterCustomerProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
+func admitClusterCustomerProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterCustomerProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitClusterVersionProfile(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToClusterCustomerPropertiesVersion))...)
@@ -793,7 +793,7 @@ var minKmsKeyVersionRotationVersion = semver.Version{Major: 4, Minor: 22}
 // cluster's active control plane version predates the CPO support (< 4.22).
 // Only runs for API versions >= v20260630Preview where version is mutable;
 // older API versions block version changes via the immutability check in validation.
-func admitClusterEtcdKmsKeyVersionChange(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
+func admitClusterEtcdKmsKeyVersionChange(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterCustomerProperties) field.ErrorList {
 	if op.Type != operation.Update || oldObj == nil {
 		return nil
 	}

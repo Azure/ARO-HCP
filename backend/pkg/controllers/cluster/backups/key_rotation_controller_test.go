@@ -215,7 +215,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 	hostedClusterNamespace := controllerutils.HostedClusterNamespace(testEnvID, testClusterID)
 	controlPlaneNamespace := fmt.Sprintf("%s-%s", hostedClusterNamespace, testDomainPrefix)
 
-	withKMS := func(c *coreapi.HCPOpenShiftCluster) {
+	withKMS := func(c *coreapi.Cluster) {
 		c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 			Kms: &coreapi.KmsEncryptionProfile{
 				ActiveKey: coreapi.KmsKey{Version: "v2", Name: "key1", VaultName: "vault1"},
@@ -384,22 +384,22 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		return seedOnDemandDesireObserved(t, ctx, mockKubeApplier, backupName, fingerprint, velerov1.BackupPhaseCompleted, true)
 	}
 
-	newTestCluster := func(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+	newTestCluster := func(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testKey.SubscriptionID +
 				"/resourceGroups/" + testKey.ResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testKey.HCPClusterName,
 		))
 		csID := metadataapi.Must(metadataapi.NewInternalID(testClusterIDStr))
-		cluster := &coreapi.HCPOpenShiftCluster{
+		cluster := &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 			TrackedResource: coreapi.TrackedResource{
 				Resource: coreapi.Resource{ID: resourceID},
 			},
-			CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			CustomerProperties: coreapi.ClusterCustomerProperties{
 				DNS: coreapi.CustomerDNSProfile{BaseDomainPrefix: testDomainPrefix},
 			},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 				ProvisioningState:       coreapi.ProvisioningStateSucceeded,
 				ClusterServiceID:        &csID,
 				BillingDocumentCosmosID: "test-billing-doc-id",
@@ -434,7 +434,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name                       string
-		clusterOpts                []func(*coreapi.HCPOpenShiftCluster)
+		clusterOpts                []func(*coreapi.Cluster)
 		hasPlacement               bool
 		seedServiceProviderCluster func(spc *coreapi.ServiceProviderCluster)
 		seedHCReadDesire           func(t *testing.T) *kubeapplierapi.ReadDesire
@@ -460,7 +460,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:         "no HostedCluster ReadDesire is no-op",
-			clusterOpts:  []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:  []func(*coreapi.Cluster){withKMS},
 			hasPlacement: true,
 			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 				t.Helper()
@@ -472,7 +472,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "rotation not complete is no-op",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: migratingHC,
 			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -485,7 +485,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "creates backup on completed rotation",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			// The first sync creates both the ReadDesire and the ApplyDesire; the
@@ -512,7 +512,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "idempotent when backup already exists",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -556,7 +556,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "crash recovery recreates missing RD when AD exists",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -581,7 +581,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "crash recovery recreates missing AD when RD exists",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -620,7 +620,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "cleans up stale desire from previous key rotation",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -644,7 +644,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "does not delete current backup desire",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			// syncs 1-2 bootstrap the current RD/AD; sync3 runs cleanup with no stale desires present.
@@ -660,7 +660,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "purges stale desire even when its ReadDesire is missing",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -678,7 +678,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "skips creating when fingerprint already recorded",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
@@ -694,7 +694,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "records fingerprint and purges current desire once successful",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -729,7 +729,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 			// (true even when the target was never observed), not a completion signal.
 			// Misreading it as "backup completed" caused premature deletion.
 			name:             "does not delete current desire when Successful but backup never observed",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -757,7 +757,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "does not delete current desire while backup is still in progress",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -780,7 +780,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "does not record fingerprint from a superseded rotation's successful desire",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -804,7 +804,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "purges current ApplyDesire when fingerprint already recorded and ReadDesire is missing",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
@@ -827,7 +827,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "purges current ApplyDesire when fingerprint already recorded and ReadDesire KubeContent was GC'd",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
@@ -850,7 +850,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "removes read desire once velero purges the backup via ttl",
-			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
+			clusterOpts:      []func(*coreapi.Cluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
 			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -892,7 +892,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "purges on-demand desires when cluster is being deleted",
-			clusterOpts: []func(*coreapi.HCPOpenShiftCluster){withKMS, func(c *coreapi.HCPOpenShiftCluster) {
+			clusterOpts: []func(*coreapi.Cluster){withKMS, func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}},
@@ -937,7 +937,7 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 			}
 
 			clusterLister := &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newTestCluster(tt.clusterOpts...)},
+				Clusters: []*coreapi.Cluster{newTestCluster(tt.clusterOpts...)},
 			}
 
 			// Also seed the ServiceProviderCluster into the cosmos mock (not just the

@@ -41,14 +41,14 @@ var (
 func TestClusterRequired(t *testing.T) {
 	tests := []struct {
 		name         string
-		resource     *coreapi.HCPOpenShiftCluster
-		tweaks       *coreapi.HCPOpenShiftCluster
+		resource     *coreapi.Cluster
+		tweaks       *coreapi.Cluster
 		opOptions    []string
 		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:     "Empty cluster",
-			resource: &coreapi.HCPOpenShiftCluster{},
+			resource: &coreapi.Cluster{},
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "Required value",
@@ -190,7 +190,7 @@ func TestClusterRequired(t *testing.T) {
 		},
 		{
 			name: "Default cluster",
-			resource: coreapi.NewDefaultHCPOpenShiftCluster(
+			resource: coreapi.NewDefaultCluster(
 				metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster")),
 				coreapitesting.TestLocation,
 			),
@@ -240,8 +240,8 @@ func TestClusterRequired(t *testing.T) {
 		},
 		{
 			name: "Cluster with identity",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
@@ -282,20 +282,20 @@ func TestClusterValidate(t *testing.T) {
 	// This function tests all the other validators in use.
 	tests := []struct {
 		name         string
-		resource     *coreapi.HCPOpenShiftCluster
-		tweaks       *coreapi.HCPOpenShiftCluster
+		resource     *coreapi.Cluster
+		tweaks       *coreapi.Cluster
 		opOptions    []string
 		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "Minimum valid cluster",
-			tweaks:       &coreapi.HCPOpenShiftCluster{},
+			tweaks:       &coreapi.Cluster{},
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "Bad cidrv4",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Network: coreapi.NetworkProfile{
 						PodCIDR: "Mmm... apple cider",
 					},
@@ -310,8 +310,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad dns_rfc1035_label",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					DNS: coreapi.CustomerDNSProfile{
 						BaseDomainPrefix: "0badlabel",
 					},
@@ -326,8 +326,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad enum_outboundtype",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						OutboundType: "loadJuggler",
 					},
@@ -342,7 +342,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version ID is required",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = ""
 				return r
@@ -356,7 +356,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version ID with micro version is rejected without experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.20.8"
 				return r
@@ -370,7 +370,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version ID with micro version is allowed with experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.20.8"
 				return r
@@ -380,7 +380,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "ChannelGroup candidate is rejected without experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "candidate"
 				return r
@@ -394,7 +394,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "ChannelGroup candidate is allowed with experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "candidate"
 				return r
@@ -404,7 +404,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version ID with prerelease is rejected without experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.21.0-rc.1"
 				return r
@@ -418,7 +418,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version ID with prerelease is allowed with experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.21.0-rc.1"
 				return r
@@ -428,7 +428,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version ID with nightly format is allowed with experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
 				r.CustomerProperties.Version.ID = "4.21.0-0.nightly-2024-01-15-123456"
@@ -439,7 +439,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "ChannelGroup fast is allowed without experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "fast"
 				return r
@@ -448,7 +448,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version must be at least 4.20 without experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.20"
 				return r
@@ -457,7 +457,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Version must be at least 4.20 with experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.19"
 				return r
@@ -469,7 +469,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "ChannelGroup nightly is rejected without experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
 				return r
@@ -485,7 +485,7 @@ func TestClusterValidate(t *testing.T) {
 			// A bare "<major>.<minor>" with no exact pin is what the object looks
 			// like post-mutation when the customer did not supply a full version.
 			name: "ChannelGroup nightly without a full version is rejected with experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
 				return r
@@ -503,7 +503,7 @@ func TestClusterValidate(t *testing.T) {
 			// reduced to its release line and the exact build is pinned on
 			// ExperimentalFeatures. The validator maps the pin back and accepts it.
 			name: "ChannelGroup nightly with a mapped exact version is allowed with experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
 				exact := semver.MustParse("4.20.0-0.nightly-2026-08-05-123456")
@@ -515,7 +515,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "ChannelGroup blah is rejected even with experimental flag",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "blah"
 				return r
@@ -530,8 +530,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad enum_visibility",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					API: coreapi.CustomerAPIProfile{
 						Visibility: "it's a secret to everybody",
 					},
@@ -546,7 +546,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad enum_managedserviceidentitytype",
-			tweaks: &coreapi.HCPOpenShiftCluster{
+			tweaks: &coreapi.Cluster{
 				Identity: &coreapi.ManagedServiceIdentity{
 					Type: "brokenServiceType",
 				},
@@ -560,8 +560,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad enum_clusterimageregistryprofilestate",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					ClusterImageRegistry: coreapi.ClusterImageRegistryProfile{
 						State: metadataapi.ClusterImageRegistryState("not enabled"),
 					},
@@ -576,8 +576,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Base domain prefix is too long",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					DNS: coreapi.CustomerDNSProfile{
 						BaseDomainPrefix: "this-domain-is-too-long",
 					},
@@ -592,8 +592,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Host prefix is too small",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Network: coreapi.NetworkProfile{
 						HostPrefix: 22,
 					},
@@ -608,8 +608,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Host prefix is too large",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Network: coreapi.NetworkProfile{
 						HostPrefix: 27,
 					},
@@ -624,8 +624,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Control plane operator name cannot be empty",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
@@ -651,8 +651,8 @@ func TestClusterValidate(t *testing.T) {
 
 		{
 			name: "Data plane operator name cannot be empty",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
@@ -673,7 +673,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Customer managed ETCD key management mode requires CustomerManaged fields",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
 				return r
@@ -687,7 +687,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Customer managed Key Management Service (KMS) requires Kms fields",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = nil
 				return r
@@ -702,7 +702,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			// FIXME Use a valid alternate EncryptionType once we have one.
 			name: "Alternate customer managed ETCD encyption type excludes Kms fields",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged.EncryptionType = "Alternate"
 				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = &coreapi.KmsEncryptionProfile{}
@@ -746,8 +746,8 @@ func TestClusterValidate(t *testing.T) {
 
 		{
 			name: "Cluster with overlapping machine and service CIDRs",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Network: coreapi.NetworkProfile{
 						ServiceCIDR: "10.0.0.0/23",
 						MachineCIDR: "10.0.0.0/16",
@@ -763,8 +763,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with overlapping machine and pod CIDRs",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Network: coreapi.NetworkProfile{
 						PodCIDR:     "10.1.0.0/18",
 						MachineCIDR: "10.1.0.0/23",
@@ -780,8 +780,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with overlapping service and pod CIDRs",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Network: coreapi.NetworkProfile{
 						PodCIDR:     "10.2.0.0/18",
 						ServiceCIDR: "10.2.0.0/24",
@@ -797,8 +797,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with invalid managed resource group",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						ManagedResourceGroup: coreapitesting.TestResourceGroupName,
 						// Use a different resource group name to avoid a subnet ID error.
@@ -817,7 +817,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with invalid subnet ID",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				c := coreapitesting.MinimumValidClusterTestCase()
 				c.CustomerProperties.Platform.ManagedResourceGroup = "MRG"
 				c.CustomerProperties.Platform.SubnetID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet"))
@@ -845,8 +845,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with differently-cased identities",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
@@ -869,8 +869,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with broken identities",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
@@ -906,8 +906,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with multiple identities",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
@@ -944,8 +944,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with invalid data plane operator identities",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
@@ -977,7 +977,7 @@ func TestClusterValidate(t *testing.T) {
 		// Managed resource group name validation
 		{
 			name: "Managed resource group name is missing",
-			resource: func() *coreapi.HCPOpenShiftCluster {
+			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Platform.ManagedResourceGroup = ""
 				return r
@@ -991,8 +991,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Managed resource group name ends with period",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						ManagedResourceGroup: "invalid-name.",
 					},
@@ -1007,8 +1007,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Managed resource group name with invalid characters",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						ManagedResourceGroup: "invalid$name",
 					},
@@ -1023,8 +1023,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Managed resource group name too long",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						ManagedResourceGroup: "a123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890",
 					},
@@ -1039,8 +1039,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Valid managed resource group name with periods and parentheses",
-			tweaks: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						ManagedResourceGroup: "valid.name(test)",
 					},

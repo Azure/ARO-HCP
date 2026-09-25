@@ -47,8 +47,8 @@ type NodePoolAdmissionContext struct {
 	// of truth for fields (like tags) that are *consumed* during mutation but
 	// whose new-object value may already have been overwritten by the time the
 	// mutation actually runs.
-	OriginalNodePool        *coreapi.HCPOpenShiftClusterNodePool
-	Cluster                 *coreapi.HCPOpenShiftCluster
+	OriginalNodePool        *coreapi.NodePool
+	Cluster                 *coreapi.Cluster
 	ServiceProviderNodePool *coreapi.ServiceProviderNodePool
 	ServiceProviderCluster  *coreapi.ServiceProviderCluster
 }
@@ -56,10 +56,10 @@ type NodePoolAdmissionContext struct {
 // MutateNodePool applies admission-time mutations to a node pool (e.g. defaulting
 // the subnet from the parent cluster on CREATE). It returns any field errors
 // produced by the mutation step.
-func MutateNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePool) field.ErrorList {
+func MutateNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.NodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//Properties HCPOpenShiftClusterNodePoolProperties `json:"properties"`
+	//Properties NodePoolProperties `json:"properties"`
 	errs = append(errs, mutateNodePoolProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, validation.ToNodePoolProperties))...)
 
 	errs = append(errs, mutateNodePoolServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties)...)
@@ -67,7 +67,7 @@ func MutateNodePool(ctx context.Context, admissionContext *NodePoolAdmissionCont
 	return errs
 }
 
-func mutateNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
+func mutateNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, mutateNodePoolPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, validation.ToNodePoolPropertiesPlatform))...)
@@ -87,7 +87,7 @@ func mutateNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmis
 	return errs
 }
 
-func mutateNodePoolServiceProviderProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties) field.ErrorList {
+func mutateNodePoolServiceProviderProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.NodePoolServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, mutateNodePoolExperimentalTags(ctx, admissionContext, op)...)
@@ -161,12 +161,12 @@ func mutateNodePoolCreateOperationCompletionDeadline(_ context.Context, admissio
 
 // NodePoolDeleteAdmissionContext carries dependencies that node pool deletion admission needs.
 type NodePoolDeleteAdmissionContext struct {
-	// ClusterNodePools is a list of all node pools for the cluster, including the one being deleted.
-	ClusterNodePools []*coreapi.HCPOpenShiftClusterNodePool
+	// NodePools is a list of all node pools for the cluster, including the one being deleted.
+	NodePools []*coreapi.NodePool
 }
 
 // AdmitNodePoolOnDelete performs non-static checks before deleting a node pool.
-func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDeleteAdmissionContext, _ *coreapi.HCPOpenShiftClusterNodePool) field.ErrorList {
+func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDeleteAdmissionContext, _ *coreapi.NodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// We do a *best-effort* to check to see if we are the last node pool on the cluster and prevent deletion
@@ -174,7 +174,7 @@ func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDelete
 	// OCPBUGS-86702. This check won't fully prevent the last node pool deletion in all cases as there are edge cases
 	// where race conditions can occur, but it should be good enough to prevent the last node pool deletion in most cases.
 	// TODO once OCPBUGS-86702 is fixed, we should remove this check.
-	if len(admissionContext.ClusterNodePools) <= 1 {
+	if len(admissionContext.NodePools) <= 1 {
 		errs = append(errs, field.Forbidden(field.NewPath("name"), "The last node pool can not be deleted from a cluster."))
 	}
 
@@ -184,7 +184,7 @@ func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDelete
 // AdmitNodePool performs non-static checks of nodepool. Checks that require more information than is contained inside of
 // the nodepool instance itself. ServiceProviderCluster must be specified in the admissionContext (version skew validation).
 // For update operations, ServiceProviderNodePool must also be specified.
-func AdmitNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newNodePool, oldNodePool *coreapi.HCPOpenShiftClusterNodePool) field.ErrorList {
+func AdmitNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newNodePool, oldNodePool *coreapi.NodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitNodePoolProperties(ctx, admissionContext, op, field.NewPath("properties"), &newNodePool.Properties, safe.Field(oldNodePool, validation.ToNodePoolProperties))...)
@@ -192,7 +192,7 @@ func AdmitNodePool(ctx context.Context, admissionContext *NodePoolAdmissionConte
 	return errs
 }
 
-func admitNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
+func admitNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitNodePoolVersion(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToNodePoolPropertiesVersion))...)

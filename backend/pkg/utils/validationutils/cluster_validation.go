@@ -25,5 +25,5 @@ type ClusterValidation interface {
 	// Name returns the name of the validation.
 	Name() string
 	// Validate validates the Cluster and returns a ValidationResult describing the outcome.
-	Validate(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster) ValidationResult
+	Validate(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.Cluster) ValidationResult
 }

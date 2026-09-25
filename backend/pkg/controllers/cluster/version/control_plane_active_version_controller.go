@@ -39,7 +39,7 @@ import (
 )
 
 // controlPlaneActiveVersionSyncer is a Cluster syncer that updates the control plane active
-// versions in both ServiceProviderCluster and HCPOpenShiftCluster status by reading the
+// versions in both ServiceProviderCluster and Cluster status by reading the
 // version from the per-cluster ReadDesire kubeContent (the kube-applier's mirror of the
 // management cluster's HostedCluster).
 type controlPlaneActiveVersionSyncer struct {
@@ -79,7 +79,7 @@ func NewControlPlaneActiveVersionController(
 	)
 }
 
-// SyncOnce updates active versions on both ServiceProviderCluster and HCPOpenShiftCluster
+// SyncOnce updates active versions on both ServiceProviderCluster and Cluster
 // from the per-cluster ReadDesire's observed HostedCluster. Each active version
 // includes Version and State (Completed or Partial) and is persisted on replace.
 func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {

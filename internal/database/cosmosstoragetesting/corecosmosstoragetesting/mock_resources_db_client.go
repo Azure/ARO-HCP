@@ -422,19 +422,19 @@ func (r *mockTransactionResult) GetItem(cosmosUID string) (any, error) {
 
 	switch strings.ToLower(typedDoc.ResourceType) {
 	case strings.ToLower(coreapi.ClusterResourceType.String()):
-		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster]
+		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.Cluster]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
 		return cosmosstorageutils.CosmosGenericToInternal(&cosmosObj)
 	case strings.ToLower(coreapi.NodePoolResourceType.String()):
-		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterNodePool]
+		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.NodePool]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
 		return cosmosstorageutils.CosmosGenericToInternal(&cosmosObj)
 	case strings.ToLower(coreapi.ExternalAuthResourceType.String()):
-		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterExternalAuth]
+		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.ExternalAuth]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
@@ -481,4 +481,4 @@ func (iter *MockIterator[T]) GetError() error {
 	return iter.err
 }
 
-var _ cosmosstorageutils.DBClientIterator[coreapi.HCPOpenShiftCluster] = &MockIterator[coreapi.HCPOpenShiftCluster]{}
+var _ cosmosstorageutils.DBClientIterator[coreapi.Cluster] = &MockIterator[coreapi.Cluster]{}

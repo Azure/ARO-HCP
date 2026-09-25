@@ -164,7 +164,7 @@ The backend determines node-pool create status from Cluster Service via `GetNode
 	return picked, nil
 }
 
-func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx context.Context, operation *api.Operation, nodePool *api.HCPOpenShiftClusterNodePool) (*operationState, error) {
+func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx context.Context, operation *api.Operation, nodePool *api.NodePool) (*operationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 	csNodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {

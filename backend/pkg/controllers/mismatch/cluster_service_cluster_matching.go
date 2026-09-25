@@ -69,9 +69,9 @@ func NewClusterServiceClusterMatchingController(clock utilsclock.PassiveClock, r
 	return c
 }
 
-func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (map[string]*coreapi.HCPOpenShiftCluster, []*coreapi.HCPOpenShiftCluster, error) {
-	clusterServiceIDToCluster := map[string]*coreapi.HCPOpenShiftCluster{}
-	ret := []*coreapi.HCPOpenShiftCluster{}
+func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (map[string]*coreapi.Cluster, []*coreapi.Cluster, error) {
+	clusterServiceIDToCluster := map[string]*coreapi.Cluster{}
+	ret := []*coreapi.Cluster{}
 
 	allSubscriptions, err := c.subscriptionLister.List(ctx)
 	if err != nil {

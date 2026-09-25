@@ -61,16 +61,16 @@ func testManagedResourceGroupID(t *testing.T) *azcorearm.ResourceID {
 	return metadataapi.Must(coreapihelpers.ToResourceGroupResourceID(testSubscriptionID, testManagedRGName))
 }
 
-// newTestCluster builds an HCPOpenShiftCluster addressable by the mock
+// newTestCluster builds a Cluster addressable by the mock
 // ResourcesDBClient with the given managed resource group name and deletion state.
-func newTestCluster(deleting bool) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(deleting bool) *coreapi.Cluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),

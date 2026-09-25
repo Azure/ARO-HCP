@@ -61,7 +61,7 @@ func newFakeClusterLister(subscriptionID, resourceGroup, clusterName string) cor
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName,
 	))
 	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-	err := indexer.Add(&coreapi.HCPOpenShiftCluster{
+	err := indexer.Add(&coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},

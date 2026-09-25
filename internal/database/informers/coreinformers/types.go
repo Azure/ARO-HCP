@@ -246,7 +246,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.HCPOpenShiftCluster{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.Cluster{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.clusterInformer.RunWithContext(localCtx)
@@ -255,7 +255,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.HCPOpenShiftClusterNodePool{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.NodePool{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.nodePoolInformer.RunWithContext(localCtx)
@@ -264,7 +264,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.HCPOpenShiftClusterExternalAuth{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.ExternalAuth{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.externalAuthInformer.RunWithContext(localCtx)

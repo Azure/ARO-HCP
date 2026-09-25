@@ -71,13 +71,13 @@ func newTestNodePoolKey() controllerutils.HCPNodePoolKey {
 	}
 }
 
-func newTestCluster(t *testing.T) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(t *testing.T) *coreapi.Cluster {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	return &coreapi.HCPOpenShiftCluster{
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -93,14 +93,14 @@ func newTestCluster(t *testing.T) *coreapi.HCPOpenShiftCluster {
 	}
 }
 
-func newTestNodePool(t *testing.T) *coreapi.HCPOpenShiftClusterNodePool {
+func newTestNodePool(t *testing.T) *coreapi.NodePool {
 	t.Helper()
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/" + testNodePoolName))
-	return &coreapi.HCPOpenShiftClusterNodePool{
+	return &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),

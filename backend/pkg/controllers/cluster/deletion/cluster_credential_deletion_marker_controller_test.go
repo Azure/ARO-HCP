@@ -88,15 +88,15 @@ func TestClusterCredentialDeletionMarkerController_SyncOnce(t *testing.T) {
 		HCPClusterName:    testClusterName,
 	}
 
-	readyForDeletionCluster := func(t *testing.T) *coreapi.HCPOpenShiftCluster {
-		return newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+	readyForDeletionCluster := func(t *testing.T) *coreapi.Cluster {
+		return newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
 			c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 		})
 	}
 
 	testCases := []struct {
 		name            string
-		existingCluster *coreapi.HCPOpenShiftCluster
+		existingCluster *coreapi.Cluster
 		extraResources  []any
 		wantErr         bool
 		verifyDB        func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
@@ -113,7 +113,7 @@ func TestClusterCredentialDeletionMarkerController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "feature flag false -- no-op",
-			existingCluster: newTestClusterWithOldDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithOldDeletionApproach(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 				c.ServiceProviderProperties.ClusterServiceID = nil
@@ -236,7 +236,7 @@ func TestClusterCredentialDeletionMarkerController_SyncOnce(t *testing.T) {
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			clustersForLister := []*coreapi.HCPOpenShiftCluster{}
+			clustersForLister := []*coreapi.Cluster{}
 			if tc.existingCluster != nil {
 				clustersForLister = append(clustersForLister, tc.existingCluster)
 			}
@@ -279,7 +279,7 @@ func TestClusterCredentialDeletionMarkerController_NeedsWork(t *testing.T) {
 
 	testCases := []struct {
 		name    string
-		cluster *coreapi.HCPOpenShiftCluster
+		cluster *coreapi.Cluster
 		want    bool
 	}{
 		{
@@ -294,7 +294,7 @@ func TestClusterCredentialDeletionMarkerController_NeedsWork(t *testing.T) {
 		},
 		{
 			name: "DeletionTimestamp set",
-			cluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 			}),
 			want: true,

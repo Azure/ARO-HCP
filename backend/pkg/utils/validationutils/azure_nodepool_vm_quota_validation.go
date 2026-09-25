@@ -51,7 +51,7 @@ func (v *AzureNodePoolVMQuotaValidation) Name() string {
 	return "AzureNodePoolVMQuotaValidation"
 }
 
-func (v *AzureNodePoolVMQuotaValidation) Validate(ctx context.Context, _ *coreapi.HCPOpenShiftCluster, nodePoolSubscription *coreapi.Subscription, nodePool *coreapi.HCPOpenShiftClusterNodePool) ValidationResult {
+func (v *AzureNodePoolVMQuotaValidation) Validate(ctx context.Context, _ *coreapi.Cluster, nodePoolSubscription *coreapi.Subscription, nodePool *coreapi.NodePool) ValidationResult {
 	instanceCount := v.requiredInstanceCount(nodePool)
 	if instanceCount <= 0 {
 		return SkippedValidation(
@@ -164,7 +164,7 @@ func (v *AzureNodePoolVMQuotaValidation) Validate(ctx context.Context, _ *coreap
 
 // requiredInstanceCount returns the peak number of VMs the node pool may run.
 // Autoscaled pools use AutoScaling.Max; fixed-size pools use Replicas.
-func (v *AzureNodePoolVMQuotaValidation) requiredInstanceCount(nodePool *coreapi.HCPOpenShiftClusterNodePool) int32 {
+func (v *AzureNodePoolVMQuotaValidation) requiredInstanceCount(nodePool *coreapi.NodePool) int32 {
 	if nodePool.Properties.AutoScaling != nil {
 		return nodePool.Properties.AutoScaling.Max
 	}

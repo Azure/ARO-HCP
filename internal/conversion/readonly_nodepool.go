@@ -16,7 +16,7 @@ package conversion
 
 import "github.com/Azure/ARO-HCP/internal/api/coreapi"
 
-func CopyReadOnlyNodePoolValues(dest, src *coreapi.HCPOpenShiftClusterNodePool) {
+func CopyReadOnlyNodePoolValues(dest, src *coreapi.NodePool) {
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 
 	// CosmosMetadata is read-only on the API surface; carry over so the

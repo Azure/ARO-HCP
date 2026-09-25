@@ -58,7 +58,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 
 	tests := []struct {
 		name                   string
-		cluster                *coreapi.HCPOpenShiftCluster
+		cluster                *coreapi.Cluster
 		serviceProviderCluster *coreapi.ServiceProviderCluster
 		readDesires            []*kubeapplierapi.ReadDesire
 		wantState              coreapi.ProvisioningState
@@ -85,7 +85,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "autoscaling maxNodesTotal mismatch returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.Autoscaling.MaxNodesTotal = 10
 				return c
@@ -105,7 +105,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "autoscaling matches returns Succeeded",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.Autoscaling.MaxNodesTotal = 10
 				c.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds = 60
@@ -131,7 +131,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "maxNodeProvisionTime mismatch returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds = 900
 				return c
@@ -151,7 +151,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "maxNodeProvisionTime matches when converted",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds = 900
 				return c
@@ -170,7 +170,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "imageContentSources missing desired source returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.ImageDigestMirrors = []coreapi.ImageDigestMirror{
 					{Source: "quay.io/foo", Mirrors: []string{"mirror.io/foo"}},
@@ -188,7 +188,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "imageContentSources source mismatch returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.ImageDigestMirrors = []coreapi.ImageDigestMirror{
 					{Source: "quay.io/foo", Mirrors: []string{"mirror.io/foo"}},
@@ -212,7 +212,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "imageContentSources matches returns Succeeded",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.ImageDigestMirrors = []coreapi.ImageDigestMirror{
 					{Source: "quay.io/foo", Mirrors: []string{"mirror.io/foo", "mirror2.io/foo"}},
@@ -235,7 +235,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "imageContentSources unset with stale customer source returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.ImageDigestMirrors = nil
 				return c
@@ -258,7 +258,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "allowedCIDRBlocks mismatch returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/8"}
 				return c
@@ -280,7 +280,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "temporary - allowedCIDRBlocks match with internal extras returns Succeeded",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/8"}
 				return c
@@ -306,7 +306,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "allowedCIDRBlocks match returns Succeeded",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/8", "192.168.0.0/16"}
 				return c
@@ -329,7 +329,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "nil authorizedCIDRs with observed blocks returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.API.AuthorizedCIDRs = nil
 				return c
@@ -351,7 +351,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "imageContentSources with extra hypershift sources returns Succeeded",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.ImageDigestMirrors = []coreapi.ImageDigestMirror{
 					{Source: "quay.io/foo", Mirrors: []string{"mirror.io/foo"}},
@@ -375,7 +375,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "single replica availability policies match returns Succeeded",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
 				return c
@@ -395,7 +395,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "single replica controller policy mismatch returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
 				return c
@@ -416,7 +416,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "single replica infrastructure policy mismatch returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
 				return c
@@ -437,7 +437,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "default availability policies (highly available) match highly available hypershift side returns Succeeded",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				return c
 			}(),
@@ -451,7 +451,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "default availability policies (highly available) mismatch hypershift sidereturns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				return c
 			}(),
@@ -471,7 +471,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "minimal pod sizing annotation match returns Succeeded",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = coreapi.MinimalControlPlanePodSizing
 				return c
@@ -491,7 +491,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "minimal pod sizing set on cluster but missing annotation on hypershift side returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = coreapi.MinimalControlPlanePodSizing
 				return c
@@ -507,7 +507,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "default pod sizing with stale annotation returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				return c
 			}(),
@@ -527,7 +527,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "SPC level size override matches annotation returns Succeeded",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				return c
 			}(),
@@ -550,7 +550,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "SPC level size override mismatch returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				return c
 			}(),
@@ -574,7 +574,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "control plane operator image annotation match returns Succeeded",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage = "quay.io/openshift/cpo:test"
 				return c
@@ -594,7 +594,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "control plane operator image missing annotation returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage = "quay.io/openshift/cpo:test"
 				return c
@@ -610,7 +610,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "default control plane operator image with stale annotation returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				return c
 			}(),
@@ -630,7 +630,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "kms cluster key version mismatch returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.Etcd = coreapi.EtcdProfile{
 					DataEncryption: coreapi.EtcdDataEncryptionProfile{
@@ -674,7 +674,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "kms cluster with nil SecretEncryption returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.Etcd = coreapi.EtcdProfile{
 					DataEncryption: coreapi.EtcdDataEncryptionProfile{
@@ -709,7 +709,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "kms cluster key version matching returns Succeeded",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.Etcd = coreapi.EtcdProfile{
 					DataEncryption: coreapi.EtcdDataEncryptionProfile{
@@ -752,7 +752,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 		},
 		{
 			name: "Platform Managed data encryption returns Updating",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.Etcd = coreapi.EtcdProfile{
 					DataEncryption: coreapi.EtcdDataEncryptionProfile{
@@ -1600,15 +1600,15 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		cluster           *coreapi.HCPOpenShiftCluster
+		cluster           *coreapi.Cluster
 		csCluster         *arohcpv1alpha1.Cluster
 		wantState         coreapi.ProvisioningState
 		wantMessageSubstr string
 	}{
 		{
 			name: "matching node drain timeout returns Succeeded",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: 30,
 				},
 			},
@@ -1617,16 +1617,16 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "zero desired with unset CS value returns Succeeded",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{},
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{},
 			},
 			csCluster: newCSClusterWithAllowAll(t),
 			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "mismatch returns Updating",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: 60,
 				},
 			},
@@ -1636,8 +1636,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "matching authorized CIDRs returns Succeeded",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					API: coreapi.CustomerAPIProfile{
 						AuthorizedCIDRs: []string{"10.0.0.0/8", "192.168.0.0/16"},
 					},
@@ -1648,8 +1648,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "nil desired with unset CS CIDR config returns Updating",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					API: coreapi.CustomerAPIProfile{},
 				},
 			},
@@ -1659,8 +1659,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "authorized CIDR mismatch returns Updating",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					API: coreapi.CustomerAPIProfile{
 						AuthorizedCIDRs: []string{"203.0.113.0/24"},
 					},
@@ -1672,8 +1672,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "explicit allow_all CS config with nil desired returns Succeeded",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					API: coreapi.CustomerAPIProfile{},
 				},
 			},
@@ -1682,8 +1682,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "allow_all CS config with stale values and nil desired returns Succeeded",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					API: coreapi.CustomerAPIProfile{},
 				},
 			},
@@ -1692,8 +1692,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "allow_list CS config with nil desired returns Updating",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					API: coreapi.CustomerAPIProfile{},
 				},
 			},
@@ -1703,8 +1703,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "allow_all CS config with desired CIDR list returns Updating",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					API: coreapi.CustomerAPIProfile{
 						AuthorizedCIDRs: []string{"203.0.113.0/24"},
 					},
@@ -1716,8 +1716,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "matching container registry pull MI returns Succeeded",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						ContainerRegistry: coreapi.ContainerRegistryProfile{
 							PullManagedIdentity: coreapitesting.NewTestUserAssignedIdentity("cr-pull-mi"),
@@ -1744,8 +1744,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "container registry pull MI mismatch returns Updating",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						ContainerRegistry: coreapi.ContainerRegistryProfile{
 							PullManagedIdentity: coreapitesting.NewTestUserAssignedIdentity("new-mi"),
@@ -1773,8 +1773,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "nil desired with unset CS container registry returns Succeeded",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{},
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{},
 			},
 			csCluster: newCSClusterWithAllowAll(t),
 			wantState: coreapi.ProvisioningStateSucceeded,

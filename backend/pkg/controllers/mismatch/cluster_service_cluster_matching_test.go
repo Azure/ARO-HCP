@@ -48,14 +48,14 @@ func TestSynchronizeAllClusters(t *testing.T) {
 
 	tests := []struct {
 		name                            string
-		cosmosClusterBuilder            func(t *testing.T) *coreapi.HCPOpenShiftCluster
+		cosmosClusterBuilder            func(t *testing.T) *coreapi.Cluster
 		clusterServiceClusterCreatedAgo time.Duration
 		expectDeleteCluster             bool
 	}{
 		{
 			name: "matched cluster service cluster indexed by ClusterServiceID is not deleted",
-			cosmosClusterBuilder: func(t *testing.T) *coreapi.HCPOpenShiftCluster {
-				return testCosmosCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
+			cosmosClusterBuilder: func(t *testing.T) *coreapi.Cluster {
+				return testCosmosCluster(t, func(c *coreapi.Cluster) {
 					clusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 					c.ServiceProviderProperties.ClusterServiceID = &clusterServiceID
 				})
@@ -65,8 +65,8 @@ func TestSynchronizeAllClusters(t *testing.T) {
 		},
 		{
 			name: "matched cluster service cluster indexed by PendingClusterServiceID is not deleted",
-			cosmosClusterBuilder: func(t *testing.T) *coreapi.HCPOpenShiftCluster {
-				return testCosmosCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
+			cosmosClusterBuilder: func(t *testing.T) *coreapi.Cluster {
+				return testCosmosCluster(t, func(c *coreapi.Cluster) {
 					pendingClusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 					c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 					c.ServiceProviderProperties.ClusterServiceID = nil
@@ -83,7 +83,7 @@ func TestSynchronizeAllClusters(t *testing.T) {
 		},
 		{
 			name: "unmatched old cluster service cluster is not deleted when cosmos cluster exists",
-			cosmosClusterBuilder: func(t *testing.T) *coreapi.HCPOpenShiftCluster {
+			cosmosClusterBuilder: func(t *testing.T) *coreapi.Cluster {
 				// No ClusterServiceID or PendingClusterServiceID, so getAllCosmosObjs does not
 				// index by CS HREF. The double-check Get by Azure coordinates must still find it.
 				return testCosmosCluster(t)
@@ -152,10 +152,10 @@ func testSubscription() *coreapi.Subscription {
 	}
 }
 
-func testCosmosCluster(t *testing.T, opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func testCosmosCluster(t *testing.T, opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	t.Helper()
 	rid := metadataapi.Must(coreapihelpers.ToClusterResourceID(testSubscriptionID, testCSMatchingResourceGroup, testCSMatchingClusterName))
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   rid,
 			PartitionKey: strings.ToLower(rid.SubscriptionID),

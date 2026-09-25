@@ -47,42 +47,42 @@ import (
 )
 
 func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
-	defaultNodePool := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+	defaultNodePool := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 		return fixture.NewNodePool()
 	}
 
-	nodePoolWithoutCSID := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+	nodePoolWithoutCSID := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 		np := fixture.NewNodePool()
 		np.ServiceProviderProperties.ClusterServiceID = nil
 		return np
 	}
 
-	nodePoolWithDeletionTimestamp := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+	nodePoolWithDeletionTimestamp := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 		np := fixture.NewNodePool()
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 		return np
 	}
 
-	nodePoolWithMismatchedActiveOperationID := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+	nodePoolWithMismatchedActiveOperationID := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 		np := fixture.NewNodePool()
 		np.ServiceProviderProperties.ActiveOperationID = "other-operation"
 		return np
 	}
 
-	nodePoolWithEmptyActiveOperationID := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+	nodePoolWithEmptyActiveOperationID := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 		np := fixture.NewNodePool()
 		np.ServiceProviderProperties.ActiveOperationID = ""
 		return np
 	}
 
-	nodePoolWithZeroReplicas := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+	nodePoolWithZeroReplicas := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 		np := fixture.NewNodePool()
 		np.Properties.Replicas = 0
 		np.Properties.AutoScaling = nil
 		return np
 	}
 
-	nodePoolWithTwoReplicas := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+	nodePoolWithTwoReplicas := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 		np := fixture.NewNodePool()
 		np.Properties.Replicas = 2
 		return np
@@ -106,7 +106,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 
 	// newHypershiftNodePoolReadDesire builds the mirrored Hypershift NodePool; AllMachinesReady is
 	// True unless allMachinesReadyMessage is set, in which case it is False with that message.
-	newHypershiftNodePoolReadDesire := func(nodePool *coreapi.HCPOpenShiftClusterNodePool, allMachinesReadyMessage string) *kubeapplierapi.ReadDesire {
+	newHypershiftNodePoolReadDesire := func(nodePool *coreapi.NodePool, allMachinesReadyMessage string) *kubeapplierapi.ReadDesire {
 		readDesire := newNodePoolReadDesire(t, nodePool, fixture.NewCluster())
 		if allMachinesReadyMessage == "" {
 			return readDesire
@@ -136,7 +136,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 	tests := []struct {
 		name              string
 		clock             utilsclock.PassiveClock
-		nodePool          func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool
+		nodePool          func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool
 		setupCSMock       func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture)
 		existingOperation *coreapi.Operation
 		// cachedNodePoolReadDesire is the mirrored Hypershift NodePool the hypershiftNodePoolOperationState
@@ -290,7 +290,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:  "deadline exceeded marks operation as failed",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
-			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
 				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
@@ -315,7 +315,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			// the deadline sentence and appends the Hypershift NodePool AllMachinesReady message.
 			name:  "deadline exceeded surfaces hypershift AllMachinesReady message",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
-			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 				np := nodePoolWithTwoReplicas(fixture)
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
 				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
@@ -340,7 +340,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:  "deadline not yet exceeded continues with provisioning",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T11:00:00Z")),
-			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
 				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline

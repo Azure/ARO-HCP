@@ -82,7 +82,7 @@ func ListFromIndex[T any](indexer cache.Indexer, indexName, key string) ([]*T, e
 }
 
 // ClusterIndexKey returns the canonical (lower-cased) ByCluster index key for an
-// HCPOpenShiftCluster identified by subscription, resource group, and name.
+// Cluster identified by subscription, resource group, and name.
 func ClusterIndexKey(subscriptionID, resourceGroupName, clusterName string) string {
 	return strings.ToLower(coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
 }

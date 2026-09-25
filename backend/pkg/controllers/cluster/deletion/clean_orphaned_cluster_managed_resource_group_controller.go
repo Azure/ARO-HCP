@@ -72,7 +72,7 @@ type cleanOrphanedClusterManagedResourceGroup struct {
 }
 
 // NewCleanOrphanedClusterManagedResourceGroupController periodically looks for managed resource groups
-// that are not referenced by any HCPOpenShiftCluster in the database and cleans them up.
+// that are not referenced by any Cluster in the database and cleans them up.
 func NewCleanOrphanedClusterManagedResourceGroupController(
 	location string,
 	activeOperationLister corelisters.ActiveOperationLister,

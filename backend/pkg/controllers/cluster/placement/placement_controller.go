@@ -66,7 +66,7 @@ const placementRetryInterval = 29 * time.Second
 
 // swiftNICsForCluster returns zero for non-SWIFT clusters, one for SWIFT
 // SingleReplica clusters, and three for other SWIFT or unknown clusters.
-func swiftNICsForCluster(cluster *coreapi.HCPOpenShiftCluster) int64 {
+func swiftNICsForCluster(cluster *coreapi.Cluster) int64 {
 	if cluster == nil {
 		return swiftNICsPerHCP
 	}
@@ -185,7 +185,7 @@ func NewPlacementController(
 
 // needsWork reports whether placement is unresolved and the cluster is neither
 // deleting nor terminal. Both documents must be present.
-func (c *placementSyncer) needsWork(serviceProviderCluster *coreapi.ServiceProviderCluster, cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *placementSyncer) needsWork(serviceProviderCluster *coreapi.ServiceProviderCluster, cluster *coreapi.Cluster) bool {
 	if serviceProviderCluster.Spec.ManagementClusterResourceID != nil {
 		return false
 	}

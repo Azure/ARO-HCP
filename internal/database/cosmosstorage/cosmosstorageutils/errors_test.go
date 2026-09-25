@@ -51,10 +51,10 @@ func TestIsResponseError(t *testing.T) {
 				ActionType: "Replace",
 				CosmosID:   "cosmos-uid-1",
 				ResourceID: "/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster1",
-				GoType:     "HCPOpenShiftCluster",
+				GoType:     "Cluster",
 				Etag:       azcore.ETag("etag-1"),
 			}),
-			wantMessage:    `transaction step 1 of 2 (Replace HCPOpenShiftCluster on /subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster1, etag "etag-1") failed with 412 Precondition Failed`,
+			wantMessage:    `transaction step 1 of 2 (Replace Cluster on /subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster1, etag "etag-1") failed with 412 Precondition Failed`,
 			wantHTTPStatus: http.StatusPreconditionFailed,
 		},
 		{

@@ -35,7 +35,7 @@ import (
 const ClusterIdentitySyncControllerName = "ClusterIdentitySync"
 
 // clusterIdentitySyncer keeps ClientID/PrincipalID on
-// HCPOpenShiftCluster.Identity.UserAssignedIdentities in sync with
+// Cluster.Identity.UserAssignedIdentities in sync with
 // ServiceProviderCluster.Status.MSIManagedIdentities. It iterates the existing
 // Identity map keys (preserving casing) and looks up each one in the
 // ServiceProviderCluster by lowercased resource ID.
@@ -83,7 +83,7 @@ func NewClusterIdentitySyncController(
 	return controller
 }
 
-func (c *clusterIdentitySyncer) NeedsWork(ctx context.Context, existingCluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *clusterIdentitySyncer) NeedsWork(ctx context.Context, existingCluster *coreapi.Cluster) bool {
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}

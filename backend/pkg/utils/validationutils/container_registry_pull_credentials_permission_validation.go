@@ -50,7 +50,7 @@ func (v *ContainerRegistryPullCredentialsPermissionValidation) Name() string {
 	return "ContainerRegistryPullCredentialsPermissionValidation"
 }
 
-func (v *ContainerRegistryPullCredentialsPermissionValidation) Validate(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster) ValidationResult {
+func (v *ContainerRegistryPullCredentialsPermissionValidation) Validate(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.Cluster) ValidationResult {
 	containerRegistryPullMI := cluster.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity
 	if containerRegistryPullMI == nil {
 		return SkippedValidation(

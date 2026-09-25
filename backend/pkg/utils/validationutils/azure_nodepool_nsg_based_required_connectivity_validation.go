@@ -83,7 +83,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Name() string {
 
 // Validate checks outbound rules on the worker-subnet NSG and inbound rules
 // on the vnet-integration-subnet NSG. Each subnet is skipped when it has no NSG.
-func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, _ *coreapi.Subscription, nodePool *coreapi.HCPOpenShiftClusterNodePool) ValidationResult {
+func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx context.Context, cluster *coreapi.Cluster, _ *coreapi.Subscription, nodePool *coreapi.NodePool) ValidationResult {
 	smiResourceID := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 	clusterIdentityURL := cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL
 	subscriptionID := cluster.ID.SubscriptionID

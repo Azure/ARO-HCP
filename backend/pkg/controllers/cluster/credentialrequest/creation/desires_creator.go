@@ -99,7 +99,7 @@ func NewDesiresCreatorController(
 // credential request. It bundles the preconditions that gate creation: the
 // cluster must be live (not being deleted, and already mapped to a
 // cluster-service ID) and the credential must still be pending issuance.
-func (c *desiresCreator) needsWork(cluster *coreapi.HCPOpenShiftCluster, cred *coreapi.SystemAdminCredentialRequest) bool {
+func (c *desiresCreator) needsWork(cluster *coreapi.Cluster, cred *coreapi.SystemAdminCredentialRequest) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}

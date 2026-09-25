@@ -1198,7 +1198,7 @@ func TestNewMockResourcesDBClientWithResources_NilResourceID(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a cluster without a resource ID
-	clusterWithNilID := &coreapi.HCPOpenShiftCluster{}
+	clusterWithNilID := &coreapi.Cluster{}
 
 	_, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{clusterWithNilID})
 	require.Error(t, err)

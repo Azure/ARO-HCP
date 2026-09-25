@@ -35,7 +35,7 @@ func TestWriteError_TransactionPreconditionFailedBecomes429(t *testing.T) {
 		ActionType: "Replace",
 		CosmosID:   "cosmos-uid-abc123",
 		ResourceID: "/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster1",
-		GoType:     "HCPOpenShiftCluster",
+		GoType:     "Cluster",
 		Etag:       azcore.ETag("etag-old-value"),
 	})
 	wrappedErr := utils.TrackError(innerErr)

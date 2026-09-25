@@ -266,10 +266,10 @@ func (f *fakeUserAssignedIdentitiesClient) Delete(_ context.Context, _ string, _
 	panic("Delete not implemented in fakeUserAssignedIdentitiesClient")
 }
 
-// newTestClusterWithIdentities builds an HCPOpenShiftCluster addressable by the mock
+// newTestClusterWithIdentities builds a Cluster addressable by the mock
 // ResourcesDBClient with the supplied ServiceManagedIdentity and data plane operator
 // identities on its CustomerProperties.
-func newTestClusterWithIdentities(t *testing.T, clusterName string, serviceManagedIdentity *azcorearm.ResourceID, dataPlaneOperators map[string]*azcorearm.ResourceID) *coreapi.HCPOpenShiftCluster {
+func newTestClusterWithIdentities(t *testing.T, clusterName string, serviceManagedIdentity *azcorearm.ResourceID, dataPlaneOperators map[string]*azcorearm.ResourceID) *coreapi.Cluster {
 	t.Helper()
 
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
@@ -278,7 +278,7 @@ func newTestClusterWithIdentities(t *testing.T, clusterName string, serviceManag
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName,
 	))
 
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),

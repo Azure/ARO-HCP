@@ -70,9 +70,9 @@ func TestChangeFeedItemObjectMetadata(t *testing.T) {
 	})
 
 	t.Run("non-operation document derives its cluster from its own ResourceID", func(t *testing.T) {
-		// An HCPOpenShiftCluster is not an *Operation, so the metadata (including clusterResourceID)
+		// A Cluster is not an *Operation, so the metadata (including clusterResourceID)
 		// comes entirely from its own ResourceID.
-		cluster := &coreapi.HCPOpenShiftCluster{}
+		cluster := &coreapi.Cluster{}
 
 		md := changeFeedItemObjectMetadata("resources", cluster, clusterID)
 

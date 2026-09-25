@@ -88,8 +88,8 @@ func NewClusterTestFixture() *ClusterTestFixture {
 	}
 }
 
-func (f *ClusterTestFixture) NewCluster(createdAt *time.Time) *coreapi.HCPOpenShiftCluster {
-	return &coreapi.HCPOpenShiftCluster{
+func (f *ClusterTestFixture) NewCluster(createdAt *time.Time) *coreapi.Cluster {
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   f.ClusterResourceID,
 			PartitionKey: strings.ToLower(f.ClusterResourceID.SubscriptionID),
@@ -104,7 +104,7 @@ func (f *ClusterTestFixture) NewCluster(createdAt *time.Time) *coreapi.HCPOpenSh
 				},
 			},
 		},
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			Etcd: coreapi.EtcdProfile{
 				DataEncryption: coreapi.EtcdDataEncryptionProfile{
 					KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -122,7 +122,7 @@ func (f *ClusterTestFixture) NewCluster(createdAt *time.Time) *coreapi.HCPOpenSh
 				},
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterServiceID:  &f.ClusterInternalID,
 			ActiveOperationID: TestOperationName,
 			ClusterUID:        TestClusterUID,
@@ -191,8 +191,8 @@ func NewNodePoolTestFixture() *NodePoolTestFixture {
 	}
 }
 
-func (f *NodePoolTestFixture) NewCluster() *coreapi.HCPOpenShiftCluster {
-	return &coreapi.HCPOpenShiftCluster{
+func (f *NodePoolTestFixture) NewCluster() *coreapi.Cluster {
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   f.ClusterResourceID,
 			PartitionKey: strings.ToLower(f.ClusterResourceID.SubscriptionID),
@@ -204,14 +204,14 @@ func (f *NodePoolTestFixture) NewCluster() *coreapi.HCPOpenShiftCluster {
 				Type: f.ClusterResourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterServiceID: &f.ClusterInternalID,
 		},
 	}
 }
 
-func (f *NodePoolTestFixture) NewNodePool() *coreapi.HCPOpenShiftClusterNodePool {
-	return &coreapi.HCPOpenShiftClusterNodePool{
+func (f *NodePoolTestFixture) NewNodePool() *coreapi.NodePool {
+	return &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: f.NodePoolResourceID, PartitionKey: strings.ToLower(f.NodePoolResourceID.SubscriptionID)},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -220,10 +220,10 @@ func (f *NodePoolTestFixture) NewNodePool() *coreapi.HCPOpenShiftClusterNodePool
 				Type: f.NodePoolResourceID.ResourceType.String(),
 			},
 		},
-		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+		Properties: coreapi.NodePoolProperties{
 			ProvisioningState: coreapi.ProvisioningStateAccepted,
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.NodePoolServiceProviderProperties{
 			ClusterServiceID:  &f.NodePoolInternalID,
 			ActiveOperationID: TestOperationName,
 		},
@@ -321,8 +321,8 @@ func NewExternalAuthTestFixture() *ExternalAuthTestFixture {
 	}
 }
 
-func (f *ExternalAuthTestFixture) NewCluster() *coreapi.HCPOpenShiftCluster {
-	return &coreapi.HCPOpenShiftCluster{
+func (f *ExternalAuthTestFixture) NewCluster() *coreapi.Cluster {
+	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   f.ClusterResourceID,
 			PartitionKey: strings.ToLower(f.ClusterResourceID.SubscriptionID),
@@ -334,14 +334,14 @@ func (f *ExternalAuthTestFixture) NewCluster() *coreapi.HCPOpenShiftCluster {
 				Type: f.ClusterResourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterServiceID: &f.ClusterInternalID,
 		},
 	}
 }
 
-func (f *ExternalAuthTestFixture) NewExternalAuth() *coreapi.HCPOpenShiftClusterExternalAuth {
-	return &coreapi.HCPOpenShiftClusterExternalAuth{
+func (f *ExternalAuthTestFixture) NewExternalAuth() *coreapi.ExternalAuth {
+	return &coreapi.ExternalAuth{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: f.ExternalAuthResourceID, PartitionKey: strings.ToLower(f.ExternalAuthResourceID.SubscriptionID)},
 		ProxyResource: coreapi.ProxyResource{
 			Resource: coreapi.Resource{
@@ -350,10 +350,10 @@ func (f *ExternalAuthTestFixture) NewExternalAuth() *coreapi.HCPOpenShiftCluster
 				Type: f.ExternalAuthResourceID.ResourceType.String(),
 			},
 		},
-		Properties: coreapi.HCPOpenShiftClusterExternalAuthProperties{
+		Properties: coreapi.ExternalAuthProperties{
 			ProvisioningState: coreapi.ProvisioningStateAccepted,
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ExternalAuthServiceProviderProperties{
 			ClusterServiceID:  &f.ExternalAuthInternalID,
 			ActiveOperationID: TestOperationName,
 		},
@@ -410,9 +410,9 @@ func ClusterUpdateMatchingHostedClusterSpec() v1beta1.HostedClusterSpec {
 
 // NewExternalAuthUpdateTestExternalAuth returns an external auth whose properties match
 // ExternalAuthUpdateMatchingOIDCProvider for external auth update state calculation tests.
-func NewExternalAuthUpdateTestExternalAuth(mutate ...func(*coreapi.HCPOpenShiftClusterExternalAuth)) *coreapi.HCPOpenShiftClusterExternalAuth {
+func NewExternalAuthUpdateTestExternalAuth(mutate ...func(*coreapi.ExternalAuth)) *coreapi.ExternalAuth {
 	externalAuth := NewExternalAuthTestFixture().NewExternalAuth()
-	externalAuth.Properties = coreapi.HCPOpenShiftClusterExternalAuthProperties{
+	externalAuth.Properties = coreapi.ExternalAuthProperties{
 		ProvisioningState: coreapi.ProvisioningStateAccepted,
 		Issuer: coreapi.TokenIssuerProfile{
 			URL:       "https://issuer.example.com",

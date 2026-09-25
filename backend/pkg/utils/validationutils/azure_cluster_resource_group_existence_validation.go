@@ -41,7 +41,7 @@ func (a *AzureClusterResourceGroupExistenceValidation) Name() string {
 }
 
 func (a *AzureClusterResourceGroupExistenceValidation) Validate(
-	ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster,
+	ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.Cluster,
 ) ValidationResult {
 	// Full resource ID of the cluster's resource group. Falls back to just the name if Parent is nil.
 	clusterResourceGroupStr := cluster.ID.ResourceGroupName

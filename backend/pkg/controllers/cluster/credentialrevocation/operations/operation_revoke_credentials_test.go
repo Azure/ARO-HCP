@@ -198,7 +198,7 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tc.setupDB(t, ctx, db)
 
-			var clusters []*coreapi.HCPOpenShiftCluster
+			var clusters []*coreapi.Cluster
 			cluster, clusterErr := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 			if clusterErr == nil {
 				clusters = append(clusters, cluster)

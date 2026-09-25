@@ -55,7 +55,7 @@ func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBC
 	return c
 }
 
-func (c *backfillClusterUID) NeedsWork(ctx context.Context, existingCluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *backfillClusterUID) NeedsWork(ctx context.Context, existingCluster *coreapi.Cluster) bool {
 	// Skip if the cluster is deleted or already has ClusterUID.
 	if existingCluster == nil || len(existingCluster.ServiceProviderProperties.ClusterUID) != 0 {
 		return false

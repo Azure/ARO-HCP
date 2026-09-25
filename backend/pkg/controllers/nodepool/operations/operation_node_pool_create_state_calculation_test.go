@@ -42,7 +42,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		nodePool          *coreapi.HCPOpenShiftClusterNodePool
+		nodePool          *coreapi.NodePool
 		readDesires       []*kubeapplierapi.ReadDesire
 		wantState         coreapi.ProvisioningState
 		wantMessageSubstr string
@@ -64,7 +64,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "replicas mismatch returns Provisioning",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.Replicas = 3
 				return np
@@ -82,7 +82,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "replicas match returns Succeeded",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.Replicas = 3
 				return np
@@ -103,7 +103,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "spec replicas mismatch while status already at desired returns Provisioning",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.Replicas = 3
 				return np
@@ -121,7 +121,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "autoscaling mismatch returns Provisioning",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 1, Max: 5}
 				return np
@@ -140,7 +140,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "autoscaling match returns Succeeded",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 1, Max: 5}
 				return np
@@ -162,7 +162,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "replicas desired but observed autoscaling set returns Provisioning",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.Replicas = 3
 				return np
@@ -181,7 +181,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "autoscaling desired but observed replicas set returns Provisioning",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 1, Max: 5}
 				return np
@@ -200,7 +200,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "autoscaling spec match status below min returns Provisioning",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 1, Max: 5}
 				return np
@@ -219,7 +219,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "autoscaling spec match status above max returns Provisioning",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{Min: 1, Max: 5}
 				return np
@@ -238,7 +238,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "labels mismatch returns Provisioning",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.Labels = map[string]string{"env": "prod"}
 				return np
@@ -251,7 +251,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "labels exact match returns Succeeded",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.Labels = map[string]string{"env": "prod"}
 				return np
@@ -267,7 +267,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "labels match with extra observed labels returns Succeeded",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.Labels = map[string]string{"env": "prod"}
 				return np
@@ -283,7 +283,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "taints mismatch returns Provisioning",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.Taints = []coreapi.Taint{
 					{Effect: metadataapi.EffectNoSchedule, Key: "key1", Value: "val1"},
@@ -298,7 +298,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "taints exact match returns Succeeded",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.Taints = []coreapi.Taint{
 					{Effect: metadataapi.EffectNoSchedule, Key: "key1", Value: "val1"},
@@ -318,7 +318,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "taints match with extra observed taints returns Succeeded",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.Taints = []coreapi.Taint{
 					{Effect: metadataapi.EffectNoSchedule, Key: "key1", Value: "val1"},
@@ -339,7 +339,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "status replicas mismatch returns Provisioning",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.Replicas = 3
 				return np
@@ -370,7 +370,7 @@ func TestCreateHypershiftNodePoolOperationState(t *testing.T) {
 		},
 		{
 			name: "AllMachinesReady false returns Provisioning",
-			nodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
+			nodePool: func() *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				np.Properties.Replicas = 3
 				return np
@@ -492,23 +492,23 @@ func TestCreateHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *test
 
 	tests := []struct {
 		name       string
-		desired    *coreapi.HCPOpenShiftClusterNodePool
+		desired    *coreapi.NodePool
 		observed   v1beta1.NodePoolSpec
 		wantMatch  bool
 		wantSubstr string
 	}{
 		{
 			name: "replicas match",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{Replicas: 3},
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{Replicas: 3},
 			},
 			observed:  v1beta1.NodePoolSpec{Replicas: ptr.To(int32(3))},
 			wantMatch: true,
 		},
 		{
 			name: "replicas mismatch",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{Replicas: 3},
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{Replicas: 3},
 			},
 			observed:   v1beta1.NodePoolSpec{Replicas: ptr.To(int32(1))},
 			wantMatch:  false,
@@ -516,8 +516,8 @@ func TestCreateHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *test
 		},
 		{
 			name: "replicas desired observed unset",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{Replicas: 3},
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{Replicas: 3},
 			},
 			observed:   v1beta1.NodePoolSpec{},
 			wantMatch:  false,
@@ -525,8 +525,8 @@ func TestCreateHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *test
 		},
 		{
 			name: "autoscaling match",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 1, Max: 5},
 				},
 			},
@@ -537,8 +537,8 @@ func TestCreateHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *test
 		},
 		{
 			name: "autoscaling desired but observed unset",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 1, Max: 5},
 				},
 			},
@@ -548,8 +548,8 @@ func TestCreateHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *test
 		},
 		{
 			name: "autoscaling mismatch",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 1, Max: 5},
 				},
 			},
@@ -561,8 +561,8 @@ func TestCreateHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *test
 		},
 		{
 			name: "autoscaling desired but observed replicas set",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 1, Max: 5},
 				},
 			},
@@ -574,8 +574,8 @@ func TestCreateHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *test
 		},
 		{
 			name: "replicas desired but observed autoscaling set",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{Replicas: 3},
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{Replicas: 3},
 			},
 			observed: v1beta1.NodePoolSpec{
 				AutoScaling: &v1beta1.NodePoolAutoScaling{Min: ptr.To(int32(1)), Max: 5},
@@ -683,23 +683,23 @@ func TestCreateHypershiftNodePoolStatusReplicasMatchesDesired(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		desired          *coreapi.HCPOpenShiftClusterNodePool
+		desired          *coreapi.NodePool
 		observedReplicas int32
 		wantMatch        bool
 		wantSubstr       string
 	}{
 		{
 			name: "fixed replicas match",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{Replicas: 3},
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{Replicas: 3},
 			},
 			observedReplicas: 3,
 			wantMatch:        true,
 		},
 		{
 			name: "fixed replicas mismatch",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{Replicas: 3},
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{Replicas: 3},
 			},
 			observedReplicas: 1,
 			wantMatch:        false,
@@ -707,8 +707,8 @@ func TestCreateHypershiftNodePoolStatusReplicasMatchesDesired(t *testing.T) {
 		},
 		{
 			name: "autoscaling within range",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 1, Max: 5},
 				},
 			},
@@ -717,8 +717,8 @@ func TestCreateHypershiftNodePoolStatusReplicasMatchesDesired(t *testing.T) {
 		},
 		{
 			name: "autoscaling below min",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 2, Max: 5},
 				},
 			},
@@ -728,8 +728,8 @@ func TestCreateHypershiftNodePoolStatusReplicasMatchesDesired(t *testing.T) {
 		},
 		{
 			name: "autoscaling above max",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 1, Max: 5},
 				},
 			},
@@ -832,15 +832,15 @@ func TestCreateHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		desired     *coreapi.HCPOpenShiftClusterNodePool
+		desired     *coreapi.NodePool
 		observed    v1beta1.NodePoolStatus
 		wantMatch   bool
 		wantSubstrs []string
 	}{
 		{
 			name: "fixed replicas with ready machines",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{Replicas: 3},
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{Replicas: 3},
 			},
 			observed: v1beta1.NodePoolStatus{
 				Replicas: 3,
@@ -853,8 +853,8 @@ func TestCreateHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 		},
 		{
 			name: "scaling to zero skips AllNodesHealthy and AllMachinesReady",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{Replicas: 0},
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{Replicas: 0},
 			},
 			observed: v1beta1.NodePoolStatus{
 				Replicas: 0,
@@ -863,8 +863,8 @@ func TestCreateHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 		},
 		{
 			name: "autoscaling at min with ready machines returns match",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 1, Max: 5},
 				},
 			},
@@ -879,8 +879,8 @@ func TestCreateHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 		},
 		{
 			name: "autoscaling in range but AllMachinesReady false returns mismatch",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 1, Max: 5},
 				},
 			},
@@ -896,8 +896,8 @@ func TestCreateHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 		},
 		{
 			name: "autoscaling in range but AllNodesHealthy false returns mismatch",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 1, Max: 5},
 				},
 			},
@@ -913,8 +913,8 @@ func TestCreateHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 		},
 		{
 			name: "autoscaling in range but AllMachinesReady not reported returns mismatch",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 1, Max: 5},
 				},
 			},
@@ -926,8 +926,8 @@ func TestCreateHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 		},
 		{
 			name: "autoscaling status below min",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 2, Max: 5},
 				},
 			},
@@ -939,8 +939,8 @@ func TestCreateHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 		},
 		{
 			name: "autoscaling status above max",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{
 					AutoScaling: &coreapi.NodePoolAutoScaling{Min: 1, Max: 5},
 				},
 			},
@@ -952,8 +952,8 @@ func TestCreateHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 		},
 		{
 			name: "replicas, AllNodesHealthy, and AllMachinesReady mismatches are all reported together",
-			desired: &coreapi.HCPOpenShiftClusterNodePool{
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{Replicas: 3},
+			desired: &coreapi.NodePool{
+				Properties: coreapi.NodePoolProperties{Replicas: 3},
 			},
 			observed: v1beta1.NodePoolStatus{
 				Replicas: 1,

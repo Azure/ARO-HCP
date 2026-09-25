@@ -43,7 +43,7 @@ import (
 func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 	fixture := operationtesting.NewExternalAuthTestFixture()
 
-	externalAuthPassingExtraReconcileGate := func() *coreapi.HCPOpenShiftClusterExternalAuth {
+	externalAuthPassingExtraReconcileGate := func() *coreapi.ExternalAuth {
 		now := time.Now()
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
@@ -53,7 +53,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name                                string
-		existingExternalAuth                *coreapi.HCPOpenShiftClusterExternalAuth
+		existingExternalAuth                *coreapi.ExternalAuth
 		wantErr                             bool
 		verifyDB                            func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 		usesNewExternalAuthDeletionApproach bool
@@ -70,7 +70,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "shouldReconcile gate not passed skips cluster service",
-			existingExternalAuth: func() *coreapi.HCPOpenShiftClusterExternalAuth {
+			existingExternalAuth: func() *coreapi.ExternalAuth {
 				ea := fixture.NewExternalAuth()
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				return ea
@@ -84,7 +84,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
-			existingExternalAuth: func() *coreapi.HCPOpenShiftClusterExternalAuth {
+			existingExternalAuth: func() *coreapi.ExternalAuth {
 				ea := fixture.NewExternalAuth()
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: time.Now()}

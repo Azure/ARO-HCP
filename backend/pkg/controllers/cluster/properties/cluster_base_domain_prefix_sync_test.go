@@ -37,15 +37,15 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                     string
-		cachedCluster            *coreapi.HCPOpenShiftCluster
-		existingCluster          *coreapi.HCPOpenShiftCluster
+		cachedCluster            *coreapi.Cluster
+		existingCluster          *coreapi.Cluster
 		csDomainPrefix           string
 		expectCSGetCluster       bool
 		expectedBaseDomainPrefix string
 	}{
 		{
 			name: "short-circuit when base domain prefix already set",
-			existingCluster: newTestCluster(testClusterName, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(testClusterName, func(c *coreapi.Cluster) {
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			expectedBaseDomainPrefix: testBaseDomainPrefix,
@@ -53,7 +53,7 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 		{
 			name:          "cache says work needed but live data has base domain prefix",
 			cachedCluster: newTestCluster(testClusterName),
-			existingCluster: newTestCluster(testClusterName, func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(testClusterName, func(c *coreapi.Cluster) {
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			expectedBaseDomainPrefix: testBaseDomainPrefix,
@@ -83,7 +83,7 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 				cachedCluster = tc.existingCluster
 			}
 			clusterLister := &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{cachedCluster},
+				Clusters: []*coreapi.Cluster{cachedCluster},
 			}
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)

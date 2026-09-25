@@ -36,8 +36,8 @@ func TestAdmitExternalAuth(t *testing.T) {
 		otherExternalAuthResourceID    = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/externalAuths/other"
 	)
 
-	externalAuthWithResourceID := func(resourceID string) *coreapi.HCPOpenShiftClusterExternalAuth {
-		return coreapi.NewDefaultHCPOpenShiftClusterExternalAuth(metadataapi.Must(azcorearm.ParseResourceID(resourceID)))
+	externalAuthWithResourceID := func(resourceID string) *coreapi.ExternalAuth {
+		return coreapi.NewDefaultExternalAuth(metadataapi.Must(azcorearm.ParseResourceID(resourceID)))
 	}
 
 	newExternalAuth := coreapitesting.MinimumValidExternalAuthTestCase()
@@ -48,15 +48,15 @@ func TestAdmitExternalAuth(t *testing.T) {
 		name             string
 		op               operation.Type
 		admissionContext *ExternalAuthAdmissionContext
-		newObj           *coreapi.HCPOpenShiftClusterExternalAuth
-		oldObj           *coreapi.HCPOpenShiftClusterExternalAuth
+		newObj           *coreapi.ExternalAuth
+		oldObj           *coreapi.ExternalAuth
 		expectErrors     []utils.ExpectedError
 	}{
 		{
 			name: "create: no existing external auths allowed",
 			op:   operation.Create,
 			admissionContext: &ExternalAuthAdmissionContext{
-				ClusterExternalAuths: []*coreapi.HCPOpenShiftClusterExternalAuth{},
+				ExternalAuths: []*coreapi.ExternalAuth{},
 			},
 			newObj:       newExternalAuth,
 			expectErrors: []utils.ExpectedError{},
@@ -65,7 +65,7 @@ func TestAdmitExternalAuth(t *testing.T) {
 			name: "create: one existing external auth rejected",
 			op:   operation.Create,
 			admissionContext: &ExternalAuthAdmissionContext{
-				ClusterExternalAuths: []*coreapi.HCPOpenShiftClusterExternalAuth{existingExternalAuth},
+				ExternalAuths: []*coreapi.ExternalAuth{existingExternalAuth},
 			},
 			newObj: newExternalAuth,
 			expectErrors: []utils.ExpectedError{
@@ -79,7 +79,7 @@ func TestAdmitExternalAuth(t *testing.T) {
 			name: "create: multiple existing external auths rejected",
 			op:   operation.Create,
 			admissionContext: &ExternalAuthAdmissionContext{
-				ClusterExternalAuths: []*coreapi.HCPOpenShiftClusterExternalAuth{existingExternalAuth, otherExternalAuth},
+				ExternalAuths: []*coreapi.ExternalAuth{existingExternalAuth, otherExternalAuth},
 			},
 			newObj: newExternalAuth,
 			expectErrors: []utils.ExpectedError{

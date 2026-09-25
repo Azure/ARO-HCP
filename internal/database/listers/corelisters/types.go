@@ -21,15 +21,15 @@
 package corelisters
 
 type BackendListers struct {
-	SubscriptionLister                    SubscriptionLister
-	ActiveOperationLister                 ActiveOperationLister
-	HCPOpenShiftClusterLister             ClusterLister
-	HCPOpenShiftClusterNodePoolLister     NodePoolLister
-	HCPOpenShiftClusterExternalAuthLister ExternalAuthLister
-	ServiceProviderClusterLister          ServiceProviderClusterLister
-	ServiceProviderNodePoolLister         ServiceProviderNodePoolLister
-	ControllerLister                      ControllerLister
-	BillingLister                         BillingLister
+	SubscriptionLister            SubscriptionLister
+	ActiveOperationLister         ActiveOperationLister
+	ClusterLister                 ClusterLister
+	NodePoolLister                NodePoolLister
+	ExternalAuthLister            ExternalAuthLister
+	ServiceProviderClusterLister  ServiceProviderClusterLister
+	ServiceProviderNodePoolLister ServiceProviderNodePoolLister
+	ControllerLister              ControllerLister
+	BillingLister                 BillingLister
 }
 
 const (

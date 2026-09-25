@@ -94,7 +94,7 @@ func newTestHostedClusterReadDesireLister(t *testing.T, clusterUUID string) kube
 
 func newTestServiceProviderCluster(
 	t *testing.T,
-	cluster *coreapi.HCPOpenShiftCluster,
+	cluster *coreapi.Cluster,
 	desiredVersion string,
 	activeVersions []coreapi.ServiceProviderClusterActiveVersion,
 ) *coreapi.ServiceProviderCluster {

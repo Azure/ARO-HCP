@@ -40,7 +40,7 @@ func (v *AzureVMSizeSupportsEphemeralOSDiskValidation) Name() string {
 	return "AzureVMSizeSupportsEphemeralOSDiskValidation"
 }
 
-func (v *AzureVMSizeSupportsEphemeralOSDiskValidation) Validate(ctx context.Context, _ *coreapi.HCPOpenShiftCluster, nodePoolSubscription *coreapi.Subscription, nodePool *coreapi.HCPOpenShiftClusterNodePool) ValidationResult {
+func (v *AzureVMSizeSupportsEphemeralOSDiskValidation) Validate(ctx context.Context, _ *coreapi.Cluster, nodePoolSubscription *coreapi.Subscription, nodePool *coreapi.NodePool) ValidationResult {
 	if nodePool.Properties.Platform.OSDisk.DiskType != metadataapi.OsDiskTypeEphemeral {
 		return SkippedValidation(
 			"NotApplicable",

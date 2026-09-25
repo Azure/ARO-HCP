@@ -86,7 +86,7 @@ func (b *fakeFPAMIDataplaneClientBuilder) ManagedIdentitiesDataplane(identityURL
 
 // newTestClusterForFetch builds a stored-in-Cosmos cluster shape carrying the
 // CustomerProperties MSI identities that the fetch controller reads.
-func newTestClusterForFetch(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func newTestClusterForFetch(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	cluster := newTestClusterForClusterIdentitySync()
 	cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testMIDataplaneURL
 	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities = coreapi.UserAssignedIdentitiesProfile{
@@ -149,7 +149,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                   string
-		cluster                *coreapi.HCPOpenShiftCluster    // exposed via the cluster lister; nil = not present
+		cluster                *coreapi.Cluster                // exposed via the cluster lister; nil = not present
 		serviceProviderCluster *coreapi.ServiceProviderCluster // seeded in cosmos + lister; nil = not present
 		dataplaneCreds         *dataplane.ManagedIdentityCredentials
 		dataplaneErr           error
@@ -218,7 +218,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "deduplicates control plane operators sharing an identity",
-			cluster: newTestClusterForFetch(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestClusterForFetch(func(c *coreapi.Cluster) {
 				// A second operator references the SAME identity as testOperatorName.
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["second-operator"] =
 					metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityResourceID))
@@ -244,7 +244,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "deleting cluster does no work",
-			cluster: newTestClusterForFetch(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestClusterForFetch(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
 			}),
 			serviceProviderCluster: newTestServiceProviderCluster(),
@@ -256,7 +256,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "empty managed identities data plane url does no work",
-			cluster: newTestClusterForFetch(func(c *coreapi.HCPOpenShiftCluster) {
+			cluster: newTestClusterForFetch(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
 			}),
 			serviceProviderCluster: newTestServiceProviderCluster(),
@@ -374,7 +374,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 			serviceProviderClusterCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 
-			var clusterListerItems []*coreapi.HCPOpenShiftCluster
+			var clusterListerItems []*coreapi.Cluster
 			if tc.cluster != nil {
 				clusterListerItems = append(clusterListerItems, tc.cluster)
 			}

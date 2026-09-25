@@ -32,7 +32,7 @@ type NodePool struct {
 	generated.NodePool
 }
 
-var _ coreapi.VersionedCreatableResource[coreapi.HCPOpenShiftClusterNodePool] = &NodePool{}
+var _ coreapi.VersionedCreatableResource[coreapi.NodePool] = &NodePool{}
 
 func (h *NodePool) NewExternal() any {
 	return &NodePool{}
@@ -86,8 +86,8 @@ func (h *NodePool) GetVersion() coreapi.Version {
 	return versionedInterface
 }
 
-func (h *NodePool) ConvertToInternal(existing *coreapi.HCPOpenShiftClusterNodePool) (*coreapi.HCPOpenShiftClusterNodePool, error) {
-	out := &coreapi.HCPOpenShiftClusterNodePool{}
+func (h *NodePool) ConvertToInternal(existing *coreapi.NodePool) (*coreapi.NodePool, error) {
+	out := &coreapi.NodePool{}
 	errs := field.ErrorList{}
 
 	// Reject null on required fields. On the PATCH path, JSON merge-patch
@@ -198,7 +198,7 @@ func (h *NodePool) ConvertToInternal(existing *coreapi.HCPOpenShiftClusterNodePo
 // preserveUnknownNodePoolFields copies customer-facing fields from existing that
 // this API version doesn't know about. Currently empty — no cross-version
 // customer fields exist yet between v20240610preview and v20251223preview.
-func preserveUnknownNodePoolFields(from, to *coreapi.HCPOpenShiftClusterNodePool) {
+func preserveUnknownNodePoolFields(from, to *coreapi.NodePool) {
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *coreapi.NodePoolVersionProfile) {
@@ -306,10 +306,10 @@ func newNodePoolAutoScaling(from *coreapi.NodePoolAutoScaling) generated.NodePoo
 	}
 }
 
-// NewHCPOpenShiftClusterNodePool converts an internal representation to this API version.
+// NewNodePool converts an internal representation to this API version.
 // If from is nil, returns a defaulted external object for use on the write path
 // where defaults are applied before unmarshaling the request body.
-func (v version) NewHCPOpenShiftClusterNodePool(from *coreapi.HCPOpenShiftClusterNodePool) coreapi.VersionedHCPOpenShiftClusterNodePool {
+func (v version) NewNodePool(from *coreapi.NodePool) coreapi.VersionedNodePool {
 	if from == nil {
 		ret := &NodePool{}
 		SetDefaultValuesNodePool(ret)

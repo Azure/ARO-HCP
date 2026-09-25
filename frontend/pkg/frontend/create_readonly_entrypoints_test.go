@@ -166,7 +166,7 @@ func TestPreflightReadOnlyParityHTTP(t *testing.T) {
 					require.NoError(t, err)
 					var envelope coreapi.DeploymentPreflightResource
 					require.NoError(t, json.Unmarshal(resourceJSON, &envelope))
-					require.ErrorContains(t, envelope.Convert(c.version.NewHCPOpenShiftClusterExternalAuth(nil)), `unknown field "location"`)
+					require.ErrorContains(t, envelope.Convert(c.version.NewExternalAuth(nil)), `unknown field "location"`)
 					require.Nil(t, result.Error)
 					responses = append(responses, result)
 					continue

@@ -130,7 +130,7 @@ func NewManagedResourceGroupController(
 //   - While the cluster is not being deleted there is work only until the managed
 //     resource group is confirmed as AzureResource; it is immutable, so once
 //     confirmed there is nothing new to observe.
-func (c *managedResourceGroupSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+func (c *managedResourceGroupSyncer) NeedsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	managedResourceGroup := serviceProviderCluster.Status.AzureResources.ManagedResourceGroup
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return managedResourceGroup.PendingAzureResource != nil || managedResourceGroup.AzureResource != nil
@@ -193,7 +193,7 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 // a requeue (in-progress state), returns an error (owned by another cluster, or a
 // failed/terminal state), or calls persistManagedResourceGroup to record it as AzureResource
 // (Succeeded). The requeue (EnqueueAfter) happens here, not inside a helper.
-func (c *managedResourceGroupSyncer) reconcileManagedResourceGroup(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
+func (c *managedResourceGroupSyncer) reconcileManagedResourceGroup(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.Cluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	// A cluster should always have a managed resource group name recorded on its
 	// CustomerProperties. If it is empty, something is wrong upstream; return a hard
 	// error so the syncer retries rather than silently skipping.
@@ -269,7 +269,7 @@ func (c *managedResourceGroupSyncer) reconcileManagedResourceGroup(ctx context.C
 // foreign or pre-existing resource group that appeared between the Get and this call) makes
 // Azure return an error, which is surfaced to the caller so the sync retries rather than
 // recording someone else's resource group as ours.
-func (c *managedResourceGroupSyncer) createManagedResourceGroup(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, managedResourceGroupName string, rgClient azureclient.ResourceGroupsClient) (armresources.ResourceGroup, error) {
+func (c *managedResourceGroupSyncer) createManagedResourceGroup(ctx context.Context, cluster *coreapi.Cluster, managedResourceGroupName string, rgClient azureclient.ResourceGroupsClient) (armresources.ResourceGroup, error) {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("creating managed resource group", "managedResourceGroup", managedResourceGroupName)
 
@@ -292,7 +292,7 @@ func (c *managedResourceGroupSyncer) createManagedResourceGroup(ctx context.Cont
 //     schedules a requeue and leaves the pending marker in place.
 //   - owned by another cluster, or a failed/terminal/unrecognized/absent provisioning state:
 //     returns (false, err) — the caller returns the error so the sync retries.
-func validateManagedResourceGroup(cluster *coreapi.HCPOpenShiftCluster, managedResourceGroupID *azcorearm.ResourceID, resourceGroup armresources.ResourceGroup) (bool, error) {
+func validateManagedResourceGroup(cluster *coreapi.Cluster, managedResourceGroupID *azcorearm.ResourceID, resourceGroup armresources.ResourceGroup) (bool, error) {
 	if ownedByAnotherCluster(resourceGroup.ManagedBy, cluster.ID) {
 		return false, utils.TrackError(fmt.Errorf("managed resource group %q is owned by another cluster (ManagedBy=%q), not %q",
 			managedResourceGroupID.Name, managedByValue(resourceGroup.ManagedBy), cluster.ID.String()))
@@ -324,7 +324,7 @@ func validateManagedResourceGroup(cluster *coreapi.HCPOpenShiftCluster, managedR
 // it clears the PendingAzureResource marker, sets AzureResource, and persists the change (a
 // no-op write when nothing changed). It performs no validation and no requeuing; callers must
 // validate with validateManagedResourceGroup first.
-func (c *managedResourceGroupSyncer) persistManagedResourceGroup(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster, managedResourceGroupID *azcorearm.ResourceID) error {
+func (c *managedResourceGroupSyncer) persistManagedResourceGroup(ctx context.Context, cluster *coreapi.Cluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster, managedResourceGroupID *azcorearm.ResourceID) error {
 	replacement := existingServiceProviderCluster.DeepCopy()
 	reference := &replacement.Status.AzureResources.ManagedResourceGroup
 	reference.PendingAzureResource = nil
@@ -349,7 +349,7 @@ func (c *managedResourceGroupSyncer) persistManagedResourceGroup(ctx context.Con
 //   - exists and owned by this cluster: do nothing and leave the reference in place so the
 //     gate stays closed. Cluster Service owns the resource group's deletion. TODO: begin
 //     deletion.
-func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
+func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Context, cluster *coreapi.Cluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	// A reference is guaranteed set here (see NeedsWork). Prefer the confirmed
 	// AzureResource, falling back to the PendingAzureResource marker.
 	currentReference := existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup
@@ -390,7 +390,7 @@ func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Cont
 // resource group references on the ServiceProviderCluster and persists the change,
 // opening the cluster deletion gate. persistIfChanged makes this a no-op write when the
 // references are already clear.
-func (c *managedResourceGroupSyncer) clearManagedResourceGroupReferences(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
+func (c *managedResourceGroupSyncer) clearManagedResourceGroupReferences(ctx context.Context, cluster *coreapi.Cluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	replacement := existingServiceProviderCluster.DeepCopy()
 	reference := &replacement.Status.AzureResources.ManagedResourceGroup
 	reference.PendingAzureResource = nil
@@ -404,7 +404,7 @@ func (c *managedResourceGroupSyncer) clearManagedResourceGroupReferences(ctx con
 // persisted document on success, or existing when nothing changed). A Cosmos
 // precondition conflict is treated as success (another writer updated the document
 // first; we'll be re-enqueued and retry).
-func (c *managedResourceGroupSyncer) persistIfChanged(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existing, replacement *coreapi.ServiceProviderCluster) (*coreapi.ServiceProviderCluster, error) {
+func (c *managedResourceGroupSyncer) persistIfChanged(ctx context.Context, cluster *coreapi.Cluster, existing, replacement *coreapi.ServiceProviderCluster) (*coreapi.ServiceProviderCluster, error) {
 	if !controllerutil.NeedsUpdate(existing, replacement) {
 		return existing, nil
 	}
@@ -460,7 +460,7 @@ func managedByValue(managedBy *string) string {
 // ManagedBy is set to the cluster's resource ID so the resource group is claimed as
 // ours (and recognized as such by ownedByAnotherCluster on later observations). No
 // tags are set.
-func buildDesiredManagedResourceGroup(cluster *coreapi.HCPOpenShiftCluster, managedResourceGroupName string) armresources.ResourceGroup {
+func buildDesiredManagedResourceGroup(cluster *coreapi.Cluster, managedResourceGroupName string) armresources.ResourceGroup {
 	return armresources.ResourceGroup{
 		// Name is read-only per the SDK type, but the API accepts it on CreateOrUpdate
 		// as long as it matches the name argument; set it for clarity.

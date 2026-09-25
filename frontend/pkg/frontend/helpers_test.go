@@ -122,7 +122,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				if tt.parentConflict != nil {
 					parentResourceID := resourceID.Parent
 					clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
-					parentCluster := &coreapi.HCPOpenShiftCluster{
+					parentCluster := &coreapi.Cluster{
 						CosmosMetadata: coreapi.CosmosMetadata{
 							ResourceID:   parentResourceID,
 							PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
@@ -132,7 +132,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 								ID: parentResourceID,
 							},
 						},
-						ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+						ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 							ProvisioningState: coreapi.ProvisioningStateSucceeded,
 							ClusterServiceID:  &clusterInternalID,
 						},
@@ -169,7 +169,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 					if parentResourceID.ResourceType.Namespace == resourceID.ResourceType.Namespace {
 						// Pre-populate the parent cluster with the test provisioning state
 						clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
-						parentCluster := &coreapi.HCPOpenShiftCluster{
+						parentCluster := &coreapi.Cluster{
 							CosmosMetadata: coreapi.CosmosMetadata{
 								ResourceID:   parentResourceID,
 								PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
@@ -179,7 +179,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 									ID: parentResourceID,
 								},
 							},
-							ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+							ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 								ProvisioningState: provisioningState,
 								ClusterServiceID:  &clusterInternalID,
 							},

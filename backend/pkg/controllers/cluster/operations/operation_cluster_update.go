@@ -121,7 +121,7 @@ func (c *operationClusterUpdate) ShouldProcess(ctx context.Context, operation *c
 	return true
 }
 
-func (c *operationClusterUpdate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *operationClusterUpdate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
 		cluster.ServiceProviderProperties.ClusterServiceID != nil
 }
@@ -184,7 +184,7 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 	return nil
 }
 
-func (c *operationClusterUpdate) determineOperationState(ctx context.Context, operation *coreapi.Operation, existingCluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) determineOperationState(ctx context.Context, operation *coreapi.Operation, existingCluster *coreapi.Cluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	clusterCSID := existingCluster.ServiceProviderProperties.ClusterServiceID
@@ -247,7 +247,7 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	return picked, nil
 }
 
-func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *coreapi.Operation, existingCluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *coreapi.Operation, existingCluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
 	resultingDesiredVersion := spc.Spec.ControlPlaneVersion.DesiredVersion
 	if resultingDesiredVersion == nil {
 		return nil, utils.TrackError(fmt.Errorf("service provider cluster has no desired version"))

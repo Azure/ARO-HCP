@@ -141,7 +141,7 @@ func TestPatchBackupScheduleHandler(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.seedHCP {
-				hcp := &coreapi.HCPOpenShiftCluster{
+				hcp := &coreapi.Cluster{
 					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   resourceID,
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -252,7 +252,7 @@ func TestGetBackupScheduleHandler(t *testing.T) {
 		backupState coreapi.BackupScheduleState,
 	) {
 		t.Helper()
-		hcp := &coreapi.HCPOpenShiftCluster{
+		hcp := &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   resourceID,
 				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -402,7 +402,7 @@ func TestGetBackupScheduleHandler(t *testing.T) {
 				if tt.setMgmtPlacement {
 					seedClusterWithMgmtPlacement(ctx, t, mockResourcesDBClient, resourceID, tt.backupState)
 				} else {
-					hcp := &coreapi.HCPOpenShiftCluster{
+					hcp := &coreapi.Cluster{
 						CosmosMetadata: coreapi.CosmosMetadata{
 							ResourceID:   resourceID,
 							PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -524,7 +524,7 @@ func TestGetOnDemandBackupsHandler(t *testing.T) {
 
 	seedCluster := func(ctx context.Context, t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
 		t.Helper()
-		hcp := &coreapi.HCPOpenShiftCluster{
+		hcp := &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 			TrackedResource: coreapi.TrackedResource{
 				Resource: coreapi.Resource{ID: resourceID},

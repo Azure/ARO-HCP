@@ -55,8 +55,8 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 
 	defaultExistingCSCluster := metadataapi.Must(arohcpv1alpha1.NewCluster().Build())
 
-	newClusterWithConfigDiff := func() *coreapi.HCPOpenShiftCluster {
-		return newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+	newClusterWithConfigDiff := func() *coreapi.Cluster {
+		return newTestCluster(func(c *coreapi.Cluster) {
 			c.CustomerProperties.NodeDrainTimeoutMinutes = 60
 			c.CustomerProperties.Autoscaling.MaxNodesTotal = 10
 		})
@@ -80,7 +80,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                           string
-		existingCluster                *coreapi.HCPOpenShiftCluster
+		existingCluster                *coreapi.Cluster
 		existingSubscription           *coreapi.Subscription
 		existingServiceProviderCluster *coreapi.ServiceProviderCluster
 		existingCSCluster              *arohcpv1alpha1.Cluster
@@ -93,7 +93,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name: "skip without CS call when no CSID",
-			existingCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.ClusterServiceID = nil
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 			}),
@@ -117,18 +117,18 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no-op when config matches",
-			existingCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 			}),
 			existingSubscription:           newTestSubscription(),
 			existingServiceProviderCluster: newTestServiceProviderCluster(testClusterName),
-			existingCSCluster: mustBuildCSClusterFromRP(t, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			existingCSCluster: mustBuildCSClusterFromRP(t, newTestCluster(func(c *coreapi.Cluster) {
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 			})),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetCluster(gomock.Any(), csID).
-					Return(mustBuildCSClusterFromRP(t, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+					Return(mustBuildCSClusterFromRP(t, newTestCluster(func(c *coreapi.Cluster) {
 						c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 					})), nil)
 			},
@@ -292,13 +292,13 @@ func TestNeedsWork(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		cluster *coreapi.HCPOpenShiftCluster
+		cluster *coreapi.Cluster
 		want    bool
 	}{
 		{
 			name: "proceed when CSID set",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			cluster: &coreapi.Cluster{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ClusterServiceID: &csID,
 				},
 			},
@@ -306,8 +306,8 @@ func TestNeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when deletion timestamp is set",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			cluster: &coreapi.Cluster{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					DeletionTimestamp: &now,
 					ClusterServiceID:  &csID,
 				},
@@ -316,8 +316,8 @@ func TestNeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when no CSID",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{},
+			cluster: &coreapi.Cluster{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{},
 			},
 			want: false,
 		},
@@ -330,13 +330,13 @@ func TestNeedsWork(t *testing.T) {
 	}
 }
 
-func mustBuildCSClusterFromRP(t *testing.T, hcpCluster *coreapi.HCPOpenShiftCluster) *arohcpv1alpha1.Cluster {
+func mustBuildCSClusterFromRP(t *testing.T, cluster *coreapi.Cluster) *arohcpv1alpha1.Cluster {
 	t.Helper()
 
 	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
 	require.NoError(t, err)
 
-	clusterBuilder, err := ocm.BuildCSCluster(hcpCluster.ID, "", hcpCluster, nil, oldClusterServiceCluster, &coreapi.ServiceProviderCluster{})
+	clusterBuilder, err := ocm.BuildCSCluster(cluster.ID, "", cluster, nil, oldClusterServiceCluster, &coreapi.ServiceProviderCluster{})
 	require.NoError(t, err)
 
 	csCluster, err := clusterBuilder.Build()
@@ -358,7 +358,7 @@ func newTestSubscription(opts ...func(*coreapi.Subscription)) *coreapi.Subscript
 	return subscription
 }
 
-func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
@@ -366,7 +366,7 @@ func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpen
 	))
 
 	csID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -378,7 +378,7 @@ func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpen
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ClusterServiceID: &csID,
 		},
 	}

@@ -77,7 +77,7 @@ func (s *syncClusterClusterServiceUpdateDispatchStep) RunTest(ctx context.Contex
 	cluster, err := stepInput.ResourcesDBClient.HCPClusters(s.key.SubscriptionID, s.key.ResourceGroupName).Get(ctx, s.key.HCPClusterName)
 	require.NoError(t, err)
 
-	clusterLister := &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cluster}}
+	clusterLister := &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}}
 	subscriptionLister := &corelistertesting.DBSubscriptionLister{ResourcesDBClient: stepInput.ResourcesDBClient}
 	syncer := clusterupdate.NewClusterClusterServiceUpdateDispatchSyncer(
 		stepInput.ResourcesDBClient,

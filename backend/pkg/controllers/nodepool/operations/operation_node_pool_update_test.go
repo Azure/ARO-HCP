@@ -61,7 +61,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 	testClockNow := operationtesting.MustParseTime("2024-06-01T12:00:00Z")
 	fixture := operationtesting.NewNodePoolTestFixture()
 
-	newNodePoolWithVersion := func(version string, mutate ...func(*coreapi.HCPOpenShiftClusterNodePool)) *coreapi.HCPOpenShiftClusterNodePool {
+	newNodePoolWithVersion := func(version string, mutate ...func(*coreapi.NodePool)) *coreapi.NodePool {
 		nodePool := fixture.NewNodePool()
 		nodePool.Properties.Version.ID = version
 		for _, fn := range mutate {
@@ -90,7 +90,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		return fixture.NewNodePoolVersionController(conditions)
 	}
 
-	newPassingCachedNodePoolReadDesire := func(nodePool *coreapi.HCPOpenShiftClusterNodePool) *kubeapplierapi.ReadDesire {
+	newPassingCachedNodePoolReadDesire := func(nodePool *coreapi.NodePool) *kubeapplierapi.ReadDesire {
 		return newNodePoolReadDesire(t, nodePool, fixture.NewCluster())
 	}
 
@@ -135,7 +135,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name             string
-		existingNodePool *coreapi.HCPOpenShiftClusterNodePool
+		existingNodePool *coreapi.NodePool
 		// When not set, the controller uses a node pool lister that contains the existingNodePool.
 		nodePoolLister    corelisters.NodePoolLister
 		existingOperation *coreapi.Operation
@@ -349,7 +349,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "cs node pool ready with hypershift node drain spec mismatch keeps operation updating",
-			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.NodePool) {
 				nodePool.Properties.NodeDrainTimeoutMinutes = ptr.To(int32(60))
 			}),
 			existingOperation:               newOperationAccepted(),
@@ -370,7 +370,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "cs node pool ready with hypershift replicas spec mismatch keeps operation updating",
-			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.NodePool) {
 				nodePool.Properties.Replicas = 3
 			}),
 			existingOperation:               newOperationAccepted(),
@@ -396,7 +396,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
-			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.NodePool) {
 				nodePool.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			existingOperation: newOperationAccepted(),
@@ -408,7 +408,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "shouldReconcile gate not passed when node pool is deleting",
-			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.NodePool) {
 				nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: testClockNow}
 			}),
 			existingOperation: newOperationAccepted(),
@@ -514,7 +514,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 	}
 }
 
-func newNodePoolReadDesire(t *testing.T, nodePool *coreapi.HCPOpenShiftClusterNodePool, cluster *coreapi.HCPOpenShiftCluster) *kubeapplierapi.ReadDesire {
+func newNodePoolReadDesire(t *testing.T, nodePool *coreapi.NodePool, cluster *coreapi.Cluster) *kubeapplierapi.ReadDesire {
 	t.Helper()
 
 	hsNodePool := nodePoolToHypershiftNodePool(nodePool, cluster)
@@ -539,7 +539,7 @@ func newNodePoolReadDesire(t *testing.T, nodePool *coreapi.HCPOpenShiftClusterNo
 	}
 }
 
-func nodePoolToHypershiftNodePool(nodePool *coreapi.HCPOpenShiftClusterNodePool, cluster *coreapi.HCPOpenShiftCluster) *v1beta1.NodePool {
+func nodePoolToHypershiftNodePool(nodePool *coreapi.NodePool, cluster *coreapi.Cluster) *v1beta1.NodePool {
 	effectiveNodeDrainMinutes := nodePool.Properties.NodeDrainTimeoutMinutes
 	if effectiveNodeDrainMinutes == nil {
 		effectiveNodeDrainMinutes = &cluster.CustomerProperties.NodeDrainTimeoutMinutes

@@ -41,17 +41,17 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
 
-// newTestClusterForAggregator builds a minimal HCPOpenShiftCluster suitable
+// newTestClusterForAggregator builds a minimal Cluster suitable
 // for the aggregator tests. Callers can layer in pre-existing
 // Status.Conditions via the opts hook to exercise the "skip write when
 // unchanged" path.
-func newTestClusterForAggregator(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func newTestClusterForAggregator(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
 	))
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -379,7 +379,7 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			existing := newTestClusterForAggregator(func(c *coreapi.HCPOpenShiftCluster) {
+			existing := newTestClusterForAggregator(func(c *coreapi.Cluster) {
 				if len(tc.initialConditions) > 0 {
 					c.Status.Conditions = append([]metav1.Condition{}, tc.initialConditions...)
 				}

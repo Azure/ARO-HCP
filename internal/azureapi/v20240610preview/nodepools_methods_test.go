@@ -35,11 +35,11 @@ import (
 func TestSizeGiBRoundTrip(t *testing.T) {
 	tests := []struct {
 		name     string
-		original *coreapi.HCPOpenShiftClusterNodePool
+		original *coreapi.NodePool
 	}{
 		{
 			name: "SizeGiB with explicit value should round-trip",
-			original: &coreapi.HCPOpenShiftClusterNodePool{
+			original: &coreapi.NodePool{
 				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool")))},
 				TrackedResource: coreapi.TrackedResource{
 					Resource: coreapi.Resource{
@@ -49,7 +49,7 @@ func TestSizeGiBRoundTrip(t *testing.T) {
 					},
 					Location: "eastus",
 				},
-				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+				Properties: coreapi.NodePoolProperties{
 					Version: coreapi.NodePoolVersionProfile{
 						ID:           "4.15.1",
 						ChannelGroup: "stable",
@@ -340,9 +340,9 @@ func TestNewOSDiskProfile(t *testing.T) {
 	}
 }
 
-func roundTripInternalNodePool(t *testing.T, original *coreapi.HCPOpenShiftClusterNodePool) {
+func roundTripInternalNodePool(t *testing.T, original *coreapi.NodePool) {
 	v := version{}
-	roundTrippedObj, err := v.NewHCPOpenShiftClusterNodePool(original).ConvertToInternal(nil)
+	roundTrippedObj, err := v.NewNodePool(original).ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare using DeepEqual here because many of these types have private fields that cannot be introspected

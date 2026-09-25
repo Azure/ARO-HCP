@@ -24,27 +24,27 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-// HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
+// Cluster represents an ARO HCP OpenShift cluster resource.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type HCPOpenShiftCluster struct {
+type Cluster struct {
 	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	TrackedResource
 
 	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync
-	CustomerProperties HCPOpenShiftClusterCustomerProperties `json:"customerProperties,omitempty"`
+	CustomerProperties ClusterCustomerProperties `json:"customerProperties,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, all Operation*Cluster controllers, ClusterPropertiesSync, ClusterClusterServiceCreate, ClusterDeletion* controllers, CreateBillingDoc
-	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	ServiceProviderProperties ClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	// Written by: Frontend PUT/PATCH Cluster (Create/Update), ClusterIdentitySync
 	Identity *ManagedServiceIdentity `json:"identity,omitempty"`
 	// Written by: ClusterDegradedAggregator, ClusterRequirementsValidAggregator
-	Status HCPOpenShiftClusterStatus `json:"status"`
+	Status ClusterStatus `json:"status"`
 }
 
-// HCPOpenShiftClusterStatus contains the observed state of the cluster.
-type HCPOpenShiftClusterStatus struct {
-	// Conditions are the top-level HCPOpenShiftCluster status conditions.
+// ClusterStatus contains the observed state of the cluster.
+type ClusterStatus struct {
+	// Conditions are the top-level Cluster status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
 	// Written by: ClusterDegradedAggregator
 	// +optional
@@ -83,10 +83,10 @@ type HCPClusterActiveVersion struct {
 	Version string `json:"version,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftCluster{}
+var _ CosmosPersistable = &Cluster{}
 
-// HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
-type HCPOpenShiftClusterCustomerProperties struct {
+// ClusterCustomerProperties represents the property bag of a Cluster resource.
+type ClusterCustomerProperties struct {
 	// Written by: Frontend PUT/PATCH Cluster
 	Version VersionProfile `json:"version,omitempty"`
 	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync (BaseDomainPrefix only)
@@ -113,8 +113,8 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	CryptoRestrictions metadataapi.CryptoRestrictions `json:"cryptoRestrictions,omitempty"`
 }
 
-// HCPOpenShiftClusterServiceProviderProperties represents the service-provider-managed property bag of a HCPOpenShiftCluster resource.
-type HCPOpenShiftClusterServiceProviderProperties struct {
+// ClusterServiceProviderProperties represents the service-provider-managed property bag of a Cluster resource.
+type ClusterServiceProviderProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ProvisioningState ProvisioningState `json:"provisioningState,omitempty"`
 	// Written by: ClusterPendingClusterServiceIDAssign
@@ -356,11 +356,11 @@ type ImageDigestMirror struct {
 	MirrorSourcePolicy metadataapi.MirrorSourcePolicy `json:"mirrorSourcePolicy,omitempty"`
 }
 
-// Creates an HCPOpenShiftCluster with any non-zero default values.
-func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftCluster {
-	return &HCPOpenShiftCluster{
+// NewDefaultCluster creates a Cluster with any non-zero default values.
+func NewDefaultCluster(resourceID *azcorearm.ResourceID, azureLocation string) *Cluster {
+	return &Cluster{
 		TrackedResource: NewTrackedResource(resourceID, azureLocation),
-		CustomerProperties: HCPOpenShiftClusterCustomerProperties{
+		CustomerProperties: ClusterCustomerProperties{
 			Version: VersionProfile{
 				ChannelGroup: DefaultClusterVersionChannelGroup,
 			},
@@ -401,7 +401,7 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 //
 // This method should be treated as append-only. Avoid removing defaulting
 // rules until all Cosmos documents have been verified to contain the field.
-func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
+func (cluster *Cluster) EnsureDefaults() {
 	if len(cluster.CustomerProperties.Network.NetworkType) == 0 {
 		cluster.CustomerProperties.Network.NetworkType = metadataapi.NetworkTypeOVNKubernetes
 	}
@@ -434,6 +434,6 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 	}
 }
 
-func (o *HCPOpenShiftCluster) Validate() []CloudErrorBody {
+func (o *Cluster) Validate() []CloudErrorBody {
 	return nil
 }

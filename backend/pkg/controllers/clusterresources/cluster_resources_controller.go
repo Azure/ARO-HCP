@@ -101,7 +101,7 @@ func NewClusterResourcesController(
 // It requires the cluster to be placed on a management cluster. Beyond that:
 // - Clusters being deleted need ApplyDesire cleanup
 // - Clusters with a ClusterServiceID need resource syncing
-func (c *clusterResourcesController) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, managementCluster *azcorearm.ResourceID) bool {
+func (c *clusterResourcesController) NeedsWork(cluster *coreapi.Cluster, managementCluster *azcorearm.ResourceID) bool {
 	if managementCluster == nil {
 		return false
 	}

@@ -88,11 +88,11 @@ func testClusterResourceID() *azcorearm.ResourceID {
 	))
 }
 
-// newTestCluster returns an HCPOpenShiftCluster based on MinimumValidClusterTestCase with
+// newTestCluster returns a Cluster based on MinimumValidClusterTestCase with
 // test-constant IDs. Callers can further customize it via functional opts.
 // MinimumValidClusterTestCase is used as the base because createClusterServiceCluster
 // calls ocm.BuildCSCluster, which requires a fully-populated cluster (version, DNS, subnet, etc.).
-func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	rid := testClusterResourceID()
 	cluster := coreapitesting.MinimumValidClusterTestCase()
 	cluster.CosmosMetadata = coreapi.CosmosMetadata{
@@ -158,8 +158,8 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name                           string
-		listCluster                    *coreapi.HCPOpenShiftCluster    // cluster seeded into the lister (nil = not found)
-		dbCluster                      *coreapi.HCPOpenShiftCluster    // cluster stored in the DB
+		listCluster                    *coreapi.Cluster                // cluster seeded into the lister (nil = not found)
+		dbCluster                      *coreapi.Cluster                // cluster stored in the DB
 		existingServiceProviderCluster *coreapi.ServiceProviderCluster // nil = not pre-seeded; controller get-or-creates
 		managementClusters             []*fleetapi.ManagementCluster   // seeded into the fleet lister
 		denyAssignmentsDisabled        bool                            // simulates an environment without a real FPA
@@ -169,10 +169,10 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 	}{
 		{
 			name: "successful sync records cluster service ID on cluster",
-			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
-			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
@@ -212,10 +212,10 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "skip when cluster already has ClusterServiceID",
-			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
 			}),
-			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -245,10 +245,10 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "desired version not set waits without dispatching",
-			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
-			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
@@ -269,10 +269,10 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "deny assignments still pending waits without dispatching",
-			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
-			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
@@ -294,10 +294,10 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "deny assignments disabled (no real FPA) dispatches without waiting on them",
-			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
-			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
@@ -337,10 +337,10 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "confirmed deny assignments without a completed reconcile wait without dispatching",
-			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
-			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
@@ -360,10 +360,10 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "defer creation when placement intent (Spec.ManagementClusterResourceID) is not resolved",
-			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
-			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
@@ -392,10 +392,10 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "adopts existing Cluster Service cluster for Azure resource",
-			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
-			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
@@ -450,9 +450,9 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 
 			mockCS := tt.setupMockCS(ctrl)
 
-			var listerClusters []*coreapi.HCPOpenShiftCluster
+			var listerClusters []*coreapi.Cluster
 			if tt.listCluster != nil {
-				listerClusters = []*coreapi.HCPOpenShiftCluster{tt.listCluster}
+				listerClusters = []*coreapi.Cluster{tt.listCluster}
 			}
 			var listerSPCs []*coreapi.ServiceProviderCluster
 			if tt.existingServiceProviderCluster != nil {

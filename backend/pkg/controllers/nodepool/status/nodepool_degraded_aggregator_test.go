@@ -41,16 +41,16 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
 
-// newTestNodePoolForAggregator builds a minimal HCPOpenShiftClusterNodePool
+// newTestNodePoolForAggregator builds a minimal NodePool
 // suitable for the aggregator tests.
-func newTestNodePoolForAggregator(opts ...func(*coreapi.HCPOpenShiftClusterNodePool)) *coreapi.HCPOpenShiftClusterNodePool {
+func newTestNodePoolForAggregator(opts ...func(*coreapi.NodePool)) *coreapi.NodePool {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
 			"/nodePools/" + statusutils.TestNodePoolName,
 	))
-	np := &coreapi.HCPOpenShiftClusterNodePool{
+	np := &coreapi.NodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -284,12 +284,12 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			existing := newTestNodePoolForAggregator(func(np *coreapi.HCPOpenShiftClusterNodePool) {
+			existing := newTestNodePoolForAggregator(func(np *coreapi.NodePool) {
 				if len(tc.initialConditions) > 0 {
 					np.Status.Conditions = append([]metav1.Condition{}, tc.initialConditions...)
 				}
 			})
-			parentCluster := &coreapi.HCPOpenShiftCluster{
+			parentCluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   parentClusterID,
 					PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),

@@ -64,7 +64,7 @@ func NewExternalAuthChildResourcesCleanupController(
 	)
 }
 
-func (c *externalAuthChildResourcesCleanupController) NeedsWork(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) bool {
+func (c *externalAuthChildResourcesCleanupController) NeedsWork(externalAuth *coreapi.ExternalAuth) bool {
 	// TODO temporary check to skip the new deletion approach for ExternalAuths that were created before the new approach was implemented.
 	// This will be removed once all externalauths whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.

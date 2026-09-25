@@ -55,14 +55,14 @@ func TestClusterContainerRegistryPreservation(t *testing.T) {
 			if versionName != string(metadataapi.APIVersionV20261001Preview) {
 				// For older versions, test that the field is preserved on update
 				// even though the version can't represent it in the external API
-				existing, err := version.NewHCPOpenShiftCluster(nil).ConvertToInternal(nil)
+				existing, err := version.NewCluster(nil).ConvertToInternal(nil)
 				require.NoError(t, err)
 
 				// Set ContainerRegistry on the existing cluster (from a newer version)
 				existing.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity = miResourceID
 
 				// Create an update request via this older API version that doesn't mention containerRegistry
-				external := version.NewHCPOpenShiftCluster(existing)
+				external := version.NewCluster(existing)
 				body := `{"properties":{"platform":{"operatorsAuthentication":{"userAssignedIdentities":{}}}}}`
 				require.NoError(t, json.Unmarshal([]byte(body), external))
 
@@ -95,13 +95,13 @@ func TestClusterContainerRegistryPreservation(t *testing.T) {
 						testName = tt.name + "/update"
 					}
 					t.Run(testName, func(t *testing.T) {
-						var existing *coreapi.HCPOpenShiftCluster
+						var existing *coreapi.Cluster
 						if update {
 							var err error
-							existing, err = version.NewHCPOpenShiftCluster(nil).ConvertToInternal(nil)
+							existing, err = version.NewCluster(nil).ConvertToInternal(nil)
 							require.NoError(t, err)
 						}
-						external := version.NewHCPOpenShiftCluster(existing)
+						external := version.NewCluster(existing)
 						require.NoError(t, json.Unmarshal([]byte(tt.body), external))
 						cluster, err := external.ConvertToInternal(existing)
 						if tt.wantErr != "" {

@@ -71,8 +71,8 @@ func TestExternalAuthClusterServiceUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 		HCPExternalAuthName: testExternalAuthName,
 	}
 
-	newExternalAuthWithConfigDiff := func() *coreapi.HCPOpenShiftClusterExternalAuth {
-		return newTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+	newExternalAuthWithConfigDiff := func() *coreapi.ExternalAuth {
+		return newTestExternalAuth(func(ea *coreapi.ExternalAuth) {
 			ea.Properties.Issuer.URL = "https://changed.example.com"
 		})
 	}
@@ -103,7 +103,7 @@ func TestExternalAuthClusterServiceUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                                string
-		existingExternalAuth                *coreapi.HCPOpenShiftClusterExternalAuth
+		existingExternalAuth                *coreapi.ExternalAuth
 		setupMockCSClient                   func(mock *ocm.MockClusterServiceClientSpec)
 		minimumReconcileTimeCooldownChecker controllerutil.CooldownChecker
 		wantErr                             bool
@@ -111,7 +111,7 @@ func TestExternalAuthClusterServiceUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name: "skip without CS call when no CSID",
-			existingExternalAuth: newTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuth(func(ea *coreapi.ExternalAuth) {
 				ea.ServiceProviderProperties.ClusterServiceID = nil
 				ea.Properties.Issuer.URL = "https://changed.example.com"
 			}),
@@ -231,7 +231,7 @@ func TestExternalAuthClusterServiceUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			externalAuthsForLister := []*coreapi.HCPOpenShiftClusterExternalAuth{}
+			externalAuthsForLister := []*coreapi.ExternalAuth{}
 			if tc.existingExternalAuth != nil {
 				externalAuthsForLister = append(externalAuthsForLister, tc.existingExternalAuth)
 			}
@@ -267,13 +267,13 @@ func TestNeedsWork(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		externalAuth *coreapi.HCPOpenShiftClusterExternalAuth
+		externalAuth *coreapi.ExternalAuth
 		want         bool
 	}{
 		{
 			name: "proceed when CSID set",
-			externalAuth: &coreapi.HCPOpenShiftClusterExternalAuth{
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties{
+			externalAuth: &coreapi.ExternalAuth{
+				ServiceProviderProperties: coreapi.ExternalAuthServiceProviderProperties{
 					ClusterServiceID: &csID,
 				},
 			},
@@ -281,8 +281,8 @@ func TestNeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when deletion timestamp is set",
-			externalAuth: &coreapi.HCPOpenShiftClusterExternalAuth{
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties{
+			externalAuth: &coreapi.ExternalAuth{
+				ServiceProviderProperties: coreapi.ExternalAuthServiceProviderProperties{
 					DeletionTimestamp: &now,
 					ClusterServiceID:  &csID,
 				},
@@ -291,8 +291,8 @@ func TestNeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when no CSID",
-			externalAuth: &coreapi.HCPOpenShiftClusterExternalAuth{
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties{},
+			externalAuth: &coreapi.ExternalAuth{
+				ServiceProviderProperties: coreapi.ExternalAuthServiceProviderProperties{},
 			},
 			want: false,
 		},
@@ -305,7 +305,7 @@ func TestNeedsWork(t *testing.T) {
 	}
 }
 
-func mustBuildCSExternalAuthFromRP(t *testing.T, ea *coreapi.HCPOpenShiftClusterExternalAuth) *arohcpv1alpha1.ExternalAuth {
+func mustBuildCSExternalAuthFromRP(t *testing.T, ea *coreapi.ExternalAuth) *arohcpv1alpha1.ExternalAuth {
 	t.Helper()
 
 	csBuilder, err := ocm.BuildCSExternalAuth(context.Background(), ea, true)
@@ -316,7 +316,7 @@ func mustBuildCSExternalAuthFromRP(t *testing.T, ea *coreapi.HCPOpenShiftCluster
 	return csExternalAuth
 }
 
-func newTestExternalAuth(opts ...func(*coreapi.HCPOpenShiftClusterExternalAuth)) *coreapi.HCPOpenShiftClusterExternalAuth {
+func newTestExternalAuth(opts ...func(*coreapi.ExternalAuth)) *coreapi.ExternalAuth {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
@@ -325,7 +325,7 @@ func newTestExternalAuth(opts ...func(*coreapi.HCPOpenShiftClusterExternalAuth))
 	))
 	externalAuthInternalID := metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr))
 
-	ea := &coreapi.HCPOpenShiftClusterExternalAuth{
+	ea := &coreapi.ExternalAuth{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
@@ -337,7 +337,7 @@ func newTestExternalAuth(opts ...func(*coreapi.HCPOpenShiftClusterExternalAuth))
 				Type: coreapi.ExternalAuthResourceType.String(),
 			},
 		},
-		Properties: coreapi.HCPOpenShiftClusterExternalAuthProperties{
+		Properties: coreapi.ExternalAuthProperties{
 			Issuer: coreapi.TokenIssuerProfile{
 				URL:       "https://issuer.example.com",
 				Audiences: []string{"aud1", "aud2"},
@@ -376,7 +376,7 @@ func newTestExternalAuth(opts ...func(*coreapi.HCPOpenShiftClusterExternalAuth))
 				},
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ExternalAuthServiceProviderProperties{
 			ClusterServiceID: &externalAuthInternalID,
 		},
 	}

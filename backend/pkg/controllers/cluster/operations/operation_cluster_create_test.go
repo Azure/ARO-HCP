@@ -75,7 +75,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 	testCases := []struct {
 		name              string
 		clock             utilsclock.PassiveClock
-		existingCluster   *coreapi.HCPOpenShiftCluster
+		existingCluster   *coreapi.Cluster
 		existingOperation *coreapi.Operation
 		readDesireLister  kubeapplierlisters.ReadDesireLister
 		setupCSMock       func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
@@ -151,7 +151,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "reports Provisioning when cluster ClusterServiceID is unset",
-			existingCluster: func() *coreapi.HCPOpenShiftCluster {
+			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
 				return cluster
@@ -172,7 +172,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "returns early when cluster active operation id mismatches",
-			existingCluster: func() *coreapi.HCPOpenShiftCluster {
+			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				cluster.ServiceProviderProperties.ActiveOperationID = "other-operation"
 				return cluster
@@ -190,7 +190,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:  "deadline exceeded marks operation as failed",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
-			existingCluster: func() *coreapi.HCPOpenShiftCluster {
+			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", nil)
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
 				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
@@ -221,7 +221,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:  "deadline exceeded with CS succeeded but cosmos provisioning marks as failed",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
-			existingCluster: func() *coreapi.HCPOpenShiftCluster {
+			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
 				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
@@ -251,7 +251,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:  "deadline not yet exceeded continues with provisioning",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T11:00:00Z")),
-			existingCluster: func() *coreapi.HCPOpenShiftCluster {
+			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", nil)
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
 				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
@@ -304,7 +304,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,
 				clusterLister: &corelistertesting.SliceClusterLister{
-					Clusters: []*coreapi.HCPOpenShiftCluster{tc.existingCluster},
+					Clusters: []*coreapi.Cluster{tc.existingCluster},
 				},
 				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
 					ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
@@ -528,7 +528,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 					Operations: []*coreapi.Operation{operation},
 				},
 				clusterLister: &corelistertesting.SliceClusterLister{
-					Clusters: []*coreapi.HCPOpenShiftCluster{cluster},
+					Clusters: []*coreapi.Cluster{cluster},
 				},
 				serviceProviderClusterLister: spcLister,
 				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
@@ -572,13 +572,13 @@ type errorClusterLister struct {
 	err error
 }
 
-func (l *errorClusterLister) List(_ context.Context) ([]*coreapi.HCPOpenShiftCluster, error) {
+func (l *errorClusterLister) List(_ context.Context) ([]*coreapi.Cluster, error) {
 	return nil, l.err
 }
-func (l *errorClusterLister) Get(_ context.Context, _, _, _ string) (*coreapi.HCPOpenShiftCluster, error) {
+func (l *errorClusterLister) Get(_ context.Context, _, _, _ string) (*coreapi.Cluster, error) {
 	return nil, l.err
 }
-func (l *errorClusterLister) ListForResourceGroup(_ context.Context, _, _ string) ([]*coreapi.HCPOpenShiftCluster, error) {
+func (l *errorClusterLister) ListForResourceGroup(_ context.Context, _, _ string) ([]*coreapi.Cluster, error) {
 	return nil, l.err
 }
 
@@ -618,7 +618,7 @@ func (l *errorReadDesireLister) ListForNodePool(_ context.Context, _, _, _, _ st
 	return nil, l.err
 }
 
-func newClusterWithAPIURL(url string, createdAt *time.Time) *coreapi.HCPOpenShiftCluster {
+func newClusterWithAPIURL(url string, createdAt *time.Time) *coreapi.Cluster {
 	fixture := operationtesting.NewClusterTestFixture()
 	cluster := fixture.NewCluster(createdAt)
 	cluster.ServiceProviderProperties.API = coreapi.ServiceProviderAPIProfile{URL: url}
@@ -648,7 +648,7 @@ func TestDetermineOperationState(t *testing.T) {
 		clusterLister     corelisters.ClusterLister
 		readDesireLister  kubeapplierlisters.ReadDesireLister
 		setupCSMock       func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
-		clusterOverride   *coreapi.HCPOpenShiftCluster
+		clusterOverride   *coreapi.Cluster
 		expectedState     coreapi.ProvisioningState
 		wantMessageSubstr string
 		expectError       bool
@@ -657,7 +657,7 @@ func TestDetermineOperationState(t *testing.T) {
 		{
 			name: "both checks succeed → Succeeded",
 			clusterLister: &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
 			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
@@ -686,7 +686,7 @@ func TestDetermineOperationState(t *testing.T) {
 		{
 			name: "cluster API URL empty → Provisioning (lowest priority wins)",
 			clusterLister: &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("", nil)},
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
 			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
@@ -715,7 +715,7 @@ func TestDetermineOperationState(t *testing.T) {
 		{
 			name: "hosted cluster not found → Provisioning",
 			clusterLister: &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock:      readyClusterServiceMock,
 			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{},
@@ -751,7 +751,7 @@ func TestDetermineOperationState(t *testing.T) {
 		{
 			name: "read desire lister non-404 error → error propagated",
 			clusterLister: &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock:      readyClusterServiceMock,
 			readDesireLister: &errorReadDesireLister{err: fmt.Errorf("maestro error")},
@@ -769,7 +769,7 @@ func TestDetermineOperationState(t *testing.T) {
 		{
 			name: "read desire not yet successful → Provisioning",
 			clusterLister: &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
 			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
@@ -784,7 +784,7 @@ func TestDetermineOperationState(t *testing.T) {
 		{
 			name: "hosted cluster not available → Provisioning",
 			clusterLister: &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
 			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
@@ -809,7 +809,7 @@ func TestDetermineOperationState(t *testing.T) {
 		{
 			name: "no control plane endpoint host → Provisioning",
 			clusterLister: &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
 			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
@@ -834,7 +834,7 @@ func TestDetermineOperationState(t *testing.T) {
 		{
 			name: "no control plane endpoint port → Provisioning",
 			clusterLister: &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
 			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
@@ -862,7 +862,7 @@ func TestDetermineOperationState(t *testing.T) {
 		{
 			name: "version with valid success condition but not installed → Provisioning",
 			clusterLister: &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
 			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
@@ -891,7 +891,7 @@ func TestDetermineOperationState(t *testing.T) {
 		{
 			name: "cluster-service succeeded but cosmos not ready → Provisioning",
 			clusterLister: &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("", nil)},
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
 			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
@@ -920,7 +920,7 @@ func TestDetermineOperationState(t *testing.T) {
 		{
 			name: "cluster-service still installing → Provisioning",
 			clusterLister: &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -958,13 +958,13 @@ func TestDetermineOperationState(t *testing.T) {
 		},
 		{
 			name: "cluster ClusterServiceID unset → Provisioning",
-			clusterOverride: func() *coreapi.HCPOpenShiftCluster {
+			clusterOverride: func() *coreapi.Cluster {
 				c := newClusterWithAPIURL("https://api.example.com", nil)
 				c.ServiceProviderProperties.ClusterServiceID = nil
 				return c
 			}(),
 			clusterLister: &corelistertesting.SliceClusterLister{
-				Clusters: []*coreapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
+				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			// ClusterServiceID is nil, so clusterServiceCreateOperationState returns
 			// early without calling GetClusterStatus; use a bare mock with no

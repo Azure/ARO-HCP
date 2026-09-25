@@ -72,7 +72,7 @@ func NewExternalAuthClusterServiceIDClearerController(
 // given ExternalAuth: deletion has been started (DeletionTimestamp), the deleter
 // has already issued the CS delete (ClusterServiceDeletionTimestamp), and a
 // ClusterServiceID is still recorded that needs verification before clearing.
-func (c *externalAuthClusterServiceIDClearer) NeedsWork(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) bool {
+func (c *externalAuthClusterServiceIDClearer) NeedsWork(externalAuth *coreapi.ExternalAuth) bool {
 	// TODO temporary check to skip the new deletion approach for ExternalAuths that were created before the new approach was implemented.
 	// This will be removed once all externalauths whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.

@@ -48,12 +48,12 @@ func TestClusterVNetIntegrationSubnetConversion(t *testing.T) {
 			version, ok := registry.Lookup(versionName)
 			require.True(t, ok)
 			if versionName == string(metadataapi.APIVersionV20240610Preview) {
-				cluster, err := version.NewHCPOpenShiftCluster(nil).ConvertToInternal(nil)
+				cluster, err := version.NewCluster(nil).ConvertToInternal(nil)
 				require.NoError(t, err, "old public create must remain convertible without a subnet")
 				require.Nil(t, cluster.CustomerProperties.Platform.VnetIntegrationSubnetID)
 				existing := cluster.DeepCopy()
 				existing.CustomerProperties.Platform.VnetIntegrationSubnetID = metadataapi.Must(azcorearm.ParseResourceID(subnetID))
-				cluster, err = version.NewHCPOpenShiftCluster(existing).ConvertToInternal(existing)
+				cluster, err = version.NewCluster(existing).ConvertToInternal(existing)
 				require.NoError(t, err)
 				require.Equal(t, subnetID, cluster.CustomerProperties.Platform.VnetIntegrationSubnetID.String(), "old API updates preserve the unrepresentable subnet")
 				return
@@ -76,13 +76,13 @@ func TestClusterVNetIntegrationSubnetConversion(t *testing.T) {
 						name = tt.name + "/legacy-update"
 					}
 					t.Run(name, func(t *testing.T) {
-						var existing *coreapi.HCPOpenShiftCluster
+						var existing *coreapi.Cluster
 						if update {
 							var err error
-							existing, err = version.NewHCPOpenShiftCluster(nil).ConvertToInternal(nil)
+							existing, err = version.NewCluster(nil).ConvertToInternal(nil)
 							require.NoError(t, err)
 						}
-						external := version.NewHCPOpenShiftCluster(existing)
+						external := version.NewCluster(existing)
 						require.NoError(t, json.Unmarshal([]byte(tt.body), external))
 						cluster, err := external.ConvertToInternal(existing)
 						if tt.wantErr != "" {

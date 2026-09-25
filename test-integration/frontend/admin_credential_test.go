@@ -98,7 +98,7 @@ func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
 	require.NoError(t, err)
 
 	// Create a cluster in Succeeded state with a ClusterServiceID.
-	cluster := &coreapi.HCPOpenShiftCluster{
+	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(subscriptionID),
@@ -106,7 +106,7 @@ func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.NewResource(clusterResourceID),
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &clusterInternalID,
 		},

@@ -127,7 +127,7 @@ func NewControlPlaneDesiredVersionController(
 // cluster has an associated ServiceProviderCluster (created by the backend): this controller seeds
 // the initial desired control plane version when none is set yet, and advances it (z-stream/y-stream)
 // once one has been seeded.
-func (c *controlPlaneVersionSyncer) NeedsWork(_ *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+func (c *controlPlaneVersionSyncer) NeedsWork(_ *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	return serviceProviderCluster != nil
 }
 
@@ -315,7 +315,7 @@ func (c *controlPlaneVersionSyncer) validateRequestedMinorVersionChange(ctx cont
 // Otherwise (DesiredVersion already set, cluster still young, Create in
 // flight) we skip so a freshly created cluster doesn't have its initial
 // desired version overwritten while creation is still in progress.
-func (c *controlPlaneVersionSyncer) shouldDetermineDesiredVersion(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (bool, error) {
+func (c *controlPlaneVersionSyncer) shouldDetermineDesiredVersion(ctx context.Context, cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (bool, error) {
 	if spc.Spec.ControlPlaneVersion.DesiredVersion == nil {
 		return true, nil
 	}
@@ -333,7 +333,7 @@ func (c *controlPlaneVersionSyncer) shouldDetermineDesiredVersion(ctx context.Co
 // is more than clusterCreateGracePeriod in the past. A missing CreatedAt is
 // treated as "old enough" so a malformed document does not pin the controller
 // in skip-forever mode.
-func (c *controlPlaneVersionSyncer) clusterOlderThanGracePeriod(cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *controlPlaneVersionSyncer) clusterOlderThanGracePeriod(cluster *coreapi.Cluster) bool {
 	if cluster.SystemData == nil || cluster.SystemData.CreatedAt == nil {
 		return true
 	}
@@ -344,7 +344,7 @@ func (c *controlPlaneVersionSyncer) clusterOlderThanGracePeriod(cluster *coreapi
 // Create operation whose ExternalID is the cluster itself. Operations on
 // child resources (node pools, external auths) under the cluster are
 // ignored on purpose: they don't gate control-plane upgrade selection.
-func (c *controlPlaneVersionSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (bool, error) {
+func (c *controlPlaneVersionSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *coreapi.Cluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 	if len(cluster.ServiceProviderProperties.ActiveOperationID) == 0 {
 		logger.Info("Cluster has no active create operation", "cluster", cluster.Name)
