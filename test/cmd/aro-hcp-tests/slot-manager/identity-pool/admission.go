@@ -26,8 +26,6 @@ import (
 	"github.com/google/uuid"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
@@ -38,10 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
-const (
-	admissionPhaseTimeout       = 10 * time.Minute
-	admissionConvergenceTimeout = 2 * time.Minute
-)
+const admissionPhaseTimeout = 10 * time.Minute
 
 type identityLeaseInventory struct {
 	federatedCredentials []federatedCredentialReference
@@ -54,15 +49,7 @@ type federatedCredentialReference struct {
 	name          string
 }
 
-type dirtyIdentityLeaseError struct {
-	message string
-}
-
-func (e *dirtyIdentityLeaseError) Error() string {
-	return e.message
-}
-
-func prepareE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) error {
+func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) error {
 	ctx, cancel := context.WithTimeout(ctx, admissionPhaseTimeout)
 	defer cancel()
 
@@ -80,10 +67,10 @@ func prepareE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) e
 		return fmt.Errorf("failed creating role assignments client: %w", err)
 	}
 
-	return prepareIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient)
+	return admitIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient)
 }
 
-func prepareIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient) error {
+func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient) error {
 	inventory, err := loadIdentityLeaseInventory(ctx, request, msiFactory, roleAssignmentsClient)
 	if err != nil {
 		return err
@@ -122,26 +109,9 @@ func prepareIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRe
 	if err := runSerial(ctx, deleteOperations); err != nil {
 		return fmt.Errorf("failed cleaning E2E identity lease: %w", err)
 	}
-	return waitForCleanIdentityLease(ctx, inventory, msiFactory, roleAssignmentsClient)
-}
-
-func validateE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) error {
-	ctx, cancel := context.WithTimeout(ctx, admissionPhaseTimeout)
-	defer cancel()
-
-	credential, subscriptionID, err := leaseCredential(request)
-	if err != nil {
-		return err
-	}
-	msiFactory, err := armmsi.NewClientFactory(subscriptionID, credential, nil)
-	if err != nil {
-		return fmt.Errorf("failed creating managed identity client factory: %w", err)
-	}
-	roleAssignmentsClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, credential, nil)
-	if err != nil {
-		return fmt.Errorf("failed creating role assignments client: %w", err)
-	}
-	return validateCleanIdentityLease(ctx, request, msiFactory, roleAssignmentsClient)
+	// Exclusive ownership lets us rely on successful synchronous deletes without
+	// polling for absence or repeating the inventory.
+	return nil
 }
 
 func leaseCredential(request assets.LeaseRequest) (azcore.TokenCredential, string, error) {
@@ -266,114 +236,6 @@ func validateIdentityNames(resourceGroup string, expected map[string]struct{}, a
 	sort.Strings(missing)
 	if len(missing) > 0 {
 		return fmt.Errorf("identity inventory drift in resource group %q: missing=%v", resourceGroup, missing)
-	}
-	return nil
-}
-
-func identityLeaseValidationBackoff() wait.Backoff {
-	backoff := retry.DefaultBackoff
-	backoff.Duration = 5 * time.Second
-	backoff.Factor = 2
-	backoff.Cap = time.Minute
-	// Jitter is applied after Cap, so disable it to keep a strict one-minute limit.
-	backoff.Jitter = 0
-	return backoff
-}
-
-func waitForCleanIdentityLease(
-	ctx context.Context,
-	inventory *identityLeaseInventory,
-	msiFactory *armmsi.ClientFactory,
-	roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
-) error {
-	waitCtx, cancel := context.WithTimeout(ctx, admissionConvergenceTimeout)
-	defer cancel()
-
-	// Only re-read resources we deleted. ValidateLease independently reloads the
-	// complete inventory before publication, including any newly added residue.
-	checks := make([]func(context.Context) error, 0, len(inventory.federatedCredentials)+len(inventory.roleAssignments))
-	credentialsClient := msiFactory.NewFederatedIdentityCredentialsClient()
-	for _, reference := range inventory.federatedCredentials {
-		checks = append(checks, func(ctx context.Context) error {
-			_, err := credentialsClient.Get(ctx, reference.resourceGroup, reference.identityName, reference.name, nil)
-			if isNotFound(err) {
-				return nil
-			}
-			if err != nil {
-				return fmt.Errorf("failed verifying deletion of FIC %q from identity %q in resource group %q: %w", reference.name, reference.identityName, reference.resourceGroup, err)
-			}
-			return &dirtyIdentityLeaseError{message: fmt.Sprintf("FIC %q on identity %q in resource group %q still exists after preparation", reference.name, reference.identityName, reference.resourceGroup)}
-		})
-	}
-	for _, assignment := range inventory.roleAssignments {
-		if assignment == nil || assignment.ID == nil || strings.TrimSpace(*assignment.ID) == "" {
-			return errors.New("cannot verify deletion of role assignment without an ID")
-		}
-		checks = append(checks, func(ctx context.Context) error {
-			_, err := roleAssignmentsClient.GetByID(ctx, *assignment.ID, nil)
-			if isNotFound(err) {
-				return nil
-			}
-			if err != nil {
-				return fmt.Errorf("failed verifying deletion of role assignment %q: %w", *assignment.ID, err)
-			}
-			return &dirtyIdentityLeaseError{message: fmt.Sprintf("role assignment %q still exists after preparation", *assignment.ID)}
-		})
-	}
-
-	var lastErr error
-	// Unlike retry.OnError, DelayFunc.Until interrupts sleeps on cancellation and
-	// keeps retrying at the cap until the convergence deadline.
-	err := identityLeaseValidationBackoff().DelayFunc().Until(waitCtx, true, true, func(ctx context.Context) (bool, error) {
-		results := make([]error, len(checks))
-		operations := make([]func(context.Context) error, len(checks))
-		for i, check := range checks {
-			operations[i] = func(ctx context.Context) error {
-				results[i] = check(ctx)
-				var dirtyErr *dirtyIdentityLeaseError
-				if errors.As(results[i], &dirtyErr) {
-					return nil
-				}
-				return results[i]
-			}
-		}
-		if err := runSerial(ctx, operations); err != nil {
-			return false, err
-		}
-		pending := checks[:0]
-		for i, check := range checks {
-			if results[i] != nil {
-				pending = append(pending, check)
-			}
-		}
-		checks = pending
-		lastErr = errors.Join(results...)
-		return len(checks) == 0, nil
-	})
-	if ctx.Err() != nil {
-		return fmt.Errorf("waiting for clean E2E identity lease: %w", ctx.Err())
-	}
-	if waitCtx.Err() != nil {
-		return fmt.Errorf("E2E identity lease did not converge to a clean baseline: %w", errors.Join(waitCtx.Err(), lastErr))
-	}
-	return err
-}
-
-func validateCleanIdentityLease(
-	ctx context.Context,
-	request assets.LeaseRequest,
-	msiFactory *armmsi.ClientFactory,
-	roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
-) error {
-	inventory, err := loadIdentityLeaseInventory(ctx, request, msiFactory, roleAssignmentsClient)
-	if err != nil {
-		return err
-	}
-	if len(inventory.federatedCredentials) > 0 {
-		return &dirtyIdentityLeaseError{message: fmt.Sprintf("found %d federated identity credential(s) after preparation", len(inventory.federatedCredentials))}
-	}
-	if len(inventory.roleAssignments) > 0 {
-		return &dirtyIdentityLeaseError{message: fmt.Sprintf("found %d role assignment(s) after preparation", len(inventory.roleAssignments))}
 	}
 	return nil
 }

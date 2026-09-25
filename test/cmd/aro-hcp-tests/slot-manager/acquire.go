@@ -731,10 +731,7 @@ func (o *AcquireOptions) finalizeV2Lease(ctx context.Context, pool slots.Pool, l
 	if err := state.Validate(); err != nil {
 		return err
 	}
-	if err := o.Registry.PrepareLease(ctx, request); err != nil {
-		return err
-	}
-	if err := o.Registry.ValidateLease(ctx, request); err != nil {
+	if err := o.Registry.AdmitLease(ctx, request); err != nil {
 		return err
 	}
 	contract := slots.NewRuntimeContractBuilder()

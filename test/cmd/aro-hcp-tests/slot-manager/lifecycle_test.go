@@ -119,11 +119,8 @@ func (h *lifecycleHandler) ApplyPools(_ context.Context, request assets.PoolRequ
 func (h *lifecycleHandler) ValidatePools(ctx context.Context, request assets.PoolRequest) error {
 	return h.ApplyPools(ctx, request)
 }
-func (h *lifecycleHandler) PrepareLease(_ context.Context, request assets.LeaseRequest) error {
-	return h.call("prepare", request)
-}
-func (h *lifecycleHandler) ValidateLease(_ context.Context, request assets.LeaseRequest) error {
-	return h.call("validate", request)
+func (h *lifecycleHandler) AdmitLease(_ context.Context, request assets.LeaseRequest) error {
+	return h.call("admit", request)
 }
 func (h *lifecycleHandler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
 	if err := h.call("publish", request); err != nil {
@@ -155,11 +152,11 @@ func lifecycleOptions(t *testing.T, catalog, server string, registry *assets.Reg
 
 func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []string{"success", "resolve", "prepare", "validate", "publish", "second acquire", "duplicate secondary", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state"} {
+	for _, scenario := range []string{"success", "resolve", "admit", "publish", "second acquire", "duplicate secondary", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state"} {
 		t.Run(scenario, func(t *testing.T) {
 			calls := []string{}
 			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
-			if scenario == "resolve" || scenario == "prepare" || scenario == "validate" || scenario == "publish" {
+			if scenario == "resolve" || scenario == "admit" || scenario == "publish" {
 				infra.fail = scenario
 			}
 			registry, err := assets.NewRegistry(
@@ -219,8 +216,8 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				if !reflect.DeepEqual(state.Leases.Assets[slots.KindInfrastructureIdentities], want) {
 					t.Fatalf("%s ran without exact secondary names persisted: %+v", phase, state.Leases)
 				}
-				if phase == "prepare" && request.State.Slot.Assets.InfrastructureIdentities == nil {
-					t.Fatal("prepare ran before resolution")
+				if phase == "admit" && request.State.Slot.Assets.InfrastructureIdentities == nil {
+					t.Fatal("admission ran before resolution")
 				}
 				env, _ := slots.EnvFile(options.SharedDir)
 				if _, err := os.Stat(env); !errors.Is(err, os.ErrNotExist) {
@@ -232,7 +229,7 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				if err != nil {
 					t.Fatalf("acquire failed: %v", err)
 				}
-				wantCalls := []string{"resolve:e2e_identities", "resolve:infrastructure_identities", "prepare:e2e_identities", "prepare:infrastructure_identities", "validate:e2e_identities", "validate:infrastructure_identities", "publish:e2e_identities", "publish:infrastructure_identities"}
+				wantCalls := []string{"resolve:e2e_identities", "resolve:infrastructure_identities", "admit:e2e_identities", "admit:infrastructure_identities", "publish:e2e_identities", "publish:infrastructure_identities"}
 				if !reflect.DeepEqual(calls, wantCalls) {
 					t.Fatalf("incorrect admission order: %v", calls)
 				}
@@ -443,7 +440,7 @@ func TestV2E2EOnlySelectedPoolNeverResolvesInfrastructure(t *testing.T) {
 			if err != nil || strings.Contains(string(data), "INFRA_SUBSCRIPTION_ID") || !strings.Contains(string(data), "ARO_HCP_DEPLOY_ENV='"+deploy+"'") || !strings.Contains(string(data), "FAKE_e2e_identities='ready'") {
 				t.Fatalf("incorrect E2E-only runtime exports: %s, %v", data, err)
 			}
-			wantCalls := []string{"resolve:e2e_identities", "prepare:e2e_identities", "validate:e2e_identities", "publish:e2e_identities"}
+			wantCalls := []string{"resolve:e2e_identities", "admit:e2e_identities", "publish:e2e_identities"}
 			if !reflect.DeepEqual(calls, wantCalls) {
 				t.Fatalf("E2E-only lifecycle invoked wrong handlers: %v", calls)
 			}

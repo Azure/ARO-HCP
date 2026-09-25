@@ -23,7 +23,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
-	"time"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
@@ -68,17 +67,6 @@ func TestLeaseCredentialUsesSelectedProfileWithoutAzureLogin(t *testing.T) {
 	}
 	if _, _, err := leaseCredential(request); !errors.Is(err, os.ErrNotExist) || !strings.Contains(err.Error(), "client-secret") {
 		t.Fatalf("missing mounted credential must fail explicitly, got %v", err)
-	}
-}
-
-func TestIdentityLeaseValidationBackoff(t *testing.T) {
-	t.Parallel()
-
-	delay := identityLeaseValidationBackoff().DelayFunc()
-	for i, expected := range []time.Duration{5 * time.Second, 10 * time.Second, 20 * time.Second, 40 * time.Second, time.Minute, time.Minute, time.Minute} {
-		if actual := delay(); actual != expected {
-			t.Fatalf("delay %d: expected %s, got %s", i, expected, actual)
-		}
 	}
 }
 

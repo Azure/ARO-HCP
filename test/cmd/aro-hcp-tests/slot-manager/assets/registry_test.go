@@ -25,10 +25,10 @@ import (
 )
 
 type fakeHandler struct {
-	kind       Kind
-	declared   bool
-	calls      *[]string
-	prepareErr error
+	kind     Kind
+	declared bool
+	calls    *[]string
+	admitErr error
 }
 
 func (h *fakeHandler) Kind() Kind {
@@ -56,14 +56,9 @@ func (h *fakeHandler) ValidatePools(context.Context, PoolRequest) error {
 	return nil
 }
 
-func (h *fakeHandler) PrepareLease(context.Context, LeaseRequest) error {
-	*h.calls = append(*h.calls, "prepare:"+string(h.kind))
-	return h.prepareErr
-}
-
-func (h *fakeHandler) ValidateLease(context.Context, LeaseRequest) error {
-	*h.calls = append(*h.calls, "validate-lease:"+string(h.kind))
-	return nil
+func (h *fakeHandler) AdmitLease(context.Context, LeaseRequest) error {
+	*h.calls = append(*h.calls, "admit:"+string(h.kind))
+	return h.admitErr
 }
 
 func (h *fakeHandler) PublishLease(_ context.Context, _ LeaseRequest, contract *slots.RuntimeContractBuilder) error {
@@ -160,7 +155,7 @@ func TestRegistryStopsLeaseAdmissionOnFirstFailure(t *testing.T) {
 	calls := []string{}
 	expectedErr := errors.New("dirty asset")
 	registry, err := NewRegistry(
-		&fakeHandler{kind: "first", calls: &calls, prepareErr: expectedErr},
+		&fakeHandler{kind: "first", calls: &calls, admitErr: expectedErr},
 		&fakeHandler{kind: "second", calls: &calls},
 	)
 	if err != nil {
@@ -169,11 +164,11 @@ func TestRegistryStopsLeaseAdmissionOnFirstFailure(t *testing.T) {
 	request := LeaseRequest{State: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{ResourceName: "slot-00", Requirements: []slots.AssetRequirement{
 		{Kind: "first", Allocation: slots.AllocationDedicated}, {Kind: "second", Allocation: slots.AllocationDedicated},
 	}}}}
-	err = registry.PrepareLease(context.Background(), request)
+	err = registry.AdmitLease(context.Background(), request)
 	if !errors.Is(err, expectedErr) {
-		t.Fatalf("expected preparation error to be preserved, got %v", err)
+		t.Fatalf("expected admission error to be preserved, got %v", err)
 	}
-	if want := []string{"prepare:first"}; !reflect.DeepEqual(calls, want) {
+	if want := []string{"admit:first"}; !reflect.DeepEqual(calls, want) {
 		t.Fatalf("unexpected calls after failure: got %v want %v", calls, want)
 	}
 }

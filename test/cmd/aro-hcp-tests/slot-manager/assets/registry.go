@@ -50,8 +50,8 @@ type Handler interface {
 	ReleaseLease(ctx context.Context, request LeaseRequest) error
 	ApplyPools(ctx context.Context, request PoolRequest) error
 	ValidatePools(ctx context.Context, request PoolRequest) error
-	PrepareLease(ctx context.Context, request LeaseRequest) error
-	ValidateLease(ctx context.Context, request LeaseRequest) error
+	// AdmitLease establishes readiness for exclusive reuse before publication.
+	AdmitLease(ctx context.Context, request LeaseRequest) error
 	PublishLease(ctx context.Context, request LeaseRequest, contract *slots.RuntimeContractBuilder) error
 }
 
@@ -163,19 +163,10 @@ func (r *Registry) ValidateRequirements(pools []slots.Pool) error {
 	return nil
 }
 
-func (r *Registry) PrepareLease(ctx context.Context, request LeaseRequest) error {
+func (r *Registry) AdmitLease(ctx context.Context, request LeaseRequest) error {
 	return r.forLeaseHandlers(request, func(handler Handler) error {
-		if err := handler.PrepareLease(ctx, request); err != nil {
-			return fmt.Errorf("preparing asset %q for slot %q: %w", handler.Kind(), request.State.Slot.ResourceName, err)
-		}
-		return nil
-	})
-}
-
-func (r *Registry) ValidateLease(ctx context.Context, request LeaseRequest) error {
-	return r.forLeaseHandlers(request, func(handler Handler) error {
-		if err := handler.ValidateLease(ctx, request); err != nil {
-			return fmt.Errorf("validating asset %q for slot %q: %w", handler.Kind(), request.State.Slot.ResourceName, err)
+		if err := handler.AdmitLease(ctx, request); err != nil {
+			return fmt.Errorf("admitting asset %q for slot %q: %w", handler.Kind(), request.State.Slot.ResourceName, err)
 		}
 		return nil
 	})

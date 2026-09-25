@@ -47,7 +47,7 @@ The model must:
 - let new asset types join the lifecycle without adding asset-specific command
   orchestration;
 - persist enough state to release every lease after interruption;
-- prepare and validate mutable assets before provisioning starts;
+- admit mutable assets for reuse before provisioning starts;
 - fail closed when an asset cannot be completely inspected or cleaned;
 - publish one collision-checked, non-secret runtime contract; and
 - preserve stable Azure and Boskos resource names where inventory already
@@ -212,7 +212,7 @@ the selected region from the runtime contract and must not repeat selection.
 ### Asset declarations
 
 The presence of an entry under `slot_assets` means that each slot requires that
-asset and slot-manager must acquire or resolve, prepare, validate, and publish
+asset and slot-manager must acquire or resolve, admit, and publish
 it.
 
 Absence means slot-manager has no contract for that asset. There is no
@@ -233,8 +233,8 @@ Asset presence already means required.
 - omitted or `managed`: slot-manager may create or update backing resources;
 - `unmanaged`: another owner provisions the backing resources.
 
-Provisioning ownership does not alter admission. Every declared leased asset is
-prepared and validated before publication.
+Provisioning ownership does not alter admission. Every declared asset must pass
+admission before publication.
 
 Implementation details that are intrinsic to an asset, such as the standard
 E2E identity set, belong in the handler and its provisioning code rather than
@@ -294,13 +294,19 @@ Each handler implements:
   for the asset;
 - `ApplyPools`: creates or updates managed backing resources;
 - `ValidatePools`: validates declared backing resources;
-- `PrepareLease`: removes mutable state from the previous consumer;
-- `ValidateLease`: proves the asset is ready for reuse; and
+- `AdmitLease`: inspects and, where necessary, cleans or prepares the allocated
+  asset for reuse, returning success only when its readiness requirements are
+  met; and
 - `PublishLease`: contributes owned values to the runtime contract.
 
 Registry dispatch preserves registration order, filters by requested asset
 kind, adds asset context to failures, and stops lease admission on the first
 failure.
+
+Admission is one handler-owned phase, not mandatory preparation and validation
+passes. Each handler decides which observations it can reuse and whether an
+operation requires confirmation, such as waiting for asynchronous completion.
+`ValidatePools` remains a separate read-only operator command.
 
 Adding an asset requires:
 
@@ -323,8 +329,7 @@ load and validate catalog
   -> resolve cluster profile and subscriptions
   -> acquire or resolve all declared assets in registry order
      (persist each independent lease immediately, before resolving its assets)
-  -> prepare all declared assets
-  -> validate all declared assets
+  -> admit all declared assets
   -> build core and asset runtime exports
   -> atomically publish runtime contract
 ```
@@ -335,7 +340,7 @@ The primary slot's optional infinite `--max-wait-for-lease` is never reused for
 secondary acquisitions. This prevents indefinite hold-and-wait when one asset
 pool is exhausted.
 
-State is updated with every resolved lease before preparation begins. The
+State is updated with every resolved lease before admission begins. The
 release step can therefore return the primary slot and every independently
 leased asset if admission fails or the process is interrupted.
 Malformed or already-journaled names are rejected before changing the journal,
@@ -350,6 +355,10 @@ ci-operator Boskos leases.
 The runtime contract is withheld until every declared asset passes admission.
 Downstream provisioning cannot start with a partially prepared slot.
 
+Admission assumes exclusive ownership of the allocated assets: previous
+consumers must no longer modify them, and handlers must not invalidate another
+asset's readiness. It does not protect against concurrent external writers.
+
 ### Failure behavior
 
 Admission is fail-closed:
@@ -358,10 +367,10 @@ Admission is fail-closed:
 - incomplete inventory fails;
 - an Azure list or delete error fails;
 - unexpected resource shape fails;
-- residue found by validation fails; and
+- failure to establish the asset's readiness fails; and
 - a runtime-export ownership conflict fails.
 
-Preparation is idempotent so a later acquisition can safely retry after an
+Admission is idempotent so a later acquisition can safely retry after an
 interruption. Repeated failures identify the environment, pool, slot, and asset
 in logs so operators can remove the Boskos resource from circulation while
 repairing it.
@@ -450,7 +459,8 @@ State persistence and loading use this check, so loading a journal does not
 imply runtime readiness. `Validate` checks the complete resolved allocation,
 including agreement between the primary lease, slot, and deployment bindings,
 and rejects leases already being returned. Acquisition runs full validation
-before preparation, and runtime publication validates again.
+before admission, and runtime publication validates again. These are local
+resolved-state checks, not additional Azure inventory scans.
 
 ## Runtime contract
 
@@ -523,7 +533,7 @@ pool or subscription selection includes them, preserving the operator override
 used by the identity-pool commands. Explicitly applying such a selection can
 therefore modify unmanaged backing resources.
 
-### Preparation
+### Admission
 
 For every resolved resource group, the handler:
 
@@ -533,41 +543,24 @@ For every resolved resource group, the handler:
 3. enumerates every federated identity credential on those standard identities;
 4. enumerates role assignments for their principal IDs across the E2E
    subscription, including child scopes;
-5. deletes all discovered federated identity credentials and role assignments;
-   and
-6. waits for the deleted resources to disappear using targeted reads.
+5. deletes all discovered federated identity credentials and role assignments.
 
-Initial discovery lists role assignments once per subscription and indexes them
-by principal ID. Convergence checks only the FICs and role assignments deleted
-in that preparation, removing confirmed deletions from subsequent checks.
-It does not repeat subscription-wide enumeration or re-read unchanged identities.
+Discovery lists role assignments once for the E2E subscription and matches them
+against the expected identities' principal IDs. Each synchronous deletion must
+complete successfully or return `404` (already absent). No confirmation reads,
+deletion polling, or second inventory scan are performed. Azure authorization
+propagation can still lag behind successful deletion; checking resource absence
+would not guarantee authorization-cache convergence.
+
 All admission ARM requests run serially, finishing each container's identity
 and credential inventory before moving to the next container. Azure SDK
-throttling retries remain enabled. Preparation and independent validation each
-have a ten-minute budget to accommodate serial scans.
-Convergence reads use exponential backoff starting at five seconds, doubling
-to a one-minute maximum between attempts. The convergence wait has a two-minute
-deadline, and cancellation interrupts both reads and backoff waits.
+throttling retries remain enabled. The single admission phase has a ten-minute
+budget. A clean inventory returns without deletion calls.
 
-The reusable baseline is:
-
-- every expected managed identity exists;
-- no federated identity credentials exist on expected identities; and
-- no role assignments exist for the leased principals.
-
-### Validation
-
-Validation independently re-reads Azure and proves the baseline. It does not
-mutate resources or translate an unknown state into success.
-This fresh inventory includes a subscription-wide role-assignment scan, so
-resources added after initial discovery cannot be hidden by cached results.
-Successful admission therefore performs two full inventory passes, regardless
-of the number of deletion-convergence checks.
-
-A missing required identity, incomplete enumeration, remaining credential on
-an expected identity, or remaining role assignment for its principal fails
-acquisition before runtime publication. Extra identities are not used by the
-tests and are neither admitted nor cleaned by this asset.
+A missing required identity, invalid principal metadata, incomplete enumeration,
+or deletion error (including exhausted SDK retries) fails acquisition before
+runtime publication. Extra identities are not used by the tests and are neither
+admitted nor cleaned by this asset.
 
 The normal E2E framework cleanup remains the fast path after each test. Asset
 admission is authoritative because it also handles interrupted jobs and

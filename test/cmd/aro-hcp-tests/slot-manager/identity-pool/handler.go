@@ -125,12 +125,8 @@ func (h *Handler) resolvePools(ctx context.Context, request assets.PoolRequest) 
 	return credential, pools, nil
 }
 
-func (h *Handler) PrepareLease(ctx context.Context, request assets.LeaseRequest) error {
-	return prepareE2EIdentityLease(ctx, request)
-}
-
-func (h *Handler) ValidateLease(ctx context.Context, request assets.LeaseRequest) error {
-	return validateE2EIdentityLease(ctx, request)
+func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) error {
+	return admitE2EIdentityLease(ctx, request)
 }
 
 func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {

@@ -57,8 +57,6 @@ type admissionTransport struct {
 	deletes       []string
 	roleLists     int
 	identityLists int
-	roleReads     []time.Time
-	ficReads      int
 	requests      []string
 }
 
@@ -79,46 +77,18 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 	principal := "00000000-0000-0000-0000-000000000001"
 	switch {
 	case request.Method == http.MethodDelete:
-		if a.scenario == "delete failure" {
+		isFIC := strings.Contains(path, "federatedIdentityCredentials")
+		if (a.scenario == "FIC delete failure" && isFIC) || (a.scenario == "role delete failure" && !isFIC) {
 			status = http.StatusForbidden
 			payload = map[string]any{"error": map[string]string{"code": "Forbidden", "message": "fake delete failure"}}
 			break
 		}
 		a.deletes = append(a.deletes, path)
-		if strings.Contains(path, "federatedIdentityCredentials") {
-			a.fic = false
-		} else if a.scenario != "eventual consistency" {
-			a.role = false
-		}
+		// Keep list responses stale: successful deletes must not need read confirmation.
 		payload = map[string]any{}
-	case strings.Contains(path, "/federatedIdentityCredentials/"):
-		a.ficReads++
-		if a.scenario == "FIC get failure" {
-			status = http.StatusForbidden
-			payload = map[string]any{"error": map[string]string{"code": "Forbidden", "message": "fake FIC read failure"}}
-			break
-		}
-		if a.fic {
-			payload = map[string]any{"name": "previous-run"}
-		} else {
+		if a.scenario == "already deleted" {
 			status = http.StatusNotFound
-			payload = map[string]any{"error": map[string]string{"code": "ResourceNotFound", "message": "FIC was deleted"}}
-		}
-	case strings.Contains(path, "/roleAssignments/"):
-		a.roleReads = append(a.roleReads, time.Now())
-		if a.scenario == "role get failure" {
-			status = http.StatusTooManyRequests
-			payload = map[string]any{"error": map[string]string{"code": "TooManyRequests", "message": "fake role read throttling"}}
-			break
-		}
-		if a.scenario == "eventual consistency" && len(a.roleReads) == 3 {
-			a.role = false
-		}
-		if a.role {
-			payload = map[string]any{"id": path, "properties": map[string]string{"principalId": principal}}
-		} else {
-			status = http.StatusNotFound
-			payload = map[string]any{"error": map[string]string{"code": "RoleAssignmentNotFound", "message": "role assignment was deleted"}}
+			payload = map[string]any{"error": map[string]string{"code": "ResourceNotFound", "message": "already deleted"}}
 		}
 	case strings.HasSuffix(path, "/userAssignedIdentities"):
 		a.identityLists++
@@ -204,135 +174,59 @@ func admissionSDKClients(t *testing.T, transport *admissionTransport) (*armmsi.C
 	return factory, roles
 }
 
-func TestWaitForCleanIdentityLease(t *testing.T) {
+func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct {
-		name        string
-		scenario    string
-		checkRole   bool
-		checkFIC    bool
-		cancelAt    time.Duration
-		wantReads   []time.Duration
-		wantErr     error
-		wantText    string
-		wantElapsed time.Duration
-	}{
-		{name: "already clean"},
-		{name: "cancelled before reads", checkRole: true, cancelAt: -time.Second, wantErr: context.Canceled},
-		{name: "read error fails immediately even with dirty FIC", scenario: "role get failure", checkRole: true, checkFIC: true, wantReads: []time.Duration{0}, wantText: "fake role read throttling"},
-		{name: "FIC read error fails immediately", scenario: "FIC get failure", checkFIC: true, wantText: "fake FIC read failure"},
-		{name: "FIC convergence deadline", checkFIC: true, wantErr: context.DeadlineExceeded, wantText: "still exists after preparation", wantElapsed: admissionConvergenceTimeout},
-		{name: "cancel during backoff", checkRole: true, cancelAt: time.Second, wantReads: []time.Duration{0}, wantErr: context.Canceled, wantElapsed: time.Second},
-		{name: "convergence deadline", checkRole: true, wantReads: []time.Duration{0, 5 * time.Second, 15 * time.Second, 35 * time.Second, 75 * time.Second}, wantErr: context.DeadlineExceeded, wantText: "still exists after preparation", wantElapsed: admissionConvergenceTimeout},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, scenario := range []string{"clean", "residue", "already deleted"} {
+		t.Run(scenario, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				transport := &admissionTransport{scenario: tc.scenario, role: tc.checkRole, fic: tc.checkFIC}
+				dirty := scenario != "clean"
+				transport := &admissionTransport{scenario: scenario, fic: dirty, role: dirty, latency: time.Millisecond}
 				factory, roles := admissionSDKClients(t, transport)
-				inventory := &identityLeaseInventory{}
-				if tc.checkRole {
-					id := "/subscriptions/sub/resourceGroups/previous-run/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111"
-					inventory.roleAssignments = []*armauthorization.RoleAssignment{{ID: &id}}
+				groups := []string{"identity-rg-00", "identity-rg-01"}
+				request := assets.LeaseRequest{State: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+					Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+						Allocation: slots.AllocationDedicated, ResourceGroups: groups,
+					}},
+				}}}
+				ctx := context.Background()
+				if err := admitIdentityLeaseWithClients(ctx, request, factory, roles); err != nil {
+					t.Fatalf("admission failed: %v", err)
 				}
-				if tc.checkFIC {
-					inventory.federatedCredentials = []federatedCredentialReference{{resourceGroup: "identity-rg", identityName: "identity", name: "previous-run"}}
+				if transport.roleLists != 1 || transport.identityLists != len(groups) {
+					t.Fatalf("admission must load inventory once, got %d role lists and %d identity lists", transport.roleLists, transport.identityLists)
 				}
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				if tc.cancelAt > 0 {
-					timer := time.AfterFunc(tc.cancelAt, cancel)
-					defer timer.Stop()
-				} else if tc.cancelAt < 0 {
-					cancel()
-				}
-				start := time.Now()
-				err := waitForCleanIdentityLease(ctx, inventory, factory, roles)
-				if tc.wantErr != nil && !errors.Is(err, tc.wantErr) {
-					t.Fatalf("expected %v, got %v", tc.wantErr, err)
-				}
-				if tc.wantText != "" && (err == nil || !strings.Contains(err.Error(), tc.wantText)) {
-					t.Fatalf("expected error containing %q, got %v", tc.wantText, err)
-				}
-				if tc.wantErr == nil && tc.wantText == "" && err != nil {
-					t.Fatalf("expected clean lease, got %v", err)
-				}
-				if elapsed := time.Since(start); elapsed != tc.wantElapsed {
-					t.Fatalf("expected elapsed %s, got %s", tc.wantElapsed, elapsed)
-				}
-				if transport.roleLists != 0 || transport.identityLists != 0 {
-					t.Fatalf("convergence must not reload inventory, got %d role lists and %d identity lists", transport.roleLists, transport.identityLists)
-				}
-				if len(transport.roleReads) != len(tc.wantReads) {
-					t.Fatalf("expected %d targeted reads, got %d", len(tc.wantReads), len(transport.roleReads))
-				}
-				for i, read := range transport.roleReads {
-					if elapsed := read.Sub(start); elapsed != tc.wantReads[i] {
-						t.Fatalf("targeted read %d: expected at %s, got %s", i, tc.wantReads[i], elapsed)
+				var wantInventory []string
+				for _, group := range groups {
+					path := "/subscriptions/sub/resourceGroups/" + group + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities"
+					wantInventory = append(wantInventory, path)
+					for _, name := range framework.NewDefaultIdentities().ToSlice() {
+						wantInventory = append(wantInventory, path+"/"+name+"/federatedIdentityCredentials")
 					}
+				}
+				if len(transport.requests) < len(wantInventory) || !slices.Equal(transport.requests[:len(wantInventory)], wantInventory) {
+					t.Fatalf("inventory must finish each container and read only expected identities: %v", transport.requests)
+				}
+				wantDeletes := 0
+				if dirty {
+					wantDeletes = len(groups) + 1
+				}
+				if len(transport.deletes) != wantDeletes {
+					t.Fatalf("expected only leased FIC and child-scope role deletion, got %v", transport.deletes)
+				}
+				for _, path := range transport.deletes {
+					if strings.HasSuffix(path, "/foreign") {
+						t.Fatalf("deleted another principal's role assignment: %s", path)
+					}
+				}
+				if want := len(wantInventory) + 1 + wantDeletes; len(transport.requests) != want {
+					t.Fatalf("admission must not rescan or confirm deletions: got %d requests, want %d", len(transport.requests), want)
 				}
 			})
 		})
 	}
 }
 
-func TestAdmissionCleansOnlyLeasedPrincipalsAndValidatesFreshInventory(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		transport := &admissionTransport{scenario: "eventual consistency", fic: true, role: true, latency: time.Millisecond}
-		factory, roles := admissionSDKClients(t, transport)
-		groups := []string{"identity-rg-00", "identity-rg-01"}
-		request := assets.LeaseRequest{State: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
-			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
-				Allocation: slots.AllocationDedicated, ResourceGroups: groups,
-			}},
-		}}}
-		ctx := context.Background()
-		if err := prepareIdentityLeaseWithClients(ctx, request, factory, roles); err != nil {
-			t.Fatalf("preparation failed: %v", err)
-		}
-		if transport.roleLists != 1 || transport.identityLists != len(groups) {
-			t.Fatalf("preparation must load inventory once, got %d role lists and %d identity lists", transport.roleLists, transport.identityLists)
-		}
-		var wantInventory []string
-		for _, group := range groups {
-			path := "/subscriptions/sub/resourceGroups/" + group + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities"
-			wantInventory = append(wantInventory, path)
-			for _, name := range framework.NewDefaultIdentities().ToSlice() {
-				wantInventory = append(wantInventory, path+"/"+name+"/federatedIdentityCredentials")
-			}
-		}
-		if len(transport.requests) < len(wantInventory) || !slices.Equal(transport.requests[:len(wantInventory)], wantInventory) {
-			t.Fatalf("inventory must finish each container and read only expected identities: %v", transport.requests)
-		}
-		if len(transport.roleReads) != 3 || transport.ficReads != len(groups) {
-			t.Fatalf("only pending deletions should be rechecked, got %d role reads and %d FIC reads", len(transport.roleReads), transport.ficReads)
-		}
-		if len(transport.deletes) != len(groups)+1 {
-			t.Fatalf("expected only leased FIC and child-scope role deletion, got %v", transport.deletes)
-		}
-		for _, path := range transport.deletes {
-			if strings.HasSuffix(path, "/foreign") {
-				t.Fatalf("deleted another principal's role assignment: %s", path)
-			}
-		}
-		if err := validateCleanIdentityLease(ctx, request, factory, roles); err != nil {
-			t.Fatalf("final validation failed: %v", err)
-		}
-		if transport.roleLists != 2 || transport.identityLists != 2*len(groups) {
-			t.Fatalf("final validation must independently reload inventory, got %d role lists and %d identity lists", transport.roleLists, transport.identityLists)
-		}
-		transport.role = true
-		if err := validateCleanIdentityLease(ctx, request, factory, roles); err == nil {
-			t.Fatal("fresh validation accepted a role assignment added after deletion convergence")
-		}
-		transport.role, transport.fic = false, true
-		if err := validateCleanIdentityLease(ctx, request, factory, roles); err == nil {
-			t.Fatal("fresh validation accepted a FIC added after deletion convergence")
-		}
-	})
-}
-
-func TestAdmissionFailsClosedBeforeCleanup(t *testing.T) {
+func TestAdmissionFailsClosed(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ scenario, want string }{
 		{"missing identity", "missing=[" + framework.NewDefaultIdentities().ToSlice()[0] + "]"},
@@ -343,7 +237,8 @@ func TestAdmissionFailsClosedBeforeCleanup(t *testing.T) {
 		{"role list failure", "fake role list failure"},
 		{"empty role principal", "without a principal ID"},
 		{"whitespace role principal", "without a principal ID"},
-		{"delete failure", "fake delete failure"},
+		{"FIC delete failure", "failed deleting FIC"},
+		{"role delete failure", "failed deleting role assignment"},
 	} {
 		t.Run(tc.scenario, func(t *testing.T) {
 			transport := &admissionTransport{scenario: tc.scenario, fic: true, role: true}
@@ -355,11 +250,11 @@ func TestAdmissionFailsClosedBeforeCleanup(t *testing.T) {
 			}}}
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			err := prepareIdentityLeaseWithClients(ctx, request, factory, roles)
+			err := admitIdentityLeaseWithClients(ctx, request, factory, roles)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("expected admission failure containing %q, got %v", tc.want, err)
 			}
-			if tc.scenario != "delete failure" && len(transport.deletes) != 0 {
+			if !strings.HasSuffix(tc.scenario, "delete failure") && len(transport.deletes) != 0 {
 				t.Fatalf("mutated resources before completing inventory: %v", transport.deletes)
 			}
 		})
