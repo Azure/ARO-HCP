@@ -1,5 +1,6 @@
 prometheusRules:
   rulesFolders:
+  - alerts/UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
   - alerts/access-cluster-slo-prometheusRule.yaml
   - alerts/cluster-provision-slo-prometheusRule.yaml
   - alerts/userJourneyClusterUpgradeMonitor-prometheusRule.yaml

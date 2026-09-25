@@ -29,8 +29,59 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/prometheusrulegroups/armprometheusrulegroups"
 )
+
+func TestManagementKSMRegistrations(t *testing.T) {
+	owners := map[string][]string{}
+	for _, config := range []string{
+		"recording-rules-hcps.yaml", "recording-rules-services.yaml",
+		"alerts-rp-hcps.yaml", "alerts-rp-services.yaml",
+		"alerts-dev-hcps.yaml", "alerts-dev-services.yaml",
+	} {
+		t.Run(config, func(t *testing.T) {
+			opts := NewOptions()
+			require.NoError(t, opts.Complete(filepath.Join("../../../observability", config), "promtool"))
+			available := map[string]bool{}
+			for _, rule := range opts.ruleFiles {
+				available[rule.FileBaseName] = true
+				if !rule.testDependency {
+					owners[rule.FileBaseName] = append(owners[rule.FileBaseName], config)
+				}
+			}
+			// Dependencies must remain local to each registration's test inputs.
+			for _, rule := range opts.ruleFiles {
+				if len(rule.TestFileContent) == 0 {
+					continue
+				}
+				var testFile struct {
+					RuleFiles []string `json:"rule_files"`
+				}
+				require.NoError(t, yaml.Unmarshal(rule.TestFileContent, &testFile))
+				for _, dependency := range testFile.RuleFiles {
+					assert.True(t, available[dependency], "%s requires %s", rule.TestFileBaseName, dependency)
+				}
+			}
+		})
+	}
+
+	for rule, owner := range map[string]string{
+		"HCPkasRecord-prometheusRule-KSM.yaml":                                "recording-rules-services.yaml",
+		"UserJourneyKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml":  "recording-rules-services.yaml",
+		"UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml": "alerts-rp-services.yaml",
+		"mgmt-capacity-prometheusRule.yaml":                                   "alerts-dev-services.yaml",
+		"HCPkasRecord-prometheusRule-apiserver-requests.yaml":                 "recording-rules-hcps.yaml",
+		"HCPkasRecord-prometheusRule-latency.yaml":                            "recording-rules-hcps.yaml",
+		"UserJourneyEtcdLatencyRecord-prometheusRule.yaml":                    "recording-rules-hcps.yaml",
+		"ingress-availability-slo-recordingRule.yaml":                         "recording-rules-hcps.yaml",
+		"UserJourneyEtcdLatencyMonitor-prometheusRule.yaml":                   "alerts-rp-hcps.yaml",
+		"HCPclusterOperators-prometheusRule.yaml":                             "alerts-dev-hcps.yaml",
+	} {
+		assert.Equal(t, []string{owner}, owners[rule], "registration for %s", rule)
+	}
+}
 
 func TestNewOptions(t *testing.T) {
 	opts := NewOptions()

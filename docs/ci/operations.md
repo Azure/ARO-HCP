@@ -154,8 +154,9 @@ regular-container requests. Both capacity lines use Kubernetes node resources;
 in particular, history memory capacity differs from the peak view's node-exporter
 MemTotal denominator. Usage still uses the same two-minute CPU rates and
 one-minute averages of host total-minus-available memory as the peak view.
-Requests combine the services and HCP workspaces without counting replicas
-twice. Empty HCP results are legitimate when both workspace queries succeed
+Management KSM requests now route to services even for HCP namespaces. Requests
+still combine the services and HCP workspaces without counting replicas twice
+to support historical data from before that routing change. Empty HCP results are legitimate when both workspace queries succeed
 and the shared KSM collector has inventory evidence in the services workspace.
 
 SWIFT-NIC plots advertised capacity, allocatable and assigned requested slots,

@@ -68533,18 +68533,35 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
-    # Both drop rules are needed: the namespace rule catches HCP metrics where
-    # namespace is still ocm-* (cluster-scoped like nodes, plus non-KSM HCP metrics),
-    # while the hostedcontrolplane rule catches per-HCP KSM metrics for namespaced
-    # resources where namespace has been promoted to the actual resource namespace
-    # (e.g. openshift-ingress-operator) and no longer matches ocm-*.
+    # Object namespaces do not identify the metric source: management KSM
+    # describes our infrastructure even when the observed pod hosts an HCP.
     writeRelabelConfigs:
+      - targetLabel: __tmp_arohcp_workspace
+        replacement: services
+        action: replace
       - sourceLabels: [namespace]
         regex: '^ocm-arohcpdev.*'
-        action: drop
+        targetLabel: __tmp_arohcp_workspace
+        replacement: hcp
+        action: replace
       - sourceLabels: [hostedcontrolplane]
         regex: '^ocm-arohcpdev.*'
+        targetLabel: __tmp_arohcp_workspace
+        replacement: hcp
+        action: replace
+      # The management KSM job has no guest identity. Per-HCP KSM queries the
+      # guest API and carries hostedcontrolplane, so it keeps the HCP route.
+      - sourceLabels: [job, hostedcontrolplane]
+        separator: ;
+        regex: 'kube-state-metrics;'
+        targetLabel: __tmp_arohcp_workspace
+        replacement: services
+        action: replace
+      - sourceLabels: [__tmp_arohcp_workspace]
+        regex: hcp
         action: drop
+      - regex: __tmp_arohcp_workspace
+        action: labeldrop
   - url: '__hcpDcrRemoteWriteUrl__'
     azureAd:
       cloud: AzurePublic
@@ -68559,15 +68576,33 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
-    # Combined into a single rule because sequential keep rules are AND
-    # (a metric must match all rules to survive), but we need OR — keep if
-    # either namespace or hostedcontrolplane matches ocm-*.
-    # See https://github.com/prometheus/prometheus/issues/3996
     writeRelabelConfigs:
-      - sourceLabels: [namespace, hostedcontrolplane]
+      - targetLabel: __tmp_arohcp_workspace
+        replacement: services
+        action: replace
+      - sourceLabels: [namespace]
+        regex: '^ocm-arohcpdev.*'
+        targetLabel: __tmp_arohcp_workspace
+        replacement: hcp
+        action: replace
+      - sourceLabels: [hostedcontrolplane]
+        regex: '^ocm-arohcpdev.*'
+        targetLabel: __tmp_arohcp_workspace
+        replacement: hcp
+        action: replace
+      # The management KSM job has no guest identity. Per-HCP KSM queries the
+      # guest API and carries hostedcontrolplane, so it keeps the HCP route.
+      - sourceLabels: [job, hostedcontrolplane]
         separator: ;
-        regex: '(ocm-arohcpdev[^;]*;.*|.*;ocm-arohcpdev.*)'
+        regex: 'kube-state-metrics;'
+        targetLabel: __tmp_arohcp_workspace
+        replacement: services
+        action: replace
+      - sourceLabels: [__tmp_arohcp_workspace]
+        regex: hcp
         action: keep
+      - regex: __tmp_arohcp_workspace
+        action: labeldrop
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus/rules-1.14/alertmanager.rules.yaml
 apiVersion: monitoring.coreos.com/v1
