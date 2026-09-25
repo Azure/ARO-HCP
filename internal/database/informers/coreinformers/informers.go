@@ -135,13 +135,13 @@ func NewBillingInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 }
 
 // NewClusterInformer creates an unstarted SharedIndexInformer for clusters
-// with a resource group index using the default relist duration.
+// with subscription and resource group indexes using the default relist duration.
 func NewClusterInformer(lister cosmosstorageutils.GlobalLister[coreapi.Cluster], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewClusterInformerWithRelistDuration(lister, cosmosClient, ClusterRelistDuration)
 }
 
 // NewClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for clusters
-// with a resource group index and a configurable relist duration.
+// with subscription and resource group indexes and a configurable relist duration.
 func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.Cluster], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := informerutils.NewChangeFeedListWatcher[coreapi.Cluster, *coreapi.Cluster, cosmosstorageutils.GenericDocument[coreapi.Cluster]](
 		[]azcorearm.ResourceType{coreapi.ClusterResourceType},
@@ -158,6 +158,7 @@ func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
+				corelisters.BySubscription:  clusterSubscriptionIndexFunc,
 				corelisters.ByResourceGroup: resourceGroupIndexFunc,
 			},
 			ObjectDescription: "Cluster",
@@ -511,6 +512,17 @@ func NewActiveOperationInformerWithRelistDuration(lister cosmosstorageutils.Glob
 			ObjectDescription: "ActiveOperation",
 		},
 	)
+}
+
+func clusterSubscriptionIndexFunc(obj interface{}) ([]string, error) {
+	cluster, ok := obj.(*coreapi.Cluster)
+	if !ok {
+		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected *coreapi.Cluster", obj))
+	}
+	if cluster.GetResourceID() == nil {
+		return nil, utils.TrackError(fmt.Errorf("obj is missing resourceID: %T %v", obj, obj))
+	}
+	return []string{strings.ToLower(cluster.GetResourceID().SubscriptionID)}, nil
 }
 
 func resourceGroupIndexFunc(obj interface{}) ([]string, error) {

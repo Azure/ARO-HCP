@@ -137,11 +137,7 @@ func (m *MockFleetDBClient) StoreDocument(cosmosID string, data json.RawMessage)
 }
 
 func (m *MockFleetDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
-	var continuation string
-	if options != nil && options.Continuation != nil {
-		continuation = *options.Continuation
-	}
-	items, nextToken, hasNew := m.changeFeed.Read(continuation)
+	items, nextToken, hasNew := m.changeFeed.Read(options)
 	return corecosmosstoragetesting.BuildMockChangeFeedResponse(items, nextToken, hasNew), nil
 }
 

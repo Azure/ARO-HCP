@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -55,6 +56,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -69,6 +71,10 @@ type Frontend struct {
 	server               http.Server
 	metricsServer        http.Server
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
+	clusterInformer      cache.SharedIndexInformer
+	nodePoolInformer     cache.SharedIndexInformer
+	clusterLister        corelisters.ClusterLister
+	nodePoolLister       corelisters.NodePoolLister
 	auditClient          audit.Client
 	healthGauge          prometheus.Gauge
 	// this is the azure location for this instance of the frontend
@@ -86,6 +92,8 @@ func NewFrontend(
 	registerer prometheus.Registerer,
 	gatherer prometheus.Gatherer,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	clusterInformer cache.SharedIndexInformer,
+	nodePoolInformer cache.SharedIndexInformer,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
@@ -118,6 +126,10 @@ func NewFrontend(
 		},
 		auditClient:       auditClient,
 		resourcesDBClient: resourcesDBClient,
+		clusterInformer:   clusterInformer,
+		nodePoolInformer:  nodePoolInformer,
+		clusterLister:     corelisters.NewClusterLister(clusterInformer.GetIndexer()),
+		nodePoolLister:    corelisters.NewNodePoolLister(nodePoolInformer.GetIndexer()),
 		healthGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
@@ -135,16 +147,33 @@ func NewFrontend(
 	return f
 }
 
-func (f *Frontend) Run(ctx context.Context) error {
+func (f *Frontend) Run(ctx context.Context) (runErr error) {
 	ctx, cancel := context.WithCancelCause(ctx)
+	logger := utils.LoggerFromContext(ctx)
+	var wg sync.WaitGroup
+	errCh := make(chan error, 2)
 	defer func() {
 		cancel(fmt.Errorf("run returned"))
 
 		// always attempt a graceful shutdown, a double ctrl+c exits the process
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
 		defer shutdownCancel()
-		_ = f.server.Shutdown(shutdownCtx)
-		_ = f.metricsServer.Shutdown(shutdownCtx)
+		if err := f.server.Shutdown(shutdownCtx); err != nil {
+			logger.Error(err, "failed to shutdown http server")
+		}
+		if err := f.metricsServer.Shutdown(shutdownCtx); err != nil {
+			logger.Error(err, "failed to shutdown metrics server")
+		}
+		// Serve may never have taken ownership of the API listener if warmup aborted.
+		_ = f.listener.Close()
+		_ = f.metricsListener.Close()
+		wg.Wait()
+		close(errCh)
+		for err := range errCh {
+			if !errors.Is(err, http.ErrServerClosed) {
+				runErr = errors.Join(runErr, err)
+			}
+		}
 	}()
 
 	if len(f.azureLocation) == 0 {
@@ -155,50 +184,43 @@ func (f *Frontend) Run(ctx context.Context) error {
 	// control the behavior of k8s.io/apimachinery/pkg/util/runtime.HandleCrash* methods
 	k8sutilruntime.ReallyCrash = f.exitOnPanic
 
-	// This just digs up the logger passed to NewFrontend.
-	logger := utils.LoggerFromContext(ctx)
-
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
 
-	errCh := make(chan error, 2)
-	wg := sync.WaitGroup{}
-	wg.Add(2)
+	for _, informer := range []cache.SharedIndexInformer{f.clusterInformer, f.nodePoolInformer} {
+		wg.Add(1)
+		go func() {
+			defer k8sutilruntime.HandleCrash()
+			defer wg.Done()
+			informer.RunWithContext(ctx)
+		}()
+	}
+	wg.Add(1)
 	go func() {
 		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
-		errCh <- f.server.Serve(f.listener)
+		err := f.metricsServer.Serve(f.metricsListener)
+		errCh <- err
+		cancel(err)
 	}()
+
+	if !cache.WaitForNamedCacheSyncWithContext(ctx, f.clusterInformer.HasSynced, f.nodePoolInformer.HasSynced) {
+		return fmt.Errorf("admission cache warmup aborted: %w", context.Cause(ctx))
+	}
+	if ctx.Err() != nil {
+		return context.Cause(ctx)
+	}
+	wg.Add(1)
 	go func() {
 		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
-		errCh <- f.metricsServer.Serve(f.metricsListener)
+		err := f.server.Serve(f.listener)
+		errCh <- err
+		cancel(err)
 	}()
 
 	<-ctx.Done()
-
-	// always attempt a graceful shutdown, a double ctrl+c exits the process
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
-	defer shutdownCancel()
-	if err := f.server.Shutdown(shutdownCtx); err != nil {
-		logger.Error(err, "failed to shutdown http server")
-	}
-	if err := f.metricsServer.Shutdown(shutdownCtx); err != nil {
-		logger.Error(err, "failed to shutdown http server")
-	}
-
-	wg.Wait()
-	close(errCh)
-	errs := []error{}
-	for err := range errCh {
-		if err != nil {
-			logger.Info("go func completed", "message", err.Error())
-		}
-		if !errors.Is(err, http.ErrServerClosed) {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
+	return nil
 }
 
 func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {

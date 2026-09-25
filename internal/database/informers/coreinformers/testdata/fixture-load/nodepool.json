@@ -1,0 +1,21 @@
+{
+  "id": "bc2a0719-8b03-5d23-87ca-7d55b8b993ca",
+  "partitionKey": "sub-a",
+  "resourceID": "/subscriptions/Sub-A/resourceGroups/RG-one/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/pool",
+  "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
+  "_etag": "fixture-nodepool-etag",
+  "_ts": 1234567890,
+  "unknownFixtureField": "preserve me too",
+  "properties": {
+    "cosmosMetadata": {
+      "instanceVersion": 9,
+      "partitionKey": "sub-a",
+      "resourceID": "/subscriptions/Sub-A/resourceGroups/RG-one/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/pool"
+    },
+    "id": "/subscriptions/Sub-A/resourceGroups/RG-one/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/pool",
+    "name": "pool",
+    "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
+    "location": "eastus",
+    "properties": {"replicas": 3}
+  }
+}
