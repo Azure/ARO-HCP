@@ -20,7 +20,6 @@
 package read_desire_kubernetes
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -40,6 +39,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -322,14 +322,14 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 		}
 	}
 
-	// No-op if the new payload is byte-equal to the existing status. A nil
-	// pointer collapses to a nil Raw for the comparison so "absent stays
-	// absent" doesn't trip the publish branch.
-	var existingRaw []byte
-	if desire.Status.KubeContent != nil {
-		existingRaw = desire.Status.KubeContent.Raw
+	// No-op if the new payload is semantically equal to the existing status. A
+	// nil *RawExtension is the "kube object absent" signal, so nil-vs-nil is a
+	// no-op and nil-vs-content is a real change.
+	var newContent *runtime.RawExtension
+	if newRaw != nil {
+		newContent = &runtime.RawExtension{Raw: append([]byte(nil), newRaw...)}
 	}
-	if bytes.Equal(newRaw, existingRaw) {
+	if !internalcontrollerutils.NeedsUpdate(desire.Status.KubeContent, newContent) {
 		// Still ensure Successful=True so a freshly-launched controller flips
 		// the condition out of Unknown into True on the first cycle.
 		return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplierapi.ReadDesire) {
@@ -338,11 +338,7 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 	}
 
 	return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplierapi.ReadDesire) {
-		if newRaw == nil {
-			d.Status.KubeContent = nil
-		} else {
-			d.Status.KubeContent = &runtime.RawExtension{Raw: append([]byte(nil), newRaw...)}
-		}
+		d.Status.KubeContent = newContent
 		conditions.SetSuccessful(&d.Status.Conditions, nil)
 	})
 }
