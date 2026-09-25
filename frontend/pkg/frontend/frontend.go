@@ -354,7 +354,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	if len(body) > 0 {
 		credentialRequest, err := versionedInterface.UnmarshalClusterAdminCredentialRequest(body)
 		if err != nil {
-			return utils.TrackError(err)
+			return utils.TrackError(coreapi.NewInvalidRequestContentError(err))
 		}
 		if credentialRequest != nil {
 			certificateSigningRequest = credentialRequest.CertificateSigningRequest
