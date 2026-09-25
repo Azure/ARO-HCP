@@ -111,19 +111,21 @@ func utilizationCollectRequestHistory(ctx context.Context, query utilizationQuer
 }
 
 type utilizationHistoryPod struct {
-	uid, node, phase, requestNode    string
+	node, phase                      string
 	placement, conflict, unscheduled bool
+	scheduled                        bool
+	candidates                       map[string]bool
 	containers                       map[string]*[3]*float64
 }
 
 func utilizationBuildRequestHistory(samples []utilizationHistorySample, results []utilizationQueryResult, clusters []string) {
 	type minute struct {
-		pods     map[utilizationPodKey]*utilizationHistoryPod
-		coverage map[utilizationInstanceKey]bool // cluster and workspace
+		pods     map[utilizationPodKey]map[string]*utilizationHistoryPod // name, then UID
+		coverage map[utilizationInstanceKey]bool                         // cluster and workspace
 	}
 	minutes := map[int64]*minute{}
 	for _, sample := range samples {
-		minutes[sample.Time.Unix()] = &minute{pods: map[utilizationPodKey]*utilizationHistoryPod{}, coverage: map[utilizationInstanceKey]bool{}}
+		minutes[sample.Time.Unix()] = &minute{pods: map[utilizationPodKey]map[string]*utilizationHistoryPod{}, coverage: map[utilizationInstanceKey]bool{}}
 	}
 	success := map[utilizationInstanceKey]bool{} // workspace and query name
 	for _, result := range results {
@@ -151,16 +153,18 @@ func utilizationBuildRequestHistory(samples []utilizationHistorySample, results 
 					continue
 				}
 				key := utilizationPodKey{m["cluster"], m["namespace"], m["pod"]}
-				pod := state.pods[key]
-				if pod == nil {
-					pod = &utilizationHistoryPod{containers: map[string]*[3]*float64{}}
-					state.pods[key] = pod
+				if state.pods[key] == nil {
+					state.pods[key] = map[string]*utilizationHistoryPod{}
 				}
 				uid := strings.ToLower(m["uid"])
-				if uid == "" || (pod.uid != "" && pod.uid != uid) {
-					pod.conflict = true
+				pod := state.pods[key][uid]
+				if pod == nil {
+					pod = &utilizationHistoryPod{conflict: uid == "", candidates: map[string]bool{}, containers: map[string]*[3]*float64{}}
+					state.pods[key][uid] = pod
 				}
-				pod.uid = uid
+				if m["node"] != "" {
+					pod.candidates[m["node"]] = true
+				}
 				if metadata {
 					switch m["__name__"] {
 					case "kube_pod_info":
@@ -177,6 +181,7 @@ func utilizationBuildRequestHistory(samples []utilizationHistorySample, results 
 						pod.phase = phase
 					case "kube_pod_status_scheduled":
 						pod.unscheduled = pod.unscheduled || m["condition"] == "false"
+						pod.scheduled = pod.scheduled || m["condition"] == "true"
 					}
 					if m["__name__"] != "kube_pod_container_info" {
 						continue
@@ -195,12 +200,6 @@ func utilizationBuildRequestHistory(samples []utilizationHistorySample, results 
 					pod.containers[name] = &[3]*float64{}
 				}
 				if !metadata {
-					if m["node"] != "" {
-						if pod.requestNode != "" && pod.requestNode != m["node"] {
-							pod.conflict = true
-						}
-						pod.requestNode = m["node"]
-					}
 					for i, resource := range []string{"cpu", "memory", "aro_openshift_io_swift_nic"} {
 						if m["resource"] == resource {
 							utilizationMax(&pod.containers[name][i], v)
@@ -215,11 +214,22 @@ func utilizationBuildRequestHistory(samples []utilizationHistorySample, results 
 		state := minutes[sample.Time.Unix()]
 		unknownClusters := map[string]bool{}
 		unknownNodes := map[utilizationNodeKey]bool{}
-		totals := map[utilizationNodeKey][3]float64{}
+		totals := map[utilizationNodeKey][3]*float64{}
 		warnings := map[string]bool{}
 		nodes := map[utilizationNodeKey]bool{}
 		for _, node := range sample.Nodes {
 			nodes[utilizationNodeKey{node.Cluster, node.Name}] = true
+		}
+		invalidate := func(cluster string, candidates map[string]bool, reason string) {
+			if len(candidates) == 0 {
+				unknownClusters[cluster] = true
+				warnings[cluster+": "+reason+"; cluster requests incomplete"] = true
+				return
+			}
+			for node := range candidates {
+				unknownNodes[utilizationNodeKey{cluster, node}] = true
+				warnings[cluster+"/"+node+": "+reason+"; requests incomplete"] = true
+			}
 		}
 		for _, cluster := range clusters {
 			// AKS uses one KSM collector whose pod metrics are split by namespace
@@ -253,27 +263,59 @@ func utilizationBuildRequestHistory(samples []utilizationHistorySample, results 
 			return a.pod < b.pod
 		})
 		for _, key := range keys {
-			pod := state.pods[key]
-			if pod.conflict || (pod.requestNode != "" && pod.requestNode != pod.node) {
-				unknownClusters[key.cluster] = true
-				warnings[key.cluster+": request placement or pod UID/phase ambiguous; cluster requests unknown"] = true
+			incarnations := state.pods[key]
+			candidates := map[string]bool{}
+			unbounded := false
+			var pod *utilizationHistoryPod
+			for _, incarnation := range incarnations {
+				pod = incarnation
+				pod.conflict = pod.conflict || (pod.unscheduled && (pod.scheduled || pod.phase == "running"))
+				terminal := !pod.conflict && (pod.phase == "succeeded" || pod.phase == "failed")
+				unscheduled := !pod.conflict && !pod.scheduled && (pod.unscheduled || (pod.placement && pod.node == "" && pod.phase == "pending"))
+				// Known nodes from another UID do not bound this incarnation's
+				// placement unless its own evidence rules out assigned demand.
+				unbounded = unbounded || (len(pod.candidates) == 0 && !terminal && !unscheduled)
+				for node := range incarnation.candidates {
+					candidates[node] = true
+				}
+			}
+			if len(incarnations) == 1 && !pod.conflict && (pod.phase == "succeeded" || pod.phase == "failed") {
 				continue
 			}
-			if pod.phase == "succeeded" || pod.phase == "failed" {
+			// Preserve demand and placement uncertainty even when node inventory
+			// is absent. Never infer a pool, capacity, or zero requests here.
+			for name := range candidates {
+				node := utilizationNodeKey{key.cluster, name}
+				if !nodes[node] {
+					sample.Nodes = append(sample.Nodes, utilizationHistoryEntry{Cluster: key.cluster, Name: name})
+					nodes[node] = true
+				}
+			}
+			// Do not merge incarnations or pick one by input order: stale requests
+			// (including terminal/live overlaps) are not a safe lower bound.
+			if len(incarnations) != 1 || pod.conflict || len(candidates) > 1 || (len(candidates) > 0 && (pod.unscheduled || (pod.placement && pod.node == ""))) {
+				if unbounded {
+					invalidate(key.cluster, nil, "request placement or pod UID/phase ambiguous")
+				} else {
+					invalidate(key.cluster, candidates, "request placement or pod UID/phase ambiguous")
+				}
 				continue
 			}
-			if !pod.placement || (pod.node == "" && pod.phase != "pending" && !pod.unscheduled) || (pod.node != "" && pod.unscheduled) || (pod.node != "" && !nodes[utilizationNodeKey{key.cluster, pod.node}]) {
-				unknownClusters[key.cluster] = true
-				warnings[key.cluster+": request placement unavailable; cluster requests unknown"] = true
+			if len(candidates) == 0 {
+				if unbounded {
+					invalidate(key.cluster, candidates, "request placement unavailable")
+				}
 				continue
 			}
-			if pod.node == "" {
-				continue
+			// A unique request node can supply placement when pod info is absent.
+			var node utilizationNodeKey
+			for name := range candidates {
+				node = utilizationNodeKey{key.cluster, name}
 			}
-			node := utilizationNodeKey{key.cluster, pod.node}
 			if pod.phase == "" || len(pod.containers) == 0 {
-				unknownNodes[node] = true
-				warnings[key.cluster+"/"+pod.node+": pod phase or container inventory unavailable; requests unknown"] = true
+				// Requests without phase evidence might belong to a terminal pod,
+				// so even their observed values cannot supply a lower bound.
+				invalidate(key.cluster, candidates, "pod phase or container inventory unavailable")
 				continue
 			}
 			names := make([]string, 0, len(pod.containers))
@@ -284,10 +326,13 @@ func utilizationBuildRequestHistory(samples []utilizationHistorySample, results 
 			total := totals[node]
 			for _, name := range names {
 				for resource, value := range pod.containers[name] {
-					// An absent request is zero only after successful queries and
-					// inventory coverage; unknown cluster totals are withheld below.
+					// Retain evidence per resource, including observed zeros. Absent
+					// samples become zero only for complete totals below.
 					if value != nil {
-						total[resource] += *value
+						if total[resource] == nil {
+							total[resource] = new(float64)
+						}
+						*total[resource] += *value
 					}
 				}
 			}
@@ -296,12 +341,26 @@ func utilizationBuildRequestHistory(samples []utilizationHistorySample, results 
 		for j := range sample.Nodes {
 			node := &sample.Nodes[j]
 			key := utilizationNodeKey{node.Cluster, node.Name}
+			total := totals[key]
+			node.Requests, node.PartialRequests = utilizationHistoryResources{}, utilizationHistoryResources{}
 			if unknownClusters[node.Cluster] || unknownNodes[key] || !node.Inventory {
+				node.PartialRequests = utilizationHistoryResources{CPU: total[0], Memory: total[1], SwiftNIC: total[2]}
 				continue
 			}
-			total := totals[key]
-			node.Requests = utilizationHistoryResources{CPU: &total[0], Memory: &total[1], SwiftNIC: &total[2]}
+			for resource := range total {
+				if total[resource] == nil {
+					total[resource] = new(float64)
+				}
+			}
+			node.Requests = utilizationHistoryResources{CPU: total[0], Memory: total[1], SwiftNIC: total[2]}
 		}
+		sort.Slice(sample.Nodes, func(i, j int) bool {
+			a, b := sample.Nodes[i], sample.Nodes[j]
+			if a.Cluster != b.Cluster {
+				return a.Cluster < b.Cluster
+			}
+			return a.Name < b.Name
+		})
 		var sorted []string
 		for warning := range warnings {
 			sorted = append(sorted, warning)

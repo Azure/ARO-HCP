@@ -139,8 +139,9 @@ Synthetic-data desktop and mobile previews:
 The Resource History tab retains every evaluated minute, not just peak samples.
 Select the fleet, a cluster, pool, or historical node to inspect CPU, memory,
 and SWIFT-NIC resources. The three charts share time zoom, not hover. Hovering
-a line shows only its timestamp and value; legends remain visible and point
-markers are omitted. Changing scope preserves the time window. Absolute units (cores, GiB, slots) are the
+a complete line shows its timestamp and value; legends remain visible. Partial
+requests have visible point markers and a tooltip explaining their coverage.
+Changing scope preserves the time window. Absolute units (cores, GiB, slots) are the
 default; percentage mode divides aggregate quantities by aggregate capacity.
 Pool membership and node placement are evaluated at each sample, including
 nodes deleted before collection. Unknown pool labels are not inferred from names.
@@ -163,13 +164,23 @@ scheduler reservations or a guarantee that new pods will fit. NotReady and
 cordoned nodes remain included, and shared environments show regional load
 during the run, not load attributable exclusively to that run.
 
-Incomplete measurements create gaps in the affected aggregate line. Known
+Incomplete request totals retain safely placed observations in a separate orange,
+dashed **Partial requests (lower bound)** series. It combines complete node totals
+with partial node sums without double counting. Conflicts with known candidate
+nodes affect only those nodes; unbounded placement or failed workspace coverage
+makes the cluster partial rather than discarding its known demand. Selecting an
+unaffected node or pool still shows complete requests. Missing observations are
+not zero, and ambiguous or potentially terminal pod contributions are excluded.
+The additive `partialRequests` JSON field retains these sums for replay. Older
+artifacts that discarded partial sums cannot recover them merely by re-rendering.
+
+Other incomplete measurements create gaps in the affected aggregate line. Known
 absolute usage can still be shown when capacity is unavailable, but percentage
 mode requires a complete positive capacity denominator. Saved JSON retains
-collection diagnostics; the collector cannot detect nodes
-or pods absent from every input metric. There is no interpolation, silent
-partial summation, or zero-filling. The graph-only view requires the ECharts CDN;
-there is no sample table or measurement-details section.
+collection diagnostics, shown in a collapsed **Data quality** section with scoped
+warnings and inclusive minute intervals. The collector cannot detect nodes or
+pods absent from every input metric. There is no interpolation, silent partial
+summation, or zero-filling. The charts require the ECharts CDN.
 
 To iterate on the UI with an existing artifact:
 
