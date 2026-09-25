@@ -22,6 +22,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 )
 
 func TestUtilizationCoverageGaps(t *testing.T) {
@@ -127,7 +129,7 @@ func TestUtilizationCoverageGaps(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			results := utilizationTestHistory([]string{"mgmt", "Svc.Mixed"}, 3)
 			for i := range results {
-				results[i].series = slices.DeleteFunc(results[i].series, func(s PrometheusResult) bool {
+				results[i].series = slices.DeleteFunc(results[i].series, func(s promutil.Result) bool {
 					ts, _, _ := utilizationValue(s.Values[0])
 					return test.drop != nil && test.drop(results[i].query.name, s.Metric, int((ts-utilizationTestTime.Unix())/60))
 				})
@@ -294,7 +296,7 @@ func TestUtilizationCoverageEarlyReturns(t *testing.T) {
 	if !reflect.DeepEqual(report.Coverage, want) || len(report.Snapshots) != 0 || !slices.Contains(report.Warnings, "expected underlay cluster inventory unavailable; no peaks selected") {
 		t.Errorf("missing cluster inventory must retain excluded overall intervals and warning: %+v", report)
 	}
-	report = collectUtilization(context.Background(), utilizationTestTime.Add(time.Second), utilizationTestTime.Add(2*time.Second), end, func(context.Context, string, string, time.Time, time.Time) ([]PrometheusResult, error) {
+	report = collectUtilization(context.Background(), utilizationTestTime.Add(time.Second), utilizationTestTime.Add(2*time.Second), end, func(context.Context, string, string, time.Time, time.Time) ([]promutil.Result, error) {
 		t.Error("empty minute window must not query")
 		return nil, nil
 	})

@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 )
 
 type utilizationQuery struct {
@@ -32,11 +34,11 @@ type utilizationQuery struct {
 
 type utilizationQueryResult struct {
 	query  utilizationQuery
-	series []PrometheusResult
+	series []promutil.Result
 	err    error
 }
 
-type utilizationQueryFunc func(context.Context, string, string, time.Time, time.Time) ([]PrometheusResult, error)
+type utilizationQueryFunc func(context.Context, string, string, time.Time, time.Time) ([]promutil.Result, error)
 
 // Azure Managed Prometheus requires an exact metric name per selector. Match
 // unions on __name__ so different metric families with identical labels survive.

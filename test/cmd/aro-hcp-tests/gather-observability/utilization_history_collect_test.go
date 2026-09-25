@@ -23,6 +23,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 )
 
 func utilizationTestRequestHistory(minutes int) ([]utilizationHistorySample, []utilizationQueryResult) {
@@ -96,7 +98,7 @@ func TestUtilizationRequestHistoryUnknownCoverage(t *testing.T) {
 				results[3].err = errors.New("denied")
 			case "missing phase", "missing containers", "missing placement":
 				metric := map[string]string{"missing phase": "kube_pod_status_phase", "missing containers": "kube_pod_container_info", "missing placement": "kube_pod_info"}[test]
-				results[0].series = slices.DeleteFunc(results[0].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == metric })
+				results[0].series = slices.DeleteFunc(results[0].series, func(s promutil.Result) bool { return s.Metric["__name__"] == metric })
 				if test == "missing containers" {
 					results[1].series = nil
 				}
@@ -504,7 +506,7 @@ func TestUtilizationRequestHistorySharedCollectorCoverage(t *testing.T) {
 func TestUtilizationRequestHistorySpecBackedContainers(t *testing.T) {
 	samples, results := utilizationTestRequestHistory(1)
 	utilizationTestHistoryPod(results, 0, samples[0].Time, "pod", "uid", "node", "Pending", 2)
-	results[0].series = slices.DeleteFunc(results[0].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_container_info" })
+	results[0].series = slices.DeleteFunc(results[0].series, func(s promutil.Result) bool { return s.Metric["__name__"] == "kube_pod_container_info" })
 	// Retain the existing convention: observed regular-container requests can
 	// supply inventory before runtime status exists, without querying limits.
 	utilizationBuildRequestHistory(samples, results, []string{"mgmt"})
@@ -616,7 +618,7 @@ func TestUtilizationHistoryGridMemorySwiftAndChurn(t *testing.T) {
 	}
 	end := utilizationTestTime.Add(3 * time.Minute)
 	// Keep only exporter metrics in minute two and no inventory in minute three.
-	results[1].series = slices.DeleteFunc(results[1].series, func(s PrometheusResult) bool {
+	results[1].series = slices.DeleteFunc(results[1].series, func(s promutil.Result) bool {
 		return s.Values[0][0] == float64(utilizationTestTime.Add(2*time.Minute).Unix())
 	})
 	history, _ := utilizationBuildHistory(results, utilizationTestTime, end)
@@ -649,7 +651,7 @@ func TestUtilizationRequestHistoryChunksBeforePeaksAndCancellation(t *testing.T)
 	queries := utilizationRequestHistoryQueries([]string{"mgmt"})
 	var mu sync.Mutex
 	chunks := map[int64]int{}
-	query := func(ctx context.Context, ws, expression string, first, last time.Time) ([]PrometheusResult, error) {
+	query := func(ctx context.Context, ws, expression string, first, last time.Time) ([]promutil.Result, error) {
 		for _, q := range queries {
 			if q.expression != expression || q.workspace != ws {
 				continue
@@ -664,7 +666,7 @@ func TestUtilizationRequestHistoryChunksBeforePeaksAndCancellation(t *testing.T)
 				cancel()
 				return nil, ctx.Err()
 			}
-			var series []PrometheusResult
+			var series []promutil.Result
 			if q.name == "history metadata" {
 				for at := first; !at.After(last); at = at.Add(time.Minute) {
 					series = append(series, utilizationTestSeries(at, 1, "__name__", "kube_state_metrics_list_total", "cluster", "mgmt"))
