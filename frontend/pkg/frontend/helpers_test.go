@@ -226,7 +226,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 
-			parentCluster := &coreapi.HCPOpenShiftCluster{
+			parentCluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   parentResourceID,
 					PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
@@ -236,7 +236,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 						ID: parentResourceID,
 					},
 				},
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ProvisioningState: coreapi.ProvisioningStateAccepted,
 					ClusterServiceID:  nil,
 				},
@@ -254,7 +254,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 			emptyID := metadataapi.InternalID{}
-			parentCluster := &coreapi.HCPOpenShiftCluster{
+			parentCluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   parentResourceID,
 					PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
@@ -264,7 +264,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 						ID: parentResourceID,
 					},
 				},
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ProvisioningState: coreapi.ProvisioningStateAccepted,
 					ClusterServiceID:  &emptyID,
 				},
@@ -282,7 +282,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 			clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
-			parentCluster := &coreapi.HCPOpenShiftCluster{
+			parentCluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   parentResourceID,
 					PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
@@ -292,7 +292,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 						ID: parentResourceID,
 					},
 				},
-				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ProvisioningState: coreapi.ProvisioningStateAccepted,
 					ClusterServiceID:  &clusterInternalID,
 				},
