@@ -542,7 +542,7 @@ spec:
           periodSeconds: 10
         resources:
           requests:
-            cpu: 100m
+            cpu: 313m
             memory: 768Mi
         volumeMounts: []
       volumes: []

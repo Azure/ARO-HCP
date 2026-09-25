@@ -342,24 +342,6 @@
         "connectSocket"
       ]
     },
-    "tracing": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "address": {
-          "type": "string",
-          "description": "Defines exporter address"
-        },
-        "exporter": {
-          "type": "string",
-          "description": "Defines which exporter the SDK should use"
-        }
-      },
-      "required": [
-        "address",
-        "exporter"
-      ]
-    },
     "acr": {
       "type": "object",
       "properties": {
@@ -1140,7 +1122,8 @@
   },
   "properties": {
     "environmentName": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^[A-Za-z0-9-]+$"
     },
     "azureGeoShortId": {
       "type": "string"
@@ -1269,9 +1252,6 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
-        "tracing": {
-          "$ref": "#/definitions/tracing"
-        },
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by CS to interact with Azure"
@@ -1344,7 +1324,6 @@
         "k8s",
         "azureOperatorsManagedIdentities",
         "postgres",
-        "tracing",
         "azureRuntimeConfig"
       ]
     },
@@ -1432,9 +1411,7 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
-        "tracing": {
-          "$ref": "#/definitions/tracing"
-        },
+
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
@@ -1483,7 +1460,6 @@
       "additionalProperties": false,
       "required": [
         "image",
-        "tracing",
         "k8s",
         "managedIdentityName",
         "azureRuntimeConfig",
@@ -1772,9 +1748,7 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
-        "tracing": {
-          "$ref": "#/definitions/tracing"
-        },
+
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
@@ -1863,7 +1837,6 @@
         "image",
         "cosmosDB",
         "cert",
-        "tracing",
         "k8s",
         "managedIdentityName",
         "exitOnPanic",
@@ -2509,10 +2482,6 @@
         },
         "imageV2": {
           "$ref": "#/definitions/containerImage"
-        },
-        "tracing": {
-          "$ref": "#/definitions/tracing",
-          "description": "Tracing configuration for OTLP traces."
         }
       },
       "required": [
@@ -2523,7 +2492,6 @@
         "arm",
         "genevaActions",
         "sessiongate",
-        "tracing",
         "applicationName"
       ]
     },
@@ -2997,9 +2965,6 @@
             "loglevel": {
               "type": "integer"
             },
-            "tracing": {
-              "$ref": "#/definitions/tracing"
-            },
             "k8s": {
               "$ref": "#/definitions/k8sDeployment"
             }
@@ -3163,9 +3128,6 @@
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
         },
-        "jaeger": {
-          "deploy": "boolean"
-        },
         "prometheus": {
           "description": "Prometheus deployment configuration",
           "$ref": "#/definitions/prometheus"
@@ -3193,6 +3155,27 @@
         "grafanaSku": {
           "type": "string",
           "description": "The SKU of the Azure Managed Grafana instance (e.g. Standard, Essential)."
+        },
+        "adxKustoAccessEnabled": {
+          "type": "boolean",
+          "description": "Whether Kusto deployment grants the global Grafana identity Viewer access to ServiceLogs."
+        },
+        "adxIntegrationEnabled": {
+          "type": "boolean",
+          "description": "Whether the global Grafana reconciliation manages ADX integration-fabric child resources."
+        },
+        "adxIntegrationGeographies": {
+          "type": "string",
+          "pattern": "^$|^\\s*[A-Za-z0-9-]+\\s*(,\\s*[A-Za-z0-9-]+\\s*)*$",
+          "description": "Complete comma-separated geography short ID set for ADX integration fabrics. Required when integration reconciliation is enabled."
+        },
+        "adxIntegrationScenario": {
+          "type": "string",
+          "description": "Optional Managed Grafana integration-fabric scenario supplied to the Dashboard resource provider."
+        },
+        "adxIntegrationTargetResourceId": {
+          "type": "string",
+          "description": "Optional target resource ID supplied to each Managed Grafana ADX integration fabric."
         },
         "grafanaMajorVersion": {
           "type": "string"
@@ -3315,6 +3298,11 @@
       "required": [
         "grafanaName",
         "grafanaSku",
+        "adxKustoAccessEnabled",
+        "adxIntegrationEnabled",
+        "adxIntegrationGeographies",
+        "adxIntegrationScenario",
+        "adxIntegrationTargetResourceId",
         "grafanaRoles",
         "grafanaMajorVersion",
         "crossTenantSecurityGroup",
@@ -3665,9 +3653,6 @@
         "nsp": {
           "$ref": "#/definitions/nsp"
         },
-        "jaeger": {
-          "deploy": "boolean"
-        },
         "istio": {
           "description": "Consumed by the IstioUpgrade pipeline step, not by bicep — passing revisions through ARM would overwrite upgrades the pipeline step had already applied. istioctlVersion, targetVersion, and their CEL validations will be removed in a future cleanup.",
           "type": "object",
@@ -3996,6 +3981,14 @@
     "genevaHealthFunction"
   ],
   "x-cel-validations": [
+    {
+      "rule": "!self.monitoring.adxIntegrationEnabled || self.monitoring.adxIntegrationGeographies != ''",
+      "message": "monitoring.adxIntegrationGeographies must be non-empty when monitoring.adxIntegrationEnabled is true"
+    },
+    {
+      "rule": "!self.monitoring.adxIntegrationEnabled || self.monitoring.adxKustoAccessEnabled",
+      "message": "monitoring.adxKustoAccessEnabled must be true when monitoring.adxIntegrationEnabled is true"
+    },
     {
       "rule": "self.frontend.cert.san == 'rp.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
       "message": "frontend.cert.san must equal 'rp.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"

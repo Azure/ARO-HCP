@@ -43,6 +43,21 @@ func validateCreationTimestamp(tagName string, timestamp time.Time) (time.Time, 
 	return timestamp, nil
 }
 
+// resolveCreationTimestamp validates an image config creation timestamp, falling
+// back to the date embedded in the tag name. Reproducible builders (e.g. Bazel)
+// pin the config timestamp to the Unix epoch, so the tag date is the only
+// ordering signal those images expose.
+func resolveCreationTimestamp(tagName string, timestamp time.Time) (time.Time, error) {
+	validated, err := validateCreationTimestamp(tagName, timestamp)
+	if err == nil {
+		return validated, nil
+	}
+	if parsedDate, ok := ParseDateFromTag(tagName); ok {
+		return parsedDate, nil
+	}
+	return time.Time{}, err
+}
+
 // RegistryClient defines the interface for container registry clients
 type RegistryClient interface {
 	// GetArchSpecificDigest fetches the latest digest matching a tag pattern

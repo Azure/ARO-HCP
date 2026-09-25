@@ -409,6 +409,7 @@ data:
         Host            127.0.0.1
         Port            5002
         Tag             shoeboxlogs
+        Retain_Metadata_In_Forward_Mode false
 
   transform-shoebox.lua: |
     -- Lua script for transforming Kubernetes control plane logs to Shoebox format.
@@ -1073,7 +1074,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: f776eca13880dda71df77c0a4355d5cfe793b519c559461dfc80886dbf822b0b
+        checksum/configmap: c24f04e6e8ec3aab98a4df734c904b4f4e0991ba84e7bf0cd753cedf884fdbcc
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
@@ -1132,8 +1133,8 @@ spec:
               drop: ['ALL']
           resources:
             requests:
-              cpu: 250m
-              memory: 256Mi
+              cpu: 450m
+              memory: 472Mi
             limits:
               memory: 1248Mi
           volumeMounts:

@@ -15,6 +15,13 @@ TOPOLOGY_FILE ?= topology.yaml
 export AZURE_TOKEN_CREDENTIALS ?= dev
 BUILD_SERVICES_OPTS ?= -j7
 
+# Pin the Go toolchain to the version declared in go.work so make targets are
+# reproducible and match CI even on machines with a newer Go installed. With the
+# default GOTOOLCHAIN=auto, a newer local toolchain is used as-is (auto only
+# upgrades, never downgrades), which drifts test output (e.g. flate/gzip bytes,
+# encoding/json error text) from CI. Override with `make GOTOOLCHAIN=...` if needed.
+export GOTOOLCHAIN ?= $(shell awk '/^go /{print "go"$$2; exit}' go.work)
+
 .DEFAULT_GOAL := all
 
 # There is currently no convenient way to run commands against a whole Go workspace
@@ -295,13 +302,25 @@ infra.clean:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make clean
 .PHONY: infra.clean
 
-infra.tracing:
-	cd observability/tracing && KUBECONFIG="$$(cd ../../dev-infrastructure && make -s svc.aks.kubeconfigfile)" make
-.PHONY: infra.tracing
-
 infra.cosmos.access:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make cosmos.access
 .PHONY: infra.cosmos.access
+
+local-grafana-start: $(TEMPLATIZE) $(YQ_LINK)
+	DEPLOY_ENV=$(DEPLOY_ENV) ./hack/local-grafana.sh start
+.PHONY: local-grafana-start
+
+local-grafana-stop:
+	./hack/local-grafana.sh stop
+.PHONY: local-grafana-stop
+
+local-grafana-status:
+	./hack/local-grafana.sh status
+.PHONY: local-grafana-status
+
+local-grafana-help:
+	./hack/local-grafana.sh help
+.PHONY: local-grafana-help
 
 #
 # Services
@@ -346,8 +365,8 @@ services_all = $(join services_svc,services_mgmt)
 # Pipelines section
 # This sections is used to reference pipeline runs and should replace
 # the usage of `svc-deploy.sh` script in the future.
-services_svc_pipelines = backend frontend cluster-service maestro.server observability.tracing
-services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent swift-recorder observability.tracing
+services_svc_pipelines = backend frontend cluster-service maestro.server
+services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent swift-recorder
 %.deploy_pipeline: $(ORAS_LINK) $(YQ)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run
@@ -507,7 +526,7 @@ ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
 ifdef USE_LATEST_IMAGES
 personal-dev-env: latest-services-override install-tools
 	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
-	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
+	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.cosmos.access
 else
 personal-dev-env: install-tools
 	$(eval IMAGE_TAG := $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ./generate-tag.sh))
@@ -516,7 +535,7 @@ personal-dev-env: install-tools
 	$(MAKE) build-services
 	$(MAKE) record-services-override
 	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
-	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
+	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.cosmos.access
 endif
 else
 personal-dev-env:

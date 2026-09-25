@@ -106,10 +106,10 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Validation](dev-ci-monitoring.md#validation)
 - [Sources of Truth](dev-ci-monitoring.md#sources-of-truth)
 
-### [DEV CI Regional Failover And Failback](dev-region-failover.md)
+### [DEV CI Regional Load Management](dev-region-failover.md)
 
-- Review regional provision health and switch the DEV CI region
-- Validate the switch and fail back when appropriate
+- Review regional provision and E2E health, then drain or rebalance `e2e-parallel`
+- Restore weighted traffic or fail over an explicitly pinned job
 
 ### [Opstool CI Platform](opstool.md)
 
@@ -171,6 +171,9 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Test Suites And Labels](e2e-testing.md#test-suites-and-labels)
 - [Periodic Tests](e2e-testing.md#periodic-tests)
 
+### [Incident-Only E2E Acknowledgement](e2e-ci-kill-switch.md)
+
+- Temporary acknowledgement requirement for automatic E2E during an incident
 ### [Upgrade-Path Presubmit](upgrade-path-presubmit.md)
 
 - [When To Use It](upgrade-path-presubmit.md#when-to-use-it)
@@ -218,7 +221,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [CI Image Lifecycle](image-lifecycle.md) explains the shared CI build root, job-local image graph, local E2E image injection, and the difference between CI promotion and ACR mirroring.
 - [CI Identity Leasing](identity-leasing.md) explains the managed identity container pool, the MSI mock SP pool, and the current staged model: slot-manager for DEV `e2e-parallel`, legacy ci-operator identity-container leases elsewhere.
 - [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md) is the canonical Slack and PagerDuty runbook for DEV CI telemetry, alert response, exporter checks, and routing maintenance.
-- [DEV CI Regional Failover And Failback](dev-region-failover.md) defines when and how operators move DEV presubmit provisioning between `westus3`, `centralus`, and `canadacentral`.
+- [DEV CI Regional Load Management](dev-region-failover.md) defines when and how operators drain, rebalance, and restore DEV presubmit traffic across `westus3`, `centralus`, and `canadacentral`.
 - [Opstool CI Platform](opstool.md) explains the standalone AKS platform, shared monitoring infrastructure, and workload rollout model that host DEV CI tools.
 - [CI EV2 Integration](ev2-integration.md) explains how EV2 selects Prow jobs, authenticates to Gangway, and pins runs to the exact rollout commit.
 - [EV2 Retry Catcher](ev2-retry-catcher.md) explains how a narrow, deliberately labeled set of known-issue test failures triggers an automatic single retry of an EV2 gating run instead of a manual retrigger.

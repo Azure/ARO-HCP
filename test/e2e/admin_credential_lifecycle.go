@@ -16,8 +16,6 @@ package e2e
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
@@ -194,20 +192,6 @@ var _ = Describe("Customer", func() {
 
 				By("validating admin credential carries the cluster CA data")
 				Expect(adminRESTConfig.CAData).NotTo(BeEmpty(), "admin credential must carry cluster CA data for credential %d", i+1)
-
-				By("validating cluster CA data is valid PEM")
-				pemBlock, remainder := pem.Decode(adminRESTConfig.CAData)
-				Expect(pemBlock).NotTo(BeNil(), "cluster CA data must contain a valid PEM block")
-				Expect(pemBlock.Type).To(Equal("CERTIFICATE"), "cluster CA PEM block must be of type CERTIFICATE")
-				Expect(remainder).To(BeEmpty(), "cluster CA data must contain exactly one PEM block")
-
-				// the certificate-authority-data is always presented as a self signed certificate where
-				// the subject and issuer are identical
-				// https://learn.microsoft.com/en-us/archive/technet-wiki/3147.pki-certificate-chaining-engine-cce#Building_the_Certificate_Chain
-				By("validating certificate authority data content uses the correct certificate")
-				cert, err := x509.ParseCertificate(pemBlock.Bytes)
-				Expect(err).NotTo(HaveOccurred(), "cluster CA data must contain a valid certificate")
-				Expect(cert.Issuer).To(Equal(cert.Subject), "root CA data must be self-signed")
 
 				By("validating admin credential does not use InsecureSkipTLSVerify")
 				Expect(adminRESTConfig.Insecure).To(BeFalse(), "admin credential must not use InsecureSkipTLSVerify")

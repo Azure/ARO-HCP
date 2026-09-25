@@ -170,14 +170,14 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/command/runtime
-      digest: sha256:1fa09488bf407f4b1bfd44f02ff60af191218075be0a2050d737165acfcbda23 # master.260813.1 (2026-08-13 00:00)
+      digest: sha256:161971cdd3bfe66be6a9b96d67fabf8c4b54a88b841add1aaced26b0a00358b4 # master.260914.1 (2026-09-14 00:00)
   # Arobit
   arobit:
     forwarder:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:9f61c8da15b7578f04d809e2ee60266aca19fc9aab53f382123dafe0fee6f818 # v5.1.2 (2026-09-15 10:53)
+        digest: sha256:896786b164eeb428107e507afd4b314ab5c32836de71178951dfbd8f30b5d8eb # v5.1.2 (2026-09-23 01:19)
       resources:
         requests:
           cpu: 250m
@@ -297,7 +297,7 @@ defaults:
     providerImage:
       registry: mcr.microsoft.com
       repository: oss/v2/azure/secrets-store/provider-azure
-      digest: sha256:844922d58d7633a9187fad4b37ab132c50dd263531242b444c69d41d93083175 # v1.8.2 (2026-09-14 17:54)
+      digest: sha256:519f3891316ae4e00900b0ff0b67885ee9295c126f4cd79f38018b1747d3ea5f # v1.8.2 (2026-09-23 04:58)
     k8s:
       namespace: secret-sync-controller
       serviceAccountName: secrets-store-sync-controller-manager
@@ -413,7 +413,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:4036f3eecdf413b4bd8b9e8383421aa6be7108845e4c1af778a68e6b3bb6dbfb # 117ff4e1c297e0d1ccee9cc5743522e2724e46b3 (2026-09-22 20:50)
+      digest: sha256:10dc567238762de26cefbf684999925bae1c596c8270002f8a1854c9f65b9655 # 7d0a0290de74108cc6f184a293b0873059df8e6b (2026-09-24 10:54)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -444,6 +444,11 @@ defaults:
   monitoring:
     grafanaName: "arohcp-{{ .ctx.environment }}"
     grafanaSku: "Standard"
+    adxKustoAccessEnabled: false
+    adxIntegrationEnabled: false
+    adxIntegrationGeographies: ""
+    adxIntegrationScenario: ""
+    adxIntegrationTargetResourceId: ""
     # Format:
     #   Multiline string using '>-' YAML block scalar
     #   One item per line, formatted as: UUID/PrincipalType/RoleName
@@ -542,15 +547,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:a6de7988701b0759bb4f29d28d229a0b427c5d2c25653bfed59c0a1a18ad4280 # 1.6.2 (2026-09-21 17:49)
+      digest: sha256:4b9b7f351820a5a9d8f816776666a335f422614d6702cd6b81daab4676f72ac5 # 1.6.2 (2026-09-23 02:55)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:503d6342c590c430e1311090b11351dbd8776c2f02c84ffa6e3b19d7f02187be # 1.6.2 (2026-09-21 21:50)
+      digest: sha256:f19163881e825b8798d06a6f9ab264b807d44b60a8a4ff17653f8ac56d164e7b # 1.6.2 (2026-09-23 02:53)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:fa29fe80b67f5ff80b89b51f0ca039f7b9b7fb6d66fa9ef124e8ddf2a29c2bd6 # 1.6.2 (2026-09-21 07:07)
+      digest: sha256:b3534a22585edc1d1b801c0572f41e82a033f376354ae1217922cc328456f358 # 1.6.2 (2026-09-23 15:25)
   # SVC cluster specifics
   svc:
     subscription:
@@ -658,13 +663,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: be4e1b8bf4b8cc868cfa993818ed94e2536adc15713fc64942ce6a47d1bbabb9 # v0.94.0 (2026-09-10 11:15)
+          sha: 9c285c83d939df7d0bdf27287562bb6fcf8fd6ab639d899abba1f14a0c2d5647 # v0.94.1 (2026-09-24 10:57)
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 92fa8f5e91a0e02e0107c346f6c66657738dbf394946e52c208150fd498554bd # v3.14.0 (2026-09-18 06:49)
+          sha: e0c41cc740435528659ad3a8a65ca89d325bb8cf285c2bcd99f8bf7c7d5b80c3 # v3.14.0 (2026-09-23 04:32)
         version: ""
         resources:
           requests:
@@ -678,12 +683,12 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: b840d65d98ba99f4d62329db721714b36ec23d7a0c8721d1fdb4fc839f97cf76 # v0.94.0 (2026-09-10 11:17)
+          sha: 5fc5d09d0245cc1e7c6432ca9b0ebcc652c047b550d0289ea45725c14343585d # v0.94.1 (2026-09-24 10:50)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:9e63919b9dde3a44483a565c55744abf9eab54314586f01a631a42b1104d5f2a # v2.20.0 (2026-09-14 15:04)
+          digest: sha256:c5d026c4a8335c2d098ce04776e25babc3e7773e70817b5b709f388bb52488d2 # v2.20.0 (2026-09-23 03:49)
       admissionWebhook:
         patch:
           image:
@@ -790,13 +795,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: be4e1b8bf4b8cc868cfa993818ed94e2536adc15713fc64942ce6a47d1bbabb9 # v0.94.0 (2026-09-10 11:15)
+          sha: 9c285c83d939df7d0bdf27287562bb6fcf8fd6ab639d899abba1f14a0c2d5647 # v0.94.1 (2026-09-24 10:57)
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 92fa8f5e91a0e02e0107c346f6c66657738dbf394946e52c208150fd498554bd # v3.14.0 (2026-09-18 06:49)
+          sha: e0c41cc740435528659ad3a8a65ca89d325bb8cf285c2bcd99f8bf7c7d5b80c3 # v3.14.0 (2026-09-23 04:32)
         resources:
           requests:
             cpu: NONE
@@ -809,12 +814,12 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: b840d65d98ba99f4d62329db721714b36ec23d7a0c8721d1fdb4fc839f97cf76 # v0.94.0 (2026-09-10 11:17)
+          sha: 5fc5d09d0245cc1e7c6432ca9b0ebcc652c047b550d0289ea45725c14343585d # v0.94.1 (2026-09-24 10:50)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:9e63919b9dde3a44483a565c55744abf9eab54314586f01a631a42b1104d5f2a # v2.20.0 (2026-09-14 15:04)
+          digest: sha256:c5d026c4a8335c2d098ce04776e25babc3e7773e70817b5b709f388bb52488d2 # v2.20.0 (2026-09-23 03:49)
       admissionWebhook:
         patch:
           image:
@@ -833,9 +838,6 @@ defaults:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
       digest: sha256:1403f55f7616aac0d2c676f6669cce518f1e72d0e315358fb0d4d1e3b0804f6b # 55611cd (2026-05-29 22:32)
-    tracing:
-      address: ""
-      exporter: ""
     managedIdentityName: backend
     k8s:
       replicas: 2
@@ -937,9 +939,6 @@ defaults:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
       digest: sha256:af0620c11338f6b5a878363529dfb4b740515385a6ab4c6a486bcb78e4de4ced # f55beeb (2026-05-29 19:42)
-    tracing:
-      address: ""
-      exporter: ""
     managedIdentityName: frontend
     k8s:
       replicas: 2
@@ -1023,9 +1022,6 @@ defaults:
     image:
       repository: "mise-1p-container-image"
       digest: ""
-    tracing:
-      address: ""
-      exporter: ""
   # MSI RP
   msiRp:
     dataPlaneAudienceResource: https://dummy.org
@@ -1054,9 +1050,6 @@ defaults:
   # Maestro
   maestro:
     server:
-      tracing:
-        address: ""
-        exporter: ""
       mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
       loglevel: 2
       managedIdentityName: maestro-server
@@ -1115,18 +1108,18 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:6dfb0ad83446230aa7db3fd65735a66aa556d18e294efa2eecb6ae408d628baf # v2.17.3-461 (2026-09-22 20:18)
+        digest: sha256:5feb873869aae2336037eedf1af482588b8ed5a0b57f5fb89857ce0a97c12c44 # v2.17.3-464 (2026-09-24 14:11)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:a7027158c0b762347e55d5c4212b6745b21df83421b874f37d02b1b87e4be016 # v2.17.3-497 (2026-09-22 21:10)
+        digest: sha256:dee5ad43f13c3788318d64258e24d1cb757620eb3144ee795a16fbba80797719 # v2.17.3-500 (2026-09-24 14:20)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:ea75b70cae009f8d77d8d0857f7bdb011ff55c9f867c121962849dec25da3867 # 2c53dc63606ae24e7765a34b5579ca3fc8f3c92d (2026-09-21 17:44)
+      digest: sha256:f6ce7ab4fcba8c99652110b15746ff40396e22018fe0cf0752d0fd94faecc0bb # 05f7fdafa6364681720550b283e800c6bab6e9c5 (2026-09-23 16:51)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1135,9 +1128,6 @@ defaults:
     batchProcesses: ""
     # controls if debug jobs are deployed to the cluster.
     deployDebugJobs: false
-    tracing: # NOTE: Currently only enabled for pers.
-      address: ""
-      exporter: ""
     environment: "arohcp{{ .ctx.environment }}"
     # The image used to override the HAProxy image of the worker node API server proxy.
     # Defaults to matching sharedIngressImage so the decoupled image starts identical.
@@ -1298,6 +1288,11 @@ clouds:
       tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
       automationDryRun: false
       arobit:
+        forwarder:
+          resources:
+            requests:
+              cpu: 450m
+              memory: 472Mi
         mdsd:
           enabled: false
         kusto:
@@ -1368,6 +1363,10 @@ clouds:
           enhancedMetricsEnabled: true
       # Cluster Service
       clustersService:
+        k8s:
+          resources:
+            requests:
+              cpu: 630m
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
@@ -1394,10 +1393,27 @@ clouds:
           issuer: Self
       # Backend
       backend:
+        k8s:
+          resources:
+            requests:
+              cpu: 700m
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
         clusterScopedIdentitiesConfig:
           roleSetName: dev
+      # Kube Applier
+      kubeApplier:
+        k8s:
+          resources:
+            requests:
+              cpu: 231m
+              memory: 224Mi
+      # Management Agent
+      mgmtAgent:
+        k8s:
+          resources:
+            requests:
+              cpu: 313m
       # Image Sync
       imageSync:
         ocMirror:
@@ -1460,7 +1476,7 @@ clouds:
             shards: 1
       # Image Registry Policy — dev-only image prefixes for local dev tooling
       imageRegistryPolicy:
-        extraAllowedRegistries: docker.io/jaegertracing,docker.io/grafana,docker.io/otel,docker.io/library/postgres
+        extraAllowedRegistries: docker.io/grafana,docker.io/library/postgres
         validationActions: Deny
       # ACRs
       acr:
@@ -1550,9 +1566,6 @@ clouds:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}-dev'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}-dev.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
               certCN: 'server.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
-              tracing:
-                address: "http://ingest.observability:4318"
-                exporter: "otlp"
           # Frontend
           frontend:
             cert:
@@ -1651,9 +1664,6 @@ clouds:
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # Geneva
           geneva:
             logs:
@@ -1673,17 +1683,9 @@ clouds:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
-              tracing:
-                address: "http://ingest.observability:4318"
-                exporter: "otlp"
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
-          # Backend
-          backend:
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # Frontend
           frontend:
             audit:
@@ -1691,9 +1693,6 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
@@ -1711,8 +1710,6 @@ clouds:
               infraAgentPool:
                 osDiskSizeGB: 64
                 vmSize: 'Standard_D4s_v3'
-            jaeger:
-              deploy: false
             applyKubeletFixes: false
           # SVC
           svc:
@@ -1723,8 +1720,6 @@ clouds:
                 name: 'u64d8dsv5'
                 vmSize: 'Standard_D8ds_v5'
                 osDiskSizeGB: 64
-            jaeger:
-              deploy: true
       perf:
         defaults:
           kusto:
@@ -1786,9 +1781,6 @@ clouds:
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # Geneva
           geneva:
             logs:
@@ -1808,9 +1800,6 @@ clouds:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
-              tracing:
-                address: "http://ingest.observability:4318"
-                exporter: "otlp"
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
@@ -1818,9 +1807,6 @@ clouds:
           backend:
             backupCadenceProfile: testing
             backupScheduleState: Disabled
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # Frontend
           frontend:
             audit:
@@ -1829,9 +1815,6 @@ clouds:
               private: false
               enableBurstCapacity: true
               zoneRedundantMode: 'Disabled'
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # MC
           mgmt:
             stamps:
@@ -1853,8 +1836,6 @@ clouds:
               infraAgentPool:
                 vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
-            jaeger:
-              deploy: false
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
@@ -1869,8 +1850,6 @@ clouds:
                 osDiskSizeGB: 64
               infraAgentPool:
                 vmSize: Standard_D2ds_v6
-            jaeger:
-              deploy: true
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
@@ -1900,9 +1879,6 @@ clouds:
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # Geneva
           geneva:
             logs:
@@ -1922,9 +1898,6 @@ clouds:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
-              tracing:
-                address: "http://ingest.observability:4318"
-                exporter: "otlp"
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
@@ -1932,9 +1905,6 @@ clouds:
           backend:
             backupCadenceProfile: testing
             backupScheduleState: Disabled
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # Frontend
           frontend:
             audit:
@@ -1943,9 +1913,6 @@ clouds:
               private: false
               enableBurstCapacity: true
               zoneRedundantMode: 'Disabled'
-            tracing:
-              address: "http://ingest.observability:4318"
-              exporter: "otlp"
           # MC
           mgmt:
             stamps:
@@ -1969,8 +1936,6 @@ clouds:
               infraAgentPool:
                 vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
-            jaeger:
-              deploy: false
           # SVC
           svc:
             subscription:
@@ -1987,5 +1952,3 @@ clouds:
                 osDiskSizeGB: 64
               infraAgentPool:
                 vmSize: Standard_D2ds_v6
-            jaeger:
-              deploy: true

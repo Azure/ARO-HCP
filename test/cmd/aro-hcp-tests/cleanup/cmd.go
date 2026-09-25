@@ -124,6 +124,7 @@ func newCleanupResourceGroupsCommand() *cobra.Command {
 	cmd.Flags().StringVar(&rawOpt.CleanupWorkflow, "mode", string(rawOpt.CleanupWorkflow), "Cleanup workflow: 'standard' (default, via RP) or 'no-rp' (only to be used when the infra has already been cleaned up)")
 	cmd.Flags().BoolVar(&rawOpt.IsDevelopment, "is-development", rawOpt.IsDevelopment, "Use development (local RP) endpoint instead of ARM (only valid with mode=standard)")
 	cmd.Flags().DurationVar(&rawOpt.Timeout, "timeout", rawOpt.Timeout, "Timeout for deleting each resource group (e.g. 60m)")
+	cmd.Flags().IntVar(&rawOpt.Concurrency, "concurrency", rawOpt.Concurrency, "Maximum number of resource groups to clean concurrently")
 	cmd.Flags().StringArrayVar(&rawOpt.IncludeLocations, "include-location", rawOpt.IncludeLocations, "Only delete resource groups in these Azure locations (repeatable)")
 	cmd.Flags().StringArrayVar(&rawOpt.ExcludeLocations, "exclude-location", rawOpt.ExcludeLocations, "Do not delete resource groups in these Azure locations (repeatable)")
 	cmd.Flags().BoolVar(&rawOpt.Tracked, "tracked", rawOpt.Tracked, "Use tracked resource groups")

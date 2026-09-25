@@ -93,6 +93,14 @@ type ConsoleProfile struct {
 	URL *string
 }
 
+// ContainerRegistryProfile - Azure Container Registry configuration for a cluster.
+// Configures how worker nodes authenticate container image pulls
+// from Azure Container Registry (ACR).
+type ContainerRegistryProfile struct {
+	// The user-assigned managed identity used for container registry image pulls.
+	ManagedIdentity *string
+}
+
 // CustomerManagedEncryptionProfile - Customer managed encryption key profile.
 type CustomerManagedEncryptionProfile struct {
 	// The encryption type used.
@@ -819,12 +827,16 @@ type PlatformProfile struct {
 	// identifier per RFC 4122.
 	ManagedResourceGroup *string
 
-	// The core outgoing configuration
-	OutboundType *OutboundType
-
 	// READ-ONLY; URL for the OIDC provider to be used for authentication
 	// to authenticate against user Azure cloud account
 	IssuerURL *string
+
+	// Azure Container Registry configuration for authenticating image pulls
+	// on the cluster's worker nodes.
+	ContainerRegistry *ContainerRegistryProfile
+
+	// The core outgoing configuration
+	OutboundType *OutboundType
 }
 
 // RoleDefinition - A single role definition required by a given operator

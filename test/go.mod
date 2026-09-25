@@ -21,6 +21,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement v0.11.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault v1.5.0
@@ -75,9 +76,9 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260917062117-27fb5fa3a294 // indirect
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260921171559-9111ffaaedb3 // indirect
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260917062117-27fb5fa3a294 // indirect
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260917062117-27fb5fa3a294 // indirect
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260921171559-9111ffaaedb3 // indirect
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260917062117-27fb5fa3a294 // indirect
 	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260917062117-27fb5fa3a294 // indirect
 	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260917062117-27fb5fa3a294 // indirect

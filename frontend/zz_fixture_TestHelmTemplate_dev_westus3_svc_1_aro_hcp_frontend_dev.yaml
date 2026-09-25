@@ -131,10 +131,6 @@ spec:
             configMapKeyRef:
               name: frontend-config
               key: LOCATION
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: ""
-        - name: OTEL_TRACES_EXPORTER
-          value: ""
         - name: AUDIT_CONNECT_SOCKET
           value: "false"
         - name: AZURE_TOKEN_CREDENTIALS

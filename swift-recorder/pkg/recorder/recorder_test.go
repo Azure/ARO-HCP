@@ -38,6 +38,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/swift-recorder/pkg/discovery"
+	"github.com/Azure/ARO-HCP/swift-recorder/pkg/testutil"
 )
 
 type logSink struct {
@@ -89,7 +90,7 @@ func newFixture(t *testing.T, mode string) *fixture {
 	f := &fixture{t: t, now: time.Date(2026, 9, 17, 12, 0, 0, 0, time.UTC), result: json.RawMessage(`{"links":[]}`)}
 	f.client = fake.NewClientset()
 	pods := informers.NewSharedInformerFactory(f.client, 0).Core().V1().Pods()
-	cfg := Config{NodeName: "node", ClusterName: "cluster", BootID: "boot", NetNSDir: t.TempDir(), Executable: "helper", CaptureMode: mode,
+	cfg := Config{NodeName: "node", ClusterName: "cluster", BootID: "boot", NetNSDir: testutil.ResolvedTempDir(t), Executable: "helper", CaptureMode: mode,
 		StartupDwell: 10 * time.Second, PostSuccessCapture: 5 * time.Second, SampleInterval: time.Second, CaptureTimeout: time.Second, EpisodeTimeout: time.Minute,
 		MaxPods: 2, MaxRecordBytes: 2048, MaxBufferBytes: 8192}
 	var err error

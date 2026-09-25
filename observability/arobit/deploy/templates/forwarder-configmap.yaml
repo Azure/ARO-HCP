@@ -424,6 +424,7 @@ data:
         Host            127.0.0.1
         Port            5002
         Tag             shoeboxlogs
+        Retain_Metadata_In_Forward_Mode false
 
   transform-shoebox.lua: |
     -- Lua script for transforming Kubernetes control plane logs to Shoebox format.

@@ -67670,7 +67670,7 @@ data:
     controlplane-kube-scheduler = ""
     controlplane-kube-controller-manager = ""
     controlplane-etcd = ""
-    minimalingestionprofile = false
+    minimalingestionprofile = true
   default-targets-scrape-interval-settings: |-
     kubelet = "30s"
     coredns = "30s"

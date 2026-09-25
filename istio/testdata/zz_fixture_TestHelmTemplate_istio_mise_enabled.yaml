@@ -185,11 +185,6 @@ spec:
           mountPath: /app/appsettings.json
           subPath: appsettings.json
           readOnly: true
-        env:
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: ""
-        - name: OTEL_TRACES_EXPORTER
-          value: ""
       volumes:
       - name: mise-config
         configMap:

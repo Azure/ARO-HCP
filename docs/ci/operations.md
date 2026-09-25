@@ -5,7 +5,7 @@ This document is the operator and maintainer view of ARO HCP CI. Use it when you
 For DEV CI PagerDuty and Slack alerts, start with [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md). For the execution model and cross-tenant request flow, start with [CI Execution](execution.md). For contributor-facing E2E usage including how to trigger jobs, see [E2E Testing In CI](e2e-testing.md).
 
 For a DEV regional provision-health incident, use
-[DEV CI Regional Failover And Failback](dev-region-failover.md).
+[DEV CI Regional Load Management](dev-region-failover.md).
 
 ## Inspecting Runs
 
@@ -38,9 +38,22 @@ run's bounded time window from the regional Azure Monitor workspaces.
   logs.
 - `alerts.json` contains the alert data used by the summary.
 - `utilization.json` contains the versioned data behind the summary's Utilization
-  tab, including selected peak minutes, node capacity, workload demand, and
+  and Resource History tabs, including minute-by-minute node resources,
+  selected peak minutes, node capacity, workload demand, and
   completeness warnings. It can be rendered again without Azure access.
 - `junit_alerts.xml` records unexpected fired alerts as test failures for Prow.
+
+Known alert firings can be temporarily excluded from this CI gate in
+[`knownIssues.yaml`](../../test/cmd/aro-hcp-tests/gather-observability/known-issues/knownIssues.yaml).
+Each entry requires a reason and an alert name; optional label patterns narrow
+the match. An optional `expiresAfter: "YYYY-MM-DD"` date timebombs that exception.
+It applies through the named UTC date. From 00:00 UTC on the following day, a
+matching firing is unexpected again and fails the observability step. Entries
+without `expiresAfter` keep their current behavior. If the alert no longer fires,
+an expired entry does not itself fail CI. Remove resolved entries rather than
+extending their dates; review still-active issues before renewing an expiry.
+This classification only affects CI results and artifacts, not Azure Monitor
+alert firing or notification routing.
 
 Tabs and artifact writes are attempted independently. An unavailable alert API,
 workspace, or chart does not suppress unrelated output. Incomplete alert
@@ -109,10 +122,54 @@ labels require the updated OSS kube-state-metrics deployment; older samples show
 unknown enrichment rather than guessed values.
 
 The collector runs automatically with a ten-minute budget and at most two
-concurrent Prometheus requests. It fetches node history first, then workload
-details only for selected minutes. Timeout preserves selected snapshots with
+concurrent Prometheus requests. It fetches node history first, then request
+history in 30-minute batches, then workload details only for selected peak
+minutes. Timeout preserves collected history and selected snapshots with
 explicitly incomplete details. The JSON contains normalized aggregates, not raw
-full-run workload history or individual pod records.
+Prometheus responses, full-run workload history, or individual pod records.
+
+### Resource History
+
+Synthetic-data desktop and mobile previews:
+
+![Minute resource history with linked charts and scope selectors](images/resource-history-desktop.png)
+
+![Resource history on mobile](images/resource-history-mobile.png)
+
+The Resource History tab retains every evaluated minute, not just peak samples.
+Select the fleet, a cluster, pool, or historical node to inspect CPU, memory,
+and SWIFT-NIC resources. The three charts share time zoom, not hover. Hovering
+a line shows only its timestamp and value; legends remain visible and point
+markers are omitted. Changing scope preserves the time window. Absolute units (cores, GiB, slots) are the
+default; percentage mode divides aggregate quantities by aggregate capacity.
+Pool membership and node placement are evaluated at each sample, including
+nodes deleted before collection. Unknown pool labels are not inferred from names.
+
+CPU and memory plot capacity, allocatable, whole-node usage, and assigned
+regular-container requests. Both capacity lines use Kubernetes node resources;
+in particular, history memory capacity differs from the peak view's node-exporter
+MemTotal denominator. Usage still uses the same two-minute CPU rates and
+one-minute averages of host total-minus-available memory as the peak view.
+Requests combine the services and HCP workspaces without counting replicas
+twice. Empty HCP results are legitimate when both workspace queries succeed
+and the shared KSM collector has inventory evidence in the services workspace.
+
+SWIFT-NIC plots advertised capacity, allocatable and assigned requested slots,
+not measured NIC usage or traffic. Missing or non-applicable capacity remains
+a gap rather than zero. Requests exclude
+init-container reservations, pod overhead and unassigned demand; spec-backed
+container inventory can also miss unobserved containers. These are not exact
+scheduler reservations or a guarantee that new pods will fit. NotReady and
+cordoned nodes remain included, and shared environments show regional load
+during the run, not load attributable exclusively to that run.
+
+Incomplete measurements create gaps in the affected aggregate line. Known
+absolute usage can still be shown when capacity is unavailable, but percentage
+mode requires a complete positive capacity denominator. Saved JSON retains
+collection diagnostics; the collector cannot detect nodes
+or pods absent from every input metric. There is no interpolation, silent
+partial summation, or zero-filling. The graph-only view requires the ECharts CDN;
+there is no sample table or measurement-details section.
 
 To iterate on the UI with an existing artifact:
 
@@ -121,12 +178,16 @@ To iterate on the UI with an existing artifact:
   --input utilization.json --output /tmp/utilization-preview
 ```
 
-This writes `utilization-summary.html` using the same renderer as the live tab.
+This writes `utilization-summary.html` and `resource-history-summary.html` using
+the same renderers as the live tabs. Older JSON without history still renders
+peak snapshots, with "History not recorded" in the history output.
 No rendered configuration or Azure credentials are needed. Unsupported schema
 versions and invalid inputs are rejected. Charts use the existing ECharts CDN;
-summary tables and filters remain usable without that asset. The synthetic
+the separate peak view retains its summary tables without that asset. The synthetic
 fixture at `test/cmd/aro-hcp-tests/gather-observability/testdata/utilization-synthetic.json`
 can also be used as input for local UI testing.
+For history previews, use
+`test/cmd/aro-hcp-tests/gather-observability/testdata/utilization-history-synthetic.json`.
 
 ## Modifying CI Configuration
 
@@ -190,5 +251,5 @@ For the full list of ci-operator config files and step-registry components, see 
 - [CI Identity Leasing](identity-leasing.md)
 - [CI EV2 Integration](ev2-integration.md)
 - [CI Cleanup](cleanup.md)
-- [DEV CI Regional Failover And Failback](dev-region-failover.md)
+- [DEV CI Regional Load Management](dev-region-failover.md)
 - [E2E Testing In CI](e2e-testing.md)

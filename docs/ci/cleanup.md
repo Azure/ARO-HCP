@@ -101,20 +101,30 @@ The dedicated backstop is:
 # Read-only rehearsal with an existing developer login:
 AZURE_CONFIG_DIR="$HOME/.azure-redhat" AZURE_TOKEN_CREDENTIALS=AzureCLICredential \
   go run ./tooling/cleanup-sweeper ci-certificates \
-    --dry-run --min-age=168h --max-deletions=1000 --timeout=30m
+    --dry-run --min-age=168h --max-deletions=1000 --max-purges=1000 \
+    --workers=2 --timeout=30m
 
 # Apply only after reviewing candidates and confirming the fixed DEV scope:
 AZURE_CONFIG_DIR="$HOME/.azure-redhat" AZURE_TOKEN_CREDENTIALS=AzureCLICredential \
   go run ./tooling/cleanup-sweeper ci-certificates \
-    --dry-run=false --min-age=168h --max-deletions=1000 --timeout=30m
+    --dry-run=false --min-age=168h --max-deletions=1000 --max-purges=1000 \
+    --workers=2 --timeout=30m
+
+# Purge legacy tombstones without resuming active-certificate deletion:
+AZURE_CONFIG_DIR="$HOME/.azure-redhat" AZURE_TOKEN_CREDENTIALS=AzureCLICredential \
+  go run ./tooling/cleanup-sweeper ci-certificates \
+    --dry-run=false --delete-active=false --purge-deleted=true \
+    --max-purges=1000 --workers=2 --timeout=30m
 ```
 
 The command defaults to dry-run and has no vault or subscription override. It
 targets only `aro-hcp-dev-svc-kv` and checks resource groups in both DEV
 infrastructure subscriptions, `1d3378d3-5a3f-4712-85a1-2485495dfc4b` and
 `0ef1ad54-9296-44cd-9600-5dc8e9a74034`. Certificate metadata access and RG read
-access to both are required; apply additionally needs certificate delete access.
-No Graph credential or private key/secret reads are required.
+access to both are required when `--delete-active=true`; purge-only mode skips
+active-certificate and RG-owner inventory. Apply additionally needs certificate
+delete and/or purge access for the enabled actions. No Graph credential or
+private key/secret reads are required.
 
 Deletion requires all of the following:
 
@@ -128,29 +138,74 @@ Deletion requires all of the following:
   cutoff (seven days by default; the minimum supported threshold is 24 hours).
   Renewal or recent reuse postpones cleanup by another grace period. This is
   deliberately more conservative than first-version age and avoids enumerating
-  version histories for tens of thousands of certificates.
+  version histories for tens of thousands of certificates. Normal CI jobs
+  finish within three hours, leaving a wide margin before eligibility.
 - No RG containing that exact job token in either subscription, including RGs
   still being deleted. Any incomplete/failed RG inventory aborts deletion.
 - Unchanged, still-eligible latest certificate metadata immediately before delete,
   with owner inventory refreshed before apply and no more than 30 seconds old.
+  If certificate revalidation takes longer than that, the attempt fails without
+  deleting and the certificate is retried by a later hourly run.
 
-The command consumes every certificate inventory page before attempting deletes,
-caps selected candidates at `--max-deletions`, and emits JSON candidate and summary
-logs. It soft-deletes complete certificate objects, including all versions and
-their policy; backing certificate material can become unavailable. It never
-purges certificates or issues separate key/secret delete calls. Failed deletes
-are reported and retried only on a later run, after repeating safety checks.
+Active and deleted certificate inventories stop requesting Key Vault pages when
+they exhaust their inspection budgets. `--max-deletions` bounds active metadata
+entries inspected. `--max-purges` is shared by immediate purges after active
+deletion and metadata inspected from previously deleted tombstones. When both
+actions are enabled, active inspection is bounded by the lower limit, purge
+capacity is reserved for each selected active certificate, and only the
+remainder is used to inspect deleted certificates. Ineligible and live-owned
+objects consume their applicable inspection limit, so the selected mutation
+count can be lower than the configured limit. This keeps each selected active
+certificate on the tested delete+purge path while ensuring that all irreversible
+purge operations honor one bound.
+The default 1,000-certificate budgets also comfortably exceed the normal daily
+creation rate of roughly 1,000 CI jobs per month.
+Every delete still uses a fresh owner revalidation through the shared 30-second
+guard. The limits bound reads as well as mutations, limiting Key Vault cost,
+runtime, and throttling risk.
+`--delete-active` and `--purge-deleted` independently enable the two actions,
+allowing tombstones to be remediated without resuming active-certificate
+cleanup. The command emits JSON candidate and summary logs.
+
+Active candidates are soft-deleted as complete certificate objects, including
+all versions and their policy; backing certificate material can become
+unavailable. When purge is enabled, each successful soft-delete waits up to 30
+seconds for the corresponding tombstone, revalidates it, and purges it
+immediately. The configurable `--workers` pool bounds concurrent delete/purge
+chains and defaults to two to limit Key Vault and Resource Manager throttling.
+Owner inventory refreshes are serialized and shared by the workers, while each
+certificate still rejects an inventory older than 30 seconds immediately before
+delete.
+
+Deleted candidates must match the same exact transient CI naming
+policy, retain no protected tag or placeholder suffix, provide consistent
+certificate and recovery IDs, and report a recovery level containing
+`Purgeable`. Their deletion and scheduled-purge timestamps are required and
+revalidated immediately before purge. Tombstones do not use the age or live-RG
+guards: the certificate is already unavailable, and retaining the tombstone only
+reserves a reusable seven-digit job name. Purge is irreversible and requires
+certificate purge permission.
+
+The command never issues separate key or secret delete calls. Failed deletes and
+purges are reported together at the end. If a tombstone does not appear within
+30 seconds, the process is interrupted, or immediate purge fails, a later run
+rediscovers and retries that tombstone after repeating safety checks. Certificate
+provisioning does not recover soft-deleted certificates; successful cleanup must
+purge their names so a later job can create a new certificate. Individual
+failures do not fail the command when at least one certificate was deleted,
+purged, or already absent; the command fails when every attempted change failed.
 
 Azure does not provide an atomic owner-check/certificate-delete operation, so
 concurrent reuse of a seven-digit job suffix remains a race. The age guard, recent
 metadata revalidation, cross-subscription owner veto, and protected placeholders
 reduce that risk; a live owner or uncertain metadata always favors retention.
 
-The companion `openshift/release` periodic job
-`delete-expired-dev-ci-certificates` runs this command hourly with explicit apply,
-seven-day age, and a 1,000-certificate cap. The reusable step defaults to dry-run
-and forces dry-run for rehearsals/non-periodic invocations. Its rollout must follow
-the merge of this command; no certificate deletions are performed by unit tests.
+The former companion `openshift/release` periodic job
+`delete-expired-dev-ci-certificates` ran this command hourly with explicit apply,
+seven-day age, and a 1,000-certificate cap. It is currently disabled while the
+service-certificate lifecycle is being revised. The reusable step defaults to
+dry-run and forces dry-run for rehearsals/non-periodic invocations. No certificate
+deletions or purges are performed by unit tests.
 
 ```mermaid
 ---
@@ -206,6 +261,12 @@ but does not prevent subsequent resource groups from being attempted.
 This means that when the job reports failure, the build log contains the
 outcome for every expired resource group — not just the first one that
 failed.
+
+The expired resource-group command limits cleanup to 20 resource groups at a
+time by default. The `--concurrency` flag can lower or raise that limit for a
+specific job. ARM clients honor server retry delays up to 10 minutes, so a
+provider throttle pauses the affected cleanup instead of causing an immediate
+burst of failed retries.
 
 ## Why They Behave Differently
 

@@ -351,7 +351,11 @@ Operationally, the important distinction is:
 - the slot-manager path resolves a slot from the catalog, exports `SELECTED_LOCATION`, `CUSTOMER_SUBSCRIPTION`, and `LEASED_MSI_CONTAINERS`, and then hands the same leased identity-container set to the test framework
 - the legacy path still requests environment-specific identity-container resource types in job config and populates `LEASED_MSI_CONTAINERS` directly
 
-This document intentionally does not freeze the currently active runtime region in prose. If you need the live region or override for a job, inspect the current `openshift/release` ci-operator config.
+This document intentionally does not freeze current runtime weights or pinned
+regions in prose. If you need the live region-selection policy for a job,
+inspect its `LOCATION_WEIGHTS`, `LOCATION`, or
+`MULTISTAGE_PARAM_OVERRIDE_LOCATION` in the current `openshift/release`
+ci-operator config.
 
 ### MSI Mock Service Principal Pool
 

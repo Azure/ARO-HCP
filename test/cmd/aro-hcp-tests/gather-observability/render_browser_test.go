@@ -36,6 +36,9 @@ func TestRenderObservabilityBrowserResize(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "observability-summary.html")
 	section := `<!DOCTYPE html><html><head><style>
+/* Alerts inherits these viewport-dependent rules from MDL. */
+html { height: 100%; }
+body { min-height: 100%; }
 body { margin: 16px; padding: 7px; }
 #content { height: 400px; }
 </style></head><body><div id="content"></div><div id="spacer" style="height:30px"></div>
@@ -46,7 +49,8 @@ window.addEventListener('error', event => window.resizeErrors.push(event.message
 </script></body></html>`
 	if err := renderObservabilityPage(file, []observabilityTab{
 		{Title: "First", HTML: section},
-		{Title: "Lazy", HTML: section},
+		// Alerts has no doctype, so also cover quirks-mode sizing.
+		{Title: "Lazy", HTML: strings.TrimPrefix(section, "<!DOCTYPE html>")},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +149,10 @@ window.addEventListener('error', event => window.resizeErrors.push(event.message
 					if err != nil {
 						t.Error(err)
 					}
-					results <- string(body)
+					select {
+					case results <- string(body):
+					default:
+					}
 					return
 				}
 				w.Header().Set("Content-Type", "text/html")

@@ -2,6 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Observability</title>
     <style>
         html, body { margin: 0; padding: 0; background-color: #000; color: #fff; font-family: 'Roboto', sans-serif; }
@@ -54,6 +55,9 @@
                 try {
                     const body = f.contentDocument.body;
                     if (!body) return;
+                    // MDL gives Alerts a viewport-sized min-height. Embedded
+                    // sections must size to content, not the height we assign.
+                    if (body.style.minHeight !== '0px') body.style.minHeight = '0px';
                     // scrollHeight is at least the iframe viewport height, so
                     // adding clearance to it feeds growth back into the next
                     // measurement and prevents shrinking. Measure content instead,

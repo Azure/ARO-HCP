@@ -12,6 +12,7 @@ node_modules
 /*.pem
 .DS_Store
 .idea
+.scratch
 env
 */archive.tar.gz
 tooling/bin
@@ -39,6 +40,7 @@ must-gather-*
 timing-metadata-*
 /.claude/
 .tmp
+/hack/.local-grafana/
 
 # Allow Secret resource fixtures in the kube-applier read-desire testdata.
 # The `secrets` rule above otherwise excludes the manifestclient directory

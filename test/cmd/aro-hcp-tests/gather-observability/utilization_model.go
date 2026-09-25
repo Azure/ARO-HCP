@@ -33,6 +33,35 @@ type utilizationReport struct {
 	Snapshots     []utilizationSnapshot `json:"snapshots"`
 	// Optional for replay of older reports which retained only excluded counts.
 	Coverage []utilizationCoverage `json:"coverage,omitempty"`
+	// Absent in older peak-only artifacts. History retains the evaluated grid,
+	// including empty minutes, so replay never interpolates missing telemetry.
+	History []utilizationHistorySample `json:"history,omitempty"`
+}
+
+type utilizationHistorySample struct {
+	Time     time.Time                 `json:"time"`
+	Expected []string                  `json:"expected"`
+	Nodes    []utilizationHistoryEntry `json:"nodes"`
+	Warnings []string                  `json:"warnings,omitempty"`
+}
+
+type utilizationHistoryResources struct {
+	CPU      *float64 `json:"cpu"`
+	Memory   *float64 `json:"memory"`
+	SwiftNIC *float64 `json:"swiftNIC"`
+}
+
+type utilizationHistoryEntry struct {
+	Cluster         string                      `json:"cluster"`
+	Name            string                      `json:"name"`
+	Pool            string                      `json:"pool"`
+	SKU             string                      `json:"sku"`
+	Inventory       bool                        `json:"inventory"`
+	SwiftAdvertised *bool                       `json:"swiftAdvertised"`
+	Capacity        utilizationHistoryResources `json:"capacity"`
+	Allocatable     utilizationHistoryResources `json:"allocatable"`
+	Usage           utilizationHistoryResources `json:"usage"`
+	Requests        utilizationHistoryResources `json:"requests"`
 }
 
 // Intervals contain inclusive UTC minute samples. Adjacent samples with the
