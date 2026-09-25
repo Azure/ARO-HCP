@@ -58,6 +58,8 @@ type operationNodePoolUpdate struct {
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
 
+const OperationNodePoolUpdateControllerName = "OperationNodePoolUpdate"
+
 // NewOperationNodePoolUpdateController returns a new Controller instance that
 // follows an asynchronous node pool update operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -98,7 +100,7 @@ func NewOperationNodePoolUpdateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationNodePoolUpdate",
+		OperationNodePoolUpdateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

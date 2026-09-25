@@ -30,7 +30,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	utilsclock "k8s.io/utils/clock"
@@ -378,11 +377,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		RetryPeriod:   sharedleaderelection.RecommendedRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				go controllerContext.BackendInformers.RunWithContext(ctx)
-				go controllerContext.FleetInformers.RunWithContext(ctx)
-				for _, controller := range controllers {
-					go controller.runnable.Run(ctx, controller.workers)
-				}
+				startControllers(ctx, controllers, controllerContext)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

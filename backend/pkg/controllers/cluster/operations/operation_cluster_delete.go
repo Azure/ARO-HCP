@@ -54,6 +54,8 @@ type operationClusterDelete struct {
 	notificationClient   *http.Client
 }
 
+const OperationClusterDeleteControllerName = "OperationClusterDelete"
+
 // NewOperationClusterDeleteController returns a new Controller instance that
 // follows an asynchronous cluster deletion operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -98,7 +100,7 @@ func NewOperationClusterDeleteController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationClusterDelete",
+		OperationClusterDeleteControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

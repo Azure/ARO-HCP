@@ -44,6 +44,8 @@ type createBillingDoc struct {
 	billingDBClient   billingcosmosstorage.BillingDBClient
 }
 
+const CreateBillingDocControllerName = "CreateBillingDoc"
+
 // NewCreateBillingDocController creates a controller that ensures a billing document
 // exists for clusters that have a ClusterUID and are in the Succeeded provisioning state.
 func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation string, resourcesDBClient corecosmosstorage.ResourcesDBClient, billingDBClient billingcosmosstorage.BillingDBClient, clusterLister corelisters.ClusterLister, billingLister corelisters.BillingLister) controllerutils.ClusterSyncer {

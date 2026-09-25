@@ -46,6 +46,8 @@ type operationExternalAuthCreate struct {
 	notificationClient     *http.Client
 }
 
+const OperationExternalAuthCreateControllerName = "OperationExternalAuthCreate"
+
 // NewOperationExternalAuthCreateController returns a new Controller instance that
 // follows an asynchronous external auth creation operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -81,7 +83,7 @@ func NewOperationExternalAuthCreateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationExternalAuthCreate",
+		OperationExternalAuthCreateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
