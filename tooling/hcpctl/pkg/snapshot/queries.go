@@ -901,6 +901,32 @@ var allQueries = []querySpec{
 		},
 		prerequisites: "ManagementClusterNames (seeded or discovered), ResourceType is cluster",
 	},
+	{
+		// BSLs are shared, cluster-scoped velero config (no per-HCP resource-id
+		// annotation), so scope to the management cluster(s) hosting this HCP.
+		component:    "velero",
+		queryName:    "backupStorageLocations",
+		templatePath: "queries/velero/backupStorageLocations/query.kql",
+		database:     "service",
+		category:     categoryState,
+		ready: func(d queryData) bool {
+			return isClusterType(d) && len(d.ManagementClusterNames) > 0
+		},
+		prerequisites: "ManagementClusterNames (seeded or discovered), ResourceType is cluster",
+	},
+	{
+		// VSLs are shared, cluster-scoped velero config (no per-HCP resource-id
+		// annotation), so scope to the management cluster(s) hosting this HCP.
+		component:    "velero",
+		queryName:    "volumeSnapshotLocations",
+		templatePath: "queries/velero/volumeSnapshotLocations/query.kql",
+		database:     "service",
+		category:     categoryState,
+		ready: func(d queryData) bool {
+			return isClusterType(d) && len(d.ManagementClusterNames) > 0
+		},
+		prerequisites: "ManagementClusterNames (seeded or discovered), ResourceType is cluster",
+	},
 
 	{
 		component:    "alerts",

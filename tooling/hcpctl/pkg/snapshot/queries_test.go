@@ -113,7 +113,7 @@ func TestVeleroReadyGating(t *testing.T) {
 			byKey[q.queryName] = q
 		}
 	}
-	for _, name := range []string{"mgmtCluster", "backups", "schedules", "dataUploads", "deleteBackupRequests", "logs", "serverLogs"} {
+	for _, name := range []string{"mgmtCluster", "backups", "schedules", "dataUploads", "deleteBackupRequests", "logs", "serverLogs", "backupStorageLocations", "volumeSnapshotLocations"} {
 		if _, ok := byKey[name]; !ok {
 			t.Fatalf("velero/%s query not registered", name)
 		}
@@ -139,7 +139,7 @@ func TestVeleroReadyGating(t *testing.T) {
 	// Fully-populated cluster data: state + logs queries are ready; mgmtCluster
 	// discovery is gated off because ManagementClusterNames is already seeded.
 	full := fullQueryData()
-	for _, name := range []string{"backups", "schedules", "dataUploads", "deleteBackupRequests", "logs", "serverLogs"} {
+	for _, name := range []string{"backups", "schedules", "dataUploads", "deleteBackupRequests", "logs", "serverLogs", "backupStorageLocations", "volumeSnapshotLocations"} {
 		if q := byKey[name]; q.ready != nil && !q.ready(full) {
 			t.Errorf("velero/%s should be ready with full cluster data", name)
 		}
@@ -153,6 +153,12 @@ func TestVeleroReadyGating(t *testing.T) {
 	}
 	if q := byKey["serverLogs"]; q.ready(full) {
 		t.Error("velero/serverLogs should be gated off when ManagementClusterNames is empty")
+	}
+	if q := byKey["backupStorageLocations"]; q.ready(full) {
+		t.Error("velero/backupStorageLocations should be gated off when ManagementClusterNames is empty")
+	}
+	if q := byKey["volumeSnapshotLocations"]; q.ready(full) {
+		t.Error("velero/volumeSnapshotLocations should be gated off when ManagementClusterNames is empty")
 	}
 }
 

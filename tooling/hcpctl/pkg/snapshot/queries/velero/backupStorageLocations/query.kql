@@ -1,0 +1,21 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesResourceSnapshots')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if gt (len .ManagementClusterNames) 0 }}
+| where cluster in ({{ range $i, $c := .ManagementClusterNames }}{{ if $i }}, {{ end }}'{{ $c }}'{{ end }})
+{{- end }}
+| where objectKind == 'BackupStorageLocation'
+| where namespace == 'velero'
+| extend
+    location = name,
+    provider = tostring(object.spec.provider),
+    bucket = tostring(object.spec.objectStorage.bucket),
+    prefix = tostring(object.spec.objectStorage.prefix),
+    isDefault = tobool(object.spec.default),
+    accessMode = tostring(object.spec.accessMode),
+    phase = tostring(object.status.phase),
+    message = tostring(object.status.message),
+    lastValidationTime = todatetime(object.status.lastValidationTime),
+    lastSyncedTime = todatetime(object.status.lastSyncedTime)
+| extend isHealthy = phase == 'Available'
+| project timestamp, event, cluster, location, provider, bucket, prefix, isDefault, accessMode, phase, isHealthy, message, lastValidationTime, lastSyncedTime
+| order by timestamp asc
