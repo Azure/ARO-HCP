@@ -444,11 +444,11 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
         }
         annotations: {
           correlationId: 'userJourneyIDMSMirrorErrorsFastBurn/{{ $labels.cluster }}'
-          description: 'More than 72% of completed cluster update operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
-          info: 'More than 72% of completed cluster update operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          description: 'More than 72% of clusters on {{ $labels.cluster }} whose latest update completed in the last hour have it in failed state (at least 3 failures), a 14.4x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          info: 'More than 72% of clusters on {{ $labels.cluster }} whose latest update completed in the last hour have it in failed state (at least 3 failures), a 14.4x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
           runbook_url: 'https://aka.ms/arohcp-runbook-idms'
-          summary: '{{ $labels.cluster }}: Cluster update operations failing fast (>72% over 1h)'
-          title: '{{ $labels.cluster }}: Cluster update operations failing fast (>72% over 1h)'
+          summary: '{{ $labels.cluster }}: Cluster updates failing fast (>72% over 1h)'
+          title: '{{ $labels.cluster }}: Cluster updates failing fast (>72% over 1h)'
         }
         expression: 'errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72'
         for: 'PT5M'
@@ -475,8 +475,8 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
         }
         annotations: {
           correlationId: 'userJourneyIDMSMirrorErrorsMediumBurn/{{ $labels.cluster }}'
-          description: 'More than 30% of completed cluster update operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
-          info: 'More than 30% of completed cluster update operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          description: 'More than 30% of clusters on {{ $labels.cluster }} whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), a 6x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
+          info: 'More than 30% of clusters on {{ $labels.cluster }} whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), a 6x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
           runbook_url: 'https://aka.ms/arohcp-runbook-idms'
           summary: '{{ $labels.cluster }}: Cluster update error rate elevated (>30% over 6h)'
           title: '{{ $labels.cluster }}: Cluster update error rate elevated (>30% over 6h)'
@@ -505,11 +505,11 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
         }
         annotations: {
           correlationId: 'userJourneyIDMSMirrorErrorsSlowBurn/{{ $labels.cluster }}'
-          description: 'More than 5% of completed cluster update operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
-          info: 'More than 5% of completed cluster update operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          description: 'More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed.'
+          info: 'More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed.'
           runbook_url: 'https://aka.ms/arohcp-runbook-idms'
-          summary: '{{ $labels.cluster }}: Cluster update error budget burning (>5% over 3d)'
-          title: '{{ $labels.cluster }}: Cluster update error budget burning (>5% over 3d)'
+          summary: '{{ $labels.cluster }}: Cluster update failures persistent (>5% over 3d)'
+          title: '{{ $labels.cluster }}: Cluster update failures persistent (>5% over 3d)'
         }
         expression: 'errors:backend_cluster_update:total_3d >= 10 and errors:backend_cluster_update:failed_3d >= 2 and errors:backend_cluster_update:error_rate_3d > 0.05'
         for: 'PT6H'

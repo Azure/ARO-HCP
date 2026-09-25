@@ -27,7 +27,7 @@ spec:
   # the series is named for the operation, not the journey.
   #
   # When one of these fires, FIRST confirm the affected operation actually
-  # carried an imageDigestMirrors change by inspecting the cluster document.
+  # carried an imageDigestMirrors change from the Backend logs.
   # If it did not, the IDMS journey is not the correct triage path.
   #
   # See backend/alerts/backend-cluster-update-slo-recordingRule.yaml for the
@@ -53,10 +53,15 @@ spec:
   #
   # These read the windowed recording rules
   # (errors:backend_cluster_update:{failed,total,error_rate}_{1h,6h,3d}), which
-  # count only cluster update operations whose terminal transition landed inside
+  # count only clusters whose latest update's terminal transition landed inside
   # the window. Each tier therefore evaluates a real event window rather than the
   # trailing 7-day gauge ratio, so a stale failure ages out instead of paging for
   # the full Cosmos TTL.
+  #
+  # These are counts of clusters by the outcome of their latest update, not
+  # counts of LROs: a failed update later retried successfully is overwritten
+  # and never counted, so the rates under-report LRO failures. See the
+  # recording rules file for the instrumentation a per-LRO rate would need.
   #
   # Burn rate thresholds calculated from 95% SLO (5% error budget):
   #   Fast (14.4x): 14.4 * 0.05 = 0.72 → 72% error rate over 1h
@@ -86,8 +91,8 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster update operations failing fast (>72% over 1h)"
-        description: "More than 72% of completed cluster update operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
+        summary: "{{ $labels.cluster }}: Cluster updates failing fast (>72% over 1h)"
+        description: "More than 72% of clusters on {{ $labels.cluster }} whose latest update completed in the last hour have it in failed state (at least 3 failures), a 14.4x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
         runbook_url: "https://aka.ms/arohcp-runbook-idms"
     # ----------------------------------------
     # Medium Burn Alert (IcM Sev 3)
@@ -106,7 +111,7 @@ spec:
         short_window: 30m
       annotations:
         summary: "{{ $labels.cluster }}: Cluster update error rate elevated (>30% over 6h)"
-        description: "More than 30% of completed cluster update operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
+        description: "More than 30% of clusters on {{ $labels.cluster }} whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), a 6x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
         runbook_url: "https://aka.ms/arohcp-runbook-idms"
     # ----------------------------------------
     # Slow Burn Alert (IcM Sev 4 — ticket)
@@ -126,8 +131,8 @@ spec:
         slo: idms-mirror-errors
         long_window: 3d
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster update error budget burning (>5% over 3d)"
-        description: "More than 5% of completed cluster update operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
+        summary: "{{ $labels.cluster }}: Cluster update failures persistent (>5% over 3d)"
+        description: "More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed."
         runbook_url: "https://aka.ms/arohcp-runbook-idms"
     # ----------------------------------------
     # Note: there is deliberately no separate "degradation" precursor alert.
