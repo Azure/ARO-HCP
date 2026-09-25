@@ -365,11 +365,37 @@ additional business controllers.
 
 | Service | Startup evidence |
 |---|---|
-| Backend | [backend.go](../backend/pkg/app/backend.go), including conditional deny-assignment registration and all validation/metrics instances |
+| Backend | [backend.go](../backend/pkg/app/backend.go) launches the ordered [controller registry](../backend/pkg/app/controller_registry.go), including conditional deny-assignment registration and all validation/metrics instances; [ControllerContext](../backend/pkg/app/controller_context.go) owns shared dependencies |
 | Fleet | [manager.go](../fleet/pkg/manager/manager.go) |
 | Kube-applier | [kube_applier.go](../kube-applier/pkg/app/kube_applier.go); read manager creates target read controllers dynamically |
 | Management-agent | [options.go](../mgmt-agent/cmd/options.go) |
 | Sessiongate | [options.go](../sessiongate/cmd/options.go) |
+
+The backend registry represents **106 launches**: 104 instances in the billing,
+cluster, clusterresources, cosmosmigration, datadump, externalauth, metrics,
+mismatch, and nodepool zones, the Azure SKU cached-reader controller, and the
+shared union kube-applier informer controller. This matches the catalog's 105
+backend instances plus the separately counted shared union controller.
+`ClusterDenyAssignment` is instantiated and launched only when `HasRealFPA` is
+true; otherwise 105 controllers run. The flag is also passed to cluster creation.
+
+Controller construction precedes leader election. Once leading, the backend
+launches the backend and fleet informers, then the union informer controller,
+then its consumers in the registry's explicit launch order. This is goroutine
+launch order, not a readiness or cache-sync barrier. The union controller tracks
+management clusters using the shared fleet informer/lister and the default
+per-management-cluster relist durations. All consumers use the same backend,
+fleet, and union informer/lister instances. The SKU cached reader passed to both
+VM validation instances is the same instance that is launched.
+
+Registry entries retain the existing worker counts: 20 by default, one for each
+of the six metrics controllers and the union informer controller, five for
+`PendingCleanup` and `CosmosMigration`, and ten for
+`DeleteOrphanedCosmosResources`. `BackfillClusterUID` retains its 60-minute resync
+and `CreateBillingDoc` its 60-second resync. Registry keys are lowercased existing
+controller names; log, metric, and persisted controller identities are unchanged.
+This registration-only refactor does not change the catalog's effects or the
+field/condition edges in the lifecycle DOT sources and PNGs below.
 
 “Cluster”, “node pool”, “external auth”, “credential request” and “credential
 revocation” in Trigger identify the resource key passed to the shared watching
