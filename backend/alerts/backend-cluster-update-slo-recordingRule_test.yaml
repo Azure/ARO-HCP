@@ -254,3 +254,32 @@ tests:
     exp_samples:
     - labels: 'errors:backend_cluster_update:error_rate_1h{cluster="mgmt-1"}'
       value: 0.5
+# Known limitation: a failed update overwritten by a successful retry is not
+# counted. /a fails at 0m and is retried successfully at 10m; the Backend replaces
+# the failed series, so at 20m the 1h window sees one success and no failure.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x10"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "0x10"
+  - series: 'backend_resource_operation_phase_info{resource_id="/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "_x10 1x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "_x10 600x20"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:failed_1h
+    eval_time: 20m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_1h{cluster="mgmt-1"}'
+      value: 0
+  - expr: errors:backend_cluster_update:total_1h
+    eval_time: 20m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_1h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:error_rate_1h
+    eval_time: 20m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate_1h{cluster="mgmt-1"}'
+      value: 0

@@ -51,17 +51,21 @@ spec:
   #   - These rules cover the disjoint case: operations that reach a terminal
   #     "failed" phase, which the stuck alert can never fire on.
   #
-  # SLO: 95% of cluster update operations should succeed (not reach "failed").
+  # Target: 95% of clusters' latest updates should succeed (not reach "failed").
   # Error Budget: 5% (1 - 0.95)
   #
-  # The SLO counts only succeeded and failed operations. Canceled operations are
+  # Only succeeded and failed updates are counted. Canceled updates are
   # excluded from both the numerator and the denominator, so a cancellation
   # neither counts as a failure nor dilutes the rate — the same convention as the
   # cluster provisioning SLO.
   #
-  # The phase gauge holds at most one series per (resource, operation_type): the
-  # Backend replaces the previous series on every transition. Each count below is
-  # therefore a count of resources by the phase of their most recent update.
+  # WHAT IS COUNTED: the phase gauge holds at most one series per
+  # (resource, operation_type), because the Backend replaces the previous series
+  # on every transition. Every count below is therefore a count of CLUSTERS by
+  # the outcome of their latest update, not a count of LROs. A failed update
+  # that is later retried successfully is overwritten and never counted, so
+  # these series under-report LRO failures. A true per-LRO rate needs a counter
+  # incremented once per terminal transition (ARO-25923).
   #
   # count() counts series, so HA scrapes are collapsed with
   # max without (prometheus_replica) BEFORE every count; otherwise each resource
@@ -75,7 +79,7 @@ spec:
   - name: arohcp_cluster_update_slo_recording_rules
     interval: 1m
     rules:
-    # Instantaneous count of succeeded cluster update operations per cluster
+    # Instantaneous count of clusters whose latest update succeeded
     - record: errors:backend_cluster_update:succeeded_total
       expr: |
         count by (cluster) (
@@ -87,7 +91,7 @@ spec:
             }
           )
         )
-    # Instantaneous count of succeeded or failed cluster update operations per cluster
+    # Instantaneous count of clusters whose latest update succeeded or failed
     - record: errors:backend_cluster_update:terminal_total
       expr: |
         count by (cluster) (
@@ -99,7 +103,7 @@ spec:
             }
           )
         )
-    # Instantaneous error rate per cluster: fraction of succeeded-or-failed operations that failed
+    # Instantaneous fraction of those clusters whose latest update failed
     - record: errors:backend_cluster_update:error_rate
       expr: |
         (
@@ -139,7 +143,7 @@ spec:
   # ========================================
   # Cluster Update SLO Recording Rules: Windowed Errors (stateless)
   # ========================================
-  # These windowed records count only cluster update operations whose terminal
+  # These windowed records count only clusters whose latest update's terminal
   # transition landed inside the window, via
   # (time() - backend_resource_operation_last_transition_time_seconds) < W,
   # so a stale failure ages out of the window instead of smearing for the full
