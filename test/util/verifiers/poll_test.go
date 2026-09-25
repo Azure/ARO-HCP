@@ -93,3 +93,68 @@ func TestPollUntilReady_PositiveTimeout(t *testing.T) {
 		t.Fatalf("expected success for positive timeout with passing check, got: %v", err)
 	}
 }
+
+// TestPollUntilReady_SucceedsWhenConditionLandsAfterLastPoll covers the ARO-26775 near-miss: the
+// condition becomes true between the final poll and the deadline. Without the post-deadline
+// check this reports a timeout on work that finished inside the budget.
+func TestPollUntilReady_SucceedsWhenConditionLandsAfterLastPoll(t *testing.T) {
+	// A 400ms budget with a 250ms interval polls at 0ms and 250ms; the next tick would land at
+	// 500ms, past the deadline, so the loop stops looking at 250ms. Becoming ready at 320ms
+	// falls in that blind window -- the same shape as a target version that appeared 22s before
+	// a 45m deadline whose preceding poll had fired 2m earlier. Success here is reachable only
+	// through the post-deadline check.
+	const (
+		timeout  = 400 * time.Millisecond
+		interval = 250 * time.Millisecond
+	)
+	readyAt := time.Now().Add(320 * time.Millisecond)
+	var checks int
+
+	err := pollUntilReady(
+		context.Background(),
+		"test-verifier",
+		timeout,
+		interval,
+		nil,
+		DefaultDiagnoseTimeout,
+		nil,
+		func(ctx context.Context) error {
+			checks++
+			if time.Now().Before(readyAt) {
+				return fmt.Errorf("not ready")
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("expected the post-deadline check to observe the condition, got: %v", err)
+	}
+	// Two in-loop polls that saw "not ready", then the post-deadline check that saw success.
+	if checks != 3 {
+		t.Fatalf("expected 3 checks (2 in-loop polls + 1 post-deadline), got %d", checks)
+	}
+}
+
+// TestPollUntilReady_StillFailsWhenConditionNeverHolds guards against the post-deadline check
+// masking a genuine timeout.
+func TestPollUntilReady_StillFailsWhenConditionNeverHolds(t *testing.T) {
+	err := pollUntilReady(
+		context.Background(),
+		"test-verifier",
+		250*time.Millisecond,
+		100*time.Millisecond,
+		nil,
+		DefaultDiagnoseTimeout,
+		nil,
+		func(ctx context.Context) error { return fmt.Errorf("not ready") },
+	)
+	if err == nil {
+		t.Fatal("expected a timeout error when the condition never holds, got nil")
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("expected 'timed out' in error, got: %s", err.Error())
+	}
+	if !strings.Contains(err.Error(), "not ready") {
+		t.Fatalf("expected the last check error to be wrapped, got: %s", err.Error())
+	}
+}

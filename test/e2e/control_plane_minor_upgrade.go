@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -167,13 +166,17 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
 			By("verifying control plane reached desired version and cluster remains viable")
-			Eventually(func() error {
-				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
-					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion),
-					verifiers.VerifyHostedControlPlaneYStreamUpgrade(
-						installVersionId,
-						upgradeVersionId))
-			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.VerifyKubeAPIServerServerVersionUpgraded(
+					preUpgradeKubeAPIServerVersion,
+					framework.HCPClusterVersionUpgradeTimeout),
+				verifiers.VerifyHostedControlPlaneYStreamUpgrade(
+					installVersionId,
+					upgradeVersionId,
+					framework.HCPClusterVersionUpgradeTimeout))
+			Expect(err).NotTo(HaveOccurred(),
+				"control plane of cluster %q did not reach %s within %s", clusterName, upgradeVersionId,
+				framework.HCPClusterVersionUpgradeTimeout)
 		},
 		Entry("from 4.20 minor to 4.21 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),
 		Entry("from 4.21 minor to 4.22 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22"),
