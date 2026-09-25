@@ -56,14 +56,14 @@ func mustParseResourceID(s string) *azcorearm.ResourceID {
 	return id
 }
 
-func containerRegistryTestCluster(containerRegistryMIResourceID, capzResourceID string) *coreapi.HCPOpenShiftCluster {
-	cluster := &coreapi.HCPOpenShiftCluster{
+func containerRegistryTestCluster(containerRegistryMIResourceID, capzResourceID string) *coreapi.Cluster {
+	cluster := &coreapi.Cluster{
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
 				ID: mustParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/mycluster"),
 			},
 		},
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			Platform: coreapi.CustomerPlatformProfile{
 				OperatorsAuthentication: coreapi.OperatorsAuthenticationProfile{
 					UserAssignedIdentities: coreapi.UserAssignedIdentitiesProfile{
@@ -75,7 +75,7 @@ func containerRegistryTestCluster(containerRegistryMIResourceID, capzResourceID 
 				},
 			},
 		},
-		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ManagedIdentitiesDataPlaneIdentityURL: "https://mi.example.com",
 		},
 	}
@@ -141,7 +141,7 @@ func TestContainerRegistryPullCredentialsPermissionValidation(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		cluster         *coreapi.HCPOpenShiftCluster
+		cluster         *coreapi.Cluster
 		setup           setupFunc
 		wantOutcomeType OutcomeType
 		msgContains     string

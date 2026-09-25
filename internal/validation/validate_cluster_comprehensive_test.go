@@ -963,7 +963,7 @@ func TestValidateClusterCreate(t *testing.T) {
 		},
 		{
 			name: "container registry pull MI in different subscription - create",
-			cluster: func() *coreapi.HCPOpenShiftCluster {
+			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/customer-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull"))
 				return c

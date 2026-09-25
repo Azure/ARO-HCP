@@ -1716,8 +1716,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "matching container registry pull MI returns Succeeded",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						ContainerRegistry: coreapi.ContainerRegistryProfile{
 							PullManagedIdentity: coreapitesting.NewTestUserAssignedIdentity("cr-pull-mi"),
@@ -1744,8 +1744,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "container registry pull MI mismatch returns Updating",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						ContainerRegistry: coreapi.ContainerRegistryProfile{
 							PullManagedIdentity: coreapitesting.NewTestUserAssignedIdentity("new-mi"),
@@ -1773,8 +1773,8 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		},
 		{
 			name: "nil desired with unset CS container registry returns Succeeded",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{},
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{},
 			},
 			csCluster: newCSClusterWithAllowAll(t),
 			wantState: coreapi.ProvisioningStateSucceeded,

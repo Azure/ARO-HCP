@@ -178,8 +178,8 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "container registry pull managed identity",
-			cluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: baseCustomerProperties.NodeDrainTimeoutMinutes,
 					API:                     baseCustomerProperties.API,
 					Autoscaling:             baseCustomerProperties.Autoscaling,
@@ -1575,8 +1575,8 @@ func TestClusterUpdateDispatchConfigFromCSContainerRegistryRoundTrip(t *testing.
 
 	miID := coreapitesting.NewTestUserAssignedIdentity("cr-pull-mi")
 
-	rpCluster := &coreapi.HCPOpenShiftCluster{
-		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	rpCluster := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
 			Platform: coreapi.CustomerPlatformProfile{
 				ContainerRegistry: coreapi.ContainerRegistryProfile{
 					PullManagedIdentity: miID,

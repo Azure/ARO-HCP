@@ -182,8 +182,8 @@ func TestWithImmutableAttributes(t *testing.T) {
 		},
 		{
 			name: "with ACR pull managed identity",
-			hcpCluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						ContainerRegistry: coreapi.ContainerRegistryProfile{
 							PullManagedIdentity: coreapitesting.NewTestUserAssignedIdentity("acr-pull-mi"),
@@ -1240,8 +1240,8 @@ func TestBuildCSCluster(t *testing.T) {
 		},
 		{
 			name: "CREATE - sets ACR pull managed identity",
-			hcpCluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						ContainerRegistry: coreapi.ContainerRegistryProfile{
 							PullManagedIdentity: coreapitesting.NewTestUserAssignedIdentity("acr-pull-mi"),
@@ -1289,8 +1289,8 @@ func TestBuildCSCluster(t *testing.T) {
 		},
 		{
 			name: "CREATE - no ACR pull MI when nil",
-			hcpCluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{},
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{},
 			},
 			expectedCSCluster: getBaseCSClusterBuilder(false),
 		},
@@ -1345,8 +1345,8 @@ func TestBuildCSCluster(t *testing.T) {
 				}
 				return c
 			}(),
-			hcpCluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
 					Platform: coreapi.CustomerPlatformProfile{
 						ContainerRegistry: coreapi.ContainerRegistryProfile{
 							PullManagedIdentity: coreapitesting.NewTestUserAssignedIdentity("acr-pull-mi"),
@@ -1378,8 +1378,8 @@ func TestBuildCSCluster(t *testing.T) {
 				}
 				return c
 			}(),
-			hcpCluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{},
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{},
 			},
 			expectedCSCluster: getBaseCSClusterBuilder(true).
 				Azure(defaultTestKMSUpdateAzureBuilder().

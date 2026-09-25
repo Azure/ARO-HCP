@@ -1548,9 +1548,9 @@ func TestAdmitClusterContainerRegistryPullManagedIdentity(t *testing.T) {
 	miResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/customer-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull-mi"))
 
-	makeCluster := func(version string, mi *azcorearm.ResourceID) *coreapi.HCPOpenShiftCluster {
-		return &coreapi.HCPOpenShiftCluster{
-			CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+	makeCluster := func(version string, mi *azcorearm.ResourceID) *coreapi.Cluster {
+		return &coreapi.Cluster{
+			CustomerProperties: coreapi.ClusterCustomerProperties{
 				Version: coreapi.VersionProfile{ID: version},
 				Platform: coreapi.CustomerPlatformProfile{
 					ContainerRegistry: coreapi.ContainerRegistryProfile{
@@ -1577,7 +1577,7 @@ func TestAdmitClusterContainerRegistryPullManagedIdentity(t *testing.T) {
 	tests := []struct {
 		name         string
 		op           operation.Operation
-		cluster      *coreapi.HCPOpenShiftCluster
+		cluster      *coreapi.Cluster
 		spc          *coreapi.ServiceProviderCluster
 		expectErrors []utils.ExpectedError
 	}{
