@@ -15,6 +15,7 @@
 package corecosmosstorage
 
 import (
+	"context"
 	"fmt"
 	"path"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
@@ -68,6 +70,7 @@ var _ OperationCRUD = &operationCRUD{}
 
 func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiveOperationDocsOptions) cosmosstorageutils.DBClientIterator[coreapi.Operation] {
 	var queryOptions azcosmos.QueryOptions
+	shape := "operations_all"
 
 	query := fmt.Sprintf(
 		"SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, %q, true) "+
@@ -76,6 +79,7 @@ func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiv
 		coreapi.OperationStatusResourceType.String())
 
 	if options == nil || !options.IncludeTerminal {
+		shape = "operations_active"
 		query += fmt.Sprintf(
 			" AND NOT ARRAYCONTAINS([%q, %q, %q], c.properties.status)",
 			coreapi.ProvisioningStateSucceeded,
@@ -85,6 +89,7 @@ func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiv
 
 	if options != nil {
 		if options.Request != nil {
+			shape += "_request"
 			query += " AND c.properties.request = @request"
 			queryParameter := azcosmos.QueryParameter{
 				Name:  "@request",
@@ -97,9 +102,11 @@ func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiv
 			query += " AND "
 			const resourceFilter = "STRINGEQUALS(c.properties.externalId, @externalId, true)"
 			if options.IncludeNestedResources {
+				shape += "_resource_tree"
 				const nestedResourceFilter = "STARTSWITH(c.properties.externalId, CONCAT(@externalId, \"/\"), true)"
 				query += fmt.Sprintf("(%s OR %s)", resourceFilter, nestedResourceFilter)
 			} else {
+				shape += "_resource"
 				query += resourceFilter
 			}
 			queryParameter := azcosmos.QueryParameter{
@@ -110,7 +117,7 @@ func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiv
 		}
 	}
 
-	pager := d.ContainerClient.NewQueryItemsPager(query, cosmosstorageutils.NewPartitionKey(d.ParentResourceID.SubscriptionID), &queryOptions)
+	pager := cosmosmetrics.NewQueryItemsPager(context.Background(), d.ContainerClient, query, cosmosstorageutils.NewPartitionKey(d.ParentResourceID.SubscriptionID), &queryOptions, shape, "single_partition")
 	return cosmosstorageutils.NewQueryResourcesIterator[coreapi.Operation, cosmosstorageutils.GenericDocument[coreapi.Operation]](pager)
 }
 
