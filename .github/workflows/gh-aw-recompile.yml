@@ -7,10 +7,8 @@
 # https://raw.githubusercontent.com/github/gh-aw-actions/main/.github/aw/compat.json).
 # When that happens the activation job fails and the automation silently stops.
 #
-# This workflow runs `gh aw upgrade` on a schedule: it self-upgrades the gh-aw
-# extension to the latest release, recompiles every .md workflow, refreshes the
-# action pins, and opens a pull request with the result. A human still reviews
-# and merges the PR, so the compiled artifact stays pinned and reviewable.
+# This workflow upgrades and validates generated files before pushing its own
+# upgrade PR. A human reviews and merges the pinned artifacts.
 name: gh-aw recompile
 on:
   # Weekly, ahead of the nightly agentic runs, so a fresh recompile can land
@@ -27,7 +25,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   recompile:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     # Only run the privileged (App-token) job when the definition is the one on
     # the default branch. Scheduled runs always are. This blocks an accidental
     # workflow_dispatch from a feature branch. It is a guardrail, not a hard
@@ -41,7 +39,7 @@ jobs:
       with:
         client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
         private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
-        # Only what `gh aw upgrade --create-pull-request` needs: push a branch,
+        # Only what the upgrade needs: push a branch,
         # update the compiled *.lock.yml files (which live under
         # .github/workflows, so a GitHub App push requires the separate
         # `workflows` permission), and open the PR. Without these inputs the
@@ -63,14 +61,18 @@ jobs:
         # is never readable by the extension's git plumbing. Push auth is wired up
         # explicitly via `gh auth setup-git` below.
         persist-credentials: false
+        fetch-depth: 0
+    - name: Set up Go for repository validation
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v6
+      with:
+        go-version-file: go.work
+        cache: false
     - name: Configure git and gh auth for the App identity
       env:
         GH_TOKEN: ${{ steps.app-token.outputs.token }}
       run: |
         set -euo pipefail
-        # gh aw upgrade runs `git commit` locally, which fails with
-        # "Author identity unknown" on a clean runner. Attribute the commit to
-        # the aro-hcp-robot App bot so it matches the PR author.
+        # Attribute the upgrade commit to the App that opens the PR.
         app_slug=aro-hcp-robot
         bot_login="${app_slug}[bot]"
         bot_id=$(gh api "/users/${bot_login}" --jq '.id')
@@ -86,28 +88,10 @@ jobs:
       # artifact), not the moving default branch. This is the same tool we
       # already trust to compile the security-critical lock files.
       run: gh extension install github/gh-aw
-    - name: Skip if an upgrade PR is already open
-      id: guard
+    - name: Repair and validate the bot's upgrade PR
       env:
         GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        GITHUB_BASE_REF: ${{ github.event.repository.default_branch }}
       run: |
         set -euo pipefail
-        # gh aw upgrade opens a new randomly-suffixed upgrade-agentic-workflows-*
-        # branch every run, authored by the aro-hcp-robot App. If a previous PR
-        # is still awaiting review, opening a duplicate is just noise, so skip
-        # this run. Narrow to the bot's own PRs server-side (with an explicit
-        # limit, since gh pr list otherwise returns only the first 30 and our PR
-        # could fall off the page in a busy repo) and match the branch prefix.
-        open=$(gh pr list --state open --author app/aro-hcp-robot --limit 100 --json headRefName,author \
-          --jq '[.[] | select(.author.login == "aro-hcp-robot[bot]" and (.headRefName | startswith("upgrade-agentic-workflows")))] | length')
-        if [ "${open}" -gt 0 ]; then
-          echo "An upgrade PR is already open; skipping."
-          echo "skip=true" >> "${GITHUB_OUTPUT}"
-        else
-          echo "skip=false" >> "${GITHUB_OUTPUT}"
-        fi
-    - name: Upgrade and recompile, open a PR if anything changed
-      if: steps.guard.outputs.skip != 'true'
-      env:
-        GH_TOKEN: ${{ steps.app-token.outputs.token }}
-      run: gh aw upgrade --create-pull-request --yes
+        bash hack/gh-aw-recompile.sh
