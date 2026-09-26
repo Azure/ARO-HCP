@@ -60,16 +60,16 @@ network:
 #    cannot. The files are excluded from git so they never leak into a remediation PR.
 steps:
   - name: Checkout
-    uses: actions/checkout@v5
+    uses: actions/checkout@v7.0.1
     with:
       persist-credentials: false
   - name: Set up Go from go.work
-    uses: actions/setup-go@v5
+    uses: actions/setup-go@v7.0.0
     with:
       go-version-file: go.work
       check-latest: true          # install the newest patch of the go.work-declared Go version instead of a possibly-older cached toolchain, so the agent's `make all-tidy` output is reproducible and the PR passes the go-modules check
   - name: Set up Node
-    uses: actions/setup-node@v4
+    uses: actions/setup-node@v7.0.0
     with:
       node-version: lts/*
   - name: Mint App token to read alerts and PRs
@@ -88,27 +88,28 @@ steps:
       # sensitive, so the CI reads use the job's default GITHUB_TOKEN (which the
       # top-level permissions block grants checks:read + statuses:read) instead.
       CI_TOKEN: ${{ github.token }}
+      EXPR_GITHUB_REPOSITORY: ${{ github.repository }}
     run: |
       set -euo pipefail
       # Keep the scratch files out of git so they never end up in a remediation PR.
       printf '%s\n' dependabot-alerts.json open-pull-requests.json open-pull-requests.base.json >> .git/info/exclude
-      gh api --paginate "/repos/${{ github.repository }}/dependabot/alerts?state=open&per_page=100" \
+      gh api --paginate "/repos/$EXPR_GITHUB_REPOSITORY/dependabot/alerts?state=open&per_page=100" \
         --jq '.[] | {number, ecosystem: .dependency.package.ecosystem, package: .dependency.package.name, manifest: .dependency.manifest_path, ghsa: .security_advisory.ghsa_id, cve: .security_advisory.cve_id, severity: .security_advisory.severity, vulnerable_range: .security_vulnerability.vulnerable_version_range, first_patched: .security_vulnerability.first_patched_version.identifier}' \
         | jq -s '.' > dependabot-alerts.json
       # Open PRs, enriched so the agent can reconcile against them (section 1b):
       # the list endpoint carries labels + author + head sha but NOT mergeable_state
       # or CI, so for our own agentic PRs we fetch each one's mergeable_state and roll
       # up its check-runs + commit statuses into a single pass/fail/pending signal.
-      gh api --paginate "/repos/${{ github.repository }}/pulls?state=open&per_page=100" \
+      gh api --paginate "/repos/$EXPR_GITHUB_REPOSITORY/pulls?state=open&per_page=100" \
         --jq '.[] | {number, title, head: .head.ref, sha: .head.sha, draft: .draft, author: .user.login, labels: [.labels[].name]}' \
         | jq -s '.' > open-pull-requests.base.json
       jq -c '.[]' open-pull-requests.base.json | while read -r pr; do
         n=$(printf '%s' "$pr" | jq -r .number)
         sha=$(printf '%s' "$pr" | jq -r .sha)
         if printf '%s' "$pr" | jq -e '.labels | index("agentic-dependabot")' >/dev/null; then
-          ms=$(gh api "/repos/${{ github.repository }}/pulls/$n" --jq '.mergeable_state' 2>/dev/null || echo unknown)
-          checks=$(GH_TOKEN="$CI_TOKEN" gh api "/repos/${{ github.repository }}/commits/$sha/check-runs" --jq '[.check_runs[].conclusion]' 2>/dev/null || echo '[]')
-          st=$(GH_TOKEN="$CI_TOKEN" gh api "/repos/${{ github.repository }}/commits/$sha/status" --jq '{state, total_count}' 2>/dev/null || echo '{"state":"unknown","total_count":0}')
+          ms=$(gh api "/repos/$EXPR_GITHUB_REPOSITORY/pulls/$n" --jq '.mergeable_state' 2>/dev/null || echo unknown)
+          checks=$(GH_TOKEN="$CI_TOKEN" gh api "/repos/$EXPR_GITHUB_REPOSITORY/commits/$sha/check-runs" --jq '[.check_runs[].conclusion]' 2>/dev/null || echo '[]')
+          st=$(GH_TOKEN="$CI_TOKEN" gh api "/repos/$EXPR_GITHUB_REPOSITORY/commits/$sha/status" --jq '{state, total_count}' 2>/dev/null || echo '{"state":"unknown","total_count":0}')
           ss=$(printf '%s' "$st" | jq -r .state)
           sc=$(printf '%s' "$st" | jq -r .total_count)
           # Roll check-runs plus commit statuses into one signal. Only trust the
@@ -171,7 +172,7 @@ safe-outputs:
     # set. Everything else (.github/, README, AGENTS.md, security config) keeps the
     # default request_review guard.
     protected-files:
-      policy: request_review
+      policy: request-review
       exclude:
         - go.mod
         - go.sum
