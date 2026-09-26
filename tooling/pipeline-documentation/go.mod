@@ -5,7 +5,7 @@ go 1.25.7
 require (
 	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260921171559-9111ffaaedb3
 	github.com/dusted-go/logging v1.3.0
-	github.com/go-logr/logr v1.4.3
+	github.com/go-logr/logr v1.4.4
 	github.com/spf13/cobra v1.10.2
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -14,5 +14,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	k8s.io/apimachinery v0.35.3 // indirect
 )
