@@ -52,24 +52,22 @@ For the current mixed-management model of the pooled MSI mock identities, see [C
 
 A brand-new subscription typically has no Azure resource providers registered beyond `Microsoft.Authorization`. The Azure portal quota blade reports *"The selected provider is not registered for some of the selected subscriptions"*, and later provisioning and RBAC steps fail until the providers used by ARO-HCP are registered.
 
-Register the required providers on each new subscription before requesting quota or running any provisioning step:
+**Provider registration is now automated** by the `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionProviders` service group, which runs as part of `make dev-ci-privileged-local-run` (step 6 of the procedure below). You no longer need to register providers manually for internally-managed subscriptions — the privileged pipeline handles it idempotently. The authoritative provider list lives in `config/config-dev-ci.yaml` under `ci.e2eSubscriptionProviders`; add new provider dependencies there.
+
+`Microsoft.Compute` and `Microsoft.Network` in particular must be registered before the Standard DSv3 vCPU and public-IP quota requests can be filed. `Microsoft.Quota` backs the quota tooling and the `tenant-quota-collector` monitoring updated in step 6. Because quota requests (step 2) must come before `make dev-ci-privileged-local-run` (step 6), you may still need to register `Microsoft.Compute` and `Microsoft.Network` manually before filing quota:
 
 ```sh
-for ns in Microsoft.Compute Microsoft.Network Microsoft.ManagedIdentity \
-          Microsoft.Storage Microsoft.KeyVault Microsoft.RedHatOpenShift \
-          Microsoft.Quota; do
+for ns in Microsoft.Compute Microsoft.Network; do
   az provider register --namespace "$ns" --subscription <subscription-id>
+done
+# Wait for Registered state before filing quota requests:
+for ns in Microsoft.Compute Microsoft.Network; do
+  echo "$ns: $(az provider show --namespace "$ns" \
+    --subscription <subscription-id> --query registrationState -o tsv)"
 done
 ```
 
-Registration is asynchronous; wait until every namespace reports `Registered`:
-
-```sh
-az provider show --namespace Microsoft.Compute \
-  --subscription <subscription-id> --query registrationState -o tsv
-```
-
-`Microsoft.Compute` and `Microsoft.Network` in particular must be registered before the Standard DSv3 vCPU and public-IP quota requests can be filed. `Microsoft.Quota` backs the quota tooling and the `tenant-quota-collector` monitoring updated in step 6.
+All remaining providers (`Microsoft.Insights`, `Microsoft.KeyVault`, `Microsoft.ManagedIdentity`, `Microsoft.Quota`, `Microsoft.RedHatOpenShift`, `Microsoft.Storage`) are registered automatically when you run the privileged pipeline in step 6.
 
 ## Procedure
 
@@ -137,7 +135,8 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 - `test/cmd/aro-hcp-tests/slot-manager/DESIGN.md`
 - `test/cmd/aro-hcp-tests/slot-manager/release_repo.go`
 - `test/cmd/aro-hcp-tests/slot-manager/identity-pool/`
-- `config/config-dev-ci.yaml`
+- `config/config-dev-ci.yaml` — subscription inventory (`ci.<env>.e2eSubscriptions`) and provider list (`ci.e2eSubscriptionProviders`)
+- `dev-infrastructure/dev-ci/e2e-subscription-providers/pipeline.yaml` — provider registration pipeline
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
 - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
@@ -219,7 +218,7 @@ AFEC registration is a two-step process: first initiate the registration from th
 
 1. Add the subscription to `config/config-dev-ci.yaml` under the appropriate `ci.<env>.e2eSubscriptions` section.
 
-2. Run the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint to grant the environment's CI bot (e.g. `OpenShift Release Bot - STG`) the required RBAC on the new subscription (`make dev-ci-privileged-local-run`). This creates subscription-scoped role assignments and therefore requires **Owner** on the target subscription — run it on demand via an OWNERS-group member, not the `dev-ci` postsubmit.
+2. Run the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (`make dev-ci-privileged-local-run`). This grants the environment's CI bot (e.g. `OpenShift Release Bot - STG`) the required RBAC on the new subscription **and** registers all required resource providers (see `ci.e2eSubscriptionProviders` in `config/config-dev-ci.yaml`). Both operations require **Owner** on the target subscription and run on demand via an OWNERS-group member.
 
 3. Add the pool to `test/e2e-config/e2e-slots.yaml` under the environment's `pools` list.
 
