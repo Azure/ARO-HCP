@@ -982,6 +982,7 @@ serviceKeyVault:
     key: ARO Hosted Control Planes (EA Subscription 1)
   tagKey: aroHCPPurpose
   tagValue: service
+serviceTreeId: 00000000-0000-0000-0000-000000000000
 sessiongate:
   cert:
     contentType: x-pkcs12

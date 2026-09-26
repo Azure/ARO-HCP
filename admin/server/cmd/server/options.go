@@ -23,7 +23,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/microsoft/go-otel-audit/audit/base"
+	"github.com/google/uuid"
+	otelaudit "github.com/microsoft/go-otel-audit/audit"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/spf13/cobra"
@@ -40,6 +41,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	auditclient "github.com/Azure/ARO-HCP/internal/audit/otelaudit"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/certificate"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
@@ -68,6 +70,7 @@ func DefaultOptions() *RawOptions {
 		FpaCertBundlePath:       os.Getenv("FPA_CERT_BUNDLE_PATH"),
 		FpaClientID:             os.Getenv("FPA_CLIENT_ID"),
 		AuditConnectSocket:      os.Getenv("AUDIT_CONNECT_SOCKET") == "true",
+		AuditServiceTreeID:      os.Getenv("AUDIT_SERVICE_TREE_ID"),
 		Kubeconfig:              os.Getenv("KUBECONFIG"),
 		SessiongateNamespace:    os.Getenv("SESSIONGATE_NAMESPACE"),
 		MinSessionTTL:           getEnvDuration("MIN_SESSION_TTL", 10*time.Minute),
@@ -90,6 +93,7 @@ type RawOptions struct {
 	FpaClientID             string
 	AuditLogQueueSize       int
 	AuditConnectSocket      bool
+	AuditServiceTreeID      string
 	Kubeconfig              string
 	SessiongateNamespace    string
 	MinSessionTTL           time.Duration
@@ -109,6 +113,7 @@ func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.FpaCertBundlePath, "fpa-cert-bundle-path", opts.FpaCertBundlePath, "Path to the FPA certificate bundle.")
 	cmd.Flags().IntVar(&opts.AuditLogQueueSize, "audit-log-queue-size", opts.AuditLogQueueSize, "Log queue size for audit logging client.")
 	cmd.Flags().BoolVar(&opts.AuditConnectSocket, "audit-connect-socket", opts.AuditConnectSocket, "Connect to mdsd audit socket.")
+	cmd.Flags().StringVar(&opts.AuditServiceTreeID, "audit-service-tree-id", opts.AuditServiceTreeID, "Service Tree UUID for audit logging; zero UUID is allowed only when forwarding is disabled")
 	cmd.Flags().StringVar(&opts.Kubeconfig, "kubeconfig", opts.Kubeconfig, "Path to kubeconfig file.")
 	cmd.Flags().StringVar(&opts.SessiongateNamespace, "sessiongate-namespace", opts.SessiongateNamespace, "Namespace for Sessiongate CRs.")
 	cmd.Flags().DurationVar(&opts.MinSessionTTL, "min-session-ttl", opts.MinSessionTTL, "Minimum breakglass session TTL.")
@@ -129,6 +134,7 @@ func getEnvDuration(key string, defaultDuration time.Duration) time.Duration {
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
 type validatedOptions struct {
 	*RawOptions
+	AuditServiceTreeID uuid.UUID
 }
 
 type ValidatedOptions struct {
@@ -184,9 +190,17 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	if o.MaxSessionTTL < o.MinSessionTTL {
 		return nil, fmt.Errorf("max-session-ttl must be greater than min-session-ttl")
 	}
+	serviceTreeID, err := uuid.Parse(o.AuditServiceTreeID)
+	if err != nil {
+		return nil, fmt.Errorf("audit-service-tree-id must be a UUID: %w", err)
+	}
+	if o.AuditConnectSocket && serviceTreeID == uuid.Nil {
+		return nil, fmt.Errorf("audit-service-tree-id must be nonzero when audit forwarding is enabled")
+	}
 	return &ValidatedOptions{
 		validatedOptions: &validatedOptions{
-			RawOptions: o,
+			RawOptions:         o,
+			AuditServiceTreeID: serviceTreeID,
 		},
 	}, nil
 }
@@ -264,14 +278,13 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	// Create audit log client.
 	logger := utils.LoggerFromContext(ctx)
 	slogLogger := slog.New(logr.ToSlogHandler(logger))
-	auditClient, err := audit.NewOtelAuditClient(
+	auditClient, err := auditclient.NewOtelAuditClient(
 		ctx,
-		audit.CreateConn(o.AuditConnectSocket),
+		o.AuditConnectSocket,
+		o.AuditServiceTreeID,
 		registry,
-		base.WithLogger(slogLogger),
-		base.WithSettings(base.Settings{
-			QueueSize: o.AuditLogQueueSize,
-		}),
+		otelaudit.WithLogger(slogLogger),
+		otelaudit.WithQueueSize(o.AuditLogQueueSize),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create audit client: %w", err)

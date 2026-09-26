@@ -308,6 +308,7 @@ defaults:
         limits:
           memory: unlimited
   tenantId: ""
+  serviceTreeId: "00000000-0000-0000-0000-000000000000"
   ev2:
     assistedId:
       certificate:

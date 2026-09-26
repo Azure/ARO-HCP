@@ -19,100 +19,14 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 
-	"github.com/microsoft/go-otel-audit/audit"
-	"github.com/microsoft/go-otel-audit/audit/base"
-	"github.com/microsoft/go-otel-audit/audit/conn"
 	"github.com/microsoft/go-otel-audit/audit/msgs"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const (
-	Unknown = "Unknown"
-
-	MetricAuditLogRecordsTotal       = "otel_audit_log_records_total"
-	MetricAuditLogSendErrorsTotal    = "otel_audit_log_send_errors_total"
-	MetricAuditLogConnectionDegraded = "otel_audit_log_connection_degraded"
-)
-
 type Client interface {
-	Send(ctx context.Context, msg msgs.Msg, options ...base.SendOption) error
-}
-
-var _ Client = (*AuditClient)(nil)
-
-type AuditClient struct {
-	client     Client
-	totalSend  prometheus.Counter
-	sendErrors prometheus.Counter
-}
-
-func (c *AuditClient) Send(ctx context.Context, msg msgs.Msg, options ...base.SendOption) error {
-	ensureDefaults(&msg.Record)
-	c.totalSend.Inc()
-	err := c.client.Send(ctx, msg, options...)
-	if err != nil {
-		c.sendErrors.Inc()
-	}
-	return err
-}
-
-func CreateConn(connectSocket bool) (createConn audit.CreateConn) {
-	if connectSocket {
-		createConn = func() (conn.Audit, error) {
-			return conn.NewDomainSocket()
-		}
-	} else {
-		createConn = func() (conn.Audit, error) {
-			return conn.NewNoOP(), nil
-		}
-	}
-	return createConn
-}
-
-// NewOtelAuditClient creates an audit client that wraps the given connection
-// factory with best-effort fallback. If the connection fails, it falls back to
-// a no-op connection and sets the degraded gauge. Non-connection errors from
-// the underlying audit library are returned to the caller.
-func NewOtelAuditClient(ctx context.Context, createConn audit.CreateConn, registerer prometheus.Registerer, options ...base.Option) (*AuditClient, error) {
-	degradedGauge := promauto.With(registerer).NewGauge(prometheus.GaugeOpts{
-		Name: MetricAuditLogConnectionDegraded,
-		Help: "State of the audit logs forwarding: 1 for degraded when the intended connection to the audit server failed, 0 otherwise",
-	})
-
-	logger := utils.LoggerFromContext(ctx)
-
-	bestEffortConn := func() (conn.Audit, error) {
-		c, err := createConn()
-		if err != nil {
-			logger.Error(err, "audit socket unavailable, falling back to noop")
-			degradedGauge.Set(1)
-			return conn.NewNoOP(), nil
-		}
-		degradedGauge.Set(0)
-		return c, nil
-	}
-
-	client, err := audit.New(bestEffortConn, audit.WithAuditOptions(options...))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create audit client: %w", err)
-	}
-
-	return &AuditClient{
-		client: client,
-		totalSend: promauto.With(registerer).NewCounter(prometheus.CounterOpts{
-			Name: MetricAuditLogRecordsTotal,
-			Help: "Total number of audit records attempted to be sent.",
-		}),
-		sendErrors: promauto.With(registerer).NewCounter(prometheus.CounterOpts{
-			Name: MetricAuditLogSendErrorsTotal,
-			Help: "Total number of audit records that failed to send.",
-		}),
-	}, nil
+	Send(ctx context.Context, msg msgs.Msg) error
 }
 
 func GetOperationType(method string) msgs.OperationType {
@@ -186,91 +100,4 @@ func CreateOtelAuditMsg(ctx context.Context, r *http.Request, categoryDescriptio
 	}
 
 	return msg
-}
-
-// ensureDefaults ensures that all required fields in the Record are set to default values if they are empty or invalid.
-// It modifies the Record in place to ensure it meets the expected structure and data requirements.
-func ensureDefaults(r *msgs.Record) {
-	setDefault := func(value *string, defaultValue string) {
-		if *value == "" {
-			*value = defaultValue
-		}
-	}
-
-	setDefault(&r.OperationName, Unknown)
-	setDefault(&r.OperationAccessLevel, Unknown)
-	setDefault(&r.CallerAgent, Unknown)
-
-	if len(r.OperationCategories) == 0 {
-		r.OperationCategories = []msgs.OperationCategory{msgs.ResourceManagement}
-	}
-
-	for _, category := range r.OperationCategories {
-		if category == msgs.OCOther && r.OperationCategoryDescription == "" {
-			r.OperationCategoryDescription = "Other"
-		}
-	}
-
-	if r.OperationResult == msgs.Failure && r.OperationResultDescription == "" {
-		r.OperationResultDescription = Unknown
-	}
-
-	if len(r.CallerIdentities) == 0 {
-		r.CallerIdentities = map[msgs.CallerIdentityType][]msgs.CallerIdentityEntry{
-			msgs.ApplicationID: {
-				{Identity: Unknown, Description: Unknown},
-			},
-		}
-	}
-
-	for identityType, identities := range r.CallerIdentities {
-		if len(identities) == 0 {
-			r.CallerIdentities[identityType] = []msgs.CallerIdentityEntry{{Identity: Unknown, Description: Unknown}}
-		} else {
-			for i, identity := range identities {
-				if strings.TrimSpace(identity.Identity) == "" {
-					identities[i].Identity = Unknown
-				}
-				if strings.TrimSpace(identity.Description) == "" {
-					identities[i].Description = Unknown
-				}
-			}
-			r.CallerIdentities[identityType] = identities
-		}
-	}
-
-	if !r.CallerIpAddress.IsValid() || r.CallerIpAddress.IsUnspecified() || r.CallerIpAddress.IsLoopback() || r.CallerIpAddress.IsMulticast() {
-		r.CallerIpAddress, _ = msgs.ParseAddr("192.168.1.1")
-	}
-
-	if len(r.CallerAccessLevels) == 0 {
-		r.CallerAccessLevels = []string{Unknown}
-	}
-
-	for i, k := range r.CallerAccessLevels {
-		if strings.TrimSpace(k) == "" {
-			r.CallerAccessLevels[i] = Unknown
-		}
-	}
-
-	if len(r.TargetResources) == 0 {
-		r.TargetResources = map[string][]msgs.TargetResourceEntry{
-			Unknown: {
-				{Name: Unknown, Region: Unknown},
-			},
-		}
-	}
-
-	for resourceType, resources := range r.TargetResources {
-		if strings.TrimSpace(resourceType) == "" {
-			r.TargetResources[Unknown] = resources
-			delete(r.TargetResources, resourceType)
-		}
-
-		for _, resource := range resources {
-			if err := resource.Validate(); err != nil {
-				resource.Name = Unknown
-			}
-		}
-	}
 }
