@@ -851,6 +851,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		serviceProviderClusterLister,
 		backendInformers,
 	)
+	azureClusterVnetIntegrationSubnetSizeValidationController := clustervalidation.NewClusterValidationController(
+		validationutils.NewAzureClusterVnetIntegrationSubnetSizeValidation(b.options.SMIClientBuilder),
+		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
+		backendInformers,
+	)
 	containerRegistryPullCredentialsValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewContainerRegistryPullCredentialsPermissionValidation(b.options.SMIClientBuilder, b.options.CheckAccessV2ClientBuilder),
 		b.options.ResourcesDBClient,
@@ -1198,6 +1204,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
+				go azureClusterVnetIntegrationSubnetSizeValidationController.Run(ctx, 20)
 				go azureVMSizeSupportsEphemeralOSDiskValidationController.Run(ctx, 20)
 				go azureNodePoolVMQuotaValidationController.Run(ctx, 20)
 				go controlPlaneIdentitiesPermissionsValidationController.Run(ctx, 20)

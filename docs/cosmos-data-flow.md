@@ -904,6 +904,12 @@ Reads the customer Azure resource group and validates existence. Writes the corr
 
 Reads requested managed identities and reports missing/unavailable identities. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
 
+#### ClusterValidationAzureClusterVnetIntegrationSubnetSizeValidation
+
+[Source](../backend/pkg/utils/validationutils/azure_cluster_vnet_integration_subnet_size_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
+
+Reads the vnet-integration subnet via the cluster's Service Managed Identity and validates it has at least 6 usable IPs (Azure reserves 5 per subnet). Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+
 #### ClusterValidationControlPlaneIdentitiesPermissionsClusterValidation
 
 [Source](../backend/pkg/utils/validationutils/control_plane_identities_permissions_cluster_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
