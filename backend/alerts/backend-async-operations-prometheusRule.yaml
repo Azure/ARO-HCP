@@ -14,16 +14,17 @@ spec:
   # Backend Async Operation Stuck Alerts
   # ========================================
   # These alerts fire when an async operation has been running longer than
-  # the corresponding e2e test timeout. Thresholds are anchored to the
-  # canonical timeout constants in test/util/framework/constants.go.
+  # its configured timeout. Most thresholds are anchored to the canonical e2e
+  # timeout constants in test/util/framework/constants.go.
   #
   # Metric: backend_resource_operation_start_time_seconds (total wall-clock
   # time since the operation was created). Combined with phase_info to
   # restrict to operations still in non-terminal phases.
   #
-  # No `for` clause: the phase filter already ensures we only alert on
-  # in-flight operations. Once an operation reaches succeeded/failed/canceled,
-  # the phase no longer matches and the alert resolves immediately.
+  # The phase filter ensures we only alert on in-flight operations. Once an
+  # operation reaches succeeded/failed/canceled, the phase no longer matches
+  # and the alert resolves immediately. Individual alerts can add a `for`
+  # clause to require that condition to persist before firing.
   #
   # All expressions use max by(...) to deduplicate across Prometheus
   # replicas/shards, preventing duplicate alerts for the same operation.
@@ -37,7 +38,10 @@ spec:
     # ----------------------------------------
     # Cluster operations
     # ----------------------------------------
-    # Cluster create: e2e timeout = 20 minutes (ClusterCreationTimeout)
+    # Cluster create: backend marks an incomplete create as Failed after the
+    # 60-minute create-operation completion deadline. Require the condition to
+    # persist for five minutes to avoid alerting while that terminal update is
+    # being observed.
     - alert: BackendAsyncOperationClusterCreateStuck
       expr: |
         (
@@ -55,14 +59,15 @@ spec:
               phase=~"accepted|provisioning"
             }
           ) == 1
-        ) > 1200
+        ) > 3600
+      for: 5m
       labels:
         exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
         summary: 'Cluster create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
-        description: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 20 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: ClusterCreationTimeout).'
+        description: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 60 minutes and is currently in {{ $labels.phase }} phase.'
         runbook_url: TBD
     # Cluster update: e2e timeout = 45 minutes (HCPClusterVersionUpgradeTimeout)
     # This covers both property updates and version upgrades, since both
