@@ -49,6 +49,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const OperationClusterCreateControllerName = "OperationClusterCreate"
+
 type operationClusterCreate struct {
 	clock                                 utilsclock.PassiveClock
 	activeOperationLister                 corelisters.ActiveOperationLister
@@ -101,7 +103,7 @@ func NewOperationClusterCreateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationClusterCreate",
+		OperationClusterCreateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

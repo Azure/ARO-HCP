@@ -39,6 +39,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const NodePoolClusterServiceDeleteDispatchControllerName = "NodePoolClusterServiceDeleteDispatch"
+
 // missingClusterServiceIDTimeout is how long we wait after first observing
 // DeletionTimestamp for the ClusterServiceID to appear before concluding
 // that the corresponding Cluster Service Node Pool was never created and we have
@@ -90,7 +92,7 @@ func NewNodePoolClusterServiceDeleteDispatchController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolClusterServiceDeleteDispatch",
+		NodePoolClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

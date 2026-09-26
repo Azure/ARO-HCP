@@ -29,6 +29,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const BillingDumpControllerName = "BillingDump"
+
 type billingDump struct {
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
 	billingDBClient   billingcosmosstorage.BillingDBClient
@@ -52,7 +54,7 @@ func NewBillingDumpController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"BillingDump",
+		BillingDumpControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

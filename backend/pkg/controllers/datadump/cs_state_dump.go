@@ -35,6 +35,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const CSStateDumpControllerName = "CSStateDump"
+
 type csStateDump struct {
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
 	csClient          ocm.ClusterServiceClientSpec
@@ -58,7 +60,7 @@ func NewCSStateDumpController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"CSStateDump",
+		CSStateDumpControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

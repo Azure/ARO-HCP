@@ -37,6 +37,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterServiceClusterMatchingControllerName = "ClusterServiceMatchingClusters"
+
 type clusterServiceClusterMatching struct {
 	name  string
 	clock utilsclock.PassiveClock
@@ -53,7 +55,7 @@ type clusterServiceClusterMatching struct {
 // NewClusterServiceClusterMatchingController periodically looks for mismatched cluster-service and cosmos clusters
 func NewClusterServiceClusterMatchingController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, subscriptionLister corelisters.SubscriptionLister, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.Controller {
 	c := &clusterServiceClusterMatching{
-		name:                 "ClusterServiceMatchingClusters",
+		name:                 ClusterServiceClusterMatchingControllerName,
 		clock:                clock,
 		subscriptionLister:   subscriptionLister,
 		resourcesDBClient:    resourcesDBClient,
@@ -61,7 +63,7 @@ func NewClusterServiceClusterMatchingController(clock utilsclock.PassiveClock, r
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "ClusterServiceMatchingClusters",
+				Name: ClusterServiceClusterMatchingControllerName,
 			},
 		),
 	}

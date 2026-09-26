@@ -31,6 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ExternalAuthChildResourcesCleanupControllerName = "ExternalAuthChildResourcesCleanupController"
+
 // externalAuthChildResourcesCleanupController deletes child resources
 // scoped under an ExternalAuth recursively once the ExternalAuth is
 // marked for deletion and Cluster Service has confirmed the delete on
@@ -56,7 +58,7 @@ func NewExternalAuthChildResourcesCleanupController(
 	}
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthChildResourcesCleanupController",
+		ExternalAuthChildResourcesCleanupControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,

@@ -27,6 +27,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -129,7 +130,14 @@ func (f *KubeApplierRootCmdFlags) ToKubeApplierOptions() (*app.Options, error) {
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to parse management cluster resource ID: %w", err))
 	}
-	kubeApplierDBClient, err := app.NewKubeApplierDBClient(f.AzureCosmosDBURL, f.AzureCosmosDBName, f.AzureCosmosContainerName, managementClusterResourceID)
+	// Each MC container has 19,000 RU/s. Reserve 50% for this binary; the
+	// backend takes 30%, leaving 20% headroom without an additional discount.
+	const kubeApplierRUsPerSecond = 19000 * 0.5
+	bucket, err := cosmosratelimit.NewTokenBucket("kube-applier", kubeApplierRUsPerSecond, kubeApplierRUsPerSecond)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	kubeApplierDBClient, err := app.NewKubeApplierDBClient(f.AzureCosmosDBURL, f.AzureCosmosDBName, f.AzureCosmosContainerName, managementClusterResourceID, bucket)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create kube-applier Cosmos client: %w", err))
 	}

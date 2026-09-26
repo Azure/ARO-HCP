@@ -30,6 +30,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterRecursiveDataDumpControllerName = "DataDump"
+
 type clusterRecursiveDataDump struct {
 	resourcesDBClient       corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
@@ -56,7 +58,7 @@ func NewClusterRecursiveDataDumpController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"DataDump",
+		ClusterRecursiveDataDumpControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

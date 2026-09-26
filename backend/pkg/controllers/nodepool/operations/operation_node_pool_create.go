@@ -38,6 +38,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const OperationNodePoolCreateControllerName = "OperationNodePoolCreate"
+
 type operationNodePoolCreate struct {
 	clock                  utilsclock.PassiveClock
 	resourcesDBClient      corecosmosstorage.ResourcesDBClient
@@ -85,7 +87,7 @@ func NewOperationNodePoolCreateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationNodePoolCreate",
+		OperationNodePoolCreateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

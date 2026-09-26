@@ -6,6 +6,8 @@ It maps their inputs, decisions and effects across Cosmos DB, Azure, Cluster Ser
 and Kubernetes. Source baseline: `7997fa34a240560a792c3dd410396cd7651a9f39`.
 Targeted update baseline: `4c1bf7d74e714d2ce24a8175a0d4846cc78d7113`;
 scope: ContainerRegistry pull-credential validation controller for ARO-24037.
+RU budget update baseline: `e50c6077a32b443e8ccb8d6a01a858b3a4c3d595`;
+scope: unrestricted backend informer clients and logging each RU refill wait.
 
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
@@ -38,10 +40,10 @@ dependencies or the resource lifecycle diagrams.
 ## Request Unit (RU) attribution
 
 Sources: [Cosmos metrics policy](../internal/database/cosmosstorage/cosmosmetrics/policy.go),
-[client wiring](../internal/database/cosmosstorage/corecosmosstorage/database.go), and
+[client wiring](../internal/database/cosmosstorage/cosmosclient/database.go), and
 [informer attribution](../internal/database/informers/informerutils/context.go).
 
-Clients constructed through `corecosmosstorage.NewCosmosDatabaseClient` record two
+Clients constructed through `cosmosclient.NewCosmosDatabaseClient` record two
 shared, process-wide counters through the same per-retry pipeline policy:
 
 - `cosmos_request_units_total` sums the `x-ms-request-charge` response header
@@ -97,6 +99,152 @@ sum by (source_kind, source) (
     rate(cosmos_requests_total{status_code="429"}[5m])
   )
 )
+```
+
+### RU rate limiting and storage construction
+
+Each container storage constructor (`NewResourcesDBClient`, `NewBillingDBClient`,
+`NewFleetDBClient`, and `NewKubeApplierDBClient`) requires a
+[`cosmosratelimit.TokenBucket`](../internal/database/cosmosstorage/cosmosratelimit/bucket.go)
+and creates its own Cosmos client and HTTP pipeline. The shared
+[`NewCosmosDatabaseClient`](../internal/database/cosmosstorage/cosmosclient/database.go)
+helper installs metrics and a policy bound directly to that bucket. Connection
+options can be reused; constructed database clients are not passed between
+container interfaces. `NewKubeApplierDBClients` retains the connection options and a bucket provider.
+Once Fleet resolves a management cluster's actual container name, the registry
+asks the provider for that container's bucket and constructs its client. It caches
+those clients for subsequent lookups.
+
+The bucket starts full and refills continuously up to capacity. Requests may
+start while its RU balance is **at least zero**. After each HTTP attempt, the
+[`cosmosratelimit` policy](../internal/database/cosmosstorage/cosmosratelimit/policy.go)
+subtracts the response's `x-ms-request-charge`, including fractional charges and
+charged failures. Negative balances hold subsequent requests until refill repays
+the debt. A charge larger than capacity is retained in full. Invalid charges are
+ignored using the same rules as metrics. In-flight requests can overshoot the
+budget because their actual costs are only known on completion.
+
+All requests through a container client use its bucket: CRUDs, nested clients,
+transaction execution, global queries, change feeds, individual pages, and SDK
+retries. No token bucket is carried in context. Context still supplies cancellation,
+logging, and source attribution. Canceled waits return the context error without
+dispatching. Blocked calls log the bucket name, RU balance, refill rate, and an
+estimated wait on every wait iteration; later in-flight charges can extend that
+estimate and produce another log. Wait metrics count the entire blocked call
+once. A transaction pays the batch's reported RU charge once per HTTP attempt,
+independently of its step count.
+
+[CRUD layers](../internal/database/cosmosstorage/cosmosstorageutils/crud_layer.go)
+remain available for `ResourceCRUD` and `ValidatingResourceCRUD`; a bucket can
+provide an optional earlier admission check. `List` remains lazy and uses the
+`Items` context when iterated. The
+[`transaction layer`](../internal/database/cosmosstorage/cosmosstorageutils/transaction_layer.go)
+applies a layer to `Execute` while preserving step assembly, callbacks, options,
+and results. Charge accounting always belongs to the bucket bound to the client.
+
+### Per-controller and per-container RU budgets
+
+[`BackendOptions.StorageFactory`](../backend/pkg/app/cosmos_wiring.go) requires a
+controller name for every Resources, Billing, Fleet, or kube-applier client lookup.
+It owns a separate `ControllerRateLimits` instance for each physical Cosmos
+container and passes the corresponding controller's bucket to each container
+constructor. Repeated lookups return the same clients and buckets. CRUDs,
+transactions, and workers share debt only when both their controller and container
+match. Different containers, including different management clusters' kube-applier
+containers, have independent allocations and debt.
+
+The factory initializes Resources, Billing, and Fleet clients for the
+[registered storage consumers](../backend/pkg/app/storage_controller_names.go)
+before startup. Shared backend, Fleet, and union kube-applier informers use
+unlimited buckets for their lists, change-feed polls, and Fleet discovery reads.
+These informer clients retain request metrics but do not reserve a controller
+budget share or wait for RU refill. Only limited consumers count toward the
+per-controller allocation; the FPA-only controller is included only when enabled.
+Each MC container's limiter set is created lazily and cached when its name is
+resolved through Fleet. Fleet lookups themselves use the controller's Fleet bucket.
+
+The allocations are hardcoded in `BackendStorageFactoryOptions` and the
+[kube-applier startup](../kube-applier/cmd/root.go), using these container maxima:
+
+| Container | Maximum RU/s | Backend share | Kube-applier binary share |
+|---|---:|---:|---:|
+| Resources | 19,000 | 80% = 15,200 RU/s | — |
+| Billing | 4,000 | 80% = 3,200 RU/s | — |
+| Fleet | 4,000 | 80% = 3,200 RU/s | — |
+| Each kube-applier MC container | 19,000 | 30% = 5,700 RU/s | 50% = 9,500 RU/s |
+
+For the backend, each container's share is divided by the number of registered
+limited storage consumers. Both bucket capacity (RUs) and refill rate (RU/s) equal
+that per-controller allocation, allowing one second of burst capacity. The
+kube-applier binary shares its 9,500 RU bucket across its controllers and informers.
+The 30% and 50% limited shares together leave 20% headroom for unrestricted informer
+and other traffic; no additional 80% factor is applied to those shares.
+There are no rate-allocation flags.
+
+The backend reduces orphaned Cosmos, orphaned billing, placement pending, orphaned
+managed resource group, and revoked credential garbage collection budgets to 10%
+of a normal controller's share in **each** container. Customer deletion controllers
+retain normal shares. Unused shares are not redistributed. Use controller name
+constants for lookups and metric identity. Invalid names, duplicate registrations,
+unknown fraction overrides, and invalid rates are rejected at construction.
+Looking up an unregistered controller name panics as a wiring error.
+
+These are process-local budgets, so additional active processes can multiply the
+allocation. Frontend, Fleet, and admin currently pass explicit unlimited buckets,
+preserving their existing throughput behavior while emitting request metrics.
+Controller field ownership and lifecycle graph edges are unchanged by this wiring.
+
+### Limiter metrics
+
+[Limiter metrics](../internal/database/cosmosstorage/cosmosratelimit/metrics.go)
+use exactly the same base labels and source precedence as `cosmosmetrics`:
+`source_kind`, `source`, `cosmosdb_container`, `operation`, and `status_code`.
+Informer identity takes precedence over controller identity. Wait metrics have
+`status_code="unknown"` because no response exists yet. Optional early CRUD or
+transaction waits also have unknown container and operation labels. HTTP policy
+waits classify the pending request's container and operation.
+
+| Metric | Meaning |
+|---|---|
+| `cosmos_rate_limiter_requests_total` | HTTP attempts dispatched, counted by outcome after completion; includes retries and unlimited clients. A transport failure has unknown status. |
+| `cosmos_rate_limiter_waits_total` | Calls that begin waiting for a bucket, including subsequently canceled waits; rechecking or extending the same wait does not count again. |
+| `cosmos_rate_limiter_waiting_requests` | Calls currently blocked on a bucket; returns to zero after admission or cancellation. |
+| `cosmos_rate_limiter_wait_duration_seconds` | Histogram of time spent waiting, including canceled waits; excludes network time and calls that never waited. |
+
+Metrics are exposed through the services' metrics endpoints, including the admin
+server's private registry. A canceled wait increments waiting metrics but does not
+count as a dispatched HTTP attempt. Local budget waits are separate from Cosmos
+HTTP 429 responses.
+
+Request rate by controller:
+
+```promql
+sum by (source) (
+  max without (prometheus_replica) (
+    rate(cosmos_rate_limiter_requests_total{source_kind="controller"}[5m])
+  )
+)
+```
+
+An alert expression identifying controllers that started waiting in the last five
+minutes (choose the duration and threshold to match the controller's latency needs):
+
+```promql
+sum by (source) (
+  max without (prometheus_replica) (
+    increase(cosmos_rate_limiter_waits_total{source_kind="controller"}[5m])
+  )
+) > 0
+```
+
+To detect controllers currently blocked, including a single long wait:
+
+```promql
+sum by (source) (
+  max without (prometheus_replica) (
+    cosmos_rate_limiter_waiting_requests{source_kind="controller"}
+  )
+) > 0
 ```
 
 ---
@@ -938,7 +1086,7 @@ Reads worker/integration subnets and NSG rules and evaluates required connectivi
 
 [Source](../backend/pkg/utils/validationutils/container_registry_pull_credentials_permission_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
 
-Validates that the CAPZ control-plane operator identity has `Microsoft.ManagedIdentity/userAssignedIdentities/assign/action` permission on the customer's container registry pull managed identity. Skipped if no pull MI is configured; fails if pull MI is in a different subscription than the cluster (cross-subscription not yet supported). Uses Azure CheckAccess V2 API to verify permission. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+Validates that the CAPZ control-plane operator identity has `Microsoft.ManagedIdentity/userAssignedIdentities/assign/action` permission on the customer's container registry pull managed identity. Skipped if no pull MI is configured; fails if pull MI is in a different subscription than the cluster (cross-subscription not yet supported). Uses Azure CheckAccess V2 API to verify permission. Writes the corresponding service-provider `Status.Validations` condition through its controller-specific Resources storage client and RU budget; no Azure mutation.
 
 ### Backend: billing, repair, diagnostics and caches
 

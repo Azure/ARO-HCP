@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const DispatchRevokeCredentialsControllerName = "SystemAdminCredentialDispatchRevokeCredentials"
+
 type dispatchRevokeCredentials struct {
 	clock             utilsclock.PassiveClock
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
@@ -66,7 +68,7 @@ func NewDispatchRevokeCredentialsController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"SystemAdminCredentialDispatchRevokeCredentials",
+		DispatchRevokeCredentialsControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

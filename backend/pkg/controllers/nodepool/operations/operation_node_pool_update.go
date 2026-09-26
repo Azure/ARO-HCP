@@ -46,6 +46,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const OperationNodePoolUpdateControllerName = "OperationNodePoolUpdate"
+
 type operationNodePoolUpdate struct {
 	clock                           utilsclock.PassiveClock
 	resourcesDBClient               corecosmosstorage.ResourcesDBClient
@@ -98,7 +100,7 @@ func NewOperationNodePoolUpdateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationNodePoolUpdate",
+		OperationNodePoolUpdateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

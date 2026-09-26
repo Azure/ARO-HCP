@@ -28,6 +28,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ManagementClusterDataDumpControllerName = "ManagementClusterDataDump"
+
 type managementClusterDataDump struct {
 	cooldownChecker         controllerutil.CooldownChecker
 	managementClusterLister fleetlisters.ManagementClusterLister
@@ -48,7 +50,7 @@ func NewManagementClusterDataDumpController(
 	}
 
 	return controllerutils.NewManagementClusterWatchingController(
-		"ManagementClusterDataDump",
+		ManagementClusterDataDumpControllerName,
 		fleetDBClient,
 		fleetInformers,
 		5*time.Minute,

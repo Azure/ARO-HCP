@@ -36,6 +36,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const OperationExternalAuthDeleteControllerName = "OperationExternalAuthDelete"
+
 type operationExternalAuthDelete struct {
 	clock                utilsclock.PassiveClock
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
@@ -82,7 +84,7 @@ func NewOperationExternalAuthDeleteController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationExternalAuthDelete",
+		OperationExternalAuthDeleteControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

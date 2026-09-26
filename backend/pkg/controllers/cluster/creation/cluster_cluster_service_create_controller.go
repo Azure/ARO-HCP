@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterClusterServiceCreateControllerName = "ClusterClusterServiceCreate"
+
 type clusterClusterServiceCreateSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
@@ -70,7 +72,7 @@ func NewClusterClusterServiceCreateController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterClusterServiceCreate",
+		ClusterClusterServiceCreateControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,

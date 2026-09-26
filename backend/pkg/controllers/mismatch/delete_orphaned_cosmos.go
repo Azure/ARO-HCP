@@ -40,6 +40,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const DeleteOrphanedCosmosResourcesControllerName = "DeleteOrphanedCosmosResources"
+
 const (
 	// deleteOrphanedCosmosSweepPeriod is how often every subscription is swept
 	// for orphaned documents.
@@ -81,7 +83,7 @@ func NewDeleteOrphanedCosmosResourcesController(
 	managementClusterLister fleetlisters.ManagementClusterLister,
 ) controllerutils.Controller {
 	c := &deleteOrphanedCosmosResources{
-		name:                    "DeleteOrphanedCosmosResources",
+		name:                    DeleteOrphanedCosmosResourcesControllerName,
 		subscriptionLister:      subscriptionLister,
 		managementClusterLister: managementClusterLister,
 		resourcesDBClient:       resourcesDBClient,
@@ -89,7 +91,7 @@ func NewDeleteOrphanedCosmosResourcesController(
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "DeleteOrphanedCosmosResources",
+				Name: DeleteOrphanedCosmosResourcesControllerName,
 			},
 		),
 	}

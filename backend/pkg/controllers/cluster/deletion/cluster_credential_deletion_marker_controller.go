@@ -31,6 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterCredentialDeletionMarkerControllerName = "ClusterCredentialDeletionMarkerController"
+
 // clusterCredentialDeletionMarkerController stamps Status.DeletionTimestamp on
 // every SystemAdminCredentialRequest and SystemAdminCredentialRevocation that
 // belongs to a cluster being deleted. The existing per-credential and
@@ -63,7 +65,7 @@ func NewClusterCredentialDeletionMarkerController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterCredentialDeletionMarkerController",
+		ClusterCredentialDeletionMarkerControllerName,
 		resourcesDBClient,
 		informers,
 		nil,

@@ -27,6 +27,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const CreateServiceProviderNodePoolControllerName = "CreateServiceProviderNodePool"
+
 // createServiceProviderNodePoolSyncer ensures a ServiceProviderNodePool
 // document exists for every HCPNodePool. Consumer backend controllers
 // (validation, version, upgrade) read the ServiceProviderNodePool through a
@@ -59,7 +61,7 @@ func NewCreateServiceProviderNodePoolController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"CreateServiceProviderNodePool",
+		CreateServiceProviderNodePoolControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,

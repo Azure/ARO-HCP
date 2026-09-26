@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ManagementClusterPlacementSyncControllerName = "ManagementClusterPlacementSync"
+
 // managementClusterPlacementSyncer resolves the management cluster an HCP runs on
 // and updates the ServiceProviderCluster document with the ManagementClusterResourceID.
 type managementClusterPlacementSyncer struct {
@@ -65,7 +67,7 @@ func NewManagementClusterPlacementSyncController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"ManagementClusterPlacementSync",
+		ManagementClusterPlacementSyncControllerName,
 		cosmosClient,
 		informers,
 		kubeApplierInformers,

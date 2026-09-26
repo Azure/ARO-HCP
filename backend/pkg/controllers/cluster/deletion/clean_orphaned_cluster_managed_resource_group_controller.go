@@ -46,6 +46,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const CleanOrphanedClusterManagedResourceGroupControllerName = "CleanOrphanedClusterManagedResourceGroup"
+
 var (
 	orphanedMRGsFound = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		prometheus.CounterOpts{
@@ -88,7 +90,7 @@ func NewCleanOrphanedClusterManagedResourceGroupController(
 	}
 
 	return controllerutils.NewSubscriptionWatchingController(
-		"CleanOrphanedClusterManagedResourceGroup",
+		CleanOrphanedClusterManagedResourceGroupControllerName,
 		backendInformers,
 		10*time.Minute,
 		syncer,

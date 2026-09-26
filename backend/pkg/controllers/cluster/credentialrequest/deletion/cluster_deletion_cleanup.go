@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterDeletionCleanupControllerName = "SystemAdminCredentialClusterDeletionCleanup"
+
 type credentialRequestDeletion struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
@@ -68,7 +70,7 @@ func NewClusterDeletionCleanupController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
-		"SystemAdminCredentialClusterDeletionCleanup",
+		ClusterDeletionCleanupControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

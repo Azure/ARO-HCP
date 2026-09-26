@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const PostIssuanceCleanupControllerName = "SystemAdminCredentialPostIssuanceCleanup"
+
 type postIssuanceCleanup struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
@@ -61,7 +63,7 @@ func NewPostIssuanceCleanupController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
-		"SystemAdminCredentialPostIssuanceCleanup",
+		PostIssuanceCleanupControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

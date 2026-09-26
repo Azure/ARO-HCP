@@ -33,6 +33,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const NodePoolDeletionControllerName = "NodePoolDeletionController"
+
 // nodePoolDeletionController issues a Cosmos nodepool delete
 // for the Node Pools that have their DeletionTimestamp and ClusterServiceDeletionTimestamp set,
 // their ClusterServiceID has been cleared, all nodepool-scoped Maestro readonly bundles
@@ -66,7 +68,7 @@ func NewNodePoolDeletionController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolDeletionController",
+		NodePoolDeletionControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

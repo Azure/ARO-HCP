@@ -33,6 +33,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ExternalAuthDegradedAggregatorControllerName = "ExternalAuthDegradedAggregator"
+
 // externalAuthDegradedAggregator rolls per-controller Degraded conditions
 // up onto ExternalAuth.Status.Conditions. See the
 // package and clusterDegradedAggregator docs for the overall design.
@@ -81,7 +83,7 @@ func NewExternalAuthDegradedAggregatorController(
 		firstObservedBad:   statusutils.NewFirstObservedBadCache(clock),
 	}
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthDegradedAggregator",
+		ExternalAuthDegradedAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		1*time.Minute,

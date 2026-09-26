@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterBaseDomainPrefixSyncControllerName = "ClusterBaseDomainPrefixSync"
+
 // clusterBaseDomainPrefixSyncer synchronizes CustomerProperties.DNS.BaseDomainPrefix from
 // Cluster Service to Cosmos DB when the field is unset.
 type clusterBaseDomainPrefixSyncer struct {
@@ -59,7 +61,7 @@ func NewClusterBaseDomainPrefixSyncController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterBaseDomainPrefixSync",
+		ClusterBaseDomainPrefixSyncControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

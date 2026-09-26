@@ -33,6 +33,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ClusterClusterServiceIDClearerControllerName = "ClusterDeletionClusterServiceIDClearer"
+
 // clusterClusterServiceIDClearer clears ClusterServiceID after the
 // cluster-service Cluster itself has been confirmed gone. This runs after the
 // delete dispatch controller has already issued the delete request
@@ -60,7 +62,7 @@ func NewClusterClusterServiceIDClearerController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterDeletionClusterServiceIDClearer",
+		ClusterClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
 		nil,

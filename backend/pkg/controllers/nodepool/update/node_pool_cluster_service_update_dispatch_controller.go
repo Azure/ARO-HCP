@@ -39,6 +39,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const NodePoolClusterServiceUpdateDispatchControllerName = "NodePoolClusterServiceUpdateDispatch"
+
 // nodePoolClusterServiceUpdateDispatchSyncer calls Cluster Service's NodePool PATCH when
 // the NodePool's dispatch-managed configuration has drifted. It reconciles a curated subset of
 // fields defined by ocm.nodePoolUpdateDispatchConfig.
@@ -75,7 +77,7 @@ func NewNodePoolClusterServiceUpdateDispatchController(
 	)
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolClusterServiceUpdateDispatch",
+		NodePoolClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		nil,

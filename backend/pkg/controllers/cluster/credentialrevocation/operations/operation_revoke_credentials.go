@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const OperationRevokeCredentialsPollControllerName = "SystemAdminCredentialOperationRevokeCredentialsPoll"
+
 type operationRevokeCredentialsPoll struct {
 	clock              utilsclock.PassiveClock
 	resourcesDBClient  corecosmosstorage.ResourcesDBClient
@@ -61,7 +63,7 @@ func NewOperationRevokeCredentialsPollController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"SystemAdminCredentialOperationRevokeCredentialsPoll",
+		OperationRevokeCredentialsPollControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

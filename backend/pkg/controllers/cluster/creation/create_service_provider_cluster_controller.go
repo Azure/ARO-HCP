@@ -27,6 +27,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const CreateServiceProviderClusterControllerName = "CreateServiceProviderCluster"
+
 // createServiceProviderClusterSyncer ensures a ServiceProviderCluster document
 // exists for every HCPCluster. Consumer backend controllers (validation,
 // version, etc.) read the ServiceProviderCluster through a cached lister and
@@ -59,7 +61,7 @@ func NewCreateServiceProviderClusterController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"CreateServiceProviderCluster",
+		CreateServiceProviderClusterControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,

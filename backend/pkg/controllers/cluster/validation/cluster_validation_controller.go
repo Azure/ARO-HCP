@@ -88,7 +88,7 @@ func NewClusterValidationController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		fmt.Sprintf("ClusterValidation%s", validation.Name()),
+		ControllerName(validation.Name()),
 		resourcesDBClient,
 		informers,
 		nil, // as of now, validations do not depend on ReadDesire content
@@ -242,4 +242,9 @@ func (c *clusterValidationSyncer) trackConsecutiveUnknowns(key controllerutils.H
 	}
 	c.consecutiveUnknownCounts.Add(key, count)
 	return count
+}
+
+// ControllerName is shared by controller registration and storage budget wiring.
+func ControllerName(validationName string) string {
+	return fmt.Sprintf("ClusterValidation%s", validationName)
 }

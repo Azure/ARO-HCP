@@ -38,6 +38,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ControlPlaneActiveVersionControllerName = "ControlPlaneActiveVersions"
+
 // controlPlaneActiveVersionSyncer is a Cluster syncer that updates the control plane active
 // versions in both ServiceProviderCluster and Cluster status by reading the
 // version from the per-cluster ReadDesire kubeContent (the kube-applier's mirror of the
@@ -70,7 +72,7 @@ func NewControlPlaneActiveVersionController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ControlPlaneActiveVersions",
+		ControlPlaneActiveVersionControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

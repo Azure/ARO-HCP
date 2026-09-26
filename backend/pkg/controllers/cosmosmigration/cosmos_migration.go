@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const CosmosMigrationControllerName = "CosmosMigration"
+
 // cosmosMigrationController performs a read/write cycle on every document in the
 // Resources container to force Cosmos DB re-serialization. This is a subscription-
 // watching controller that processes each subscription exactly once per process
@@ -65,7 +67,7 @@ func NewCosmosMigrationController(
 		cooldown:             controllerutil.NewTimeBasedCooldownChecker(resyncDuration),
 	}
 	return controllerutils.NewSubscriptionWatchingController(
-		"CosmosMigration",
+		CosmosMigrationControllerName,
 		backendInformers,
 		resyncDuration,
 		syncer,

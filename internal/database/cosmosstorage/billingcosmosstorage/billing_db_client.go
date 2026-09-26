@@ -17,6 +17,8 @@ package billingcosmosstorage
 import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -38,8 +40,12 @@ type billingCosmosDBClient struct {
 
 var _ BillingDBClient = &billingCosmosDBClient{}
 
-// NewBillingDBClient opens the Billing container on the given async database client.
-func NewBillingDBClient(database *azcosmos.DatabaseClient) (BillingDBClient, error) {
+// NewBillingDBClient creates a Billing client with its own Cosmos pipeline bound to bucket.
+func NewBillingDBClient(url, databaseName string, options cosmosclient.Options, bucket *cosmosratelimit.TokenBucket) (BillingDBClient, error) {
+	database, err := cosmosclient.NewCosmosDatabaseClient(url, databaseName, options, bucket)
+	if err != nil {
+		return nil, err
+	}
 	billing, err := database.NewContainer(billingContainer)
 	if err != nil {
 		return nil, utils.TrackError(err)

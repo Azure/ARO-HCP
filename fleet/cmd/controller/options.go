@@ -42,7 +42,8 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/manager"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -211,12 +212,9 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentFleet)
 	clientOpts.Cloud = o.cloudConfiguration
 
-	dbClient, err := corecosmosstorage.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(dbClient)
+	storageOptions := cosmosclient.Options{ClientOptions: clientOpts}
+	bucket := cosmosratelimit.NewUnlimitedTokenBucket("fleet")
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(o.CosmosURL, o.CosmosName, storageOptions, bucket)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +253,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	}
 
 	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(
-		dbClient,
+		o.CosmosURL, o.CosmosName, storageOptions, func(string) (*cosmosratelimit.TokenBucket, error) { return bucket, nil },
 		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient),
 	)
 

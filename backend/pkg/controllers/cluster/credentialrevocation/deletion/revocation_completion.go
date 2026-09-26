@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const RevocationCompletionControllerName = "SystemAdminCredentialRevocationCompletion"
+
 type revocationCompletion struct {
 	clock             utilsclock.PassiveClock
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
@@ -66,7 +68,7 @@ func NewRevocationCompletionController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRevocationWatchingController(
-		"SystemAdminCredentialRevocationCompletion",
+		RevocationCompletionControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,
