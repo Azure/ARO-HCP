@@ -689,6 +689,7 @@ mgmt:
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
   applyKubeletFixes: false
+  azureCnsCpuLimits: false
   defaultStorageClassSkuName: PremiumV2_LRS
   hcpBackups:
     storageAccount:

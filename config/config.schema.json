@@ -3140,6 +3140,9 @@
         "applyKubeletFixes": {
           "type": "boolean"
         },
+        "azureCnsCpuLimits": {
+          "type": "boolean"
+        },
         "stampIdentifier": {
           "type": "string",
           "description": "The identifier for the management cluster stamp",
@@ -3186,6 +3189,7 @@
       "required": [
         "aks",
         "applyKubeletFixes",
+        "azureCnsCpuLimits",
         "rg",
         "stamps",
         "subscription",
