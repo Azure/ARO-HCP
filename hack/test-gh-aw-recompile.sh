@@ -46,14 +46,23 @@ if bash "$script" --select-only > /dev/null 2>&1; then
 fi
 
 mkdir -p "$tmp/repo/.github/agents"
-printf '%s\n' 'https://raw.githubusercontent.com/github/gh-aw/main/.github/aw/create-agentic-workflow.md' \
+printf '%s\n' \
+  'https://raw.githubusercontent.com/github/gh-aw/main/.github/aw/create-agentic-workflow.md' \
+  'https://raw.githubusercontent.com/github/gh-aw/refs/heads/main/.github/aw/debug-agentic-workflow.md' \
+  'https://raw.githubusercontent.com/github/gh-aw/0123456789abcdef0123456789abcdef01234567/.github/aw/update-agentic-workflow.md' \
   > "$tmp/repo/.github/agents/agentic-workflows.md"
 (
   cd "$tmp/repo"
   bash "$script" --repair-only
   [[ ! -f .github/agents/agentic-workflows.md ]]
-  grep -q 'github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/' \
+  [[ $(grep -c 'github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/' \
+    .github/agents/agentic-workflows.agent.md) == 3 ]]
+  if grep -Eq 'github/gh-aw/(main|refs/heads/main|0123456789abcdef0123456789abcdef01234567)/' \
     .github/agents/agentic-workflows.agent.md
+  then
+    echo "Stale gh-aw prompt reference remains." >&2
+    exit 1
+  fi
   rm .github/agents/agentic-workflows.agent.md
   if bash "$script" --repair-only >/dev/null 2>&1; then
     echo "Missing agent must be rejected." >&2

@@ -8,7 +8,7 @@
 # When that happens the activation job fails and the automation silently stops.
 #
 # This workflow upgrades and validates generated files before pushing its own
-# upgrade PR. A human reviews and merges the pinned artifacts.
+# upgrade PR. CI and merge policy gate the pinned artifacts.
 name: gh-aw recompile
 on:
   # Weekly, ahead of the nightly agentic runs, so a fresh recompile can land
