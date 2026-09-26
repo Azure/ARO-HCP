@@ -254,8 +254,12 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	return deploymentResult, nil
 }
 
-// AssignIdentityContainers attempts to assign n free identity containers to the caller by marking
-// them as "assigned". It retries if there are fewer than n free entries until the context is done.
+// AssignIdentityContainers attempts to assign n free identity containers to
+// the caller. When the parent process has pre-assigned containers via the
+// ASSIGNED_MI_CONTAINERS environment variable (set by AddBeforeSpawn in the
+// scheduler), the containers are consumed directly — no file lock, no retry
+// loop, instant. When the env var is absent, the method falls back to the
+// file-based pool state machine.
 func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Context, count uint8, waitBetweenRetries time.Duration) error {
 	startTime := time.Now()
 	defer func() {
@@ -263,6 +267,29 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 		tc.RecordTestStep(fmt.Sprintf("Assign %d identity containers", count), startTime, finishTime)
 	}()
 
+	if containers := strings.Fields(os.Getenv(assignedMIContainersEnvvar)); len(containers) > 0 {
+		return tc.assignFromEnv(containers, int(count))
+	}
+
+	return tc.assignFromFileState(ctx, count, waitBetweenRetries, startTime)
+}
+
+const assignedMIContainersEnvvar = "ASSIGNED_MI_CONTAINERS"
+
+func (tc *perItOrDescribeTestContext) assignFromEnv(containers []string, count int) error {
+	if len(containers) < count {
+		return fmt.Errorf("parent assigned %d MI containers via %s but test requires %d",
+			len(containers), assignedMIContainersEnvvar, count)
+	}
+	tc.envAssignedContainers = slices.Clone(containers[:count])
+	tc.envAssignedIdx = 0
+	tc.envAssigned = true
+	ginkgo.GinkgoLogr.Info("Using parent-assigned identity containers",
+		"count", count, "containers", tc.envAssignedContainers, "specID", specID())
+	return nil
+}
+
+func (tc *perItOrDescribeTestContext) assignFromFileState(ctx context.Context, count uint8, waitBetweenRetries time.Duration, startTime time.Time) error {
 	ginkgo.GinkgoLogr.Info("Starting identity container acquisition", "count", count, "specID", specID())
 
 	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
@@ -303,7 +330,9 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 }
 
 // getLeasedIdentities returns the leased identities and container resource group by using one
-// of the leases assigned to the calling test spec.
+// of the leases assigned to the calling test spec. When containers were pre-assigned via
+// the ASSIGNED_MI_CONTAINERS env var, the next container is returned from that list
+// without touching the file-based state.
 func (tc *perItOrDescribeTestContext) getLeasedIdentities() (LeasedIdentityPool, error) {
 	startTime := time.Now()
 	defer func() {
@@ -311,6 +340,28 @@ func (tc *perItOrDescribeTestContext) getLeasedIdentities() (LeasedIdentityPool,
 		tc.RecordTestStep("Lease identity container", startTime, finishTime)
 	}()
 
+	if tc.envAssigned {
+		return tc.leaseFromEnv()
+	}
+
+	return tc.leaseFromFileState()
+}
+
+func (tc *perItOrDescribeTestContext) leaseFromEnv() (LeasedIdentityPool, error) {
+	if tc.envAssignedIdx >= len(tc.envAssignedContainers) {
+		return LeasedIdentityPool{}, fmt.Errorf("all %d parent-assigned MI containers already leased", len(tc.envAssignedContainers))
+	}
+	rg := tc.envAssignedContainers[tc.envAssignedIdx]
+	tc.envAssignedIdx++
+	ginkgo.GinkgoLogr.Info("Leasing parent-assigned identity container",
+		"resourceGroup", rg, "index", tc.envAssignedIdx, "total", len(tc.envAssignedContainers))
+	return LeasedIdentityPool{
+		ResourceGroupName: rg,
+		Identities:        NewDefaultIdentities(),
+	}, nil
+}
+
+func (tc *perItOrDescribeTestContext) leaseFromFileState() (LeasedIdentityPool, error) {
 	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
 	if err != nil {
 		return LeasedIdentityPool{}, fmt.Errorf("failed to open managed identities pool state file: %w", err)
