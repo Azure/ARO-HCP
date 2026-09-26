@@ -30,6 +30,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
@@ -50,6 +51,7 @@ type operationClusterDelete struct {
 	billingDBClient      billingcosmosstorage.BillingDBClient
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients
 	readDesireLister     kubeapplierlisters.ReadDesireLister
+	applyDesireLister    kubeapplierlisters.ApplyDesireLister
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
 }
@@ -83,6 +85,7 @@ func NewOperationClusterDeleteController(
 	billingDBClient billingcosmosstorage.BillingDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
+	applyDesireLister kubeapplierlisters.ApplyDesireLister,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
@@ -93,6 +96,7 @@ func NewOperationClusterDeleteController(
 		billingDBClient:      billingDBClient,
 		kubeApplierDBClients: kubeApplierDBClients,
 		readDesireLister:     readDesireLister,
+		applyDesireLister:    applyDesireLister,
 		clusterServiceClient: clusterServiceClient,
 		notificationClient:   notificationClient,
 	}
@@ -262,6 +266,12 @@ func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context
 		states = append(states, currState.WithSource("hostedCluster"))
 	}
 
+	if currState, err := c.applyDesireTeardownStatus(ctx, cluster); err != nil {
+		errs = append(errs, err)
+	} else {
+		states = append(states, currState.WithSource("resourceTeardown"))
+	}
+
 	if err := errors.Join(errs...); err != nil {
 		logger.Error(err, "errors building deletion timeout message")
 	}
@@ -402,4 +412,96 @@ func (c *operationClusterDelete) hostedClusterDeletionStatus(ctx context.Context
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, "HostedCluster still exists"), nil
+}
+
+// applyDesireTeardownStatus checks the progress of the ApplyDesire teardown chain.
+// It reports human-readable status about which step the deletion is waiting on,
+// similar to the log output from ClusterResourcesController but formatted for
+// user-facing operation messages.
+func (c *operationClusterDelete) applyDesireTeardownStatus(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ServiceProviderCluster: %w", err)
+	}
+
+	if spc.Status.ManagementClusterResourceID == nil {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+
+	applyDesires, err := c.applyDesireLister.ListForCluster(ctx, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ApplyDesires: %w", err)
+	}
+
+	// Filter to desires owned by ClusterResourcesController
+	var ownedDesires []*kubeapplierapi.ApplyDesire
+	for _, desire := range applyDesires {
+		if desire.Tags != nil && desire.Tags[kubeapplierapi.TagControllerName] == clusterresources.ClusterResourcesControllerName {
+			ownedDesires = append(ownedDesires, desire)
+		}
+	}
+
+	if len(ownedDesires) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+
+	// Group by deletion step based on desire names. This mirrors the logic in
+	// apply_desire_removal_steps.go but uses human-readable names instead of
+	// exposing internal implementation details.
+	stepCounts := make(map[string][]string)
+	for _, desire := range ownedDesires {
+		desireName := strings.ToLower(desire.ResourceID.Name)
+		var stepName string
+		switch {
+		case desireName == strings.ToLower(clusterresources.DesireNameHostedCluster):
+			stepName = "hosted cluster"
+		case desireName == strings.ToLower(clusterresources.DesireNameNodePool):
+			stepName = "node pools"
+		case desireName == strings.ToLower(clusterresources.DesireNameManagedCluster):
+			stepName = "managed cluster"
+		case desireName == strings.ToLower(clusterresources.DesireNameHostedClusterNamespace) ||
+			desireName == strings.ToLower(clusterresources.DesireNameControlPlaneNamespace):
+			stepName = "namespaces"
+		case desireName == strings.ToLower(clusterresources.DesireNamePodNetworkInstance):
+			stepName = "pod network instances"
+		case desireName == strings.ToLower(clusterresources.DesireNamePodNetwork):
+			stepName = "pod networks"
+		default:
+			stepName = "cluster resources"
+		}
+		stepCounts[stepName] = append(stepCounts[stepName], desireName)
+	}
+
+	if len(stepCounts) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+
+	// Build a human-readable message about what's being deleted.
+	// Order by typical deletion sequence: resources -> nodepools -> hostedcluster -> network -> namespaces
+	stepOrder := []string{
+		"cluster resources",
+		"node pools",
+		"managed cluster",
+		"hosted cluster",
+		"pod network instances",
+		"pod networks",
+		"namespaces",
+	}
+	var messageParts []string
+	for _, step := range stepOrder {
+		if resources, ok := stepCounts[step]; ok {
+			count := len(resources)
+			messageParts = append(messageParts, fmt.Sprintf("%s (%d)", step, count))
+		}
+	}
+
+	if len(messageParts) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, "cleaning up cluster resources"), nil
+	}
+
+	return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting,
+		fmt.Sprintf("tearing down %s", strings.Join(messageParts, ", "))), nil
 }

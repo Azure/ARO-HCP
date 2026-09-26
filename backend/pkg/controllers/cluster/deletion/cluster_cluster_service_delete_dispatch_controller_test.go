@@ -41,7 +41,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	kubeapplierlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -274,7 +273,6 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 				clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:               mockResourcesDBClient,
 				clusterServiceClient:            mockCSClient,
-				applyDesireLister:               &kubeapplierlistertesting.SliceApplyDesireLister{},
 				firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
 			}
 
@@ -314,7 +312,6 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircuit(t 
 		clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cachedCluster}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
-		applyDesireLister:               &kubeapplierlistertesting.SliceApplyDesireLister{},
 		firstSeenDeletionTimestampCache: lru.New(10),
 	}
 
@@ -349,7 +346,6 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 		clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
-		applyDesireLister:               &kubeapplierlistertesting.SliceApplyDesireLister{},
 		firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
 	}
 
@@ -392,7 +388,6 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 		clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            mockCSClient,
-		applyDesireLister:               &kubeapplierlistertesting.SliceApplyDesireLister{},
 		firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
 	}
 

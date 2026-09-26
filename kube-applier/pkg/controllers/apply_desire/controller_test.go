@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/fake"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/util/workqueue"
@@ -177,7 +178,7 @@ func TestApplyDesired_IssuesSSAPatch(t *testing.T) {
 		return true, obj, nil
 	})
 
-	c := &ApplyDesireController{dyn: dyn}
+	c := newDeleteController(dyn)
 	desire := newApplyDesire(t, "ok", configMapTarget("hello"), []byte(`{
 	  "apiVersion": "v1",
 	  "kind": "ConfigMap",
@@ -261,7 +262,7 @@ func TestApplyDesired_FieldManagerSelection(t *testing.T) {
 				return true, obj, nil
 			})
 
-			c := &ApplyDesireController{dyn: dyn}
+			c := newDeleteController(dyn)
 			desire := newApplyDesire(t, "ok", configMapTarget("hello"), []byte(`{
 			  "apiVersion": "v1",
 			  "kind": "ConfigMap",
@@ -288,7 +289,7 @@ func TestApplyDesired_PreCheckErrors(t *testing.T) {
 	dyn := fakeDynamic(t, map[schema.GroupVersionResource]string{
 		{Group: "", Version: "v1", Resource: "configmaps"}: "ConfigMapList",
 	})
-	c := &ApplyDesireController{dyn: dyn}
+	c := newDeleteController(dyn)
 
 	validKubeContent := []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x","namespace":"default"}}`)
 
@@ -538,6 +539,13 @@ func newDeleteDesire(t *testing.T, name string, target kubeapplierapi.ResourceRe
 	}
 }
 
+// newDeleteController builds a controller wired for the evaluateDelete tests:
+// the dynamic client under test and a defaulted Config, which deletionInFlight
+// needs to derive its re-check interval.
+func newDeleteController(dyn dynamic.Interface) *ApplyDesireController {
+	return &ApplyDesireController{dyn: dyn, cfg: Config{}.withDefaults()}
+}
+
 // newConfigMap builds an *unstructured.Unstructured ConfigMap. When
 // withDeletionTS is true a deletionTimestamp is set (simulating a
 // terminating object with a finalizer in flight).
@@ -582,13 +590,12 @@ func TestEvaluateDelete_TargetGoneIsSuccessful(t *testing.T) {
 	dyn := fake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
 		{Version: "v1", Resource: "configmaps"}: "ConfigMapList",
 	})
-	c := &ApplyDesireController{dyn: dyn}
+	c := newDeleteController(dyn)
 
 	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "missing",
 	})
-	mutate := c.evaluateDelete(context.Background(), desire)
-	mutate(desire)
+	c.evaluateDelete(context.Background(), desire).mutate(desire)
 	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted)
 	if got == nil || got.Status != metav1.ConditionTrue {
 		t.Errorf("SuccessfullyDeleted=%v, want True (target absent)", got)
@@ -602,13 +609,12 @@ func TestEvaluateDelete_TargetWithDeletionTimestampWaits(t *testing.T) {
 			{Version: "v1", Resource: "configmaps"}: "ConfigMapList",
 		},
 		newConfigMap("doomed", "default", true))
-	c := &ApplyDesireController{dyn: dyn}
+	c := newDeleteController(dyn)
 
 	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "doomed",
 	})
-	mutate := c.evaluateDelete(context.Background(), desire)
-	mutate(desire)
+	c.evaluateDelete(context.Background(), desire).mutate(desire)
 	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted)
 	if got == nil || got.Status != metav1.ConditionFalse {
 		t.Fatalf("SuccessfullyDeleted=%v, want False (waiting)", got)
@@ -656,12 +662,11 @@ func TestEvaluateDelete_PresentNoTSIssuesDelete_ThenWaitsForFinalizers(t *testin
 		return true, obj, nil
 	})
 
-	c := &ApplyDesireController{dyn: dyn}
+	c := newDeleteController(dyn)
 	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "d1",
 	})
-	mutate := c.evaluateDelete(context.Background(), desire)
-	mutate(desire)
+	c.evaluateDelete(context.Background(), desire).mutate(desire)
 	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted)
 	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplierapi.ConditionReasonWaitingForDeletion {
 		t.Errorf("SuccessfullyDeleted=%v, want False/WaitingForDeletion", got)
@@ -679,12 +684,11 @@ func TestEvaluateDelete_DeleteAPIErrorClassifiesAsKubeAPIError(t *testing.T) {
 	dyn.PrependReactor("delete", "configmaps", func(action clienttesting.Action) (bool, runtime.Object, error) {
 		return true, nil, apierrors.NewServiceUnavailable("apiserver unavailable")
 	})
-	c := &ApplyDesireController{dyn: dyn}
+	c := newDeleteController(dyn)
 	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "d2",
 	})
-	mutate := c.evaluateDelete(context.Background(), desire)
-	mutate(desire)
+	c.evaluateDelete(context.Background(), desire).mutate(desire)
 	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted)
 	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplierapi.ConditionReasonKubeAPIError {
 		t.Errorf("SuccessfullyDeleted=%v, want False/KubeAPIError", got)
@@ -692,14 +696,138 @@ func TestEvaluateDelete_DeleteAPIErrorClassifiesAsKubeAPIError(t *testing.T) {
 	assertLegacyMirrors(t, desire.Status.Conditions, got)
 }
 
+// TestConfigDeletionPollPeriod covers the clamp on both ends and the scaling
+// in between: a deletion that just started is re-checked at the floor, one
+// that has dragged on at the ceiling.
+func TestConfigDeletionPollPeriod(t *testing.T) {
+	cfg := Config{}.withDefaults()
+	for _, tc := range []struct {
+		name           string
+		terminatingFor time.Duration
+		want           time.Duration
+	}{
+		{"clock skew puts the timestamp in the future", -time.Minute, DefaultMinDeletionPollPeriod},
+		{"just deleted", 0, DefaultMinDeletionPollPeriod},
+		{"below the floor", 10 * time.Second, DefaultMinDeletionPollPeriod},
+		{"scales with elapsed", time.Minute, 15 * time.Second},
+		{"above the ceiling", 10 * time.Minute, DefaultMaxDeletionPollPeriod},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := cfg.deletionPollPeriod(tc.terminatingFor); got != tc.want {
+				t.Errorf("deletionPollPeriod(%s) = %s, want %s", tc.terminatingFor, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestEvaluateDelete_RequeueOnlyWhileTerminating pins the requeue to the one
+// state that needs it. Terminal outcomes must not schedule a re-check: they
+// either wrote a final condition or left an error for the workqueue's own
+// rate-limited retry.
+func TestEvaluateDelete_RequeueOnlyWhileTerminating(t *testing.T) {
+	gvrToListKind := map[schema.GroupVersionResource]string{
+		{Version: "v1", Resource: "configmaps"}: "ConfigMapList",
+	}
+	for _, tc := range []struct {
+		name        string
+		objects     []runtime.Object
+		targetName  string
+		wantRequeue bool
+	}{
+		{
+			name:        "target already gone",
+			targetName:  "missing",
+			wantRequeue: false,
+		},
+		{
+			name:        "target terminating",
+			objects:     []runtime.Object{newConfigMap("doomed", "default", true)},
+			targetName:  "doomed",
+			wantRequeue: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dyn := fake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gvrToListKind, tc.objects...)
+			c := newDeleteController(dyn)
+			desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
+				Version: "v1", Resource: "configmaps", Namespace: "default", Name: tc.targetName,
+			})
+
+			got := c.evaluateDelete(context.Background(), desire).requeueAfter
+			if tc.wantRequeue && got != DefaultMinDeletionPollPeriod {
+				t.Errorf("requeueAfter = %s, want %s (deletion just started)", got, DefaultMinDeletionPollPeriod)
+			}
+			if !tc.wantRequeue && got != 0 {
+				t.Errorf("requeueAfter = %s, want 0 (terminal outcome)", got)
+			}
+		})
+	}
+}
+
+// TestSyncOnce_WaitingForDeletionRequeues is the regression test for the
+// reason this requeue exists: the informer is fed by the Cosmos change feed,
+// so a target disappearing from the management cluster produces no event. If
+// SyncOnce does not put the key back itself, the desire sits on
+// WaitingForDeletion until the next resync — up to DefaultResyncPeriod after
+// the object is actually gone.
+func TestSyncOnce_WaitingForDeletionRequeues(t *testing.T) {
+	ctx := context.Background()
+	dyn := fake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+		map[schema.GroupVersionResource]string{
+			{Version: "v1", Resource: "configmaps"}: "ConfigMapList",
+		},
+		newConfigMap("doomed", "default", true))
+
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
+		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "doomed",
+	})
+	fetcher := &staticFetcher{desire: desire}
+	replacer := &capturingReplacer{}
+	c := &ApplyDesireController{
+		dyn:     dyn,
+		fetcher: fetcher,
+		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](
+			fetcher, replacer,
+		),
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedControllerRateLimiter[keys.ApplyDesireKey](),
+			workqueue.TypedRateLimitingQueueConfig[keys.ApplyDesireKey]{Name: "test"},
+		),
+		// Keep the test fast; the interval itself is covered above.
+		cfg: Config{MinDeletionPollPeriod: time.Millisecond, MaxDeletionPollPeriod: time.Millisecond}.withDefaults(),
+	}
+	defer c.queue.ShutDown()
+	key := mustKey(t, desire)
+
+	if err := c.SyncOnce(ctx, key); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+	if replacer.last == nil {
+		t.Fatal("replacer was not called; WaitingForDeletion was not written")
+	}
+
+	// AddAfter hands the key to a delaying goroutine, so poll rather than
+	// reading Len once.
+	deadline := time.Now().Add(10 * time.Second)
+	for c.queue.Len() == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := c.queue.Len(); got != 1 {
+		t.Fatalf("queue.Len after waiting-for-deletion sync = %d, want 1 (re-check scheduled)", got)
+	}
+	gotKey, _ := c.queue.Get()
+	if gotKey != key {
+		t.Errorf("requeued key = %v, want %v", gotKey, key)
+	}
+}
+
 func TestEvaluateDelete_BadTargetIsPreCheckFailed(t *testing.T) {
 	dyn := fake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), nil)
-	c := &ApplyDesireController{dyn: dyn}
+	c := newDeleteController(dyn)
 	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		// Missing Resource and Name.
 	})
-	mutate := c.evaluateDelete(context.Background(), desire)
-	mutate(desire)
+	c.evaluateDelete(context.Background(), desire).mutate(desire)
 	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted)
 	if got == nil || got.Reason != kubeapplierapi.ConditionReasonPreCheckFailed {
 		t.Errorf("SuccessfullyDeleted=%v, want PreCheckFailed", got)
