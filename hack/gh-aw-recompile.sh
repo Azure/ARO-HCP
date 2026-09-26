@@ -10,7 +10,7 @@ title='chore(gh-aw): [auto] upgrade agentic workflows (AROSLSRE-2267)'
 repair_generated_agent() {
   local agent=.github/agents/agentic-workflows.agent.md
   local generated=.github/agents/agentic-workflows.md
-  local version commit
+  local version version_output commit
   if [[ -f $generated ]]; then
     mv "$generated" "$agent"
   fi
@@ -19,8 +19,15 @@ repair_generated_agent() {
     exit 1
   fi
 
-  version=$(gh aw version | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-  [[ -n $version ]] || { echo "Cannot determine installed gh-aw version." >&2; exit 1; }
+  if ! version_output=$(gh aw version 2>&1); then
+    echo "gh aw version failed: $version_output" >&2
+    exit 1
+  fi
+  if [[ ! $version_output =~ v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+    echo "Cannot determine installed gh-aw version." >&2
+    exit 1
+  fi
+  version=${BASH_REMATCH[0]}
   commit=$(gh api "repos/github/gh-aw/commits/$version" --jq '.sha')
   [[ $commit =~ ^[0-9a-f]{40}$ ]] || { echo "Cannot pin gh-aw prompts to a commit." >&2; exit 1; }
   sed -E -i "s@raw\.githubusercontent\.com/github/gh-aw/(main|refs/heads/main|[0-9a-f]{40})/@raw.githubusercontent.com/github/gh-aw/$commit/@g" "$agent"
