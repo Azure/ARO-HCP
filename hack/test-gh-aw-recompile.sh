@@ -10,6 +10,8 @@ cat > "$tmp/gh" <<'EOF'
 case "$1 $2" in
   'pr list') printf '%s\n' "$MOCK_PR_LIST" ;;
   'api repos/Azure/ARO-HCP/pulls/7184') printf '%s\n' "$MOCK_PR_DETAIL" ;;
+  'aw version') echo 'gh aw version v0.89.21' ;;
+  'api repos/github/gh-aw/commits/v0.89.21') echo 'c35393777e5604a63721d09512263b1383301d4f' ;;
   *) echo "Unexpected gh invocation: $*" >&2; exit 1 ;;
 esac
 EOF
@@ -42,4 +44,20 @@ if bash "$script" --select-only > /dev/null 2>&1; then
   echo "A fork PR must be rejected." >&2
   exit 1
 fi
-echo "gh-aw recompile selection tests passed"
+
+mkdir -p "$tmp/repo/.github/agents"
+printf '%s\n' 'https://raw.githubusercontent.com/github/gh-aw/main/.github/aw/create-agentic-workflow.md' \
+  > "$tmp/repo/.github/agents/agentic-workflows.md"
+(
+  cd "$tmp/repo"
+  bash "$script" --repair-only
+  [[ ! -f .github/agents/agentic-workflows.md ]]
+  grep -q 'github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/' \
+    .github/agents/agentic-workflows.agent.md
+  rm .github/agents/agentic-workflows.agent.md
+  if bash "$script" --repair-only >/dev/null 2>&1; then
+    echo "Missing agent must be rejected." >&2
+    exit 1
+  fi
+)
+echo "gh-aw recompile tests passed"

@@ -7,6 +7,34 @@ repo=${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}
 bot='aro-hcp-robot[bot]'
 title='chore(gh-aw): [auto] upgrade agentic workflows (AROSLSRE-2267)'
 
+repair_generated_agent() {
+  local agent=.github/agents/agentic-workflows.agent.md
+  local generated=.github/agents/agentic-workflows.md
+  local version commit
+  if [[ -f $generated ]]; then
+    mv "$generated" "$agent"
+  fi
+  if [[ ! -f $agent ]]; then
+    echo "gh-aw did not generate its dispatcher agent." >&2
+    exit 1
+  fi
+
+  version=$(gh aw version | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  [[ -n $version ]] || { echo "Cannot determine installed gh-aw version." >&2; exit 1; }
+  commit=$(gh api "repos/github/gh-aw/commits/$version" --jq '.sha')
+  [[ $commit =~ ^[0-9a-f]{40}$ ]] || { echo "Cannot pin gh-aw prompts to a commit." >&2; exit 1; }
+  sed -i "s@raw.githubusercontent.com/github/gh-aw/main/@raw.githubusercontent.com/github/gh-aw/$commit/@g" "$agent"
+  if grep -Eq 'raw\.githubusercontent\.com/github/gh-aw/(main|refs/heads/main)/' "$agent"; then
+    echo "A moving gh-aw prompt reference remains in $agent." >&2
+    exit 1
+  fi
+}
+
+if [[ ${1:-} == --repair-only ]]; then
+  repair_generated_agent
+  exit 0
+fi
+
 prs=$(gh pr list --repo "$repo" --state open --author app/aro-hcp-robot \
   --limit 500 --json number,headRefName,author)
 matches=$(jq -c '[.[] | select(
@@ -45,26 +73,7 @@ else
 fi
 
 gh aw upgrade --yes
-
-agent=.github/agents/agentic-workflows.agent.md
-generated=.github/agents/agentic-workflows.md
-if [[ -f $generated ]]; then
-  mv "$generated" "$agent"
-fi
-if [[ ! -f $agent ]]; then
-  echo "gh-aw did not generate its dispatcher agent." >&2
-  exit 1
-fi
-
-version=$(gh aw version | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-[[ -n $version ]] || { echo "Cannot determine installed gh-aw version." >&2; exit 1; }
-commit=$(gh api "repos/github/gh-aw/commits/$version" --jq '.sha')
-[[ $commit =~ ^[0-9a-f]{40}$ ]] || { echo "Cannot pin gh-aw prompts to a commit." >&2; exit 1; }
-sed -i "s@raw.githubusercontent.com/github/gh-aw/main/@raw.githubusercontent.com/github/gh-aw/$commit/@g" "$agent"
-if grep -Eq 'raw\.githubusercontent\.com/github/gh-aw/(main|refs/heads/main)/' "$agent"; then
-  echo "A moving gh-aw prompt reference remains in $agent." >&2
-  exit 1
-fi
+repair_generated_agent
 
 make yamlfmt
 git add -A
