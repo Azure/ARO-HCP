@@ -295,6 +295,27 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		return false, nil
 	}
 
+	// Wait until every ApplyDesire for this cluster has been removed. Each authoring
+	// controller is responsible for deleting the ApplyDesires it owns during cluster
+	// deletion; we only remove the ServiceProviderCluster document (which carries the
+	// ManagementClusterResourceID needed to reach them) once they are all gone. Report
+	// the per-controller breakdown so it is clear which controller is lagging.
+	remaining, applyDesireBreakdown, err := c.remainingApplyDesires(
+		ctx,
+		spc,
+		serviceProviderClusterResourceID.SubscriptionID,
+		serviceProviderClusterResourceID.ResourceGroupName,
+		clusterName,
+	)
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to check remaining ApplyDesires: %w", err))
+	}
+	if remaining > 0 {
+		logger.Info(fmt.Sprintf("waiting for %d ApplyDesire(s) to be deleted before removing ServiceProviderCluster: %s", remaining, applyDesireBreakdown),
+			"serviceProviderClusterResourceID", spc.ResourceID.String())
+		return false, nil
+	}
+
 	// Check if there are any cluster-scoped kube-applier *Desire documents remaining.
 	if spc.Status.ManagementClusterResourceID != nil {
 		kaClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
@@ -329,6 +350,44 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 	}
 
 	return true, nil
+}
+
+// remainingApplyDesires reports how many ApplyDesires still exist for the cluster
+// owning the given ServiceProviderCluster, along with a human-readable breakdown
+// grouped by the authoring controller. Each authoring controller is responsible for
+// deleting the ApplyDesires it owns during cluster deletion; this controller only
+// verifies they are gone before removing the ServiceProviderCluster document (which
+// carries the ManagementClusterResourceID needed to reach them). A nil management
+// cluster reference or unavailable kube-applier client is treated as "no remaining
+// ApplyDesires", consistent with the best-effort behavior elsewhere in this file.
+func (c *clusterChildResourcesCleanupController) remainingApplyDesires(ctx context.Context, spc *coreapi.ServiceProviderCluster, subscriptionID, resourceGroupName, clusterName string) (int, string, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	if spc == nil || spc.Status.ManagementClusterResourceID == nil {
+		return 0, "", nil
+	}
+
+	managementClusterID := spc.Status.ManagementClusterResourceID
+	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	if kubeApplierDBClient == nil {
+		logger.Info("no kube-applier client for management cluster; treating ApplyDesires as gone",
+			"managementClusterResourceID", managementClusterID.String())
+		return 0, "", nil
+	}
+
+	applyDesireCRUD, err := kubeApplierDBClient.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
+	if err != nil {
+		// Return a plain wrapped error; the caller
+		// (extraDeleteGateShouldDeleteServiceProviderCluster) applies utils.TrackError
+		// once, so tracking here would nest LineTrackingError prefixes.
+		return 0, "", fmt.Errorf("failed to get kube-applier CRUD for ApplyDesire precondition: %w", err)
+	}
+
+	total, breakdown, err := kubeappliercosmosstorage.SummarizeApplyDesiresByController(ctx, applyDesireCRUD)
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to summarize ApplyDesires by controller: %w", err)
+	}
+	return total, breakdown, nil
 }
 
 // ensureClusterScopedKubeApplierResourcesDeleted ensures that the cluster-scoped *Desire documents are deleted
