@@ -39,9 +39,7 @@ var _ = Describe("FIPS Mode Support", func() {
 			labels.CreateCluster,
 			labels.MIContainers(1),
 			func(ctx context.Context) {
-				const (
-					customerClusterName = "fips-enabled-cluster"
-				)
+				const customerClusterName = "fips-enabled-cluster"
 
 				tc := framework.NewTestContext()
 

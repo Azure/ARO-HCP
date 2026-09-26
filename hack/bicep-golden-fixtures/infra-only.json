@@ -68,6 +68,13 @@
               "type": "string",
               "value": "[last(split(reference(resourceId('Microsoft.KeyVault/vaults/keys', variables('customerKeyVaultName'), parameters('customerEtcdEncryptionKeyName')), '2024-12-01-preview').keyUriWithVersion, '/'))]"
             },
+            "integrationSubnetName": {
+              "metadata": {
+                "description": "Integration Subnet Name"
+              },
+              "type": "string",
+              "value": "[parameters('customerVnetIntegrationSubnetName')]"
+            },
             "keyVaultName": {
               "metadata": {
                 "description": "Key Vault Name"
@@ -94,7 +101,7 @@
                 "description": "Customer VNet Integration Subnet Resource ID"
               },
               "type": "string",
-              "value": "[format('{0}/subnets/customer-vnet-integration-subnet', resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName')))]"
+              "value": "[format('{0}/subnets/{1}', resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName')), parameters('customerVnetIntegrationSubnetName'))]"
             },
             "vnetName": {
               "metadata": {
@@ -144,6 +151,13 @@
               "defaultValue": "customer-nsg",
               "metadata": {
                 "description": "Network Security Group Name"
+              },
+              "type": "string"
+            },
+            "customerVnetIntegrationSubnetName": {
+              "defaultValue": "integration-subnet-1",
+              "metadata": {
+                "description": "Integration Subnet Name"
               },
               "type": "string"
             },
@@ -210,7 +224,7 @@
                     }
                   },
                   {
-                    "name": "customer-vnet-integration-subnet",
+                    "name": "[parameters('customerVnetIntegrationSubnetName')]",
                     "properties": {
                       "addressPrefix": "[variables('vnetIntegrationSubnetPrefix')]",
                       "delegations": [
