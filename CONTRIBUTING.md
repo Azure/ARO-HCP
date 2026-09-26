@@ -74,7 +74,8 @@ All pull requests must follow these standards. Reviewers will check for complian
 
 ### Automated PR Policy
 
-- Every PR created by automation MUST open as a GitHub Draft. Automation MUST keep a PR in Draft unless a human changes its state or gives an explicit instruction to make that PR ready for review or drive it to merge.
+- Every PR created by automation MUST open as a GitHub Draft unless authored by `aro-hcp-robot[bot]`. Automation MUST keep other automated PRs in Draft unless a human changes their state or gives an explicit instruction to make them ready for review or drive them to merge.
+- PRs authored by `aro-hcp-robot[bot]` MUST open ready for review. Any validation in their generating workflows still applies. Self-review, required Prow and other CI checks, reviewer approval, comment resolution, and merge policy must be satisfied before merge.
 - Explicit authorization permits only the requested PR state change or merge-driving. It does not bypass self-review, required CI checks, reviewer approval, comment resolution, or merge policy.
 - Automation MUST write an evergreen description: the enduring problem, decision, behavior, operational contract, verification, dependencies, and intentional non-goals. The description MUST remain accurate after merge.
 - Do not lead an automated PR description with agent activity, transient CI state, workflow narration, or “preview only” framing. State a dependency or non-goal when it is part of the lasting contract.
@@ -110,13 +111,13 @@ All pull requests must follow these standards. Reviewers will check for complian
 - **Security self-check**: Verify your PR does not accidentally include `.claude/settings.json`, `.vscode/` configuration files, or other IDE/agent config that shouldn't be committed. Changes to CI/CD configuration (`.github/workflows/`, `Makefile`, `*pipeline.yaml`, `Dockerfile`) should be called out explicitly in your PR description.
 
 ### 7. CI/CD Checks Must Pass
-- All tests, linting, and CI/CD pipeline checks must be green before requesting review, **excluding Tide**.
+- All tests, linting, and CI/CD pipeline checks must be green before requesting review, except for `aro-hcp-robot[bot]` PRs, which open ready while checks run. All required checks must pass before merge, **excluding Tide**.
 - Tide is a merge-automation bot and its status is not a CI/CD check — do not wait on it or treat it as a blocker.
 - If a non-Tide check is flaky or unrelated, note it explicitly in the PR description — do not ignore it silently.
 
 ### 8. Use Draft PRs for WIP
-- If requesting early feedback or the work is incomplete, open the PR as a **Draft**.
-- Convert to "Ready for Review" only when all checks pass and self-review is done.
+- If requesting early feedback or the work is incomplete, open the PR as a **Draft**, except for `aro-hcp-robot[bot]` PRs under the Automated PR Policy.
+- Convert a Draft to "Ready for Review" only when all checks pass and self-review is done. `aro-hcp-robot[bot]` PRs still require self-review and all required checks before merge.
 
 ### 9. Keep Commit History Clean
 - Use interactive rebase (`git rebase -i`) to squash or fixup commits into a clean, logical history.

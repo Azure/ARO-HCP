@@ -2395,6 +2395,35 @@
         "kustoDataConnectionName"
       ]
     },
+    "maestroMqttEventHub": {
+      "type": "object",
+      "description": "Event Hub for Maestro Event Grid MQTT connection diagnostics",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the Event Hub for Maestro MQTT connection diagnostics"
+        },
+        "kustoConsumerGroupName": {
+          "type": "string",
+          "description": "Name of the consumer group for the Kusto data connection"
+        },
+        "kustoDataConnectionName": {
+          "type": "string",
+          "description": "Name of the Kusto data connection for Maestro MQTT diagnostics"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Maestro MQTT connection diagnostics resources"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kustoConsumerGroupName",
+        "kustoDataConnectionName",
+        "enabled"
+      ]
+    },
     "mise": {
       "type": "object",
       "additionalProperties": false,

@@ -65,7 +65,7 @@ func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []kusto.Que
 	queryGroup, queryCtx := errgroup.WithContext(ctx)
 	for _, query := range queries {
 		queryGroup.Go(func() error {
-			result, err := q.Client.ExecutePreconfiguredQuery(queryCtx, query, outputChannel)
+			result, err := q.ExecutePreconfiguredQuery(queryCtx, query, outputChannel)
 			if err != nil {
 				logger.Error(err, "Query failed", "name", query.GetName())
 				return fmt.Errorf("failed to execute query: %w", err)
@@ -88,5 +88,25 @@ func (q *QueryClient) Close() error {
 }
 
 func (q *QueryClient) ExecutePreconfiguredQuery(ctx context.Context, query kusto.Query, outputChannel chan<- kusto.TaggedRow) (*kusto.QueryResult, error) {
+	if sequence, ok := query.(*kusto.TimeWindowQuery); ok {
+		result := &kusto.QueryResult{}
+		for i, window := range sequence.Windows {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			logr.FromContextOrDiscard(ctx).V(1).Info("Executing query time window", "queryName", query.GetName(), "window", i+1, "windows", len(sequence.Windows))
+			part, err := q.Client.ExecutePreconfiguredQuery(ctx, window, outputChannel)
+			if err != nil {
+				return nil, fmt.Errorf("query %q time window %d/%d failed (KQL: %s): %w", query.GetName(), i+1, len(sequence.Windows), window.GetQuery().String(), err)
+			}
+			if len(result.Columns) == 0 {
+				result.Columns = part.Columns
+			}
+			result.QueryStats.ExecutionTime += part.QueryStats.ExecutionTime
+			result.QueryStats.TotalRows += part.QueryStats.TotalRows
+			result.QueryStats.DataSize += part.QueryStats.DataSize
+		}
+		return result, nil
+	}
 	return q.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel)
 }

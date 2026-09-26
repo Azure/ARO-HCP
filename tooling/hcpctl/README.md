@@ -130,6 +130,8 @@ What is gathered?
 - All Kubernetes events from the mgmt and service cluster (excluding HCP)
 - All Kubernetes events from the mgmt cluster withing the HCP namespace
 - Cosmos DB document snapshots (`cosmosResourceSnapshots`) for resources in the resource group, written to the custom logs directory
+- Frontend operation-status and operation-result requests, including requests without a resource group in their URL. Operation IDs are discovered from Cosmos snapshot metadata for the subscription and resource group, narrowed to the selected clusters when `--cluster-id` or `--cluster-name` is specified.
+- Version rollout controller logs (`versionRolloutLogs`) and fleet rollout document snapshots (`versionRolloutSnapshots`) from the discovered infrastructure clusters. These include channel-wide decisions and other clusters' assignments because canary readiness and failure budgets can delay the target cluster's upgrade.
 - Optionally: Systemd logs from the management and service cluster (turn on using --collect-systemd-logs)
 
 ```bash

@@ -30,7 +30,7 @@ func TestGetServicesQueries(t *testing.T) {
 	opts.SubscriptionId = "test-sub"
 	opts.ResourceGroupName = "test-rg"
 
-	queries, err := serviceLogs(factory, "serviceLogs", opts, []string{"cluster1"})
+	queries, err := serviceLogs(factory, "serviceLogs", opts, []string{"cluster1"}, nil)
 	require.NoError(t, err)
 	assert.Len(t, queries, len(ServicesTables))
 }
