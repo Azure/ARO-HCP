@@ -32,6 +32,7 @@ manifest.json index, suitable for automated analysis or manual review.
 
 Use one of the subcommands to specify the entrypoint:
   from-resource    Start from a resource group and time window
+  from-cluster     Start from a cluster identity (no ARM traffic required)
   from-prow-job    Start from a Prow job URL (use --test to select a specific test)
   analyze          Run LLM-driven root cause analysis on gathered data`,
 		CompletionOptions: cobra.CompletionOptions{
@@ -44,6 +45,12 @@ Use one of the subcommands to specify the entrypoint:
 		return nil, err
 	}
 	cmd.AddCommand(fromResourceCmd)
+
+	fromClusterCmd, err := newFromClusterCommand()
+	if err != nil {
+		return nil, err
+	}
+	cmd.AddCommand(fromClusterCmd)
 
 	fromProwJobCmd, err := newFromProwJobCommand()
 	if err != nil {

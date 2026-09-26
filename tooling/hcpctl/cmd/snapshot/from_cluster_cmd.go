@@ -1,0 +1,299 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package snapshot
+
+import (
+	"context"
+	"fmt"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/go-logr/logr"
+	"github.com/spf13/cobra"
+
+	"github.com/Azure/azure-kusto-go/azkustodata"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	snapshotpkg "github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
+)
+
+// hcpClusterResourceType is the ARM resource type of an HCP cluster, used to
+// validate an explicit --cluster-resource-id.
+const hcpClusterResourceType = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+
+// RawFromClusterOptions holds the unvalidated CLI options for from-cluster.
+type RawFromClusterOptions struct {
+	Kusto                    string
+	Region                   string
+	ViaKusto                 string
+	ViaRegion                string
+	ServiceDatabase          string
+	HCPDatabase              string
+	MonitoringEventsDatabase string
+	ClusterResourceID        string
+	Subscription             string
+	ResourceGroup            string
+	StartTime                string
+	EndTime                  string
+	OutputDir                string
+	QueryTimeout             time.Duration
+	Concurrency              int
+}
+
+func defaultFromClusterOptions() *RawFromClusterOptions {
+	return &RawFromClusterOptions{
+		ServiceDatabase:          "ServiceLogs",
+		HCPDatabase:              "HostedControlPlaneLogs",
+		MonitoringEventsDatabase: "MonitoringEvents",
+		QueryTimeout:             5 * time.Minute,
+		OutputDir:                fmt.Sprintf("snapshot-%s", time.Now().Format("20060102-150405")),
+	}
+}
+
+func bindFromClusterOptions(opts *RawFromClusterOptions, cmd *cobra.Command) error {
+	cmd.Flags().StringVar(&opts.Kusto, "kusto", opts.Kusto, "Azure Data Explorer cluster name (required)")
+	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Azure Data Explorer cluster region (required)")
+	cmd.Flags().StringVar(&opts.ViaKusto, "via-kusto", opts.ViaKusto, "Route queries through this reachable ADX cluster instead of connecting to --kusto directly; queries still target --kusto via cross-cluster cluster(). The connecting identity needs viewer rights on --kusto, and the standard databases must exist on this cluster.")
+	cmd.Flags().StringVar(&opts.ViaRegion, "via-region", opts.ViaRegion, "Region of --via-kusto (defaults to --region)")
+	cmd.Flags().StringVar(&opts.ServiceDatabase, "service-database", opts.ServiceDatabase, "Kusto database for service logs")
+	cmd.Flags().StringVar(&opts.HCPDatabase, "hcp-database", opts.HCPDatabase, "Kusto database for hosted control plane logs")
+	cmd.Flags().StringVar(&opts.MonitoringEventsDatabase, "monitoring-events-database", opts.MonitoringEventsDatabase, "Kusto database for monitoring events (alerts)")
+	cmd.Flags().StringVar(&opts.ClusterResourceID, "cluster-resource-id", opts.ClusterResourceID, "Full ARM resource id of the HCP cluster to snapshot (mutually exclusive with --subscription/--resource-group)")
+	cmd.Flags().StringVar(&opts.Subscription, "subscription", opts.Subscription, "Azure subscription id; with --resource-group, resolves the cluster via Cosmos (mutually exclusive with --cluster-resource-id)")
+	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "Azure resource group name (required with --subscription)")
+	cmd.Flags().StringVar(&opts.StartTime, "start-time", opts.StartTime, "Query start time in RFC3339 format (required)")
+	cmd.Flags().StringVar(&opts.EndTime, "end-time", opts.EndTime, "Query end time in RFC3339 format (required)")
+	cmd.Flags().StringVar(&opts.OutputDir, "output-dir", opts.OutputDir, "Directory to write snapshot output")
+	cmd.Flags().DurationVar(&opts.QueryTimeout, "query-timeout", opts.QueryTimeout, "Timeout for individual Kusto queries")
+	cmd.Flags().IntVar(&opts.Concurrency, "concurrency", opts.Concurrency, "Maximum number of concurrent Kusto queries (0 = 4*NumCPU)")
+
+	for _, flag := range []string{"kusto", "region", "start-time", "end-time"} {
+		if err := cmd.MarkFlagRequired(flag); err != nil {
+			return fmt.Errorf("failed to mark %s as required: %w", flag, err)
+		}
+	}
+	return nil
+}
+
+type validatedFromClusterOptions struct {
+	kustoEndpoint            *url.URL
+	connectEndpoint          *url.URL
+	serviceDatabase          string
+	hcpDatabase              string
+	monitoringEventsDatabase string
+	// seedClusterResourceID is set in explicit-id mode; empty in subscription+RG mode.
+	seedClusterResourceID string
+	// seedSubscriptionID is always set: parsed from the id in explicit mode, or
+	// taken from --subscription in resolve mode.
+	seedSubscriptionID string
+	resourceGroup      string
+	startTime          time.Time
+	endTime            time.Time
+	outputDir          string
+	queryTimeout       time.Duration
+	concurrency        int
+}
+
+func (o *RawFromClusterOptions) validate() (*validatedFromClusterOptions, error) {
+	// Identity inputs are mutually exclusive: either an explicit cluster resource
+	// id, or a subscription + resource group to resolve from.
+	explicitID := o.ClusterResourceID != ""
+	resolveMode := o.Subscription != "" || o.ResourceGroup != ""
+	if explicitID && resolveMode {
+		return nil, fmt.Errorf("--cluster-resource-id is mutually exclusive with --subscription/--resource-group")
+	}
+	if !explicitID && !resolveMode {
+		return nil, fmt.Errorf("one of --cluster-resource-id or --subscription with --resource-group is required")
+	}
+
+	var seedClusterResourceID, seedSubscriptionID, resourceGroup string
+	if explicitID {
+		parsed, err := azcorearm.ParseResourceID(o.ClusterResourceID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid --cluster-resource-id %q: %w", o.ClusterResourceID, err)
+		}
+		if !strings.EqualFold(parsed.ResourceType.String(), hcpClusterResourceType) {
+			return nil, fmt.Errorf("--cluster-resource-id %q is not an HCP cluster (type %q, want %q)", o.ClusterResourceID, parsed.ResourceType.String(), hcpClusterResourceType)
+		}
+		seedClusterResourceID = o.ClusterResourceID
+		seedSubscriptionID = parsed.SubscriptionID
+		resourceGroup = parsed.ResourceGroupName
+	} else {
+		if o.Subscription == "" {
+			return nil, fmt.Errorf("--subscription is required with --resource-group")
+		}
+		if o.ResourceGroup == "" {
+			return nil, fmt.Errorf("--resource-group is required with --subscription")
+		}
+		seedSubscriptionID = o.Subscription
+		resourceGroup = o.ResourceGroup
+	}
+
+	kustoEndpoint, err := kusto.KustoEndpoint(o.Kusto, o.Region)
+	if err != nil {
+		return nil, err
+	}
+
+	// connectEndpoint is where the Kusto client actually connects. By default it
+	// is the query target (--kusto), but --via-kusto lets callers route through a
+	// reachable cluster while queries still target --kusto via cross-cluster
+	// cluster() references in the query templates.
+	connectEndpoint := kustoEndpoint
+	if o.ViaKusto != "" {
+		viaRegion := o.ViaRegion
+		if viaRegion == "" {
+			viaRegion = o.Region
+		}
+		connectEndpoint, err = kusto.KustoEndpoint(o.ViaKusto, viaRegion)
+		if err != nil {
+			return nil, err
+		}
+	} else if o.ViaRegion != "" {
+		return nil, fmt.Errorf("--via-region requires --via-kusto")
+	}
+
+	startTime, err := time.Parse(time.RFC3339, o.StartTime)
+	if err != nil {
+		return nil, fmt.Errorf("invalid --start-time %q: must be RFC3339 format: %w", o.StartTime, err)
+	}
+	endTime, err := time.Parse(time.RFC3339, o.EndTime)
+	if err != nil {
+		return nil, fmt.Errorf("invalid --end-time %q: must be RFC3339 format: %w", o.EndTime, err)
+	}
+	if !startTime.Before(endTime) {
+		return nil, fmt.Errorf("--start-time must be before --end-time")
+	}
+
+	return &validatedFromClusterOptions{
+		kustoEndpoint:            kustoEndpoint,
+		connectEndpoint:          connectEndpoint,
+		serviceDatabase:          o.ServiceDatabase,
+		hcpDatabase:              o.HCPDatabase,
+		monitoringEventsDatabase: o.MonitoringEventsDatabase,
+		seedClusterResourceID:    seedClusterResourceID,
+		seedSubscriptionID:       seedSubscriptionID,
+		resourceGroup:            resourceGroup,
+		startTime:                startTime,
+		endTime:                  endTime,
+		outputDir:                o.OutputDir,
+		queryTimeout:             o.QueryTimeout,
+		concurrency:              o.Concurrency,
+	}, nil
+}
+
+type completedFromClusterOptions struct {
+	*validatedFromClusterOptions
+	kustoClient *azkustodata.Client
+}
+
+func (o *validatedFromClusterOptions) complete() (*completedFromClusterOptions, error) {
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		AdditionallyAllowedTenants:   []string{"*"},
+		RequireAzureTokenCredentials: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+	}
+	kcsb := azkustodata.NewConnectionStringBuilder(o.connectEndpoint.String())
+	kcsb = kcsb.WithTokenCredential(cred)
+	client, err := azkustodata.New(kcsb)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
+	}
+	return &completedFromClusterOptions{
+		validatedFromClusterOptions: o,
+		kustoClient:                 client,
+	}, nil
+}
+
+func (o *completedFromClusterOptions) run(ctx context.Context) error {
+	logger := logr.FromContextOrDiscard(ctx)
+	defer func() {
+		if err := o.kustoClient.Close(); err != nil {
+			logger.Error(err, "Failed to close Kusto client")
+		}
+	}()
+
+	gatherer := snapshotpkg.NewGatherer(o.kustoClient)
+	input := snapshotpkg.GatherInput{
+		ClusterURI:               o.kustoEndpoint.String(),
+		ServiceDatabase:          o.serviceDatabase,
+		HCPDatabase:              o.hcpDatabase,
+		MonitoringEventsDatabase: o.monitoringEventsDatabase,
+		ResourceGroup:            o.resourceGroup,
+		SeedClusterResourceID:    o.seedClusterResourceID,
+		SeedSubscriptionID:       o.seedSubscriptionID,
+		TimeWindow: snapshotpkg.TimeWindow{
+			Start: o.startTime,
+			End:   o.endTime,
+		},
+		QueryTimeout: o.queryTimeout,
+		Concurrency:  o.concurrency,
+	}
+
+	manifest, _, err := gatherer.Gather(ctx, input, o.outputDir)
+	if err != nil {
+		return err
+	}
+
+	logger.Info("Snapshot complete",
+		"outputDir", o.outputDir,
+		"phases", len(manifest.Phases),
+	)
+
+	return nil
+}
+
+func newFromClusterCommand() (*cobra.Command, error) {
+	opts := defaultFromClusterOptions()
+	cmd := &cobra.Command{
+		Use:   "from-cluster",
+		Short: "Gather a diagnostic snapshot starting from a cluster identity",
+		Long: `Gather a structured diagnostic snapshot seeded directly from a cluster
+identity instead of from ARM request logs, so per-resource queries (backend
+state, HyperShift conditions, velero backup health, etc.) run regardless of
+whether the cluster had ARM control-plane traffic in the time window.
+
+Supply the cluster identity one of two ways:
+  --cluster-resource-id <arm-id>              explicit; subscription and resource
+                                              group are parsed from the id
+  --subscription <guid> --resource-group <rg> resolved to a single cluster via a
+                                              Cosmos lookup
+
+Request-scoped sections (frontend requests, per-request traces) are absent from
+the output, which is expected for a run that is not request-anchored.`,
+		Args:          cobra.NoArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			validated, err := opts.validate()
+			if err != nil {
+				return err
+			}
+			completed, err := validated.complete()
+			if err != nil {
+				return err
+			}
+			return completed.run(cmd.Context())
+		},
+	}
+	if err := bindFromClusterOptions(opts, cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
+}

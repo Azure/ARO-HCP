@@ -5,7 +5,5 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosRes
 {{- end }}
 | where subscriptionID == '{{ .SubscriptionID }}'
 | where resourceGroup =~ '{{ .ResourceGroup }}'
-| where resourceID =~ '{{ .ResourceID }}'
-| extend internalId=tostring(content.properties.serviceProviderProperties.clusterServiceID)
-| where isnotempty(internalId)
-| distinct internalId
+| where tolower(resourceType) == 'microsoft.redhatopenshift/hcpopenshiftclusters'
+| distinct clusterResourceID=tolower(resourceID)
