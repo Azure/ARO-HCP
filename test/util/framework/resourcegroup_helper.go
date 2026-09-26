@@ -182,7 +182,7 @@ func DeleteResourceGroup(
 	switch m := any(operationResult).(type) {
 	case armresources.ResourceGroupsClientDeleteResponse:
 	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
 	}
 
