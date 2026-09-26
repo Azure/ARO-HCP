@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -43,7 +44,7 @@ func TestGatherIndependentFailures(t *testing.T) {
 		"", "alerts:svc", "alerts:hcp", "metricRules:svc", "rules:hcp", "rules:svc",
 		"endpoint:hcp", "endpoint:svc", "query:svc", "metrics", "render:First",
 		"render:alerts", "render:utilization", "render:history", "write:alerts.json", "write:utilization.json",
-		"write:junit", "write:page", "setup:cosmos", "setup:known", "setup:queries",
+		"write:junit", "write:page", "write:alert-diagnostics.json", "setup:cosmos", "setup:known", "setup:queries",
 		"amw", "render:amw", "write:amw.json",
 	} {
 		t.Run(failure, func(t *testing.T) {
@@ -101,8 +102,8 @@ func TestGatherIndependentFailures(t *testing.T) {
 				fetchMetricAlertRules: func(_ context.Context, _ azcore.TokenCredential, _, rg string) ([]string, error) {
 					return []string{"metric-rule-" + rg}, call("metricRules:" + rg)
 				},
-				fetchAlertRules: func(_ context.Context, _ azcore.TokenCredential, ws azcorearm.ResourceID) ([]string, error) {
-					return []string{"quiet"}, call("rules:" + ws.Name)
+				fetchAlertRules: func(_ context.Context, _ azcore.TokenCredential, ws azcorearm.ResourceID) (alertRuleInventory, error) {
+					return alertRuleInventory{Names: []string{"quiet"}}, call("rules:" + ws.Name)
 				},
 				lookupEndpoint: func(_ context.Context, _ azcore.TokenCredential, _, _, name string) (string, error) {
 					return name, call("endpoint:" + name)
@@ -156,7 +157,7 @@ func TestGatherIndependentFailures(t *testing.T) {
 			if fatal && !errors.Is(err, injected) {
 				t.Errorf("fatal aggregate lost injected error: %v", err)
 			}
-			for _, name := range []string{"alerts:svc", "alerts:hcp", "metricRules:svc", "metricRules:hcp", "rules:svc", "rules:hcp", "endpoint:svc", "endpoint:hcp", "render:alerts", "write:alerts.json", "write:junit", "utilization", "render:utilization", "render:history", "write:utilization.json", "amw", "render:amw", "write:amw.json", "write:page"} {
+			for _, name := range []string{"alerts:svc", "alerts:hcp", "metricRules:svc", "metricRules:hcp", "rules:svc", "rules:hcp", "endpoint:svc", "endpoint:hcp", "render:alerts", "write:alerts.json", "write:alert-diagnostics.json", "write:junit", "utilization", "render:utilization", "render:history", "write:utilization.json", "amw", "render:amw", "write:amw.json", "write:page"} {
 				if calls[name] != 1 {
 					t.Errorf("independent operation %s attempted %d times, want 1", name, calls[name])
 				}
@@ -423,7 +424,7 @@ func TestGatherWritesArtifactsWithUtilizationWarnings(t *testing.T) {
 			if fail && (!errors.Is(err, writeErr) || !errors.Is(err, setupErr)) {
 				t.Fatalf("fatal aggregate lost independent errors: %v", err)
 			}
-			for _, name := range []string{"alerts.json", "junit_alerts.xml", "observability-summary.html", "utilization.json"} {
+			for _, name := range []string{"alerts.json", "alert-diagnostics.json", "junit_alerts.xml", "observability-summary.html", "utilization.json"} {
 				if fail && name == "alerts.json" {
 					continue
 				}
@@ -442,6 +443,144 @@ func TestGatherWritesArtifactsWithUtilizationWarnings(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestGatherDiagnosticQueryFailureRetainsKnownAlertArtifacts(t *testing.T) {
+	t.Parallel()
+	issues, err := parseKnownIssues([]byte("knownIssues:\n- name: known\n  reason: tracked issue\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws := *mustParseResourceID("sub", "svc", "svc")
+	o := Options{completedOptions: &completedOptions{
+		OutputDir:         t.TempDir(),
+		Workspaces:        map[string]azcorearm.ResourceID{workspaceSvc: ws},
+		SeverityThreshold: -1,
+		TimeWindow:        timing.TimeWindow{Start: time.Unix(1000, 0), End: time.Unix(2000, 0)},
+		knownIssues:       issues,
+		Queries: &QueriesConfig{Panels: []PanelSpec{
+			{Title: "First", Queries: []QuerySpec{{Title: "first", Workspace: workspaceSvc, Query: "panel_first", Step: "60s"}}},
+			{Title: "Second", Queries: []QuerySpec{{Title: "second", Workspace: workspaceSvc, Query: "panel_second", Step: "60s"}}},
+		}},
+	}}
+	injected := errors.New("diagnostic backend unavailable")
+	deps := o.dependencies()
+	deps.fetchAlerts = func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error) {
+		return []alert{{Alert: alertData{Name: "known", Expression: "up == 0"}, Metadata: alertMetadata{MonitoringWorkspace: ws.String()}}}, nil
+	}
+	deps.fetchMetricAlertRules = func(context.Context, azcore.TokenCredential, string, string) ([]string, error) {
+		return nil, nil
+	}
+	deps.fetchAlertRules = func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) (alertRuleInventory, error) {
+		return alertRuleInventory{Names: []string{"known"}, Definitions: []alertRuleDefinition{{Name: "known", Expression: "up == 0", Interval: "PT30S"}}}, nil
+	}
+	deps.lookupEndpoint = func(context.Context, azcore.TokenCredential, string, string, string) (string, error) {
+		return "svc", nil
+	}
+	var queryCalls int
+	var panelQueries, panelRenders atomic.Int32
+	var utilizationCalled, utilizationRendered atomic.Bool
+	var amwCalled atomic.Bool
+	deps.collectAMW = func(context.Context) amwReport {
+		amwCalled.Store(true)
+		return amwReport{}
+	}
+	deps.queryRange = func(_ context.Context, _ *http.Client, _ azcore.TokenCredential, endpoint, expression string, _, _ time.Time, step string) (*PrometheusResponse, error) {
+		if expression == "panel_first" || expression == "panel_second" {
+			panelQueries.Add(1)
+			return &PrometheusResponse{Status: "success", Data: PrometheusData{ResultType: "matrix"}}, nil
+		}
+		queryCalls++
+		if endpoint != "svc" || expression != "up" || step != "30s" {
+			t.Errorf("inventory metadata not used by diagnostic query: endpoint=%q expression=%q step=%q", endpoint, expression, step)
+		}
+		// Check at query entry, not after run: the diagnostic budget must not
+		// delay independent collection or its artifact writes.
+		for _, name := range []string{"alerts.json", "junit_alerts.xml", "utilization.json", "amw.json"} {
+			if info, err := os.Stat(filepath.Join(o.OutputDir, name)); err != nil || info.Size() == 0 {
+				t.Errorf("independent artifact %s not written before diagnostics: %v", name, err)
+			}
+		}
+		if panelQueries.Load() != 2 || panelRenders.Load() != 2 || !utilizationCalled.Load() || !utilizationRendered.Load() {
+			t.Errorf("diagnostics started before independent work completed: panel queries=%d renders=%d utilization collected=%t rendered=%t", panelQueries.Load(), panelRenders.Load(), utilizationCalled.Load(), utilizationRendered.Load())
+		}
+		if !amwCalled.Load() {
+			t.Error("diagnostics started before AMW collection completed")
+		}
+		return nil, injected
+	}
+	deps.renderPanel = func(data panelPageData) ([]byte, error) {
+		html, err := renderPanelHTML(data)
+		if err == nil {
+			panelRenders.Add(1)
+		}
+		return html, err
+	}
+	deps.collectUtilization = func(context.Context, map[string]*workspaceData) utilizationReport {
+		utilizationCalled.Store(true)
+		return utilizationReport{SchemaVersion: utilizationSchemaVersion, GeneratedAt: o.TimeWindow.End, Start: o.TimeWindow.Start, End: o.TimeWindow.End}
+	}
+	deps.renderUtilization = func(report utilizationReport) ([]byte, error) {
+		html, err := renderUtilizationHTML(report)
+		if err == nil {
+			utilizationRendered.Store(true)
+		}
+		return html, err
+	}
+	var output alertsOutput
+	deps.renderAlerts = func(data any) ([]byte, error) {
+		output = data.(alertsOutput)
+		return renderAlertsHTML(data)
+	}
+	var suites *junit.TestSuites
+	deps.writeJUnit = func(path string, data *junit.TestSuites) error {
+		suites = data
+		return junit.Write(path, data)
+	}
+	if err := o.run(logr.NewContext(t.Context(), logr.Discard()), deps); err != nil {
+		t.Fatalf("diagnostic failure must not gate known alerts: %v", err)
+	}
+	if queryCalls != 1 || !utilizationCalled.Load() {
+		t.Errorf("diagnostic failure gated independent collection: queries=%d utilization=%t", queryCalls, utilizationCalled.Load())
+	}
+	if len(output.CollectionErrors) != 0 || output.Summary.Known != 1 || output.Summary.Unknown != 0 || len(output.Alerts) != 1 || !output.Alerts[0].Metadata.KnownIssue {
+		t.Fatalf("diagnostic failure changed alert classification/completeness: %+v", output)
+	}
+	if suites == nil || len(suites.Suites) != 1 {
+		t.Fatalf("missing JUnit suite: %+v", suites)
+	}
+	suite := suites.Suites[0]
+	if suite.NumTests != 1 || suite.NumSkipped != 1 || suite.NumFailed != 0 || len(suite.TestCases) != 1 {
+		t.Fatalf("diagnostic failure changed known-alert JUnit result: %+v", suite)
+	}
+	if tc := suite.TestCases[0]; tc.SkipMessage == nil || !strings.Contains(tc.SkipMessage.Message, "tracked issue") || tc.FailureOutput != nil {
+		t.Errorf("known alert lost original skip reason: %+v", tc)
+	}
+	for _, name := range []string{"alerts.json", "alert-diagnostics.json", "junit_alerts.xml", "observability-summary.html", "utilization.json"} {
+		data, err := os.ReadFile(filepath.Join(o.OutputDir, name))
+		if err != nil || len(data) == 0 {
+			t.Fatalf("missing independent artifact %s: %v", name, err)
+		}
+		switch name {
+		case "alerts.json":
+			var basic alertsOutput
+			if err := json.Unmarshal(data, &basic); err != nil || len(basic.Alerts) != 1 || !basic.Alerts[0].Metadata.KnownIssue || len(basic.CollectionErrors) != 0 {
+				t.Errorf("basic alert artifact lost classification: %s, %v", data, err)
+			}
+		case "alert-diagnostics.json":
+			var report alertDiagnosticsReport
+			if err := json.Unmarshal(data, &report); err != nil {
+				t.Fatal(err)
+			}
+			if len(report.Queries) != 1 || report.Queries[0].Error != injected.Error() || !reflect.DeepEqual(&report, output.Diagnostics) {
+				t.Errorf("JSON/HTML diagnostics lost query failure or diverged: %+v", report)
+			}
+		case "observability-summary.html":
+			if !strings.Contains(string(data), "diagnostic backend unavailable") || !strings.Contains(string(data), `"title":"Utilization"`) {
+				t.Error("combined page lost diagnostic error or independent utilization tab")
+			}
+		}
 	}
 }
 

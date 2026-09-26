@@ -150,6 +150,8 @@ type PrometheusResponse struct {
 	Data      PrometheusData `json:"data"`
 	ErrorType string         `json:"errorType,omitempty"`
 	Error     string         `json:"error,omitempty"`
+	Warnings  []string       `json:"warnings,omitempty"`
+	Infos     []string       `json:"infos,omitempty"`
 }
 
 // PrometheusData holds the result set from a query_range call.

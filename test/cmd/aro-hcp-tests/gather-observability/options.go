@@ -304,7 +304,7 @@ func buildCosmosAutoscaleMaxLookup(cfg configtypes.Configuration) (autoscaleMaxL
 type gatherDependencies struct {
 	fetchAlerts           func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error)
 	fetchMetricAlertRules func(context.Context, azcore.TokenCredential, string, string) ([]string, error)
-	fetchAlertRules       func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) ([]string, error)
+	fetchAlertRules       func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) (alertRuleInventory, error)
 	lookupEndpoint        func(context.Context, azcore.TokenCredential, string, string, string) (string, error)
 	queryRange            func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*PrometheusResponse, error)
 	queryMetrics          func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]PrometheusResult, string, error)
@@ -402,7 +402,8 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 			err = fmt.Errorf("failed to fetch %s alert rules: %w", wsType, err)
 			record(err)
 		}
-		wsData.AlertRules = rules
+		wsData.AlertRules = rules.Names
+		wsData.RuleDefinitions = rules.Definitions
 		scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", ws.SubscriptionID, ws.ResourceGroupName)
 		wsData.CollectionError = errors.Join(alertErrors[scope], err, o.knownIssuesError)
 		wsData.PromEndpoint, err = deps.lookupEndpoint(ctx, o.cred, ws.SubscriptionID, ws.ResourceGroupName, ws.Name)
@@ -502,11 +503,7 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 
 	// Build the tabbed observability page. The alerts view is the first tab;
 	// each metrics panel becomes an additional tab below.
-	alertsHTML, err := deps.renderAlerts(output)
-	if err != nil {
-		record(fmt.Errorf("failed to render alerts HTML: %w", err))
-	}
-	tabs := []observabilityTab{{Title: "Azure Monitor Alerts", HTML: string(incompleteHTML(alertsHTML, err))}}
+	tabs := []observabilityTab{{Title: "Azure Monitor Alerts"}}
 
 	// Write JUnit
 	junitPath := filepath.Join(o.OutputDir, "junit_alerts.xml")
@@ -548,6 +545,16 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 		record(fmt.Errorf("failed to render resource history HTML: %w", err))
 	}
 	tabs = append(tabs, observabilityTab{Title: "Resource History", HTML: string(incompleteHTML(historyHTML, err))})
+
+	// Existing collectors and JUnit must not wait behind the additional diagnostic
+	// budget. Persist shared results separately and embed them in the alert page.
+	output.Diagnostics = o.collectAlertDiagnostics(ctx, alerts, workspaces, deps, time.Now())
+	writeJSON("alert-diagnostics.json", output.Diagnostics)
+	alertsHTML, err := deps.renderAlerts(output)
+	if err != nil {
+		record(fmt.Errorf("failed to render alerts HTML: %w", err))
+	}
+	tabs[0].HTML = string(incompleteHTML(alertsHTML, err))
 
 	// Emit a single tabbed HTML page. The filename must match the Spyglass HTML
 	// lens regex .*-summary.*\.html so Prow renders it inline as one iframe.

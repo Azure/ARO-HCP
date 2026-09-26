@@ -1,6 +1,7 @@
 <html>
 <head>
   <title>Azure Monitor Alerts</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Azure Monitor alerts fired during e2e test run.">
   <link rel="stylesheet" type="text/css" href="/static/style.css">
   <link rel="stylesheet" type="text/css" href="/static/extensions/style.css">
@@ -424,6 +425,20 @@
       font-size: 12px;
     }
     .filter-reset-btn:hover { color: #e6edf3; border-color: #8b949e; }
+    {{if .Diagnostics}}
+    .metric-history { margin-top: 12px; border-top: 1px solid #30363d; padding-top: 8px; min-width: 0; }
+    .metric-history > summary { color: #58a6ff; cursor: pointer; padding: 4px 0; }
+    .diagnostics-body { min-width: 0; }
+    .diagnostics-note { color: #8b949e; font-size: 12px; margin: 8px 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+    .diagnostics-warning { color: #d29922; }
+    .diagnostics-error { color: #f85149; }
+    .diagnostics-condition { border-top: 1px solid #30363d; margin-top: 16px; padding-top: 8px; min-width: 0; }
+    .diagnostics-chart { width: 100%; height: 340px; min-width: 0; }
+    @media (max-width: 600px) {
+      .alert-card { padding: 12px; }
+      .diagnostics-chart { height: 360px; }
+    }
+    {{end}}
   </style>
 </head>
 
@@ -531,6 +546,7 @@
           <div class="alert-expr">{{$a.Alert.Expression}}</div>
         </details>
         {{end}}
+        {{if $.Diagnostics}}{{template "metric-history" $a}}{{end}}
       </div>
     </details>
   </div>
@@ -563,6 +579,7 @@
       <div class="alert-expr">{{$a.Alert.Expression}}</div>
     </details>
     {{end}}
+    {{if $.Diagnostics}}{{template "metric-history" $a}}{{end}}
   </div>
   {{end}}
   <div class="duration-bar"><div class="duration-bar-fill {{if $a.Metadata.KnownIssue}}duration-bar-fill-known{{else}}duration-bar-fill-unknown{{end}}" id="bar-{{$i}}"></div></div>
@@ -832,5 +849,16 @@
     filterCards();
   })();
   </script>
+  {{if .Diagnostics}}
+  <script type="application/json" id="alert-diagnostics-data">{{alertDiagnosticsJSON .Diagnostics}}</script>
+  <script>{{alertDiagnosticsScript}}</script>
+  {{end}}
 </body>
 </html>
+
+{{define "metric-history"}}
+<details class="metric-history" data-start="{{with .Alert.StartsAt}}{{.Format "2006-01-02T15:04:05.999999999Z07:00"}}{{end}}" data-end="{{with .Alert.EndsAt}}{{.Format "2006-01-02T15:04:05.999999999Z07:00"}}{{end}}" data-condition="{{.Alert.Condition}}">
+  <summary>Metric history</summary>
+  <div class="diagnostics-body"></div>
+</details>
+{{end}}
