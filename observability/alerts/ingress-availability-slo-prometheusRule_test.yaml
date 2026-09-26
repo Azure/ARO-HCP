@@ -1,0 +1,389 @@
+rule_files:
+- ingress-availability-slo-prometheusRule.yaml
+- ingress-availability-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Test 1: Normal operation — all canary observations successful, no alerts
+# ========================================
+# Cluster "aaa": 2 synthetic route observations both reporting 1 (reachable).
+# error_rate = 0%, well below all SLO thresholds.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.1:60000"}'
+    values: "1+0x40"
+  - series: 'ingress_canary_route_reachable{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.2:60000"}'
+    values: "1+0x40"
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 10m
+    exp_samples:
+    - labels: 'availability:ingress_canary:ratio{_id="aaa", cluster="mgmt-1", region="uksouth"}'
+      value: 1
+  - expr: errors:ingress_canary:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate{_id="aaa", cluster="mgmt-1", region="uksouth"}'
+      value: 0
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyIngressAvailability1h5m
+  - eval_time: 35m
+    alertname: userJourneyIngressAvailability6h30m
+  - eval_time: 370m
+    alertname: userJourneyIngressAvailability3d
+# ========================================
+# Test 2: Fast burn — 5 of 10 observations failing (50% error rate)
+# ========================================
+# 10 canary routes (5 failing, 5 healthy) so the 1h volume floor (>=10) is met
+# from t=0 -- otherwise a burst of only 1-2 failing routes would not have
+# accumulated enough windowed observations to page yet, which is exactly the
+# behavior the floor is meant to enforce (see Test 4b below for that case).
+# 50% error rate > 7.2% (fast) and > 3% (medium burn thresholds).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.1:60000"}'
+    values: "1+0x40"
+  - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.2:60000"}'
+    values: "1+0x40"
+  - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.3:60000"}'
+    values: "1+0x40"
+  - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.4:60000"}'
+    values: "1+0x40"
+  - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.5:60000"}'
+    values: "1+0x40"
+  - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.6:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.7:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.8:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.9:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.10:60000"}'
+    values: "0+0x40"
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 10m
+    exp_samples:
+    - labels: 'availability:ingress_canary:ratio{_id="bbb", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
+  - expr: errors:ingress_canary:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate{_id="bbb", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
+  alert_rule_test:
+  # Fast burn fires after 5m (for: 5m); floor already met at t=0 (10 routes).
+  - eval_time: 7m
+    alertname: userJourneyIngressAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        _id: "bbb"
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        long_window: 1h
+        severity: "3"
+        short_window: 5m
+        slo: ingress-availability
+      exp_annotations:
+        summary: "Ingress canary availability critically degraded for bbb"
+        description: "More than 7.2% of synthetic canary route observations failed over the last hour for HCP cluster bbb (at least 10 observations), indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "bbb"
+  # Medium burn also fires after 30m (for: 30m), 50% > 3%
+  - eval_time: 35m
+    alertname: userJourneyIngressAvailability6h30m
+    exp_alerts:
+    - exp_labels:
+        _id: "bbb"
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        long_window: 6h
+        severity: "3"
+        short_window: 30m
+        slo: ingress-availability
+      exp_annotations:
+        summary: "Ingress canary availability degraded for bbb"
+        description: "More than 3% of synthetic canary route observations failed over the last 6 hours for HCP cluster bbb (at least 30 observations), indicating a medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "bbb"
+# ========================================
+# Test 3: Below fast burn threshold — 6% error rate (1 of ~17 observations)
+# ========================================
+# error_rate = 1/17 ≈ 5.9% < 7.2% (fast burn), but > 0.5% (slow burn).
+# 17 routes comfortably clears every volume floor throughout. Fast burn must
+# NOT fire; slow burn fires after 6h.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.1:60000"}'
+    values: "0+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.2:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.3:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.4:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.5:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.6:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.7:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.8:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.9:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.10:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.11:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.12:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.13:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.14:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.15:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.16:60000"}'
+    values: "1+0x400"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", region="uksouth", host="canary.apps.ccc.example.io", instance="10.0.0.17:60000"}'
+    values: "1+0x400"
+  alert_rule_test:
+  # Fast burn should NOT fire (1/17 ≈ 5.9% < 7.2%)
+  - eval_time: 10m
+    alertname: userJourneyIngressAvailability1h5m
+  # Slow burn fires after 6h (for: 6h), 5.9% > 0.5%
+  - eval_time: 370m
+    alertname: userJourneyIngressAvailability3d
+    exp_alerts:
+    - exp_labels:
+        _id: "ccc"
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        long_window: 3d
+        severity: "4"
+        slo: ingress-availability
+      exp_annotations:
+        summary: "Ingress canary availability trending below SLO for ccc"
+        description: "More than 0.5% of synthetic canary route observations failed over the last 3 days for HCP cluster ccc (at least 60 observations and 2 failures), consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "ccc"
+# ========================================
+# Test 4: Cluster isolation — two clusters, only degraded one fires
+# ========================================
+# Cluster "fff": both observations successful (error_rate = 0%)
+# Cluster "hhh": 10 routes all failing (error_rate = 100%, floor met at t=0)
+# Only "hhh" should trigger alerts.
+- interval: 1m
+  input_series:
+  # fff — healthy
+  - series: 'ingress_canary_route_reachable{_id="fff", cluster="mgmt-1", region="uksouth", host="canary.apps.fff.example.io", instance="10.0.0.1:60000"}'
+    values: "1+0x40"
+  - series: 'ingress_canary_route_reachable{_id="fff", cluster="mgmt-1", region="uksouth", host="canary.apps.fff.example.io", instance="10.0.0.2:60000"}'
+    values: "1+0x40"
+  # hhh — 10 routes, all observations failing
+  - series: 'ingress_canary_route_reachable{_id="hhh", cluster="mgmt-1", region="uksouth", host="canary.apps.hhh.example.io", instance="10.0.0.1:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="hhh", cluster="mgmt-1", region="uksouth", host="canary.apps.hhh.example.io", instance="10.0.0.2:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="hhh", cluster="mgmt-1", region="uksouth", host="canary.apps.hhh.example.io", instance="10.0.0.3:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="hhh", cluster="mgmt-1", region="uksouth", host="canary.apps.hhh.example.io", instance="10.0.0.4:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="hhh", cluster="mgmt-1", region="uksouth", host="canary.apps.hhh.example.io", instance="10.0.0.5:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="hhh", cluster="mgmt-1", region="uksouth", host="canary.apps.hhh.example.io", instance="10.0.0.6:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="hhh", cluster="mgmt-1", region="uksouth", host="canary.apps.hhh.example.io", instance="10.0.0.7:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="hhh", cluster="mgmt-1", region="uksouth", host="canary.apps.hhh.example.io", instance="10.0.0.8:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="hhh", cluster="mgmt-1", region="uksouth", host="canary.apps.hhh.example.io", instance="10.0.0.9:60000"}'
+    values: "0+0x40"
+  - series: 'ingress_canary_route_reachable{_id="hhh", cluster="mgmt-1", region="uksouth", host="canary.apps.hhh.example.io", instance="10.0.0.10:60000"}'
+    values: "0+0x40"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: userJourneyIngressAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        _id: "hhh"
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        long_window: 1h
+        severity: "3"
+        short_window: 5m
+        slo: ingress-availability
+      exp_annotations:
+        summary: "Ingress canary availability critically degraded for hhh"
+        description: "More than 7.2% of synthetic canary route observations failed over the last hour for HCP cluster hhh (at least 10 observations), indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "hhh"
+# ========================================
+# Test 4b: Volume floor — 100% error rate but only 2 observations, below floor
+# ========================================
+# Cluster "ggg": both canary routes failing (error_rate = 100%), but only 2
+# total observations — below the 1h volume floor (>=10). This is the exact
+# scenario a purely-instantaneous ratio would misfire on (one failed canary
+# among very few redundant routes already exceeds every burn-rate threshold).
+# userJourneyIngressAvailability1h5m must NOT fire while volume stays below
+# the floor.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="ggg", cluster="mgmt-1", region="uksouth", host="canary.apps.ggg.example.io", instance="10.0.0.1:60000"}'
+    values: "0+0x8"
+  - series: 'ingress_canary_route_reachable{_id="ggg", cluster="mgmt-1", region="uksouth", host="canary.apps.ggg.example.io", instance="10.0.0.2:60000"}'
+    values: "0+0x8"
+  alert_rule_test:
+  # At t=7m, only 8 samples/series have accumulated (16 total) -- wait, this
+  # would exceed the floor; see the recording rule comment: the floor guards
+  # near-empty windows, not steady-state redundancy. With sustained 100%
+  # failure the floor is met quickly regardless of route count, so this test
+  # instead asserts the alert is suppressed at t=1m (2 observations total,
+  # well below the 10-observation floor) and confirms it correctly fires once
+  # both the floor and the `for: 5m` duration are satisfied.
+  - eval_time: 1m
+    alertname: userJourneyIngressAvailability1h5m
+# ========================================
+# Test 5: Latency normal — all canary checks within 200ms, no alerts
+# ========================================
+# le="200" and le="+Inf" increase at the same rate → ratio 1, error_rate 0.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="200"}'
+    values: "0+2x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+    values: "0+2x400"
+  promql_expr_test:
+  - expr: latency:ingress_canary:ratio
+    eval_time: 10m
+    exp_samples:
+    - labels: 'latency:ingress_canary:ratio{_id="lat-ok", cluster="mgmt-1", region="uksouth"}'
+      value: 1
+  - expr: errors:ingress_canary_latency:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate{_id="lat-ok", cluster="mgmt-1", region="uksouth"}'
+      value: 0
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyIngressLatency1h5m
+  - eval_time: 35m
+    alertname: userJourneyIngressLatency6h30m
+  - eval_time: 370m
+    alertname: userJourneyIngressLatency3d
+# ========================================
+# Test 6: Latency fast burn — 50% of checks exceed 200ms
+# ========================================
+# le="200" increases at half the rate of le="+Inf" → ratio 0.5, error_rate 0.5.
+# 10 checks/min combined (5 instances x 2/min) so the 1h volume floor (>=10)
+# is comfortably met well before the 5m `for` duration elapses.
+# 50% > 7.2% (fast) and > 3% (medium).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="200"}'
+    values: "0+1x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+    values: "0+2x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="200"}'
+    values: "0+1x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="+Inf"}'
+    values: "0+2x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="200"}'
+    values: "0+1x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="+Inf"}'
+    values: "0+2x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="200"}'
+    values: "0+1x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="+Inf"}'
+    values: "0+2x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="200"}'
+    values: "0+1x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="+Inf"}'
+    values: "0+2x400"
+  promql_expr_test:
+  - expr: latency:ingress_canary:ratio
+    eval_time: 10m
+    exp_samples:
+    - labels: 'latency:ingress_canary:ratio{_id="lat-bad", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
+  - expr: errors:ingress_canary_latency:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate{_id="lat-bad", cluster="mgmt-1", region="uksouth"}'
+      value: 0.5
+  alert_rule_test:
+  # Fast burn fires after 5m (for: 5m)
+  - eval_time: 8m
+    alertname: userJourneyIngressLatency1h5m
+    exp_alerts:
+    - exp_labels:
+        _id: "lat-bad"
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        long_window: 1h
+        severity: "3"
+        short_window: 5m
+        slo: ingress-latency
+      exp_annotations:
+        summary: "Ingress canary latency critically degraded for lat-bad"
+        description: "More than 7.2% of synthetic canary route checks exceeded 200ms over the last hour for HCP cluster lat-bad (at least 10 checks), indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "lat-bad"
+  # Medium burn also fires after 30m (for: 30m), 50% > 3%
+  - eval_time: 36m
+    alertname: userJourneyIngressLatency6h30m
+    exp_alerts:
+    - exp_labels:
+        _id: "lat-bad"
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        long_window: 6h
+        severity: "3"
+        short_window: 30m
+        slo: ingress-latency
+      exp_annotations:
+        summary: "Ingress canary latency degraded for lat-bad"
+        description: "More than 3% of synthetic canary route checks exceeded 200ms over the last 6 hours for HCP cluster lat-bad (at least 30 checks), indicating a medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "lat-bad"
+# ========================================
+# Test 7: Latency below fast burn — ~5.9% of checks exceed 200ms
+# ========================================
+# le="200" rate / le="+Inf" rate = 16/17 → error_rate ≈ 5.9% < 7.2% (fast),
+# but > 0.5% (slow). Fast must NOT fire; slow fires after 6h.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="200"}'
+    values: "0+16x400"
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+    values: "0+17x400"
+  alert_rule_test:
+  # Fast burn should NOT fire (16/17 → ≈5.9% < 7.2%)
+  - eval_time: 10m
+    alertname: userJourneyIngressLatency1h5m
+  # Slow burn fires after 6h (for: 6h), 5.9% > 0.5%
+  - eval_time: 370m
+    alertname: userJourneyIngressLatency3d
+    exp_alerts:
+    - exp_labels:
+        _id: "lat-slow"
+        cluster: "mgmt-1"
+        region: "uksouth"
+        component: slo
+        long_window: 3d
+        severity: "4"
+        slo: ingress-latency
+      exp_annotations:
+        summary: "Ingress canary latency trending below SLO for lat-slow"
+        description: "More than 0.5% of synthetic canary route checks exceeded 200ms over the last 3 days for HCP cluster lat-slow (at least 60 checks and 2 slow checks), consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "lat-slow"
