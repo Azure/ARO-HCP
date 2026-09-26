@@ -24,6 +24,7 @@ import (
 // backend callers continue to compile without import changes.
 type (
 	Notifier      = controllerutil.Notifier
+	Enqueuer      = controllerutil.Enqueuer
 	AfterEnqueuer = controllerutil.AfterEnqueuer
 )
 

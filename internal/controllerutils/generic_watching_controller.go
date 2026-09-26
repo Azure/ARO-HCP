@@ -49,6 +49,12 @@ type AfterEnqueuer interface {
 	EnqueueAfter(keyObj any, duration time.Duration)
 }
 
+// Enqueuer schedules work immediately after an input change. Unlike delayed
+// requeues, these events should not increment the workqueue retry metric.
+type Enqueuer interface {
+	Enqueue(keyObj any)
+}
+
 type Notifier interface {
 	AddEventHandlerWithOptions(handler cache.ResourceEventHandler, options cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error)
 }
@@ -81,6 +87,14 @@ func NewGenericWatchingController[T comparable](name string, resourceType azcore
 	}
 
 	return c
+}
+
+func (c *GenericWatchingController[T]) Enqueue(keyObj any) {
+	key, ok := keyObj.(T)
+	if !ok {
+		return
+	}
+	c.queue.Add(key)
 }
 
 func (c *GenericWatchingController[T]) EnqueueAfter(keyObj any, duration time.Duration) {

@@ -1,0 +1,209 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package versionrollout
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/blang/semver/v4"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
+	"github.com/Azure/ARO-HCP/internal/utils"
+)
+
+// RolloutSeedingControllerName is the single source of the controller name.
+const RolloutSeedingControllerName = "ControlPlaneVersionRolloutSeeding"
+
+// rolloutSeedingSyncer is a per-cluster syncer that ensures a
+// ControlPlaneVersionRollout document exists for every cluster's y-stream channel
+// (design open question §8.4: who creates a ControlPlaneVersionRollout per active
+// channel). It never mutates an existing rollout — the Best Version Selection,
+// Status Collector, and Desired Version Assignment controllers own that — it only
+// creates the empty rollout so those controllers have something to reconcile.
+type rolloutSeedingSyncer struct {
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	rolloutLister                fleetlisters.ControlPlaneVersionRolloutLister
+	fleetDBClient                fleetcosmosstorage.FleetDBClient
+}
+
+var _ controllerutils.ClusterSyncer = (*rolloutSeedingSyncer)(nil)
+
+// NewControlPlaneVersionRolloutSeedingController wires the seeding syncer into a
+// cluster watching controller, so every cluster create/update (and the periodic
+// resync) ensures its y-stream channel's rollout exists.
+func NewControlPlaneVersionRolloutSeedingController(
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	fleetDBClient fleetcosmosstorage.FleetDBClient,
+	informers coreinformers.BackendInformers,
+	fleetInformers fleetinformers.FleetInformers,
+) controllerutils.Controller {
+	_, clusterLister := informers.Clusters()
+	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
+	_, rolloutLister := fleetInformers.ControlPlaneVersionRollouts()
+	syncer := &rolloutSeedingSyncer{
+		clusterLister:                clusterLister,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		rolloutLister:                rolloutLister,
+		fleetDBClient:                fleetDBClient,
+	}
+	// kubeApplierInformers is intentionally omitted: seeding depends only on the
+	// cluster's channel group and version, not on any management-cluster state.
+	return controllerutils.NewClusterWatchingController(
+		RolloutSeedingControllerName,
+		resourcesDBClient,
+		informers,
+		nil,
+		5*time.Minute,
+		syncer,
+	)
+}
+
+// SyncOnce ensures the rollout for the triggering cluster's y-stream channel exists.
+func (c *rolloutSeedingSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (syncErr error) {
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key).WithValues(utils.LogValues{}.AddControllerName(RolloutSeedingControllerName)...)
+	ctx = utils.ContextWithLogger(ctx, logger)
+	logger.Info("Starting version rollout sync")
+	defer func() {
+		if syncErr != nil {
+			logger.Error(syncErr, "Version rollout sync failed")
+		} else {
+			logger.Info("Finished version rollout sync")
+		}
+	}()
+
+	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		logger.Info("Skipping sync because watched resource was not found")
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+	}
+	// A cluster on its way out does not need its channel seeded; any other
+	// (non-deleting) cluster in the same channel will seed it on its own sync.
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		logger.Info("Skipping rollout seeding because cluster is deleting")
+		return nil
+	}
+	if cluster.CustomerProperties.Version.ChannelGroup == "nightly" {
+		// Nightlies use experimental exact versions rather than graph rollouts.
+		return nil
+	}
+
+	requestedYStreamChannel, ok := clusterYStreamChannel(cluster)
+	if !ok {
+		logger.Info("Cannot determine rollout channel", "channelGroup", cluster.CustomerProperties.Version.ChannelGroup, "requestedVersion", cluster.CustomerProperties.Version.ID)
+		// No channel group or unparseable version — nothing to seed. version.id
+		// and version.channelGroup are required by static validation, so this only
+		// happens for malformed documents.
+		return nil
+	}
+
+	logger.Info("Ensuring rollout for cluster channel", "ystreamChannel", requestedYStreamChannel)
+	if err := c.ensureRollout(ctx, requestedYStreamChannel); err != nil {
+		return err
+	}
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil // The ServiceProviderCluster informer will enqueue it once created.
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	if pin := serviceProviderCluster.Spec.PinnedVersion.ExactVersion; pin != nil {
+		// Forced assignment checks the pinned minor's best version for release,
+		// which can differ from the customer's requested minor.
+		return c.ensureRollout(ctx, yStreamChannel(cluster.CustomerProperties.Version.ChannelGroup, minorString(*pin)))
+	}
+	return nil
+}
+
+// clusterYStreamChannel returns the y-stream channel a cluster belongs to,
+// derived from its channel group and the minor of its customer-requested version
+// (e.g. channelGroup "stable" + version "4.21.5" -> "stable-4.21"). The boolean
+// is false when the channel cannot be determined.
+func clusterYStreamChannel(cluster *coreapi.Cluster) (string, bool) {
+	channelGroup := cluster.CustomerProperties.Version.ChannelGroup
+	if channelGroup == "" {
+		return "", false
+	}
+	// ParseTolerant handles both "4.21" and full "4.21.5" version strings.
+	parsed, err := semver.ParseTolerant(cluster.CustomerProperties.Version.ID)
+	if err != nil {
+		return "", false
+	}
+	return yStreamChannel(channelGroup, minorString(parsed)), true
+}
+
+// ensureRollout creates an empty ControlPlaneVersionRollout for the channel when
+// one does not already exist. The lister is consulted first so steady-state runs
+// avoid a Cosmos round-trip; a create that races another seeder (or a stale
+// lister) surfaces as a 409 conflict, which is treated as success.
+func (c *rolloutSeedingSyncer) ensureRollout(ctx context.Context, yStreamChannel string) error {
+	logger := utils.LoggerFromContext(ctx).WithValues("ystreamChannel", yStreamChannel)
+	_, err := c.rolloutLister.Get(ctx, yStreamChannel)
+	if err == nil {
+		logger.Info("Rollout already exists")
+		return nil // already exists
+	}
+	if !cosmosstorageutils.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", yStreamChannel, err))
+	}
+
+	rollout, err := newControlPlaneVersionRollout(yStreamChannel)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	utils.LoggerFromContext(ctx).Info("creating ControlPlaneVersionRollout", "ystreamChannel", yStreamChannel)
+	if _, err := c.fleetDBClient.ControlPlaneVersionRollouts().Create(ctx, rollout, nil); cosmosstorageutils.IsConflictError(err) {
+		logger.Info("Rollout created concurrently by another sync")
+		return nil // another seeder won the race; the rollout now exists
+	} else if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to create ControlPlaneVersionRollout %q: %w", yStreamChannel, err))
+	}
+	logger.Info("Created rollout")
+	return nil
+}
+
+// newControlPlaneVersionRollout builds an empty rollout for the given y-stream
+// channel: the channel is the top-level resource name, and every rollout shares
+// the provider-namespace partition key (see ProviderNamespacePartitionKeyDeriver).
+func newControlPlaneVersionRollout(yStreamChannel string) (*fleetapi.ControlPlaneVersionRollout, error) {
+	id, err := fleetapihelpers.ToControlPlaneVersionRolloutResourceID(yStreamChannel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build resource ID for ControlPlaneVersionRollout %q: %w", yStreamChannel, err)
+	}
+	return &fleetapi.ControlPlaneVersionRollout{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   id,
+			PartitionKey: strings.ToLower(coreapi.ProviderNamespace),
+		},
+	}, nil
+}
