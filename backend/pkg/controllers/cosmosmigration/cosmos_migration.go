@@ -49,6 +49,8 @@ type cosmosMigrationController struct {
 	cooldown controllerutil.CooldownChecker
 }
 
+const CosmosMigrationControllerName = "CosmosMigration"
+
 // NewCosmosMigrationController creates a subscription-watching controller that
 // iterates depth-first through every named document type in the Resources container
 // and the per-management-cluster kube-applier containers, performing a read/write
@@ -65,7 +67,7 @@ func NewCosmosMigrationController(
 		cooldown:             controllerutil.NewTimeBasedCooldownChecker(resyncDuration),
 	}
 	return controllerutils.NewSubscriptionWatchingController(
-		"CosmosMigration",
+		CosmosMigrationControllerName,
 		backendInformers,
 		resyncDuration,
 		syncer,

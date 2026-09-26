@@ -365,11 +365,73 @@ additional business controllers.
 
 | Service | Startup evidence |
 |---|---|
-| Backend | [backend.go](../backend/pkg/app/backend.go), including conditional deny-assignment registration and all validation/metrics instances |
+| Backend | [backend.go](../backend/pkg/app/backend.go) launches the unordered [controller registry](../backend/pkg/app/controller_registry.go), including conditional deny-assignment registration and all validation/metrics instances; [ControllerContext](../backend/pkg/controllers/controllerconfig/context.go) owns shared dependencies |
 | Fleet | [manager.go](../fleet/pkg/manager/manager.go) |
 | Kube-applier | [kube_applier.go](../kube-applier/pkg/app/kube_applier.go); read manager creates target read controllers dynamically |
 | Management-agent | [options.go](../mgmt-agent/cmd/options.go) |
 | Sessiongate | [options.go](../sessiongate/cmd/options.go) |
+
+The backend registry represents **106 launches**: 104 instances in the billing,
+cluster, clusterresources, cosmosmigration, datadump, externalauth, metrics,
+mismatch, and nodepool zones, the Azure SKU cached-reader controller, and the
+shared union kube-applier informer controller. This matches the catalog's 105
+backend instances plus the separately counted shared union controller.
+`ClusterDenyAssignment` is instantiated and launched only when `HasRealFPA` is
+true; otherwise 105 controllers run. The flag is also passed to cluster creation.
+
+Each top-level controller package owns a `registration.go` file and a `Register`
+function: [billing](../backend/pkg/controllers/billing/registration.go),
+[cluster](../backend/pkg/controllers/cluster/registration.go),
+[clusterresources](../backend/pkg/controllers/clusterresources/registration.go),
+[cosmosmigration](../backend/pkg/controllers/cosmosmigration/registration.go),
+[datadump](../backend/pkg/controllers/datadump/registration.go),
+[externalauth](../backend/pkg/controllers/externalauth/registration.go),
+[metrics](../backend/pkg/controllers/metrics/registration.go),
+[mismatch](../backend/pkg/controllers/mismatch/registration.go), and
+[nodepool](../backend/pkg/controllers/nodepool/registration.go).
+The [SKU](../backend/pkg/azure/cachedreader/registration.go) and
+[union](../internal/database/unioninformers/kubeapplier/registration.go) packages
+register their existing shared supporting-controller instances. The app only
+aggregates these registrations. Keys lowercase the name constants in the actual
+controller implementation packages; there are no app-owned controller constants
+or construction/launch order lists.
+
+Controller construction precedes leader election. Once leading, backend and
+fleet informer factories, the union and SKU controllers, and all consumers launch
+from one unordered map. Each consumer's existing `Run` waits for cache sync after
+installing its queue-shutdown defer and before starting workers or periodic
+reconciliation. Registration-time factory adapters track every informer/lister
+accessor used by constructors, including lister-only dependencies; union consumers
+also wait on the union surface's authoritative `HasSynced` signal. These adapters
+return the original informers and listers; they create no caches or queues.
+
+The union controller waits for the management-cluster cache and delivery of its
+initial handler events, then independently runs its workers and per-MC informers.
+Union readiness requires registration for every discovered MC identity and initial
+sync of both desire caches for those MCs. Empty fleet discovery must complete before
+an empty union becomes ready. Unavailable factories retry through the workqueue;
+failed initial lists remain unready while the informers retry. Waits honor leader
+context cancellation and do not hold topology locks. Producers never wait on their
+own readiness. This is a startup barrier, not dynamic-membership read-error gating:
+later MC additions/removals retain existing eventual-consistency behavior. Per-MC
+relist durations are unchanged. Both VM validators still share the launched SKU
+cached reader, whose cache-miss wait already honors cancellation.
+
+`ControllerContext` carries the shared informer factories rather than individual
+informers or listers. Each named instantiation adapter obtains only the
+informer/lister pairs its constructor needs through those factories' accessors;
+it does not create new factories or caches. The context's
+`AsyncOperationNotificationClient` remains `http.DefaultClient`, used by
+operation controllers to POST status notifications to `Operation.NotificationURI`.
+
+Registry entries retain the existing worker counts: 20 by default, one for each
+of the six metrics controllers and the union informer controller, five for
+`PendingCleanup` and `CosmosMigration`, and ten for
+`DeleteOrphanedCosmosResources`. `BackfillClusterUID` retains its 60-minute resync
+and `CreateBillingDoc` its 60-second resync. Registry keys are lowercased existing
+controller names; log, metric, and persisted controller identities are unchanged.
+These startup gates do not change the catalog's reconciliation effects or the
+field/condition edges in the lifecycle DOT sources and PNGs below.
 
 “Cluster”, “node pool”, “external auth”, “credential request” and “credential
 revocation” in Trigger identify the resource key passed to the shared watching

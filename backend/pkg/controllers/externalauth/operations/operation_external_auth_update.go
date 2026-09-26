@@ -48,6 +48,8 @@ type operationExternalAuthUpdate struct {
 	notificationClient     *http.Client
 }
 
+const OperationExternalAuthUpdateControllerName = "OperationExternalAuthUpdate"
+
 // NewOperationExternalAuthUpdateController returns a new Controller instance that
 // follows an asynchronous external auth update operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -85,7 +87,7 @@ func NewOperationExternalAuthUpdateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationExternalAuthUpdate",
+		OperationExternalAuthUpdateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

@@ -73,6 +73,8 @@ type nodePoolClusterServiceDeleteDispatchSyncer struct {
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolClusterServiceDeleteDispatchSyncer)(nil)
 
+const NodePoolClusterServiceDeleteDispatchControllerName = "NodePoolClusterServiceDeleteDispatch"
+
 func NewNodePoolClusterServiceDeleteDispatchController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -90,7 +92,7 @@ func NewNodePoolClusterServiceDeleteDispatchController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolClusterServiceDeleteDispatch",
+		NodePoolClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

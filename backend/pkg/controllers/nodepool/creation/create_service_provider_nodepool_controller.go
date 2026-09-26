@@ -44,6 +44,8 @@ type createServiceProviderNodePoolSyncer struct {
 
 var _ controllerutils.NodePoolSyncer = (*createServiceProviderNodePoolSyncer)(nil)
 
+const CreateServiceProviderNodePoolControllerName = "CreateServiceProviderNodePool"
+
 // NewCreateServiceProviderNodePoolController wires the controller that creates
 // missing ServiceProviderNodePool documents.
 func NewCreateServiceProviderNodePoolController(
@@ -59,7 +61,7 @@ func NewCreateServiceProviderNodePoolController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"CreateServiceProviderNodePool",
+		CreateServiceProviderNodePoolControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,

@@ -48,6 +48,8 @@ type operationNodePoolCreate struct {
 	notificationClient     *http.Client
 }
 
+const OperationNodePoolCreateControllerName = "OperationNodePoolCreate"
+
 // NewOperationNodePoolCreateController returns a new Controller instance that
 // follows an asynchronous node pool creation operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -85,7 +87,7 @@ func NewOperationNodePoolCreateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationNodePoolCreate",
+		OperationNodePoolCreateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

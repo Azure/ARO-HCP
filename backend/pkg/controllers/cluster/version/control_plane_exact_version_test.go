@@ -114,7 +114,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceSeedsExactVersion(t *testing.T
 	assert.True(t, spc.Spec.ControlPlaneVersion.DesiredVersion.EQ(semver.MustParse("4.17.3")),
 		"expected desired version 4.17.3, got %s", spc.Spec.ControlPlaneVersion.DesiredVersion)
 
-	assertIntentFailedFalse(t, ctx, mockDB, controlPlaneDesiredVersionControllerName)
+	assertIntentFailedFalse(t, ctx, mockDB, ControlPlaneDesiredVersionControllerName)
 }
 
 // TestControlPlaneDesiredVersionSyncer_SyncOnceUsesExactVersion verifies that
@@ -154,7 +154,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceUsesExactVersion(t *testing.T)
 	assert.True(t, spc.Spec.ControlPlaneVersion.DesiredVersion.EQ(semver.MustParse("4.17.3")),
 		"expected desired version 4.17.3, got %s", spc.Spec.ControlPlaneVersion.DesiredVersion)
 
-	assertIntentFailedFalse(t, ctx, mockDB, controlPlaneDesiredVersionControllerName)
+	assertIntentFailedFalse(t, ctx, mockDB, ControlPlaneDesiredVersionControllerName)
 }
 
 // TestControlPlaneDesiredVersionSyncer_SyncOnceExactVersionSkipsNoOpReplace verifies that when the
@@ -200,5 +200,5 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceExactVersionSkipsNoOpReplace(t
 	assert.True(t, after.Spec.ControlPlaneVersion.DesiredVersion.EQ(semver.MustParse("4.21.12")),
 		"expected desired version to remain 4.21.12, got %s", after.Spec.ControlPlaneVersion.DesiredVersion)
 
-	assertIntentFailedFalse(t, ctx, mockDB, controlPlaneDesiredVersionControllerName)
+	assertIntentFailedFalse(t, ctx, mockDB, ControlPlaneDesiredVersionControllerName)
 }

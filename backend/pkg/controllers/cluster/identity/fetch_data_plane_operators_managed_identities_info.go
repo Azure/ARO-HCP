@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName = "FetchDataPlaneOperatorsManagedIdentitiesInfo"
+	FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName = "FetchDataPlaneOperatorsManagedIdentitiesInfo"
 
 	// dataPlaneOperatorsManagedIdentitiesRecheckInterval is the base interval
 	// before re-querying Azure for ClientID/PrincipalID when the desired set of
@@ -78,7 +78,7 @@ var _ controllerutils.ClusterSyncer = (*fetchDataPlaneOperatorsManagedIdentities
 //     identity).
 //  2. Via needsWork, skips Azure calls when this controller's entry in
 //     Spec.EarliestRecheckTimesByController (keyed by
-//     fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName) is still in the
+//     FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName) is still in the
 //     future AND the unique ResourceIDs stored on the ServiceProviderCluster still
 //     match that desired set. If the desired ResourceIDs have changed, the recheck
 //     time is ignored so Azure is queried immediately. The recheck time is shared
@@ -139,7 +139,7 @@ func NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName,
+		FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,
@@ -153,18 +153,18 @@ func NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
 // needsWork reports whether Azure should be queried for data plane operator
 // managed identity metadata. desiredDataPlaneOperatorIdentities must already be
 // the unique lowercased ResourceID set from CustomerProperties.
-// Spec.EarliestRecheckTimesByController[fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
+// Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
 // is honored only when those ResourceIDs still match the ServiceProviderCluster; on
 // mismatch it returns true immediately. When identities match, it returns false while
 // that recheck time is in the future, and true when it is
 // nil or already past. Callers must skip needsWork entirely when the cluster
 // is deleting.
 func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) needsWork(serviceProviderCluster *coreapi.ServiceProviderCluster, desiredDataPlaneOperatorsResourceIDStrs map[string]struct{}) bool {
-	// Only honor Spec.EarliestRecheckTimesByController[fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
+	// Only honor Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
 	// when the desired identity set still matches the
 	// ServiceProviderCluster. Any mismatch should fall through to return true and query Azure.
 	if c.desiredDataPlaneOperatorResourceIDsMatchServiceProviderCluster(desiredDataPlaneOperatorsResourceIDStrs, serviceProviderCluster) {
-		earliestRecheckTime := serviceProviderCluster.Spec.EarliestRecheckTimesByController[fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
+		earliestRecheckTime := serviceProviderCluster.Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
 		if earliestRecheckTime != nil && c.clock.Now().Before(earliestRecheckTime.Time) {
 			return false
 		}
@@ -215,7 +215,7 @@ func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) SyncOnce(ctx contex
 	// below. On any accumulated Get error it stays absent so needsWork keeps returning true
 	// and the workqueue retry re-queries Azure instead of being gated by a stale (possibly
 	// future) recheck time persisted alongside a partial update. delete on a nil map is a no-op.
-	delete(replacement.Spec.EarliestRecheckTimesByController, fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)
+	delete(replacement.Spec.EarliestRecheckTimesByController, FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)
 
 	smiResourceID := existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 	if smiResourceID == nil {
@@ -294,7 +294,7 @@ func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) SyncOnce(ctx contex
 		if replacement.Spec.EarliestRecheckTimesByController == nil {
 			replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
 		}
-		replacement.Spec.EarliestRecheckTimesByController[fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName] = &recheckAt
+		replacement.Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName] = &recheckAt
 	}
 
 	// Compare the whole document because this controller now also mutates

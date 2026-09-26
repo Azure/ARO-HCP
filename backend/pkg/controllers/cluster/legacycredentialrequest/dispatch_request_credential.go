@@ -38,6 +38,8 @@ type dispatchRequestCredential struct {
 	clustersServiceClient ocm.ClusterServiceClientSpec
 }
 
+const DispatchRequestCredentialControllerName = "DispatchRequestCredential"
+
 // NewDispatchRequestCredentialController returns a new Controller instance that
 // initiates an asynchronous admin credential request operation in Clusters Service.
 //
@@ -60,7 +62,7 @@ func NewDispatchRequestCredentialController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"DispatchRequestCredential",
+		DispatchRequestCredentialControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

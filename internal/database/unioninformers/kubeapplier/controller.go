@@ -38,7 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const controllerName = "union-kube-applier-informers-controller"
+const ControllerName = "union-kube-applier-informers-controller"
 
 // ManagementClusterKey identifies one management cluster for the controller's
 // workqueue. Today a stamp hosts a single management cluster (the "default"
@@ -135,7 +135,7 @@ func NewUnionKubeApplierInformersController(
 		factory:    factory,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[ManagementClusterKey](),
-			workqueue.TypedRateLimitingQueueConfig[ManagementClusterKey]{Name: controllerName},
+			workqueue.TypedRateLimitingQueueConfig[ManagementClusterKey]{Name: ControllerName},
 		),
 		subs: map[string]*controllerSubEntry{},
 	}
@@ -148,18 +148,19 @@ func (c *UnionKubeApplierInformersController) Union() *UnionKubeApplierInformers
 	return c.union
 }
 
-// Run installs an event handler on the management-cluster informer, runs
+// Run installs an event handler and waits for management-cluster cache sync, runs
 // `threadiness` worker goroutines that process the workqueue, and blocks
 // until ctx is cancelled. The caller is responsible for starting the
 // management-cluster informer; Run only registers handlers on it.
 //
 // On exit Run shuts down the workqueue (which unblocks the workers),
-// waits for the workers to stop, removes the event handler, and cancels
-// every per-MC sub-informer the controller started.
+// waits for the workers to stop, cancels every per-MC sub-informer the controller
+// started, and removes the event handler.
 func (c *UnionKubeApplierInformersController) Run(ctx context.Context, threadiness int) {
 	defer utilruntime.HandleCrash()
+	defer c.queue.ShutDown()
 
-	logger := utils.LoggerFromContext(ctx).WithName(controllerName)
+	logger := utils.LoggerFromContext(ctx).WithName(ControllerName)
 	ctx = logr.NewContext(ctx, logger)
 
 	reg, err := c.mcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -183,28 +184,73 @@ func (c *UnionKubeApplierInformersController) Run(ctx context.Context, threadine
 		logger.Error(err, "failed to add event handler to management-cluster informer")
 		return
 	}
+	defer func() {
+		if rmErr := c.mcInformer.RemoveEventHandler(reg); rmErr != nil {
+			logger.Error(rmErr, "failed to remove event handler from management-cluster informer")
+		}
+	}()
+	if !cache.WaitForCacheSync(ctx.Done(), c.mcInformer.HasSynced, reg.HasSynced) {
+		return
+	}
 
 	var wg sync.WaitGroup
 	for i := 0; i < threadiness; i++ {
 		wg.Add(1)
 		go func() {
+			defer utilruntime.HandleCrash()
 			defer wg.Done()
 			wait.UntilWithContext(ctx, c.runWorker, time.Second)
 		}()
 	}
+	wg.Add(1)
+	go func() {
+		defer utilruntime.HandleCrash()
+		defer wg.Done()
+		c.waitForInitialSync(ctx)
+	}()
 
 	<-ctx.Done()
 
-	// Order matters: shut down the queue first so workers in
-	// queue.Get() return, then join them, then drop the event handler
-	// (so any late-firing handlers can no-op against the shut queue),
-	// then cancel per-MC sub-informers.
+	// Shut down the queue before joining workers and stopping sub-informers.
+	// Late handler calls no-op against the shut queue until removal on return.
 	c.queue.ShutDown()
 	wg.Wait()
-	if rmErr := c.mcInformer.RemoveEventHandler(reg); rmErr != nil {
-		logger.Error(rmErr, "failed to remove event handler from management-cluster informer")
-	}
 	c.shutdownSubs(logger)
+}
+
+func (c *UnionKubeApplierInformersController) waitForInitialSync(ctx context.Context) {
+	err := wait.PollUntilContextCancel(ctx, 100*time.Millisecond, true, func(ctx context.Context) (bool, error) {
+		managementClusters, err := c.mcLister.List(ctx)
+		if err != nil {
+			utils.LoggerFromContext(ctx).Error(err, "waiting for management-cluster discovery")
+			return false, nil
+		}
+		c.mu.Lock()
+		subs := make(map[string]kubeapplierinformers.KubeApplierInformers, len(c.subs))
+		for name, entry := range c.subs {
+			subs[name] = entry.sub
+		}
+		c.mu.Unlock()
+		for _, managementCluster := range managementClusters {
+			resourceID := managementClusterResourceID(managementCluster)
+			if resourceID == nil {
+				return false, nil
+			}
+			sub := subs[strings.ToLower(resourceID.String())]
+			if sub == nil {
+				return false, nil
+			}
+			readInformer, _ := sub.ReadDesires()
+			applyInformer, _ := sub.ApplyDesires()
+			if !readInformer.HasSynced() || !applyInformer.HasSynced() {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+	if err == nil {
+		close(c.union.initialSync)
+	}
 }
 
 func (c *UnionKubeApplierInformersController) runWorker(ctx context.Context) {
@@ -266,9 +312,8 @@ func (c *UnionKubeApplierInformersController) SyncOnce(ctx context.Context, key 
 }
 
 // ensureAdded constructs and starts a per-MC sub-informer if the controller
-// is not already tracking one for the given resourceID. Returns nil if the
-// factory has nothing to give (e.g. the MC's container name isn't yet set
-// in Status); the next event for this MC will re-enqueue.
+// is not already tracking one for the given resourceID. An unavailable factory
+// returns an error so the workqueue retries even without another MC event.
 //
 // The whole method holds c.mu: the factory call, union.Add, and the
 // goroutine launch are all fast (no I/O on a hot path), so the simpler
@@ -287,7 +332,7 @@ func (c *UnionKubeApplierInformersController) ensureAdded(ctx context.Context, r
 
 	sub := c.factory.NewKubeApplierInformers(ctx, rid)
 	if sub == nil {
-		return nil
+		return fmt.Errorf("kube-applier informers unavailable for management cluster %s", rid)
 	}
 
 	subCtx, cancel := context.WithCancel(ctx)

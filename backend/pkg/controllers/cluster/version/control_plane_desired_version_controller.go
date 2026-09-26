@@ -47,10 +47,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
-// controlPlaneDesiredVersionControllerName is the Cosmos controller document ID for this syncer.
+// ControlPlaneDesiredVersionControllerName is the Cosmos controller document ID for this syncer.
 // It is intentionally kept as "ControlPlaneDesiredVersion" (rather than renamed to match the
 // upgrade split) to preserve metrics continuity and the existing controller document identity.
-const controlPlaneDesiredVersionControllerName = "ControlPlaneDesiredVersion"
+const ControlPlaneDesiredVersionControllerName = "ControlPlaneDesiredVersion"
 
 // clusterCreateGracePeriod is how long after a cluster's CreatedAt we
 // suppress automatic desired-version recomputation while an active Create
@@ -111,7 +111,7 @@ func NewControlPlaneDesiredVersionController(
 	// OpenShift update service and cluster/subscription state only, so it should not be re-enqueued on
 	// kube-applier events.
 	controller := controllerutils.NewClusterWatchingController(
-		controlPlaneDesiredVersionControllerName,
+		ControlPlaneDesiredVersionControllerName,
 		resourcesDBClient,
 		informers,
 		nil,
@@ -199,7 +199,7 @@ func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controller
 			}
 		}
 
-		return clearIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName)
+		return clearIntentFailed(ctx, c.resourcesDBClient, key, ControlPlaneDesiredVersionControllerName)
 	}
 
 	previousDesiredVersion := cachedServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
@@ -214,7 +214,7 @@ func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controller
 
 	activeVersions := cachedServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
 	if validateErr := c.validateRequestedMinorVersionChange(ctx, key, customerDesiredMinor, activeVersions); validateErr != nil {
-		return setIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName, validateErr)
+		return setIntentFailed(ctx, c.resourcesDBClient, key, ControlPlaneDesiredVersionControllerName, validateErr)
 	}
 
 	// Active versions have no impact on which version is selected; resolve the desired version from the
@@ -232,13 +232,13 @@ func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controller
 	// SRE-enforced rollback targets can decrease desired.
 	switch {
 	case resolveErr != nil:
-		return setIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName, resolveErr)
+		return setIntentFailed(ctx, c.resourcesDBClient, key, ControlPlaneDesiredVersionControllerName, resolveErr)
 	case desiredVersion == nil:
 		// No upgrade is needed.
-		return clearIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName)
+		return clearIntentFailed(ctx, c.resourcesDBClient, key, ControlPlaneDesiredVersionControllerName)
 	case previousDesiredVersion != nil && desiredVersion.LE(*previousDesiredVersion):
 		// Newly resolved version is not greater than the stored desired; leave it unchanged.
-		return clearIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName)
+		return clearIntentFailed(ctx, c.resourcesDBClient, key, ControlPlaneDesiredVersionControllerName)
 	default:
 		logger.Info("Selected desired version", "desiredVersion", desiredVersion, "previousDesiredVersion", previousDesiredVersion)
 	}
@@ -252,7 +252,7 @@ func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controller
 	if replaceErr != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", replaceErr))
 	}
-	return clearIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName)
+	return clearIntentFailed(ctx, c.resourcesDBClient, key, ControlPlaneDesiredVersionControllerName)
 }
 
 // validateRequestedMinorVersionChange validates that moving the cluster's control plane to the

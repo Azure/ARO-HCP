@@ -45,6 +45,8 @@ type externalAuthChildResourcesCleanupController struct {
 
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthChildResourcesCleanupController)(nil)
 
+const ExternalAuthChildResourcesCleanupControllerControllerName = "ExternalAuthChildResourcesCleanupController"
+
 func NewExternalAuthChildResourcesCleanupController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
@@ -56,7 +58,7 @@ func NewExternalAuthChildResourcesCleanupController(
 	}
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthChildResourcesCleanupController",
+		ExternalAuthChildResourcesCleanupControllerControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,

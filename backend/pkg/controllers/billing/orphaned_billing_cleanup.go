@@ -25,6 +25,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -32,6 +33,7 @@ import (
 )
 
 type orphanedBillingCleanup struct {
+	internalcontrollerutils.CacheSyncWaiter
 	name string
 
 	clock           utilsclock.PassiveClock
@@ -44,11 +46,13 @@ type orphanedBillingCleanup struct {
 	queue workqueue.TypedRateLimitingInterface[string]
 }
 
+const OrphanedBillingCleanupControllerName = "OrphanedBillingCleanup"
+
 // NewOrphanedBillingCleanupController creates a controller that marks billing documents
 // as deleted when their corresponding cluster no longer exists in Cosmos DB.
 func NewOrphanedBillingCleanupController(clock utilsclock.PassiveClock, billingDBClient billingcosmosstorage.BillingDBClient, clusterLister corelisters.ClusterLister, billingLister corelisters.BillingLister) controllerutils.Controller {
 	c := &orphanedBillingCleanup{
-		name:            "OrphanedBillingCleanup",
+		name:            OrphanedBillingCleanupControllerName,
 		clock:           clock,
 		clusterLister:   clusterLister,
 		billingLister:   billingLister,
@@ -56,7 +60,7 @@ func NewOrphanedBillingCleanupController(clock utilsclock.PassiveClock, billingD
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "OrphanedBillingCleanup",
+				Name: OrphanedBillingCleanupControllerName,
 			},
 		),
 	}
@@ -138,6 +142,10 @@ func (c *orphanedBillingCleanup) Run(ctx context.Context, threadiness int) {
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
 	defer c.queue.ShutDown()
+
+	if !c.WaitForCacheSync(ctx) {
+		return
+	}
 
 	logger := utils.LoggerFromContext(ctx)
 	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)

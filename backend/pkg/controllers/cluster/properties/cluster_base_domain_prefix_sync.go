@@ -42,6 +42,8 @@ type clusterBaseDomainPrefixSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterBaseDomainPrefixSyncer)(nil)
 
+const ClusterBaseDomainPrefixSyncControllerName = "ClusterBaseDomainPrefixSync"
+
 // NewClusterBaseDomainPrefixSyncController creates a controller that synchronizes
 // CustomerProperties.DNS.BaseDomainPrefix from Cluster Service to Cosmos DB.
 func NewClusterBaseDomainPrefixSyncController(
@@ -59,7 +61,7 @@ func NewClusterBaseDomainPrefixSyncController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterBaseDomainPrefixSync",
+		ClusterBaseDomainPrefixSyncControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

@@ -47,7 +47,8 @@ import (
 // (UnionKubeApplierInformersController) doesn't rely on cross-surface
 // atomicity, which is why we keep the cheaper locking discipline.
 type UnionKubeApplierInformers struct {
-	mu sync.Mutex
+	mu          sync.Mutex
+	initialSync chan struct{}
 
 	applyInformer *UnionDesireInformer
 	readInformer  *UnionDesireInformer
@@ -60,6 +61,7 @@ type UnionKubeApplierInformers struct {
 // register per-management-cluster KubeApplierInformers.
 func NewUnionKubeApplierInformers() *UnionKubeApplierInformers {
 	return &UnionKubeApplierInformers{
+		initialSync:   make(chan struct{}),
 		applyInformer: NewUnionDesireInformer(),
 		readInformer:  NewUnionDesireInformer(),
 
@@ -134,9 +136,13 @@ func (u *UnionKubeApplierInformers) Remove(managementClusterResourceID *azcorear
 	u.readLister.Remove(managementClusterResourceID)
 }
 
-// HasSynced returns true only when every sub-informer (across both
-// *Desire types and every registered management cluster) has synced. An
-// empty union is vacuously synced.
+// HasSynced requires completed management-cluster discovery and initial sync
+// of every expected sub-informer, including when discovery finds no clusters.
 func (u *UnionKubeApplierInformers) HasSynced() bool {
-	return u.applyInformer.HasSynced() && u.readInformer.HasSynced()
+	select {
+	case <-u.initialSync:
+		return u.applyInformer.HasSynced() && u.readInformer.HasSynced()
+	default:
+		return false
+	}
 }

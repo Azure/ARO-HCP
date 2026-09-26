@@ -62,6 +62,8 @@ type nodePoolClusterServiceUpdateDispatchSyncer struct {
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolClusterServiceUpdateDispatchSyncer)(nil)
 
+const NodePoolClusterServiceUpdateDispatchControllerName = "NodePoolClusterServiceUpdateDispatch"
+
 func NewNodePoolClusterServiceUpdateDispatchController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -75,7 +77,7 @@ func NewNodePoolClusterServiceUpdateDispatchController(
 	)
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolClusterServiceUpdateDispatch",
+		NodePoolClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		nil,

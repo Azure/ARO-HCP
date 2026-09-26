@@ -51,6 +51,8 @@ type controlPlaneActiveVersionSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*controlPlaneActiveVersionSyncer)(nil)
 
+const ControlPlaneActiveVersionsControllerName = "ControlPlaneActiveVersions"
+
 // NewControlPlaneActiveVersionController creates a new controller that updates
 // Status.ControlPlaneVersion.ActiveVersions from the per-cluster ReadDesire's
 // observed HostedCluster.
@@ -70,7 +72,7 @@ func NewControlPlaneActiveVersionController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ControlPlaneActiveVersions",
+		ControlPlaneActiveVersionsControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

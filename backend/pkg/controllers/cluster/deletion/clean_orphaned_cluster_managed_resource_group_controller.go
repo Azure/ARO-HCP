@@ -71,6 +71,8 @@ type cleanOrphanedClusterManagedResourceGroup struct {
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
 }
 
+const CleanOrphanedClusterManagedResourceGroupControllerName = "CleanOrphanedClusterManagedResourceGroup"
+
 // NewCleanOrphanedClusterManagedResourceGroupController periodically looks for managed resource groups
 // that are not referenced by any Cluster in the database and cleans them up.
 func NewCleanOrphanedClusterManagedResourceGroupController(
@@ -88,7 +90,7 @@ func NewCleanOrphanedClusterManagedResourceGroupController(
 	}
 
 	return controllerutils.NewSubscriptionWatchingController(
-		"CleanOrphanedClusterManagedResourceGroup",
+		CleanOrphanedClusterManagedResourceGroupControllerName,
 		backendInformers,
 		10*time.Minute,
 		syncer,
