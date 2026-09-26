@@ -418,7 +418,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:60eff695e3facbaffd0096f6cd69b97745eb64230f27350abf2cb23bf516081a # e2c566a4d792fd81fd85265e8ab858a5fc3e4044 (2026-09-25 01:52)
+      digest: sha256:d106c9d8e3f595d02a1eb5e0a54955648c06db16da9bf8ea1e5883958abd009a # fbaf59ae8fc9343aa9ec545e0a15ab9c86cacda2 (2026-09-25 14:35)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -552,15 +552,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:4b9b7f351820a5a9d8f816776666a335f422614d6702cd6b81daab4676f72ac5 # 1.6.2 (2026-09-23 02:55)
+      digest: sha256:2fb7f934ac0502ef375ff9abba6121827d4dc62660c9ab6751ceffac77b37ac9 # 1.6.2 (2026-09-25 21:04)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:f19163881e825b8798d06a6f9ab264b807d44b60a8a4ff17653f8ac56d164e7b # 1.6.2 (2026-09-23 02:53)
+      digest: sha256:8d45b0367ed345fa2dbb6ffc0ce8b62e5bb3eb72a7bfba5bc9d66248180b66d1 # 1.6.2 (2026-09-25 21:06)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:b3534a22585edc1d1b801c0572f41e82a033f376354ae1217922cc328456f358 # 1.6.2 (2026-09-23 15:25)
+      digest: sha256:6a503ce6301acdc58807ec7e700f4a84c943ce1123e49e2ac42d04db9dad8384 # 1.6.2 (2026-09-25 21:09)
   # SVC cluster specifics
   svc:
     subscription:
@@ -674,7 +674,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: e0c41cc740435528659ad3a8a65ca89d325bb8cf285c2bcd99f8bf7c7d5b80c3 # v3.14.0 (2026-09-23 04:32)
+          sha: 7ef9c1d80e4e8e1eec1a207166af22930c8f11200f25001d1a3285b30b4f13f9 # v3.15.0 (2026-09-25 11:05)
         version: ""
         resources:
           requests:
@@ -806,7 +806,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: e0c41cc740435528659ad3a8a65ca89d325bb8cf285c2bcd99f8bf7c7d5b80c3 # v3.14.0 (2026-09-23 04:32)
+          sha: 7ef9c1d80e4e8e1eec1a207166af22930c8f11200f25001d1a3285b30b4f13f9 # v3.15.0 (2026-09-25 11:05)
         resources:
           requests:
             cpu: NONE
@@ -1116,12 +1116,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:4d334e98a881ce5545d9ca84e63d6de6f92b089d421f59ee80dacdc26b5f6854 # v2.17.3-466 (2026-09-25 01:54)
+        digest: sha256:70fe0561c9e3664ea503d923bb7b29cfdc14ae2cbe5677aa670e04033c418baa # v2.17.3-467 (2026-09-25 14:10)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:42ffbc7ae53cd6e340086d334bc8c05f35f7b9c6cafe033e96492cf6e5d88a3c # v2.17.3-502 (2026-09-25 02:27)
+        digest: sha256:c9e511915aca21dfd803e8cbab46da2250df80abba5f7ec13fb78f6daf5e4864 # v2.17.3-504 (2026-09-25 20:06)
   # Cluster Service
   clustersService:
     image:
