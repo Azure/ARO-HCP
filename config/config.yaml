@@ -464,6 +464,9 @@ defaults:
     grafanaPublicNetworkAccess: "Enabled"
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
+    metricsUsageInsights:
+      enabled: false
+      workspaceName: 'amw-usage-{{ .ctx.environment }}-{{ .ctx.region }}'
     amwScaling:
       # Azure Monitor Workspace static ingestion limits (legacy, being replaced by AMW scaling controller)
       # 2M initial limit, bump per env when hitting 50% utilization (Azure requires <200% increase)
@@ -1597,6 +1600,8 @@ clouds:
           monitoring:
             svcWorkspaceName: 'services-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
             hcpWorkspaceName: 'hcps-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
+            metricsUsageInsights:
+              enabled: true
           svc:
             aks:
               # MC AKS nodepools
