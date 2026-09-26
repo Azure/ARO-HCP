@@ -528,7 +528,7 @@ kubeApplier:
       limits:
         memory: unlimited
       requests:
-        cpu: 231m
+        cpu: 260m
         memory: 224Mi
     serviceAccountName: kube-applier
   managedIdentityName: kube-applier
@@ -788,7 +788,7 @@ mgmtAgent:
     replicas: 2
     resources:
       requests:
-        cpu: 313m
+        cpu: 350m
         memory: 768Mi
     serviceAccountName: mgmt-agent
   managedIdentityName: mgmt-agent
