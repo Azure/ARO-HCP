@@ -1,0 +1,46 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: swift-networking-cns-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # CNS IP Assignment Latency Recording Rules
+  # ========================================
+  # Diagnostic p99 of ip_assignment_latency_seconds (CNS PodMonitor, kube-system).
+  # Services lane: the histogram is unlabeled (cns/restserver/metrics.go in
+  # Azure/azure-container-networking), fleet-scoped by cluster; kube-system
+  # scrapes remote-write to the services AMW via namespace-based routing.
+  # The CNS PodMonitor also scrapes service clusters (#6866); the cluster=~
+  # filter here scopes this SWIFT-specific SLI to management clusters.
+  - name: arohcp_swift_cns_latency_recording_rules
+    interval: 1m
+    rules:
+    - record: cns:ip_assignment_latency:p99
+      expr: |
+        histogram_quantile(0.99,
+          sum by (cluster, le) (
+            max without (prometheus_replica) (
+              rate(ip_assignment_latency_seconds_bucket{cluster=~".*-mgmt(-[0-9]+)?$"}[5m])
+            )
+          )
+        )
+  # ========================================
+  # CNS DaemonSet Availability Recording Rules
+  # ========================================
+  # Diagnostic ready/desired ratio for azure-cns DaemonSet (kube-state-metrics).
+  # Services lane, same reasoning as above (fleet-scoped by cluster).
+  - name: arohcp_swift_cns_availability_recording_rules
+    interval: 1m
+    rules:
+    - record: cns:daemonset_availability:ratio
+      expr: |
+        max without (prometheus_replica) (kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster=~".*-mgmt(-[0-9]+)?$"})
+        /
+        clamp_min(max without (prometheus_replica) (kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster=~".*-mgmt(-[0-9]+)?$"}), 1)

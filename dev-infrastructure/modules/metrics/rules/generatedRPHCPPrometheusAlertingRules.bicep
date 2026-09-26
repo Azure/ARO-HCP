@@ -368,3 +368,112 @@ Namespace: {{ $labels.namespace }}
     ]
   }
 }
+
+resource arohcpSwiftNetworkingAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_networking_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneySwiftRouterAvailability1h5m'
+        enabled: true
+        labels: {
+          burn_rate_tier: 'fast'
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'swift-router-availability'
+        }
+        annotations: {
+          correlationId: 'userJourneySwiftRouterAvailability/{{ $labels.cluster }}'
+          description: 'SWIFT router-capacity availability is consuming its error budget at the fast burn rate.'
+          info: 'SWIFT router-capacity availability is consuming its error budget at the fast burn rate.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'SWIFT router replicas are unavailable (fast burn)'
+          title: 'SWIFT router replicas are unavailable (fast burn)'
+        }
+        expression: '1 - (sum_over_time(swift_router_replicas:available[5m]) / sum_over_time(swift_router_replicas:configured[5m])) > (14.4 * (1 - 0.9995)) and 1 - (sum_over_time(swift_router_replicas:available[1h]) / sum_over_time(swift_router_replicas:configured[1h])) > (14.4 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneySwiftRouterAvailability6h30m'
+        enabled: true
+        labels: {
+          burn_rate_tier: 'medium'
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'swift-router-availability'
+        }
+        annotations: {
+          correlationId: 'userJourneySwiftRouterAvailability/{{ $labels.cluster }}'
+          description: 'SWIFT router-capacity availability is consuming its error budget at the medium burn rate.'
+          info: 'SWIFT router-capacity availability is consuming its error budget at the medium burn rate.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'SWIFT router replicas are unavailable (medium burn)'
+          title: 'SWIFT router replicas are unavailable (medium burn)'
+        }
+        expression: '1 - (sum_over_time(swift_router_replicas:available[30m]) / sum_over_time(swift_router_replicas:configured[30m])) > (6 * (1 - 0.9995)) and 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (6 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneySwiftRouterAvailability3d6h'
+        enabled: true
+        labels: {
+          burn_rate_tier: 'slow'
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          short_window: '6h'
+          slo: 'swift-router-availability'
+        }
+        annotations: {
+          correlationId: 'userJourneySwiftRouterAvailability/{{ $labels.cluster }}'
+          description: 'SWIFT router-capacity availability is consuming its error budget at the slow burn rate.'
+          info: 'SWIFT router-capacity availability is consuming its error budget at the slow burn rate.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'SWIFT router availability is below the SLO (slow burn)'
+          title: 'SWIFT router availability is below the SLO (slow burn)'
+        }
+        expression: '1 - (sum_over_time(swift_router_replicas:available[3d]) / sum_over_time(swift_router_replicas:configured[3d])) > (1 - 0.9995) and 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (1 - 0.9995) and on (cluster) swift_router_replicas:configured > 0'
+        for: 'PT3H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
