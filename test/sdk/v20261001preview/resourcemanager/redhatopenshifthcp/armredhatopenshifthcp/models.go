@@ -495,6 +495,9 @@ type KmsEncryptionProfile struct {
 
 	// REQUIRED; visibility of the keyvault that contains the secret.
 	Visibility *KeyVaultVisibility
+
+	// The type of keyvault used for KMS encryption. Defaults to KeyVault when absent.
+	KeyVaultType *KmsKeyVaultType
 }
 
 // KmsKey - A representation of a KeyVault Secret.

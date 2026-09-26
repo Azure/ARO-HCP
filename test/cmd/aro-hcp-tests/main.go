@@ -511,7 +511,7 @@ func setupCli() *cobra.Command {
 
 	// The tests that a suite is composed of can be filtered by CEL expressions. By
 	// default, the qualifiers only apply to tests from this extension.
-	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0])
+	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0], labels.ManualOnly[0])
 	integrationTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "integration/parallel",
@@ -537,7 +537,7 @@ func setupCli() *cobra.Command {
 		ResourcePools: miPools,
 	})
 
-	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
+	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0], labels.ManualOnly[0])
 	stageTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "stage/parallel",
@@ -562,7 +562,7 @@ func setupCli() *cobra.Command {
 		ResourcePools: miPools,
 	})
 
-	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
+	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0], labels.ManualOnly[0])
 	prodTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "prod/parallel",
@@ -593,7 +593,7 @@ func setupCli() *cobra.Command {
 			// Subset of E2E tests to be executed as a final step during ARO
 			// HCP Continous Deployment GitHub Action Workflow.
 			// TODO: revisit labels to tweak which tests to select here
-			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0]),
+			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0], labels.ManualOnly[0]),
 		},
 		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
 		Parallelism:   parallelism(20),
@@ -602,10 +602,15 @@ func setupCli() *cobra.Command {
 
 	rpApiCompatBaseQualifier := fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0])
 
+	// The !ManualOnly clause is distributed into each branch (rather than wrapping the
+	// whole OR) to keep the existing top-level `||` precedence unchanged when fastTestsOnly
+	// appends `&& !Slow` — wrapping would also newly bind !Slow across the OR, shifting
+	// gating for unrelated Slow tests.
+	manualOnlyExclusion := fmt.Sprintf(`!labels.exists(l, l=="%s")`, labels.ManualOnly[0])
 	if framework.IsDevelopmentEnvironment() {
-		rpApiCompatBaseQualifier = fmt.Sprintf(`%s || labels.exists(l, l=="%s")`, rpApiCompatBaseQualifier, labels.DevelopmentOnly[0])
+		rpApiCompatBaseQualifier = fmt.Sprintf(`(%s && %s) || (labels.exists(l, l=="%s") && %s)`, rpApiCompatBaseQualifier, manualOnlyExclusion, labels.DevelopmentOnly[0], manualOnlyExclusion)
 	} else {
-		rpApiCompatBaseQualifier = fmt.Sprintf(`%s && !labels.exists(l, l=="%s")`, rpApiCompatBaseQualifier, labels.DevelopmentOnly[0])
+		rpApiCompatBaseQualifier = fmt.Sprintf(`%s && !labels.exists(l, l=="%s") && %s`, rpApiCompatBaseQualifier, labels.DevelopmentOnly[0], manualOnlyExclusion)
 	}
 
 	rpApiCompatTestTimeout := 150 * time.Minute
@@ -658,6 +663,22 @@ func setupCli() *cobra.Command {
 		},
 		Parallelism: parallelism(upgradeInPlaceCount),
 		TestTimeout: &upgradeInPlaceTimeout,
+	})
+
+	// manual/parallel runs ManualOnly specs. These are excluded from every
+	// automatically-scheduled suite (CI presubmit, dev-cd-check, stage/prod
+	// release), so they only run when this suite is invoked explicitly. Used
+	// for expensive, on-demand tests such as the ~60-min Managed HSM etcd KMS
+	// provisioning test.
+	manualTestTimeout := 150 * time.Minute
+	ext.AddSuite(e.Suite{
+		Name: "manual/parallel",
+		Qualifiers: []string{
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.ManualOnly[0]),
+		},
+		Parallelism:   parallelism(24),
+		TestTimeout:   &manualTestTimeout,
+		ResourcePools: miPools,
 	})
 
 	// If using Ginkgo, specs were already built above. Hooks can be added here.

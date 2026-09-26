@@ -302,12 +302,19 @@ type CustomerManagedEncryptionProfile struct {
 	Kms            *KmsEncryptionProfile                     `json:"kms,omitempty"`
 }
 
+const (
+	KmsKeyVaultTypeKeyVault   = "KeyVault"
+	KmsKeyVaultTypeManagedHSM = "ManagedHSM"
+)
+
 // KmsEncryptionProfile represents a data encryption configuration for ETCD using
 // customer-managed Key Management Service (KMS) keys.
 // Visibility for the entire struct is "read create".
 type KmsEncryptionProfile struct {
 	Visibility metadataapi.KeyVaultVisibility `json:"visibility,omitempty"`
 	ActiveKey  KmsKey                         `json:"activeKey,omitempty"`
+	// Written by: Frontend PUT Cluster (Create)
+	KeyVaultType string `json:"keyVaultType,omitempty"`
 }
 
 // KmsKey represents an Azure KeyVault secret.

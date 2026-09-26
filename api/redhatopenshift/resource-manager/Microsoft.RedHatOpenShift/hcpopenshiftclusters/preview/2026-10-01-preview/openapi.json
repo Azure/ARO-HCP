@@ -2854,6 +2854,14 @@
             "update",
             "create"
           ]
+        },
+        "keyVaultType": {
+          "$ref": "#/definitions/KmsKeyVaultType",
+          "description": "The type of keyvault used for KMS encryption. Defaults to KeyVault when absent.",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       },
       "required": [
@@ -2923,6 +2931,30 @@
             "create"
           ]
         }
+      }
+    },
+    "KmsKeyVaultType": {
+      "type": "string",
+      "description": "The type of keyvault used for KMS encryption.",
+      "enum": [
+        "KeyVault",
+        "ManagedHSM"
+      ],
+      "x-ms-enum": {
+        "name": "KmsKeyVaultType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "KeyVault",
+            "value": "KeyVault",
+            "description": "Standard Azure Key Vault."
+          },
+          {
+            "name": "ManagedHSM",
+            "value": "ManagedHSM",
+            "description": "Azure Managed Hardware Security Module."
+          }
+        ]
       }
     },
     "Label": {

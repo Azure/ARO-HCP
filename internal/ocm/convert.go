@@ -226,6 +226,17 @@ func convertEnableEncryptionAtHostToCSBuilder(in coreapi.NodePoolPlatformProfile
 	return arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().State(state)
 }
 
+func buildCSOsDisk(osDisk coreapi.OSDiskProfile, storageAccountType, persistence string) *arohcpv1alpha1.AzureNodePoolOsDiskBuilder {
+	builder := arohcpv1alpha1.NewAzureNodePoolOsDisk().
+		SizeGibibytes(int(*osDisk.SizeGiB)).
+		StorageAccountType(storageAccountType).
+		Persistence(persistence)
+	if osDisk.EncryptionSetID != nil {
+		builder.SseEncryptionSetResourceId(osDisk.EncryptionSetID.String())
+	}
+	return builder
+}
+
 func convertClusterImageRegistryStateRPToCS(in coreapi.ClusterImageRegistryProfile) (string, error) {
 	switch in.State {
 	case metadataapi.ClusterImageRegistryStateDisabled:
@@ -298,24 +309,34 @@ func convertEtcdRPToCS(in coreapi.EtcdProfile, activeKeyBuilder *arohcpv1alpha1.
 			EncryptionType(encryptionType)
 
 		if in.DataEncryption.CustomerManaged.Kms != nil {
+			kms := in.DataEncryption.CustomerManaged.Kms
 			activeKeyBuilder.
-				KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
-				KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName)
+				KeyName(kms.ActiveKey.Name).
+				KeyVaultName(kms.ActiveKey.VaultName)
 			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(activeKeyBuilder)
 
-			if len(in.DataEncryption.CustomerManaged.Kms.Visibility) != 0 {
-				visibility, err := convertKeyVaultVisibilityRPToCS(in.DataEncryption.CustomerManaged.Kms.Visibility)
+			if len(kms.Visibility) != 0 {
+				visibility, err := convertKeyVaultVisibilityRPToCS(kms.Visibility)
 				if err != nil {
 					return nil, err
 				}
 				azureKmsEncryptionBuilder.Visibility(visibility)
 			}
 
+			azureKmsEncryptionBuilder.KeyVaultType(convertKmsKeyVaultTypeRPToCS(kms.KeyVaultType))
+
 			azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
 		}
 		azureEtcdDataEncryptionBuilder.CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
 	}
 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder), nil
+}
+
+func convertKmsKeyVaultTypeRPToCS(vaultType string) arohcpv1alpha1.AzureKmsEncryptionKeyVaultType {
+	if vaultType == coreapi.KmsKeyVaultTypeManagedHSM {
+		return arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeManagedHsm
+	}
+	return arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault
 }
 
 func convertContainerRegistryPullCredentialsToCS(resourceID *azcorearm.ResourceID) *arohcpv1alpha1.AzureContainerRegistryBuilder {
@@ -680,10 +701,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *coreapi.NodePool, updating b
 				ResourceName(strings.ToLower(nodePool.Name)).
 				VMSize(nodePool.Properties.Platform.VMSize).
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
-				OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-					SizeGibibytes(int(*nodePool.Properties.Platform.OSDisk.SizeGiB)).
-					StorageAccountType(csDiskStorageAccountType).
-					Persistence(csPersistence))).
+				OsDisk(buildCSOsDisk(nodePool.Properties.Platform.OSDisk, csDiskStorageAccountType, csPersistence))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}

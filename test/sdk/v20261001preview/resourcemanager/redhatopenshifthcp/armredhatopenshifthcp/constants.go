@@ -273,6 +273,24 @@ func PossibleKeyVaultVisibilityValues() []KeyVaultVisibility {
 	}
 }
 
+// KmsKeyVaultType - The type of keyvault used for KMS encryption.
+type KmsKeyVaultType string
+
+const (
+	// KmsKeyVaultTypeKeyVault - Standard Azure Key Vault.
+	KmsKeyVaultTypeKeyVault KmsKeyVaultType = "KeyVault"
+	// KmsKeyVaultTypeManagedHSM - Azure Managed Hardware Security Module.
+	KmsKeyVaultTypeManagedHSM KmsKeyVaultType = "ManagedHSM"
+)
+
+// PossibleKmsKeyVaultTypeValues returns the possible values for the KmsKeyVaultType const type.
+func PossibleKmsKeyVaultTypeValues() []KmsKeyVaultType {
+	return []KmsKeyVaultType{
+		KmsKeyVaultTypeKeyVault,
+		KmsKeyVaultTypeManagedHSM,
+	}
+}
+
 // ManagedServiceIdentityType - Type of managed service identity (where both SystemAssigned and UserAssigned types are allowed).
 type ManagedServiceIdentityType string
 

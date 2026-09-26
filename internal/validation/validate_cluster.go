@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -97,6 +98,8 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// Nightly installs must resolve to a full version; this needs both the customer
 	// version profile and the service-provider exact pin, so it lives at cluster level.
 	errs = append(errs, validateNightlyChannelRequiresFullVersion(ctx, op, newCluster, oldCluster)...)
+
+	errs = append(errs, validateManagedHSMRequiresMinimumVersion(ctx, op, newCluster, oldCluster)...)
 
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
@@ -228,6 +231,35 @@ func validateNightlyChannelRequiresFullVersion(_ context.Context, op operation.O
 			"must be specified as MAJOR.MINOR.PATCH (optionally with a pre-release, e.g. a nightly build suffix) when channelGroup is \"nightly\"",
 		)}
 	}
+	return nil
+}
+
+var minManagedHSMOpenShiftVersion = semver.Version{Major: 4, Minor: 22}
+
+func validateManagedHSMRequiresMinimumVersion(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
+	cm := newCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged
+	if cm == nil || cm.Kms == nil || cm.Kms.KeyVaultType != coreapi.KmsKeyVaultTypeManagedHSM {
+		return nil
+	}
+
+	versionID := newCluster.CustomerProperties.Version.ID
+	if len(versionID) == 0 {
+		return nil
+	}
+
+	requestedVersion, err := semver.ParseTolerant(versionID)
+	if err != nil {
+		return nil
+	}
+
+	clusterVersion := semver.Version{Major: requestedVersion.Major, Minor: requestedVersion.Minor}
+	if clusterVersion.LT(minManagedHSMOpenShiftVersion) {
+		return field.ErrorList{field.Forbidden(
+			field.NewPath("customerProperties", "etcd", "dataEncryption", "customerManaged", "kms", "keyVaultType"),
+			fmt.Sprintf("Managed HSM KMS requires OpenShift version %d.%d or later", minManagedHSMOpenShiftVersion.Major, minManagedHSMOpenShiftVersion.Minor),
+		)}
+	}
+
 	return nil
 }
 
@@ -1054,8 +1086,11 @@ func validateCustomerManagedEncryptionProfile(ctx context.Context, op operation.
 }
 
 var (
-	toKmsEncryptionProfileVisibility = func(oldObj *coreapi.KmsEncryptionProfile) *metadataapi.KeyVaultVisibility { return &oldObj.Visibility }
-	toKmsEncryptionProfileActiveKey  = func(oldObj *coreapi.KmsEncryptionProfile) *coreapi.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileVisibility   = func(oldObj *coreapi.KmsEncryptionProfile) *metadataapi.KeyVaultVisibility { return &oldObj.Visibility }
+	toKmsEncryptionProfileActiveKey    = func(oldObj *coreapi.KmsEncryptionProfile) *coreapi.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileKeyVaultType = func(oldObj *coreapi.KmsEncryptionProfile) *string { return &oldObj.KeyVaultType }
+
+	validKmsKeyVaultTypes = sets.New(coreapi.KmsKeyVaultTypeKeyVault, coreapi.KmsKeyVaultTypeManagedHSM)
 )
 
 func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.KmsEncryptionProfile) field.ErrorList {
@@ -1072,6 +1107,12 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 
 	//ActiveKey KmsKey `json:"activeKey,omitempty"`
 	errs = append(errs, validateKmsKey(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
+
+	//KeyVaultType string `json:"keyVaultType,omitempty"`
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("keyVaultType"), &newObj.KeyVaultType, safe.Field(oldObj, toKmsEncryptionProfileKeyVaultType))...)
+	if newObj.KeyVaultType != "" {
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("keyVaultType"), &newObj.KeyVaultType, nil, validKmsKeyVaultTypes, nil)...)
+	}
 
 	return errs
 }

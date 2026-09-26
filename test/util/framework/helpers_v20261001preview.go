@@ -61,6 +61,7 @@ type ClusterParams20261001 struct {
 	KeyVaultName                     string
 	EtcdEncryptionKeyName            string
 	EtcdEncryptionKeyVersion         string
+	KeyVaultType                     string
 	EncryptionKeyManagementMode      string
 	EncryptionType                   string
 	VnetIntegrationSubnetID          string
@@ -97,6 +98,7 @@ type NodePoolParams20261001 struct {
 	AvailabilityZone string
 	AutoRepair       bool
 	Tags             map[string]*string
+	EncryptionSetID  string
 }
 
 // --- Functions from deployment_params.go ---
@@ -516,14 +518,7 @@ func BuildHCPClusterFromParams20261001(
 					KeyManagementMode: to.Ptr(hcpsdk20261001preview.EtcdDataEncryptionKeyManagementModeType(parameters.EncryptionKeyManagementMode)),
 					CustomerManaged: &hcpsdk20261001preview.CustomerManagedEncryptionProfile{
 						EncryptionType: to.Ptr(hcpsdk20261001preview.CustomerManagedEncryptionType(parameters.EncryptionType)),
-						Kms: &hcpsdk20261001preview.KmsEncryptionProfile{
-							VaultName:  to.Ptr(parameters.KeyVaultName),
-							Visibility: to.Ptr(hcpsdk20261001preview.KeyVaultVisibility(parameters.KeyVaultVisibility)),
-							ActiveKey: &hcpsdk20261001preview.KmsKey{
-								Name:    to.Ptr(parameters.EtcdEncryptionKeyName),
-								Version: to.Ptr(parameters.EtcdEncryptionKeyVersion),
-							},
-						},
+						Kms:            buildKmsEncryptionProfile20261001(parameters),
 					},
 				},
 			},
@@ -537,6 +532,21 @@ func BuildHCPClusterFromParams20261001(
 		}
 	}
 	return cluster, nil
+}
+
+func buildKmsEncryptionProfile20261001(parameters ClusterParams20261001) *hcpsdk20261001preview.KmsEncryptionProfile {
+	kms := &hcpsdk20261001preview.KmsEncryptionProfile{
+		VaultName:  to.Ptr(parameters.KeyVaultName),
+		Visibility: to.Ptr(hcpsdk20261001preview.KeyVaultVisibility(parameters.KeyVaultVisibility)),
+		ActiveKey: &hcpsdk20261001preview.KmsKey{
+			Name:    to.Ptr(parameters.EtcdEncryptionKeyName),
+			Version: to.Ptr(parameters.EtcdEncryptionKeyVersion),
+		},
+	}
+	if parameters.KeyVaultType != "" {
+		kms.KeyVaultType = to.Ptr(hcpsdk20261001preview.KmsKeyVaultType(parameters.KeyVaultType))
+	}
+	return kms
 }
 
 func CreateHCPClusterAndWait20261001(
@@ -673,6 +683,10 @@ func BuildNodePoolFromParams20261001(
 		},
 	}
 
+	if parameters.EncryptionSetID != "" {
+		nodePool.Properties.Platform.OSDisk.EncryptionSetID = to.Ptr(parameters.EncryptionSetID)
+	}
+
 	if parameters.AutoScaling != nil {
 		nodePool.Properties.AutoScaling = &hcpsdk20261001preview.NodePoolAutoScaling{
 			Min: to.Ptr(parameters.AutoScaling.Min),
@@ -776,6 +790,15 @@ func (tc *perItOrDescribeTestContext) get20261001ClientFactoryUnlocked(ctx conte
 	tc.clientFactory20261001 = clientFactory
 
 	return tc.clientFactory20261001, nil
+}
+
+// GetHCPCluster20261001 fetches an HCP cluster
+func GetHCPCluster20261001(ctx context.Context, hcpClient *hcpsdk20261001preview.HcpOpenShiftClustersClient, resourceGroupName string, hcpClusterName string) (*hcpsdk20261001preview.HcpOpenShiftCluster, error) {
+	resp, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &resp.HcpOpenShiftCluster, nil
 }
 
 func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20261001(

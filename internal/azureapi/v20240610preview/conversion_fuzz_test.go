@@ -65,9 +65,11 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.DiskType = ""
 		},
 		// Visibility was added in v20251223preview and does not exist in v20240610preview.
+		// KeyVaultType was added in v20261001preview and does not exist in v20240610preview.
 		func(j *coreapi.KmsEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
 			j.Visibility = ""
+			j.KeyVaultType = ""
 		},
 		func(j *coreapi.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)

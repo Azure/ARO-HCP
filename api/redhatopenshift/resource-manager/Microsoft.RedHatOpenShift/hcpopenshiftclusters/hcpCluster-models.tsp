@@ -624,6 +624,18 @@ union KeyVaultVisibility {
   Private: "Private",
 }
 
+/** The type of keyvault used for KMS encryption. */
+@added(Versions.v2026_10_01_preview)
+union KmsKeyVaultType {
+  string,
+
+  /** Standard Azure Key Vault. */
+  KeyVault: "KeyVault",
+
+  /** Azure Managed Hardware Security Module. */
+  ManagedHSM: "ManagedHSM",
+}
+
 /** The ETCD settings and configuration options. */
 model EtcdProfile {
   /** ETCD Data Encryption settings.
@@ -726,6 +738,11 @@ model KmsEncryptionProfile {
   @added(Versions.v2026_06_30_preview)
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   activeKey: KmsKey;
+
+  /** The type of keyvault used for KMS encryption. Defaults to KeyVault when absent. */
+  @added(Versions.v2026_10_01_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  keyVaultType?: KmsKeyVaultType;
 }
 
 /** The encryption types supported for a customer managed key. */

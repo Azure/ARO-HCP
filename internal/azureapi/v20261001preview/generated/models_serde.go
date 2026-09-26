@@ -1235,6 +1235,7 @@ func (i *IngressProfile) UnmarshalJSON(data []byte) error {
 func (k KmsEncryptionProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "activeKey", k.ActiveKey)
+	populate(objectMap, "keyVaultType", k.KeyVaultType)
 	populate(objectMap, "vaultName", k.VaultName)
 	populate(objectMap, "visibility", k.Visibility)
 	return json.Marshal(objectMap)
@@ -1251,6 +1252,9 @@ func (k *KmsEncryptionProfile) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "activeKey":
 			err = unpopulate(val, "ActiveKey", &k.ActiveKey)
+			delete(rawMsg, key)
+		case "keyVaultType":
+			err = unpopulate(val, "KeyVaultType", &k.KeyVaultType)
 			delete(rawMsg, key)
 		case "vaultName":
 			err = unpopulate(val, "VaultName", &k.VaultName)
