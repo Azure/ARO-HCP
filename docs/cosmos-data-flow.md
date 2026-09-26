@@ -351,8 +351,8 @@ No writes to Cosmos Resources container.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **131 entries**: 105 backend instances, 12 fleet controllers,
-three kube-applier controller types, eight management-agent controllers/watchers,
+The catalog contains **132 entries**: 105 backend instances, 12 fleet controllers,
+three kube-applier controller types, nine management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
 Kubernetes read controllers are described once. Optional, legacy and example
@@ -1196,6 +1196,39 @@ Runs the compiled detector registry on cached Node/Pod/Event evidence for SWIFTv
 
 Labels/annotates wedged nodes and emits events/metrics; removes labels on healthy/not-applicable verdicts and leaves them unchanged when evidence is Unknown. It does not cordon, evict or delete nodes. The watched [configuration](../mgmt-agent/pkg/controller/nodehealth/config.go) controls only `enabled` (default false); detector definitions and thresholds are compiled, not runtime-configurable. No Cosmos domain write.
 
+Node-health consumes only node-scoped detections. The registry's pod-scoped
+`swift-pod-sandbox-stalled` result belongs to the separate mitigation consumer;
+it does not authorize a node-health label.
+
+#### node-mitigation
+
+[Source](../mgmt-agent/pkg/controller/nodemitigation/controller.go) -
+[Startup](../mgmt-agent/cmd/options.go). Runs under leader election after Node,
+Pod and Pod-Event informer sync; no Cosmos reads or writes.
+
+**Trigger and gates:** A single cluster key is enqueued by Node/Pod/Event changes,
+runtime ConfigMap changes and periodic retries. `retryInterval` bounds scans;
+errors use rate-limited retries. Deployment authorization defaults off, and the
+ConfigMap independently selects `disabled`, `audit` or `enforce` plus named
+mitigators. Disabled and audit make no mitigation writes. The `swift` mitigator
+consumes only pod-scoped `swift-pod-sandbox-stalled` detections, not node-wide wedges.
+
+**Inputs and effects:** Cached candidates undergo live identity, sandbox-evidence,
+workload-policy, availability and placement checks, including fresh Node/Pod/Event
+and MTPNC allocation reads after ownership is claimed. Enforce patches Pod
+ownership, creates the namespaced `NodeMitigationBudget`, writes versioned
+eviction-attempt status and submits `pods/eviction` with UID/resourceVersion
+preconditions. It emits a Pod Event on accepted eviction and reports outcomes
+through logs and metrics. Configuration revisions fence writes; denied or uncertain
+attempts consume allowance. Malformed accounting holds; window increases require
+explicit migration even with empty history. See the
+[operations contract](controllers/node-mitigation-operations.md) for policy and retention.
+
+**Completion:** Eviction acceptance is not Pod deletion, NIC release or replacement
+readiness. There is no replacement tracker, cordon, drain, direct Pod/Node DELETE
+or Azure action. Placement is not an atomic capacity reservation. This background
+controller does not gate ARM operation completion.
+
 #### capacity-reporting
 
 [Source](../mgmt-agent/pkg/controller/capacityreporting/controller.go) · **Trigger:** Periodic; 30s, 25s timeout.
@@ -1259,6 +1292,7 @@ The DataplaneController registers ready session credentials, owner and backend A
 | Shared-ingress router Service | External management-cluster provisioning creates the Service/load balancer | [EnsureSharedIngressReadDesireController](#ensuresharedingressreaddesirecontroller) creates observation intent; [SharedIngressReportingController](#sharedingressreportingcontroller) mirrors IPs and availability into Fleet. Admin management-cluster responses expose those IPs; these controllers do not create ingress resources. |
 | Kubernetes observation | [ReadDesireKubernetesController](#readdesirekubernetescontroller) reads targets | Writes mirrored Cosmos status; never provisions the observed target. The manager and union controller maintain the watches. |
 | Kubernetes CapacityReport, Node labels/capacity, monitoring objects | Management-agent controllers | Direct Kubernetes writes; fleet consumes mirrored capacity. [node-health](#node-health) labels/annotates detected SWIFTv2 failures and emits events; mitigation is outside this controller. [capacity-reporting](#capacity-reporting) preserves zero resource quantities and atomically replaces the HCP readiness grouping. |
+| Pod ownership, NodeMitigationBudget, Pod eviction and Events | Management-agent [node-mitigation](#node-mitigation) | Enforce claims ownership and persists UID-keyed rate accounting before Kubernetes eviction admission. Audit/disabled make no writes. No direct Pod/Node deletion or Azure mutation; no Cosmos persistence. |
 | Kubernetes Session/CSR/approval/credential secrets | [SessionControlPlaneController](#sessioncontrolplanecontroller) | Direct sessiongate control-plane writes; the dataplane controller maintains only its proxy registry. |
 
 ## 3. Resource Lifecycle Digraphs
@@ -1439,6 +1473,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Velero deletion intent / repository ownership | Management-agent [BackupCleanup](#backupcleanup) directly creates `DeleteBackupRequest.spec.backupName` and retries its processed requests; Velero owns Backup/data deletion. Backup/repository preservation annotations gate new cleanup requests, not already-issued requests or Velero TTL. BackupRepositories remain for Kopia maintenance; no Cosmos field records cleanup or repository GC completion. |
 | `ApplyDesire` / `ReadDesire` | Backend/fleet writers own desired content/targets; kube-applier owns execution/observation status. Credential cleanup and stale-resource cleanup during live ClusterResources reconciliation use Delete intents and wait. During whole-cluster deletion, ClusterResources drops its intent documents directly; external components own Kubernetes teardown. |
 | Kubernetes CapacityReport | Management-agent [capacity-reporting](#capacity-reporting) server-side applies status, preserving zero CPU/memory/SWIFT-NIC quantities and replacing `hostedControlPlanes` atomically. Kube-applier mirrors it; fleet updates scheduling and resource-requirement documents only from current observations. Collection failures retain the previous payload while setting ReportCurrent=False. |
+| Kubernetes NodeMitigationBudget and Pod ownership | Management-agent [node-mitigation](#node-mitigation) owns versioned eviction-attempt accounting and its Pod ownership label. Pod disappearance does not erase rate history. It does not adopt node-health labels as action authorization or track replacement completion. |
 
 ### Credential and controller bookkeeping
 

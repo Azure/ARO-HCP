@@ -794,6 +794,10 @@ mgmtAgent:
   managedIdentityName: mgmt-agent
   nodeHealth:
     enabled: true
+  nodeMitigation:
+    configuration: |
+      mode: disabled
+    enabled: false
 mgmtKeyVault:
   name: ah-perf-mg-usw3ptest-1
   private: false

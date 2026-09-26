@@ -36,6 +36,18 @@ data:
   config.yaml: |
     enabled: true
 ---
+# Source: mgmt-agent/templates/node-mitigation-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mgmt-agent-node-mitigation
+  namespace: mgmt-agent
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+data:
+  config.yaml: |
+    mode: disabled
+---
 # Source: mgmt-agent/templates/capacityreport-crd.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -232,6 +244,98 @@ spec:
                   pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
                   x-kubernetes-int-or-string: true
 ---
+# Source: mgmt-agent/templates/mgmtagent.aro-hcp.azure.com_nodemitigationbudgets.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+    helm.sh/resource-policy: keep
+  name: nodemitigationbudgets.mgmtagent.aro-hcp.azure.com
+spec:
+  group: mgmtagent.aro-hcp.azure.com
+  names:
+    kind: NodeMitigationBudget
+    listKind: NodeMitigationBudgetList
+    plural: nodemitigationbudgets
+    singular: nodemitigationbudget
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          NodeMitigationBudget records eviction attempts in one namespaced ledger.
+          It must not have a Node owner reference.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          status:
+            properties:
+              evictionWindow:
+                type: string
+              evictions:
+                additionalProperties:
+                  description: |-
+                    EvictionRecord accounts for an attempt, including an unknown API outcome.
+                    It contains no Pod status or replacement relationship.
+                  properties:
+                    attemptedAt:
+                      format: date-time
+                      type: string
+                    nodeUID:
+                      description: |-
+                        UID is a type that holds unique ID values, including UUIDs.  Because we
+                        don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                        intent and helps make sure that UIDs and names do not get conflated.
+                      type: string
+                    podUID:
+                      description: |-
+                        UID is a type that holds unique ID values, including UUIDs.  Because we
+                        don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                        intent and helps make sure that UIDs and names do not get conflated.
+                      type: string
+                    workloadUID:
+                      description: |-
+                        UID is a type that holds unique ID values, including UUIDs.  Because we
+                        don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                        intent and helps make sure that UIDs and names do not get conflated.
+                      type: string
+                  required:
+                  - attemptedAt
+                  - nodeUID
+                  - podUID
+                  - workloadUID
+                  type: object
+                maxProperties: 1024
+                type: object
+              version:
+                type: integer
+            required:
+            - evictionWindow
+            - version
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
 # Source: mgmt-agent/templates/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -423,6 +527,24 @@ rules:
   - create
   - patch
 ---
+# Source: mgmt-agent/templates/node-mitigation-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mgmt-agent-node-mitigation
+  namespace: mgmt-agent
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+rules:
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - nodemitigationbudgets
+  verbs:
+  - get
+  - list
+  - watch
+---
 # Source: mgmt-agent/templates/backup-cleanup-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -450,6 +572,23 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: mgmt-agent-controller-leader-election
+subjects:
+- kind: ServiceAccount
+  name: mgmt-agent
+  namespace: mgmt-agent
+---
+# Source: mgmt-agent/templates/node-mitigation-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mgmt-agent-node-mitigation
+  namespace: mgmt-agent
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mgmt-agent-node-mitigation
 subjects:
 - kind: ServiceAccount
   name: mgmt-agent

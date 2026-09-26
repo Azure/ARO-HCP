@@ -41,6 +41,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&CapacityReport{},
 		&CapacityReportList{},
+		&NodeMitigationBudget{},
+		&NodeMitigationBudgetList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

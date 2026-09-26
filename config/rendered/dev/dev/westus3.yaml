@@ -794,6 +794,10 @@ mgmtAgent:
   managedIdentityName: mgmt-agent
   nodeHealth:
     enabled: true
+  nodeMitigation:
+    configuration: |
+      mode: disabled
+    enabled: false
 mgmtKeyVault:
   name: ah-dev-mg-usw3-1
   private: false

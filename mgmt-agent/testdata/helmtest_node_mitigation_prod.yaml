@@ -1,0 +1,8 @@
+values: ../values.yaml
+name: node-mitigation-prod-enabled
+namespace: mgmt-agent
+testData:
+  environmentName: prod
+  mgmtAgent:
+    nodeMitigation:
+      enabled: true

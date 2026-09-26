@@ -24,6 +24,8 @@ import (
 type Interface interface {
 	// CapacityReports returns a CapacityReportInformer.
 	CapacityReports() CapacityReportInformer
+	// NodeMitigationBudgets returns a NodeMitigationBudgetInformer.
+	NodeMitigationBudgets() NodeMitigationBudgetInformer
 }
 
 type version struct {
@@ -40,4 +42,9 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // CapacityReports returns a CapacityReportInformer.
 func (v *version) CapacityReports() CapacityReportInformer {
 	return &capacityReportInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// NodeMitigationBudgets returns a NodeMitigationBudgetInformer.
+func (v *version) NodeMitigationBudgets() NodeMitigationBudgetInformer {
+	return &nodeMitigationBudgetInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

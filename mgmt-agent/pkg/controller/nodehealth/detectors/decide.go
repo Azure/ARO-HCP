@@ -64,14 +64,14 @@ func (d Decision) String() string {
 }
 
 // Detector is what every fault family has in common: an identity and a scope.
-// It carries no evaluation method, because the two kinds of detector do not read
-// the same evidence and cannot share one. A concrete detector implements this
-// plus exactly one of PodDetector or NodeDetector, which is what puts it on the
-// matching path in Decide.
+// Evaluation interfaces distinguish the evidence and result scope. A detector implements this
+// plus exactly one of PodDetector, NodeDetector or PodScopedDetector.
 type Detector interface {
 	// Name is a stable identifier used in logs, events, metrics, and the
 	// detector annotation.
 	Name() string
+	// Scope identifies whether the result describes a node or an individual Pod.
+	Scope() Scope
 	// Reason is a short human-readable explanation recorded on the node when the
 	// detector fires.
 	Reason() string
@@ -115,16 +115,7 @@ type NodeDetector interface {
 	EvaluateNode(node *corev1.Node, now time.Time) (Decision, Snapshot)
 }
 
-// podRegistry and nodeRegistry are the hard-coded sets of detectors, split by
-// the evidence they read. A new fault family is added to whichever one matches
-// its evidence, shipped and tested as code. The split is what keeps a detector
-// off the path it has nothing to say on, instead of a runtime check.
-var (
-	podRegistry  = []PodDetector{swiftVFTeardown, cniPluginNotInitialized}
-	nodeRegistry = []NodeDetector{neverReady}
-)
-
-// AnyApplies reports whether any detector owns this node. It reads only the
+// AnyApplies reports whether any node-scoped detector owns this node. It reads only the
 // node, so a caller can answer the ownership question before doing the work of
 // gathering the node's Pods and Events. Decide applies the same gate, so a node
 // this rejects can only ever produce DecisionNotApplicable.
@@ -132,13 +123,8 @@ func AnyApplies(node *corev1.Node) bool {
 	if node == nil {
 		return false
 	}
-	for _, d := range podRegistry {
-		if d.Applies(node) {
-			return true
-		}
-	}
-	for _, d := range nodeRegistry {
-		if d.Applies(node) {
+	for _, d := range registeredDetectors {
+		if d.Scope() == NodeScope && d.Applies(node) {
 			return true
 		}
 	}
@@ -232,8 +218,9 @@ func Decide(node *corev1.Node, events []*corev1.Event, pods []*corev1.Pod, now t
 	// upgrade, drain) is left to node lifecycle, which rescues it. A node that
 	// never reached Ready is not rescued by anything, so it is ours.
 	if !isNodeReady(node) {
-		for _, d := range nodeRegistry {
-			if !d.Applies(node) {
+		for _, detector := range registeredDetectors {
+			d, ok := detector.(NodeDetector)
+			if !ok || d.Scope() != NodeScope || !d.Applies(node) {
 				continue
 			}
 			if decision, snap := d.EvaluateNode(node, now); decision == DecisionWedged {
@@ -247,8 +234,9 @@ func Decide(node *corev1.Node, events []*corev1.Event, pods []*corev1.Pod, now t
 	}
 
 	sawSuccess := false
-	for _, d := range podRegistry {
-		if !d.Applies(node) {
+	for _, detector := range registeredDetectors {
+		d, ok := detector.(PodDetector)
+		if !ok || d.Scope() != NodeScope || !d.Applies(node) {
 			continue
 		}
 		snap := d.Evaluate(events, pods, now)
