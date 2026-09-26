@@ -1,0 +1,107 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: certificate-rotation-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: arohcp_certificate_rotation_alerts
+    interval: 1h
+    labels:
+      component: certificate-rotation
+    rules:
+    - alert: CertificateRotationFailure
+      expr: |
+        (
+          (
+            time()
+            - max by (cluster, environment, region, key_vault, certificate_name) (
+                keyvault_certificate_not_before_timestamp_seconds
+              )
+          )
+          /
+          (
+            max by (cluster, environment, region, key_vault, certificate_name) (
+              keyvault_certificate_not_after_timestamp_seconds
+            )
+            - max by (cluster, environment, region, key_vault, certificate_name) (
+                keyvault_certificate_not_before_timestamp_seconds
+              )
+          )
+        ) > 0.65
+        and on (cluster, environment, region, key_vault, certificate_name)
+        max by (cluster, environment, region, key_vault, certificate_name) (
+          keyvault_certificate_not_after_timestamp_seconds
+        )
+        >
+        max by (cluster, environment, region, key_vault, certificate_name) (
+          keyvault_certificate_not_before_timestamp_seconds
+        )
+        and on (cluster, environment, region, key_vault, certificate_name)
+        max by (cluster, environment, region, key_vault, certificate_name) (
+          keyvault_certificate_enabled
+        ) == 1
+      for: 1h
+      labels:
+        severity: "3"
+      annotations:
+        summary: "{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} rotation is overdue"
+        description: "Certificate '{{ $labels.certificate_name }}' in Key Vault '{{ $labels.key_vault }}' ({{ $labels.region }}) exceeded the rotation safety threshold. Current lifetime: {{ $value | humanizePercentage }}. Safety threshold: 65%. Expected rotation: 50%."
+        runbook_url: TBD
+    - alert: CertificateDisabled
+      expr: |
+        max by (cluster, environment, region, key_vault, certificate_name) (
+          keyvault_certificate_enabled
+        ) == 0
+      for: 1h
+      labels:
+        severity: "3"
+      annotations:
+        summary: "{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} is disabled"
+        description: "Certificate '{{ $labels.certificate_name }}' in Key Vault '{{ $labels.key_vault }}' ({{ $labels.region }}) has remained disabled for at least one hour."
+        runbook_url: TBD
+    - alert: CertificateCollectionStale
+      expr: |
+        (
+          time()
+          - max by (cluster, environment, region, key_vault) (
+              keyvault_certificate_collector_last_success_timestamp_seconds
+            )
+          > 3600
+        )
+        or
+        max by (cluster, environment, region, key_vault) (
+          keyvault_certificate_collector_last_success_timestamp_seconds
+        ) == 0
+      labels:
+        severity: "3"
+      annotations:
+        summary: "{{ $labels.region }}/{{ $labels.key_vault }}: Certificate collection is stale"
+        description: "Certificate metadata collection for Key Vault '{{ $labels.key_vault }}' ({{ $labels.region }}) has not completed successfully within the last hour."
+        runbook_url: TBD
+    - alert: CertificateExporterUnavailable
+      expr: |
+        max by (cluster, environment, region) (
+          kube_deployment_spec_replicas{
+            namespace="aro-hcp-exporter",
+            deployment="aro-hcp-exporter"
+          } > 0
+        )
+        unless on (cluster, environment, region)
+        max by (cluster, environment, region) (
+          up{
+            namespace="aro-hcp-exporter"
+          } == 1
+        )
+      for: 1h
+      labels:
+        severity: "3"
+      annotations:
+        summary: "{{ $labels.cluster }}: Certificate exporter target is unavailable"
+        description: "The ARO HCP exporter on cluster '{{ $labels.cluster }}' has had no healthy Prometheus scrape target for at least one hour, so certificate collection health cannot be evaluated."
+        runbook_url: TBD

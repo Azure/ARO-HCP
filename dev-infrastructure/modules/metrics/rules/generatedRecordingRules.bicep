@@ -209,3 +209,37 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
     ]
   }
 }
+
+resource arohcpCertificateRotationSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_certificate_rotation_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1H'
+    rules: [
+      {
+        record: 'certificate:keyvault_certificate:lifetime_ratio'
+        expression: '(time() - max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds)) / (max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) - max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds)) and on (cluster, environment, region, key_vault, certificate_name) max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) > max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds) and on (cluster, environment, region, key_vault, certificate_name) max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_enabled) == 1'
+      }
+      {
+        record: 'certificate:keyvault_certificate:rotation_compliant'
+        expression: 'certificate:keyvault_certificate:lifetime_ratio <= bool 0.65'
+      }
+      {
+        record: 'certificate:keyvault_certificate:enabled'
+        expression: 'max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_enabled)'
+      }
+      {
+        record: 'certificate:keyvault_certificate:collector_fresh'
+        expression: '(time() - max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) <= bool 3600) * on (cluster, environment, region, key_vault) max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) > bool 0'
+      }
+      {
+        record: 'certificate:keyvault_certificate:days_until_expiry'
+        expression: '(max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds) - time()) / 86400 and on (cluster, environment, region, key_vault, certificate_name) max by (cluster, environment, region, key_vault, certificate_name) (keyvault_certificate_enabled) == 1'
+      }
+    ]
+  }
+}
