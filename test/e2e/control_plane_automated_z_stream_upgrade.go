@@ -148,9 +148,11 @@ var _ = Describe("Service Provider", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to pin cluster %q to minor version %s", clusterName, minorVersion)
 
 			By("verifying that only a z-stream upgrade was performed")
-			Eventually(func() error {
-				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion))
-			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion, framework.HCPClusterVersionUpgradeTimeout))
+			Expect(err).NotTo(HaveOccurred(),
+				"cluster %q did not perform an automated z-stream upgrade from %s within %s", clusterName,
+				installVersion, framework.HCPClusterVersionUpgradeTimeout)
 			GinkgoLogr.Info("z-stream upgrade verification passed", "installVersion", installVersion)
 		},
 
