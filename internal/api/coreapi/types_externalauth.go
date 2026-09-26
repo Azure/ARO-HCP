@@ -51,13 +51,16 @@ type ExternalAuthStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 
 	// UserFacingConditions is a list of conditions that tracks user-facing external auth
-	// conditions. Each Condition Type should be unique among all conditions.
+	// conditions. Currently contains a single Degraded condition aggregated from
+	// internal ServiceProviderExternalAuth conditions. Each Condition Type should
+	// be unique among all conditions.
 	// The conditions here are exposed to the ARM API. This means that UserFacingConditions
 	// must not contain any internal details. This also means the Type and Reason
 	// values become part of the public API.
 	// Addition of new conditions here should be done only when strictly necessary, sparingly and only done
 	// when there is a clear benefit to doing so. We expect the number of conditions at this
 	// level to be kept to a minimum.
+	// Written by: ExternalAuthUserFacingConditionsAggregator
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
