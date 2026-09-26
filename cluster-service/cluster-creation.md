@@ -171,7 +171,6 @@ This document outlines the process of creating an HCP via the Cluster Service ru
       "hypershift": {
         "enabled": true
       },
-      "multi_az": true,
       "azure": {
         "resource_name": "$RESOURCENAME",
         "subscription_id": "$SUBSCRIPTIONID",
