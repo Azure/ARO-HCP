@@ -43,7 +43,7 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	if err := WriteAcquiredSlotState(sharedDir, state); err != nil {
 		t.Fatalf("expected state write to succeed: %v", err)
 	}
-	if err := WriteEnvFile(sharedDir, state, "ARO HCP E2E Hosted Clusters (EA Subscription)", "/var/run/aro-hcp-dev"); err != nil {
+	if err := WriteEnvFile(sharedDir, state, "ARO HCP E2E Hosted Clusters (EA Subscription)", "00000000-0000-0000-0000-000000000001", "/var/run/aro-hcp-dev"); err != nil {
 		t.Fatalf("expected env file write to succeed: %v", err)
 	}
 
@@ -75,6 +75,9 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	}
 	if !strings.Contains(content, `export CUSTOMER_SUBSCRIPTION='ARO HCP E2E Hosted Clusters (EA Subscription)'`) {
 		t.Fatalf("expected env file to contain CUSTOMER_SUBSCRIPTION export, got %q", content)
+	}
+	if !strings.Contains(content, `export CUSTOMER_SUBSCRIPTION_ID='00000000-0000-0000-0000-000000000001'`) {
+		t.Fatalf("expected env file to contain CUSTOMER_SUBSCRIPTION_ID export, got %q", content)
 	}
 	if !strings.Contains(content, `export LEASED_MSI_CONTAINERS='aro-hcp-msi-container-dev-00-00 aro-hcp-msi-container-dev-00-01 aro-hcp-msi-container-dev-00-02'`) {
 		t.Fatalf("expected env file to contain LEASED_MSI_CONTAINERS export, got %q", content)

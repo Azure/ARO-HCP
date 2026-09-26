@@ -599,6 +599,9 @@ environments:
 	if !strings.Contains(string(envContents), `export CUSTOMER_SUBSCRIPTION='dev-sub-b'`) {
 		t.Fatalf("expected winning subscription in env file, got:\n%s", string(envContents))
 	}
+	if !strings.Contains(string(envContents), `export CUSTOMER_SUBSCRIPTION_ID='subscription-id-0'`) {
+		t.Fatalf("expected winning subscription ID in env file, got:\n%s", string(envContents))
+	}
 }
 
 func TestAcquireRunFallsBackWhenCandidatePoolTimesOut(t *testing.T) {
@@ -1187,7 +1190,7 @@ func TestAcquireRunReleasesLeaseOnSubscriptionResolutionFailure(t *testing.T) {
 	t.Parallel()
 
 	// Cluster profile deliberately does NOT contain the subscription name
-	// used by the pool. This makes VerifyCustomerSubscriptionName fail
+	// used by the pool. This makes ResolveCustomerSubscription fail
 	// after the lease proxy has already granted a lease.
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "some-other-subscription")
 	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
@@ -1380,8 +1383,12 @@ func writeAcquireTestClusterProfiles(t *testing.T, subscriptionNames ...string) 
 
 	clusterProfileDir := t.TempDir()
 	for i, subscriptionName := range subscriptionNames {
-		fileName := fmt.Sprintf("customer-shard%d-subscription-name", i)
-		if err := os.WriteFile(filepath.Join(clusterProfileDir, fileName), []byte(subscriptionName), 0o644); err != nil {
+		nameFile := fmt.Sprintf("customer-shard%d-subscription-name", i)
+		if err := os.WriteFile(filepath.Join(clusterProfileDir, nameFile), []byte(subscriptionName), 0o644); err != nil {
+			t.Fatalf("expected cluster profile write to succeed: %v", err)
+		}
+		idFile := fmt.Sprintf("customer-shard%d-subscription-id", i)
+		if err := os.WriteFile(filepath.Join(clusterProfileDir, idFile), []byte(fmt.Sprintf("subscription-id-%d", i)), 0o644); err != nil {
 			t.Fatalf("expected cluster profile write to succeed: %v", err)
 		}
 	}
