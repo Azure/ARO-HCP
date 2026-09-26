@@ -506,8 +506,8 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 }
 
 var (
-	toVersionID = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ID }
-	//	toChannelGroup = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ChannelGroup }
+	toVersionID           = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ID }
+	toVersionChannelGroup = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ChannelGroup }
 )
 
 // Version                 VersionProfile              `json:"version,omitempty"`
@@ -548,6 +548,7 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 		// TODO I think everyone should be able to do this, but we'll need to notify first
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, metadataapi.AllowedChannelGroupsWithExperimentalFlag, nil)...)
 	}
+	errs = append(errs, rejectUnsupportedChannelGroupUpdate(op, fldPath, newObj.ChannelGroup, safe.Field(oldObj, toVersionChannelGroup))...)
 
 	return errs
 }

@@ -284,6 +284,7 @@ func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation,
 	} else {
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup), metadataapi.AllowedChannelGroupsWithExperimentalFlag, nil)...)
 	}
+	errs = append(errs, rejectUnsupportedChannelGroupUpdate(op, fldPath, newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup))...)
 
 	return errs
 }

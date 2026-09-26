@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "InvalidRequestContent",
+    "message": "Forbidden: updating channelGroup is not currently supported",
+    "target": "properties.version.channelGroup"
+  }
+}

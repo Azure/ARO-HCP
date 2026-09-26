@@ -1465,7 +1465,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "valid cluster update - allow channel group change",
+			name: "valid cluster update - unchanged channel group",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ChannelGroup = "stable"
@@ -1602,7 +1602,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "version ChannelGroup can be changed - update",
+			name: "version ChannelGroup change is rejected - update",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ChannelGroup = "fast"
@@ -1613,7 +1613,28 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{},
+			expectErrors: []utils.ExpectedError{
+				{Message: "updating channelGroup is not currently supported", FieldPath: "customerProperties.version.channelGroup"},
+			},
+		},
+		{
+			name: "version ChannelGroup change is rejected when version.id also changes - update",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.21"
+				c.CustomerProperties.Version.ChannelGroup = "fast"
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.20"
+				c.CustomerProperties.Version.ChannelGroup = "stable"
+				return c
+			}(),
+			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "updating channelGroup is not currently supported", FieldPath: "customerProperties.version.channelGroup"},
+			},
 		},
 		{
 			name: "immutable base domain - update",
@@ -2378,8 +2399,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = "https://oldhost.identity.azure.net"
 				return c
 			}(),
-			// channelGroup and version.id are mutable; dns.baseDomainPrefix, api.visibility and managedIdentitiesDataPlaneIdentityURL are immutable without experimental flag
+			// version.id may change. channelGroup updates are rejected until the backend can apply them.
+			// dns.baseDomainPrefix, api.visibility, and managedIdentitiesDataPlaneIdentityURL are immutable without the experimental flag.
 			expectErrors: []utils.ExpectedError{
+				{Message: "updating channelGroup is not currently supported", FieldPath: "customerProperties.version.channelGroup"},
 				{Message: "field is immutable", FieldPath: "customerProperties.dns.baseDomainPrefix"},
 				{Message: "field is immutable", FieldPath: "customerProperties.api.visibility"},
 				{Message: "field is immutable", FieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL"},

@@ -75,6 +75,30 @@ func immutableByReflect[T any](_ context.Context, op operation.Operation, fldPat
 	return nil
 }
 
+// rejectUnsupportedChannelGroupUpdate rejects a channelGroup change on an
+// existing cluster or node pool. Remove this once the backend owns
+// channelGroup control and can apply an update.
+//
+// The update cannot be applied today, for two reasons:
+//
+//   - The backend sends channelGroup to Cluster Service only on create
+//     (BuildCSCluster and BuildCSNodePool). Cluster and node-pool update
+//     dispatch omit the field.
+//   - Cluster Service rejects a patch that includes version at all
+//     so a channelGroup patch is reported as "Attribute 'version' is not allowed".
+func rejectUnsupportedChannelGroupUpdate(op operation.Operation, fldPath *field.Path, newChannelGroup string, oldChannelGroup *string) field.ErrorList {
+	if op.Type != operation.Update || oldChannelGroup == nil {
+		return nil
+	}
+	if newChannelGroup == *oldChannelGroup {
+		return nil
+	}
+	return field.ErrorList{field.Forbidden(
+		fldPath.Child("channelGroup"),
+		"updating channelGroup is not currently supported",
+	)}
+}
+
 // immutableByReflectOnceSet allows a nil→non-nil transition (first-time set)
 // but rejects any change or clearing once the field has been set.
 func immutableByReflectOnceSet[T any](_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *T) field.ErrorList {

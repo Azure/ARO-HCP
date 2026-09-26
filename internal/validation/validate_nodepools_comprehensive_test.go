@@ -1203,6 +1203,40 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
+			name: "channelGroup change is rejected - update",
+			newNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ChannelGroup = "fast"
+				return np
+			}(),
+			oldNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ChannelGroup = "stable"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "updating channelGroup is not currently supported", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
+			name: "channelGroup change is rejected when version.id also changes - update",
+			newNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.20.9"
+				np.Properties.Version.ChannelGroup = "fast"
+				return np
+			}(),
+			oldNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.20.8"
+				np.Properties.Version.ChannelGroup = "stable"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "updating channelGroup is not currently supported", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
 			name: "immutable provisioning state - update",
 			newNodePool: func() *coreapi.NodePool {
 				np := createValidNodePool()
