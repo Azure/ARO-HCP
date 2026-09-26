@@ -74,7 +74,8 @@ All pull requests must follow these standards. Reviewers will check for complian
 
 ### Automated PR Policy
 
-- Every PR created by automation MUST open as a GitHub Draft. Automation MUST keep a PR in Draft unless a human changes its state or gives an explicit instruction to make that PR ready for review or drive it to merge.
+- Every PR created by automation MUST open as a GitHub Draft. Automation MUST keep a PR in Draft unless a human changes its state, gives an explicit instruction to make that PR ready for review or drive it to merge, or the aro-hcp-robot exception below applies.
+- aro-hcp-robot PRs may open ready for review after the generating workflow validates its changes. Required CI checks, reviewer approval, comment resolution, and merge policy still apply.
 - Explicit authorization permits only the requested PR state change or merge-driving. It does not bypass self-review, required CI checks, reviewer approval, comment resolution, or merge policy.
 - Automation MUST write an evergreen description: the enduring problem, decision, behavior, operational contract, verification, dependencies, and intentional non-goals. The description MUST remain accurate after merge.
 - Do not lead an automated PR description with agent activity, transient CI state, workflow narration, or “preview only” framing. State a dependency or non-goal when it is part of the lasting contract.
