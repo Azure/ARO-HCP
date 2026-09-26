@@ -62,6 +62,34 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
+			name: "platform image digest mirror source - invalid",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				cluster := createValidCluster()
+				cluster.CustomerProperties.ImageDigestMirrors = []coreapi.ImageDigestMirror{{
+					Source:             "quay.io/openshift-release-dev/ocp-release",
+					Mirrors:            []string{"mirror.example.com/images"},
+					MirrorSourcePolicy: metadataapi.MirrorSourcePolicyAllowContactingSource,
+				}}
+				return cluster
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "customerProperties.imageDigestMirrors[0].source", Message: "source registry is managed by the platform and cannot be used as an image digest mirror source"},
+			},
+		},
+		{
+			name: "customer image digest mirror source - valid",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				cluster := createValidCluster()
+				cluster.CustomerProperties.ImageDigestMirrors = []coreapi.ImageDigestMirror{{
+					Source:             "quay.io/customer/images",
+					Mirrors:            []string{"mirror.example.com/images"},
+					MirrorSourcePolicy: metadataapi.MirrorSourcePolicyAllowContactingSource,
+				}}
+				return cluster
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
 			name: "valid cluster with identity - create",
 			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
