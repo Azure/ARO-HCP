@@ -881,12 +881,6 @@ monitoring:
       automitigationEnabled: ""
       enabled: true
       routingId: ""
-    sre:
-      actionGroupName: ""
-      actionGroupShortName: ""
-      automitigationEnabled: ""
-      enabled: true
-      routingId: ""
   svcWorkspaceName: services-usw3test
 msiCredentialsRefresher:
   certificate:

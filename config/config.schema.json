@@ -3317,9 +3317,6 @@
               "type": "string",
               "description": "ICM environment"
             },
-            "sre": {
-              "$ref": "#/definitions/icmConnection"
-            },
             "sl": {
               "$ref": "#/definitions/icmConnection"
             },
@@ -3338,7 +3335,6 @@
             "connectionName",
             "connectionId",
             "environment",
-            "sre",
             "sl"
           ]
         }
