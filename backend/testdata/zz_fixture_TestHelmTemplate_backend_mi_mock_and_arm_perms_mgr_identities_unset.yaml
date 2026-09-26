@@ -186,6 +186,7 @@ spec:
         - "arohcpdev"
         - "--exit-on-panic=true"
         - "--log-verbosity=4"
+        - "--orphaned-mrg-cleanup-running-mode=dry-run"
         - "--azure-cluster-scoped-identities-role-set-name"
         - "dev"
         env:

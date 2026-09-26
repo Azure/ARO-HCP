@@ -130,6 +130,9 @@ type BackendOptions struct {
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
+	OrphanedMRGCleanupTargetSubscriptionAFECFlags       string
+	OrphanedMRGCleanupExcludedSubscriptionAFECFlags     string
+	OrphanedMRGCleanupRunningMode                       string
 }
 
 const backendShutdownTimeout = 31 * time.Second
@@ -809,13 +812,29 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
-	cleanOrphanedClusterManagedResourceGroupController := clusterdeletion.NewCleanOrphanedClusterManagedResourceGroupController(
-		b.options.AzureLocation,
-		activeOperationLister,
-		b.options.ResourcesDBClient,
-		b.options.FPAClientBuilder,
-		backendInformers,
-	)
+	// Only create the orphaned MRG watcher when AFEC flags are configured.
+	// When both are empty (DEV), the controller is not needed and creating it
+	// would register informer handlers that unnecessarily list Azure resource groups.
+	var managedResourceGroupWatchingController controllerutils.Controller
+	if len(b.options.OrphanedMRGCleanupTargetSubscriptionAFECFlags) != 0 || len(b.options.OrphanedMRGCleanupExcludedSubscriptionAFECFlags) != 0 {
+		orphanedManagedResourceGroupController := clusterdeletion.NewOrphanedManagedResourceGroupController(
+			b.options.AzureLocation,
+			b.options.ResourcesDBClient,
+			subscriptionLister,
+			clusterLister,
+			b.options.FPAClientBuilder,
+			b.options.OrphanedMRGCleanupTargetSubscriptionAFECFlags,
+			b.options.OrphanedMRGCleanupExcludedSubscriptionAFECFlags,
+			b.options.OrphanedMRGCleanupRunningMode,
+		)
+		managedResourceGroupWatchingController = controllerutils.NewManagedResourceGroupWatchingController(
+			b.options.AzureLocation,
+			orphanedManagedResourceGroupController,
+			b.options.FPAClientBuilder,
+			backendInformers,
+			24*time.Hour,
+		)
+	}
 
 	ensureManagedResourceGroupController := clusterazureresources.NewManagedResourceGroupController(
 		b.options.ResourcesDBClient,
@@ -1210,7 +1229,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
 				go createServiceProviderClusterController.Run(ctx, 20)
 				go createServiceProviderNodePoolController.Run(ctx, 20)
-				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 20)
+				if managedResourceGroupWatchingController != nil {
+					go managedResourceGroupWatchingController.Run(ctx, 50)
+				}
 				go ensureManagedResourceGroupController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
