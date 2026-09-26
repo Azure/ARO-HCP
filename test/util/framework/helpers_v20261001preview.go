@@ -555,7 +555,11 @@ func CreateHCPClusterAndWait20261001(
 	}
 
 	logger.Info("Starting HCP cluster creation (v20261001preview)", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName)
-	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	poller, err := hcpClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, cluster, nil)
+	if err != nil {
+		poller, err = resumeInFlightHCPClusterCreate20261001(ctx, hcpClient, resourceGroupName, hcpClusterName, createAttempts, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
 	}
@@ -696,7 +700,11 @@ func CreateNodePoolAndWait20261001(
 ) (*hcpsdk20261001preview.NodePool, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolAndWait20261001 for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
 	defer cancel()
-	poller, err := nodePoolsClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	poller, err := nodePoolsClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
+	if err != nil {
+		poller, err = resumeInFlightNodePoolCreate20261001(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName, createAttempts, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed starting nodepool creation %q for cluster %q in resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
 	}
@@ -865,4 +873,55 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20261001(
 	tc.contextLock.Unlock()
 
 	return restConfig, nil
+}
+
+// resumeInFlightHCPClusterCreate20261001 returns a poller for a cluster create that
+// is already in flight when the create request was rejected with 409 Conflict.
+// See resumeInFlightCreate.
+func resumeInFlightHCPClusterCreate20261001(
+	ctx context.Context,
+	hcpClient *hcpsdk20261001preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	attempts *requestAttemptTracker,
+	createErr error,
+) (*runtime.Poller[hcpsdk20261001preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], error) {
+	return resumeInFlightCreate(ctx, createErr, attempts, fmt.Sprintf("cluster %q in resourcegroup=%q", hcpClusterName, resourceGroupName),
+		func(ctx context.Context) (hcpsdk20261001preview.HcpOpenShiftClustersClientCreateOrUpdateResponse, string, error) {
+			resp, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+			if err != nil {
+				return hcpsdk20261001preview.HcpOpenShiftClustersClientCreateOrUpdateResponse{}, "", err
+			}
+			var state string
+			if resp.Properties != nil {
+				state = provisioningStateString(resp.Properties.ProvisioningState)
+			}
+			return hcpsdk20261001preview.HcpOpenShiftClustersClientCreateOrUpdateResponse(resp), state, nil
+		})
+}
+
+// resumeInFlightNodePoolCreate20261001 returns a poller for a node pool create that
+// is already in flight when the create request was rejected with 409 Conflict.
+// See resumeInFlightCreate.
+func resumeInFlightNodePoolCreate20261001(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20261001preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	attempts *requestAttemptTracker,
+	createErr error,
+) (*runtime.Poller[hcpsdk20261001preview.NodePoolsClientCreateOrUpdateResponse], error) {
+	return resumeInFlightCreate(ctx, createErr, attempts, fmt.Sprintf("nodepool %q for cluster %q in resourcegroup=%q", nodePoolName, hcpClusterName, resourceGroupName),
+		func(ctx context.Context) (hcpsdk20261001preview.NodePoolsClientCreateOrUpdateResponse, string, error) {
+			resp, err := nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+			if err != nil {
+				return hcpsdk20261001preview.NodePoolsClientCreateOrUpdateResponse{}, "", err
+			}
+			var state string
+			if resp.Properties != nil {
+				state = provisioningStateString(resp.Properties.ProvisioningState)
+			}
+			return hcpsdk20261001preview.NodePoolsClientCreateOrUpdateResponse(resp), state, nil
+		})
 }

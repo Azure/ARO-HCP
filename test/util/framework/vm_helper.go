@@ -17,6 +17,7 @@ package framework
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -376,9 +377,75 @@ func GetVirtualMachineConsoleLog(
 	return resp.Body, nil
 }
 
+// describeVirtualMachineState returns a one-line description of a VM's
+// provisioning state and instance view statuses, and saves the full instance
+// view to "<vmName>-instance-view.json" in targetDirectory. It is best effort:
+// failures are reported in the returned description.
+func describeVirtualMachineState(
+	ctx context.Context,
+	vmClient *armcompute.VirtualMachinesClient,
+	resourceGroupName string,
+	vm *armcompute.VirtualMachine,
+	targetDirectory string,
+) string {
+	provisioningState := "<unset>"
+	if vm.Properties != nil && vm.Properties.ProvisioningState != nil {
+		provisioningState = *vm.Properties.ProvisioningState
+	}
+
+	resp, err := vmClient.InstanceView(ctx, resourceGroupName, *vm.Name, nil)
+	if err != nil {
+		return fmt.Sprintf("VM provisioningState=%q, instance view unavailable: %v", provisioningState, err)
+	}
+
+	description := fmt.Sprintf("VM provisioningState=%q, instance view statuses: %s", provisioningState, summarizeVirtualMachineInstanceView(&resp.VirtualMachineInstanceView))
+
+	instanceViewPath := filepath.Join(targetDirectory, fmt.Sprintf("%s-instance-view.json", *vm.Name))
+	instanceViewJSON, err := json.MarshalIndent(resp.VirtualMachineInstanceView, "", "  ")
+	if err == nil {
+		err = os.WriteFile(instanceViewPath, instanceViewJSON, 0644)
+	}
+	if err != nil {
+		return fmt.Sprintf("%s (failed to save instance view: %v)", description, err)
+	}
+	ginkgo.GinkgoLogr.Info("VM instance view saved", "vmName", *vm.Name, "targetPath", instanceViewPath)
+	return description
+}
+
+// summarizeVirtualMachineInstanceView renders the VM-level statuses of an
+// instance view, for example
+// `[ProvisioningState/failed/InternalExecutionError: "An internal execution error occurred. Please retry later."]`.
+func summarizeVirtualMachineInstanceView(instanceView *armcompute.VirtualMachineInstanceView) string {
+	if instanceView == nil || len(instanceView.Statuses) == 0 {
+		return "[]"
+	}
+	statuses := make([]string, 0, len(instanceView.Statuses))
+	for _, status := range instanceView.Statuses {
+		if status == nil {
+			continue
+		}
+		code := ptr.Deref(status.Code, "<no code>")
+		if message := strings.TrimSpace(ptr.Deref(status.Message, "")); message != "" {
+			statuses = append(statuses, fmt.Sprintf("%s: %q", code, message))
+		} else {
+			statuses = append(statuses, code)
+		}
+	}
+	return "[" + strings.Join(statuses, ", ") + "]"
+}
+
 // DownloadAllVirtualMachineConsoleLogs downloads boot diagnostics console logs for all VMs
 // in the specified resource group and saves them to the target directory.
 // Each log file is named "<vmName>-console.log". VMs without boot diagnostics enabled are skipped.
+//
+// When a VM's console log cannot be retrieved, its instance view is saved as
+// "<vmName>-instance-view.json" instead, and the returned error includes the VM's
+// provisioning state and instance view statuses. Azure refuses boot diagnostics
+// retrieval with 409 OperationNotAllowed for as long as an operation holds the
+// VM, which is the case for the whole remaining life of a VM whose create
+// failed inside Azure (for example with InternalExecutionError). Reads are not
+// held, so the provisioning state and instance view still show why.
+//
 // Returns an error if the directory cannot be created or if listing VMs fails.
 func DownloadAllVirtualMachineConsoleLogs(
 	ctx context.Context,
@@ -412,6 +479,7 @@ func DownloadAllVirtualMachineConsoleLogs(
 	}
 
 	// Download console log for each VM
+	vmClient := computeClientFactory.NewVirtualMachinesClient()
 	var downloadErrors []string
 	for _, vm := range vms {
 		if vm.Name == nil {
@@ -422,7 +490,8 @@ func DownloadAllVirtualMachineConsoleLogs(
 		if err != nil {
 			// Don't fail completely if one VM doesn't have boot diagnostics enabled
 			logger.Info("failed to fetch VM console log", "vmName", *vm.Name)
-			downloadErrors = append(downloadErrors, fmt.Sprintf("VM %q: %v", *vm.Name, err))
+			vmState := describeVirtualMachineState(ctx, vmClient, resourceGroupName, vm, targetDirectory)
+			downloadErrors = append(downloadErrors, fmt.Sprintf("VM %q: %v; %s", *vm.Name, err, vmState))
 			continue
 		}
 
