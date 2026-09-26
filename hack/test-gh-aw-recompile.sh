@@ -10,7 +10,7 @@ cat > "$tmp/gh" <<'EOF'
 case "$1 $2" in
   'pr list') printf '%s\n' "$MOCK_PR_LIST" ;;
   'api repos/Azure/ARO-HCP/pulls/7184') printf '%s\n' "$MOCK_PR_DETAIL" ;;
-  'aw version') echo 'gh aw version v0.89.21' ;;
+  'aw version') printf '%s\n' "${MOCK_GH_AW_VERSION:-gh aw version v0.89.21}" >&2; exit "${MOCK_GH_AW_EXIT:-0}" ;;
   'api repos/github/gh-aw/commits/v0.89.21') echo 'c35393777e5604a63721d09512263b1383301d4f' ;;
   *) echo "Unexpected gh invocation: $*" >&2; exit 1 ;;
 esac
@@ -80,6 +80,17 @@ printf '%s\n' \
   > "$tmp/repo/.github/agents/agentic-workflows.md"
 (
   cd "$tmp/repo"
+  if MOCK_GH_AW_VERSION='no release version' bash "$script" --repair-only > "$tmp/version.log" 2>&1; then
+    echo "An unparseable gh-aw version must be rejected." >&2
+    exit 1
+  fi
+  grep -q 'Cannot determine installed gh-aw version.' "$tmp/version.log"
+  if MOCK_GH_AW_VERSION='not available' MOCK_GH_AW_EXIT=1 \
+    bash "$script" --repair-only > "$tmp/version.log" 2>&1; then
+    echo "A failing gh-aw version command must be rejected." >&2
+    exit 1
+  fi
+  grep -q 'gh aw version failed: not available' "$tmp/version.log"
   bash "$script" --repair-only
   [[ ! -f .github/agents/agentic-workflows.md ]]
   [[ $(grep -c 'github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/' \
