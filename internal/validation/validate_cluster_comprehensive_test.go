@@ -502,7 +502,7 @@ func TestValidateClusterCreate(t *testing.T) {
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "test-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
@@ -531,7 +531,7 @@ func TestValidateClusterCreate(t *testing.T) {
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "test-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
@@ -553,7 +553,7 @@ func TestValidateClusterCreate(t *testing.T) {
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "test-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
@@ -572,12 +572,78 @@ func TestValidateClusterCreate(t *testing.T) {
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "test-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
 				return c
 			}(),
+		},
+		{
+			name: "invalid kms key version - incorrectly passes full URL instead of version - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "https://test-vault.vault.azure.net/keys/test-key/4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a 32-character hexadecimal key version", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
+			},
+		},
+		{
+			name: "invalid kms key version - non-hex string - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "not-a-valid-hex-version-string",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a 32-character hexadecimal key version", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
+			},
+		},
+		{
+			name: "invalid kms key version - full URL - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "https://vault.azure.net/keys/name/4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a 32-character hexadecimal key version", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
+			},
 		},
 		{
 			name: "invalid cluster image registry state - create",
@@ -1906,7 +1972,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "test-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
@@ -1922,7 +1988,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "test-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
@@ -1944,7 +2010,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "new-version",
+							Version:   "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c",
 						},
 					},
 				}
@@ -1960,7 +2026,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "old-version",
+							Version:   "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
 						},
 					},
 				}
@@ -1981,7 +2047,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "new-version",
+							Version:   "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c",
 						},
 					},
 				}
@@ -1997,7 +2063,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "old-version",
+							Version:   "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
 						},
 					},
 				}
@@ -2749,7 +2815,7 @@ func createValidCluster() *coreapi.Cluster {
 			ActiveKey: coreapi.KmsKey{
 				Name:      "test-key",
 				VaultName: "test-vault",
-				Version:   "test-version",
+				Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 			},
 		},
 	}
