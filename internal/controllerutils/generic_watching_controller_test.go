@@ -66,6 +66,12 @@ func testReconcileTotal() *prometheus.CounterVec {
 	}, []string{"controller"})
 }
 
+func testReconcileErrors() *prometheus.CounterVec {
+	return prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "test_reconcile_errors_total",
+	}, []string{"controller"})
+}
+
 type alwaysAllowCooldown struct{}
 
 func (alwaysAllowCooldown) CanSync(context.Context, any) bool { return true }
@@ -78,7 +84,7 @@ func newTestWatchingController() (*GenericWatchingController[string], *azcorearm
 	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID))
 	npID := metadataapi.Must(azcorearm.ParseResourceID(testNodePoolARMID))
 	syncer := &stringSyncer{}
-	c := NewGenericWatchingController("test", clusterID.ResourceType, syncer, testReconcileTotal())
+	c := NewGenericWatchingController("test", clusterID.ResourceType, syncer, testReconcileTotal(), nil)
 	return c, clusterID, npID
 }
 
@@ -156,7 +162,7 @@ func TestEnqueueResourceIDAddWithMaxDepth(t *testing.T) {
 func TestEnqueueResourceIDAddWithMaxDepth_changedAndCooldown(t *testing.T) {
 	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID))
 	syncer := &stringSyncer{cooldown: neverAllowCooldown{}}
-	c := NewGenericWatchingController("cooldown", clusterID.ResourceType, syncer, testReconcileTotal())
+	c := NewGenericWatchingController("cooldown", clusterID.ResourceType, syncer, testReconcileTotal(), nil)
 
 	tests := []struct {
 		name         string
@@ -296,7 +302,7 @@ func TestProcessNextWorkItemIncrementsReconcileTotal(t *testing.T) {
 	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID))
 	reconcileTotal := testReconcileTotal()
 	syncer := &stringSyncer{}
-	c := NewGenericWatchingController("test-metrics", clusterID.ResourceType, syncer, reconcileTotal)
+	c := NewGenericWatchingController("test-metrics", clusterID.ResourceType, syncer, reconcileTotal, nil)
 
 	c.queue.Add(clusterID.String())
 	c.processNextWorkItem(context.Background())
@@ -309,4 +315,24 @@ func TestProcessNextWorkItemIncrementsReconcileTotal(t *testing.T) {
 
 	count = testutil.ToFloat64(reconcileTotal.WithLabelValues("test-metrics"))
 	require.Equal(t, float64(2), count)
+}
+
+func TestProcessNextWorkItemIncrementsReconcileErrors(t *testing.T) {
+	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID))
+	reconcileErrors := testReconcileErrors()
+	syncer := &stringSyncer{syncErr: errors.New("sync failed")}
+	c := NewGenericWatchingController("test-errors", clusterID.ResourceType, syncer, testReconcileTotal(), reconcileErrors)
+
+	c.queue.Add(clusterID.String())
+	c.processNextWorkItem(context.Background())
+
+	count := testutil.ToFloat64(reconcileErrors.WithLabelValues("test-errors"))
+	require.Equal(t, float64(1), count)
+
+	syncer.syncErr = nil
+	c.queue.Add(clusterID.String())
+	c.processNextWorkItem(context.Background())
+
+	count = testutil.ToFloat64(reconcileErrors.WithLabelValues("test-errors"))
+	require.Equal(t, float64(1), count, "successful sync must not increment reconcile errors")
 }
