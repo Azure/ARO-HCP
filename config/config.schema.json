@@ -3177,6 +3177,10 @@
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
         },
+        "monitoringApiGroup": {
+          "type": "string",
+          "description": "The Kubernetes API group used for ServiceMonitor and PodMonitor CRDs on management clusters"
+        },
         "prometheus": {
           "description": "Prometheus deployment configuration",
           "$ref": "#/definitions/prometheus"
@@ -3186,6 +3190,7 @@
       "required": [
         "aks",
         "applyKubeletFixes",
+        "monitoringApiGroup",
         "rg",
         "stamps",
         "subscription",

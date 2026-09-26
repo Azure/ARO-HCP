@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: mgmt-agent-ama-netpolicy
+  name: ama-metrics-allow
+  namespace: ocm-arohcppers-abc123-xyz
+  ownerReferences:
+  - apiVersion: hypershift.openshift.io/v1beta1
+    kind: HostedControlPlane
+    name: test-hcp
+    uid: uid-123
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          rsName: ama-metrics
+  podSelector: {}
+  policyTypes:
+  - Ingress
