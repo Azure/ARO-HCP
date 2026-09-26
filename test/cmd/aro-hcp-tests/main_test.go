@@ -297,6 +297,7 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 		{suite: "rp-api-compat-all/parallel", suffix: "rp-api-compat-all-parallel"},
 		{suite: "rp-api-compat-all/parallel", suffix: "rp-api-compat-all-parallel-development", setDevelopmentEnv: true},
 		{suite: "hypershift-presubmit/parallel", suffix: "hypershift-presubmit-parallel"},
+		{suite: "development/mock-msi-acl", suffix: "development-mock-msi-acl"},
 		{suite: "upgrade/in-place", suffix: "upgrade-in-place"},
 	}
 
