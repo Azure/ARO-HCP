@@ -41,40 +41,6 @@ spec:
         pruneObjectBehavior: None
         remediationAction: enforce
         severity: low
-  - objectDefinition:
-      apiVersion: policy.open-cluster-management.io/v1
-      kind: ConfigurationPolicy
-      metadata:
-        name: default-ingress-config
-      spec:
-        evaluationInterval:
-          compliant: "10m"
-          noncompliant: "45s"
-        object-templates-raw: |
-          {{ `{{hub $cfgName := print "default-ingress-config-" .ManagedClusterName hub}}` }}
-          {{ `{{hub- $ns := .PolicyMetadata.namespace hub}}` }}
-          {{ `{{hub- $disableCertificates := fromConfigMap $ns $cfgName "disable-certificates" hub}}` }}
-          {{ `{{hub- $eps := fromConfigMap $ns $cfgName "endpoint-publishing-strategy" hub}}` }}
-          - complianceType: musthave
-            objectDefinition:
-              apiVersion: operator.openshift.io/v1
-              kind: IngressController
-              metadata:
-                name: default
-                namespace: openshift-ingress-operator
-              spec:
-                {{ `{{hub- if ne $disableCertificates "true" hub}}` }}
-                defaultCertificate:
-                  name: cluster-ingress-cert
-                {{ `{{hub- end hub}}` }}
-                endpointPublishingStrategy:
-                  type: LoadBalancerService
-                  loadBalancer:
-                    dnsManagementPolicy: 'Managed'
-                    scope: {{ `{{hub if eq $eps "internal" hub}}Internal{{hub else hub}}External{{hub end hub}}` }}
-        pruneObjectBehavior: None
-        remediationAction: enforce
-        severity: low
 ---
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
