@@ -31,6 +31,17 @@ repair_generated_agent() {
   fi
 }
 
+check_upgrade_scope() {
+  local committed staged
+  committed=$(git diff --name-only "origin/$base"...HEAD)
+  staged=$(git diff --cached --name-only)
+  if { [[ -n $committed ]] && grep -v '^\.github/' <<<"$committed" >/dev/null; } ||
+    { [[ -n $staged ]] && grep -v '^\.github/' <<<"$staged" >/dev/null; }; then
+    echo "Upgrade changed files outside .github; refusing to publish." >&2
+    exit 1
+  fi
+}
+
 if [[ ${1:-} == --repair-only ]]; then
   repair_generated_agent
   exit 0
@@ -63,6 +74,7 @@ if (( count == 1 )); then
   git switch --detach "origin/$branch"
   git switch -c "$branch"
   git merge --no-edit "origin/$base"
+  check_upgrade_scope
 else
   number=''
   branch="upgrade-agentic-workflows-${GITHUB_RUN_ID:?GITHUB_RUN_ID is required}"
@@ -78,10 +90,7 @@ repair_generated_agent
 
 make yamlfmt
 git add -A
-if git diff --cached --name-only | grep -v '^\.github/' >/dev/null; then
-  echo "Upgrade changed files outside .github; refusing to publish." >&2
-  exit 1
-fi
+check_upgrade_scope
 if git diff --cached --quiet && [[ -z $number ]]; then
   echo "No upgrade changes."
   exit 0

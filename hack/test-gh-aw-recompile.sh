@@ -45,6 +45,33 @@ if bash "$script" --select-only > /dev/null 2>&1; then
   exit 1
 fi
 
+MOCK_PR_DETAIL='{"state":"open","user":{"login":"aro-hcp-robot[bot]"},"head":{"repo":{"full_name":"Azure/ARO-HCP"},"ref":"upgrade-agentic-workflows-1971"},"base":{"ref":"main"}}'
+export MOCK_PR_DETAIL
+git init -q --bare "$tmp/origin.git"
+git init -q -b main "$tmp/reuse"
+git -C "$tmp/reuse" config user.name 'Test'
+git -C "$tmp/reuse" config user.email 'test@example.com'
+git -C "$tmp/reuse" remote add origin "$tmp/origin.git"
+printf 'base\n' > "$tmp/reuse/README.md"
+git -C "$tmp/reuse" add README.md
+git -C "$tmp/reuse" commit -qm 'Base'
+git -C "$tmp/reuse" push -q origin main
+git -C "$tmp/reuse" switch -q -c upgrade-agentic-workflows-1971
+printf 'unrelated\n' > "$tmp/reuse/unrelated.txt"
+git -C "$tmp/reuse" add unrelated.txt
+git -C "$tmp/reuse" commit -qm 'Out-of-scope bot change'
+git -C "$tmp/reuse" push -q origin upgrade-agentic-workflows-1971
+git -C "$tmp/reuse" switch -q main
+git -C "$tmp/reuse" branch -D upgrade-agentic-workflows-1971 > /dev/null
+if (cd "$tmp/reuse" && bash "$script") > "$tmp/reuse.log" 2>&1; then
+  echo "Existing bot PR changes outside .github must be rejected." >&2
+  exit 1
+fi
+if ! grep -q 'Upgrade changed files outside .github' "$tmp/reuse.log"; then
+  cat "$tmp/reuse.log" >&2
+  exit 1
+fi
+
 mkdir -p "$tmp/repo/.github/agents"
 printf '%s\n' \
   'https://raw.githubusercontent.com/github/gh-aw/main/.github/aw/create-agentic-workflow.md' \
