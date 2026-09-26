@@ -158,17 +158,90 @@ func TestGatherer_GatherLogs_ExplicitClusterIds(t *testing.T) {
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
 	}
 
-	// With explicit cluster IDs, ExecutePreconfiguredQuery should only be called
-	// for cluster names discovery (not cluster ID discovery)
+	// With explicit cluster IDs, discover operation IDs and cluster names,
+	// but do not run cluster ID discovery.
 	mockQueryClient.On("ExecutePreconfiguredQuery", mock.Anything, mock.Anything, mock.Anything).Return(&kusto.QueryResult{}, nil)
 	mockQueryClient.On("ConcurrentQueries", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	err := gatherer.GatherLogs(t.Context())
 	assert.NoError(t, err)
 
-	// ExecutePreconfiguredQuery should NOT be called for cluster ID discovery,
-	// only for cluster names (2 calls: clusterNamesSvc + clusterNamesHcp)
-	mockQueryClient.AssertNumberOfCalls(t, "ExecutePreconfiguredQuery", 2)
+	mockQueryClient.AssertNumberOfCalls(t, "ExecutePreconfiguredQuery", 3)
+}
+
+func TestGatherer_GatherLogs_OperationIds(t *testing.T) {
+	const operationID = "773f5d4a-cd7a-4e25-ac56-58130cbed2d2"
+	for _, discoveryFails := range []bool{false, true} {
+		name := "discovered"
+		if discoveryFails {
+			name = "discovery failure still gathers logs"
+		}
+		t.Run(name, func(t *testing.T) {
+			queryClient := &MockQueryClient{}
+			gatherer := &Gatherer{
+				QueryClient: queryClient,
+				opts: GathererOptions{
+					SkipKubernetesEventsLogs:   true,
+					SkipHostedControlPlaneLogs: true,
+					QueryOptions:               testQueryOptions("test-sub", "test-rg", ""),
+				},
+				outputFunc: mockOutputFunc,
+			}
+			discoveryError := errors.New("snapshot discovery failed")
+			queryClient.On("ExecutePreconfiguredQuery", mock.Anything, mock.MatchedBy(func(q kusto.Query) bool {
+				return q.GetName() == "operationIds"
+			}), mock.Anything).Run(func(args mock.Arguments) {
+				if !discoveryFails {
+					row := makeTestRow(t, []struct {
+						name string
+						typ  types.Column
+					}{{"operationId", types.String}}, value.Values{value.NewString(operationID)})
+					args.Get(2).(chan<- kusto.TaggedRow) <- row
+				}
+			}).Return(&kusto.QueryResult{}, func() error {
+				if discoveryFails {
+					return discoveryError
+				}
+				return nil
+			}()).Once()
+			queryClient.On("ExecutePreconfiguredQuery", mock.Anything, mock.MatchedBy(func(q kusto.Query) bool {
+				return q.GetName() != "operationIds"
+			}), mock.Anything).Run(func(args mock.Arguments) {
+				if args.Get(1).(kusto.Query).GetName() == "clusterNamesSvc" {
+					row := makeTestRow(t, []struct {
+						name string
+						typ  types.Column
+					}{{"cluster", types.String}}, value.Values{value.NewString("svc-cluster")})
+					args.Get(2).(chan<- kusto.TaggedRow) <- row
+				}
+			}).Return(&kusto.QueryResult{}, nil)
+			var frontendQueries []string
+			queryClient.On("ConcurrentQueries", mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+				for _, q := range args.Get(1).([]kusto.Query) {
+					text := q.GetQuery().String()
+					if strings.Contains(text, "frontendLogs") {
+						frontendQueries = append(frontendQueries, q.GetName())
+						if discoveryFails {
+							assert.NotContains(t, text, operationID)
+						} else {
+							assert.Contains(t, text, "or resource_name in~ ('"+operationID+"')")
+						}
+					} else {
+						assert.NotContains(t, text, operationID)
+					}
+				}
+			}).Return(nil)
+
+			err := gatherer.GatherLogs(t.Context())
+			if discoveryFails {
+				assert.ErrorIs(t, err, discoveryError)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.ElementsMatch(t, []string{"serviceLogs", "debugFrontendLogs", "detailedApiLayerLogs"}, frontendQueries)
+			queryClient.AssertExpectations(t)
+		})
+	}
 }
 
 func TestGatherer_GatherLogs_WithKubernetesEventsAndSystemdLogs(t *testing.T) {

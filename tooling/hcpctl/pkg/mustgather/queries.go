@@ -41,14 +41,18 @@ type ClusterNameRow struct {
 	ClusterName string `kusto:"cluster"`
 }
 
-func serviceLogs(f *kusto.QueryFactory, tableDefinition string, options kusto.QueryOptions, clusterIds []string) ([]kusto.Query, error) {
+type OperationIdRow struct {
+	OperationId string `kusto:"operationId"`
+}
+
+func serviceLogs(f *kusto.QueryFactory, tableDefinition string, options kusto.QueryOptions, clusterIds, operationIds []string) ([]kusto.Query, error) {
 	def, err := f.GetBuiltinQueryDefinition(tableDefinition)
 	if err != nil {
 		return nil, err
 	}
 	queries := make([]kusto.Query, 0, len(ServicesTables))
 	for _, table := range ServicesTables {
-		q, err := f.Build(*def, kusto.NewTemplateDataFromOptions(options, kusto.WithTable(table), kusto.WithClusterIds(clusterIds)))
+		q, err := f.Build(*def, kusto.NewTemplateDataFromOptions(options, kusto.WithTable(table), kusto.WithClusterIds(clusterIds), kusto.WithOperationIds(operationIds)))
 		if err != nil {
 			return nil, err
 		}

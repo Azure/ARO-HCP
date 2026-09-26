@@ -1,0 +1,11 @@
+database: ServiceLogs
+kql: |
+  set notruncation;
+  cosmosResourceSnapshots
+  | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+  | where subscriptionID =~ 'test-sub' and resourceGroup =~ 'test-rg'
+  | where resourceType =~ 'Microsoft.RedHatOpenShift/hcpOperationStatuses'
+  | where isnotempty(resourceName)
+  | distinct operationId = tolower(resourceName)
+name: operationIds
+unlimited: false
