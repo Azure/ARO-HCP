@@ -12,6 +12,75 @@ resourceGroups:
     parameters: ../../configurations/output-opstool-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Unprivileged
+      resourceGroup: opstool
+      step: cluster
+  - name: sync-auth-secrets
+    action: Shell
+    command: ./cihealth-auth-sync-secrets.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: SOURCE_KEY_VAULT_NAME
+      configRef: global.keyVault.name
+    - name: TARGET_KEY_VAULT_NAME
+      configRef: opstool.keyVault.name
+    - name: CLIENT_ID_NAME
+      configRef: opstool.cihealthAuth.authProxy.clientIdKeyVaultSecretName
+    - name: CLIENT_SECRET_NAME
+      configRef: opstool.cihealthAuth.authProxy.clientSecretKeyVaultSecretName
+    - name: COOKIE_SECRET_NAME
+      configRef: opstool.cihealthAuth.authProxy.cookieSecretKeyVaultSecretName
+    - name: POSTGRES_USERNAME_SECRET_NAME
+      configRef: opstool.cihealthAuth.postgres.usernameKeyVaultSecretName
+    - name: POSTGRES_PASSWORD_SECRET_NAME
+      configRef: opstool.cihealthAuth.postgres.passwordKeyVaultSecretName
+    - name: POSTGRES_DATABASE_SECRET_NAME
+      configRef: opstool.cihealthAuth.postgres.databaseKeyVaultSecretName
+    dependsOn:
+    - resourceGroup: opstool
+      step: output
+    - resourceGroup: global
+      step: global-identity
+    automatedRetry:
+      errorContainsAny:
+      - "Forbidden"
+      - "does not have secrets get permission"
+      - "does not have secrets set permission"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: auth-client-id-output
+    action: ARM
+    template: ../../templates/output-keyvault-secret.bicep
+    parameters: ../../configurations/cihealth-auth-client-id-output.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: opstool
+      step: sync-auth-secrets
+  - name: auth-client-secret-output
+    action: ARM
+    template: ../../templates/output-keyvault-secret.bicep
+    parameters: ../../configurations/cihealth-auth-client-secret-output.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: opstool
+      step: sync-auth-secrets
+  - name: auth-cookie-secret-output
+    action: ARM
+    template: ../../templates/output-keyvault-secret.bicep
+    parameters: ../../configurations/cihealth-auth-cookie-secret-output.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: opstool
+      step: sync-auth-secrets
   - name: deploy
     aksCluster: '{{ .opstool.aks.name }}'
     action: Helm
@@ -51,3 +120,70 @@ resourceGroups:
       resourceGroup: opstool
       step: output
       name: cihealthUAMIId
+  - name: deploy-auth
+    aksCluster: '{{ .opstool.aks.name }}'
+    action: Helm
+    releaseName: 'cihealth-auth'
+    releaseNamespace: 'cihealth-auth'
+    namespaceFiles:
+    - namespace-auth.yaml
+    chartDir: deploy
+    valuesFile: ./values-auth.yaml.tmpl
+    kustoEndpoint:
+      resourceGroup: opstool
+      step: output
+      name: kustoUri
+    kustoDatabase: ''
+    kustoTable: ''
+    inputVariables:
+      cihealthAuthUAMIClientId:
+        resourceGroup: opstool
+        step: output
+        name: cihealthAuthUAMIClientId
+      cihealthAuthClientIdVersion:
+        resourceGroup: opstool
+        step: auth-client-id-output
+        name: version
+      cihealthAuthClientSecretVersion:
+        resourceGroup: opstool
+        step: auth-client-secret-output
+        name: version
+      cihealthAuthCookieSecretVersion:
+        resourceGroup: opstool
+        step: auth-cookie-secret-output
+        name: version
+      workloadKVName:
+        resourceGroup: opstool
+        step: output
+        name: workloadKVName
+      tenantId:
+        resourceGroup: opstool
+        step: output
+        name: tenantId
+    dependsOn:
+    - resourceGroup: opstool
+      step: output
+    - resourceGroup: opstool
+      step: auth-client-id-output
+    - resourceGroup: opstool
+      step: auth-client-secret-output
+    - resourceGroup: opstool
+      step: auth-cookie-secret-output
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Gateway
+      resourceGroup: opstool
+      step: deploy
+    identityFrom:
+      resourceGroup: opstool
+      step: output
+      name: cihealthAuthUAMIId
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: global-identity
+    action: ARM
+    template: ../../templates/output-opstool-global-identity.bicep
+    parameters: ../../configurations/output-opstool-global-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true

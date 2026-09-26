@@ -1,5 +1,6 @@
 using '../templates/opstool-cluster.bicep'
 
+param globalMSIId = '__globalMSIId__'
 param kubernetesVersion = '{{ .opstool.aks.kubernetesVersion }}'
 param vnetAddressPrefix = '{{ .opstool.aks.vnetAddressPrefix }}'
 param subnetPrefix = '{{ .opstool.aks.subnetPrefix }}'
