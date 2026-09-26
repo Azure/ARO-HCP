@@ -151,6 +151,32 @@ func IsAPINotDeployedError(err error) bool {
 		strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound")
 }
 
+func IsFeatureNotDeployedError(err error, omittedField string) bool {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) || respErr == nil || respErr.StatusCode != http.StatusBadRequest || omittedField == "" {
+		return false
+	}
+	if respErr.RawResponse != nil && respErr.RawResponse.Body != nil {
+		body := respErr.RawResponse.Body
+		bodyBytes, readErr := io.ReadAll(body)
+		body.Close()
+		if readErr == nil {
+			respErr.RawResponse.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+			var payload struct {
+				Error struct {
+					Code   string `json:"code"`
+					Target string `json:"target"`
+				} `json:"error"`
+			}
+			if json.Unmarshal(bodyBytes, &payload) == nil {
+				return payload.Error.Code == "InvalidRequestContent" && strings.EqualFold(payload.Error.Target, omittedField)
+			}
+		}
+	}
+	message := strings.ToLower(respErr.Error())
+	return strings.Contains(message, "invalidrequestcontent") && strings.Contains(message, strings.ToLower(omittedField))
+}
+
 type NonConformingClustersError struct {
 	clusters []string
 }
