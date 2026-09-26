@@ -22,6 +22,8 @@ import (
 	"regexp"
 	"strings"
 
+	"k8s.io/client-go/tools/cache"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -60,6 +62,8 @@ type IntegrationTestInfo struct {
 
 	FrontendURL      string
 	Frontend         *frontend.Frontend
+	ClusterInformer  cache.SharedIndexInformer
+	NodePoolInformer cache.SharedIndexInformer
 	AdminURL         string
 	AdminAPI         *server.AdminAPI
 	adminAPIListener net.Listener

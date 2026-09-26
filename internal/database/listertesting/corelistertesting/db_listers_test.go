@@ -16,6 +16,7 @@ package corelistertesting
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,43 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 )
+
+func TestClusterListersListForSubscription(t *testing.T) {
+	ctx := t.Context()
+	const subscriptionID = "AbCdEf01-2345-6789-abcd-0123456789ab"
+	clusters := []*coreapi.Cluster{
+		newTestCluster(subscriptionID, "rg-one", "cluster-one"),
+		newTestCluster(strings.ToLower(subscriptionID), "rg-two", "cluster-two"),
+		newTestCluster(testSubscriptionID2, "rg-one", "cluster-one"),
+	}
+	db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{clusters[0], clusters[1], clusters[2]})
+	require.NoError(t, err)
+	for name, lister := range map[string]corelisters.ClusterLister{
+		"db":    &DBClusterLister{ResourcesDBClient: db},
+		"slice": &SliceClusterLister{Clusters: append(clusters, &coreapi.Cluster{})},
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, subscription := range []string{subscriptionID, strings.ToLower(subscriptionID), strings.ToUpper(subscriptionID)} {
+				result, err := lister.ListForSubscription(ctx, subscription)
+				require.NoError(t, err)
+				var ids []string
+				for _, cluster := range result {
+					ids = append(ids, cluster.ID.String())
+				}
+				require.ElementsMatch(t, []string{clusters[0].ID.String(), clusters[1].ID.String()}, ids)
+			}
+			result, err := lister.ListForSubscription(ctx, testSubscriptionID2)
+			require.NoError(t, err)
+			require.Len(t, result, 1)
+			require.Equal(t, clusters[2].ID.String(), result[0].ID.String())
+			result, err = lister.ListForSubscription(ctx, "missing-subscription")
+			require.NoError(t, err)
+			require.Empty(t, result)
+		})
+	}
+}
 
 func TestDBClusterLister(t *testing.T) {
 	ctx := context.Background()

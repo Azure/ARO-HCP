@@ -6,6 +6,9 @@ It maps their inputs, decisions and effects across Cosmos DB, Azure, Cluster Ser
 and Kubernetes. Source baseline: `7997fa34a240560a792c3dd410396cd7651a9f39`.
 Targeted update baseline: `4c1bf7d74e714d2ce24a8175a0d4846cc78d7113`;
 scope: ContainerRegistry pull-credential validation controller for ARO-24037.
+Frontend admission-cache update baseline: `d9a1b9a4e2bf2298763bf7e1924f117678bdc2ba`
+plus working-tree changes; scope: two frontend admission informers, startup sync,
+cached admission inventories and the three affected lifecycle views.
 
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
@@ -109,6 +112,52 @@ metadata helpers live under [metadataapihelpers](../internal/apihelpers/metadata
 [fleetapihelpers](../internal/apihelpers/fleetapihelpers/) and
 [kubeapplierapihelpers](../internal/apihelpers/kubeapplierapihelpers/).
 The helper-package move does not change endpoint ownership or transactional boundaries.
+
+### Admission Caches and Startup
+
+The frontend owns exactly two read-only, in-memory admission caches backed by the
+**Resources** container: `Clusters` (`Cluster`) and `NodePools`
+(`NodePool`). [Command wiring](../frontend/cmd/cmd.go) constructs
+the individual [core informers](../internal/database/informers/coreinformers/informers.go),
+not the backend informer bundle. They use initial global lists, Cosmos changefeed
+updates and periodic relists (30-minute default); the one-hour informer resync is
+not a live database refresh. Cluster subscription lookup uses a lower-cased
+subscription index across resource groups; node-pool inventory uses the owning
+cluster index. Cached objects are read-only inputs, not mutation targets.
+
+[`Frontend.Run`](../frontend/pkg/frontend/frontend.go) starts both informers and
+the metrics server, then waits for **both** `HasSynced` functions through
+`cache.WaitForNamedCacheSyncWithContext` before serving the API. Aborted warmup
+returns an error without serving API requests; shutdown cancels and joins the
+informer/server goroutines and closes listeners, including an unserved API listener.
+This uses the same client-go sync helper as
+[#7142](https://github.com/Azure/ARO-HCP/pull/7142), but does not depend on that PR
+or its backend/fleet aggregate `HasSynced` interfaces.
+
+| Admission consumer | Cached inventory | Live inputs / effects retained |
+|---|---|---|
+| Cluster PUT create and deployment preflight | `newClusterAdmissionContext` lists clusters in the request subscription, then node pools under those cached clusters. [Collision checks](../internal/admission/admit_cluster.go) use these inventories for managed-resource-group name, subnet and NSG reuse. | Subscription and request-target existence reads remain live. Preflight does not persist resources. |
+| Cluster PUT/PATCH update | The same [context builder](../frontend/pkg/frontend/cluster.go) lists the cluster's node pools for version-skew admission. | Target cluster and `ServiceProviderCluster` remain live; each `ServiceProviderNodePool` is fetched live. Missing provider records may be initialized through the existing GetOrCreate helpers, separately from the resource/operation transaction. |
+| Explicit node-pool DELETE | [DeleteNodePool](../frontend/pkg/frontend/node_pool.go) lists sibling pools for the [best-effort last-pool check](../internal/admission/admit_nodepool.go), which rejects inventories of at most one pool. | The target node pool, provisioning-state conflict checks and operation handling remain live; the delete transaction is unchanged. |
+
+On cluster update, a missing `ServiceProviderNodePool` triggers a live GET of its
+parent **node-pool resource** before
+[`GetOrCreateServiceProviderNodePool`](../internal/database/cosmosstorage/corecosmosstorage/service_provider_nodepool.go).
+If that parent is also NotFound, the stale cached pool is skipped rather than
+recreating provider state for an already-gone pool. If present, the live node pool
+is used with the provider record; other read errors fail admission. This recheck
+does not make the reads and possible provider creation atomic.
+
+These inventories are **best effort and eventually consistent**, not uniqueness
+locks or a consistent snapshot across the two caches and live provider reads.
+Initial sync prevents admission against cold caches; it imposes **no ongoing
+freshness limit** or request-time freshness gate. Cache lag and concurrent requests
+can miss conflicts or temporarily reject valid requests. All other frontend reads
+remain live, including ordinary GET/LIST responses, subscriptions, target-resource
+and existence checks, service-provider documents, operations, credentials, and
+cluster/subscription cascade-deletion inventories. The frontend still obtains
+management-cluster observations only through backend-mirrored service-provider
+state, never through management-cluster or kube-applier access.
 
 ### Read-Only Create Fields
 
@@ -360,6 +409,8 @@ controllers remain in the inventory. External operators are boundaries, not coun
 as in-repo controllers. Generic watching/operation wrappers, HTTP servers, informer
 factories, leader election and Prometheus collectors are infrastructure rather than
 additional business controllers.
+The two [frontend admission informers](#admission-caches-and-startup) are likewise
+infrastructure, not additional controller catalog entries.
 
 ### Registration and trigger conventions
 
@@ -1294,6 +1345,8 @@ bash docs/diagrams/controller-flows/render.sh
 
 ![Cluster create controller digraph](diagrams/controller-flows/cluster-create.png)
 
+[Frontend create admission](../frontend/pkg/frontend/cluster.go) uses cached subscription clusters and their node pools for best-effort collision checks; [deployment preflight](../frontend/pkg/frontend/frontend.go) uses the same context without the create write. Both caches must initially sync before API serving, but [ongoing freshness is not bounded](#admission-caches-and-startup).
+
 The prerequisites panel separates selected `Spec.ManagementClusterResourceID` from observed placement. The [create controller](../backend/pkg/controllers/cluster/creation/cluster_cluster_service_create_controller.go) requires pending ID, desired version, selected provision shard and, when enabled, the deny-assignment state (no pending entries, a nonempty confirmed list and `EarliestRecheckTime` set). [Placement](../backend/pkg/controllers/cluster/placement/placement_controller.go) supplies the pre-create target; actual placement is learned after Cluster Service creation.
 
 ### Cluster create: fleet readiness and placement
@@ -1334,6 +1387,8 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 ![Cluster update controller digraph](diagrams/controller-flows/cluster-update.png)
 
+[Frontend update admission](../frontend/pkg/frontend/cluster.go) combines cached node-pool inventory with live target and service-provider reads. A missing provider node-pool document requires a live parent node-pool recheck before GetOrCreate; a gone parent is skipped. These [admission inputs remain best effort](#admission-caches-and-startup), not an atomic snapshot.
+
 [Desired-version selection](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes and validation observations. Validation failures lasting at least five minutes also fail the operation with `InvalidResource` once the operation is at least five minutes old; sizing, identities and backup maintenance continue independently.
 
 ### Cluster delete
@@ -1367,6 +1422,8 @@ The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controll
 [Full PNG](diagrams/controller-flows/nodepool-delete.png) · [Graphviz source](diagrams/controller-flows/nodepool-delete.dot)
 
 ![Node pool delete controller digraph](diagrams/controller-flows/nodepool-delete.png)
+
+[Explicit frontend DELETE](../frontend/pkg/frontend/node_pool.go) checks the cached sibling-pool inventory for best-effort last-pool protection before writing deletion intent. Target and operation reads remain live. [Cache lag and concurrent deletes](#admission-caches-and-startup) can still defeat this check; cluster/subscription cascade deletion continues to use live inventories and does not run this explicit-delete admission check.
 
 [Node-pool delete dispatch](../backend/pkg/controllers/nodepool/deletion/node_pool_cluster_service_delete_dispatch_controller.go) does not wait for ApplyDesire cleanup. [Child cleanup](../backend/pkg/controllers/nodepool/deletion/node_pool_child_resources_cleanup_controller.go) removes its subtree and desires after the ID is cleared. ClusterResources stops publishing a deleting node pool, while external controllers may still be converging.
 

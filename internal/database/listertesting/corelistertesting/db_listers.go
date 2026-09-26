@@ -40,6 +40,14 @@ func (l *DBClusterLister) List(ctx context.Context) ([]*coreapi.Cluster, error) 
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
+func (l *DBClusterLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*coreapi.Cluster, error) {
+	iter, err := l.ResourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return listertestingutils.CollectFromIterator(ctx, iter)
+}
+
 func (l *DBClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.Cluster, error) {
 	return l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, clusterName)
 }

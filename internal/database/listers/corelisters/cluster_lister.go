@@ -16,6 +16,7 @@ package corelisters
 
 import (
 	"context"
+	"strings"
 
 	"k8s.io/client-go/tools/cache"
 
@@ -27,6 +28,7 @@ import (
 // ClusterLister lists and gets Clusters from an informer's indexer.
 type ClusterLister interface {
 	List(ctx context.Context) ([]*coreapi.Cluster, error)
+	ListForSubscription(ctx context.Context, subscriptionID string) ([]*coreapi.Cluster, error)
 	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.Cluster, error)
 	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.Cluster, error)
 }
@@ -45,6 +47,11 @@ func NewClusterLister(indexer cache.Indexer) ClusterLister {
 
 func (l *clusterLister) List(ctx context.Context) ([]*coreapi.Cluster, error) {
 	return listerutils.ListAll[coreapi.Cluster](l.indexer)
+}
+
+// ListForSubscription lists clusters across all resource groups in a subscription.
+func (l *clusterLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*coreapi.Cluster, error) {
+	return listerutils.ListFromIndex[coreapi.Cluster](l.indexer, BySubscription, strings.ToLower(subscriptionID))
 }
 
 // Get retrieves a single Cluster by subscription ID, resource group name, and cluster name.

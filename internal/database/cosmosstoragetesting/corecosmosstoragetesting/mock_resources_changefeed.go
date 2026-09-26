@@ -15,10 +15,12 @@
 package corecosmosstoragetesting
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -33,10 +35,15 @@ import (
 // as Replace operations) ARE recorded via StoreDocument.
 type MockChangeFeed struct {
 	mu     sync.Mutex
-	events [][]byte
+	events []mockChangeFeedEvent
 }
 
-// record appends a copy of data to the log. The copy isolates the
+type mockChangeFeedEvent struct {
+	recordedAt time.Time
+	data       []byte
+}
+
+// Record appends a copy of data to the log. The copy isolates the
 // feed's history from any caller-side mutation of the underlying
 // byte slice.
 func (m *MockChangeFeed) Record(data []byte) {
@@ -44,25 +51,39 @@ func (m *MockChangeFeed) Record(data []byte) {
 	defer m.mu.Unlock()
 	cp := make([]byte, len(data))
 	copy(cp, data)
-	m.events = append(m.events, cp)
+	m.events = append(m.events, mockChangeFeedEvent{recordedAt: time.Now(), data: cp})
 }
 
-// read returns events starting at the position encoded in continuation
-// (0 if blank/unparseable) and the next position token to hand back
-// to the consumer. hasNew tells the caller whether to report 200 OK
-// or 304 Not Modified upstream.
-func (m *MockChangeFeed) Read(continuation string) (items [][]byte, nextToken string, hasNew bool) {
-	start := decodeMockChangeFeedPosition(continuation)
-
+// Read resumes from Continuation, or starts at StartFrom when no continuation
+// is supplied. With neither option it reads from the beginning. hasNew tells
+// the caller whether to report 200 OK or 304 Not Modified upstream.
+func (m *MockChangeFeed) Read(options *azcosmos.ChangeFeedOptions) (items [][]byte, nextToken string, hasNew bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	start := 0
+	if options != nil {
+		switch {
+		case options.Continuation != nil && *options.Continuation != "":
+			start = decodeMockChangeFeedPosition(*options.Continuation)
+		case options.StartFrom != nil:
+			// The SDK serializes StartFrom as an RFC1123 header (whole seconds).
+			// Use the write time, not fixture _ts metadata, which may be historical.
+			startFrom := options.StartFrom.Truncate(time.Second)
+			for start < len(m.events) && m.events[start].recordedAt.Before(startFrom) {
+				start++
+			}
+		}
+	}
 
 	if start >= len(m.events) {
 		return nil, strconv.Itoa(start), false
 	}
 
 	out := make([][]byte, len(m.events)-start)
-	copy(out, m.events[start:])
+	for i, event := range m.events[start:] {
+		out[i] = bytes.Clone(event.data)
+	}
 	return out, strconv.Itoa(len(m.events)), true
 }
 
