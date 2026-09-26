@@ -142,8 +142,8 @@ spec:
           protocol: TCP
         resources:
           requests:
-            cpu: 100m
-            memory: 512Mi
+            cpu: 20m
+            memory: 30Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

@@ -1,5 +1,6 @@
 prometheusRules:
   rulesFolders:
+  - alerts/mgmt-capacity-prometheusRule.yaml
   - alerts/prometheus-prometheusRule.yaml
   - alerts/metrics-proxy-prometheusRule.yaml
   - ../frontend/alerts/frontend-prometheusRule.yaml

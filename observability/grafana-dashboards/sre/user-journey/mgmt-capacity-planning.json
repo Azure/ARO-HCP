@@ -40,7 +40,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Management Cluster Capacity Planning\n\nWeekly capacity review dashboard for management clusters. Shows HCP density, resource commitment ratios, and actual utilization for all MGMT clusters in a region.\n\n**Sections:**\n- **HCP Density** — current HCP count, % of 60-HCP ceiling, 7-day trend\n- **Node Resource Commitment** — CPU/memory commitment ratios (SVC + HCP combined), node counts\n- **Resource Utilization** — actual CPU/memory usage vs allocatable, top nodes\n\n**Datasources:**\n- **SVC AMW** (`Managed_Prometheus_services-*`) — node metrics, resource requests, allocatable capacity.\n- **HCP AMW** (`Managed_Prometheus_hcps-*`) — HCP density panels and HCP resource requests (ocm-* namespace metrics are routed here).\n\n**Notes:**\n- The 60-HCP-per-MGMT-cluster ceiling comes from ClusterSizingConfiguration.\n- HCP count = count of distinct `ocm-*` namespaces (via `kube_pod_info`).\n- Commitment ratios combine requests from both SVC and HCP workloads via SSE expressions.\n- Select \"All\" in the Cluster dropdown to compare all MGMT clusters in the region.",
+        "content": "### Management Cluster Capacity Planning\n\nWeekly capacity review dashboard for management clusters. Shows HCP density, resource commitment ratios, and actual utilization for all MGMT clusters in a region.\n\n**Sections:**\n- **HCP Density** — current HCP count, % of 60-HCP ceiling, 7-day trend\n- **Node Resource Commitment** — CPU/memory commitment ratios (all workloads), node counts\n- **Resource Utilization** — actual CPU/memory usage vs allocatable, top nodes\n\n**Datasources:**\n- **SVC AMW** (`Managed_Prometheus_services-*`) — node metrics, HCP density, resource requests for all namespaces, and allocatable capacity. All management kube-state-metrics are routed here.\n\n**Notes:**\n- The 60-HCP-per-MGMT-cluster ceiling comes from ClusterSizingConfiguration.\n- HCP count = count of distinct `ocm-*` namespaces (via `kube_pod_info`).\n- Commitment ratios count all workload requests once from SVC AMW.\n- Select \"All\" in the Cluster dropdown to compare all MGMT clusters in the region.",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -63,7 +63,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${hcp_datasource}"
+        "uid": "${datasource}"
       },
       "description": "Current number of HCP clusters (ocm-* namespaces) per MGMT cluster",
       "fieldConfig": {
@@ -122,7 +122,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${hcp_datasource}"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
           "expr": "count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"ocm-.*\"})) by (cluster)",
@@ -138,7 +138,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${hcp_datasource}"
+        "uid": "${datasource}"
       },
       "description": "HCP count as percentage of the 60-HCP ceiling per MGMT cluster",
       "fieldConfig": {
@@ -197,7 +197,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${hcp_datasource}"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
           "expr": "(count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"ocm-.*\"})) by (cluster) / 60) * 100",
@@ -213,7 +213,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${hcp_datasource}"
+        "uid": "${datasource}"
       },
       "description": "HCP count trend over 7 days per MGMT cluster",
       "fieldConfig": {
@@ -304,7 +304,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${hcp_datasource}"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
           "expr": "count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"ocm-.*\"})) by (cluster)",
@@ -404,19 +404,6 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${hcp_datasource}"
-          },
-          "editorMode": "code",
-          "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\", cluster=~\"$cluster\"}) by (cluster)",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{cluster}}",
-          "refId": "hcp_cpu_req",
-          "hide": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
             "uid": "${datasource}"
           },
           "editorMode": "code",
@@ -432,7 +419,7 @@
             "type": "__expr__",
             "uid": "__expr__"
           },
-          "expression": "($svc_cpu_req + $hcp_cpu_req) / $cpu_alloc * 100",
+          "expression": "$svc_cpu_req / $cpu_alloc * 100",
           "type": "math",
           "refId": "D"
         }
@@ -515,19 +502,6 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${hcp_datasource}"
-          },
-          "editorMode": "code",
-          "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\", cluster=~\"$cluster\"}) by (cluster)",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{cluster}}",
-          "refId": "hcp_mem_req",
-          "hide": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
             "uid": "${datasource}"
           },
           "editorMode": "code",
@@ -543,7 +517,7 @@
             "type": "__expr__",
             "uid": "__expr__"
           },
-          "expression": "($svc_mem_req + $hcp_mem_req) / $mem_alloc * 100",
+          "expression": "$svc_mem_req / $mem_alloc * 100",
           "type": "math",
           "refId": "D"
         }
@@ -1125,20 +1099,6 @@
         "queryValue": "",
         "refresh": 1,
         "regex": "^Managed_Prometheus_services-.*$",
-        "skipUrlSync": false,
-        "type": "datasource"
-      },
-      {
-        "current": {},
-        "hide": 0,
-        "includeAll": false,
-        "label": "HCP Datasource",
-        "name": "hcp_datasource",
-        "options": [],
-        "query": "prometheus",
-        "queryValue": "",
-        "refresh": 1,
-        "regex": "^Managed_Prometheus_hcps-.*$",
         "skipUrlSync": false,
         "type": "datasource"
       },

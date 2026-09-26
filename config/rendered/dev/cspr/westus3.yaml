@@ -58,8 +58,8 @@ adminApi:
       limits:
         memory: unlimited
       requests:
-        cpu: 200m
-        memory: 512Mi
+        cpu: 10m
+        memory: 30Mi
     serviceAccountName: admin-api
   managedIdentityName: admin-api
 administration:
@@ -89,8 +89,8 @@ arobit:
       limits:
         memory: 1248Mi
       requests:
-        cpu: 450m
-        memory: 472Mi
+        cpu: 970m
+        memory: 380Mi
   kusto:
     buffering: true
     enabled: true
@@ -131,8 +131,8 @@ backend:
       limits:
         memory: unlimited
       requests:
-        cpu: 700m
-        memory: 1Gi
+        cpu: 1020m
+        memory: 400Mi
     serviceAccountName: backend
   logVerbosity: 4
   maestro:
@@ -198,8 +198,8 @@ clustersService:
       limits:
         memory: unlimited
       requests:
-        cpu: 630m
-        memory: 150Mi
+        cpu: 560m
+        memory: 170Mi
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
   postgres:
@@ -237,8 +237,8 @@ customExporter:
       limits:
         memory: unlimited
       requests:
-        cpu: 100m
-        memory: 128Mi
+        cpu: 10m
+        memory: 20Mi
     serviceAccountName: aro-hcp-exporter
   managedIdentityName: aro-hcp-exporter
 cxKeyVault:
@@ -288,8 +288,8 @@ fleet:
       limits:
         memory: 1Gi
       requests:
-        cpu: 200m
-        memory: 512Mi
+        cpu: 80m
+        memory: 60Mi
     serviceAccountName: fleet
   managedIdentityName: fleet
   nodePoolPlanning:
@@ -328,8 +328,8 @@ frontend:
       limits:
         memory: unlimited
       requests:
-        cpu: 100m
-        memory: 512Mi
+        cpu: 20m
+        memory: 30Mi
     serviceAccountName: frontend
   logVerbosity: 0
   managedIdentityName: frontend
@@ -529,7 +529,7 @@ kubeApplier:
         memory: unlimited
       requests:
         cpu: 231m
-        memory: 224Mi
+        memory: 190Mi
     serviceAccountName: kube-applier
   managedIdentityName: kube-applier
   partitionKey: /providers/microsoft.redhatopenshift/stamps/1/managementclusters/default
@@ -545,8 +545,8 @@ kubeEvents:
       limits:
         memory: unlimited
       requests:
-        cpu: 200m
-        memory: 512Mi
+        cpu: 110m
+        memory: 70Mi
     serviceAccountName: ke-serviceaccount
 kusto:
   adminGroups: ""
@@ -630,8 +630,8 @@ maestro:
         limits:
           memory: unlimited
         requests:
-          cpu: 200m
-          memory: 512Mi
+          cpu: 150m
+          memory: 60Mi
       serviceAccountName: maestro
     loglevel: 2
     managedIdentityName: maestro-server
@@ -788,8 +788,8 @@ mgmtAgent:
     replicas: 2
     resources:
       requests:
-        cpu: 313m
-        memory: 768Mi
+        cpu: 390m
+        memory: 470Mi
     serviceAccountName: mgmt-agent
   managedIdentityName: mgmt-agent
   nodeHealth:
@@ -997,8 +997,8 @@ sessiongate:
     replicas: 2
     resources:
       requests:
-        cpu: 250m
-        memory: 512Mi
+        cpu: 10m
+        memory: 30Mi
     serviceAccountName: sessiongate
   managedIdentityName: sessiongate
 stgGlobalV2:

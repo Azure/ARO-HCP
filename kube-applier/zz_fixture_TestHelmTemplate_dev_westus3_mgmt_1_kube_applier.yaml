@@ -328,7 +328,7 @@ spec:
         resources:
           requests:
             cpu: 231m
-            memory: 224Mi
+            memory: 190Mi
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
 ---

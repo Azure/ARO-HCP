@@ -47,7 +47,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${datasource_svc}"
       },
       "description": "SLA error budget burn rate based on KSM KAS availability condition. Values above 14.4x consume the 30-day budget in 2 days; above 6x in 5 days.",
       "fieldConfig": {
@@ -148,7 +148,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${datasource_svc}"
           },
           "expr": "(\n  1 - (\n    hostedClusterAPI_kubeapiserver_available:sli_sum_15m{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n    /\n    hostedClusterAPI_kubeapiserver_available:sli_count_15m{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n  )\n) / (1 - 0.9995)",
           "legendFormat": "15m: {{ name }}",
@@ -157,7 +157,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${datasource_svc}"
           },
           "expr": "(\n  1 - (\n    hostedClusterAPI_kubeapiserver_available:sli_sum_6h{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n    /\n    hostedClusterAPI_kubeapiserver_available:sli_count_6h{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n  )\n) / (1 - 0.9995)",
           "legendFormat": "6h: {{ name }}",
@@ -166,7 +166,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${datasource_svc}"
           },
           "expr": "14.4",
           "legendFormat": "Page Threshold (1h)",
@@ -176,7 +176,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${datasource_svc}"
           },
           "expr": "6",
           "legendFormat": "Page Threshold (6h)",
@@ -1881,6 +1881,21 @@
       },
       {
         "current": {},
+        "hide": 0,
+        "includeAll": true,
+        "label": "Services Data Source",
+        "multi": false,
+        "name": "datasource_svc",
+        "options": [],
+        "query": "prometheus",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_services-.*$",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "current": {},
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
@@ -1907,7 +1922,7 @@
         "current": {},
         "datasource": {
           "type": "prometheus",
-          "uid": "${datasource}"
+          "uid": "${datasource_svc}"
         },
         "definition": "label_values(hostedClusterAPI_kubeapiserver_available{cluster=~\"$cluster\"},namespace)",
         "hide": 0,

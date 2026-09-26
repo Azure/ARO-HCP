@@ -233,7 +233,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "$ds_hcps"
+        "uid": "$ds_services"
       },
       "description": "KAS availability from KSM condition probe",
       "fieldConfig": {
@@ -282,7 +282,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$ds_hcps"
+            "uid": "$ds_services"
           },
           "editorMode": "code",
           "expr": "hostedClusterAPI_kubeapiserver_available:ratio_avg_7d{namespace=~\"$namespace\"}",
@@ -439,7 +439,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "$ds_hcps"
+        "uid": "$ds_services"
       },
       "description": "KAS availability over time from KSM condition",
       "fieldConfig": {
@@ -505,7 +505,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$ds_hcps"
+            "uid": "$ds_services"
           },
           "editorMode": "code",
           "expr": "hostedClusterAPI_kubeapiserver_available:sli_sum_15m{namespace=~\"$namespace\"} / hostedClusterAPI_kubeapiserver_available:sli_count_15m{namespace=~\"$namespace\"}",
@@ -1490,7 +1490,7 @@
         "current": {},
         "datasource": {
           "type": "prometheus",
-          "uid": "$ds_hcps"
+          "uid": "$ds_services"
         },
         "definition": "label_values(hostedClusterAPI_kubeapiserver_available, namespace)",
         "hide": 0,
