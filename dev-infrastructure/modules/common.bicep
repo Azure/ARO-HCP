@@ -432,6 +432,17 @@ func determineZoneRedundancyForRegion(region string, mode string) bool =>
 func determineZoneRedundancy(availabilityZones array, mode string) bool =>
   mode == 'Auto' ? length(availabilityZones) > 0 : mode == 'Enabled' && length(availabilityZones) > 0
 
+// Resolves the Postgres Flexible Server highAvailability.mode. Returns '' when HA
+// is Unmanaged, signalling the caller to omit the highAvailability block so an
+// external actor (the postgres-ha migration script) owns HA during a
+// SameZone<->ZoneRedundant migration; otherwise resolves the region-aware
+// ZoneRedundant/SameZone value from zoneRedundantMode.
+@export()
+func determinePostgresHAMode(region string, zoneRedundantMode string, highAvailabilityMode string) string =>
+  highAvailabilityMode == 'Unmanaged'
+    ? ''
+    : (determineZoneRedundancyForRegion(region, zoneRedundantMode) ? 'ZoneRedundant' : 'SameZone')
+
 @export()
 func generateZoneList(count int) array => count > 0 ? map(range(1, count), i => string(i)) : []
 

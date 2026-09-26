@@ -1,7 +1,7 @@
 import {
   csvToArray
   determineZoneRedundancy
-  determineZoneRedundancyForRegion
+  determinePostgresHAMode
   getLocationAvailabilityZonesCSV
 } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
@@ -174,6 +174,9 @@ param csPostgresDeploy bool
 @description('The zone redundant mode of the Maestro Postgres Database')
 param csPostgresZoneRedundantMode string
 
+@description('When Unmanaged, bicep omits the CS Postgres highAvailability block so the postgres-ha migration script owns HA; empty (default) lets bicep manage HA from csPostgresZoneRedundantMode')
+param csPostgresHAMode string = ''
+
 @description('The number of days to retain backups for the CS Postgres server')
 param csPostgresBackupRetentionDays int
 
@@ -210,6 +213,9 @@ param deployMaestroPostgres bool = true
 
 @description('The zone redundant mode of the Maestro Postgres Database')
 param maestroPostgresZoneRedundantMode string
+
+@description('When Unmanaged, bicep omits the Maestro Postgres highAvailability block so the postgres-ha migration script owns HA; empty (default) lets bicep manage HA from maestroPostgresZoneRedundantMode')
+param maestroPostgresHAMode string = ''
 
 @description('The number of days to retain backups for the Maestro Postgres server')
 param maestroPostgresBackupRetentionDays int
@@ -814,9 +820,11 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     postgresServerMinTLSVersion: maestroPostgresServerMinTLSVersion
     postgresServerStorageSizeGB: maestroPostgresServerStorageSizeGB
     postgresServerSku: maestroPostgresServerSku
-    postgresZoneRedundantMode: determineZoneRedundancyForRegion(location, maestroPostgresZoneRedundantMode)
-      ? 'ZoneRedundant'
-      : 'SameZone'
+    postgresZoneRedundantMode: determinePostgresHAMode(
+      location,
+      maestroPostgresZoneRedundantMode,
+      maestroPostgresHAMode
+    )
     postgresBackupRetentionDays: maestroPostgresBackupRetentionDays
     postgresGeoRedundantBackup: maestroPostgresGeoRedundantBackup
     privateEndpointSubnetId: nodeSubnetCreation.outputs.subnetId
@@ -856,9 +864,7 @@ module cs '../modules/cluster-service.bicep' = {
     privateEndpointVnetId: vnetCreation.outputs.vnetId
     privateEndpointResourceGroup: resourceGroup().name
     deployPostgres: csPostgresDeploy
-    postgresZoneRedundantMode: determineZoneRedundancyForRegion(location, csPostgresZoneRedundantMode)
-      ? 'ZoneRedundant'
-      : 'SameZone'
+    postgresZoneRedundantMode: determinePostgresHAMode(location, csPostgresZoneRedundantMode, csPostgresHAMode)
     postgresBackupRetentionDays: csPostgresBackupRetentionDays
     postgresGeoRedundantBackup: csPostgresGeoRedundantBackup
     postgresServerPrivate: clusterServicePostgresPrivate

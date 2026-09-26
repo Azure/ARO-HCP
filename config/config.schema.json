@@ -1004,6 +1004,14 @@
         "zoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
         },
+        "highAvailabilityMode": {
+          "type": "string",
+          "description": "Controls whether bicep manages the PostgreSQL highAvailability block. Empty string (default) lets bicep set the mode from zoneRedundantMode. 'Unmanaged' makes bicep omit the block so an external actor (the postgres-ha migration script) owns HA during a SameZone<->ZoneRedundant migration.",
+          "enum": [
+            "",
+            "Unmanaged"
+          ]
+        },
         "backupRetentionDays": {
           "type": "integer",
           "description": "Number of days to retain backups for the PostgreSQL server."
@@ -1040,6 +1048,7 @@
         "minTLSVersion",
         "databaseName",
         "zoneRedundantMode",
+        "highAvailabilityMode",
         "backupRetentionDays",
         "geoRedundantBackup"
       ]

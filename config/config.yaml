@@ -1099,6 +1099,7 @@ defaults:
       minTLSVersion: 'TLSV1.2'
       databaseName: maestro
       zoneRedundantMode: 'Auto'
+      highAvailabilityMode: ''
       backupRetentionDays: 7
       geoRedundantBackup: false
       enhancedMetricsEnabled: false
@@ -1155,6 +1156,7 @@ defaults:
       serverStorageSizeGB: 128
       databaseName: clusters-service
       zoneRedundantMode: 'Auto'
+      highAvailabilityMode: ''
       backupRetentionDays: 7
       geoRedundantBackup: false
       enhancedMetricsEnabled: false
