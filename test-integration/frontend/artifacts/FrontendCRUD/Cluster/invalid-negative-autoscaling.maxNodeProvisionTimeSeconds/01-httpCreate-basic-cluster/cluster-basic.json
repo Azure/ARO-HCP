@@ -23,9 +23,10 @@
 					"kms": {
 						"activeKey": {
 							"name": "encryptionKeyName",
-							"vaultName": "keyVaultName",
 							"version": "2024-12-01-preview"
-						}
+						},
+						"vaultName": "keyVaultName",
+						"visibility": "Public"
 					}
 				},
 				"keyManagementMode": "CustomerManaged"
@@ -42,7 +43,8 @@
 			"managedResourceGroup": "managed-resource-group-name",
 			"networkSecurityGroupId": "/subscriptions/85176f51-8b54-4150-b6b5-b4ff5d007f5b/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
 			"outboundType": "LoadBalancer",
-			"subnetId": "/subscriptions/85176f51-8b54-4150-b6b5-b4ff5d007f5b/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+			"subnetId": "/subscriptions/85176f51-8b54-4150-b6b5-b4ff5d007f5b/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+			"vnetIntegrationSubnetId": "/subscriptions/85176f51-8b54-4150-b6b5-b4ff5d007f5b/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
 		},
 		"version": {
 			"channelGroup": "stable",

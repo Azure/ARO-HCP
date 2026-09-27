@@ -20,9 +20,10 @@
 					"kms": {
 						"activeKey": {
 							"name": "",
-							"vaultName": "",
 							"version": ""
-						}
+						},
+						"vaultName": "",
+						"visibility": "Public"
 					}
 				},
 				"keyManagementMode": "CustomerManaged"
@@ -51,7 +52,8 @@
 				}
 			},
 			"outboundType": "LoadBalancer",
-			"subnetId": ""
+			"subnetId": "",
+			"vnetIntegrationSubnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
 		},
 		"version": {
 			"channelGroup": "stable",

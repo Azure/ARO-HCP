@@ -19,11 +19,13 @@
 			"enableEncryptionAtHost": false,
 			"osDisk": {
 				"diskStorageAccountType": "Premium_LRS",
+				"diskType": "Managed",
 				"sizeGiB": 64
 			},
 			"vmSize": "Standard_D8s_v3"
 		},
 		"provisioningState": "Accepted",
+		"replicas": 0,
 		"taints": [
 			{
 				"effect": "NoExecute",

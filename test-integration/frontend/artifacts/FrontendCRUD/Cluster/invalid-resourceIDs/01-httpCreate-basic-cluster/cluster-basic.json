@@ -23,9 +23,10 @@
 					"kms": {
 						"activeKey": {
 							"name": "encryptionKeyName",
-							"vaultName": "keyVaultName",
 							"version": "2024-12-01-preview"
-						}
+						},
+						"vaultName": "keyVaultName",
+						"visibility": "Public"
 					}
 				},
 				"keyManagementMode": "CustomerManaged"
