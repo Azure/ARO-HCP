@@ -36,6 +36,13 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/validationmetrics"
 )
 
+func TestCheckAccessV2RateLimiterExperiment(t *testing.T) {
+	assert.EqualValues(t, 4.5*10, CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS, "nonproduction sustained rate must be 10x baseline")
+	assert.Equal(t, 1, CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst, "nonproduction burst must remain unchanged")
+	assert.Equal(t, 500, CheckAccessV2RealFPARateLimiterQPS, "production sustained rate must remain unchanged")
+	assert.Equal(t, 500, CheckAccessV2RealFPARateLimiterBurst, "production burst must remain unchanged")
+}
+
 func TestRateLimitedCheckAccessV2Client_CheckAccess(t *testing.T) {
 	fakeAuthRequest := checkaccessv2.AuthorizationRequest{
 		Actions: []checkaccessv2.ActionInfo{{Id: "Microsoft.Network/networkSecurityGroups/read"}},

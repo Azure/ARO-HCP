@@ -35,14 +35,12 @@ const (
 	CheckAccessV2RealFPARateLimiterBurst = 500
 
 	// CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS is the sustained request rate, in queries per second, allowed against the CheckAccessV2 API when calling it as the (insecure,
-	// non-production) ARMPermissionsManager identity, which has a documented limit of 25 requests per 5 seconds (25/5 = 5 QPS). A token bucket's worst-case admission over any 5-second span is
-	// CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst + QPS*5, so QPS is deliberately set below the nominal 5 (rather than exactly at it) to leave headroom under the 25-request limit:
-	// 1 (burst) + 4.5*5 = 23.5, a 1.5-request safety net below 25, instead of the 5-request overshoot (1 + 5*5 = 26) that using the nominal 5 QPS would allow.
-	CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS = 4.5
+	// non-production) ARMPermissionsManager identity. Experimental: 10x the baseline 4.5 QPS to probe the actual downstream limit with existing validation telemetry.
+	// This intentionally exceeds the documented quota of 25 requests per 5 seconds per tenant and may cause HTTP 429 responses, including for callers sharing the downstream quota.
+	CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS = 45
 
 	// CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst is the maximum number of CheckAccessV2 requests allowed to run back-to-back, under the ARMPermissionsManager identity's rate limit,
-	// before throttling starts. Kept at 1 (rather than the full 25-request window) so the token bucket's worst-case admission over any 5-second span stays within the documented 25-request limit;
-	// see CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS for the full calculation.
+	// before local throttling starts. Kept at 1 to isolate the sustained-rate experiment; it does not keep requests within the documented downstream quota.
 	CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst = 1
 
 	// checkAccessV2RateLimiterCacheSize bounds how many distinct tenants' rate limiters rateLimitedCheckAccessV2ClientBuilder caches at once. 10000 is comfortably enough to cache every distinct
@@ -51,8 +49,7 @@ const (
 	checkAccessV2RateLimiterCacheSize = 10000
 )
 
-// rateLimitedCheckAccessV2Client wraps a CheckAccessV2Client so that every CheckAccess call first waits for a token from a shared flowcontrol.RateLimiter. This throttles our outgoing call rate to stay under
-// the CheckAccessV2 API's rate limit, instead of reacting to HTTP 429 responses after the fact.
+// rateLimitedCheckAccessV2Client wraps a CheckAccessV2Client so that every CheckAccess call first waits for a token from a shared flowcontrol.RateLimiter, enforcing the configured local call rate.
 type rateLimitedCheckAccessV2Client struct {
 	inner       CheckAccessV2Client
 	rateLimiter flowcontrol.RateLimiter
@@ -95,7 +92,7 @@ type rateLimitedCheckAccessV2ClientBuilder struct {
 var _ CheckAccessV2ClientBuilder = (*rateLimitedCheckAccessV2ClientBuilder)(nil)
 
 // NewRateLimitedCheckAccessV2ClientBuilder wraps inner so that every CheckAccessV2Client it builds for a given tenant ID shares a rate limiter dedicated to that tenant, throttling calls to CheckAccess to
-// stay within the CheckAccessV2 API's per-tenant rate limit. Each distinct tenant ID lazily gets its own flowcontrol.NewTokenBucketRateLimiter(qps, burst), created at most once (the first time Build
+// the configured local rate. Each distinct tenant ID lazily gets its own flowcontrol.NewTokenBucketRateLimiter(qps, burst), created at most once (the first time Build
 // is invoked for it) and cached from then on. The per-tenant rate limiter cache holds at most checkAccessV2RateLimiterCacheSize entries, evicting the least-recently-used tenant once exceeded. The
 // returned builder must be reused across calls (rather than reconstructed per Build call) for the per-tenant caching to take effect.
 func NewRateLimitedCheckAccessV2ClientBuilder(inner CheckAccessV2ClientBuilder, qps float32, burst int) CheckAccessV2ClientBuilder {

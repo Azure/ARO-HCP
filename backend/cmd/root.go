@@ -484,7 +484,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 			azureConfig.CloudEnvironment.CheckAccessV2Scope(), azureConfig.CloudEnvironment.AZCoreClientOptions(),
 		)
 
-		// Throttle our per-tenant call rate to stay under the Azure Permissions Manager identity's documented CheckAccessV2 limit of 25 requests per 5 seconds per tenant.
+		// Apply the experimental nonproduction per-tenant rate; see CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS for the downstream quota warning.
 		checkAccessV2ClientBuilder = azureclient.NewRateLimitedCheckAccessV2ClientBuilder(
 			checkAccessV2ClientBuilder,
 			azureclient.CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS,
