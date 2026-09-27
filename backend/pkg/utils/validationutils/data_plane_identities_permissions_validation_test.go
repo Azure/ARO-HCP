@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/backend/pkg/validationmetrics"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/azure"
@@ -1064,6 +1066,7 @@ func TestDataPlaneIdentitiesPermissionsValidation_retrieveIdentityObjectID(t *te
 		setupMock  func(*azureclient.MockUserAssignedIdentitiesClient)
 		wantResult string
 		wantErr    bool
+		phaseError bool
 	}{
 		{
 			name: "identity with principal ID returns object ID",
@@ -1086,7 +1089,8 @@ func TestDataPlaneIdentitiesPermissionsValidation_retrieveIdentityObjectID(t *te
 				m.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), nil).
 					Return(armmsi.UserAssignedIdentitiesClientGetResponse{}, fmt.Errorf("identity not found"))
 			},
-			wantErr: true,
+			wantErr:    true,
+			phaseError: true,
 		},
 		{
 			name: "identity with nil Properties returns error",
@@ -1121,7 +1125,46 @@ func TestDataPlaneIdentitiesPermissionsValidation_retrieveIdentityObjectID(t *te
 			tt.setupMock(mockUAISClient)
 
 			v := &DataPlaneIdentitiesPermissionsValidation{}
-			result, err := v.retrieveIdentityObjectID(context.Background(), mockUAISClient, identityResourceID)
+			registry := prometheus.NewRegistry()
+			ctx := validationmetrics.WithMetrics(t.Context(), validationmetrics.New(registry))
+			ctx, validation := validationmetrics.StartValidation(ctx, "test-controller")
+			defer validation.Complete(ctx, v.Name(), "success")
+			result, err := v.retrieveIdentityObjectID(ctx, mockUAISClient, identityResourceID)
+
+			families, gatherErr := registry.Gather()
+			require.NoError(t, gatherErr)
+			seriesCounts := map[string]int{}
+			for _, family := range families {
+				for _, metric := range family.Metric {
+					labels := map[string]string{}
+					for _, label := range metric.Label {
+						labels[label.GetName()] = label.GetValue()
+					}
+					if labels["controller"] != "test-controller" {
+						continue
+					}
+					seriesCounts[family.GetName()]++
+					assert.Equal(t, "identity_get", labels["phase"])
+					switch family.GetName() {
+					case "backend_validation_phase_duration_seconds":
+						assert.Equal(t, uint64(1), metric.GetHistogram().GetSampleCount())
+						wantResult := "success"
+						if tt.phaseError {
+							wantResult = "error"
+						}
+						assert.Equal(t, wantResult, labels["result"], "phase result reflects the SDK call, not subsequent response validation")
+					case "backend_validation_phase_inflight":
+						assert.Zero(t, metric.GetGauge().GetValue(), "identity_get must finish before validation cleanup")
+					default:
+						t.Errorf("unexpected metric %s", family.GetName())
+					}
+				}
+			}
+			assert.Equal(t, map[string]int{
+				"backend_validation_phase_duration_seconds": 1,
+				"backend_validation_phase_inflight":         1,
+			}, seriesCounts, "only one histogram and gauge series should be emitted for test-controller")
+			validation.Observe("passed")
 
 			if tt.wantErr {
 				assert.Error(t, err)

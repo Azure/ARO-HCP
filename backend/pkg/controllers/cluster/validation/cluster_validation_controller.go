@@ -17,6 +17,7 @@ package validation
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/validationmetrics"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -109,10 +111,19 @@ func NewClusterValidationController(
 
 func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
+	controller := fmt.Sprintf("ClusterValidation%s", c.validation.Name())
+	switch controller {
+	case validationmetrics.ControlPlaneController, validationmetrics.DataPlaneController:
+	default:
+		controller = ""
+	}
+	disposition := "panic" // Every normal return overrides this; panics retain their disposition.
+	defer func() { validationmetrics.RecordAttempt(ctx, controller, disposition) }()
 
 	// Skip processing if the key is still within its cooldown window from a previous validation. All outcomes can schedule a cooldown via
 	// EarliestRetryAfter so validations run continuously without racing. Re-enqueue so the item is revisited once the cooldown expires.
 	if !c.retryCooldownChecker.CanSync(ctx, key) {
+		disposition = "cooldown"
 		if c.enqueueAfter != nil {
 			// Add a one-second buffer so the requeue lands strictly after the cooldown expires, avoiding a race where the item fires just before CanSync flips to true.
 			c.enqueueAfter.EnqueueAfter(key, c.retryCooldownChecker.TimeUntilReady(key)+time.Second)
@@ -122,33 +133,50 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		disposition = "prerequisite_skip"
 		return nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
+		disposition = "read_error"
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		disposition = "prerequisite_skip"
 		return nil
 	}
 
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		disposition = "prerequisite_skip"
 		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
 		return nil
 	}
 	if err != nil {
+		disposition = "read_error"
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
 	existingServiceProviderCluster := cachedServiceProviderCluster.DeepCopy()
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 	if err != nil {
+		disposition = "read_error"
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
 	}
 
+	ctx, measurement := validationmetrics.StartValidation(ctx, controller)
+	persistenceResult := "not_attempted"
+	defer func() { measurement.Complete(ctx, c.validation.Name(), persistenceResult) }()
 	result := c.validation.Validate(ctx, subscription, existingCluster)
-	if err := result.Validate(); err != nil {
-		return utils.TrackError(fmt.Errorf("validation %s returned invalid ValidationResult: %w", c.validation.Name(), err))
+	// Include the result's local validity check, but exclude persistence from timing.
+	resultErr := result.Validate()
+	outcome := strings.ToLower(string(result.Outcome.Type))
+	if resultErr != nil {
+		outcome = "invalid_result"
+	}
+	measurement.Observe(outcome)
+	if resultErr != nil {
+		disposition = "invalid_result"
+		return utils.TrackError(fmt.Errorf("validation %s returned invalid ValidationResult: %w", c.validation.Name(), resultErr))
 	}
 
 	if result.Outcome.Type != validationutils.OutcomeTypePassed {
@@ -171,14 +199,21 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		}
 	}
 
+	persistenceResult = "unchanged"
 	if !equality.Semantic.DeepEqual(existingServiceProviderCluster, replacement) {
 		serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+		persistenceResult = "error" // Remains non-successful if Replace panics.
+		finishPersist := validationmetrics.StartPhase(ctx, "persist_result")
 		_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
+		finishPersist(err)
+		persistenceResult = validationmetrics.Result(err)
 		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			disposition = "persist_conflict"
 			// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 			return nil
 		}
 		if err != nil {
+			disposition = "persist_error"
 			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 		}
 	}
@@ -189,9 +224,11 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	// machinery (e.g. workqueue error metrics); it has no bearing on the requeue scheduling already
 	// handled above by handleRequeue based on EarliestRetryAfter. Keep this as the last step of SyncOnce.
 	if result.Outcome.Type == validationutils.OutcomeTypeUnknown && result.Outcome.Unknown.ControllerReportingPolicy == validationutils.ControllerReportingPolicyTypeError {
+		disposition = "reported_unknown"
 		return utils.TrackError(fmt.Errorf("validation %s returned an inconclusive (Unknown) result: %s", c.validation.Name(), result.InternalMessage()))
 	}
 
+	disposition = "completed"
 	return nil
 }
 

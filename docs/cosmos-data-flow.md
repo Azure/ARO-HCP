@@ -880,6 +880,28 @@ Polls the Cluster Service credential request, publishes the credential result an
 
 ### Backend: validation instances
 
+The control-plane and data-plane identity permission validators also emit telemetry
+through [validationmetrics](../backend/pkg/validationmetrics/metrics.go), registered
+once with the backend's injected metrics registerer. This adds no lifecycle edges,
+Cosmos writes, or changes to cooldown, retry, and persistence-conflict behavior.
+Controller labels preserve the mixed-case code-defined queue names, not resource identifiers.
+`backend_validation_duration_seconds{controller,outcome}` measures actual validation
+calls plus the local result validity check, excluding persistence; malformed results
+use `invalid_result`. `backend_validation_attempts_total{controller,disposition}`
+also counts cooldown, prerequisite skips, read errors, and persistence outcomes.
+`backend_validation_phase_duration_seconds{controller,phase,result}` and
+`backend_validation_phase_inflight{controller,phase}` measure named phases, including
+`persist_result`; nested or concurrent phase durations can overlap. Histograms have
+15 finite buckets through 600 seconds. Startup initializes zero series for both
+controllers: six outcomes, nine attempt dispositions (including `panic`), and nine
+phases with six results each, plus phase gauges. This exposes first observations to
+rate calculations, totaling 2,196 classic Prometheus series including histogram
+buckets, sums and counts. One structured `Validation completed` record
+per actual validation includes phase duration/count aggregates and persistence outcome,
+alongside the unchanged non-passed `Validation outcome` log. Cooldown and prerequisite
+skips emit no completion record. Deferred cleanup clears unfinished phase gauges as
+errors without recovering panics; absent metrics context is a no-op.
+
 #### ClusterValidationAlwaysSuccessValidation
 
 [Source](../backend/pkg/utils/validationutils/always_success_validation.go) · **Trigger:** Cluster; 1m; result-based retry.

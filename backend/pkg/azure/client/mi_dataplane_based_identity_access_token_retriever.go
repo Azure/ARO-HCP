@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/validationmetrics"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -79,9 +80,11 @@ var _ azcore.TokenCredential = (*miDataplaneBasedIdentityAccessTokenRetriever)(n
 //  2. Building an azcore.TokenCredential from the returned credentials.
 //  3. Calling GetToken on that credential with the provided token request options.
 func (r *miDataplaneBasedIdentityAccessTokenRetriever) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	finishCredentials := validationmetrics.StartPhase(ctx, "identity_credentials")
 	resp, err := r.miDataplaneClient.GetUserAssignedIdentitiesCredentials(ctx, dataplane.UserAssignedIdentitiesRequest{
 		IdentityIDs: []string{r.identityResourceID.String()},
 	})
+	finishCredentials(err)
 	if err != nil {
 		return azcore.AccessToken{}, utils.TrackError(fmt.Errorf("failed to get managed identity credentials: %w", err))
 	}
@@ -90,12 +93,17 @@ func (r *miDataplaneBasedIdentityAccessTokenRetriever) GetToken(ctx context.Cont
 			utils.TrackError(fmt.Errorf("managed identities data plane returned no credentials for managed identity '%s'", r.identityResourceID.String()))
 	}
 
+	finishBuild := validationmetrics.StartPhase(ctx, "identity_credential_build")
 	creds, err := dataplane.GetCredential(*r.clientOptions, resp.ExplicitIdentities[0])
+	finishBuild(err)
 	if err != nil {
 		return azcore.AccessToken{}, utils.TrackError(fmt.Errorf("failed to build token credential for managed identity '%s': %w", r.identityResourceID.String(), err))
 	}
 
-	return creds.GetToken(ctx, options)
+	finishToken := validationmetrics.StartPhase(ctx, "identity_token")
+	token, err := creds.GetToken(ctx, options)
+	finishToken(err)
+	return token, err
 }
 
 // miDataplaneBasedIdentityAccessTokenRetrieverBuilder is the implementation of MIDataplaneBasedIdentityAccessTokenRetrieverBuilder.
