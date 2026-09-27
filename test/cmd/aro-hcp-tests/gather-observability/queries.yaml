@@ -65,7 +65,7 @@ panels:
 - title: "Backend Metrics"
   queries:
   - title: "Controller Workqueue Retry Ratio"
-    description: "Ratio of items re-queued for retry vs items initially added, per controller workqueue. High ratios indicate controllers are repeatedly failing to reconcile. Each backend operation type (ClusterCreate, ClusterDelete, NodePoolCreate, etc.) has its own workqueue."
+    description: "Ratio of retry/delayed scheduling calls to accepted queue additions, per controller workqueue. Includes intentional delayed requeues, not just reconciliation errors; additions also include re-enqueued work. Correlate with errors before interpreting a high ratio as failures."
     query: |
       (
         sum by (name, cluster) (
@@ -126,6 +126,86 @@ panels:
     workspace: svc
     step: "60s"
     minPeakThreshold: 10
+  - title: "Controller Workqueue Mean Queue Wait"
+    description: "Mean queue wait over 5 minutes, measured when a worker picks up an item. Excludes time waiting in the delayed queue and items not yet picked up. High wait with short processing times suggests incoming work exceeds processing capacity. Gaps mean no items were picked up."
+    query: |
+      sum by (name, cluster) (
+        max without(prometheus_replica) (
+          rate(workqueue_queue_duration_seconds_sum{namespace="aro-hcp"}[5m])
+        )
+      )
+      /
+      (
+        sum by (name, cluster) (
+          max without(prometheus_replica) (
+            rate(workqueue_queue_duration_seconds_count{namespace="aro-hcp"}[5m])
+          )
+        ) > 0
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Controller Workqueue Mean Processing Duration"
+    description: "Mean processing time over 5 minutes for finished attempts, including failed reconciliations. Long-running attempts are only recorded when they finish; compare with longest-running processing and unfinished work. Gaps mean no attempts finished. Means avoid the histogram's 10-second finite bucket limit."
+    query: |
+      sum by (name, cluster) (
+        max without(prometheus_replica) (
+          rate(workqueue_work_duration_seconds_sum{namespace="aro-hcp"}[5m])
+        )
+      )
+      /
+      (
+        sum by (name, cluster) (
+          max without(prometheus_replica) (
+            rate(workqueue_work_duration_seconds_count{namespace="aro-hcp"}[5m])
+          )
+        ) > 0
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Controller Workqueue Enqueue Rate"
+    description: "Accepted queue additions per second over 5 minutes, including re-enqueued work rather than only new resources. Compare with completion rate and depth to identify sustained incoming load."
+    query: |
+      sum by (name, cluster) (
+        max without(prometheus_replica) (
+          rate(workqueue_adds_total{namespace="aro-hcp"}[5m])
+        )
+      )
+    unit: items/s
+    workspace: svc
+    step: "60s"
+  - title: "Controller Workqueue Completion Rate"
+    description: "Finished processing attempts per second over 5 minutes, including failed reconciliations. A completion does not imply the resource reached its desired state. Low throughput with high depth and increasing longest-running processing suggests slow or blocked workers."
+    query: |
+      sum by (name, cluster) (
+        max without(prometheus_replica) (
+          rate(workqueue_work_duration_seconds_count{namespace="aro-hcp"}[5m])
+        )
+      )
+    unit: items/s
+    workspace: svc
+    step: "60s"
+  - title: "Controller Workqueue Longest-Running Processing"
+    description: "Age of the oldest currently processing attempt per controller, taking the maximum across backend instances. Continuous growth with little completion activity points to blocked or unusually long-running processing."
+    query: |
+      max by (name, cluster) (
+        workqueue_longest_running_processor_seconds{namespace="aro-hcp"}
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Controller Workqueue Unfinished Work"
+    description: "Sum of elapsed processing time for all in-flight attempts per controller. Growing values with few completions indicate accumulating unfinished processing. This is neither remaining work nor an active-worker count; exact worker utilization is not instrumented."
+    query: |
+      sum by (name, cluster) (
+        max without(prometheus_replica) (
+          workqueue_unfinished_work_seconds{namespace="aro-hcp"}
+        )
+      )
+    unit: worker-seconds
+    workspace: svc
+    step: "60s"
   - title: "Controller Panic Rate"
     description: "Rate of panics caught by the runtime panic handler, per controller. Any non-zero rate indicates a controller is actively crashing and recovering via the panic handler."
     query: |
