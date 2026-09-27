@@ -606,6 +606,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "systemPoolOnly": {
+          "type": "boolean",
+          "description": "CI service clusters only: omit worker and infra pools and allow all workloads on the system pool. Does not delete existing pools."
+        },
         "name": {
           "type": "string",
           "minLength": 3,
@@ -4030,6 +4034,14 @@
     "genevaHealthFunction"
   ],
   "x-cel-validations": [
+    {
+      "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01']",
+      "message": "svc.aks.systemPoolOnly is supported only in ci00 and ci01"
+    },
+    {
+      "rule": "!has(self.mgmt.aks.systemPoolOnly) || !self.mgmt.aks.systemPoolOnly",
+      "message": "systemPoolOnly is not supported for management clusters"
+    },
     {
       "rule": "!self.monitoring.adxIntegrationEnabled || self.monitoring.adxIntegrationGeographies != ''",
       "message": "monitoring.adxIntegrationGeographies must be non-empty when monitoring.adxIntegrationEnabled is true"

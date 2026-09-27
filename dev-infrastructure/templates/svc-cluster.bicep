@@ -17,6 +17,9 @@ var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 @description('AKS cluster name')
 param aksClusterName string
 
+@description('CI only: use an untainted system pool without creating worker or infra pools. Existing pools are not removed.')
+param systemPoolOnly bool = false
+
 @description('Name of the system agent pool')
 param systemAgentPoolName string
 
@@ -647,6 +650,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     ipZones: locationAvailabilityZoneList
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
+    systemPoolOnly: systemPoolOnly
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
     aksClusterOutboundIPAddressIPTags: aksClusterOutboundIPAddressIPTags
     kubernetesVersion: kubernetesVersion

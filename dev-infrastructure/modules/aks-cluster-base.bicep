@@ -15,6 +15,9 @@ param systemAgentVMSize string
 param systemAgentPoolZones array
 param systemZoneRedundantMode string
 
+@description('CI service clusters only: schedule all workloads on the system pool and omit other pools.')
+param systemPoolOnly bool = false
+
 // User agentpool spec (Worker)
 param userAgentPoolName string
 param userAgentMinCount int
@@ -326,9 +329,11 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-04-02-previ
         nodeLabels: {
           'aro-hcp.azure.com/role': 'system'
         }
-        nodeTaints: [
-          'CriticalAddonsOnly=true:NoSchedule'
-        ]
+        nodeTaints: systemPoolOnly
+          ? []
+          : [
+              'CriticalAddonsOnly=true:NoSchedule'
+            ]
         tags: swiftNodepoolTags
       }
     ]
@@ -475,7 +480,7 @@ module maintenanceWindows 'aks/maintenance.bicep' = {
   }
 }
 
-module userAgentPools '../modules/aks/pool.bicep' = {
+module userAgentPools '../modules/aks/pool.bicep' = if (!systemPoolOnly) {
   name: 'user-agent-pools'
   params: {
     aksClusterName: aksCluster.name
@@ -498,7 +503,7 @@ module userAgentPools '../modules/aks/pool.bicep' = {
   }
 }
 
-module infraAgentPools '../modules/aks/pool.bicep' = {
+module infraAgentPools '../modules/aks/pool.bicep' = if (!systemPoolOnly) {
   name: 'infra-agent-pools'
   params: {
     aksClusterName: aksCluster.name

@@ -618,6 +618,7 @@ defaults:
         ipAddressTags: ""
     aks:
       name: "{{ .ctx.environment }}-{{ .ctx.region }}-svc-1" # [env-unique]
+      systemPoolOnly: false
       tags: "clusterType=svc-cluster,persist=true"
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
@@ -1857,7 +1858,10 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+              systemPoolOnly: true
               systemAgentPool:
+                minCount: 3
+                maxCount: 5
                 vmSize: Standard_D4ds_v6
               userAgentPool:
                 # Keep the persisted AKS pool name despite the smaller VM size.
@@ -1962,7 +1966,10 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+              systemPoolOnly: true
               systemAgentPool:
+                minCount: 3
+                maxCount: 5
                 vmSize: Standard_D4ds_v6
               userAgentPool:
                 # Keep the persisted AKS pool name despite the smaller VM size.
