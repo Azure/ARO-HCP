@@ -30,12 +30,9 @@ import (
 // createServiceProviderClusterSyncer ensures a ServiceProviderCluster document
 // exists for every HCPCluster. Consumer backend controllers (validation,
 // version, etc.) read the ServiceProviderCluster through a cached lister and
-// bail out when it is missing; this syncer is the single place in backend
-// controllers that actually creates the document, so the GetOrCreate pattern
-// stays in one well-known location. The frontend admission path still calls
-// corecosmosstorage.GetOrCreateServiceProviderCluster directly because admission must
-// have the document in hand to validate the request before any controller
-// has a chance to run.
+// bail out when it is missing. Frontend admission also reads the cached document
+// and fails when required provider state is unavailable; initialization belongs
+// to the backend, not admission.
 type createServiceProviderClusterSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister

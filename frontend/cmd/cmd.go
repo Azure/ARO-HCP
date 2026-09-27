@@ -260,8 +260,7 @@ func (opts *FrontendOpts) Run() error {
 		logger, listener, metricsListener,
 		legacyregistry.Registerer(), legacyregistry.DefaultGatherer,
 		resourcesDBClient,
-		coreinformers.NewClusterInformer(resourcesDBClient.ResourcesGlobalListers().Clusters(), resourcesDBClient),
-		coreinformers.NewNodePoolInformer(resourcesDBClient.ResourcesGlobalListers().NodePools(), resourcesDBClient),
+		coreinformers.NewFrontendInformers(ctx, resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient),
 		csClient, auditClient, opts.location, opts.exitOnPanic,
 	)
 

@@ -30,12 +30,9 @@ import (
 // createServiceProviderNodePoolSyncer ensures a ServiceProviderNodePool
 // document exists for every HCPNodePool. Consumer backend controllers
 // (validation, version, upgrade) read the ServiceProviderNodePool through a
-// cached lister and bail out when it is missing; this syncer is the single
-// place in backend controllers that actually creates the document, so the
-// GetOrCreate pattern stays in one well-known location. The frontend
-// admission path still calls corecosmosstorage.GetOrCreateServiceProviderNodePool
-// directly because admission must have the document in hand to validate the
-// request before any controller has a chance to run.
+// cached lister and bail out when it is missing. Frontend admission also reads
+// the cached document and fails when required provider state is unavailable;
+// initialization belongs to the backend, not admission.
 type createServiceProviderNodePoolSyncer struct {
 	resourcesDBClient             corecosmosstorage.ResourcesDBClient
 	nodePoolLister                corelisters.NodePoolLister

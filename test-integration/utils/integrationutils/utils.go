@@ -33,6 +33,7 @@ import (
 	"go.uber.org/goleak"
 
 	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
 	"k8s.io/utils/set"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -195,9 +196,12 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	resourcesDBClient := storageIntegrationTestInfo.ResourcesDBClient()
 	// Fixtures can replace documents without advancing instanceVersion, and hard
 	// deletes have no change-feed event. Relist quickly in tests only.
-	clusterInformer := coreinformers.NewClusterInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Clusters(), resourcesDBClient, time.Second)
-	nodePoolInformer := coreinformers.NewNodePoolInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().NodePools(), resourcesDBClient, time.Second)
-	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, resourcesDBClient, clusterInformer, nodePoolInformer, clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", true)
+	frontendInformers := coreinformers.NewFrontendInformersWithRelistDuration(ctx, resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient, ptr.To(time.Second))
+	clusterInformer, _ := frontendInformers.Clusters()
+	nodePoolInformer, _ := frontendInformers.NodePools()
+	serviceProviderClusterInformer, _ := frontendInformers.ServiceProviderClusters()
+	serviceProviderNodePoolInformer, _ := frontendInformers.ServiceProviderNodePools()
+	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, resourcesDBClient, frontendInformers, clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", true)
 
 	mockKubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	testMCResourceID, err := azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
@@ -269,17 +273,19 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	frontendURL := fmt.Sprintf("http://%s", frontendListener.Addr().String())
 	adminURL := fmt.Sprintf("http://%s", adminListener.Addr().String())
 	testInfo := &IntegrationTestInfo{
-		StorageIntegrationTestInfo: storageIntegrationTestInfo,
-		ClusterServiceMock:         clusterServiceMockInfo,
-		ArtifactsDir:               storageIntegrationTestInfo.GetArtifactDir(),
-		FrontendURL:                frontendURL,
-		Frontend:                   aroHCPFrontend,
-		ClusterInformer:            clusterInformer,
-		NodePoolInformer:           nodePoolInformer,
-		AdminURL:                   adminURL,
-		AdminAPI:                   adminAPI,
-		adminAPIListener:           adminListener,
-		KubernetesClientSets:       kubernetesClientSets,
+		StorageIntegrationTestInfo:      storageIntegrationTestInfo,
+		ClusterServiceMock:              clusterServiceMockInfo,
+		ArtifactsDir:                    storageIntegrationTestInfo.GetArtifactDir(),
+		FrontendURL:                     frontendURL,
+		Frontend:                        aroHCPFrontend,
+		ClusterInformer:                 clusterInformer,
+		NodePoolInformer:                nodePoolInformer,
+		ServiceProviderClusterInformer:  serviceProviderClusterInformer,
+		ServiceProviderNodePoolInformer: serviceProviderNodePoolInformer,
+		AdminURL:                        adminURL,
+		AdminAPI:                        adminAPI,
+		adminAPIListener:                adminListener,
+		KubernetesClientSets:            kubernetesClientSets,
 	}
 	return testInfo, nil
 }

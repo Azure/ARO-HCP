@@ -56,6 +56,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
@@ -64,19 +65,20 @@ import (
 )
 
 type Frontend struct {
-	clock                utilsclock.PassiveClock
-	clusterServiceClient ocm.ClusterServiceClientSpec
-	listener             net.Listener
-	metricsListener      net.Listener
-	server               http.Server
-	metricsServer        http.Server
-	resourcesDBClient    corecosmosstorage.ResourcesDBClient
-	clusterInformer      cache.SharedIndexInformer
-	nodePoolInformer     cache.SharedIndexInformer
-	clusterLister        corelisters.ClusterLister
-	nodePoolLister       corelisters.NodePoolLister
-	auditClient          audit.Client
-	healthGauge          prometheus.Gauge
+	clock                         utilsclock.PassiveClock
+	clusterServiceClient          ocm.ClusterServiceClientSpec
+	listener                      net.Listener
+	metricsListener               net.Listener
+	server                        http.Server
+	metricsServer                 http.Server
+	resourcesDBClient             corecosmosstorage.ResourcesDBClient
+	informers                     coreinformers.FrontendInformers
+	clusterLister                 corelisters.ClusterLister
+	nodePoolLister                corelisters.NodePoolLister
+	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+	auditClient                   audit.Client
+	healthGauge                   prometheus.Gauge
 	// this is the azure location for this instance of the frontend
 	azureLocation string
 
@@ -92,8 +94,7 @@ func NewFrontend(
 	registerer prometheus.Registerer,
 	gatherer prometheus.Gatherer,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
-	clusterInformer cache.SharedIndexInformer,
-	nodePoolInformer cache.SharedIndexInformer,
+	informers coreinformers.FrontendInformers,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
@@ -126,10 +127,7 @@ func NewFrontend(
 		},
 		auditClient:       auditClient,
 		resourcesDBClient: resourcesDBClient,
-		clusterInformer:   clusterInformer,
-		nodePoolInformer:  nodePoolInformer,
-		clusterLister:     corelisters.NewClusterLister(clusterInformer.GetIndexer()),
-		nodePoolLister:    corelisters.NewNodePoolLister(nodePoolInformer.GetIndexer()),
+		informers:         informers,
 		healthGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
@@ -141,6 +139,10 @@ func NewFrontend(
 		exitOnPanic:   exitOnPanic,
 	}
 
+	_, f.clusterLister = informers.Clusters()
+	_, f.nodePoolLister = informers.NodePools()
+	_, f.serviceProviderClusterLister = informers.ServiceProviderClusters()
+	_, f.serviceProviderNodePoolLister = informers.ServiceProviderNodePools()
 	f.server.Handler = f.routes(registerer)
 	f.metricsServer.Handler = f.metricsRoutes(gatherer)
 
@@ -187,14 +189,12 @@ func (f *Frontend) Run(ctx context.Context) (runErr error) {
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
 
-	for _, informer := range []cache.SharedIndexInformer{f.clusterInformer, f.nodePoolInformer} {
-		wg.Add(1)
-		go func() {
-			defer k8sutilruntime.HandleCrash()
-			defer wg.Done()
-			informer.RunWithContext(ctx)
-		}()
-	}
+	wg.Add(1)
+	go func() {
+		defer k8sutilruntime.HandleCrash()
+		defer wg.Done()
+		f.informers.RunWithContext(ctx)
+	}()
 	wg.Add(1)
 	go func() {
 		defer k8sutilruntime.HandleCrash()
@@ -204,7 +204,7 @@ func (f *Frontend) Run(ctx context.Context) (runErr error) {
 		cancel(err)
 	}()
 
-	if !cache.WaitForNamedCacheSyncWithContext(ctx, f.clusterInformer.HasSynced, f.nodePoolInformer.HasSynced) {
+	if !cache.WaitForNamedCacheSyncWithContext(ctx, f.informers.HasSynced) {
 		return fmt.Errorf("admission cache warmup aborted: %w", context.Cause(ctx))
 	}
 	if ctx.Err() != nil {

@@ -40,6 +40,14 @@ func (i *IntegrationTestInfo) WaitForFrontendCaches(ctx context.Context) error {
 			return false, err
 		}
 		pending, err = frontendCacheDifference(ctx, i.ResourcesDBClient().ResourcesGlobalListers().NodePools(), i.NodePoolInformer)
+		if err != nil || pending != "" {
+			return false, err
+		}
+		pending, err = frontendCacheDifference(ctx, i.ResourcesDBClient().ResourcesGlobalListers().ServiceProviderClusters(), i.ServiceProviderClusterInformer)
+		if err != nil || pending != "" {
+			return false, err
+		}
+		pending, err = frontendCacheDifference(ctx, i.ResourcesDBClient().ResourcesGlobalListers().ServiceProviderNodePools(), i.ServiceProviderNodePoolInformer)
 		return pending == "", err
 	})
 	if err != nil {

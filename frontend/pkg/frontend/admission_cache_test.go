@@ -17,6 +17,7 @@ package frontend
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -24,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -35,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/errorutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -101,59 +104,173 @@ func TestClusterCreateAdmissionCachedInventory(t *testing.T) {
 	require.Equal(t, beforePools, ctx.SubscriptionNodePools, "admission must not mutate cached node pools")
 }
 
-func TestClusterUpdateAdmissionMissingServiceProviderNodePool(t *testing.T) {
-	for _, tc := range []struct {
-		name       string
-		parentLive bool
-		spLive     bool
-	}{
-		{name: "missing SPNP and deleted parent"},
-		{name: "missing SPNP and live parent", parentLive: true},
-		{name: "live SPNP with stale parent inventory", spLive: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			f := NewTestFrontend(t)
-			db := f.resourcesDBClient
-			cluster := coreapitesting.MinimumValidClusterTestCase()
-			_, err := corecosmosstorage.GetOrCreateServiceProviderCluster(t.Context(), db, cluster.ID)
-			require.NoError(t, err)
-			cached := coreapi.NewDefaultNodePool(metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestNodePoolResourceID)), coreapitesting.TestLocation)
-			cached.SetResourceID(cached.ID)
-			cached.SetPartitionKey(cached.ID.SubscriptionID)
-			cached.Properties.Version.ID = "4.19.0"
-			f.nodePoolLister = corelisters.NewNodePoolLister(newTestNodePoolInformer(t, cached).GetIndexer())
-			if tc.parentLive {
-				live := cached.DeepCopy()
-				live.Properties.Version.ID = "4.20.0"
-				_, err := db.HCPClusters(live.ID.SubscriptionID, live.ID.ResourceGroupName).NodePools(live.ID.Parent.Name).Create(t.Context(), live, nil)
+func TestAdmissionProviderCache(t *testing.T) {
+	for _, kind := range []string{"cluster update", "node pool create", "node pool update"} {
+		for _, state := range []string{"present", "missing cluster", "missing node pool", "deleting node pool"} {
+			t.Run(kind+"/"+state, func(t *testing.T) {
+				f := NewTestFrontend(t)
+				// Any DB access, including provider reads/writes or live-parent
+				// verification, panics. All dependencies must come from the cache.
+				f.resourcesDBClient = nil
+				cluster := coreapitesting.MinimumValidClusterTestCase()
+				pool := coreapi.NewDefaultNodePool(metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestNodePoolResourceID)), coreapitesting.TestLocation)
+				pool.SetResourceID(pool.ID)
+				pool.SetPartitionKey(pool.ID.SubscriptionID)
+				pool.Properties.Version.ID = "4.19.0"
+				if state == "deleting node pool" {
+					now := metav1.Now()
+					pool.ServiceProviderProperties.DeletionTimestamp = &now
+				}
+				poolInformer, _ := f.informers.NodePools()
+				require.NoError(t, poolInformer.GetStore().Add(pool.DeepCopy()))
+				spCluster := newTestServiceProviderCluster(cluster.ID)
+				spPool := newTestServiceProviderNodePool(pool.ID)
+				if state != "missing cluster" {
+					informer, _ := f.informers.ServiceProviderClusters()
+					require.NoError(t, informer.GetStore().Add(spCluster.DeepCopy()))
+				}
+				if state == "present" || state == "missing cluster" {
+					informer, _ := f.informers.ServiceProviderNodePools()
+					require.NoError(t, informer.GetStore().Add(spPool.DeepCopy()))
+				}
+				subscription := newTestSubscription(cluster.ID.SubscriptionID, coreapi.SubscriptionStateRegistered, nil)
+				var err error
+				if kind == "cluster update" {
+					var ac *admission.ClusterAdmissionContext
+					ac, err = f.newClusterAdmissionContext(t.Context(), operation.Operation{Type: operation.Update}, subscription, cluster, cluster.ID)
+					if err == nil {
+						require.Equal(t, spCluster, ac.ServiceProviderCluster)
+						if state == "deleting node pool" {
+							require.Empty(t, ac.ClusterNodePools)
+						} else {
+							require.Equal(t, []admission.ClusterAdmissionNodePool{{NodePool: pool, ServiceProviderNodePool: spPool}}, ac.ClusterNodePools)
+						}
+						_ = admission.AdmitCluster(t.Context(), ac, operation.Operation{Type: operation.Update}, cluster.DeepCopy(), cluster.DeepCopy())
+					}
+				} else {
+					op := operation.Operation{Type: operation.Update}
+					if kind == "node pool create" {
+						op.Type = operation.Create
+					}
+					var ac *admission.NodePoolAdmissionContext
+					ac, err = f.newNodePoolAdmissionContext(t.Context(), op, subscription, pool, cluster)
+					if err == nil {
+						require.Equal(t, spCluster, ac.ServiceProviderCluster)
+						if op.Type == operation.Update {
+							require.Equal(t, spPool, ac.ServiceProviderNodePool)
+						} else {
+							require.Nil(t, ac.ServiceProviderNodePool)
+						}
+						_ = admission.AdmitNodePool(t.Context(), ac, op, pool.DeepCopy(), pool.DeepCopy())
+					}
+				}
+				wantError := state == "missing cluster" || (state == "missing node pool" && kind != "node pool create") || (state == "deleting node pool" && kind == "node pool update")
+				if wantError {
+					require.ErrorContains(t, err, "cannot load service provider")
+					require.ErrorContains(t, err, cluster.ID.String())
+					recorder := httptest.NewRecorder()
+					request := httptest.NewRequest("PUT", pool.ID.String(), nil).WithContext(utils.ContextWithResourceID(t.Context(), pool.ID))
+					errorutils.ReportError(func(http.ResponseWriter, *http.Request) error { return err })(recorder, request)
+					require.Equal(t, http.StatusInternalServerError, recorder.Code, "missing provider state is not a missing ARM target")
+				} else {
+					require.NoError(t, err)
+				}
+				cachedPools, listErr := f.nodePoolLister.List(t.Context())
+				require.NoError(t, listErr)
+				require.Equal(t, []*coreapi.NodePool{pool}, cachedPools, "admission must not mutate cached state")
+			})
+		}
+	}
+}
+
+func newTestServiceProviderCluster(clusterID *azcorearm.ResourceID) *coreapi.ServiceProviderCluster {
+	return &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{
+		ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(clusterID.String() + "/serviceProviderClusters/default")),
+		PartitionKey: strings.ToLower(clusterID.SubscriptionID),
+	}}
+}
+
+func newTestServiceProviderNodePool(poolID *azcorearm.ResourceID) *coreapi.ServiceProviderNodePool {
+	return &coreapi.ServiceProviderNodePool{CosmosMetadata: coreapi.CosmosMetadata{
+		ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(poolID.String() + "/serviceProviderNodePools/default")),
+		PartitionKey: strings.ToLower(poolID.SubscriptionID),
+	}}
+}
+
+type noProviderDB struct {
+	corecosmosstorage.ResourcesDBClient
+}
+
+func (noProviderDB) ServiceProviderClusters(string, string, string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	panic("admission must not read or write provider clusters in the DB")
+}
+
+func (noProviderDB) ServiceProviderNodePools(string, string, string, string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool] {
+	panic("admission must not read or write provider node pools in the DB")
+}
+
+func TestAdmissionProviderCacheHandlers(t *testing.T) {
+	for _, kind := range []string{"cluster update", "node pool create", "node pool update"} {
+		for _, missing := range []string{"none", "cluster", "node pool"} {
+			t.Run(kind+"/missing "+missing, func(t *testing.T) {
+				f := NewTestFrontend(t)
+				db := f.resourcesDBClient
+				f.resourcesDBClient = noProviderDB{db}
+				cluster := coreapitesting.MinimumValidClusterTestCase()
+				cluster.SetResourceID(cluster.ID)
+				cluster.SetPartitionKey(cluster.ID.SubscriptionID)
+				cluster.ServiceProviderProperties.ClusterServiceID = cluster.ServiceProviderProperties.PendingClusterServiceID
+				_, err := db.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Create(t.Context(), cluster, nil)
 				require.NoError(t, err)
-			}
-			if tc.spLive {
-				_, err := corecosmosstorage.GetOrCreateServiceProviderNodePool(t.Context(), db, cached.ID)
+				_, err = db.Subscriptions().Create(t.Context(), newTestSubscription(cluster.ID.SubscriptionID, coreapi.SubscriptionStateRegistered, nil), nil)
 				require.NoError(t, err)
-			}
-			f.resourcesDBClient = noInventoryListsDB{db}
-			subscription := newTestSubscription(cluster.ID.SubscriptionID, coreapi.SubscriptionStateRegistered, nil)
-			ctx, err := f.newClusterAdmissionContext(t.Context(), operation.Operation{Type: operation.Update}, subscription, cluster, cluster.ID)
-			require.NoError(t, err)
-			sp, err := db.ServiceProviderNodePools(cached.ID.SubscriptionID, cached.ID.ResourceGroupName, cached.ID.Parent.Name, cached.ID.Name).Get(t.Context(), coreapi.ServiceProviderNodePoolResourceName)
-			if !tc.parentLive && !tc.spLive {
-				require.Empty(t, ctx.ClusterNodePools)
-				require.True(t, cosmosstorageutils.IsNotFoundError(err), "must not recreate SPNP for a stale deleted pool")
-				return
-			}
-			require.NoError(t, err)
-			require.Len(t, ctx.ClusterNodePools, 1)
-			require.Equal(t, sp, ctx.ClusterNodePools[0].ServiceProviderNodePool)
-			wantVersion := cached.Properties.Version.ID
-			if tc.parentLive {
-				wantVersion = "4.20.0"
-			}
-			require.Equal(t, wantVersion, ctx.ClusterNodePools[0].NodePool.Properties.Version.ID)
-			inventory, err := f.nodePoolLister.List(t.Context())
-			require.NoError(t, err)
-			require.Equal(t, cached, inventory[0], "live reads must not mutate the cache")
-		})
+				pool := coreapi.NewDefaultNodePool(metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestNodePoolResourceID)), coreapitesting.TestLocation)
+				pool.SetResourceID(pool.ID)
+				pool.SetPartitionKey(pool.ID.SubscriptionID)
+				poolInformer, _ := f.informers.NodePools()
+				require.NoError(t, poolInformer.GetStore().Add(pool.DeepCopy()))
+				if missing != "cluster" {
+					informer, _ := f.informers.ServiceProviderClusters()
+					require.NoError(t, informer.GetStore().Add(newTestServiceProviderCluster(cluster.ID)))
+				}
+				if missing != "node pool" {
+					informer, _ := f.informers.ServiceProviderNodePools()
+					require.NoError(t, informer.GetStore().Add(newTestServiceProviderNodePool(pool.ID)))
+				}
+				version, ok := f.apiRegistry.Lookup(coreapitesting.TestAPIVersion)
+				require.True(t, ok)
+				ctx := ContextWithVersion(t.Context(), version)
+				ctx = ContextWithCorrelationData(ctx, &coreapi.CorrelationData{})
+				ctx = ContextWithSystemData(ctx, cluster.SystemData)
+				ctx = utils.ContextWithResourceID(ctx, pool.ID)
+				ctx = ContextWithBody(ctx, []byte(`{"properties":{"platform":{"osDisk":{"sizeGiB":-1}}}}`))
+				request := httptest.NewRequest("PUT", pool.ID.String(), nil).WithContext(ctx)
+				recorder := httptest.NewRecorder()
+				handler := func(w http.ResponseWriter, r *http.Request) error {
+					switch kind {
+					case "cluster update":
+						desired := cluster.DeepCopy()
+						desired.CustomerProperties.Version.ID = "invalid"
+						return f.updateHCPClusterInCosmos(ctx, w, r, http.StatusAccepted, desired, cluster)
+					case "node pool update":
+						desired := pool.DeepCopy()
+						invalidSize := int32(-1)
+						desired.Properties.Platform.OSDisk.SizeGiB = &invalidSize
+						return f.updateNodePoolInCosmos(ctx, w, r, http.StatusAccepted, desired, pool)
+					default:
+						return f.createNodePool(w, r)
+					}
+				}
+				errorutils.ReportError(handler)(recorder, request)
+				if missing == "cluster" || (missing == "node pool" && kind != "node pool create") {
+					require.Equal(t, http.StatusInternalServerError, recorder.Code, recorder.Body.String())
+				} else {
+					// Invalid user input stops after admission, before an operation
+					// transaction, without requiring any provider DB access.
+					require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+				}
+			})
+		}
 	}
 }
 

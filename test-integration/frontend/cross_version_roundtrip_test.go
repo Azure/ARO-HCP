@@ -725,12 +725,12 @@ func createNodePoolAndComplete(
 	t.Helper()
 
 	resourceID := nodePoolResourceID(clusterName, nodePoolName)
-	require.NoError(t, testInfo.WaitForFrontendCaches(ctx))
 	require.NoError(t, integrationutils.StampRandomClusterServiceID(
 		ctx,
 		testInfo.ResourcesDBClient(),
 		clusterResourceID(clusterName),
 	))
+	require.NoError(t, testInfo.WaitForFrontendCaches(ctx))
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, nodePoolCreatePayload(nodePoolName, apiVersion)))
 
@@ -741,6 +741,13 @@ func createNodePoolAndComplete(
 	csID, err := integrationutils.CalculateClusterServiceIDFromNodePoolResourceID(ctx, testInfo.ResourcesDBClient(), resourceID)
 	require.NoError(t, err)
 	require.NoError(t, integrationutils.SetClusterServiceID(ctx, testInfo.ResourcesDBClient(), resourceID, csID))
+	_, err = testInfo.ResourcesDBClient().ServiceProviderNodePools(subscriptionID, parsedID.ResourceGroupName, clusterName, nodePoolName).Create(ctx, &coreapi.ServiceProviderNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(resourceID + "/serviceProviderNodePools/default")),
+			PartitionKey: subscriptionID,
+		},
+	}, nil)
+	require.NoError(t, err)
 	require.NoError(t, testInfo.WaitForFrontendCaches(ctx))
 }
 

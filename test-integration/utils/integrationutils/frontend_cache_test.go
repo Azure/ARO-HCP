@@ -56,6 +56,10 @@ func TestFrontendCacheConvergence(t *testing.T) {
 	require.True(t, info.NodePoolInformer.HasSynced())
 	require.Empty(t, info.ClusterInformer.GetStore().List())
 	require.Empty(t, info.NodePoolInformer.GetStore().List())
+	require.True(t, info.ServiceProviderClusterInformer.HasSynced())
+	require.True(t, info.ServiceProviderNodePoolInformer.HasSynced())
+	require.Empty(t, info.ServiceProviderClusterInformer.GetStore().List())
+	require.Empty(t, info.ServiceProviderNodePoolInformer.GetStore().List())
 
 	const subscription = "0465bc32-c654-41b8-8d87-9815d7abe8f6"
 	const clusterID = "/subscriptions/" + subscription + "/resourceGroups/test/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/late"
@@ -65,6 +69,8 @@ func TestFrontendCacheConvergence(t *testing.T) {
 	}{
 		{clusterID, coreapi.ClusterResourceType.String(), info.ClusterInformer},
 		{clusterID + "/nodePools/late", coreapi.NodePoolResourceType.String(), info.NodePoolInformer},
+		{clusterID + "/serviceProviderClusters/default", coreapi.ServiceProviderClusterResourceType.String(), info.ServiceProviderClusterInformer},
+		{clusterID + "/nodePools/late/serviceProviderNodePools/default", coreapi.ServiceProviderNodePoolResourceType.String(), info.ServiceProviderNodePoolInformer},
 	}
 	load := func(id, resourceType, version string, instanceVersion int64) {
 		t.Helper()
@@ -74,12 +80,21 @@ func TestFrontendCacheConvergence(t *testing.T) {
 		if resourceType == coreapi.NodePoolResourceType.String() {
 			propertiesKey = "properties"
 		}
+		properties := map[string]any{
+			"cosmosMetadata": map[string]any{"resourceID": id, "partitionKey": subscription, "instanceVersion": instanceVersion},
+			propertiesKey:    map[string]any{"version": map[string]any{"id": version}},
+		}
+		switch resourceType {
+		case coreapi.ServiceProviderClusterResourceType.String():
+			delete(properties, propertiesKey)
+			properties["status"] = map[string]any{"control_plane_version": map[string]any{"active_versions": []any{map[string]any{"version": version}}}}
+		case coreapi.ServiceProviderNodePoolResourceType.String():
+			delete(properties, propertiesKey)
+			properties["status"] = map[string]any{"nodePoolVersion": map[string]any{"activeVersions": []any{map[string]any{"version": version}}}}
+		}
 		content, err := json.Marshal(map[string]any{
 			"id": uid, "partitionKey": subscription, "resourceID": id, "resourceType": resourceType,
-			"properties": map[string]any{
-				"cosmosMetadata": map[string]any{"resourceID": id, "partitionKey": subscription, "instanceVersion": instanceVersion},
-				propertiesKey:    map[string]any{"version": map[string]any{"id": version}},
-			},
+			"properties": properties,
 		})
 		require.NoError(t, err)
 		require.NoError(t, info.LoadContent(ctx, content))

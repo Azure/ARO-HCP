@@ -60,13 +60,15 @@ type IntegrationTestInfo struct {
 
 	ArtifactsDir string
 
-	FrontendURL      string
-	Frontend         *frontend.Frontend
-	ClusterInformer  cache.SharedIndexInformer
-	NodePoolInformer cache.SharedIndexInformer
-	AdminURL         string
-	AdminAPI         *server.AdminAPI
-	adminAPIListener net.Listener
+	FrontendURL                     string
+	Frontend                        *frontend.Frontend
+	ClusterInformer                 cache.SharedIndexInformer
+	NodePoolInformer                cache.SharedIndexInformer
+	ServiceProviderClusterInformer  cache.SharedIndexInformer
+	ServiceProviderNodePoolInformer cache.SharedIndexInformer
+	AdminURL                        string
+	AdminAPI                        *server.AdminAPI
+	adminAPIListener                net.Listener
 
 	KubernetesClientSets *KubernetesClientSets
 }

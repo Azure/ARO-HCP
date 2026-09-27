@@ -7,8 +7,9 @@ and Kubernetes. Source baseline: `7997fa34a240560a792c3dd410396cd7651a9f39`.
 Targeted update baseline: `4c1bf7d74e714d2ce24a8175a0d4846cc78d7113`;
 scope: ContainerRegistry pull-credential validation and Cosmos snapshots moved from periodic dump controllers to informer lists.
 Frontend admission-cache update baseline: `d9a1b9a4e2bf2298763bf7e1924f117678bdc2ba`
-plus working-tree changes; scope: two frontend admission informers, startup sync,
-cached admission inventories and the three affected lifecycle views.
+plus working-tree changes; scope: four-resource frontend admission informer bundle,
+aggregate startup sync, cached admission inventories/provider state and affected
+lifecycle views. Targeted integration-test cache waits remain deferred.
 
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
@@ -145,49 +146,65 @@ The helper-package move does not change endpoint ownership or transactional boun
 
 ### Admission Caches and Startup
 
-The frontend owns exactly two read-only, in-memory admission caches backed by the
-**Resources** container: `Clusters` (`Cluster`) and `NodePools`
-(`NodePool`). [Command wiring](../frontend/cmd/cmd.go) constructs
-the individual [core informers](../internal/database/informers/coreinformers/informers.go),
-not the backend informer bundle. They use initial global lists, Cosmos changefeed
+The frontend owns exactly four read-only, in-memory admission caches backed by the
+**Resources** container: `Clusters` (`Cluster`), `NodePools` (`NodePool`),
+`ServiceProviderClusters` (`ServiceProviderCluster`, SPC) and
+`ServiceProviderNodePools` (`ServiceProviderNodePool`, SPNP).
+[Command wiring](../frontend/cmd/cmd.go) constructs the
+[`FrontendInformers` bundle](../internal/database/informers/coreinformers/frontend.go),
+not the backend informer bundle. Its [core informers](../internal/database/informers/coreinformers/informers.go)
+use initial global lists, Cosmos changefeed
 updates and periodic relists (30-minute default); the one-hour informer resync is
 not a live database refresh. Cluster subscription lookup uses a lower-cased
 subscription index across resource groups; node-pool inventory uses the owning
 cluster index. Cached objects are read-only inputs, not mutation targets.
 
-[`Frontend.Run`](../frontend/pkg/frontend/frontend.go) starts both informers and
-the metrics server, then waits for **both** `HasSynced` functions through
+[`Frontend.Run`](../frontend/pkg/frontend/frontend.go) starts the informer bundle and
+the metrics server, then waits for the bundle's aggregate `HasSynced` (**all four** caches) through
 `cache.WaitForNamedCacheSyncWithContext` before serving the API. Aborted warmup
 returns an error without serving API requests; shutdown cancels and joins the
 informer/server goroutines and closes listeners, including an unserved API listener.
-This uses the same client-go sync helper as
-[#7142](https://github.com/Azure/ARO-HCP/pull/7142), but does not depend on that PR
-or its backend/fleet aggregate `HasSynced` interfaces.
 
-| Admission consumer | Cached inventory | Live inputs / effects retained |
+| Admission consumer | Cached inputs | Live inputs / effects retained |
 |---|---|---|
 | Cluster PUT create and deployment preflight | `newClusterAdmissionContext` lists clusters in the request subscription, then node pools under those cached clusters. [Collision checks](../internal/admission/admit_cluster.go) use these inventories for managed-resource-group name, subnet and NSG reuse. | Subscription and request-target existence reads remain live. Preflight does not persist resources. |
-| Cluster PUT/PATCH update | The same [context builder](../frontend/pkg/frontend/cluster.go) lists the cluster's node pools for version-skew admission. | Target cluster and `ServiceProviderCluster` remain live; each `ServiceProviderNodePool` is fetched live. Missing provider records may be initialized through the existing GetOrCreate helpers, separately from the resource/operation transaction. |
+| Cluster PUT/PATCH update | The same [context builder](../frontend/pkg/frontend/cluster.go) gets SPC and lists the cluster's node pools, pairing each nondeleting pool with its cached SPNP for version-skew admission. | Subscription and target-cluster reads remain live; the resource/operation transaction is unchanged. |
+| Node-pool PUT create | [Node-pool admission setup](../frontend/pkg/frontend/node_pool.go) gets the parent SPC for control-plane version state; no SPNP is required for create. | Subscription, parent-cluster and target-existence reads remain live; the resource/operation transaction is unchanged. |
+| Node-pool PUT/PATCH update | The same node-pool context builder gets the parent SPC and target SPNP for version validation. | Subscription, parent-cluster and target-node-pool reads remain live; the resource/operation transaction is unchanged. |
 | Explicit node-pool DELETE | [DeleteNodePool](../frontend/pkg/frontend/node_pool.go) lists sibling pools for the [best-effort last-pool check](../internal/admission/admit_nodepool.go), which rejects inventories of at most one pool. | The target node pool, provisioning-state conflict checks and operation handling remain live; the delete transaction is unchanged. |
 
-On cluster update, a missing `ServiceProviderNodePool` triggers a live GET of its
-parent **node-pool resource** before
-[`GetOrCreateServiceProviderNodePool`](../internal/database/cosmosstorage/corecosmosstorage/service_provider_nodepool.go).
-If that parent is also NotFound, the stale cached pool is skipped rather than
-recreating provider state for an already-gone pool. If present, the live node pool
-is used with the provider record; other read errors fail admission. This recheck
-does not make the reads and possible provider creation atomic.
+All SPC/SPNP reads for admission come from the caches. Admission setup does not
+call GetOrCreate, create provider documents, or fall back to a live parent-resource
+read on a cache miss. A missing required SPC/SPNP fails setup with a contextual
+internal error (HTTP 500), not an ARM target NotFound (HTTP 404); the diagnostic
+identifies the dependency and admission context. Provider document creation remains
+with backend [CreateServiceProviderCluster](#createserviceprovidercluster) and
+[CreateServiceProviderNodePool](#createserviceprovidernodepool), not an admission
+side effect of the endpoint writes listed below.
 
-These inventories are **best effort and eventually consistent**, not uniqueness
-locks or a consistent snapshot across the two caches and live provider reads.
+Cluster-update admission skips cached node pools whose
+`ServiceProviderProperties.DeletionTimestamp` is non-nil, before looking up SPNP,
+matching the backend's [version-skew inventory](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go).
+A nondeleting cached pool with missing SPNP is an error, even if its parent
+node-pool resource has already disappeared from Cosmos.
+
+These inputs are **best effort and eventually consistent**, not uniqueness
+locks or a consistent snapshot across the four caches and direct resource reads.
 Initial sync prevents admission against cold caches; it imposes **no ongoing
 freshness limit** or request-time freshness gate. Cache lag and concurrent requests
 can miss conflicts or temporarily reject valid requests. All other frontend reads
 remain live, including ordinary GET/LIST responses, subscriptions, target-resource
-and existence checks, service-provider documents, operations, credentials, and
+and existence checks, operations, credentials (including SPC reads outside admission), and
 cluster/subscription cascade-deletion inventories. The frontend still obtains
 management-cluster observations only through backend-mirrored service-provider
 state, never through management-cluster or kube-applier access.
+
+Integration tests retain the existing
+[`WaitForFrontendCaches`](../test-integration/utils/integrationutils/frontend_cache.go)
+convergence helper, now comparing all four caches against global database lists
+for membership, versions and serialized content, not just initial synchronization.
+The targeted per-resource test-wait redesign is **deferred**; this test helper is
+not a production request-time freshness gate.
 
 ### Read-Only Create Fields
 
@@ -439,7 +456,7 @@ controllers remain in the inventory. External operators are boundaries, not coun
 as in-repo controllers. Generic watching/operation wrappers, HTTP servers, informer
 factories, leader election and Prometheus collectors are infrastructure rather than
 additional business controllers.
-The two [frontend admission informers](#admission-caches-and-startup) are likewise
+The four [frontend admission informers](#admission-caches-and-startup) are likewise
 infrastructure, not additional controller catalog entries.
 
 ### Registration and trigger conventions
@@ -1349,7 +1366,7 @@ bash docs/diagrams/controller-flows/render.sh
 
 ![Cluster create controller digraph](diagrams/controller-flows/cluster-create.png)
 
-[Frontend create admission](../frontend/pkg/frontend/cluster.go) uses cached subscription clusters and their node pools for best-effort collision checks; [deployment preflight](../frontend/pkg/frontend/frontend.go) uses the same context without the create write. Both caches must initially sync before API serving, but [ongoing freshness is not bounded](#admission-caches-and-startup).
+[Frontend create admission](../frontend/pkg/frontend/cluster.go) uses cached subscription clusters and their node pools for best-effort collision checks; [deployment preflight](../frontend/pkg/frontend/frontend.go) uses the same context without the create write. All four frontend caches must initially sync before API serving, even though cluster create uses only the two inventories; [ongoing freshness is not bounded](#admission-caches-and-startup).
 
 The prerequisites panel separates selected `Spec.ManagementClusterResourceID` from observed placement. The [create controller](../backend/pkg/controllers/cluster/creation/cluster_cluster_service_create_controller.go) requires pending ID, desired version, selected provision shard and, when enabled, the deny-assignment state (no pending entries, a nonempty confirmed list and `EarliestRecheckTime` set). [Placement](../backend/pkg/controllers/cluster/placement/placement_controller.go) supplies the pre-create target; actual placement is learned after Cluster Service creation.
 
@@ -1391,7 +1408,7 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 ![Cluster update controller digraph](diagrams/controller-flows/cluster-update.png)
 
-[Frontend update admission](../frontend/pkg/frontend/cluster.go) combines cached node-pool inventory with live target and service-provider reads. A missing provider node-pool document requires a live parent node-pool recheck before GetOrCreate; a gone parent is skipped. These [admission inputs remain best effort](#admission-caches-and-startup), not an atomic snapshot.
+[Frontend update admission](../frontend/pkg/frontend/cluster.go) combines cached node-pool inventory and SPC/SPNP state with a live target-cluster read. Deleting cached pools are skipped before SPNP lookup, consistent with backend version-skew checks. Missing required provider state produces a contextual internal error, with no GetOrCreate or live parent fallback. These [admission inputs remain best effort](#admission-caches-and-startup), not an atomic snapshot.
 
 [Desired-version selection](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes and validation observations. Validation failures lasting at least five minutes also fail the operation with `InvalidResource` once the operation is at least five minutes old; sizing, identities and backup maintenance continue independently.
 
@@ -1411,6 +1428,8 @@ The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controll
 
 ![Node pool create controller digraph](diagrams/controller-flows/nodepool-create.png)
 
+[Frontend create admission](../frontend/pkg/frontend/node_pool.go) requires cached parent SPC state, but no SPNP. Parent-cluster and target-existence reads remain live. Missing SPC fails with an internal error before the resource/operation transaction; admission does not create provider state.
+
 [Node-pool creation](../backend/pkg/controllers/nodepool/creation/node_pool_cluster_service_create_controller.go) needs the parent Cluster Service ID, but POST does not wait for the service-provider desired version. [Create-operation completion](../backend/pkg/controllers/nodepool/operations/operation_node_pool_create.go) uses Cluster Service node-pool status; Kubernetes version observation feeds subsequent upgrade decisions independently.
 
 ### Node pool update
@@ -1418,6 +1437,8 @@ The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controll
 [Full PNG](diagrams/controller-flows/nodepool-update.png) · [Graphviz source](diagrams/controller-flows/nodepool-update.dot)
 
 ![Node pool update controller digraph](diagrams/controller-flows/nodepool-update.png)
+
+[Frontend update admission](../frontend/pkg/frontend/node_pool.go) requires cached SPC and SPNP state; parent-cluster and target-node-pool reads remain live. Missing required provider state fails with an internal error, without a live fallback or provider creation, before the resource/operation transaction.
 
 [Update completion](../backend/pkg/controllers/nodepool/operations/operation_node_pool_update.go) combines version resolution, Cluster Service state/configuration and mirrored Kubernetes NodePool checks. [NodePoolVersion](../backend/pkg/controllers/nodepool/version/nodepool_version_controller.go) selects desired state; [NodePoolActiveVersions](../backend/pkg/controllers/nodepool/version/nodepool_active_version_controller.go) records both provider and customer-visible observations. Status completion requires replicas plus AllNodesHealthy and AllMachinesReady; both health checks are skipped for fixed zero replicas.
 

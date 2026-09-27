@@ -49,14 +49,19 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		reg,
 		reg,
 		mockResourcesDBClient,
-		newTestClusterInformer(t),
-		newTestNodePoolInformer(t),
+		newTestFrontendInformers(t),
 		nil,
 		newNoopAuditClient(t),
 		coreapitesting.TestLocation,
 		true,
 	)
 	return f
+}
+
+func newTestFrontendInformers(t testing.TB) coreinformers.FrontendInformers {
+	t.Helper()
+	db := corecosmosstoragetesting.NewMockResourcesDBClient()
+	return coreinformers.NewFrontendInformers(t.Context(), db.ResourcesGlobalListers(), db)
 }
 
 func newTestClusterInformer(t testing.TB, clusters ...*coreapi.Cluster) cache.SharedIndexInformer {

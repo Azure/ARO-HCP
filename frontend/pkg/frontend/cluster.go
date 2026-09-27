@@ -254,14 +254,14 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 // ServiceProviderCluster and the list of node pools (plus their service-provider
 // records) so admission can validate version skew without hitting the DB itself.
 // On CREATE pass a nil clusterResourceID — no prior state exists to prefetch.
-// Cluster and node pool inventories are read-only, eventually consistent cache
-// data; service-provider records are always read live from Cosmos.
+// Inventories and service-provider records are read-only, eventually consistent
+// cache data. Missing required provider state fails admission setup.
 //
 // Architectural rule: the frontend must NEVER reach the management cluster
 // directly (no kube-applier, no ReadDesireLister, no Maestro, no HostedCluster
 // Kubernetes API). Everything admission needs about management-cluster state
 // must be mirrored by the backend onto the ServiceProviderCluster document and
-// prefetched here from Cosmos. For example, the observed HostedCluster's
+// prefetched here from the cache. For example, the observed HostedCluster's
 // status.version.desired.channels is mirrored onto
 // ServiceProviderCluster.Status.DesiredVersionChannels by the backend and read
 // from there by admission — the frontend never talks to the management cluster
@@ -306,9 +306,10 @@ func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.
 		return nil, fmt.Errorf("clusterResourceID is required for UPDATE operations")
 	}
 
-	spCluster, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, f.resourcesDBClient, clusterResourceID)
+	spCluster, err := f.serviceProviderClusterLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
 	if err != nil {
-		return nil, err
+		// Do not expose a missing admission dependency as an ARM target 404.
+		return nil, fmt.Errorf("cannot load service provider cluster %s for cluster admission: %v", clusterResourceID, err)
 	}
 	admissionContext.ServiceProviderCluster = spCluster
 
@@ -317,21 +318,13 @@ func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.
 		return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
 	}
 	for _, nodePool := range nodePools {
-		nodePoolID := nodePool.ID
-		spNodePool, err := f.resourcesDBClient.ServiceProviderNodePools(nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName, nodePoolID.Parent.Name, nodePoolID.Name).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
-		if cosmosstorageutils.IsNotFoundError(err) {
-			// A stale cache entry must not recreate service-provider state for a deleted pool.
-			nodePool, err = f.resourcesDBClient.HCPClusters(nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName).NodePools(nodePoolID.Parent.Name).Get(ctx, nodePoolID.Name)
-			if cosmosstorageutils.IsNotFoundError(err) {
-				continue
-			}
-			if err != nil {
-				return nil, fmt.Errorf("cannot load node pool %s: %w", nodePoolID, err)
-			}
-			spNodePool, err = corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, f.resourcesDBClient, nodePool.ID)
+		if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+			continue
 		}
+		nodePoolID := nodePool.ID
+		spNodePool, err := f.serviceProviderNodePoolLister.Get(ctx, nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName, nodePoolID.Parent.Name, nodePoolID.Name)
 		if err != nil {
-			return nil, fmt.Errorf("cannot load service provider node pool %s: %w", nodePoolID, err)
+			return nil, fmt.Errorf("cannot load service provider node pool %s for cluster admission: %v", nodePoolID, err)
 		}
 		admissionContext.ClusterNodePools = append(admissionContext.ClusterNodePools, admission.ClusterAdmissionNodePool{
 			NodePool:                nodePool,

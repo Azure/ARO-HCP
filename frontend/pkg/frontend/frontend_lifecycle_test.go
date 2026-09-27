@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 )
 
 type controlledInformer struct {
@@ -45,6 +47,30 @@ func (i *controlledInformer) RunWithContext(ctx context.Context) {
 	<-i.release
 }
 
+type controlledFrontendInformers struct {
+	coreinformers.FrontendInformers
+	informers []*controlledInformer
+	runs      atomic.Int32
+}
+
+func (b *controlledFrontendInformers) HasSynced() bool {
+	for _, informer := range b.informers {
+		if !informer.HasSynced() {
+			return false
+		}
+	}
+	return true
+}
+
+func (b *controlledFrontendInformers) RunWithContext(ctx context.Context) {
+	b.runs.Add(1)
+	var wg sync.WaitGroup
+	for _, informer := range b.informers {
+		wg.Go(func() { informer.RunWithContext(ctx) })
+	}
+	wg.Wait()
+}
+
 type observedListener struct {
 	net.Listener
 	once      sync.Once
@@ -57,12 +83,14 @@ func (l *observedListener) Accept() (net.Conn, error) {
 }
 
 func TestFrontendAdmissionCacheLifecycle(t *testing.T) {
-	for _, mode := range []string{"cluster syncs first", "node pool syncs first", "cancel warmup"} {
+	for last, mode := range []string{"cluster syncs last", "node pool syncs last", "provider cluster syncs last", "provider node pool syncs last", "cancel warmup"} {
 		t.Run(mode, func(t *testing.T) {
 			f := NewTestFrontend(t)
-			clusters := &controlledInformer{SharedIndexInformer: f.clusterInformer, started: make(chan struct{}), stopped: make(chan struct{}), release: make(chan struct{})}
-			pools := &controlledInformer{SharedIndexInformer: f.nodePoolInformer, started: make(chan struct{}), stopped: make(chan struct{}), release: make(chan struct{})}
-			f.clusterInformer, f.nodePoolInformer = clusters, pools
+			bundle := &controlledFrontendInformers{FrontendInformers: f.informers}
+			for range 4 {
+				bundle.informers = append(bundle.informers, &controlledInformer{started: make(chan struct{}), stopped: make(chan struct{}), release: make(chan struct{})})
+			}
+			f.informers = bundle
 			listener, err := net.Listen("tcp", "127.0.0.1:0")
 			require.NoError(t, err)
 			api := &observedListener{Listener: listener, accepting: make(chan struct{})}
@@ -72,7 +100,13 @@ func TestFrontendAdmissionCacheLifecycle(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			done := make(chan error, 1)
 			var releaseOnce sync.Once
-			release := func() { releaseOnce.Do(func() { close(clusters.release); close(pools.release) }) }
+			release := func() {
+				releaseOnce.Do(func() {
+					for _, informer := range bundle.informers {
+						close(informer.release)
+					}
+				})
+			}
 			t.Cleanup(func() {
 				cancel()
 				release()
@@ -80,9 +114,9 @@ func TestFrontendAdmissionCacheLifecycle(t *testing.T) {
 				_ = f.metricsListener.Close()
 			})
 			go func() { done <- f.Run(ctx) }()
-			for _, started := range []chan struct{}{clusters.started, pools.started} {
+			for _, informer := range bundle.informers {
 				select {
-				case <-started:
+				case <-informer.started:
 				case <-time.After(5 * time.Second):
 					t.Fatal("informer did not start")
 				}
@@ -92,23 +126,22 @@ func TestFrontendAdmissionCacheLifecycle(t *testing.T) {
 			require.NoError(t, err, "metrics must remain available during warmup")
 			require.Equal(t, http.StatusOK, response.StatusCode)
 			response.Body.Close()
-			if mode == "node pool syncs first" {
-				pools.synced.Store(true)
-			} else {
-				clusters.synced.Store(true)
+			for index, informer := range bundle.informers {
+				if index != last%4 {
+					informer.synced.Store(true)
+				}
 			}
 			select {
 			case <-api.accepting:
-				t.Fatal("API served before both caches synced")
+				t.Fatal("API served before all four caches synced")
 			case <-time.After(150 * time.Millisecond):
 			}
 			if mode != "cancel warmup" {
-				clusters.synced.Store(true)
-				pools.synced.Store(true)
+				bundle.informers[last].synced.Store(true)
 				select {
 				case <-api.accepting:
 				case <-time.After(5 * time.Second):
-					t.Fatal("API did not serve after both caches synced")
+					t.Fatal("API did not serve after all four caches synced")
 				}
 				response, err := client.Get("http://" + api.Addr().String() + "/healthz")
 				require.NoError(t, err)
@@ -116,9 +149,9 @@ func TestFrontendAdmissionCacheLifecycle(t *testing.T) {
 				response.Body.Close()
 			}
 			cancel()
-			for _, stopped := range []chan struct{}{clusters.stopped, pools.stopped} {
+			for _, informer := range bundle.informers {
 				select {
-				case <-stopped:
+				case <-informer.stopped:
 				case <-time.After(5 * time.Second):
 					t.Fatal("informer was not cancelled")
 				}
@@ -140,6 +173,7 @@ func TestFrontendAdmissionCacheLifecycle(t *testing.T) {
 				t.Fatal("Run did not finish")
 			}
 			_, err = listener.Accept()
+			require.EqualValues(t, 1, bundle.runs.Load(), "frontend must start exactly one bundle runner")
 			require.ErrorIs(t, err, net.ErrClosed, "Run must close the listener even if warmup aborts")
 			if mode == "cancel warmup" {
 				select {
