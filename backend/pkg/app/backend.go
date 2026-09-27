@@ -469,11 +469,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, serviceProviderNodePoolLister := backendInformers.ServiceProviderNodePools()
 
-	subscriptionNonClusterDataDumpController := datadump.NewSubscriptionNonClusterDataDumpController(b.options.ResourcesDBClient, backendInformers)
-	clusterRecursiveDataDumpController := datadump.NewClusterRecursiveDataDumpController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, managementClusterLister, activeOperationLister, backendInformers, unionKubeApplierInformers)
 	csStateDumpController := datadump.NewCSStateDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers, b.options.ClustersServiceClient)
-	billingDumpController := datadump.NewBillingDumpController(b.options.ResourcesDBClient, b.options.BillingDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers)
-	managementClusterDumpController := datadump.NewManagementClusterDataDumpController(b.options.FleetDBClient, managementClusterLister, fleetInformers)
 	dispatchRequestCredentialController := legacycredentialrequest.NewDispatchRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
@@ -1139,11 +1135,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				// must start after the fleet informers above.
 				go unionKubeApplierInformersController.Run(ctx, 1)
 
-				go subscriptionNonClusterDataDumpController.Run(ctx, 20)
-				go clusterRecursiveDataDumpController.Run(ctx, 20)
 				go csStateDumpController.Run(ctx, 20)
-				go billingDumpController.Run(ctx, 20)
-				go managementClusterDumpController.Run(ctx, 20)
 				go dispatchRequestCredentialController.Run(ctx, 20)
 				go adminCredentialsDispatchRequestCredentialController.Run(ctx, 20)
 				go adminCredentialsDispatchRevokeCredentialsController.Run(ctx, 20)
