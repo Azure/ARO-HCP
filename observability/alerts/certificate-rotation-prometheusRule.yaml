@@ -78,6 +78,7 @@ spec:
         max by (cluster, environment, region, key_vault) (
           keyvault_certificate_collector_last_success_timestamp_seconds
         ) == 0
+      for: 1h
       labels:
         severity: "3"
       annotations:
