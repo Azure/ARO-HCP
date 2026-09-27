@@ -1,6 +1,7 @@
 using '../templates/svc-cluster.bicep'
 
 // AKS
+param systemPoolOnly = {{ .svc.aks.systemPoolOnly }}
 param kubernetesVersion = '{{ .svc.aks.kubernetesVersion }}'
 param vnetAddressPrefix = '{{ .svc.aks.vnetAddressPrefix }}'
 param subnetPrefix = '{{ .svc.aks.subnetPrefix }}'

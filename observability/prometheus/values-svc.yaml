@@ -1,3 +1,8 @@
+{{- $schedulingRole := "infra" -}}
+{{- if .svc.aks.systemPoolOnly -}}
+{{- $schedulingRole = "system" -}}
+{{- end -}}
+schedulingRole: {{ $schedulingRole }}
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
   crds:
@@ -57,7 +62,7 @@ kube-prometheus-stack:
             - key: aro-hcp.azure.com/role
               operator: In
               values:
-              - "infra"
+              - "{{ $schedulingRole }}"
     tolerations:
     - key: "infra"
       operator: "Equal"
