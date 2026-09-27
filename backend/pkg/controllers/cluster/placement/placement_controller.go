@@ -17,6 +17,7 @@ package placement
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -221,7 +222,7 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 	}
 	// Fresh capacity-aware selection: evaluate management clusters paired
 	// with their scheduling documents, then let selectByCapacity perform all
-	// candidate elimination and choose the emptiest eligible one. The new HCP
+	// candidate elimination and choose the preferred eligible one. The new HCP
 	// reserves swift NICs according to its networking mode and availability.
 	evaluations, err := c.evaluateManagementClusters(ctx)
 	if err != nil {
@@ -275,6 +276,8 @@ type managementClusterEvaluation struct {
 	eligibility        eligibility
 	reason             string
 	availableResources corev1.ResourceList
+	contention         *float64
+	pendingAssignments int
 }
 
 // evaluateManagementClusters resolves eligibility and available capacity from
@@ -287,6 +290,7 @@ func (c *placementSyncer) evaluateManagementClusters(ctx context.Context) ([]man
 	}
 
 	evaluations := make([]managementClusterEvaluation, 0, len(managementClusters))
+	now := time.Now()
 	for _, managementCluster := range managementClusters {
 		if managementCluster == nil || managementCluster.ResourceID == nil {
 			continue
@@ -307,6 +311,16 @@ func (c *placementSyncer) evaluateManagementClusters(ctx context.Context) ([]man
 		evaluation := managementClusterEvaluation{
 			resourceID:         managementCluster.ResourceID,
 			availableResources: c.availableResources(ctx, scheduling),
+			contention:         resourceContention(scheduling, now),
+		}
+		if scheduling != nil {
+			pending := sets.New[string]()
+			for _, id := range scheduling.Status.PendingAssignedClusters {
+				if id != nil {
+					pending.Insert(strings.ToLower(id.String()))
+				}
+			}
+			evaluation.pendingAssignments = pending.Len()
 		}
 		// Policy and readiness take precedence over missing capacity observations.
 		switch {
@@ -331,14 +345,52 @@ func (c *placementSyncer) evaluateManagementClusters(ctx context.Context) ([]man
 	return evaluations, nil
 }
 
-// selectByCapacity chooses the eligible cluster with the most available swift-NIC
-// capacity, provided it meets requiredSwiftNICs. Ties favor the lowest resource ID.
+// resourceContention estimates HCP contention against current worker capacity,
+// not the scale ceiling. It excludes non-HCP workloads and does not reserve CPU
+// or memory for pending HCPs. Incomplete, invalid or stale observations are unknown.
+func resourceContention(scheduling *fleetapi.ManagementClusterScheduling, now time.Time) *float64 {
+	if scheduling == nil {
+		return nil
+	}
+	observed := scheduling.Status.ObservedResources
+	if observed.LastReportedAt == nil || observed.LastReportedAt.IsZero() ||
+		observed.LastReportedAt.After(now) || now.Sub(observed.LastReportedAt.Time) > 5*time.Minute {
+		return nil
+	}
+	var score float64
+	for _, name := range []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
+		capacity, hasCapacity := observed.Capacity[name]
+		requests, hasRequests := observed.Requests[name]
+		usage, hasUsage := observed.Usage[name]
+		if !hasCapacity || !hasRequests || !hasUsage || capacity.Sign() <= 0 || requests.Sign() < 0 || usage.Sign() < 0 {
+			return nil
+		}
+		c, r, u := capacity.AsApproximateFloat64(), requests.AsApproximateFloat64(), usage.AsApproximateFloat64()
+		for _, value := range []float64{c, r, u} {
+			if math.IsNaN(value) || math.IsInf(value, 0) {
+				return nil
+			}
+		}
+		if c <= 0 {
+			return nil
+		}
+		ratio := math.Max(r, u) / c
+		if math.IsNaN(ratio) || math.IsInf(ratio, 0) {
+			return nil
+		}
+		score = math.Max(score, ratio)
+	}
+	return &score
+}
+
+// selectByCapacity chooses an eligible cluster meeting requiredSwiftNICs. SWIFT
+// placements prefer the most available NICs. Zero-NIC placements prefer lower
+// known contention, then fewer pending assignments, then the lowest resource ID.
+// If all scores are unknown, legacy NIC ordering (then resource ID) is preserved.
 // A known fit yields CapacityAvailable=True regardless of other unknown evaluations.
 // Only when no fit exists do we collect rejection details and report Unknown or False.
-//
-// TODO: leverage CPU and memory as well as the average HCP resource consumption in the region for more elaborate capacity based placement decisions.
 func selectByCapacity(evaluations []managementClusterEvaluation, requiredSwiftNICs int64) (*azcorearm.ResourceID, metav1.Condition) {
-	var chosen *azcorearm.ResourceID
+	var chosen *managementClusterEvaluation
 	var highestAvailable int64
 	for _, evaluation := range evaluations {
 		if evaluation.eligibility != eligible {
@@ -348,20 +400,35 @@ func selectByCapacity(evaluations []managementClusterEvaluation, requiredSwiftNI
 		if available < requiredSwiftNICs {
 			continue
 		}
-		if chosen == nil || available > highestAvailable ||
-			(available == highestAvailable && evaluation.resourceID.String() < chosen.String()) {
-			chosen = evaluation.resourceID
+		better := chosen == nil || available > highestAvailable ||
+			(available == highestAvailable && evaluation.resourceID.String() < chosen.resourceID.String())
+		if chosen != nil && requiredSwiftNICs == 0 && (evaluation.contention != nil || chosen.contention != nil) {
+			switch {
+			case evaluation.contention == nil:
+				better = false
+			case chosen.contention == nil:
+				better = true
+			case *evaluation.contention != *chosen.contention:
+				better = *evaluation.contention < *chosen.contention
+			case evaluation.pendingAssignments != chosen.pendingAssignments:
+				better = evaluation.pendingAssignments < chosen.pendingAssignments
+			default:
+				better = evaluation.resourceID.String() < chosen.resourceID.String()
+			}
+		}
+		if better {
+			chosen = &evaluation
 			highestAvailable = available
 		}
 	}
 	if chosen == nil {
 		return nil, noPlacementCondition(evaluations, requiredSwiftNICs)
 	}
-	return chosen, metav1.Condition{
+	return chosen.resourceID, metav1.Condition{
 		Type:    coreapi.CapacityAvailableConditionType,
 		Status:  metav1.ConditionTrue,
 		Reason:  coreapi.CapacityReasonAvailable,
-		Message: "placed on " + chosen.Name,
+		Message: "placed on " + chosen.resourceID.Name,
 	}
 }
 
