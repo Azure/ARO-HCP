@@ -1041,13 +1041,14 @@ svc:
     podSubnetPrefix: 10.128.64.0/18
     subnetPrefix: 10.128.8.0/21
     systemAgentPool:
-      maxCount: 3
-      minCount: 1
+      maxCount: 5
+      minCount: 3
       name: system
       osDiskSizeGB: 32
       vmSize: Standard_D4ds_v6
       zoneRedundantMode: Auto
       zones: ""
+    systemPoolOnly: true
     tags: clusterType=svc-cluster,persist=true
     upgradeSettings:
       maxSurge: 10%

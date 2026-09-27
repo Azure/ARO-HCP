@@ -1048,6 +1048,7 @@ svc:
       vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
       zones: ""
+    systemPoolOnly: false
     tags: clusterType=svc-cluster,persist=true
     upgradeSettings:
       maxSurge: 10%
