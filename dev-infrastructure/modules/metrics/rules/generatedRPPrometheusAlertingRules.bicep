@@ -1230,6 +1230,7 @@ resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusR
           title: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate collection is stale'
         }
         expression: '(time() - max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) > 3600) or max by (cluster, environment, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds) == 0'
+        for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
