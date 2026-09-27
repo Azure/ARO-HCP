@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	yamlv3 "go.yaml.in/yaml/v3"
 	"helm.sh/helm/v4/pkg/chart/common"
 	"helm.sh/helm/v4/pkg/chart/common/util"
 	"helm.sh/helm/v4/pkg/chart/v2/loader"
@@ -35,6 +36,10 @@ import (
 )
 
 func TestSchedulingRole(t *testing.T) {
+	valuesSource, err := os.ReadFile("values-svc.yaml")
+	require.NoError(t, err)
+	var rawValues yamlv3.Node
+	require.NoError(t, yamlv3.Unmarshal(valuesSource, &rawValues), "unrendered values must remain valid YAML for yamllint")
 	raw, err := os.ReadFile("../../config/rendered/dev/dev/westus3.yaml")
 	require.NoError(t, err)
 	for _, cluster := range []string{"svc", "mgmt", "opstool"} {

@@ -329,9 +329,11 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-04-02-previ
         nodeLabels: {
           'aro-hcp.azure.com/role': 'system'
         }
-        nodeTaints: systemPoolOnly ? [] : [
-          'CriticalAddonsOnly=true:NoSchedule'
-        ]
+        nodeTaints: systemPoolOnly
+          ? []
+          : [
+              'CriticalAddonsOnly=true:NoSchedule'
+            ]
         tags: swiftNodepoolTags
       }
     ]
