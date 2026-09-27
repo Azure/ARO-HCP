@@ -5,7 +5,7 @@ go 1.25.7
 require (
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260917062117-27fb5fa3a294
 	github.com/dusted-go/logging v1.3.0
-	github.com/go-logr/logr v1.4.3
+	github.com/go-logr/logr v1.4.4
 	github.com/spf13/cobra v1.10.2
 )
 
