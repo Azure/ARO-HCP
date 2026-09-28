@@ -66,6 +66,25 @@ func (h *fakeHandler) PublishLease(_ context.Context, _ LeaseRequest, contract *
 	return contract.Add(string(h.kind), "EXPORT_"+string(h.kind), "value")
 }
 
+func TestRegistryRejectsNilHandlers(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name    string
+		handler Handler
+	}{
+		{"nil interface", nil},
+		{"typed nil pointer", (*fakeHandler)(nil)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			registry, err := NewRegistry(test.handler)
+			if registry != nil || err == nil || err.Error() != "asset handler is nil" {
+				t.Fatalf("expected nil-handler error and no registry, got %v, %v", registry, err)
+			}
+		})
+	}
+}
+
 func TestRegistryRejectsDuplicateKinds(t *testing.T) {
 	t.Parallel()
 

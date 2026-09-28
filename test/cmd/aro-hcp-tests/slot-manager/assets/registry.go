@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -95,6 +96,13 @@ func NewRegistry(handlers ...Handler) (*Registry, error) {
 	for _, handler := range handlers {
 		if handler == nil {
 			return nil, errors.New("asset handler is nil")
+		}
+		value := reflect.ValueOf(handler)
+		switch value.Kind() {
+		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+			if value.IsNil() {
+				return nil, errors.New("asset handler is nil")
+			}
 		}
 		kind := Kind(strings.TrimSpace(string(handler.Kind())))
 		if kind == "" {
