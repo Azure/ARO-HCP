@@ -1376,50 +1376,6 @@
                       "resourceGroup": "[parameters('resourceGroupName')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
                     },
-                    "dpFileCsiDriverFileStorageOperatorRoleNsgAssignment": {
-                      "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resource')]",
-                      "dependsOn": [
-                        "dpFileCsiDriverMi"
-                      ],
-                      "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpFileCsiDriverMiName), variables('fileStorageOperatorRoleId'), resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName')))]",
-                      "properties": {
-                        "principalId": "[reference('dpFileCsiDriverMi').principalId]",
-                        "principalType": "ServicePrincipal",
-                        "roleDefinitionId": "[variables('fileStorageOperatorRoleId')]"
-                      },
-                      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
-                      "type": "Microsoft.Authorization/roleAssignments"
-                    },
-                    "dpFileCsiDriverFileStorageOperatorRoleResourceGroupAssignment": {
-                      "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resourceGroup')]",
-                      "dependsOn": [
-                        "dpFileCsiDriverMi"
-                      ],
-                      "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpFileCsiDriverMiName), variables('fileStorageOperatorRoleId'))]",
-                      "properties": {
-                        "principalId": "[reference('dpFileCsiDriverMi').principalId]",
-                        "principalType": "ServicePrincipal",
-                        "roleDefinitionId": "[variables('fileStorageOperatorRoleId')]"
-                      },
-                      "type": "Microsoft.Authorization/roleAssignments"
-                    },
-                    "dpFileCsiDriverFileStorageOperatorRoleVnetAssignment": {
-                      "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resource')]",
-                      "dependsOn": [
-                        "dpFileCsiDriverMi"
-                      ],
-                      "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpFileCsiDriverMiName), variables('fileStorageOperatorRoleId'), resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')))]",
-                      "properties": {
-                        "principalId": "[reference('dpFileCsiDriverMi').principalId]",
-                        "principalType": "ServicePrincipal",
-                        "roleDefinitionId": "[variables('fileStorageOperatorRoleId')]"
-                      },
-                      "scope": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
-                      "type": "Microsoft.Authorization/roleAssignments"
-                    },
                     "dpFileCsiDriverMi": {
                       "apiVersion": "2023-01-31",
                       "existing": true,
@@ -2423,50 +2379,6 @@
                       "name": "[parameters('identities').dpDiskCsiDriverMiName]",
                       "resourceGroup": "[parameters('resourceGroupName')]",
                       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
-                    },
-                    "dpFileCsiDriverFileStorageOperatorRoleNsgAssignment": {
-                      "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resource')]",
-                      "dependsOn": [
-                        "dpFileCsiDriverMi"
-                      ],
-                      "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpFileCsiDriverMiName), variables('fileStorageOperatorRoleId'), resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName')))]",
-                      "properties": {
-                        "principalId": "[reference('dpFileCsiDriverMi').principalId]",
-                        "principalType": "ServicePrincipal",
-                        "roleDefinitionId": "[variables('fileStorageOperatorRoleId')]"
-                      },
-                      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
-                      "type": "Microsoft.Authorization/roleAssignments"
-                    },
-                    "dpFileCsiDriverFileStorageOperatorRoleResourceGroupAssignment": {
-                      "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resourceGroup')]",
-                      "dependsOn": [
-                        "dpFileCsiDriverMi"
-                      ],
-                      "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpFileCsiDriverMiName), variables('fileStorageOperatorRoleId'))]",
-                      "properties": {
-                        "principalId": "[reference('dpFileCsiDriverMi').principalId]",
-                        "principalType": "ServicePrincipal",
-                        "roleDefinitionId": "[variables('fileStorageOperatorRoleId')]"
-                      },
-                      "type": "Microsoft.Authorization/roleAssignments"
-                    },
-                    "dpFileCsiDriverFileStorageOperatorRoleVnetAssignment": {
-                      "apiVersion": "2022-04-01",
-                      "condition": "[equals(parameters('rbacScope'), 'resource')]",
-                      "dependsOn": [
-                        "dpFileCsiDriverMi"
-                      ],
-                      "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpFileCsiDriverMiName), variables('fileStorageOperatorRoleId'), resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')))]",
-                      "properties": {
-                        "principalId": "[reference('dpFileCsiDriverMi').principalId]",
-                        "principalType": "ServicePrincipal",
-                        "roleDefinitionId": "[variables('fileStorageOperatorRoleId')]"
-                      },
-                      "scope": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
-                      "type": "Microsoft.Authorization/roleAssignments"
                     },
                     "dpFileCsiDriverMi": {
                       "apiVersion": "2023-01-31",

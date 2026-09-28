@@ -369,38 +369,6 @@ resource dpFileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@202
   scope: resourceGroup(resourceGroupName)
 }
 
-resource dpFileCsiDriverFileStorageOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
-  name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId)
-  scope: resourceGroup()
-  properties: {
-    principalId: dpFileCsiDriverMi.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: fileStorageOperatorRoleId
-  }
-}
-
-resource dpFileCsiDriverFileStorageOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
-  name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, vnet.id)
-  scope: vnet
-  properties: {
-    principalId: dpFileCsiDriverMi.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: fileStorageOperatorRoleId
-  }
-}
-
-// No subnet-scoped assignment: the VNet-scoped grant above already covers the subnet via RBAC scope inheritance.
-
-resource dpFileCsiDriverFileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
-  name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, nsg.id)
-  scope: nsg
-  properties: {
-    principalId: dpFileCsiDriverMi.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: fileStorageOperatorRoleId
-  }
-}
-
 resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: identities.dpImageRegistryMiName
   scope: resourceGroup(resourceGroupName)
