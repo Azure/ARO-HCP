@@ -98,16 +98,16 @@ func TestPollUntilReady_PositiveTimeout(t *testing.T) {
 // condition becomes true between the final poll and the deadline. Without the post-deadline
 // check this reports a timeout on work that finished inside the budget.
 func TestPollUntilReady_SucceedsWhenConditionLandsAfterLastPoll(t *testing.T) {
-	// A 400ms budget with a 250ms interval polls at 0ms and 250ms; the next tick would land at
-	// 500ms, past the deadline, so the loop stops looking at 250ms. Becoming ready at 320ms
-	// falls in that blind window -- the same shape as a target version that appeared 22s before
-	// a 45m deadline whose preceding poll had fired 2m earlier. Success here is reachable only
-	// through the post-deadline check.
+	// An interval longer than the timeout means the ticker can never fire before the deadline,
+	// so the loop gets exactly one look: the immediate poll. Readiness is then driven off the
+	// check counter rather than the wall clock, so which call observes success does not depend
+	// on goroutine scheduling. The second call can only be the post-deadline check -- the same
+	// shape as a target version that appeared 22s before a 45m deadline whose preceding poll had
+	// fired 2m earlier. Success here is reachable only through the post-deadline check.
 	const (
-		timeout  = 400 * time.Millisecond
-		interval = 250 * time.Millisecond
+		timeout  = 1 * time.Second
+		interval = 5 * time.Second
 	)
-	readyAt := time.Now().Add(320 * time.Millisecond)
 	var checks int
 
 	err := pollUntilReady(
@@ -120,7 +120,7 @@ func TestPollUntilReady_SucceedsWhenConditionLandsAfterLastPoll(t *testing.T) {
 		nil,
 		func(ctx context.Context) error {
 			checks++
-			if time.Now().Before(readyAt) {
+			if checks < 2 {
 				return fmt.Errorf("not ready")
 			}
 			return nil
@@ -129,9 +129,85 @@ func TestPollUntilReady_SucceedsWhenConditionLandsAfterLastPoll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected the post-deadline check to observe the condition, got: %v", err)
 	}
-	// Two in-loop polls that saw "not ready", then the post-deadline check that saw success.
-	if checks != 3 {
-		t.Fatalf("expected 3 checks (2 in-loop polls + 1 post-deadline), got %d", checks)
+	// One in-loop poll that saw "not ready", then the post-deadline check that saw success.
+	if checks != 2 {
+		t.Fatalf("expected 2 checks (1 in-loop poll + 1 post-deadline), got %d", checks)
+	}
+}
+
+// TestPollUntilReady_OvershootIsBoundedByFinalCheckTimeout pins the budget contract documented on
+// pollUntilReady: a verifier may run for timeout plus at most finalCheckTimeout, and no longer. A
+// check that blocks forever must be cancelled by the final check's own deadline.
+func TestPollUntilReady_OvershootIsBoundedByFinalCheckTimeout(t *testing.T) {
+	const timeout = 250 * time.Millisecond
+
+	startTime := time.Now()
+	err := pollUntilReady(
+		context.Background(),
+		"test-verifier",
+		timeout,
+		100*time.Millisecond,
+		nil,
+		DefaultDiagnoseTimeout,
+		nil,
+		func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	)
+	total := time.Since(startTime)
+
+	if err == nil {
+		t.Fatal("expected an error when the check never succeeds, got nil")
+	}
+	// Generous upper bound: the point is that the overshoot is governed by finalCheckTimeout
+	// rather than being unbounded, not that the scheduler is precise.
+	if maximum := timeout + finalCheckTimeout + 2*time.Second; total > maximum {
+		t.Fatalf("overshot the budget contract: ran for %s, expected at most %s", total, maximum)
+	}
+	if total < timeout {
+		t.Fatalf("returned before the timeout elapsed: ran for %s, expected at least %s", total, timeout)
+	}
+}
+
+// TestPollUntilReady_ReportedElapsedIncludesFinalCheck guards the elapsed-time reporting that this
+// package exists to provide: the final check runs past the deadline, so reporting the loop's own
+// elapsed time would tell a reader the verifier finished sooner than it did.
+func TestPollUntilReady_ReportedElapsedIncludesFinalCheck(t *testing.T) {
+	const (
+		timeout         = 200 * time.Millisecond
+		finalCheckDelay = 1500 * time.Millisecond
+	)
+	var checks int
+
+	err := pollUntilReady(
+		context.Background(),
+		"test-verifier",
+		timeout,
+		1*time.Second, // longer than the timeout, so the loop gets exactly one look
+		nil,
+		DefaultDiagnoseTimeout,
+		nil,
+		func(ctx context.Context) error {
+			checks++
+			if checks > 1 {
+				// The post-deadline check: slow, and still unsuccessful.
+				select {
+				case <-time.After(finalCheckDelay):
+				case <-ctx.Done():
+				}
+			}
+			return fmt.Errorf("not ready")
+		},
+	)
+	if err == nil {
+		t.Fatal("expected a timeout error when the condition never holds, got nil")
+	}
+
+	// The reported duration must account for the slow final check rather than stopping at the
+	// deadline. Parsing the exact value is brittle, so assert that the pre-check value is gone.
+	if strings.Contains(err.Error(), "timed out after "+timeout.String()) {
+		t.Fatalf("reported elapsed excludes the final check, understating the real duration: %s", err.Error())
 	}
 }
 
