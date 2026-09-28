@@ -59,6 +59,16 @@ func TestUtilizationQueriesPromtool(t *testing.T) {
 			},
 			labels: `namespace="ns",pod="same",uid="uid",node="same"`,
 		},
+		{
+			name: "history metadata", queries: utilizationRequestHistoryQueries(clusters), count: 2,
+			families: []string{"kube_pod_info", "kube_pod_container_info", "kube_pod_status_phase", "kube_pod_status_scheduled"},
+			labels:   `namespace="ns",pod="same",uid="uid",node="same"`,
+		},
+		{
+			name: "nodes", queries: utilizationHistoryQueries(), count: 1,
+			families: []string{"kube_node_status_capacity", "kube_node_status_allocatable"},
+			labels:   `node="same",resource="pods"`,
+		},
 	} {
 		matched := 0
 		for _, query := range tc.queries {
@@ -82,9 +92,33 @@ func TestUtilizationQueriesPromtool(t *testing.T) {
 						)
 						expected = append(expected, sample{fmt.Sprintf("%s{%s}", metric, labels), value})
 					}
-					if tc.name == "metadata" {
+					if tc.name == "metadata" || tc.name == "history metadata" {
 						// Also catch failure to escape the dot in cluster.a's regex selector.
 						inputs = append(inputs, inputSeries{fmt.Sprintf(`%s{cluster="clusterXa",%s}`, metric, tc.labels), "999"})
+					}
+				}
+				if tc.name == "history metadata" {
+					// Preserve zero phase samples, bound/unbound inventory, and distinct
+					// UIDs for the Go counter; PromQL must only deduplicate scrapes.
+					for _, uid := range []string{"old-uid", "new-uid"} {
+						for _, node := range []string{"", "node"} {
+							labels := fmt.Sprintf(`cluster="cluster.a",namespace="ns",pod="reused",uid=%q,node=%q`, uid, node)
+							for _, replica := range []string{"a", "b"} {
+								inputs = append(inputs, inputSeries{fmt.Sprintf(`kube_pod_info{%s,prometheus_replica=%q}`, labels, replica), "1"})
+							}
+							expected = append(expected, sample{fmt.Sprintf(`kube_pod_info{%s}`, labels), 1})
+						}
+						for i, phase := range []string{"Running", "Succeeded", "Failed", "Unknown"} {
+							value := 0
+							if i == 0 {
+								value = 1
+							}
+							labels := fmt.Sprintf(`cluster="cluster.a",namespace="ns",pod="reused",uid=%q,phase=%q`, uid, phase)
+							for _, replica := range []string{"a", "b"} {
+								inputs = append(inputs, inputSeries{fmt.Sprintf(`kube_pod_status_phase{%s,prometheus_replica=%q}`, labels, replica), fmt.Sprint(value)})
+							}
+							expected = append(expected, sample{fmt.Sprintf(`kube_pod_status_phase{%s}`, labels), value})
+						}
 					}
 				}
 				fixture := map[string]any{
