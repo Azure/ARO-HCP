@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -37,6 +38,12 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
+
+// minimumUpgradeConfirmationTimeout floors the budget handed to the confirmation verifier that
+// runs after the control plane has already reported the target version, so that an upgrade which
+// lands right on the deadline still leaves room to confirm it rather than failing on a
+// non-positive timeout.
+const minimumUpgradeConfirmationTimeout = 1 * time.Minute
 
 var _ = Describe("Customer", func() {
 	DescribeTable("should be able to successfully upgrade control plane minor version",
@@ -165,22 +172,31 @@ var _ = Describe("Customer", func() {
 			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
+			// The upgrade verifiers are phased rather than fanned out through VerifyHCPCluster: the
+			// standard viability verifiers do not poll for the length of an upgrade, so running them
+			// alongside the wait would assert on the cluster as it looked when the rollout started.
+			// Both upgrade conditions share the one budget -- the kube-apiserver check confirms a
+			// rollout the control plane has already reported, it is not a second upgrade wait -- so
+			// the second verifier gets whatever is left of it.
+			upgradeDeadline := time.Now().Add(framework.HCPClusterVersionUpgradeTimeout)
+
 			By("verifying the control plane reached the desired version")
-			err = verifiers.VerifyAll(ctx, adminRESTConfig,
-				verifiers.VerifyKubeAPIServerServerVersionUpgraded(
-					preUpgradeKubeAPIServerVersion,
-					framework.HCPClusterVersionUpgradeTimeout),
-				verifiers.VerifyHostedControlPlaneYStreamUpgrade(
-					installVersionId,
-					upgradeVersionId,
-					framework.HCPClusterVersionUpgradeTimeout))
-			Expect(err).NotTo(HaveOccurred(),
+			Expect(verifiers.VerifyHostedControlPlaneYStreamUpgrade(
+				installVersionId,
+				upgradeVersionId,
+				framework.HCPClusterVersionUpgradeTimeout,
+			).Verify(ctx, adminRESTConfig)).NotTo(HaveOccurred(),
 				"control plane of cluster %q did not reach %s within %s", clusterName, upgradeVersionId,
 				framework.HCPClusterVersionUpgradeTimeout)
 
-			// Viability is checked only after the upgrade verifiers report success. The standard
-			// verifiers do not poll for the length of an upgrade, so running them alongside the
-			// wait would assert on the cluster as it looked when the rollout started.
+			By("verifying the kube-apiserver reports the upgraded version")
+			Expect(verifiers.VerifyKubeAPIServerServerVersionUpgraded(
+				preUpgradeKubeAPIServerVersion,
+				max(time.Until(upgradeDeadline), minimumUpgradeConfirmationTimeout),
+			).Verify(ctx, adminRESTConfig)).NotTo(HaveOccurred(),
+				"kube-apiserver of cluster %q still reported the pre-upgrade version after the control plane reached %s",
+				clusterName, upgradeVersionId)
+
 			By("verifying the cluster is viable after upgrade")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(),
