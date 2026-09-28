@@ -33,6 +33,9 @@ func TestCompareIdentityPoolInventory(t *testing.T) {
 		Slots: []slots.ExpandedSlot{{
 			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
 			IdentityContainerCount:  2,
+			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+				ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00", "aro-hcp-msi-container-dev-00-01"},
+			}},
 		}},
 	}}
 
@@ -95,6 +98,9 @@ func TestValidateOptionsRun(t *testing.T) {
 		Slots: []slots.ExpandedSlot{{
 			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
 			IdentityContainerCount:  1,
+			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+				ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00"},
+			}},
 		}},
 	}
 	resourceGroup := pool.Slots[0].IdentityContainerNames()[0]

@@ -52,27 +52,34 @@ func TestLoadIdentityPools(t *testing.T) {
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := `version: 1
+	catalog := `version: 2
 environments:
   dev:
-    deploy_envs:
-      - ci00
+    deployment_environment: {name: ci00}
     pools:
-      - subscription_name: dev-sub-1
+      - name: aro-hcp-dev-westus3-slot
+        subscriptions: {e2e: dev-sub-1}
         region: westus3
         region_mode: runtime-selected
-        identity_provisioning_region: centralus
         resource_type: aro-hcp-dev-westus3-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 2
-      - subscription_name: dev-sub-2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            provisioning_region: centralus
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
+      - name: aro-hcp-dev-eastus2-slot
+        subscriptions: {e2e: dev-sub-2}
         region: eastus2
         region_mode: runtime-selected
         resource_type: aro-hcp-dev-eastus2-slot
         slot_count: 2
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 1
 `
 	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
@@ -117,27 +124,34 @@ func TestLoadIdentityPoolsSkipsUnmanagedByDefault(t *testing.T) {
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := `version: 1
+	catalog := `version: 2
 environments:
   dev:
-    deploy_envs:
-      - ci00
+    deployment_environment: {name: ci00}
     pools:
-      - subscription_name: managed-sub
+      - name: aro-hcp-dev-westus3-slot
+        subscriptions: {e2e: managed-sub}
         region: westus3
         region_mode: fixed
         resource_type: aro-hcp-dev-westus3-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 1
-      - subscription_name: unmanaged-sub
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 1
+      - name: aro-hcp-dev-eastus2-slot
+        subscriptions: {e2e: unmanaged-sub}
         region: eastus2
         region_mode: fixed
-        identity_provisioning: unmanaged
         resource_type: aro-hcp-dev-eastus2-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            provisioning: unmanaged
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 1
 `
 	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
@@ -165,27 +179,34 @@ func TestLoadIdentityPoolsIncludesUnmanagedWhenFiltered(t *testing.T) {
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := `version: 1
+	catalog := `version: 2
 environments:
   dev:
-    deploy_envs:
-      - ci00
+    deployment_environment: {name: ci00}
     pools:
-      - subscription_name: managed-sub
+      - name: aro-hcp-dev-westus3-slot
+        subscriptions: {e2e: managed-sub}
         region: westus3
         region_mode: fixed
         resource_type: aro-hcp-dev-westus3-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 1
-      - subscription_name: unmanaged-sub
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 1
+      - name: aro-hcp-dev-eastus2-slot
+        subscriptions: {e2e: unmanaged-sub}
         region: eastus2
         region_mode: fixed
-        identity_provisioning: unmanaged
         resource_type: aro-hcp-dev-eastus2-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            provisioning: unmanaged
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 1
 `
 	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
@@ -213,27 +234,34 @@ func TestLoadIdentityPoolsIgnoresEmptyFilterEntries(t *testing.T) {
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := `version: 1
+	catalog := `version: 2
 environments:
   dev:
-    deploy_envs:
-      - ci00
+    deployment_environment: {name: ci00}
     pools:
-      - subscription_name: managed-sub
+      - name: aro-hcp-dev-westus3-slot
+        subscriptions: {e2e: managed-sub}
         region: westus3
         region_mode: fixed
         resource_type: aro-hcp-dev-westus3-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 1
-      - subscription_name: unmanaged-sub
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 1
+      - name: aro-hcp-dev-eastus2-slot
+        subscriptions: {e2e: unmanaged-sub}
         region: eastus2
         region_mode: fixed
-        identity_provisioning: unmanaged
         resource_type: aro-hcp-dev-eastus2-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            provisioning: unmanaged
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 1
 `
 	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
@@ -264,19 +292,22 @@ func TestLoadIdentityPoolsResolutionFailure(t *testing.T) {
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := `version: 1
+	catalog := `version: 2
 environments:
   dev:
-    deploy_envs:
-      - ci00
+    deployment_environment: {name: ci00}
     pools:
-      - subscription_name: unknown-sub
+      - name: aro-hcp-dev-westus3-slot
+        subscriptions: {e2e: unknown-sub}
         region: westus3
         region_mode: runtime-selected
         resource_type: aro-hcp-dev-westus3-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 1
 `
 	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
@@ -295,26 +326,33 @@ func TestLoadIdentityPoolsDeduplicatesResolution(t *testing.T) {
 
 	catalogDir := t.TempDir()
 	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := `version: 1
+	catalog := `version: 2
 environments:
   dev:
-    deploy_envs:
-      - ci00
+    deployment_environment: {name: ci00}
     pools:
-      - subscription_name: shared-sub
+      - name: aro-hcp-dev-westus3-slot
+        subscriptions: {e2e: shared-sub}
         region: westus3
         region_mode: fixed
         resource_type: aro-hcp-dev-westus3-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 1
-      - subscription_name: shared-sub
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 1
+      - name: aro-hcp-dev-eastus2-slot
+        subscriptions: {e2e: shared-sub}
         region: eastus2
         region_mode: fixed
         resource_type: aro-hcp-dev-eastus2-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 1
 `
 	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)

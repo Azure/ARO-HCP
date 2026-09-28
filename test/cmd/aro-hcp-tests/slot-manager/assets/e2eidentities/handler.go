@@ -50,13 +50,7 @@ func (h *Handler) AcquireLease(_ context.Context, request assets.LeaseRequest) e
 		return fmt.Errorf("acquired slot state is nil")
 	}
 	slot := &request.AcquiredSlotState.Slot
-	if slot.Assets.E2EIdentities == nil {
-		slot.Assets.E2EIdentities = &slots.ResolvedE2EIdentitiesAsset{
-			Allocation:     slots.AllocationDedicated,
-			ResourceGroups: slot.IdentityContainerNames(),
-		}
-	}
-	if len(slot.Assets.E2EIdentities.ResourceGroups) == 0 {
+	if slot.Assets.E2EIdentities == nil || len(slot.Assets.E2EIdentities.ResourceGroups) == 0 {
 		return fmt.Errorf("resolved E2E identities asset has no resource groups")
 	}
 	return nil
@@ -155,7 +149,7 @@ func unmanagedFilter(request assets.PoolRequest) []string {
 	}
 	subscriptions := make([]string, 0, len(request.Pools))
 	for _, pool := range request.Pools {
-		subscriptions = append(subscriptions, pool.E2ESubscriptionName())
+		subscriptions = append(subscriptions, pool.Subscriptions.E2E)
 	}
 	return subscriptions
 }

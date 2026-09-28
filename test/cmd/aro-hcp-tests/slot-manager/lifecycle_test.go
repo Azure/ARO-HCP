@@ -286,9 +286,9 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 	}
 }
 
-func TestUnsupportedAssetsAndV1SelectorsFailBeforeNetwork(t *testing.T) {
+func TestUnsupportedAssetsAndConflictingSelectorsFailBeforeNetwork(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []string{"unsupported", "missing demanded infra binding", "v1 conflicting selector", "v1 missing selector"} {
+	for _, scenario := range []string{"unsupported", "missing demanded infra binding", "conflicting selector"} {
 		t.Run(scenario, func(t *testing.T) {
 			server, acquired, _ := newTestLeaseProxyServer(t, nil)
 			defer server.Close()
@@ -299,12 +299,8 @@ func TestUnsupportedAssetsAndV1SelectorsFailBeforeNetwork(t *testing.T) {
 				expected = "deployment_environment.infrastructure_subscription"
 			} else if scenario != "unsupported" {
 				options.CatalogPath = writeAcquireTestCatalog(t, slots.RegionModeFixed, "westus3")
-				if scenario == "v1 conflicting selector" {
-					options.DeployEnv = "prod"
-					expected = "does not belong"
-				} else {
-					expected = "--deploy-env is required"
-				}
+				options.DeployEnv = "prod"
+				expected = "no candidate pool with deploy_env"
 			}
 			err := Acquire(context.Background(), options)
 			if err == nil || !strings.Contains(err.Error(), expected) {
@@ -392,7 +388,7 @@ func TestPoolHandlersReceiveOnlyDeclaredPoolsAndReferencedInventories(t *testing
 	}
 }
 
-func TestV2AbsentAssetsPublishOnlyCoreContract(t *testing.T) {
+func TestAbsentAssetsPublishOnlyCoreContract(t *testing.T) {
 	t.Parallel()
 	catalog := `version: 2
 environments:
@@ -428,7 +424,7 @@ environments:
 	}
 }
 
-func TestV2E2EOnlySelectedPoolNeverResolvesInfrastructure(t *testing.T) {
+func TestE2EOnlySelectedPoolNeverResolvesInfrastructure(t *testing.T) {
 	t.Parallel()
 	e2ePool := `    - name: e2e-only
       region: westus3

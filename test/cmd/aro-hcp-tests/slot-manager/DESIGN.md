@@ -14,6 +14,12 @@ The catalog describes pool intent. Acquired state records the exact resolved
 allocation. Asset handlers own provisioning, admission, and publication for
 their asset type.
 
+Catalogs and acquired state require an explicit `version: 2`; other versions,
+including missing versions, are rejected. Slot-manager is CI-only: each job's
+runner image contains the matching code and catalog, and acquire and release
+use that same image. Completed job artifacts are read-only; cross-version
+migration and recovery are not supported.
+
 ## Package boundaries
 
 - The root `slotmanager` package owns CLI flags, compatibility command aliases,
@@ -29,10 +35,9 @@ their asset type.
   E2E identity model types, normalization, deterministic naming, and structural
   checks; it does not provision or inspect Azure resources. Generic catalog and
   asset orchestration remain in `catalog.go` and `asset_pools.go`.
-- `slots/state_compatibility.go` retains the exported `WriteEnvFile` helper used
-  by v1 acquisition, including its direct `LEASED_MSI_CONTAINERS` export and
-  existing support for resolved v2 state. V2 acquisition instead uses handler
-  `PublishLease` contributions with the shared runtime contract builder.
+- Runtime publication combines core exports with handler `PublishLease`
+  contributions through the shared runtime contract builder. The E2E identity
+  handler exclusively owns `LEASED_MSI_CONTAINERS`.
 
 ## Implementation status
 

@@ -44,7 +44,7 @@ func TestAssetRequirementsPreserveWireNames(t *testing.T) {
 				t.Fatal(err)
 			}
 			if len(slot.AssetRequirements) != 1 || slot.AssetRequirements[0].AssetPoolName != "bundles" {
-				t.Fatalf("legacy wire keys did not populate renamed fields: %+v", slot.AssetRequirements)
+				t.Fatalf("state wire keys did not populate renamed fields: %+v", slot.AssetRequirements)
 			}
 			data, err := test.marshal(slot)
 			if err != nil {
@@ -61,26 +61,22 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	t.Parallel()
 
 	sharedDir := t.TempDir()
-	state := &AcquiredSlotState{
-		Version:           acquiredSlotStateVersionV1,
-		DeployEnvironment: "ci01",
-		RuntimeRegion:     "eastus2",
-		Slot: ExpandedSlot{
-			Environment:             "dev",
-			SubscriptionName:        "dev",
-			Region:                  "westus3",
-			ResourceType:            "aro-hcp-dev-westus3-slot",
-			ResourceName:            "aro-hcp-dev-westus3-slot-00",
-			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
-			IdentityContainerCount:  3,
-		},
-		LeasedResourceName: "aro-hcp-dev-westus3-slot-00",
-	}
+	state := resolvedTestState()
+	state.RuntimeRegion = "eastus2"
+	state.Slot.ResourceType = "aro-hcp-dev-westus3-slot"
+	state.Slot.ResourceName = "aro-hcp-dev-westus3-slot-00"
+	state.LeasedResourceName = state.Slot.ResourceName
+	state.Leases.Primary = Lease{ResourceType: state.Slot.ResourceType, ResourceName: state.Slot.ResourceName}
+	state.Slot.Subscriptions.E2E.Name = "ARO HCP E2E Hosted Clusters (EA Subscription)"
 
 	if err := WriteAcquiredSlotState(sharedDir, state); err != nil {
 		t.Fatalf("expected state write to succeed: %v", err)
 	}
-	if err := WriteEnvFile(sharedDir, state, "ARO HCP E2E Hosted Clusters (EA Subscription)", "/var/run/aro-hcp-dev"); err != nil {
+	contract := NewRuntimeContractBuilder()
+	if err := AddCoreRuntimeExports(contract, state, "ARO HCP E2E Hosted Clusters (EA Subscription)", "/var/run/aro-hcp-dev"); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteRuntimeContract(sharedDir, contract); err != nil {
 		t.Fatalf("expected env file write to succeed: %v", err)
 	}
 
@@ -113,9 +109,6 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	if !strings.Contains(content, `export CUSTOMER_SUBSCRIPTION='ARO HCP E2E Hosted Clusters (EA Subscription)'`) {
 		t.Fatalf("expected env file to contain CUSTOMER_SUBSCRIPTION export, got %q", content)
 	}
-	if !strings.Contains(content, `export LEASED_MSI_CONTAINERS='aro-hcp-msi-container-dev-00-00 aro-hcp-msi-container-dev-00-01 aro-hcp-msi-container-dev-00-02'`) {
-		t.Fatalf("expected env file to contain LEASED_MSI_CONTAINERS export, got %q", content)
-	}
 	if !strings.Contains(content, `export SELECTED_CLUSTER_PROFILE_DIR='/var/run/aro-hcp-dev'`) {
 		t.Fatalf("expected env file to contain SELECTED_CLUSTER_PROFILE_DIR export, got %q", content)
 	}
@@ -130,46 +123,11 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	}
 }
 
-func TestLoadAcquiredSlotStateDefaultsRuntimeRegionToSlotRegion(t *testing.T) {
+func TestWriteAcquiredSlotStateAndRuntimeContract(t *testing.T) {
 	t.Parallel()
 
 	sharedDir := t.TempDir()
-	state := `version: 1
-deploy_environment: ci01
-slot:
-  environment: dev
-  subscription_name: dev
-  region: westus3
-  resource_type: aro-hcp-dev-westus3-slot
-  resource_name: aro-hcp-dev-westus3-slot-00
-  slot_index: 0
-  identity_container_prefix: aro-hcp-msi-container-dev-00
-  identity_container_count: 1
-leased_resource_name: aro-hcp-dev-westus3-slot-00
-`
-
-	stateFile, err := SlotStateFile(sharedDir)
-	if err != nil {
-		t.Fatalf("expected state file path to resolve: %v", err)
-	}
-	if err := os.WriteFile(stateFile, []byte(state), 0o644); err != nil {
-		t.Fatalf("expected state file write to succeed: %v", err)
-	}
-
-	loadedState, err := LoadAcquiredSlotState(sharedDir)
-	if err != nil {
-		t.Fatalf("expected state load to succeed: %v", err)
-	}
-	if loadedState.RuntimeRegion != "westus3" {
-		t.Fatalf("expected runtime region to default to slot region, got %q", loadedState.RuntimeRegion)
-	}
-}
-
-func TestWriteV2AcquiredSlotStateAndRuntimeContract(t *testing.T) {
-	t.Parallel()
-
-	sharedDir := t.TempDir()
-	state := resolvedV2TestState()
+	state := resolvedTestState()
 	state.Slot.AssetRequirements = []AssetRequirement{
 		{Kind: KindInfrastructureIdentities, Allocation: AllocationLeased, UnitsPerSlot: 1},
 	}
@@ -189,7 +147,11 @@ func TestWriteV2AcquiredSlotStateAndRuntimeContract(t *testing.T) {
 	if err := WriteAcquiredSlotState(sharedDir, state); err != nil {
 		t.Fatalf("expected v2 state write to succeed: %v", err)
 	}
-	if err := WriteEnvFile(sharedDir, state, "dev-e2e", "/var/run/aro-hcp-dev"); err != nil {
+	contract := NewRuntimeContractBuilder()
+	if err := AddCoreRuntimeExports(contract, state, "dev-e2e", "/var/run/aro-hcp-dev"); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteRuntimeContract(sharedDir, contract); err != nil {
 		t.Fatalf("expected v2 runtime contract write to succeed: %v", err)
 	}
 	envPath, err := EnvFile(sharedDir)
@@ -204,7 +166,6 @@ func TestWriteV2AcquiredSlotStateAndRuntimeContract(t *testing.T) {
 	for _, expected := range []string{
 		"export ARO_HCP_DEPLOY_ENV='ci01'",
 		"export INFRA_SUBSCRIPTION_ID='infra-id'",
-		"export LEASED_MSI_CONTAINERS='identity-rg-00 identity-rg-01'",
 	} {
 		if !strings.Contains(content, expected) {
 			t.Fatalf("expected runtime contract to contain %q, got %q", expected, content)
@@ -229,7 +190,7 @@ func TestRuntimeContractRejectsExportCollisions(t *testing.T) {
 func TestE2EOnlyStateAndRuntimeOmitInfrastructure(t *testing.T) {
 	t.Parallel()
 	for _, infrastructure := range []ResolvedSubscription{{}, {Name: "unused", ID: "unused-id"}} {
-		state := resolvedV2TestState()
+		state := resolvedTestState()
 		state.Slot.Subscriptions.Infrastructure = infrastructure
 		state.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
 		state.Slot.IdentityContainerPrefix = "identities-00"
@@ -297,7 +258,7 @@ func TestAcquiredSlotStateRejectsInvalidJournals(t *testing.T) {
 		}, "duplicate lease"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			state := resolvedV2TestState()
+			state := resolvedTestState()
 			tc.mutate(state)
 			for _, validate := range []func() error{state.Validate, state.ValidateForRelease} {
 				if err := validate(); err == nil || !strings.Contains(err.Error(), tc.want) {
@@ -322,9 +283,9 @@ func TestAcquiredSlotStateRejectsInvalidJournals(t *testing.T) {
 	}
 }
 
-func resolvedV2TestState() *AcquiredSlotState {
+func resolvedTestState() *AcquiredSlotState {
 	return &AcquiredSlotState{
-		Version:            acquiredSlotStateVersionV2,
+		Version:            acquiredSlotStateVersion,
 		DeployEnvironment:  "ci01",
 		RuntimeRegion:      "centralus",
 		LeasedResourceName: "slot-00",
@@ -378,7 +339,7 @@ func TestInfrastructureRuntimeMatchesJournal(t *testing.T) {
 		}, "does not match acquired leases"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			state := resolvedV2TestState()
+			state := resolvedTestState()
 			state.Slot.AssetRequirements = []AssetRequirement{{Kind: KindInfrastructureIdentities, Allocation: AllocationLeased, UnitsPerSlot: 2}}
 			state.Slot.Assets.InfrastructureIdentities = &ResolvedInfrastructureIdentities{
 				Allocation: AllocationLeased, ResourceGroups: []string{"bundle-00", "bundle-01"}, Identities: []string{"service"},
@@ -413,6 +374,10 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 		{"partial journal", func(s *AcquiredSlotState) { s.Slot = ExpandedSlot{} }, "empty slot environment"},
 		{"deploy environment", func(s *AcquiredSlotState) { s.DeployEnvironment = " " }, "empty deploy_environment"},
 		{"runtime region", func(s *AcquiredSlotState) { s.RuntimeRegion = " " }, "empty runtime_region"},
+		{"runtime region is not inferred from provisioning region", func(s *AcquiredSlotState) {
+			s.RuntimeRegion = ""
+			s.Slot.Region = "westus3"
+		}, "empty runtime_region"},
 		{"slot environment", func(s *AcquiredSlotState) { s.Slot.Environment = " " }, "empty slot environment"},
 		{"slot type", func(s *AcquiredSlotState) { s.Slot.ResourceType = " " }, "empty slot resource_type"},
 		{"slot name", func(s *AcquiredSlotState) { s.Slot.ResourceName = " " }, "empty slot resource_name"},
@@ -421,7 +386,7 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 		{"slot deploy environment", func(s *AcquiredSlotState) { s.Slot.DeployEnvironment = " " }, "empty slot deploy_environment"},
 		{"deploy mismatch", func(s *AcquiredSlotState) { s.Slot.DeployEnvironment = "ci02" }, "deploy_environment does not match"},
 		{"journal name mismatch", func(s *AcquiredSlotState) { s.Leases.Primary.ResourceName = "slot-01" }, "primary lease name does not match"},
-		{"legacy name mismatch", func(s *AcquiredSlotState) { s.LeasedResourceName = "slot-01" }, "primary lease name does not match"},
+		{"leased name mismatch", func(s *AcquiredSlotState) { s.LeasedResourceName = "slot-01" }, "primary lease name does not match"},
 		{"journal type mismatch", func(s *AcquiredSlotState) { s.Leases.Primary.ResourceType = "other" }, "primary lease type does not match"},
 		{"e2e name", func(s *AcquiredSlotState) { s.Slot.Subscriptions.E2E.Name = " " }, "unresolved E2E subscription"},
 		{"e2e ID", func(s *AcquiredSlotState) { s.Slot.Subscriptions.E2E.ID = " " }, "unresolved E2E subscription"},
@@ -481,7 +446,7 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 		}, "requires dedicated allocation"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			state := resolvedV2TestState()
+			state := resolvedTestState()
 			tc.mutate(state)
 			if err := state.ValidateForRelease(); err != nil {
 				t.Fatalf("runtime failure must not prevent release: %v", err)
@@ -504,9 +469,6 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 			if data := contract.MarshalShell(); len(data) != 0 {
 				t.Fatalf("failed validation partially published core exports: %q", data)
 			}
-			if err := WriteEnvFile(dir, state, "dev-e2e", "profile"); err == nil {
-				t.Fatal("invalid runtime state published an env file")
-			}
 			envFile, err := EnvFile(dir)
 			if err != nil {
 				t.Fatal(err)
@@ -518,34 +480,10 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 	}
 }
 
-func TestAcquiredSlotStateValidationVersionsAndRegionFallback(t *testing.T) {
+func TestAcquiredSlotStateValidationVersions(t *testing.T) {
 	t.Parallel()
-	for _, version := range []int{acquiredSlotStateVersionV1, acquiredSlotStateVersionV2} {
-		for _, region := range []string{"", " \t", "eastus2"} {
-			state := resolvedV2TestState()
-			state.Version = version
-			state.RuntimeRegion = region
-			state.Slot.Region = "westus3"
-			if version == acquiredSlotStateVersionV1 {
-				state.Leases = LeaseSet{}
-				state.Slot.PoolName = ""
-				state.Slot.DeployEnvironment = ""
-				state.Slot.Subscriptions = ResolvedSubscriptions{}
-			}
-			if err := state.Validate(); err != nil {
-				t.Fatalf("v%d valid state rejected: %v", version, err)
-			}
-			want := region
-			if strings.TrimSpace(want) == "" {
-				want = state.Slot.Region
-			}
-			if state.RuntimeRegion != want {
-				t.Fatalf("v%d runtime region: got %q, want %q", version, state.RuntimeRegion, want)
-			}
-		}
-	}
-	for _, version := range []int{-1, 0, 3} {
-		state := resolvedV2TestState()
+	for _, version := range []int{-1, 0, 1, 3} {
+		state := resolvedTestState()
 		state.Version = version
 		for _, validate := range []func() error{state.Validate, state.ValidateForRelease} {
 			if err := validate(); err == nil || !strings.Contains(err.Error(), "unsupported slot state version") {
@@ -570,7 +508,7 @@ func TestRuntimePublicationValidatesInputs(t *testing.T) {
 		{"dev-e2e", " ", "selected cluster profile dir is empty"},
 		{"other-e2e", "profile", "customer subscription does not match"},
 	} {
-		state := resolvedV2TestState()
+		state := resolvedTestState()
 		err := AddCoreRuntimeExports(NewRuntimeContractBuilder(), state, tc.customer, tc.profile)
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("expected publication error %q, got %v", tc.want, err)

@@ -41,10 +41,6 @@ type ResolvedE2EIdentitiesAsset struct {
 func normalizeE2EIdentities(environmentName string, pool *Pool) error {
 	asset := pool.SlotAssets.E2EIdentities
 	if asset == nil {
-		pool.IdentityContainerPrefix = ""
-		pool.IdentityContainerCount = 0
-		pool.IdentityProvisioning = ""
-		pool.IdentityProvisioningRegion = ""
 		return nil
 	}
 	asset.Provisioning = strings.TrimSpace(asset.Provisioning)
@@ -62,27 +58,22 @@ func normalizeE2EIdentities(environmentName string, pool *Pool) error {
 		return fmt.Errorf("environment %q pool %q has empty slot_assets.e2e_identities.resource_group_prefix", environmentName, pool.Name)
 	case asset.ResourceGroupCount <= 0:
 		return fmt.Errorf("environment %q pool %q has invalid slot_assets.e2e_identities.resource_group_count %d", environmentName, pool.Name, asset.ResourceGroupCount)
+	case pool.RegionMode == RegionModeWeighted && asset.ProvisioningRegion == "":
+		return fmt.Errorf("environment %q weighted pool %q must declare slot_assets.e2e_identities.provisioning_region", environmentName, pool.Name)
 	case pool.SlotCount > math.MaxInt/asset.ResourceGroupCount:
 		return fmt.Errorf("environment %q pool %q dedicated identity demand overflows int", environmentName, pool.Name)
 	}
 
-	pool.IdentityProvisioning = asset.Provisioning
-	if pool.IdentityProvisioning == AssetProvisioningManaged {
-		pool.IdentityProvisioning = ""
-	}
-	pool.IdentityProvisioningRegion = asset.ProvisioningRegion
-	pool.IdentityContainerPrefix = asset.ResourceGroupPrefix
-	pool.IdentityContainerCount = asset.ResourceGroupCount
 	return nil
 }
 
 func (p Pool) IsUnmanaged() bool {
-	return p.IdentityProvisioning == IdentityProvisioningUnmanaged
+	return p.SlotAssets.E2EIdentities != nil && p.SlotAssets.E2EIdentities.Provisioning == IdentityProvisioningUnmanaged
 }
 
 func (p Pool) EffectiveIdentityProvisioningRegion() string {
-	if p.IdentityProvisioningRegion != "" {
-		return p.IdentityProvisioningRegion
+	if asset := p.SlotAssets.E2EIdentities; asset != nil && asset.ProvisioningRegion != "" {
+		return asset.ProvisioningRegion
 	}
 	return p.Region
 }
@@ -91,7 +82,7 @@ func (s ExpandedSlot) IdentityContainerNames() []string {
 	if s.Assets.E2EIdentities != nil {
 		return append([]string(nil), s.Assets.E2EIdentities.ResourceGroups...)
 	}
-	return identityContainerNames(s.IdentityContainerPrefix, s.IdentityContainerCount)
+	return nil
 }
 
 func identityContainerNames(prefix string, count int) []string {
@@ -130,7 +121,7 @@ func (p Pool) validateE2EIdentityResourceGroups(environment string, dedicatedGro
 		}
 		// Both suffixes are decimal indices without hyphens, so removing
 		// the final two segments uniquely recovers the pool prefix.
-		key := strings.ToLower(p.E2ESubscriptionName() + "/" + asset.ResourceGroupPrefix)
+		key := strings.ToLower(p.Subscriptions.E2E + "/" + asset.ResourceGroupPrefix)
 		if previous, found := dedicatedGroups[key]; found {
 			return fmt.Errorf("incompatible dedicated resource groups in pools %s and %s/%s", previous, environment, p.Name)
 		}

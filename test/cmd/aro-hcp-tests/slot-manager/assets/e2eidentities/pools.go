@@ -41,7 +41,7 @@ type identityPool struct {
 // subscriptionFilter is non-empty, only pools whose E2E subscription matches
 // one of the filter values are included, regardless of provisioning policy.
 // Without a filter, pools with unmanaged E2E identity provisioning are skipped
-// (slot_assets.e2e_identities.provisioning in v2 catalogs).
+// (slot_assets.e2e_identities.provisioning).
 func resolveIdentityPools(ctx context.Context, environment string, catalogPools []slots.Pool, subscriptionFilter []string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
 	filterSet := make(map[string]struct{}, len(subscriptionFilter))
 	for _, name := range subscriptionFilter {
@@ -58,15 +58,18 @@ func resolveIdentityPools(ctx context.Context, environment string, catalogPools 
 	resolvedIDs := map[string]string{}
 	pools := make([]identityPool, 0, len(catalogPools))
 	for _, pool := range catalogPools {
+		if pool.SlotAssets.E2EIdentities == nil {
+			continue
+		}
 		if len(filterSet) > 0 {
-			if _, match := filterSet[pool.E2ESubscriptionName()]; !match {
+			if _, match := filterSet[pool.Subscriptions.E2E]; !match {
 				continue
 			}
 		} else if pool.IsUnmanaged() {
 			continue
 		}
 
-		subscriptionName := pool.E2ESubscriptionName()
+		subscriptionName := pool.Subscriptions.E2E
 		subscriptionID, found := resolvedIDs[subscriptionName]
 		if !found {
 			resolvedSubscriptionID, err := resolveSubscriptionID(ctx, subscriptionName)
@@ -83,7 +86,7 @@ func resolveIdentityPools(ctx context.Context, environment string, catalogPools 
 			ProvisioningRegion:      pool.EffectiveIdentityProvisioningRegion(),
 			SubscriptionName:        subscriptionName,
 			SubscriptionID:          subscriptionID,
-			IdentityContainerPrefix: pool.IdentityContainerPrefix,
+			IdentityContainerPrefix: pool.SlotAssets.E2EIdentities.ResourceGroupPrefix,
 			Slots:                   slots.ExpandSlotsForPool(environment, pool),
 		})
 	}

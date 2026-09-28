@@ -132,28 +132,15 @@ func (o *ReleaseOptions) Run(ctx context.Context) error {
 		}
 		return err
 	}
-	if state.Version == 2 {
-		journal := newLeaseJournal(state, o.SharedDir, o.LeaseProxyURL, o.LeaseProxyTimeout)
-		registry, err := newAssetRegistry()
-		if err != nil {
-			return err
-		}
-		if err := registry.ReleaseLease(ctx, assets.LeaseRequest{AcquiredSlotState: state, LeaseJournal: journal}); err != nil {
-			return err
-		}
-		return slots.RemoveStateFiles(o.SharedDir)
-	}
-
-	if err := slots.ReleaseLease(context.WithoutCancel(ctx), o.LeaseProxyURL, state.LeasedResourceName, o.LeaseProxyTimeout); err != nil {
+	journal := newLeaseJournal(state, o.SharedDir, o.LeaseProxyURL, o.LeaseProxyTimeout)
+	registry, err := newAssetRegistry()
+	if err != nil {
 		return err
 	}
-
-	if err := slots.RemoveStateFiles(o.SharedDir); err != nil {
-		logger.Error(err, "Failed to remove local slot state after lease release", "sharedDir", o.SharedDir)
+	if err := registry.ReleaseLease(ctx, assets.LeaseRequest{AcquiredSlotState: state, LeaseJournal: journal}); err != nil {
+		return err
 	}
-
-	logger.Info("Released slot", "slotName", state.Slot.ResourceName, "sharedDir", o.SharedDir)
-	return nil
+	return slots.RemoveStateFiles(o.SharedDir)
 }
 
 func newLeaseJournal(state *slots.AcquiredSlotState, sharedDir, proxyURL string, timeout time.Duration) *slots.LeaseJournal {

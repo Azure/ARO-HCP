@@ -29,10 +29,12 @@ import (
 func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
 	t.Parallel()
 
-	managed := slots.Pool{SubscriptionName: "managed"}
+	managed := slots.Pool{
+		Subscriptions: slots.PoolSubscriptions{E2E: "managed"},
+		SlotAssets:    slots.SlotAssets{E2EIdentities: &slots.E2EIdentitiesAsset{}},
+	}
 	unmanaged := slots.Pool{
-		SubscriptionName:     "unmanaged",
-		IdentityProvisioning: slots.IdentityProvisioningUnmanaged,
+		Subscriptions: slots.PoolSubscriptions{E2E: "unmanaged"},
 		SlotAssets: slots.SlotAssets{E2EIdentities: &slots.E2EIdentitiesAsset{
 			Provisioning: slots.IdentityProvisioningUnmanaged,
 		}},

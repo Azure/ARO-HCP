@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
 
@@ -40,12 +41,14 @@ func TestResolveLeasedSlot(t *testing.T) {
 		},
 	}
 	pool := slots.Pool{
-		SubscriptionName:        "dev-subscription",
-		Region:                  "westus3",
-		ResourceType:            "aro-hcp-dev-westus3-slot",
-		SlotCount:               2,
-		IdentityContainerPrefix: "aro-hcp-msi-container-dev",
-		IdentityContainerCount:  1,
+		Name:          "dev",
+		Subscriptions: slots.PoolSubscriptions{E2E: "dev-subscription"},
+		Region:        "westus3",
+		ResourceType:  "aro-hcp-dev-westus3-slot",
+		SlotCount:     2,
+		SlotAssets: slots.SlotAssets{E2EIdentities: &slots.E2EIdentitiesAsset{
+			Allocation: slots.AllocationDedicated, ResourceGroupPrefix: "aro-hcp-msi-container-dev", ResourceGroupCount: 1,
+		}},
 	}
 
 	slot, err := opts.ResolveLeasedSlot(pool, "aro-hcp-dev-westus3-slot-01")
@@ -66,12 +69,14 @@ func TestResolveLeasedSlotRejectsResourceOutsideSelectedPool(t *testing.T) {
 		},
 	}
 	pool := slots.Pool{
-		SubscriptionName:        "dev-subscription",
-		Region:                  "westus3",
-		ResourceType:            "aro-hcp-dev-westus3-slot",
-		SlotCount:               2,
-		IdentityContainerPrefix: "aro-hcp-msi-container-dev",
-		IdentityContainerCount:  1,
+		Name:          "dev",
+		Subscriptions: slots.PoolSubscriptions{E2E: "dev-subscription"},
+		Region:        "westus3",
+		ResourceType:  "aro-hcp-dev-westus3-slot",
+		SlotCount:     2,
+		SlotAssets: slots.SlotAssets{E2EIdentities: &slots.E2EIdentitiesAsset{
+			Allocation: slots.AllocationDedicated, ResourceGroupPrefix: "aro-hcp-msi-container-dev", ResourceGroupCount: 1,
+		}},
 	}
 
 	_, err := opts.ResolveLeasedSlot(pool, "aro-hcp-prod-uksouth-slot-00")
@@ -515,32 +520,44 @@ func TestAcquireRunFixedModeFallsBackWithinRequestedRegion(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-b")
-	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci00, ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub-a
+      - name: aro-hcp-dev-centralus-a-slot
+        subscriptions: {e2e: dev-sub-a}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-a-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 2
-      - subscription_name: dev-sub-b
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
+      - name: aro-hcp-dev-centralus-b-slot
+        subscriptions: {e2e: dev-sub-b}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-b-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 2
-      - subscription_name: dev-sub-c
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 2
+      - name: aro-hcp-dev-canadacentral-c-slot
+        subscriptions: {e2e: dev-sub-c}
         region: canadacentral
         region_mode: fixed
         resource_type: aro-hcp-dev-canadacentral-c-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-c
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-c
+            resource_group_count: 2
 `)
 
 	server, acquireCalls, releaseCalls := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -554,7 +571,7 @@ environments:
 	defer server.Close()
 
 	sharedDir := t.TempDir()
-	err := Acquire(context.Background(), &RawAcquireOptions{
+	err := acquireForTest(t, &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
 		AllowedLocations:    []string{"centralus"},
@@ -605,25 +622,33 @@ func TestAcquireRunFallsBackWhenCandidatePoolTimesOut(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-b")
-	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub-a
+      - name: aro-hcp-dev-centralus-a-slot
+        subscriptions: {e2e: dev-sub-a}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-a-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 2
-      - subscription_name: dev-sub-b
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
+      - name: aro-hcp-dev-centralus-b-slot
+        subscriptions: {e2e: dev-sub-b}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-b-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 2
 `)
 
 	server, acquireCalls, releaseCalls := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -637,7 +662,7 @@ environments:
 	defer server.Close()
 
 	sharedDir := t.TempDir()
-	err := Acquire(context.Background(), &RawAcquireOptions{
+	err := acquireForTest(t, &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
 		AllowedLocations:    []string{"centralus"},
@@ -673,25 +698,33 @@ func TestAcquireRunRuntimeSelectedFallsBackAcrossSubscriptions(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "prod-sub-b")
-	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   prod:
-    deploy_envs: [prod]
+    deployment_environment: {name: prod}
     pools:
-      - subscription_name: prod-sub-a
+      - name: aro-hcp-prod-shard0-slot
+        subscriptions: {e2e: prod-sub-a}
         region: uksouth
         region_mode: runtime-selected
         resource_type: aro-hcp-prod-shard0-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-prod-a
-        identity_container_count: 2
-      - subscription_name: prod-sub-b
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-prod-a
+            resource_group_count: 2
+      - name: aro-hcp-prod-shard1-slot
+        subscriptions: {e2e: prod-sub-b}
         region: uksouth
         region_mode: runtime-selected
         resource_type: aro-hcp-prod-shard1-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-prod-b
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-prod-b
+            resource_group_count: 2
 `)
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -705,7 +738,7 @@ environments:
 	defer server.Close()
 
 	sharedDir := t.TempDir()
-	err := Acquire(context.Background(), &RawAcquireOptions{
+	err := acquireForTest(t, &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "prod",
 		SelectedLocation:    "eastus2",
@@ -744,27 +777,35 @@ func TestAcquireRunWeightedSelectsRegionAndFallsBackAcrossSubscriptions(t *testi
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-b")
-	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub-a
+      - name: aro-hcp-dev-shard0-slot
+        subscriptions: {e2e: dev-sub-a}
         region_mode: weighted
         regions: [westus3, centralus, canadacentral]
-        identity_provisioning_region: westus3
         resource_type: aro-hcp-dev-shard0-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 2
-      - subscription_name: dev-sub-b
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            provisioning_region: westus3
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
+      - name: aro-hcp-dev-shard1-slot
+        subscriptions: {e2e: dev-sub-b}
         region_mode: weighted
         regions: [westus3, centralus, canadacentral]
-        identity_provisioning_region: westus3
         resource_type: aro-hcp-dev-shard1-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            provisioning_region: westus3
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 2
 `)
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -778,7 +819,7 @@ environments:
 	defer server.Close()
 
 	sharedDir := t.TempDir()
-	err := Acquire(context.Background(), &RawAcquireOptions{
+	err := acquireForTest(t, &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
 		AllowedLocations:    []string{"eastus2"},
@@ -828,25 +869,33 @@ func TestAcquireRunStopsOnHardFailure(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-b")
-	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub-a
+      - name: aro-hcp-dev-centralus-a-slot
+        subscriptions: {e2e: dev-sub-a}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-a-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 2
-      - subscription_name: dev-sub-b
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
+      - name: aro-hcp-dev-centralus-b-slot
+        subscriptions: {e2e: dev-sub-b}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-b-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 2
 `)
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -860,7 +909,7 @@ environments:
 	defer server.Close()
 
 	sharedDir := t.TempDir()
-	err := Acquire(context.Background(), &RawAcquireOptions{
+	err := acquireForTest(t, &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
 		AllowedLocations:    []string{"centralus"},
@@ -887,25 +936,33 @@ func TestAcquireRunRetriesAfterFullUnavailablePassAcrossPools(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-b")
-	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub-a
+      - name: aro-hcp-dev-centralus-a-slot
+        subscriptions: {e2e: dev-sub-a}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-a-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 2
-      - subscription_name: dev-sub-b
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
+      - name: aro-hcp-dev-centralus-b-slot
+        subscriptions: {e2e: dev-sub-b}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-b-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 2
 `)
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -952,25 +1009,33 @@ func TestAcquireRunRotatesCandidatePoolStartingPoint(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-a")
-	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub-a
+      - name: aro-hcp-dev-centralus-a-slot
+        subscriptions: {e2e: dev-sub-a}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-a-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 2
-      - subscription_name: dev-sub-b
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
+      - name: aro-hcp-dev-centralus-b-slot
+        subscriptions: {e2e: dev-sub-b}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-b-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 2
 `)
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -1019,18 +1084,22 @@ func TestAcquireRunRetriesAfterFullUnavailablePassAfterRetryableServerFailure(t 
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-a")
-	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub-a
+      - name: aro-hcp-dev-centralus-a-slot
+        subscriptions: {e2e: dev-sub-a}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-a-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
 `)
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -1074,18 +1143,22 @@ func TestAcquireRunStopsAfterMaxWaitForLease(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-a")
-	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub-a
+      - name: aro-hcp-dev-centralus-a-slot
+        subscriptions: {e2e: dev-sub-a}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-a-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
 `)
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -1132,18 +1205,22 @@ func TestAcquireRunInfiniteWaitRespectsContextCancellation(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-a")
-	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub-a
+      - name: aro-hcp-dev-centralus-a-slot
+        subscriptions: {e2e: dev-sub-a}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-a-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
 `)
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -1190,18 +1267,22 @@ func TestAcquireRunReleasesLeaseOnSubscriptionResolutionFailure(t *testing.T) {
 	// used by the pool. This makes VerifyCustomerSubscriptionName fail
 	// after the lease proxy has already granted a lease.
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "some-other-subscription")
-	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub-a
+      - name: aro-hcp-dev-centralus-a-slot
+        subscriptions: {e2e: dev-sub-a}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-a-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
 `)
 
 	server, acquireCalls, releaseCalls := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -1212,7 +1293,7 @@ environments:
 	defer server.Close()
 
 	sharedDir := t.TempDir()
-	err := Acquire(context.Background(), &RawAcquireOptions{
+	err := acquireForTest(t, &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
 		AllowedLocations:    []string{"centralus"},
@@ -1243,22 +1324,26 @@ environments:
 	}
 }
 
-func TestAcquireRunKeepsLeaseWhenEnvFileWriteFailsAfterStateWrite(t *testing.T) {
+func TestAcquireRunRollsBackWhenEnvFileWriteFailsAfterStateWrite(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-a")
-	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub-a
+      - name: aro-hcp-dev-centralus-a-slot
+        subscriptions: {e2e: dev-sub-a}
         region: centralus
         region_mode: fixed
         resource_type: aro-hcp-dev-centralus-a-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 2
 `)
 
 	server, acquireCalls, releaseCalls := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
@@ -1273,11 +1358,7 @@ environments:
 	if err != nil {
 		t.Fatalf("expected env file path resolution to succeed: %v", err)
 	}
-	if err := os.Mkdir(envFile, 0o755); err != nil {
-		t.Fatalf("expected env file path directory creation to succeed: %v", err)
-	}
-
-	err = Acquire(context.Background(), &RawAcquireOptions{
+	options := completeAcquireForTest(t, &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
 		AllowedLocations:    []string{"centralus"},
@@ -1289,6 +1370,25 @@ environments:
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
 		Now:                 staticNow(time.Unix(0, 0)),
 	})
+	calls := []string{}
+	options.Registry, err = assets.NewRegistry(&lifecycleHandler{
+		kind: slots.KindE2EIdentities, calls: &calls,
+		before: func(phase string, _ assets.LeaseRequest) {
+			if phase != "publish" {
+				return
+			}
+			if _, err := slots.LoadAcquiredSlotState(sharedDir); err != nil {
+				t.Fatalf("expected durable journal before publication: %v", err)
+			}
+			if err := os.Mkdir(envFile, 0o755); err != nil {
+				t.Fatal(err)
+			}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = options.Run(context.Background())
 	if err == nil {
 		t.Fatal("expected acquire to fail when the env file cannot be written")
 	}
@@ -1299,53 +1399,57 @@ environments:
 	if got, want := *acquireCalls, []string{"aro-hcp-dev-centralus-a-slot"}; !equalStrings(got, want) {
 		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
 	}
-	if got := *releaseCalls; len(got) != 0 {
-		t.Fatalf("expected lease cleanup to be left to the release step once state exists, got %v", got)
+	if got, want := *releaseCalls, []string{"aro-hcp-dev-centralus-a-slot-00"}; !equalStrings(got, want) {
+		t.Fatalf("expected journaled rollback after publication failure, got %v", got)
 	}
 
-	state, err := slots.LoadAcquiredSlotState(sharedDir)
-	if err != nil {
-		t.Fatalf("expected acquired slot state to remain on disk: %v", err)
-	}
-	if state.LeasedResourceName != "aro-hcp-dev-centralus-a-slot-00" {
-		t.Fatalf("unexpected leased resource name %q", state.LeasedResourceName)
+	if _, err := slots.LoadAcquiredSlotState(sharedDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected completed rollback to remove journal: %v", err)
 	}
 }
 
 func writeAcquireTestCatalog(t *testing.T, regionMode slots.RegionMode, region string) string {
 	t.Helper()
 
-	return writeAcquireTestCatalogFromYAML(t, fmt.Sprintf(`version: 1
+	return writeAcquireTestCatalogFromYAML(t, fmt.Sprintf(`version: 2
 environments:
   dev:
-    deploy_envs: [ci00, ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
+      - name: aro-hcp-dev-shard0-slot
+        subscriptions: {e2e: "ARO HCP E2E Hosted Clusters (EA Subscription)"}
         region: %s
         region_mode: %s
         resource_type: aro-hcp-dev-shard0-slot
         slot_count: 2
-        identity_container_prefix: aro-hcp-msi-container-dev
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev
+            resource_group_count: 2
 `, region, regionMode))
 }
 
 func writeWeightedAcquireTestCatalog(t *testing.T) string {
 	t.Helper()
 
-	return writeAcquireTestCatalogFromYAML(t, `version: 1
+	return writeAcquireTestCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci00, ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub
+      - name: aro-hcp-dev-shard0-slot
+        subscriptions: {e2e: dev-sub}
         region_mode: weighted
         regions: [westus3, centralus, canadacentral]
-        identity_provisioning_region: westus3
         resource_type: aro-hcp-dev-shard0-slot
         slot_count: 2
-        identity_container_prefix: aro-hcp-msi-container-dev
-        identity_container_count: 2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            provisioning_region: westus3
+            resource_group_prefix: aro-hcp-msi-container-dev
+            resource_group_count: 2
 `)
 }
 
@@ -1399,6 +1503,15 @@ func completeAcquireForTest(t *testing.T, raw *RawAcquireOptions) *AcquireOption
 }
 
 func completeAcquireOptions(raw *RawAcquireOptions) (*AcquireOptions, error) {
+	calls := []string{}
+	registry, err := assets.NewRegistry(&lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls})
+	if err != nil {
+		return nil, err
+	}
+	raw.Registry = registry
+	raw.ResolveSubscriptions = func(_ context.Context, _, _, e2e, _ string) (slots.ResolvedSubscriptions, error) {
+		return slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{Name: e2e, ID: "e2e-id"}}, nil
+	}
 	validated, err := raw.Validate()
 	if err != nil {
 		return nil, err
@@ -1556,4 +1669,13 @@ func (c *fakeClock) Sleep(ctx context.Context, duration time.Duration) error {
 	c.slept = append(c.slept, duration)
 	c.current = c.current.Add(duration)
 	return nil
+}
+
+func acquireForTest(t *testing.T, raw *RawAcquireOptions) error {
+	t.Helper()
+	options, err := completeAcquireOptions(raw)
+	if err != nil {
+		return err
+	}
+	return options.Run(context.Background())
 }

@@ -27,10 +27,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const (
-	acquiredSlotStateVersionV1 = 1
-	acquiredSlotStateVersionV2 = 2
-)
+const acquiredSlotStateVersion = 2
 
 type AcquiredSlotState struct {
 	Leases             LeaseSet     `yaml:"leases,omitempty"`
@@ -63,7 +60,7 @@ func EnsureStateDir(sharedDir string) (string, error) {
 	return stateDir, nil
 }
 
-// WriteAcquiredSlotState persists the release journal, including unresolved v2
+// WriteAcquiredSlotState persists the release journal, including unresolved
 // state. Runtime publication must validate the fully resolved state separately.
 func WriteAcquiredSlotState(sharedDir string, state *AcquiredSlotState) error {
 	if err := state.ValidateForRelease(); err != nil {
@@ -87,7 +84,7 @@ func WriteAcquiredSlotState(sharedDir string, state *AcquiredSlotState) error {
 	return nil
 }
 
-// LoadAcquiredSlotState loads the durable release journal. V2 state may be
+// LoadAcquiredSlotState loads the durable release journal. State may be
 // unresolved or already returning leases; call Validate before runtime use.
 func LoadAcquiredSlotState(sharedDir string) (*AcquiredSlotState, error) {
 	stateFile, err := SlotStateFile(sharedDir)
@@ -130,67 +127,55 @@ func RemoveStateFiles(sharedDir string) error {
 	return errors.Join(errs...)
 }
 
-// ValidateForRelease accepts partial v2 acquisition and return progress without
-// depending on resolved runtime fields. V1 retains its legacy state validation.
+// ValidateForRelease accepts partial acquisition and return progress without
+// depending on resolved runtime fields.
 func (s *AcquiredSlotState) ValidateForRelease() error {
 	if s == nil {
 		return errors.New("slot state is nil")
 	}
-	// V2 is a write-ahead lease journal. Resolution can be incomplete; release
+	// This is a write-ahead lease journal. Resolution can be incomplete; release
 	// must not depend on a catalog, credentials, handlers, or admission success.
-	if s.Version == acquiredSlotStateVersionV2 {
-		if strings.TrimSpace(s.Leases.Primary.ResourceName) == "" {
-			return errors.New("slot state has empty primary lease")
+	if s.Version != acquiredSlotStateVersion {
+		return fmt.Errorf("unsupported slot state version %d", s.Version)
+	}
+	if strings.TrimSpace(s.Leases.Primary.ResourceName) == "" {
+		return errors.New("slot state has empty primary lease")
+	}
+	seen := map[string]bool{}
+	validate := func(lease Lease) error {
+		if strings.TrimSpace(lease.ResourceName) == "" || strings.TrimSpace(lease.ResourceType) == "" {
+			return errors.New("slot state contains incomplete lease")
 		}
-		seen := map[string]bool{}
-		validate := func(lease Lease) error {
-			if strings.TrimSpace(lease.ResourceName) == "" || strings.TrimSpace(lease.ResourceType) == "" {
-				return errors.New("slot state contains incomplete lease")
-			}
-			if err := ValidateLeasedResourceName(lease.ResourceName); err != nil {
-				return fmt.Errorf("slot state contains invalid lease: %w", err)
-			}
-			if seen[lease.ResourceName] {
-				return fmt.Errorf("slot state contains duplicate lease %q", lease.ResourceName)
-			}
-			seen[lease.ResourceName] = true
-			if lease.ReturnState != "" && lease.ReturnState != "returning" && lease.ReturnState != "returned" {
-				return fmt.Errorf("lease %q has invalid return state %q", lease.ResourceName, lease.ReturnState)
-			}
-			return nil
+		if err := ValidateLeasedResourceName(lease.ResourceName); err != nil {
+			return fmt.Errorf("slot state contains invalid lease: %w", err)
 		}
-		if err := validate(s.Leases.Primary); err != nil {
-			return err
+		if seen[lease.ResourceName] {
+			return fmt.Errorf("slot state contains duplicate lease %q", lease.ResourceName)
 		}
-		for _, leases := range s.Leases.Assets {
-			for _, lease := range leases {
-				if err := validate(lease); err != nil {
-					return err
-				}
-			}
+		seen[lease.ResourceName] = true
+		if lease.ReturnState != "" && lease.ReturnState != "returning" && lease.ReturnState != "returned" {
+			return fmt.Errorf("lease %q has invalid return state %q", lease.ResourceName, lease.ReturnState)
 		}
 		return nil
 	}
-	return s.Validate()
+	if err := validate(s.Leases.Primary); err != nil {
+		return err
+	}
+	for _, leases := range s.Leases.Assets {
+		for _, lease := range leases {
+			if err := validate(lease); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // Validate requires a fully resolved state suitable for runtime publication.
 func (s *AcquiredSlotState) Validate() error {
-	if s == nil {
-		return errors.New("slot state is nil")
+	if err := s.ValidateForRelease(); err != nil {
+		return err
 	}
-	if s.Version != acquiredSlotStateVersionV1 && s.Version != acquiredSlotStateVersionV2 {
-		return fmt.Errorf("unsupported slot state version %d", s.Version)
-	}
-	if s.Version == acquiredSlotStateVersionV2 {
-		if err := s.ValidateForRelease(); err != nil {
-			return err
-		}
-	}
-	if strings.TrimSpace(s.RuntimeRegion) == "" {
-		s.RuntimeRegion = strings.TrimSpace(s.Slot.Region)
-	}
-
 	switch {
 	case strings.TrimSpace(s.DeployEnvironment) == "":
 		return errors.New("slot state has empty deploy_environment")
@@ -205,47 +190,45 @@ func (s *AcquiredSlotState) Validate() error {
 	case strings.TrimSpace(s.LeasedResourceName) == "":
 		return errors.New("slot state has empty leased_resource_name")
 	}
-	if s.Version == acquiredSlotStateVersionV2 {
-		switch {
-		case strings.TrimSpace(s.Slot.PoolName) == "":
-			return errors.New("slot state has empty slot pool_name")
-		case strings.TrimSpace(s.Slot.DeployEnvironment) == "":
-			return errors.New("slot state has empty slot deploy_environment")
-		case s.DeployEnvironment != s.Slot.DeployEnvironment:
-			return errors.New("slot state deploy_environment does not match resolved slot")
-		case s.Leases.Primary.ResourceName != s.Slot.ResourceName || s.LeasedResourceName != s.Slot.ResourceName:
-			return errors.New("slot state primary lease name does not match resolved slot")
-		case s.Leases.Primary.ResourceType != s.Slot.ResourceType:
-			return errors.New("slot state primary lease type does not match resolved slot")
-		case strings.TrimSpace(s.Slot.Subscriptions.E2E.Name) == "" || strings.TrimSpace(s.Slot.Subscriptions.E2E.ID) == "":
-			return errors.New("slot state has unresolved E2E subscription")
-		case s.Slot.RequiresInfrastructureSubscription() && (strings.TrimSpace(s.Slot.Subscriptions.Infrastructure.Name) == "" || strings.TrimSpace(s.Slot.Subscriptions.Infrastructure.ID) == ""):
-			return errors.New("slot state has unresolved infrastructure subscription")
-		case s.Leases.Primary.ReturnState != "":
-			return errors.New("slot state primary lease is no longer held")
-		}
-		for _, leases := range s.Leases.Assets {
-			for _, lease := range leases {
-				if lease.ReturnState != "" {
-					return fmt.Errorf("slot state asset lease %q is no longer held", lease.ResourceName)
-				}
+	switch {
+	case strings.TrimSpace(s.Slot.PoolName) == "":
+		return errors.New("slot state has empty slot pool_name")
+	case strings.TrimSpace(s.Slot.DeployEnvironment) == "":
+		return errors.New("slot state has empty slot deploy_environment")
+	case s.DeployEnvironment != s.Slot.DeployEnvironment:
+		return errors.New("slot state deploy_environment does not match resolved slot")
+	case s.Leases.Primary.ResourceName != s.Slot.ResourceName || s.LeasedResourceName != s.Slot.ResourceName:
+		return errors.New("slot state primary lease name does not match resolved slot")
+	case s.Leases.Primary.ResourceType != s.Slot.ResourceType:
+		return errors.New("slot state primary lease type does not match resolved slot")
+	case strings.TrimSpace(s.Slot.Subscriptions.E2E.Name) == "" || strings.TrimSpace(s.Slot.Subscriptions.E2E.ID) == "":
+		return errors.New("slot state has unresolved E2E subscription")
+	case s.Slot.RequiresInfrastructureSubscription() && (strings.TrimSpace(s.Slot.Subscriptions.Infrastructure.Name) == "" || strings.TrimSpace(s.Slot.Subscriptions.Infrastructure.ID) == ""):
+		return errors.New("slot state has unresolved infrastructure subscription")
+	case s.Leases.Primary.ReturnState != "":
+		return errors.New("slot state primary lease is no longer held")
+	}
+	for _, leases := range s.Leases.Assets {
+		for _, lease := range leases {
+			if lease.ReturnState != "" {
+				return fmt.Errorf("slot state asset lease %q is no longer held", lease.ResourceName)
 			}
 		}
-		if err := s.Slot.ValidateResolvedAssets(); err != nil {
-			return err
+	}
+	if err := s.Slot.ValidateResolvedAssets(); err != nil {
+		return err
+	}
+	if s.Slot.RequiresInfrastructureSubscription() {
+		leases := s.Leases.Assets[KindInfrastructureIdentities]
+		leaseNames := make([]string, len(leases))
+		for i, lease := range leases {
+			leaseNames[i] = lease.ResourceName
 		}
-		if s.Slot.RequiresInfrastructureSubscription() {
-			leases := s.Leases.Assets[KindInfrastructureIdentities]
-			leaseNames := make([]string, len(leases))
-			for i, lease := range leases {
-				leaseNames[i] = lease.ResourceName
-			}
-			groups := slices.Clone(s.Slot.Assets.InfrastructureIdentities.ResourceGroups)
-			sort.Strings(leaseNames)
-			sort.Strings(groups)
-			if !slices.Equal(groups, leaseNames) {
-				return fmt.Errorf("resolved demanded asset %q does not match acquired leases", KindInfrastructureIdentities)
-			}
+		groups := slices.Clone(s.Slot.Assets.InfrastructureIdentities.ResourceGroups)
+		sort.Strings(leaseNames)
+		sort.Strings(groups)
+		if !slices.Equal(groups, leaseNames) {
+			return fmt.Errorf("resolved demanded asset %q does not match acquired leases", KindInfrastructureIdentities)
 		}
 	}
 	return nil
@@ -271,14 +254,12 @@ func AddCoreRuntimeExports(contract *RuntimeContractBuilder, state *AcquiredSlot
 		"SELECTED_CLUSTER_PROFILE_DIR":   selectedClusterProfileDir,
 		"SELECTED_LOCATION":              state.RuntimeRegion,
 	}
-	if state.Version == acquiredSlotStateVersionV2 {
-		if customerSubscription != state.Slot.Subscriptions.E2E.Name {
-			return errors.New("customer subscription does not match resolved slot")
-		}
-		coreExports["ARO_HCP_DEPLOY_ENV"] = state.Slot.DeployEnvironment
-		if state.Slot.RequiresInfrastructureSubscription() {
-			coreExports["INFRA_SUBSCRIPTION_ID"] = state.Slot.Subscriptions.Infrastructure.ID
-		}
+	if customerSubscription != state.Slot.Subscriptions.E2E.Name {
+		return errors.New("customer subscription does not match resolved slot")
+	}
+	coreExports["ARO_HCP_DEPLOY_ENV"] = state.Slot.DeployEnvironment
+	if state.Slot.RequiresInfrastructureSubscription() {
+		coreExports["INFRA_SUBSCRIPTION_ID"] = state.Slot.Subscriptions.Infrastructure.ID
 	}
 	for key, value := range coreExports {
 		if err := contract.Add("core", key, value); err != nil {

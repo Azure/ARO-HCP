@@ -107,7 +107,7 @@ type ResolvedInfrastructureIdentities struct {
 
 func (p Pool) Requirements() []AssetRequirement {
 	var assetRequirements []AssetRequirement
-	if p.SlotAssets.E2EIdentities != nil || p.IdentityContainerCount > 0 {
+	if p.SlotAssets.E2EIdentities != nil {
 		assetRequirements = append(assetRequirements, AssetRequirement{Kind: KindE2EIdentities, Allocation: AllocationDedicated, UnitsPerSlot: 1})
 	}
 	if asset := p.SlotAssets.InfrastructureIdentities; asset != nil {
@@ -219,12 +219,6 @@ func (c *Catalog) AssetInventories() ([]AssetInventory, error) {
 var inventoryName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 
 func (c *Catalog) validateAssetPools(resourceTypes map[string]string) error {
-	if c.Version == 1 {
-		if len(c.AssetPools) > 0 {
-			return fmt.Errorf("version 1 catalog must not declare asset_pools")
-		}
-		return nil
-	}
 	prefixes := map[string]string{}
 	dedicatedGroups := map[string]string{}
 	for _, environment := range c.EnvironmentNames() {
@@ -273,25 +267,4 @@ func (c *Catalog) validateAssetPools(resourceTypes map[string]string) error {
 	}
 	_, err := c.AssetInventories()
 	return err
-}
-
-func rejectV2LegacyFields(data []byte) error {
-	var wire struct {
-		Environments map[string]struct {
-			Pools []map[string]yaml.Node `yaml:"pools"`
-		} `yaml:"environments"`
-	}
-	if err := yaml.Unmarshal(data, &wire); err != nil {
-		return err
-	}
-	for environment, value := range wire.Environments {
-		for _, pool := range value.Pools {
-			for _, obsolete := range []string{"subscription_name", "identity_provisioning", "identity_provisioning_region", "identity_container_prefix", "identity_container_count"} {
-				if _, found := pool[obsolete]; found {
-					return fmt.Errorf("environment %q v2 pool must not declare obsolete field %q", environment, obsolete)
-				}
-			}
-		}
-	}
-	return nil
 }

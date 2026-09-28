@@ -102,7 +102,7 @@ func bindAssetCommandOptions(command *cobra.Command, options *assetCommandOption
 	command.Flags().StringVar(&options.Environment, "environment", "", "Logical slot environment (dev, int, stg, prod).")
 	command.Flags().StringVar(&options.SlotCatalog, "slot-catalog", "", "Path to the canonical E2E slot catalog.")
 	command.Flags().StringSliceVar(&options.Subscriptions, "subscription", nil, "Limit operation to E2E subscription name(s). Explicit selection includes unmanaged assets.")
-	command.Flags().StringSliceVar(&options.Pools, "pool", nil, "Limit operation to named v2 pool(s). Explicit selection includes unmanaged assets.")
+	command.Flags().StringSliceVar(&options.Pools, "pool", nil, "Limit operation to named pool(s). Explicit selection includes unmanaged assets.")
 	command.Flags().StringSliceVar(&options.AssetKinds, "asset", nil, "Limit operation to registered asset kind(s), e.g. e2e_identities.")
 	if err := command.MarkFlagRequired("environment"); err != nil {
 		return fmt.Errorf("failed to mark flag %q as required: %w", "environment", err)
@@ -128,7 +128,7 @@ func runPoolAssetsCommand(ctx context.Context, registry *assets.Registry, option
 	pools := make([]slots.Pool, 0, len(environment.Pools))
 	for _, pool := range environment.Pools {
 		if len(subscriptionFilter) > 0 {
-			if _, found := subscriptionFilter[pool.E2ESubscriptionName()]; !found {
+			if _, found := subscriptionFilter[pool.Subscriptions.E2E]; !found {
 				continue
 			}
 		}

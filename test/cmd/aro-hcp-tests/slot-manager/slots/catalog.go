@@ -98,7 +98,6 @@ type Catalog struct {
 
 type Environment struct {
 	DeploymentEnvironment DeploymentEnvironment `yaml:"deployment_environment,omitempty"`
-	DeployEnvs            []string              `yaml:"deploy_envs"`
 	Pools                 []Pool                `yaml:"pools"`
 }
 
@@ -118,20 +117,15 @@ type SlotAssets struct {
 }
 
 type Pool struct {
-	Name                       string            `yaml:"name,omitempty"`
-	DeployEnv                  string            `yaml:"-"`
-	Subscriptions              PoolSubscriptions `yaml:"subscriptions,omitempty"`
-	SlotAssets                 SlotAssets        `yaml:"slot_assets,omitempty"`
-	SubscriptionName           string            `yaml:"subscription_name"`
-	Region                     string            `yaml:"region,omitempty"`
-	Regions                    []string          `yaml:"regions,omitempty"`
-	RegionMode                 RegionMode        `yaml:"region_mode,omitempty"`
-	IdentityProvisioningRegion string            `yaml:"identity_provisioning_region,omitempty"`
-	IdentityProvisioning       string            `yaml:"identity_provisioning,omitempty"`
-	ResourceType               string            `yaml:"resource_type"`
-	SlotCount                  int               `yaml:"slot_count"`
-	IdentityContainerPrefix    string            `yaml:"identity_container_prefix"`
-	IdentityContainerCount     int               `yaml:"identity_container_count"`
+	Name          string            `yaml:"name,omitempty"`
+	DeployEnv     string            `yaml:"-"`
+	Subscriptions PoolSubscriptions `yaml:"subscriptions,omitempty"`
+	SlotAssets    SlotAssets        `yaml:"slot_assets,omitempty"`
+	Region        string            `yaml:"region,omitempty"`
+	Regions       []string          `yaml:"regions,omitempty"`
+	RegionMode    RegionMode        `yaml:"region_mode,omitempty"`
+	ResourceType  string            `yaml:"resource_type"`
+	SlotCount     int               `yaml:"slot_count"`
 }
 
 const (
@@ -194,11 +188,6 @@ func LoadCatalog(path string) (*Catalog, error) {
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return nil, fmt.Errorf("slot catalog %q must contain exactly one YAML document", path)
 	}
-	if catalog.Version == 2 {
-		if err := rejectV2LegacyFields(data); err != nil {
-			return nil, err
-		}
-	}
 	if err := catalog.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid slot catalog %q: %w", path, err)
 	}
@@ -243,7 +232,7 @@ func resolveRepoFile(relPath, startDir string) (string, error) {
 }
 
 func (c *Catalog) Validate() error {
-	if c.Version != 1 && c.Version != 2 {
+	if c.Version != 2 {
 		return fmt.Errorf("unsupported catalog version %d", c.Version)
 	}
 	if len(c.Environments) == 0 {
@@ -253,27 +242,18 @@ func (c *Catalog) Validate() error {
 	resourceTypes := map[string]string{}
 	for _, environmentName := range c.EnvironmentNames() {
 		environment := c.Environments[environmentName]
-		if c.Version == 1 && len(environment.DeployEnvs) == 0 {
-			return fmt.Errorf("environment %q has no deploy_envs", environmentName)
+		environment.DeploymentEnvironment.Name = strings.TrimSpace(environment.DeploymentEnvironment.Name)
+		environment.DeploymentEnvironment.InfrastructureSubscription = strings.TrimSpace(environment.DeploymentEnvironment.InfrastructureSubscription)
+		if environment.DeploymentEnvironment.Name == "" {
+			return fmt.Errorf("environment %q must declare deployment_environment.name", environmentName)
 		}
-		if c.Version == 2 && len(environment.DeployEnvs) > 0 {
-			return fmt.Errorf("environment %q version 2 config must not declare deploy_envs", environmentName)
-		}
-		if c.Version == 2 {
-			environment.DeploymentEnvironment.Name = strings.TrimSpace(environment.DeploymentEnvironment.Name)
-			environment.DeploymentEnvironment.InfrastructureSubscription = strings.TrimSpace(environment.DeploymentEnvironment.InfrastructureSubscription)
-			if environment.DeploymentEnvironment.Name == "" {
-				return fmt.Errorf("environment %q must declare deployment_environment.name", environmentName)
-			}
-			if err := validateDeploymentEnvironmentName(environment.DeploymentEnvironment.Name); err != nil {
-				return fmt.Errorf("environment %q: %w", environmentName, err)
-			}
+		if err := validateDeploymentEnvironmentName(environment.DeploymentEnvironment.Name); err != nil {
+			return fmt.Errorf("environment %q: %w", environmentName, err)
 		}
 		if len(environment.Pools) == 0 {
 			return fmt.Errorf("environment %q has no pools", environmentName)
 		}
 
-		seenPoolKeys := map[string]struct{}{}
 		seenPoolNames := map[string]struct{}{}
 		environmentRegionMode := RegionModeFixed
 		environmentRegionModeSet := false
@@ -281,35 +261,22 @@ func (c *Catalog) Validate() error {
 		for i := range environment.Pools {
 			pool := &environment.Pools[i]
 			pool.Name = strings.TrimSpace(pool.Name)
-			pool.DeployEnv = strings.TrimSpace(pool.DeployEnv)
 			pool.Subscriptions.E2E = strings.TrimSpace(pool.Subscriptions.E2E)
-			pool.Subscriptions.Infrastructure = strings.TrimSpace(pool.Subscriptions.Infrastructure)
-			pool.SubscriptionName = strings.TrimSpace(pool.SubscriptionName)
 			pool.Region = strings.TrimSpace(pool.Region)
 			pool.Regions = trimValues(pool.Regions)
 			poolRegions := sets.New(pool.Regions...)
-			pool.IdentityProvisioningRegion = strings.TrimSpace(pool.IdentityProvisioningRegion)
 			pool.ResourceType = strings.TrimSpace(pool.ResourceType)
-			pool.IdentityContainerPrefix = strings.TrimSpace(pool.IdentityContainerPrefix)
-			pool.IdentityProvisioning = strings.TrimSpace(pool.IdentityProvisioning)
-
-			if c.Version == 2 {
-				pool.DeployEnv = environment.DeploymentEnvironment.Name
-				pool.Subscriptions.Infrastructure = environment.DeploymentEnvironment.InfrastructureSubscription
-				if err := normalizeV2Pool(environmentName, pool); err != nil {
-					return err
-				}
-				if _, found := seenPoolNames[pool.Name]; found {
-					return fmt.Errorf("environment %q declares duplicate pool name %q", environmentName, pool.Name)
-				}
-				seenPoolNames[pool.Name] = struct{}{}
+			pool.DeployEnv = environment.DeploymentEnvironment.Name
+			pool.Subscriptions.Infrastructure = environment.DeploymentEnvironment.InfrastructureSubscription
+			if err := validatePool(environmentName, pool); err != nil {
+				return err
 			}
+			if _, found := seenPoolNames[pool.Name]; found {
+				return fmt.Errorf("environment %q declares duplicate pool name %q", environmentName, pool.Name)
+			}
+			seenPoolNames[pool.Name] = struct{}{}
 
 			switch {
-			case pool.SubscriptionName == "":
-				return fmt.Errorf("environment %q has a pool with empty subscription_name", environmentName)
-			case pool.IdentityProvisioning != "" && pool.IdentityProvisioning != IdentityProvisioningUnmanaged:
-				return fmt.Errorf("environment %q pool %s has invalid identity_provisioning %q (must be empty or %q)", environmentName, describePool(*pool), pool.IdentityProvisioning, IdentityProvisioningUnmanaged)
 			case !pool.RegionMode.IsValid():
 				return fmt.Errorf("environment %q pool %s has invalid region_mode %q", environmentName, describePool(*pool), pool.RegionMode)
 			case pool.RegionMode == RegionModeWeighted && pool.Region != "":
@@ -318,8 +285,6 @@ func (c *Catalog) Validate() error {
 				return fmt.Errorf("environment %q weighted pool %s has no regions", environmentName, describePool(*pool))
 			case pool.RegionMode == RegionModeWeighted && (poolRegions.Has("") || poolRegions.Len() != len(pool.Regions)):
 				return fmt.Errorf("environment %q weighted pool %s has empty or duplicate regions", environmentName, describePool(*pool))
-			case pool.RegionMode == RegionModeWeighted && pool.IdentityProvisioningRegion == "" && (c.Version == 1 || pool.SlotAssets.E2EIdentities != nil):
-				return fmt.Errorf("environment %q weighted pool %s must declare identity_provisioning_region", environmentName, describePool(*pool))
 			case pool.RegionMode != RegionModeWeighted && pool.Region == "":
 				return fmt.Errorf("environment %q has a pool with empty region", environmentName)
 			case pool.RegionMode != RegionModeWeighted && len(pool.Regions) > 0:
@@ -328,10 +293,6 @@ func (c *Catalog) Validate() error {
 				return fmt.Errorf("environment %q has a pool with empty resource_type", environmentName)
 			case pool.SlotCount <= 0:
 				return fmt.Errorf("environment %q pool %s has invalid slot_count %d", environmentName, describePool(*pool), pool.SlotCount)
-			case pool.IdentityContainerPrefix == "" && (c.Version == 1 || pool.SlotAssets.E2EIdentities != nil):
-				return fmt.Errorf("environment %q pool %s has empty identity_container_prefix", environmentName, describePool(*pool))
-			case pool.IdentityContainerCount <= 0 && (c.Version == 1 || pool.SlotAssets.E2EIdentities != nil):
-				return fmt.Errorf("environment %q pool %s has invalid identity_container_count %d", environmentName, describePool(*pool), pool.IdentityContainerCount)
 			}
 
 			if !environmentRegionModeSet {
@@ -354,12 +315,6 @@ func (c *Catalog) Validate() error {
 				)
 			}
 
-			poolKey := poolIdentity(*pool)
-			if _, found := seenPoolKeys[poolKey]; found {
-				return fmt.Errorf("environment %q declares duplicate pool %s", environmentName, describePool(*pool))
-			}
-			seenPoolKeys[poolKey] = struct{}{}
-
 			if previous, exists := resourceTypes[pool.ResourceType]; exists {
 				return fmt.Errorf("resource type %q is declared by both %s and %s", pool.ResourceType, previous, qualifiedPoolName(environmentName, *pool))
 			}
@@ -379,7 +334,7 @@ func validateDeploymentEnvironmentName(name string) error {
 	return nil
 }
 
-func normalizeV2Pool(environmentName string, pool *Pool) error {
+func validatePool(environmentName string, pool *Pool) error {
 	switch {
 	case pool.Name == "":
 		return fmt.Errorf("environment %q has a pool with empty name", environmentName)
@@ -394,7 +349,6 @@ func normalizeV2Pool(environmentName string, pool *Pool) error {
 	if pool.SlotAssets.InfrastructureIdentities == nil {
 		pool.Subscriptions.Infrastructure = ""
 	}
-	pool.SubscriptionName = pool.Subscriptions.E2E
 	if pool.ResourceType == "" {
 		pool.ResourceType = fmt.Sprintf("aro-hcp-%s-%s-slot", environmentName, pool.Name)
 	}
@@ -435,20 +389,8 @@ func (c *Catalog) ResolveEnvironmentForDeployEnv(deployEnv string) (string, erro
 	var matches []string
 	for _, environmentName := range c.EnvironmentNames() {
 		environment := c.Environments[environmentName]
-		if c.Version == 1 {
-			for _, candidate := range environment.DeployEnvs {
-				if candidate == deployEnv {
-					matches = append(matches, environmentName)
-					break
-				}
-			}
-			continue
-		}
-		for _, pool := range environment.Pools {
-			if pool.DeployEnv == deployEnv {
-				matches = append(matches, environmentName)
-				break
-			}
+		if environment.DeploymentEnvironment.Name == deployEnv {
+			matches = append(matches, environmentName)
 		}
 	}
 
@@ -496,7 +438,7 @@ func (c *Catalog) CandidatePools(environment string, allowedSubscriptions, allow
 
 	matches := make([]Pool, 0, len(environmentConfig.Pools))
 	for _, pool := range environmentConfig.Pools {
-		if allowedSubscriptions.Len() > 0 && !allowedSubscriptions.Has(pool.E2ESubscriptionName()) {
+		if allowedSubscriptions.Len() > 0 && !allowedSubscriptions.Has(pool.Subscriptions.E2E) {
 			continue
 		}
 		if environmentRegionMode == RegionModeFixed {
@@ -567,33 +509,29 @@ func (c *Catalog) RegionsForEnvironment(environment string) ([]string, error) {
 func ExpandSlotsForPool(environment string, pool Pool) []ExpandedSlot {
 	slots := make([]ExpandedSlot, 0, pool.SlotCount)
 	for i := 0; i < pool.SlotCount; i++ {
-		identityContainerPrefix := fmt.Sprintf("%s-%0*d", pool.IdentityContainerPrefix, defaultSlotIndexWidth, i)
-		identityContainers := identityContainerNames(identityContainerPrefix, pool.IdentityContainerCount)
 		slot := ExpandedSlot{
-			AssetRequirements:       pool.Requirements(),
-			Environment:             environment,
-			PoolName:                pool.Name,
-			DeployEnvironment:       pool.DeployEnv,
-			SubscriptionName:        pool.E2ESubscriptionName(),
-			Region:                  pool.Region,
-			ResourceType:            pool.ResourceType,
-			ResourceName:            fmt.Sprintf("%s-%0*d", pool.ResourceType, defaultSlotIndexWidth, i),
-			SlotIndex:               i,
-			IdentityContainerPrefix: identityContainerPrefix,
-			IdentityContainerCount:  pool.IdentityContainerCount,
+			AssetRequirements: pool.Requirements(),
+			Environment:       environment,
+			PoolName:          pool.Name,
+			DeployEnvironment: pool.DeployEnv,
+			SubscriptionName:  pool.Subscriptions.E2E,
+			Region:            pool.Region,
+			ResourceType:      pool.ResourceType,
+			ResourceName:      fmt.Sprintf("%s-%0*d", pool.ResourceType, defaultSlotIndexWidth, i),
+			SlotIndex:         i,
 		}
-		if pool.Name != "" {
-			slot.Subscriptions = ResolvedSubscriptions{
-				E2E:            ResolvedSubscription{Name: pool.E2ESubscriptionName()},
-				Infrastructure: ResolvedSubscription{Name: pool.InfrastructureSubscriptionName()},
-			}
+		slot.Subscriptions = ResolvedSubscriptions{
+			E2E:            ResolvedSubscription{Name: pool.Subscriptions.E2E},
+			Infrastructure: ResolvedSubscription{Name: pool.InfrastructureSubscriptionName()},
 		}
-		if pool.SlotAssets.E2EIdentities != nil {
+		if asset := pool.SlotAssets.E2EIdentities; asset != nil {
+			slot.IdentityContainerPrefix = fmt.Sprintf("%s-%0*d", asset.ResourceGroupPrefix, defaultSlotIndexWidth, i)
+			slot.IdentityContainerCount = asset.ResourceGroupCount
 			slot.Assets = ResolvedAssets{
 				E2EIdentities: &ResolvedE2EIdentitiesAsset{
 					Allocation:         AllocationDedicated,
 					ProvisioningRegion: pool.EffectiveIdentityProvisioningRegion(),
-					ResourceGroups:     identityContainers,
+					ResourceGroups:     identityContainerNames(slot.IdentityContainerPrefix, slot.IdentityContainerCount),
 				},
 			}
 		}
@@ -633,13 +571,6 @@ func (c *Catalog) FindSlotByResourceName(resourceName string) (*ExpandedSlot, er
 	return nil, fmt.Errorf("failed to find slot for leased resource %q", resourceName)
 }
 
-func (p Pool) E2ESubscriptionName() string {
-	if p.Subscriptions.E2E != "" {
-		return p.Subscriptions.E2E
-	}
-	return p.SubscriptionName
-}
-
 func (p Pool) InfrastructureSubscriptionName() string {
 	if p.SlotAssets.InfrastructureIdentities == nil {
 		return ""
@@ -675,29 +606,9 @@ func SlotStateFile(sharedDir string) (string, error) {
 }
 
 func describePool(pool Pool) string {
-	if pool.Name != "" {
-		return fmt.Sprintf("(name=%q, subscription_name=%q, region_mode=%q)", pool.Name, pool.E2ESubscriptionName(), pool.EffectiveRegionMode())
-	}
-	switch pool.EffectiveRegionMode() {
-	case RegionModeRuntimeSelected:
-		return fmt.Sprintf("(subscription_name=%q, region_mode=%q, default_region=%q)", pool.SubscriptionName, pool.EffectiveRegionMode(), pool.Region)
-	case RegionModeWeighted:
-		return fmt.Sprintf("(subscription_name=%q, region_mode=%q, regions=%q)", pool.SubscriptionName, pool.EffectiveRegionMode(), strings.Join(pool.Regions, ","))
-	default:
-		return fmt.Sprintf("(subscription_name=%q, region=%q)", pool.SubscriptionName, pool.Region)
-	}
-}
-
-func poolIdentity(pool Pool) string {
-	if pool.Name != "" {
-		return pool.Name
-	}
-	if pool.EffectiveRegionMode() == RegionModeRuntimeSelected || pool.EffectiveRegionMode() == RegionModeWeighted {
-		return pool.E2ESubscriptionName()
-	}
-	return fmt.Sprintf("%s/%s", pool.E2ESubscriptionName(), pool.Region)
+	return fmt.Sprintf("(name=%q, subscription_name=%q, region_mode=%q)", pool.Name, pool.Subscriptions.E2E, pool.EffectiveRegionMode())
 }
 
 func qualifiedPoolName(environment string, pool Pool) string {
-	return fmt.Sprintf("%s/%s", environment, poolIdentity(pool))
+	return fmt.Sprintf("%s/%s", environment, pool.Name)
 }

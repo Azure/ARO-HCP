@@ -100,13 +100,16 @@ func TestAssetInventoryAggregatesWholeCatalog(t *testing.T) {
 	}
 }
 
-func TestV2RejectsObsoleteAndInvalidCatalogs(t *testing.T) {
+func TestRejectsObsoleteAndInvalidCatalogs(t *testing.T) {
 	t.Parallel()
 	tests := []struct{ name, from, to, want string }{
+		{"missing version", "version: 2", "", "unsupported catalog version 0"},
+		{"old version", "version: 2", "version: 1", "unsupported catalog version 1"},
+		{"future version", "version: 2", "version: 3", "unsupported catalog version 3"},
 		{"pool deploy env", "      region: westus3", "      deploy_env: prod\n      region: westus3", "deploy_env"},
 		{"pool infrastructure", "{e2e: customer}", "{e2e: customer, infrastructure: infra}", "infrastructure"},
-		{"legacy subscription", "      region: westus3", "      subscription_name: customer\n      region: westus3", "obsolete"},
-		{"legacy identity count", "      region: westus3", "      identity_container_count: 1\n      region: westus3", "obsolete"},
+		{"legacy subscription", "      region: westus3", "      subscription_name: customer\n      region: westus3", "field subscription_name not found"},
+		{"legacy identity count", "      region: westus3", "      identity_container_count: 1\n      region: westus3", "field identity_container_count not found"},
 		{"plural binding", "    deployment_environment: {name: ci01, infrastructure_subscription: infra}", "    deploy_envs: [ci01]", "deploy_envs"},
 		{"missing binding", "    deployment_environment: {name: ci01, infrastructure_subscription: infra}", "", "deployment_environment"},
 		{"missing deployment name", "name: ci01, infrastructure_subscription: infra", "infrastructure_subscription: infra", "deployment_environment.name"},
@@ -148,7 +151,7 @@ func TestV2RejectsObsoleteAndInvalidCatalogs(t *testing.T) {
 	}
 }
 
-func TestV2MixedPoolsRequireInfrastructureOnlyForConsumers(t *testing.T) {
+func TestMixedPoolsRequireInfrastructureOnlyForConsumers(t *testing.T) {
 	t.Parallel()
 	input := strings.Replace(independentCatalog, "    pools:\n", `    pools:
     - name: e2e-only
@@ -241,7 +244,7 @@ func TestDedicatedIdentityPrefixesRemainDistinct(t *testing.T) {
 	}
 }
 
-func TestV2AssetPoolDuplicateAndOverflowValidation(t *testing.T) {
+func TestAssetPoolDuplicateAndOverflowValidation(t *testing.T) {
 	t.Parallel()
 	for _, scenario := range []string{"duplicate pool", "duplicate type", "duplicate name", "multiply overflow", "sum overflow"} {
 		t.Run(scenario, func(t *testing.T) {
