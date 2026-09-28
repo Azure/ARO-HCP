@@ -167,7 +167,7 @@ func TestUtilizationRequestHistoryScopedPartialSums(t *testing.T) {
 						metric = "kube_pod_container_info"
 						results[3].series = nil
 					}
-					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == metric })
+					results[2].series = slices.DeleteFunc(results[2].series, func(s promutil.Result) bool { return s.Metric["__name__"] == metric })
 				case "missing node inventory":
 					sample.Nodes[0].Inventory = false
 					results[2].series, results[3].series = nil, nil
@@ -176,7 +176,7 @@ func TestUtilizationRequestHistoryScopedPartialSums(t *testing.T) {
 				case "request node conflict":
 					results[3].series[0].Metric["node"] = "other"
 				case "request nodes without info":
-					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_info" })
+					results[2].series = slices.DeleteFunc(results[2].series, func(s promutil.Result) bool { return s.Metric["__name__"] == "kube_pod_info" })
 					results[3].series[0].Metric["node"] = "node"
 					results[3].series[1].Metric["node"] = "other"
 				case "UID conflict":
@@ -185,7 +185,7 @@ func TestUtilizationRequestHistoryScopedPartialSums(t *testing.T) {
 					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "old-uid", "", "Running", 999)
 				case "request-only UID conflict":
 					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "old-uid", "", "Running", 999)
-					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["uid"] == "old-uid" })
+					results[2].series = slices.DeleteFunc(results[2].series, func(s promutil.Result) bool { return s.Metric["uid"] == "old-uid" })
 				case "unplaced terminal UID conflict":
 					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "old-uid", "", "Succeeded", 999)
 				case "unplaced unscheduled UID conflict":
@@ -217,7 +217,7 @@ func TestUtilizationRequestHistoryScopedPartialSums(t *testing.T) {
 					utilizationTestHistoryPod(results, 2, sample.Time, "problem", "uid", "", phase, 999)
 					// Exercise scheduling contradictions with and without pod info.
 					if test.name != "scheduled pending without node" {
-						results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_info" })
+						results[2].series = slices.DeleteFunc(results[2].series, func(s promutil.Result) bool { return s.Metric["__name__"] == "kube_pod_info" })
 					}
 					for _, condition := range []string{"true", "false"} {
 						if (test.name == "running unscheduled conflict" && condition == "true") || (test.name == "scheduled pending without node" && condition == "false") {
@@ -226,7 +226,7 @@ func TestUtilizationRequestHistoryScopedPartialSums(t *testing.T) {
 						results[2].series = append(results[2].series, utilizationTestSeries(sample.Time, 1, "__name__", "kube_pod_status_scheduled", "cluster", "mgmt", "namespace", "ns", "pod", "problem", "uid", "uid", "condition", condition))
 					}
 				case "unplaced demand":
-					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_info" })
+					results[2].series = slices.DeleteFunc(results[2].series, func(s promutil.Result) bool { return s.Metric["__name__"] == "kube_pod_info" })
 				}
 				if reverse {
 					for i := range results {
@@ -265,7 +265,7 @@ func TestUtilizationRequestHistoryAbsentCandidateNodes(t *testing.T) {
 				utilizationTestHistoryPod(results, 2, sample.Time, "problem", "uid", "absent", "Running", 3)
 				switch test {
 				case "request node fallback":
-					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_info" })
+					results[2].series = slices.DeleteFunc(results[2].series, func(s promutil.Result) bool { return s.Metric["__name__"] == "kube_pod_info" })
 					for _, s := range results[3].series {
 						s.Metric["node"] = "absent"
 					}
@@ -278,7 +278,7 @@ func TestUtilizationRequestHistoryAbsentCandidateNodes(t *testing.T) {
 					// A safe pod on one missing candidate must still contribute once.
 					utilizationTestHistoryPod(results, 2, sample.Time, "safe", "safe-uid", "absent", "Running", 3)
 				case "unknown phase":
-					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_status_phase" })
+					results[2].series = slices.DeleteFunc(results[2].series, func(s promutil.Result) bool { return s.Metric["__name__"] == "kube_pod_status_phase" })
 				case "zero CPU only":
 					results[3].series = results[3].series[:1]
 					results[3].series[0].Values[0][1] = "0"
@@ -355,7 +355,7 @@ func TestUtilizationRequestHistoryPartialEvidence(t *testing.T) {
 				case "no requests":
 					results[3].series = nil
 				case "unknown phase":
-					results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_status_phase" })
+					results[2].series = slices.DeleteFunc(results[2].series, func(s promutil.Result) bool { return s.Metric["__name__"] == "kube_pod_status_phase" })
 				case "ambiguous UID":
 					utilizationTestHistoryPod(results, 2, samples[0].Time, "pod", "old-uid", "node", "Running", 999)
 				}
@@ -416,7 +416,7 @@ func TestUtilizationRequestHistoryWithoutPodInfo(t *testing.T) {
 			at := samples[0].Time
 			utilizationTestHistoryPod(results, 0, at, "known", "known-uid", "node", "Running", 2)
 			utilizationTestHistoryPod(results, 2, at, "pod", "uid", "", test.phase, 3)
-			results[2].series = slices.DeleteFunc(results[2].series, func(s PrometheusResult) bool {
+			results[2].series = slices.DeleteFunc(results[2].series, func(s promutil.Result) bool {
 				return s.Metric["__name__"] == "kube_pod_info" || (test.phase == "" && s.Metric["__name__"] == "kube_pod_status_phase")
 			})
 			if test.unscheduled {
