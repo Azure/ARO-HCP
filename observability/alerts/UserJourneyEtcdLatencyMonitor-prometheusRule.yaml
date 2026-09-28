@@ -9,6 +9,15 @@ spec:
     labels:
       component: etcd
     rules:
+    # Require at least 1,000 operations in each window so the P99 tail represents
+    # roughly ten observations, not a handful of slow requests on an idle cluster.
+    # Count operations via the +Inf bucket, not scrapes or all cumulative buckets.
+    # increase() estimates window volume; these guards do not require full history.
+    #
+    # Medium and slow alerts add a 5m freshness guard (> 0 operations in the last
+    # 5 minutes) to suppress firing on deleted clusters whose long lookback windows
+    # still retain historical samples. The fast alert's 5m volume guard (>= 1000)
+    # already implies freshness, so no separate check is needed.
     # etcd gRPC read latency (Range operations) — MWMBR alerts
     # P99 > 500ms threshold. Range is the primary KAS read operation to etcd.
     - alert: userJourneyEtcdReadLatencyP991h5m
@@ -35,6 +44,28 @@ spec:
               }[5m])
             )
           ) > 0.5
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Range",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[1h])
+          ) >= 1000
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Range",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[5m])
+          ) >= 1000
         )
       for: 2m
       labels:
@@ -75,6 +106,39 @@ spec:
             )
           ) > 0.5
         )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Range",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[6h])
+          ) >= 1000
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Range",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[30m])
+          ) >= 1000
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Range",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[5m])
+          ) > 0
+        )
       for: 5m
       labels:
         long_window: 6h
@@ -113,6 +177,39 @@ spec:
               }[6h])
             )
           ) > 0.5
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Range",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[3d])
+          ) >= 1000
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Range",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[6h])
+          ) >= 1000
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Range",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[5m])
+          ) > 0
         )
       for: 3h
       labels:
@@ -155,6 +252,28 @@ spec:
             )
           ) > 0.5
         )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Txn",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[1h])
+          ) >= 1000
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Txn",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[5m])
+          ) >= 1000
+        )
       for: 2m
       labels:
         long_window: 1h
@@ -194,6 +313,39 @@ spec:
             )
           ) > 0.5
         )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Txn",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[6h])
+          ) >= 1000
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Txn",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[30m])
+          ) >= 1000
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Txn",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[5m])
+          ) > 0
+        )
       for: 5m
       labels:
         long_window: 6h
@@ -232,6 +384,39 @@ spec:
               }[6h])
             )
           ) > 0.5
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Txn",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[3d])
+          ) >= 1000
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Txn",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[6h])
+          ) >= 1000
+        )
+        and on (namespace, cluster)
+        (
+          sum by (namespace, cluster) (
+            increase(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Txn",
+              namespace=~"ocm-.*",
+              le="+Inf"
+            }[5m])
+          ) > 0
         )
       for: 3h
       labels:
