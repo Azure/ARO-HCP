@@ -264,8 +264,10 @@ func applyCPOImageOverride(tags map[string]*string) {
 // any pin inherited from NewDefaultClusterParams*, so an override can never leave
 // a tag that contradicts version.id.
 //
-// Call this after the params literal, like applyCPOImageOverride, and again at
-// any site that overrides OpenshiftVersionId. It is idempotent.
+// Call this with a raw desired version for an explicit override. Reapplying the
+// same raw version is safe; feeding its shortened return value back in clears
+// the pin. Use PickAtLeastControlPlaneVersion to impose a minimum on existing
+// params without losing a satisfying pin.
 func ApplyControlPlaneExactVersionPin(versionID string, tags map[string]*string) string {
 	if tags == nil {
 		return versionID
