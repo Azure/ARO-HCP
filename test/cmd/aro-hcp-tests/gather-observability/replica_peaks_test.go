@@ -325,24 +325,41 @@ func TestReplicaPeakWindowsAndCancellation(t *testing.T) {
 
 func TestReplicaPeakConflictingEvidence(t *testing.T) {
 	uid := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-	for _, cgroup := range []bool{false, true} {
-		t.Run(fmt.Sprint(cgroup), func(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		cgroup    bool
+		repeatUID string
+	}{
+		{"runtime/repeat-first", false, uid},
+		{"runtime/repeat-second", false, "other"},
+		{"cgroup/repeat-first", true, uid},
+		{"cgroup/repeat-second", true, "other"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			m := map[string]string{"cluster": "cluster", "namespace": "ns", "pod": "reused", "container": "app", "id": "/runtime"}
-			if cgroup {
+			if tc.cgroup {
 				m["id"] = "/pod" + uid + "/runtime"
 			}
 			data := map[string][]promutil.Result{"svc/cpu": replicaPeakTestSummary(m, 2, false)}
 			data["svc/cpu"] = append(data["svc/cpu"], replicaPeakTestSummary(m, 3, false)...)
-			for _, candidate := range []string{uid, "other", uid} {
+			for i, candidate := range []string{uid, "other", tc.repeatUID} {
 				info := maps.Clone(m)
 				info["metric"], info["uid"], info["container_id"] = "kube_pod_container_info", candidate, "containerd://runtime"
+				// Keep all three entries distinct and sort the repeated UID after the conflict.
+				info["instance"] = fmt.Sprint(i)
 				data["svc/metadata"] = append(data["svc/metadata"], replicaPeakTestSeries(info, "1"))
 			}
 			var previous string
 			for pass := 0; pass < 2; pass++ {
 				r := collectReplicaPeaks(context.Background(), replicaPeakTestTime.Add(-time.Hour), replicaPeakTestTime, replicaPeakTestTime, replicaPeakTestQuery(t, data, ""))
+				if len(r.Metadata) != 3 {
+					t.Fatalf("all three runtime UID candidates must survive deduplication: %+v", r.Metadata)
+				}
 				if len(r.Containers) != 1 || r.Containers[0].PodUID != "" {
 					t.Fatalf("conflicting UID must not be resolved: %+v", r.Containers)
+				}
+				if !slices.Contains(r.Warnings, "cluster/ns/reused/app: cpu pod UID unavailable or conflicting; retained unmatched") {
+					t.Fatalf("conflicting UID must retain an unmatched warning: %v", r.Warnings)
 				}
 				if _, exists := r.Containers[0].Summary["max"]; exists {
 					t.Fatal("conflicting statistic must be withheld, not summed or selected by order")
