@@ -1,0 +1,201 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package main
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestCheckPaths(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		path string
+		rule string // empty means the path must be accepted
+	}{
+		{name: "root agent settings", path: ".claude/settings.json", rule: ruleAgentSettings},
+		{name: "nested agent settings", path: "frontend/.claude/settings.json", rule: ruleAgentSettings},
+		{name: "deeply nested agent settings", path: "a/b/c/.claude/settings.json", rule: ruleAgentSettings},
+		{name: "local agent settings", path: ".claude/settings.local.json", rule: ruleAgentSettings},
+		{name: "agent mcp config", path: ".claude/mcp.json", rule: ruleAgentSettings},
+		{name: "editor settings", path: ".vscode/settings.json", rule: ruleEditorConfig},
+		{name: "editor extensions", path: ".vscode/extensions.json", rule: ruleEditorConfig},
+		{name: "nested editor tasks", path: "a/b/.vscode/tasks.json", rule: ruleEditorConfig},
+		{name: "editor launch", path: ".vscode/launch.json", rule: ruleEditorConfig},
+		{name: "shell script in agent dir", path: ".claude/setup.sh", rule: ruleAgentExecutable},
+		{name: "node script in agent dir", path: ".claude/skills/x/setup.mjs", rule: ruleAgentExecutable},
+		{name: "python script in agent dir", path: "backend/.claude/hook.py", rule: ruleAgentExecutable},
+
+		{name: "checked-in skill", path: ".claude/skills/pr-standards/SKILL.md"},
+		{name: "devcontainer config", path: ".devcontainer/devcontainer.json"},
+		{name: "devcontainer script", path: ".devcontainer/postCreate.sh"},
+		{name: "unrelated settings file", path: "config/settings.json"},
+		{name: "unrelated extensions file", path: "docs/extensions.json"},
+		{name: "similarly named directory", path: "notclaude/settings.json"},
+		{name: "ordinary shell script", path: "hack/verify.sh"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			findings := checkPaths([]string{tc.path})
+
+			if tc.rule == "" {
+				if len(findings) != 0 {
+					t.Fatalf("expected %s to be accepted, got %+v", tc.path, findings)
+				}
+				return
+			}
+
+			if len(findings) != 1 {
+				t.Fatalf("expected exactly one finding for %s, got %+v", tc.path, findings)
+			}
+			if findings[0].rule != tc.rule {
+				t.Errorf("expected rule %q for %s, got %q", tc.rule, tc.path, findings[0].rule)
+			}
+			if findings[0].path != tc.path {
+				t.Errorf("expected path %q, got %q", tc.path, findings[0].path)
+			}
+		})
+	}
+}
+
+func TestCheckPathsReportsEveryViolation(t *testing.T) {
+	findings := checkPaths([]string{
+		"README.md",
+		".claude/settings.json",
+		"frontend/.vscode/extensions.json",
+		".claude/skills/pr-standards/SKILL.md",
+		"backend/.claude/payload.mjs",
+	})
+
+	if len(findings) != 3 {
+		t.Fatalf("expected 3 findings, got %+v", findings)
+	}
+}
+
+func TestAgentJSONFiles(t *testing.T) {
+	got := agentJSONFiles([]string{
+		".claude/settings.json",
+		".claude/skills/x/SKILL.md",
+		"frontend/.claude/other.json",
+		"config/config.json",
+		".vscode/settings.json",
+	})
+
+	want := []string{".claude/settings.json", "frontend/.claude/other.json"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("index %d: expected %q, got %q", i, want[i], got[i])
+		}
+	}
+}
+
+func TestScanAgentJSON(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		file    string
+		wantHit bool
+	}{
+		{name: "hook with command key", file: "settings-with-hook-command.json", wantHit: true},
+		{name: "malformed json with command key", file: "settings-malformed.json", wantHit: true},
+		{name: "permissions only", file: "settings-benign.json"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			content, err := os.ReadFile(filepath.Join("testdata", tc.file))
+			if err != nil {
+				t.Fatalf("reading fixture: %v", err)
+			}
+
+			findings := scanAgentJSON(".claude/settings.json", content)
+
+			if !tc.wantHit {
+				if len(findings) != 0 {
+					t.Fatalf("expected no findings, got %+v", findings)
+				}
+				return
+			}
+
+			if len(findings) != 1 {
+				t.Fatalf("expected exactly one finding, got %+v", findings)
+			}
+			if findings[0].rule != ruleExecutionKey {
+				t.Errorf("expected rule %q, got %q", ruleExecutionKey, findings[0].rule)
+			}
+			if !findings[0].malware {
+				t.Error("expected the finding to be marked as a known attack pattern")
+			}
+		})
+	}
+}
+
+func TestFindExecutionKeyNested(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		doc  any
+		want string
+	}{
+		{
+			name: "command nested in array",
+			doc:  map[string]any{"a": []any{map[string]any{"command": "x"}}},
+			want: "command",
+		},
+		{
+			name: "hooks at top level",
+			doc:  map[string]any{"hooks": map[string]any{}},
+			want: "hooks",
+		},
+		{
+			name: "command as a value not a key",
+			doc:  map[string]any{"type": "command"},
+		},
+		{
+			name: "no execution keys",
+			doc:  map[string]any{"permissions": map[string]any{"allow": []any{"Bash(go build *)"}}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := findExecutionKey(tc.doc)
+			if tc.want == "" {
+				if ok {
+					t.Fatalf("expected no execution key, got %q", got)
+				}
+				return
+			}
+			if !ok {
+				t.Fatalf("expected execution key %q, found none", tc.want)
+			}
+			if got != tc.want {
+				t.Errorf("expected %q, got %q", tc.want, got)
+			}
+		})
+	}
+}
+
+// TestRepositoryIsClean is the check running against its own repository. It
+// guards against a rule that is too broad to ever pass.
+func TestRepositoryIsClean(t *testing.T) {
+	files, err := trackedFiles("../..")
+	if err != nil {
+		t.Fatalf("listing tracked files: %v", err)
+	}
+	if len(files) == 0 {
+		t.Fatal("expected the repository to have tracked files")
+	}
+	if findings := checkPaths(files); len(findings) != 0 {
+		t.Fatalf("expected no findings in this repository, got %+v", findings)
+	}
+}

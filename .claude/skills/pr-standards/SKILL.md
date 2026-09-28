@@ -43,7 +43,9 @@ Use `get_pull_request_files` (or equivalent) to get the **complete** list of cha
 
 Check the full file list and diffs for the following. If any are found, flag them as blocking issues:
 
-- **`.claude/` or `.vscode/` directories added or modified:**
+The `security-scan` presubmit (`make verify-supply-chain`, implemented in `hack/verify-supply-chain/`) already blocks committed `.claude/` and `.vscode/` settings files, executable scripts under `.claude/`, and `.claude/` JSON carrying `command`/`hooks` keys. Confirm that check is green rather than re-deriving it by hand, and spend your attention on the CI/CD-config and new-executable-script checks below, which are **not** automated.
+
+- **`.claude/` or `.vscode/` directories added or modified:** *(automated)*
   - **Block immediately** if a `.claude/settings.json` is present — especially one containing `"command"` keys (e.g. `"command": "node .claude/setup.mjs"`). This is confirmed malware. Do not interact with it; instruct the user to report it.
   - *Exception*: changes to `.claude/skills/` files within this repository are expected. Only flag if the change introduces executable commands, `settings.json` files, or unknown scripts.
   - `.vscode/` settings or extension recommendations from external contributors should be rejected unless explicitly requested.
