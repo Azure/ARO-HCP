@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:c9e511915aca21dfd803e8cbab46da2250df80abba5f7ec13fb78f6daf5e4864
+      digest: sha256:b32b15dd72581e52fe2488d90478cdc758d79e659c489545ef082090cb9a83c5
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
   operator:
     bundle:
-      digest: sha256:70fe0561c9e3664ea503d923bb7b29cfdc14ae2cbe5677aa670e04033c418baa
+      digest: sha256:df578499c052e134b0d2609d8852389586ec21e704938fe9b3f570c70c8845df
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
 acr:
@@ -98,7 +98,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:7af6cb650e29c367219bebbce4020e6d53088d22e07ab5040d4b4a03685e7176
+      digest: sha256:5c29681bb4b38d08ca21c31c4553bab72e8e9c260dc0ec875e1d014268a9e580
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -484,7 +484,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:d106c9d8e3f595d02a1eb5e0a54955648c06db16da9bf8ea1e5883958abd009a
+    digest: sha256:263ab1ec7f7d67ce658cd035eb650096dd172f0615f82c33677b4ac809b8364d
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -536,7 +536,7 @@ kubeApplier:
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:7246ca0f71c274f1fff5c944a8dc4c4663fe7a8ee4cdff206fdab7b5f836da2e
+    digest: sha256:54b14654077ec8c910ff0eeeda191bb45421c6496b2211751fbfd13b38779a46
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
   k8s:
@@ -1179,15 +1179,15 @@ swiftRecorder:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:8d45b0367ed345fa2dbb6ffc0ce8b62e5bb3eb72a7bfba5bc9d66248180b66d1
+    digest: sha256:08ab28090839658c447acf8b202b6816c4818c9b387ccad275c0e264f8b477e0
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   enableInstantAccess: true
   hypershiftPlugin:
-    digest: sha256:6a503ce6301acdc58807ec7e700f4a84c943ce1123e49e2ac42d04db9dad8384
+    digest: sha256:63d4a2c9050fcc9944ddd6e9ac510259b33dffb878926735b4303258926ad362
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:2fb7f934ac0502ef375ff9abba6121827d4dc62660c9ab6751ceffac77b37ac9
+    digest: sha256:3fbc7b8a25ead4c6cbee21352793005452c3eb6f9a72ac7cd86092b80ef06da4
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9
