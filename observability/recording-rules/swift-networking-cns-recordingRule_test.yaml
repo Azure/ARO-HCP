@@ -1,0 +1,114 @@
+rule_files:
+- swift-networking-cns-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: No CNS latency data — recording rules produce no series.
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: "cns:ip_assignment_latency:p99"
+    eval_time: 5m
+    exp_samples: []
+# Test 2: CNS IP assignment latency p99 > 10s.
+# Simulates ip_assignment_latency_seconds histogram with all observations in the (8s, 16s] bucket.
+# Buckets are cumulative: le="16" == le="+Inf" == 10 obs/min; all lower buckets = 0.
+# histogram_quantile(0.99, ...) interpolates within the (8s,16s] bucket → ≈15.92, not 16.
+- interval: 1m
+  input_series:
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", le="0.001"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", le="0.01"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", le="0.1"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", le="1"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", le="4"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", le="8"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", le="16"}'
+    values: "0+10x120"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-1", le="+Inf"}'
+    values: "0+10x120"
+  promql_expr_test:
+  - expr: "cns:ip_assignment_latency:p99"
+    eval_time: 72m
+    exp_samples:
+    - labels: 'cns:ip_assignment_latency:p99{cluster="dev-westus3-mgmt-1"}'
+      value: 15.919999999999998
+# Test 3: CNS assignment latency deduplicates Prometheus HA replicas.
+- interval: 1m
+  # The duplicate Prometheus replica must not double histogram buckets or alter
+  # the successful-assignment p99.
+  input_series:
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", le="8", prometheus_replica="a"}'
+    values: "0+0x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", le="16", prometheus_replica="a"}'
+    values: "0+10x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", le="+Inf", prometheus_replica="a"}'
+    values: "0+10x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", le="8", prometheus_replica="b"}'
+    values: "0+0x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", le="16", prometheus_replica="b"}'
+    values: "0+10x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-mgmt-2", le="+Inf", prometheus_replica="b"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "cns:ip_assignment_latency:p99"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'cns:ip_assignment_latency:p99{cluster="dev-westus3-mgmt-2"}'
+      value: 15.919999999999998
+# Test 4: CNS IP assignment latency on a service cluster produces no series.
+# The CNS PodMonitor (#6866) also scrapes service clusters, but this SWIFT-
+# specific SLI is scoped to management clusters only.
+- interval: 1m
+  input_series:
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-svc-1", le="8"}'
+    values: "0+0x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-svc-1", le="16"}'
+    values: "0+10x10"
+  - series: 'ip_assignment_latency_seconds_bucket{cluster="dev-westus3-svc-1", le="+Inf"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "cns:ip_assignment_latency:p99"
+    eval_time: 5m
+    exp_samples: []
+# Test 5: CNS daemonset availability — all nodes ready.
+- interval: 1m
+  input_series:
+  - series: 'kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-mgmt-1"}'
+    values: "3+0x10"
+  - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-mgmt-1"}'
+    values: "3+0x10"
+  promql_expr_test:
+  - expr: "cns:daemonset_availability:ratio"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'cns:daemonset_availability:ratio{cluster="dev-westus3-mgmt-1", daemonset="azure-cns", job="kube-state-metrics", namespace="kube-system"}'
+      value: 1
+# Test 6: CNS daemonset availability — 1 of 3 nodes not ready.
+- interval: 1m
+  input_series:
+  - series: 'kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-mgmt-1"}'
+    values: "2+0x10"
+  - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-mgmt-1"}'
+    values: "3+0x10"
+  promql_expr_test:
+  - expr: "cns:daemonset_availability:ratio"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'cns:daemonset_availability:ratio{cluster="dev-westus3-mgmt-1", daemonset="azure-cns", job="kube-state-metrics", namespace="kube-system"}'
+      value: 0.6666666666666666
+# Test 7: CNS daemonset availability on a service cluster produces no series.
+- interval: 1m
+  input_series:
+  - series: 'kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-svc-1"}'
+    values: "3+0x10"
+  - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system", cluster="dev-westus3-svc-1"}'
+    values: "3+0x10"
+  promql_expr_test:
+  - expr: "cns:daemonset_availability:ratio"
+    eval_time: 5m
+    exp_samples: []

@@ -1,0 +1,252 @@
+rule_files:
+- swift-networking-recordingRule-KSM.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: No router deployments means no router-replica series.
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 5m
+    exp_samples: []
+  - expr: "swift_router_replicas:configured"
+    eval_time: 5m
+    exp_samples: []
+  - expr: "router:startup_latency:p99"
+    eval_time: 10m
+    exp_samples: []
+# Test 2: All expected router replicas are recorded as concrete counts.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-1"}'
+      value: 3
+  - expr: "swift_router_replicas:configured"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:configured", cluster="mgmt-1"}'
+      value: 3
+# Test 3: A router Deployment scaled to zero is recorded as zero configured capacity.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-zero", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "0+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-zero", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available{cluster=\"mgmt-zero\"}"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-zero"}'
+      value: 0
+  - expr: "swift_router_replicas:configured{cluster=\"mgmt-zero\"}"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:configured", cluster="mgmt-zero"}'
+      value: 0
+# Test 4: Capacity aggregates all HCP namespaces in one management cluster.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-aggregate", namespace="ocm-prod-hcp-a", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-aggregate", namespace="ocm-prod-hcp-a", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-aggregate", namespace="ocm-prod-hcp-b", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-aggregate", namespace="ocm-prod-hcp-b", deployment="router"}'
+    values: "2+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-aggregate"}'
+      value: 5
+  - expr: "swift_router_replicas:configured"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:configured", cluster="mgmt-aggregate"}'
+      value: 6
+# Test 5: Capacity remains isolated between management clusters.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-healthy", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-healthy", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-degraded", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-degraded", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "2+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-degraded"}'
+      value: 2
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-healthy"}'
+      value: 3
+# Test 6: HA replica duplicates do not double router capacity.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-ha", namespace="ocm-prod-abc123", deployment="router", prometheus_replica="a"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-ha", namespace="ocm-prod-abc123", deployment="router", prometheus_replica="b"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-ha", namespace="ocm-prod-abc123", deployment="router", prometheus_replica="a"}'
+    values: "2+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-ha", namespace="ocm-prod-abc123", deployment="router", prometheus_replica="b"}'
+    values: "2+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-ha"}'
+      value: 2
+# Test 7: Pending age remains available as per-HCP diagnostic evidence.
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_created{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1"}'
+    values: "0+0x11"
+  - series: 'kube_pod_owner{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", owner_kind="ReplicaSet", owner_name="router-abc"}'
+    values: "1+0x11"
+  - series: 'kube_pod_status_phase{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", phase="Pending"}'
+    values: "1+0x11"
+  promql_expr_test:
+  - expr: "router:startup_latency:p99"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="router:startup_latency:p99", cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+      value: 600
+# Test 8: A missing router replica remains visible in the available count.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "2+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-1"}'
+      value: 2
+# Test 9: Complete router-capacity loss is visible as zero available replicas.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-1"}'
+      value: 0
+# ========================================
+# Konnectivity Recording Rule Tests
+# ========================================
+# Test 10: No konnectivity data — recording rules produce no series.
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: "konnectivity:stream_error_rate:5m"
+    eval_time: 5m
+    exp_samples: []
+  - expr: "konnectivity:dial_failure_rate:5m"
+    eval_time: 5m
+    exp_samples: []
+# Test 11: Stream errors present, low packet volume — error rate > 1%.
+# rate(errors[5m]) = 1/60 ≈ 0.0167; rate(packets[5m]) = 10/60 ≈ 0.167.
+# stream_error_rate:5m = 0.0167 / 0.167 = 0.1 (10%).
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "konnectivity:stream_error_rate:5m > 0.01"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'konnectivity:stream_error_rate:5m{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+      value: 0.1
+# Test 12: No stream errors, healthy packet flow — error rate is 0.
+# rate(errors[5m]) = 0; rate(packets[5m]) = 10/60 ≈ 0.167.
+# stream_error_rate:5m = 0 / 0.167 = 0, which is not > 0.01.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+0x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "konnectivity:stream_error_rate:5m > 0.01"
+    eval_time: 5m
+    exp_samples: []
+# Test 13: HA Prometheus replicas must not double the Konnectivity diagnostic
+# frequencies.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-ha", namespace="ocm-prod-abc123", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-ha", namespace="ocm-prod-abc123", prometheus_replica="b"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-ha", namespace="ocm-prod-abc123", prometheus_replica="a"}'
+    values: "0+10x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-ha", namespace="ocm-prod-abc123", prometheus_replica="b"}'
+    values: "0+10x10"
+  - series: 'konnectivity_network_proxy_server_dial_failure_count{cluster="mgmt-ha", namespace="ocm-prod-abc123", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_dial_failure_count{cluster="mgmt-ha", namespace="ocm-prod-abc123", prometheus_replica="b"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-ha", namespace="ocm-prod-abc123", segment="from_agent", packet_type="DIAL_RSP", prometheus_replica="a"}'
+    values: "0+10x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-ha", namespace="ocm-prod-abc123", segment="from_agent", packet_type="DIAL_RSP", prometheus_replica="b"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "konnectivity:stream_error_rate:5m"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'konnectivity:stream_error_rate:5m{cluster="mgmt-ha", namespace="ocm-prod-abc123"}'
+      value: 0.05
+  - expr: "konnectivity:dial_failure_rate:5m"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'konnectivity:dial_failure_rate:5m{cluster="mgmt-ha", namespace="ocm-prod-abc123"}'
+      value: 0.09090909090909091
+# Test 14: Dial failures present, some successful dials — dial failure rate > 1%.
+# rate(failures[5m]) = 1/60 ≈ 0.0167; rate(DIAL_RSP[5m]) = 10/60 ≈ 0.167.
+# dial_failure_rate:5m = 0.0167 / (0.0167 + 0.167) ≈ 0.0909 (9%).
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_dial_failure_count{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123", segment="from_agent", packet_type="DIAL_RSP"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "konnectivity:dial_failure_rate:5m > 0.01"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'konnectivity:dial_failure_rate:5m{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+      value: 0.09090909090909091
+# Test 15: No dial failures, healthy dial flow — dial failure rate is 0.
+# rate(failures[5m]) = 0; rate(DIAL_RSP[5m]) = 10/60 ≈ 0.167.
+# dial_failure_rate:5m = 0 / (0 + 0.167) = 0, which is not > 0.01.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_dial_failure_count{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+0x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123", segment="from_agent", packet_type="DIAL_RSP"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "konnectivity:dial_failure_rate:5m > 0.01"
+    eval_time: 5m
+    exp_samples: []

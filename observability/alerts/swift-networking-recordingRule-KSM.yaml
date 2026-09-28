@@ -1,0 +1,81 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: swift-networking-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  # ========================================
+  # SWIFT Networking SLO Recording Rules
+  # ========================================
+  # Router pods are identified by ReplicaSet owner name "router-.*" (HyperShift
+  # CPO router Deployment). Raw available/configured counts are recorded here;
+  # ratio is computed by the alert/dashboard queries.
+  - name: arohcp_swift_networking_slo_recording_rules
+    interval: 1m
+    rules:
+    - record: swift_router_replicas:available
+      expr: |
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            kube_deployment_status_replicas_available{job="kube-state-metrics", namespace=~"ocm-.*", deployment="router"}
+          )
+        )
+    - record: swift_router_replicas:configured
+      expr: |
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            kube_deployment_spec_replicas{job="kube-state-metrics", namespace=~"ocm-.*", deployment="router"}
+          )
+        )
+    # Diagnostic: latency while a router pod is Pending.
+    - record: router:startup_latency:seconds
+      expr: |
+        (time() - max without (prometheus_replica) (kube_pod_created{job="kube-state-metrics", namespace=~"ocm-.*"}))
+        * on(cluster, namespace, pod) max without (prometheus_replica) (kube_pod_owner{job="kube-state-metrics", owner_kind="ReplicaSet", owner_name=~"router-.*"})
+        * on(cluster, namespace, pod) (max without (prometheus_replica) (kube_pod_status_phase{job="kube-state-metrics", phase="Pending"}) == 1)
+    - record: router:startup_latency:p99
+      expr: quantile(0.99, router:startup_latency:seconds) by (cluster, namespace)
+  # ========================================
+  # Konnectivity Tunnel Diagnostic Recording Rules
+  # ========================================
+  # Diagnostic signal from the konnectivity-server sidecar in the KAS pod,
+  # named port "konnect-health" (2041).
+  - name: arohcp_swift_konnectivity_recording_rules
+    interval: 1m
+    rules:
+    - record: konnectivity:stream_error_rate:5m
+      expr: |
+        sum by (cluster, namespace) (
+          max without (prometheus_replica) (
+            rate(konnectivity_network_proxy_server_stream_errors_total[5m])
+          )
+        )
+        /
+        sum by (cluster, namespace) (
+          max without (prometheus_replica) (
+            rate(konnectivity_network_proxy_server_stream_packets_total[5m])
+          )
+        )
+    # The upstream counter can increment multiple times per dial request.
+    - record: konnectivity:dial_failure_rate:5m
+      expr: |
+        sum by (cluster, namespace) (
+          max without (prometheus_replica) (
+            rate(konnectivity_network_proxy_server_dial_failure_count[5m])
+          )
+        )
+        /
+        (
+          sum by (cluster, namespace) (
+            max without (prometheus_replica) (
+              rate(konnectivity_network_proxy_server_dial_failure_count[5m])
+            )
+          )
+          +
+          sum by (cluster, namespace) (
+            max without (prometheus_replica) (
+              rate(konnectivity_network_proxy_server_stream_packets_total{segment="from_agent", packet_type="DIAL_RSP"}[5m])
+            )
+          )
+        )
