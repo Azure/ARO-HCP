@@ -15,8 +15,10 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -154,6 +156,13 @@ func TestFindExecutionKeyNested(t *testing.T) {
 			want: "command",
 		},
 		{
+			// Both keys are present, so the result would flap with map
+			// iteration order if the keys were not checked in a fixed order.
+			name: "both execution keys reports deterministically",
+			doc:  map[string]any{"hooks": map[string]any{}, "command": "x"},
+			want: "command",
+		},
+		{
 			name: "hooks at top level",
 			doc:  map[string]any{"hooks": map[string]any{}},
 			want: "hooks",
@@ -182,6 +191,37 @@ func TestFindExecutionKeyNested(t *testing.T) {
 				t.Errorf("expected %q, got %q", tc.want, got)
 			}
 		})
+	}
+}
+
+func TestReport(t *testing.T) {
+	var buf bytes.Buffer
+	report(&buf, []finding{
+		{path: ".vscode/settings.json", rule: ruleEditorConfig, detail: "editor configuration files must not be committed"},
+		{path: ".claude/settings.json", rule: ruleExecutionKey, detail: `contains a "command" key`, malware: true},
+	})
+	got := buf.String()
+
+	for _, want := range []string{
+		".vscode/settings.json (editor-config)",
+		`.claude/settings.json (execution-key): contains a "command" key`,
+		"known supply-chain attack pattern",
+		"CONTRIBUTING.md",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected report to mention %q, got:\n%s", want, got)
+		}
+	}
+}
+
+func TestReportOmitsMalwareWarningWhenNotApplicable(t *testing.T) {
+	var buf bytes.Buffer
+	report(&buf, []finding{
+		{path: ".vscode/settings.json", rule: ruleEditorConfig, detail: "editor configuration files must not be committed"},
+	})
+
+	if strings.Contains(buf.String(), "attack pattern") {
+		t.Errorf("did not expect an attack-pattern warning, got:\n%s", buf.String())
 	}
 }
 
