@@ -625,6 +625,12 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	if err := journal.Persist(); err != nil {
 		return err
 	}
+	logger := logr.FromContextOrDiscard(ctx).WithValues(
+		"slotName", leasedName,
+		"environment", o.PoolEnvironment,
+		"pool", describePool(pool),
+	)
+	logger.Info("Acquired primary slot lease")
 	slot, err := o.ResolveLeasedSlot(pool, leasedName)
 	if err != nil {
 		return err
@@ -653,6 +659,10 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	if err := state.Validate(); err != nil {
 		return err
 	}
+	logger.Info("Starting asset admission",
+		"assetCount", len(state.Slot.AssetRequirements),
+		"runtimeRegion", state.RuntimeRegion,
+	)
 	if err := o.AssetRegistry.AdmitLease(ctx, request); err != nil {
 		return err
 	}
@@ -663,7 +673,19 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	if err := o.AssetRegistry.PublishLease(ctx, request, contract); err != nil {
 		return err
 	}
-	return slots.WriteRuntimeContract(o.SharedDir, contract)
+	if err := slots.WriteRuntimeContract(o.SharedDir, contract); err != nil {
+		return err
+	}
+	logger.Info("Acquired slot and wrote shared artifacts",
+		"regionMode", o.RegionSelection.Mode,
+		"catalogRegions", strings.Join(o.RegionSelection.CatalogRegions, ","),
+		"locationWeights", strings.Join(o.RegionSelection.NormalizedWeights, ","),
+		"locationOverrideUsed", o.RegionSelection.LocationOverrideUsed,
+		"selectionKeySource", o.RegionSelection.SelectionKeySource,
+		"runtimeRegion", state.RuntimeRegion,
+		"sharedDir", o.SharedDir,
+	)
+	return nil
 }
 
 func describePool(pool slots.Pool) string {

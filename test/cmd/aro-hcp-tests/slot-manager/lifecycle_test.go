@@ -15,6 +15,7 @@
 package slotmanager
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -24,6 +25,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/go-logr/logr"
+	"github.com/go-logr/logr/funcr"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
@@ -189,6 +193,16 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			})
 			defer server.Close()
 			options := lifecycleOptions(t, lifecycleCatalog, server.URL, registry)
+			var logs bytes.Buffer
+			logger := funcr.New(func(_, message string) {
+				fmt.Fprintln(&logs, message)
+				if strings.Contains(message, "Acquired slot and wrote shared artifacts") {
+					env, _ := slots.EnvFile(options.SharedDir)
+					if _, err := os.Stat(env); err != nil {
+						t.Fatalf("success logged before runtime contract was published: %v", err)
+					}
+				}
+			}, funcr.Options{})
 			writes := 0
 			options.WriteState = func(dir string, state *slots.AcquiredSlotState) error {
 				writes++
@@ -223,12 +237,18 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				if phase == "admit" && request.AcquiredSlotState.Slot.Assets.InfrastructureIdentities == nil {
 					t.Fatal("admission ran before resolution")
 				}
+				if phase == "admit" && (!strings.Contains(logs.String(), "Acquired primary slot lease") || !strings.Contains(logs.String(), "Starting asset admission")) {
+					t.Fatalf("missing progress logs before admission: %s", logs.String())
+				}
 				env, _ := slots.EnvFile(options.SharedDir)
 				if _, err := os.Stat(env); !errors.Is(err, os.ErrNotExist) {
 					t.Fatal("runtime contract was visible before all admission/publication passed")
 				}
 			}
-			err = Acquire(context.Background(), options)
+			err = Acquire(logr.NewContext(context.Background(), logger), options)
+			if loggedSuccess := strings.Contains(logs.String(), "Acquired slot and wrote shared artifacts"); loggedSuccess != (scenario == "success") {
+				t.Fatalf("success log does not match acquisition outcome: %s; error: %v", logs.String(), err)
+			}
 			if scenario == "success" {
 				if err != nil {
 					t.Fatalf("acquire failed: %v", err)

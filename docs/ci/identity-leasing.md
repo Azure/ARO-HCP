@@ -340,6 +340,9 @@ aligned with the release-side Boskos inventory and job selectors.
 - when the pool is saturated, specs block inside `AssignIdentityContainers()`
 - the framework records dedicated timing steps such as `Assign N identity containers`, `Lease identity container`, and `Release leased identities`
 - this lets you separate infra wait time from actual test logic when reviewing artifacts
+- slot-manager logs primary slot acquisition and the start of asset admission;
+  `Acquired slot and wrote shared artifacts` confirms that admission and runtime
+  contract publication both succeeded, with the selected slot, pool, and region details
 
 Common failure modes:
 
