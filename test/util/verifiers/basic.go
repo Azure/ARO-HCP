@@ -121,9 +121,13 @@ var standardVerifiers = []HostedClusterVerifier{
 	verifyAllAPIServicesAvailable(),
 }
 
-func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additionalVerifiers ...HostedClusterVerifier) error {
-	allVerifiers := append(standardVerifiers, additionalVerifiers...)
-
+// VerifyAll runs every supplied verifier in parallel and joins their errors.
+//
+// Use it for a batch of independent checks that should not be paired with the standard viability
+// verifiers. The standard verifiers are single-shot (or bounded well below a long wait), so
+// running them alongside a verifier that polls for tens of minutes only samples the cluster at
+// the start of that wait. Callers that want the standard set should use VerifyHCPCluster.
+func VerifyAll(ctx context.Context, adminRESTConfig *rest.Config, allVerifiers ...HostedClusterVerifier) error {
 	errCh := make(chan error, len(allVerifiers))
 	wg := sync.WaitGroup{}
 	for _, verifier := range allVerifiers {
@@ -145,4 +149,16 @@ func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additio
 	}
 
 	return errors.Join(errs...)
+}
+
+// VerifyHCPCluster runs the standard cluster viability verifiers, plus any additional verifiers,
+// in parallel.
+func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additionalVerifiers ...HostedClusterVerifier) error {
+	// Build a fresh slice rather than appending to standardVerifiers, which would let one
+	// caller write into a package-level backing array shared by parallel specs.
+	allVerifiers := make([]HostedClusterVerifier, 0, len(standardVerifiers)+len(additionalVerifiers))
+	allVerifiers = append(allVerifiers, standardVerifiers...)
+	allVerifiers = append(allVerifiers, additionalVerifiers...)
+
+	return VerifyAll(ctx, adminRESTConfig, allVerifiers...)
 }

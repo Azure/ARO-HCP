@@ -149,7 +149,7 @@ var _ = Describe("Customer", func() {
 			Expect(ctx.Err()).NotTo(HaveOccurred(), "test context expired before triggering upgrade for cluster %q", clusterName)
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client for cluster %q", clusterName)
-			preUpgradeKubeAPIServerVersion, err := kubeClient.Discovery().ServerVersion()
+			preUpgradeKubeAPIServerVersion, err := framework.GetKubeAPIServerVersion(ctx, kubeClient.Discovery())
 			Expect(err).NotTo(HaveOccurred(), "failed to get pre-upgrade kube-apiserver version for cluster %q", clusterName)
 
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", upgradeVersionId,
@@ -165,8 +165,8 @@ var _ = Describe("Customer", func() {
 			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
-			By("verifying control plane reached desired version and cluster remains viable")
-			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+			By("verifying the control plane reached the desired version")
+			err = verifiers.VerifyAll(ctx, adminRESTConfig,
 				verifiers.VerifyKubeAPIServerServerVersionUpgraded(
 					preUpgradeKubeAPIServerVersion,
 					framework.HCPClusterVersionUpgradeTimeout),
@@ -177,6 +177,14 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(),
 				"control plane of cluster %q did not reach %s within %s", clusterName, upgradeVersionId,
 				framework.HCPClusterVersionUpgradeTimeout)
+
+			// Viability is checked only after the upgrade verifiers report success. The standard
+			// verifiers do not poll for the length of an upgrade, so running them alongside the
+			// wait would assert on the cluster as it looked when the rollout started.
+			By("verifying the cluster is viable after upgrade")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(),
+				"cluster %q was not viable after upgrading to %s", clusterName, upgradeVersionId)
 		},
 		Entry("from 4.20 minor to 4.21 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),
 		Entry("from 4.21 minor to 4.22 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22"),

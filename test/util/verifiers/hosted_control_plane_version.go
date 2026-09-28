@@ -33,6 +33,7 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 // upgradePhaseReporter emits one line per observed change in clusterversion status.history,
@@ -277,15 +278,18 @@ func (v verifyKubeAPIServerServerVersionUpgraded) Verify(ctx context.Context, ad
 	if err != nil {
 		return fmt.Errorf("create kubernetes clientset: %w", err)
 	}
+	// clusterversion is the state that explains why the kube-apiserver has not rolled yet, so it
+	// is the targeted dump for this verifier's timeouts as well.
 	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig,
-		DefaultDiagnoseTimeout, nil,
+		DefaultDiagnoseTimeout, diagnoseClusterVersion,
 		func(ctx context.Context) error {
-			postUpgrade, err := clientset.Discovery().ServerVersion()
+			postUpgrade, err := framework.GetKubeAPIServerVersion(ctx, clientset.Discovery())
 			if err != nil {
 				return fmt.Errorf("get kube-apiserver ServerVersion: %w", err)
 			}
 			if reflect.DeepEqual(v.preUpgrade, postUpgrade) {
-				return fmt.Errorf("kube-apiserver ServerVersion still %q, unchanged from pre-upgrade", postUpgrade.GitVersion)
+				return fmt.Errorf("expected the kube-apiserver ServerVersion to change from the pre-upgrade %q, still observing %q",
+					v.preUpgrade.GitVersion, postUpgrade.GitVersion)
 			}
 			return nil
 		})
