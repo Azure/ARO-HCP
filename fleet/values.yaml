@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 serviceAccount:
   name: "{{ .fleet.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__fleetMsiClientId__"
