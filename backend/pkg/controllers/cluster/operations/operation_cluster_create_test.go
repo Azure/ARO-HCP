@@ -721,6 +721,9 @@ func (l *errorClusterLister) Get(_ context.Context, _, _, _ string) (*coreapi.Cl
 func (l *errorClusterLister) ListForResourceGroup(_ context.Context, _, _ string) ([]*coreapi.Cluster, error) {
 	return nil, l.err
 }
+func (l *errorClusterLister) ListForSubscription(_ context.Context, _ string) ([]*coreapi.Cluster, error) {
+	return nil, l.err
+}
 
 // errorReadDesireLister always returns the configured error.
 type errorReadDesireLister struct {

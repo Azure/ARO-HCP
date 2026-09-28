@@ -16,6 +16,7 @@ package corelisters
 
 import (
 	"context"
+	"strings"
 
 	"k8s.io/client-go/tools/cache"
 
@@ -29,6 +30,7 @@ type ClusterLister interface {
 	List(ctx context.Context) ([]*coreapi.Cluster, error)
 	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.Cluster, error)
 	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.Cluster, error)
+	ListForSubscription(ctx context.Context, subscriptionID string) ([]*coreapi.Cluster, error)
 }
 
 // clusterLister implements ClusterLister backed by a SharedIndexInformer.
@@ -59,4 +61,8 @@ func (l *clusterLister) Get(ctx context.Context, subscriptionID, resourceGroupNa
 func (l *clusterLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.Cluster, error) {
 	key := coreapihelpers.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
 	return listerutils.ListFromIndex[coreapi.Cluster](l.indexer, ByResourceGroup, key)
+}
+
+func (l *clusterLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*coreapi.Cluster, error) {
+	return listerutils.ListFromIndex[coreapi.Cluster](l.indexer, BySubscription, strings.ToLower(subscriptionID))
 }

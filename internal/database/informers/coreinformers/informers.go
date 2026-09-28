@@ -138,13 +138,13 @@ func NewBillingInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 }
 
 // NewClusterInformer creates an unstarted SharedIndexInformer for clusters
-// with a resource group index using the default relist duration.
+// with resource group and subscription indexes using the default relist duration.
 func NewClusterInformer(lister cosmosstorageutils.GlobalLister[coreapi.Cluster], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewClusterInformerWithRelistDuration(lister, cosmosClient, ClusterRelistDuration)
 }
 
 // NewClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for clusters
-// with a resource group index and a configurable relist duration.
+// with resource group and subscription indexes and a configurable relist duration.
 func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.Cluster], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := informerutils.NewChangeFeedListWatcher[coreapi.Cluster, *coreapi.Cluster, cosmosstorageutils.GenericDocument[coreapi.Cluster]](
 		[]azcorearm.ResourceType{coreapi.ClusterResourceType},
@@ -162,6 +162,7 @@ func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
 				corelisters.ByResourceGroup: resourceGroupIndexFunc,
+				corelisters.BySubscription:  subscriptionIndexFunc,
 			},
 			ObjectDescription: "Cluster",
 		},
@@ -169,13 +170,13 @@ func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 }
 
 // NewNodePoolInformer creates an unstarted SharedIndexInformer for node pools
-// with resource group and cluster indexes using the default relist duration.
+// with resource group, cluster, and subscription indexes using the default relist duration.
 func NewNodePoolInformer(lister cosmosstorageutils.GlobalLister[coreapi.NodePool], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewNodePoolInformerWithRelistDuration(lister, cosmosClient, NodePoolRelistDuration)
 }
 
 // NewNodePoolInformerWithRelistDuration creates an unstarted SharedIndexInformer for node pools
-// with resource group and cluster indexes and a configurable relist duration.
+// with resource group, cluster, and subscription indexes and a configurable relist duration.
 func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.NodePool], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := informerutils.NewChangeFeedListWatcher[coreapi.NodePool, *coreapi.NodePool, cosmosstorageutils.GenericDocument[coreapi.NodePool]](
 		[]azcorearm.ResourceType{coreapi.NodePoolResourceType},
@@ -194,6 +195,7 @@ func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalListe
 			Indexers: cache.Indexers{
 				corelisters.ByResourceGroup: resourceGroupIndexFunc,
 				corelisters.ByCluster:       clusterResourceIDIndexFunc,
+				corelisters.BySubscription:  subscriptionIndexFunc,
 			},
 			ObjectDescription: "NodePool",
 		},
@@ -515,6 +517,27 @@ func NewActiveOperationInformerWithRelistDuration(lister cosmosstorageutils.Glob
 			ObjectDescription: "ActiveOperation",
 		},
 	)
+}
+
+func subscriptionIndexFunc(obj interface{}) ([]string, error) {
+	var resourceID *azcorearm.ResourceID
+	switch castObj := obj.(type) {
+	case coreapi.CosmosMetadataAccessor:
+		resourceID = castObj.GetResourceID()
+	case coreapi.CosmosPersistable:
+		if castObj.GetCosmosData() != nil {
+			resourceID = castObj.GetCosmosData().ResourceID
+		}
+	default:
+		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected coreapi.CosmosMetadataAccessor or coreapi.CosmosPersistable", obj))
+	}
+	if resourceID == nil {
+		return nil, utils.TrackError(fmt.Errorf("obj is missing resourceID: %T %v", obj, obj))
+	}
+	if resourceID.SubscriptionID == "" {
+		return nil, nil
+	}
+	return []string{strings.ToLower(resourceID.SubscriptionID)}, nil
 }
 
 func resourceGroupIndexFunc(obj interface{}) ([]string, error) {

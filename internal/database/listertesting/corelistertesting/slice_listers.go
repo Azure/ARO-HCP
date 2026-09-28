@@ -64,6 +64,19 @@ func (l *SliceClusterLister) ListForResourceGroup(ctx context.Context, subscript
 	return result, nil
 }
 
+func (l *SliceClusterLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*coreapi.Cluster, error) {
+	var result []*coreapi.Cluster
+	for _, c := range l.Clusters {
+		if c.ID == nil {
+			continue
+		}
+		if strings.EqualFold(c.ID.SubscriptionID, subscriptionID) {
+			result = append(result, c)
+		}
+	}
+	return result, nil
+}
+
 // SliceNodePoolLister implements corelisters.NodePoolLister backed by a slice.
 type SliceNodePoolLister struct {
 	NodePools []*coreapi.NodePool
@@ -113,6 +126,19 @@ func (l *SliceNodePoolLister) ListForCluster(ctx context.Context, subscriptionID
 		if strings.EqualFold(np.ID.SubscriptionID, subscriptionID) &&
 			strings.EqualFold(np.ID.ResourceGroupName, resourceGroupName) &&
 			nodePoolMatchesCluster(np.ID, clusterName) {
+			result = append(result, np)
+		}
+	}
+	return result, nil
+}
+
+func (l *SliceNodePoolLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*coreapi.NodePool, error) {
+	var result []*coreapi.NodePool
+	for _, np := range l.NodePools {
+		if np.ID == nil {
+			continue
+		}
+		if strings.EqualFold(np.ID.SubscriptionID, subscriptionID) {
 			result = append(result, np)
 		}
 	}

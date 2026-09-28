@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 )
 
 func mustParseResourceID(t *testing.T, id string) *azcorearm.ResourceID {
@@ -875,5 +876,69 @@ func TestListWatchWithoutWatchListSemantics(t *testing.T) {
 	wrapper := &informerutils.ListWatchWithoutWatchListSemantics{}
 	if !watchlist.DoesClientNotSupportWatchListSemantics(wrapper) {
 		t.Error("expected DoesClientNotSupportWatchListSemantics to return true for our wrapper")
+	}
+}
+
+func TestClusterAndNodePoolSubscriptionIndex(t *testing.T) {
+	const (
+		subscriptionA = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+		subscriptionB = "11111111-1111-1111-1111-111111111111"
+		other         = "22222222-2222-2222-2222-222222222222"
+	)
+	ctx := context.Background()
+
+	clusterInformer := NewClusterInformer(nil, nil)
+	require.Contains(t, clusterInformer.GetIndexer().GetIndexers(), corelisters.BySubscription)
+	require.NoError(t, clusterInformer.GetIndexer().Add(indexedTestCluster(t, subscriptionA, "rg", "one")))
+	require.NoError(t, clusterInformer.GetIndexer().Add(indexedTestCluster(t, subscriptionA, "rg", "two")))
+	require.NoError(t, clusterInformer.GetIndexer().Add(indexedTestCluster(t, subscriptionB, "rg", "three")))
+
+	clusterLister := corelisters.NewClusterLister(clusterInformer.GetIndexer())
+	clusters, err := clusterLister.ListForSubscription(ctx, strings.ToUpper(subscriptionA))
+	require.NoError(t, err)
+	require.Len(t, clusters, 2)
+	clusters, err = clusterLister.ListForSubscription(ctx, other)
+	require.NoError(t, err)
+	require.Empty(t, clusters)
+
+	nodePoolInformer := NewNodePoolInformer(nil, nil)
+	require.Contains(t, nodePoolInformer.GetIndexer().GetIndexers(), corelisters.BySubscription)
+	require.NoError(t, nodePoolInformer.GetIndexer().Add(indexedTestNodePool(t, subscriptionA, "rg", "one", "pool-a")))
+	require.NoError(t, nodePoolInformer.GetIndexer().Add(indexedTestNodePool(t, subscriptionA, "rg", "one", "pool-b")))
+	require.NoError(t, nodePoolInformer.GetIndexer().Add(indexedTestNodePool(t, subscriptionB, "rg", "three", "pool-c")))
+
+	nodePoolLister := corelisters.NewNodePoolLister(nodePoolInformer.GetIndexer())
+	nodePools, err := nodePoolLister.ListForSubscription(ctx, strings.ToUpper(subscriptionA))
+	require.NoError(t, err)
+	require.Len(t, nodePools, 2)
+	nodePools, err = nodePoolLister.ListForSubscription(ctx, other)
+	require.NoError(t, err)
+	require.Empty(t, nodePools)
+}
+
+func indexedTestCluster(t *testing.T, subscriptionID, resourceGroupName, clusterName string) *coreapi.Cluster {
+	t.Helper()
+	resourceID := mustParseResourceID(t, "/subscriptions/"+subscriptionID+
+		"/resourceGroups/"+resourceGroupName+
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
+	return &coreapi.Cluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{ID: resourceID, Name: clusterName},
+		},
+	}
+}
+
+func indexedTestNodePool(t *testing.T, subscriptionID, resourceGroupName, clusterName, nodePoolName string) *coreapi.NodePool {
+	t.Helper()
+	resourceID := mustParseResourceID(t, "/subscriptions/"+subscriptionID+
+		"/resourceGroups/"+resourceGroupName+
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
+		"/nodePools/"+nodePoolName)
+	return &coreapi.NodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{ID: resourceID, Name: nodePoolName},
+		},
 	}
 }

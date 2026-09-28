@@ -16,6 +16,7 @@ package corelisters
 
 import (
 	"context"
+	"strings"
 
 	"k8s.io/client-go/tools/cache"
 
@@ -30,6 +31,7 @@ type NodePoolLister interface {
 	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.NodePool, error)
 	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.NodePool, error)
 	ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.NodePool, error)
+	ListForSubscription(ctx context.Context, subscriptionID string) ([]*coreapi.NodePool, error)
 }
 
 // nodePoolLister implements NodePoolLister backed by a SharedIndexInformer.
@@ -65,4 +67,8 @@ func (l *nodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionN
 func (l *nodePoolLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.NodePool, error) {
 	key := coreapihelpers.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
 	return listerutils.ListFromIndex[coreapi.NodePool](l.indexer, ByCluster, key)
+}
+
+func (l *nodePoolLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*coreapi.NodePool, error) {
+	return listerutils.ListFromIndex[coreapi.NodePool](l.indexer, BySubscription, strings.ToLower(subscriptionID))
 }

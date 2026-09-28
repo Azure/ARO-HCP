@@ -52,6 +52,14 @@ func (l *DBClusterLister) ListForResourceGroup(ctx context.Context, subscription
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
+func (l *DBClusterLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*coreapi.Cluster, error) {
+	iter, err := l.ResourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return listertestingutils.CollectFromIterator(ctx, iter)
+}
+
 // DBNodePoolLister implements corelisters.NodePoolLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBNodePoolLister struct {
 	ResourcesDBClient corecosmosstorage.ResourcesDBClient
@@ -94,6 +102,20 @@ func (l *DBNodePoolLister) ListForCluster(ctx context.Context, subscriptionID, r
 		return nil, err
 	}
 	return listertestingutils.CollectFromIterator(ctx, iter)
+}
+
+func (l *DBNodePoolLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*coreapi.NodePool, error) {
+	all, err := l.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var result []*coreapi.NodePool
+	for _, np := range all {
+		if np.ID != nil && strings.EqualFold(np.ID.SubscriptionID, subscriptionID) {
+			result = append(result, np)
+		}
+	}
+	return result, nil
 }
 
 // DBServiceProviderNodePoolLister implements corelisters.ServiceProviderNodePoolLister backed by a corecosmosstorage.ResourcesDBClient.

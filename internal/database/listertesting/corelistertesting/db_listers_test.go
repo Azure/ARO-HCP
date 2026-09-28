@@ -62,6 +62,18 @@ func TestDBClusterLister(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, result, 2)
 	})
+
+	t.Run("ListForSubscription returns clusters in subscription", func(t *testing.T) {
+		result, err := lister.ListForSubscription(ctx, testSubscriptionID)
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+	})
+
+	t.Run("ListForSubscription returns empty for another subscription", func(t *testing.T) {
+		result, err := lister.ListForSubscription(ctx, "22222222-2222-2222-2222-222222222222")
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
 }
 
 func TestDBNodePoolLister(t *testing.T) {
@@ -107,6 +119,18 @@ func TestDBNodePoolLister(t *testing.T) {
 		result, err := lister.ListForResourceGroup(ctx, testSubscriptionID, testResourceGroupName)
 		require.NoError(t, err)
 		assert.Len(t, result, 2)
+	})
+
+	t.Run("ListForSubscription returns node pools in subscription", func(t *testing.T) {
+		result, err := lister.ListForSubscription(ctx, testSubscriptionID)
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+	})
+
+	t.Run("ListForSubscription returns empty for another subscription", func(t *testing.T) {
+		result, err := lister.ListForSubscription(ctx, testSubscriptionID2)
+		require.NoError(t, err)
+		assert.Empty(t, result)
 	})
 }
 
