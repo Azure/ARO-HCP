@@ -673,3 +673,13 @@ image-updater:
 update-tool-versions:
 	@$(MAKE) -C dev-infrastructure/openshift-ci update-tool-versions
 .PHONY: update-tool-versions
+
+# Open a draft release PR for manual scheduling and repository-wide retest suppression.
+enable-arohcp-ci-incident-mode:
+	go run ./hack/ci-incident-mode enable
+.PHONY: enable-arohcp-ci-incident-mode
+
+# Open a draft release PR to restore automatic scheduling and automated retests.
+disable-arohcp-ci-incident-mode:
+	go run ./hack/ci-incident-mode disable
+.PHONY: disable-arohcp-ci-incident-mode

@@ -10,6 +10,7 @@ use (
 	./dev-infrastructure/scripts/postgres-access
 	./fleet
 	./frontend
+	./hack/ci-incident-mode
 	./hack/verify-gomega-assertions
 	./hack/verify-mi-containers
 	./hack/verify-schema-additional-properties
