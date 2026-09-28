@@ -157,24 +157,30 @@ func trackedFiles(root string) ([]string, error) {
 
 // checkPaths applies the path-shaped rules. It is pure so that the denylist
 // can be exercised without a git repository on disk.
+//
+// Every comparison is made against the lowercased path. Git's index is
+// case-sensitive, so ".claude/Setup.SH" and ".Claude/settings.json" are
+// distinct tracked paths that would otherwise sidestep the denylist while
+// remaining just as executable.
 func checkPaths(files []string) []finding {
 	var findings []finding
 	for _, f := range files {
-		base := path.Base(f)
+		lower := strings.ToLower(f)
+		base := path.Base(lower)
 		switch {
-		case hasSegment(f, agentConfigDir) && agentSettingsFiles[base]:
+		case hasSegment(lower, agentConfigDir) && agentSettingsFiles[base]:
 			findings = append(findings, finding{
 				path:   f,
 				rule:   ruleAgentSettings,
 				detail: "AI-agent settings files must not be committed",
 			})
-		case hasSegment(f, editorConfigDir) && editorConfigFiles[base]:
+		case hasSegment(lower, editorConfigDir) && editorConfigFiles[base]:
 			findings = append(findings, finding{
 				path:   f,
 				rule:   ruleEditorConfig,
 				detail: "editor configuration files must not be committed",
 			})
-		case hasSegment(f, agentConfigDir) && executableExtensions[path.Ext(base)]:
+		case hasSegment(lower, agentConfigDir) && executableExtensions[path.Ext(base)]:
 			findings = append(findings, finding{
 				path:   f,
 				rule:   ruleAgentExecutable,
@@ -190,7 +196,8 @@ func checkPaths(files []string) []finding {
 func agentJSONFiles(files []string) []string {
 	var out []string
 	for _, f := range files {
-		if hasSegment(f, agentConfigDir) && path.Ext(f) == ".json" {
+		lower := strings.ToLower(f)
+		if hasSegment(lower, agentConfigDir) && path.Ext(lower) == ".json" {
 			out = append(out, f)
 		}
 	}
@@ -250,7 +257,8 @@ func findExecutionKey(node any) (string, bool) {
 }
 
 // hasSegment reports whether segment appears as a whole path element, so that
-// ".claude" matches "frontend/.claude/x" but not "notclaude/x".
+// ".claude" matches "frontend/.claude/x" but not "notclaude/x". Callers pass a
+// lowercased path; every denylist entry in this file is lowercase.
 func hasSegment(p, segment string) bool {
 	for _, part := range strings.Split(p, "/") {
 		if part == segment {
