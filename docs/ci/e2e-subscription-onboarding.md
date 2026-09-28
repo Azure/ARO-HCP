@@ -137,7 +137,7 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 - `test/cmd/aro-hcp-tests/slot-manager/release_repo.go`
 - `test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities/`
 - `config/config-dev-ci.yaml` — subscription inventory (`ci.<env>.e2eSubscriptions`) and provider list (`ci.e2eSubscriptionProviders`)
-- `dev-infrastructure/dev-ci/e2e-subscription-providers/pipeline.yaml` — provider registration pipeline
+- `dev-infrastructure/dev-ci/e2e-subscription-providers/pipeline.yaml` — provider registration pipeline; **generated** from the inventory above by `make generate-e2e-provider-pipeline`, do not hand-edit
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
 - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
@@ -288,15 +288,21 @@ Region access is separate from quota. Once the flag is `Registered`, file the pe
 
 1. Add the subscription to `config/config-dev-ci.yaml` under the appropriate `ci.<env>.e2eSubscriptions` section.
 
-2. Run the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (`make dev-ci-privileged-local-run`). This grants the environment's CI bot (e.g. `OpenShift Release Bot - STG`) the required RBAC on the new subscription **and** registers all required resource providers (see `ci.e2eSubscriptionProviders` in `config/config-dev-ci.yaml`). Both operations require **Owner** on the target subscription and run on demand via an OWNERS-group member.
+2. Regenerate the provider-registration pipeline and commit the result:
+   ```bash
+   make generate-e2e-provider-pipeline
+   ```
+   This rewrites `dev-infrastructure/dev-ci/e2e-subscription-providers/pipeline.yaml` from the inventory you just edited, adding a registration target for the new subscription. The file is generated, so do not hand-edit it. `make verify-e2e-provider-pipeline` (part of `make verify`, and therefore CI) fails if the two ever drift.
 
-3. Add the pool to `test/e2e-config/e2e-slots.yaml` under the environment's `pools` list.
+3. Run the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (`make dev-ci-privileged-local-run`). This grants the environment's CI bot (e.g. `OpenShift Release Bot - STG`) the required RBAC on the new subscription **and** registers all required resource providers (see `ci.e2eSubscriptionProviders` in `config/config-dev-ci.yaml`). Both operations require **Owner** on the target subscription and run on demand via an OWNERS-group member.
 
-4. Sync the Boskos inventory and update CI job configs in `openshift/release` (slot catalog, cleanup jobs, `make update`).
+4. Add the pool to `test/e2e-config/e2e-slots.yaml` under the environment's `pools` list.
 
-5. Update the Vault cluster profile secret (e.g. `kv/selfservice/hcm-aro/aro-hcp-<env>-rh`) with the new subscription's `customer-shard0-subscription-name` and `customer-shard0-subscription-id`.
+5. Sync the Boskos inventory and update CI job configs in `openshift/release` (slot catalog, cleanup jobs, `make update`).
 
-6. Validate by running a rehearsal E2E job against the new subscription.
+6. Update the Vault cluster profile secret (e.g. `kv/selfservice/hcm-aro/aro-hcp-<env>-rh`) with the new subscription's `customer-shard0-subscription-name` and `customer-shard0-subscription-id`.
+
+7. Validate by running a rehearsal E2E job against the new subscription.
 
 ## See Also
 
