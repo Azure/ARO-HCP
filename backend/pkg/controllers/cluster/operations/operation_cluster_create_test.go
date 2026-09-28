@@ -199,7 +199,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			validations: []metav1.Condition{{
 				Type: "SubnetValidation", Status: metav1.ConditionFalse,
 				Reason: "InvalidSubnet", Message: "subnet is unavailable",
-				LastTransitionTime: metav1.NewTime(createdAt.Add(-(5*time.Minute + time.Second))),
+				LastTransitionTime: metav1.NewTime(createdAt.Add(-(10*time.Minute + time.Second))),
 			}},
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
