@@ -41,6 +41,15 @@ func TestCheckPaths(t *testing.T) {
 		{name: "node script in agent dir", path: ".claude/skills/x/setup.mjs", rule: ruleAgentExecutable},
 		{name: "python script in agent dir", path: "backend/.claude/hook.py", rule: ruleAgentExecutable},
 
+		// Git's index is case-sensitive, so each of these is a distinct
+		// tracked path that must not be able to sidestep the denylist.
+		{name: "uppercased script extension", path: ".claude/setup.SH", rule: ruleAgentExecutable},
+		{name: "mixed-case script extension", path: ".claude/hook.Ps1", rule: ruleAgentExecutable},
+		{name: "uppercased settings basename", path: ".claude/Settings.json", rule: ruleAgentSettings},
+		{name: "uppercased agent directory", path: ".Claude/settings.json", rule: ruleAgentSettings},
+		{name: "uppercased editor directory", path: ".VSCode/extensions.json", rule: ruleEditorConfig},
+		{name: "fully uppercased path", path: "FRONTEND/.CLAUDE/SETTINGS.JSON", rule: ruleAgentSettings},
+
 		{name: "checked-in skill", path: ".claude/skills/pr-standards/SKILL.md"},
 		{name: "devcontainer config", path: ".devcontainer/devcontainer.json"},
 		{name: "devcontainer script", path: ".devcontainer/postCreate.sh"},
@@ -93,9 +102,10 @@ func TestAgentJSONFiles(t *testing.T) {
 		"frontend/.claude/other.json",
 		"config/config.json",
 		".vscode/settings.json",
+		".Claude/Payload.JSON",
 	})
 
-	want := []string{".claude/settings.json", "frontend/.claude/other.json"}
+	want := []string{".claude/settings.json", "frontend/.claude/other.json", ".Claude/Payload.JSON"}
 	if len(got) != len(want) {
 		t.Fatalf("expected %v, got %v", want, got)
 	}
