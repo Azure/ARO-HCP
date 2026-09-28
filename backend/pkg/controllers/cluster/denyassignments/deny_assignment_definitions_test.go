@@ -98,7 +98,7 @@ func TestDenyAssignmentDefinitionsKMSExclusionGatedOnEncryption(t *testing.T) {
 	assert.Contains(t, def.controlPlaneOperators, operatorKMS, "KMS must be excluded when KMS etcd encryption is enabled")
 
 	// KMS etcd encryption disabled -> not excluded, even though the KMS identity is still defined.
-	clusterWithoutKMSEncryption := newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+	clusterWithoutKMSEncryption := newTestCluster(func(c *coreapi.Cluster) {
 		c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = ""
 		c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
 	})
