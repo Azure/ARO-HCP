@@ -257,6 +257,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		24*time.Hour,
 		set.New("aro-sre-pso", "aro-sre-csa"),
 		metricsRegistry,
+		metricsRegistry,
 		mockKubeApplierClients,
 	)
 
