@@ -40,6 +40,7 @@ environments:
       slot_count: 2
       subscriptions: {e2e: customer}
       slot_assets:
+        e2e_identities: {allocation: dedicated, resource_group_prefix: identities, resource_group_count: 1}
         infrastructure_identities:
           allocation: leased
           asset_pool: bundles
@@ -52,6 +53,7 @@ environments:
       slot_count: 3
       subscriptions: {e2e: other-customer}
       slot_assets:
+        e2e_identities: {allocation: dedicated, resource_group_prefix: other-identities, resource_group_count: 1}
         infrastructure_identities:
           allocation: leased
           asset_pool: bundles
@@ -95,8 +97,8 @@ func TestAssetInventoryAggregatesWholeCatalog(t *testing.T) {
 		t.Fatalf("incorrect normalized inventory: %+v", assetInventories[0])
 	}
 	slot := ExpandSlotsForPool("dev", pools[0])[0]
-	if slot.DeployEnvironment != "ci01" || slot.Subscriptions.Infrastructure.Name != "infra" || slot.Assets.E2EIdentities != nil {
-		t.Fatalf("binding or absent asset handling is incorrect: %+v", slot)
+	if slot.DeployEnvironment != "ci01" || slot.Subscriptions.Infrastructure.Name != "infra" || slot.Assets.E2EIdentities == nil {
+		t.Fatalf("binding or required asset handling is incorrect: %+v", slot)
 	}
 }
 
@@ -114,6 +116,8 @@ func TestRejectsObsoleteAndInvalidCatalogs(t *testing.T) {
 		{"missing binding", "    deployment_environment: {name: ci01, infrastructure_subscription: infra}", "", "deployment_environment"},
 		{"missing deployment name", "name: ci01, infrastructure_subscription: infra", "infrastructure_subscription: infra", "deployment_environment.name"},
 		{"missing E2E subscription", "subscriptions: {e2e: customer}", "subscriptions: {}", "subscriptions.e2e"},
+		{"missing E2E identities", "        e2e_identities: {allocation: dedicated, resource_group_prefix: identities, resource_group_count: 1}\n", "", "must declare slot_assets.e2e_identities"},
+		{"null E2E identities", "e2e_identities: {allocation: dedicated, resource_group_prefix: identities, resource_group_count: 1}", "e2e_identities: null", "must declare slot_assets.e2e_identities"},
 		{"missing demanded infrastructure binding", "name: ci01, infrastructure_subscription: infra", "name: ci01", "deployment_environment.infrastructure_subscription"},
 		{"blank demanded infrastructure binding", "name: ci01, infrastructure_subscription: infra", "name: ci01, infrastructure_subscription: '  '", "deployment_environment.infrastructure_subscription"},
 		{"deployment path traversal", "name: ci01,", "name: ../../outside,", "invalid deployment environment name"},
@@ -158,6 +162,8 @@ func TestMixedPoolsRequireInfrastructureOnlyForConsumers(t *testing.T) {
       region: westus3
       slot_count: 1
       subscriptions: {e2e: e2e-only}
+      slot_assets:
+        e2e_identities: {allocation: dedicated, resource_group_prefix: e2e-only, resource_group_count: 1}
 `, 1)
 	catalog := loadCatalogFromYAML(t, input)
 	pools := catalog.Environments["dev"].Pools

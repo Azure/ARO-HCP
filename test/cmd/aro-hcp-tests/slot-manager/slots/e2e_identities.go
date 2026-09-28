@@ -41,7 +41,7 @@ type ResolvedE2EIdentitiesAsset struct {
 func normalizeE2EIdentities(environmentName string, pool *Pool) error {
 	asset := pool.SlotAssets.E2EIdentities
 	if asset == nil {
-		return nil
+		return fmt.Errorf("environment %q pool %q must declare slot_assets.e2e_identities", environmentName, pool.Name)
 	}
 	asset.Provisioning = strings.TrimSpace(asset.Provisioning)
 	asset.ProvisioningRegion = strings.TrimSpace(asset.ProvisioningRegion)

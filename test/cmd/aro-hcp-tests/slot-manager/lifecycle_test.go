@@ -64,6 +64,10 @@ environments:
       slot_count: 3
       subscriptions: {e2e: other-e2e}
       slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: other-identities
+          resource_group_count: 1
         infrastructure_identities:
           allocation: leased
           asset_pool: bundles
@@ -265,6 +269,9 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				if len(*released) != 0 || len(*acquired) != 3 {
 					t.Fatalf("incorrect acquisitions/releases: %v / %v", *acquired, *released)
 				}
+				if err := Acquire(context.Background(), options); err == nil || !strings.Contains(err.Error(), "already exists") {
+					t.Fatalf("second acquisition should not overwrite existing leases: %v", err)
+				}
 				return
 			}
 			if err == nil {
@@ -387,6 +394,10 @@ func TestPoolHandlersReceiveOnlyDeclaredPoolsAndReferencedInventories(t *testing
 	}
 	pools := append([]slots.Pool{}, catalog.Environments["dev"].Pools...)
 	pools = append(pools, catalog.Environments["other"].Pools...)
+	e2eOnly := pools[0]
+	e2eOnly.Name = "e2e-only"
+	e2eOnly.SlotAssets.InfrastructureIdentities = nil
+	pools = append(pools, e2eOnly)
 	request := assets.PoolRequest{Pools: pools, AssetInventories: assetInventories, IncludeUnmanaged: true}
 	for _, operation := range []func(context.Context, assets.PoolRequest, ...assets.Kind) error{registry.ApplyPools, registry.ValidatePools} {
 		requests = nil
@@ -396,19 +407,19 @@ func TestPoolHandlersReceiveOnlyDeclaredPoolsAndReferencedInventories(t *testing
 		if len(requests) != 2 {
 			t.Fatalf("expected both declared handlers, got %d requests", len(requests))
 		}
-		if !reflect.DeepEqual(requests[0].Pools, pools[:1]) || len(requests[0].AssetInventories) != 0 {
-			t.Fatalf("dedicated handler received another asset's pools or inventories: %+v", requests[0])
+		if !reflect.DeepEqual(requests[0].Pools, pools) || len(requests[0].AssetInventories) != 0 {
+			t.Fatalf("required dedicated handler missed pools or received leased inventories: %+v", requests[0])
 		}
-		if !reflect.DeepEqual(requests[1].Pools, pools) || !reflect.DeepEqual(requests[1].AssetInventories, assetInventories[:1]) {
+		if !reflect.DeepEqual(requests[1].Pools, pools[:2]) || !reflect.DeepEqual(requests[1].AssetInventories, assetInventories[:1]) {
 			t.Fatalf("leased handler lost whole-catalog capacity or received unrelated inventory: %+v", requests[1])
 		}
-		if !requests[0].IncludeUnmanaged || !requests[1].IncludeUnmanaged || len(request.Pools) != 2 || len(request.AssetInventories) != 2 {
+		if !requests[0].IncludeUnmanaged || !requests[1].IncludeUnmanaged || len(request.Pools) != 3 || len(request.AssetInventories) != 2 {
 			t.Fatal("handler scoping changed request options or the original request")
 		}
 	}
 }
 
-func TestAbsentAssetsPublishOnlyCoreContract(t *testing.T) {
+func TestMissingE2EIdentitiesFailsBeforeAcquisition(t *testing.T) {
 	t.Parallel()
 	catalog := `version: 2
 environments:
@@ -420,27 +431,27 @@ environments:
       slot_count: 1
       subscriptions: {e2e: dev-e2e}
 `
-	server, _, released := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+	server, acquired, released := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
 		"aro-hcp-dev-shard0-slot": {successAcquireReply("aro-hcp-dev-shard0-slot-00")},
 	})
 	defer server.Close()
 	options := lifecycleOptions(t, catalog, server.URL, nil)
-	if err := Acquire(context.Background(), options); err != nil {
-		t.Fatalf("asset-free slot acquisition failed: %v", err)
+	options.ResolveSubscriptions = func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error) {
+		t.Fatal("invalid catalog reached subscription resolution")
+		return slots.ResolvedSubscriptions{}, nil
+	}
+	if err := Acquire(context.Background(), options); err == nil || !strings.Contains(err.Error(), "must declare slot_assets.e2e_identities") {
+		t.Fatalf("expected missing required E2E identities rejection: %v", err)
+	}
+	if len(*acquired) != 0 || len(*released) != 0 {
+		t.Fatalf("invalid catalog reached lease proxy: %v / %v", *acquired, *released)
+	}
+	if _, err := slots.LoadAcquiredSlotState(options.SharedDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("invalid catalog created acquired state: %v", err)
 	}
 	path, _ := slots.EnvFile(options.SharedDir)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(data), "LEASED_MSI_CONTAINERS") || strings.Contains(string(data), "INFRA_SUBSCRIPTION_ID") {
-		t.Fatalf("absent asset created a runtime contract: %s", data)
-	}
-	if len(*released) != 0 {
-		t.Fatalf("successful acquisition rolled back: %v", *released)
-	}
-	if err := Acquire(context.Background(), options); err == nil || !strings.Contains(err.Error(), "already exists") {
-		t.Fatalf("second acquisition should not overwrite existing leases: %v", err)
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("invalid catalog published a runtime contract: %v", err)
 	}
 }
 

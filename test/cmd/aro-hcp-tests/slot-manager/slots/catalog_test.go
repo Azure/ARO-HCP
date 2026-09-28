@@ -184,7 +184,6 @@ func TestCatalogRejectsDuplicatePoolNames(t *testing.T) {
 	duplicate := environment.Pools[0]
 	duplicate.ResourceType = "second"
 	duplicate.Subscriptions.E2E = "other-customer"
-	duplicate.SlotAssets = SlotAssets{}
 	environment.Pools = append(environment.Pools, duplicate)
 	catalog.Environments["dev"] = environment
 	err := catalog.Validate()

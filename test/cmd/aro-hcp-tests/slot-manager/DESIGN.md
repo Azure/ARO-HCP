@@ -240,8 +240,10 @@ The presence of an entry under `slot_assets` means that each slot requires that
 asset and slot-manager must acquire or resolve, admit, and publish
 it.
 
-Absence means slot-manager has no contract for that asset. There is no
-`mode: none` or `mode: on-demand`.
+Every pool must declare `slot_assets.e2e_identities`; a missing or null
+declaration fails catalog validation before any lease is acquired. Additional
+asset kinds are opt-in: absence means slot-manager has no contract for that
+asset. There is no `mode: none` or `mode: on-demand`.
 
 Every declared asset uses one allocation strategy:
 
