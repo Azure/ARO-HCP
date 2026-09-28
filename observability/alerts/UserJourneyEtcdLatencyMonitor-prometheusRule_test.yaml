@@ -5,17 +5,18 @@ tests:
 # Test 1: Fast burn read alert fires when P99 > 500ms in both 1h and 5m windows
 # Bucket distribution: 80% at le=0.1, 90% at le=0.5, 100% at le=1.0
 # This places P99 between 0.5 and 1.0 (~0.95), clearly above the 500ms threshold
+# 200 requests/min gives exactly 1000 in 5m, exercising the inclusive boundary.
 - interval: 1m
   name: "Test 1: Fast burn read alert fires on high latency"
   input_series:
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="0.1"}'
-    values: "0+80x70"
+    values: "0+160x70"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="0.5"}'
-    values: "0+90x70"
+    values: "0+180x70"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="1.0"}'
-    values: "0+100x70"
+    values: "0+200x70"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="+Inf"}'
-    values: "0+100x70"
+    values: "0+200x70"
   alert_rule_test:
   - eval_time: 65m
     alertname: userJourneyEtcdReadLatencyP991h5m
@@ -42,13 +43,13 @@ tests:
   name: "Test 2: No alerts when latency is healthy"
   input_series:
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-02", cluster="mgmt-2", le="0.005"}'
-    values: "0+90x70"
+    values: "0+270x70"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-02", cluster="mgmt-2", le="0.01"}'
-    values: "0+95x70"
+    values: "0+285x70"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-02", cluster="mgmt-2", le="0.5"}'
-    values: "0+100x70"
+    values: "0+300x70"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-02", cluster="mgmt-2", le="+Inf"}'
-    values: "0+100x70"
+    values: "0+300x70"
   alert_rule_test:
   - eval_time: 65m
     alertname: userJourneyEtcdReadLatencyP991h5m
@@ -57,17 +58,18 @@ tests:
     alertname: userJourneyEtcdReadLatencyP996h30m
     exp_alerts: []
 # Test 3: Write alert fires independently from read
+# As for reads, exactly 1000 requests in the short window must pass the guard.
 - interval: 1m
   name: "Test 3: Write alert fires on high Txn latency"
   input_series:
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="0.1"}'
-    values: "0+80x70"
+    values: "0+160x70"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="0.5"}'
-    values: "0+85x70"
+    values: "0+170x70"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="1.0"}'
-    values: "0+100x70"
+    values: "0+200x70"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="+Inf"}'
-    values: "0+100x70"
+    values: "0+200x70"
   alert_rule_test:
   - eval_time: 65m
     alertname: userJourneyEtcdWriteLatencyP991h5m
@@ -94,11 +96,11 @@ tests:
   name: "Test 4: Hot long window, healthy short window — no alert"
   input_series:
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-04", cluster="mgmt-4", le="0.5"}'
-    values: "0+90x55 4950+100x15"
+    values: "0+270x55 14850+300x15"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-04", cluster="mgmt-4", le="1.0"}'
-    values: "0+100x70"
+    values: "0+300x70"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-04", cluster="mgmt-4", le="+Inf"}'
-    values: "0+100x70"
+    values: "0+300x70"
   alert_rule_test:
   - eval_time: 68m
     alertname: userJourneyEtcdReadLatencyP991h5m
@@ -108,12 +110,405 @@ tests:
   name: "Test 5: Non-KV gRPC service excluded"
   input_series:
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", grpc_method="Range", namespace="ocm-test-05", cluster="mgmt-5", le="0.5"}'
-    values: "0+90x70"
+    values: "0+270x70"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", grpc_method="Range", namespace="ocm-test-05", cluster="mgmt-5", le="1.0"}'
-    values: "0+100x70"
+    values: "0+300x70"
   - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", grpc_method="Range", namespace="ocm-test-05", cluster="mgmt-5", le="+Inf"}'
-    values: "0+100x70"
+    values: "0+300x70"
   alert_rule_test:
   - eval_time: 65m
     alertname: userJourneyEtcdReadLatencyP991h5m
     exp_alerts: []
+# Test 6: Medium and slow alerts still fire with their original labels and annotations.
+# Full 3d history plus 6h leaves ample time for the slow alert's 3h hold.
+# All requests land in (0.5, 1.0], so P99 is 0.995s regardless of volume.
+- interval: 1m
+  name: "Test 6: Medium and slow read/write alerts fire with sufficient traffic"
+  input_series:
+  - &read_half
+    series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="0.5"}'
+    values: "0+0x4680"
+  - series: &read_one_series 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="1.0"}'
+    values: "0+300x4680"
+  - series: &read_inf_series 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="+Inf"}'
+    values: "0+300x4680"
+  - &write_half
+    series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="0.5"}'
+    values: "0+0x4680"
+  - series: &write_one_series 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="1.0"}'
+    values: "0+300x4680"
+  - series: &write_inf_series 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="+Inf"}'
+    values: "0+300x4680"
+  alert_rule_test:
+  - eval_time: 6h
+    alertname: userJourneyEtcdReadLatencyP996h30m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: etcd-grpc-read-latency
+        component: etcd
+        namespace: ocm-test-01
+        cluster: mgmt-1
+        long_window: 6h
+        short_window: 30m
+      exp_annotations:
+        summary: "[userJourneyEtcdReadLatencyP99] mgmt-1 / ocm-test-01 P99 > 500ms (6h/30m)"
+        description: |
+          etcd gRPC Range (read) P99 latency has exceeded 500ms in both the 6h and 30m windows.
+          Management Cluster: mgmt-1
+          Namespace: ocm-test-01
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+        correlationId: "userJourneyEtcdReadLatencyP99/mgmt-1/ocm-test-01"
+  - eval_time: 6h
+    alertname: userJourneyEtcdWriteLatencyP996h30m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: etcd-grpc-write-latency
+        component: etcd
+        namespace: ocm-test-03
+        cluster: mgmt-3
+        long_window: 6h
+        short_window: 30m
+      exp_annotations:
+        summary: "[userJourneyEtcdWriteLatencyP99] mgmt-3 / ocm-test-03 P99 > 500ms (6h/30m)"
+        description: |
+          etcd gRPC Txn (write) P99 latency has exceeded 500ms in both the 6h and 30m windows.
+          Management Cluster: mgmt-3
+          Namespace: ocm-test-03
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+        correlationId: "userJourneyEtcdWriteLatencyP99/mgmt-3/ocm-test-03"
+  - eval_time: 78h
+    alertname: userJourneyEtcdReadLatencyP993d6h
+    exp_alerts:
+    - exp_labels:
+        slo: etcd-grpc-read-latency
+        component: etcd
+        namespace: ocm-test-01
+        cluster: mgmt-1
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+      exp_annotations:
+        summary: "[userJourneyEtcdReadLatencyP99] mgmt-1 / ocm-test-01 P99 > 500ms (3d/6h)"
+        description: |
+          etcd gRPC Range (read) P99 latency has exceeded 500ms over 3d/6h windows.
+          Management Cluster: mgmt-1
+          Namespace: ocm-test-01
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+        correlationId: "userJourneyEtcdReadLatencyP99/mgmt-1/ocm-test-01"
+  - eval_time: 78h
+    alertname: userJourneyEtcdWriteLatencyP993d6h
+    exp_alerts:
+    - exp_labels:
+        slo: etcd-grpc-write-latency
+        component: etcd
+        namespace: ocm-test-03
+        cluster: mgmt-3
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+      exp_annotations:
+        summary: "[userJourneyEtcdWriteLatencyP99] mgmt-3 / ocm-test-03 P99 > 500ms (3d/6h)"
+        description: |
+          etcd gRPC Txn (write) P99 latency has exceeded 500ms over 3d/6h windows.
+          Management Cluster: mgmt-3
+          Namespace: ocm-test-03
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+        correlationId: "userJourneyEtcdWriteLatencyP99/mgmt-3/ocm-test-03"
+# Test 7: Even the 3d window has only 432 requests; P99 remains 0.995s.
+# Without volume guards every alert below would fire, including the 3h hold.
+- interval: 1m
+  name: "Test 7: High P99 with low volume suppresses all six alerts"
+  input_series:
+  - *read_half
+  - &low_read_one
+    series: *read_one_series
+    values: "0+0.1x4680"
+  - &low_read_inf
+    series: *read_inf_series
+    values: "0+0.1x4680"
+  - *write_half
+  - &low_write_one
+    series: *write_one_series
+    values: "0+0.1x4680"
+  - &low_write_inf
+    series: *write_inf_series
+    values: "0+0.1x4680"
+  alert_rule_test: &no_alerts
+  - eval_time: 78h
+    alertname: userJourneyEtcdReadLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 78h
+    alertname: userJourneyEtcdReadLatencyP996h30m
+    exp_alerts: []
+  - eval_time: 78h
+    alertname: userJourneyEtcdReadLatencyP993d6h
+    exp_alerts: []
+  - eval_time: 78h
+    alertname: userJourneyEtcdWriteLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 78h
+    alertname: userJourneyEtcdWriteLatencyP996h30m
+    exp_alerts: []
+  - eval_time: 78h
+    alertname: userJourneyEtcdWriteLatencyP993d6h
+    exp_alerts: []
+# Test 8: Busy history cannot compensate for a quiet short window.
+# At 78h the 5m/30m/6h windows have 5/30/360 requests, all still slow.
+# Check fast/medium before the longer windows also become quiet.
+- interval: 1m
+  name: "Test 8: High P99 and sufficient long history but low short-window volume"
+  input_series:
+  - *read_half
+  - series: *read_one_series
+    values: "0+300x4320 1296001+1x359"
+  - series: *read_inf_series
+    values: "0+300x4320 1296001+1x359"
+  - *write_half
+  - series: *write_one_series
+    values: "0+300x4320 1296001+1x359"
+  - series: *write_inf_series
+    values: "0+300x4320 1296001+1x359"
+  alert_rule_test:
+  - eval_time: 72h10m
+    alertname: userJourneyEtcdReadLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 72h10m
+    alertname: userJourneyEtcdWriteLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 73h
+    alertname: userJourneyEtcdReadLatencyP996h30m
+    exp_alerts: []
+  - eval_time: 73h
+    alertname: userJourneyEtcdWriteLatencyP996h30m
+    exp_alerts: []
+  - eval_time: 78h
+    alertname: userJourneyEtcdReadLatencyP993d6h
+    exp_alerts: []
+  - eval_time: 78h
+    alertname: userJourneyEtcdWriteLatencyP993d6h
+    exp_alerts: []
+# Test 9: Healthy high-volume traffic must not satisfy a slow, quiet peer's guard.
+# Donors differ in exactly one of method, namespace, cluster, or service.
+- interval: 1m
+  name: "Test 9: Volume is isolated by method, namespace, cluster and service"
+  input_series:
+  - *read_half
+  - *low_read_one
+  - *low_read_inf
+  - *write_half
+  - *low_write_one
+  - *low_write_inf
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-01", cluster="mgmt-1", le="0.5"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-01", cluster="mgmt-1", le="+Inf"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-03", cluster="mgmt-3", le="0.5"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-03", cluster="mgmt-3", le="+Inf"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-other", cluster="mgmt-1", le="0.5"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-other", cluster="mgmt-1", le="+Inf"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-other", cluster="mgmt-3", le="0.5"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-other", cluster="mgmt-3", le="+Inf"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-other", le="0.5"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-other", le="+Inf"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-other", le="0.5"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-other", le="+Inf"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="0.5"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", grpc_method="Range", namespace="ocm-test-01", cluster="mgmt-1", le="+Inf"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="0.5"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", grpc_method="Txn", namespace="ocm-test-03", cluster="mgmt-3", le="+Inf"}'
+    values: "0+300x4680"
+  alert_rule_test: *no_alerts
+# Test 10: 995 operations/5m must not pass by counting cumulative buckets twice.
+# There is sufficient long-window volume and P99 remains 0.995s.
+- interval: 1m
+  name: "Test 10: Just below the short-window volume threshold"
+  input_series:
+  - *read_half
+  - series: *read_one_series
+    values: "0+199x70"
+  - series: *read_inf_series
+    values: "0+199x70"
+  - *write_half
+  - series: *write_one_series
+    values: "0+199x70"
+  - series: *write_inf_series
+    values: "0+199x70"
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: userJourneyEtcdReadLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 65m
+    alertname: userJourneyEtcdWriteLatencyP991h5m
+    exp_alerts: []
+# Test 11: Existing counters with no new requests produce no latency alerts.
+- interval: 1m
+  name: "Test 11: No requests suppress all six alerts"
+  input_series:
+  - *read_half
+  - series: *read_one_series
+    values: "10000+0x4680"
+  - series: *read_inf_series
+    values: "10000+0x4680"
+  - *write_half
+  - series: *write_one_series
+    values: "10000+0x4680"
+  - series: *write_inf_series
+    values: "10000+0x4680"
+  alert_rule_test: *no_alerts
+# Test 12: Short-lived cluster with enough historical volume but no recent traffic.
+# Simulates the production false positive: cluster runs for 60 minutes with high
+# volume (300 req/min = 18,000 in 1h), then stops completely. At eval_time 68m
+# (8 minutes after traffic stops), P99 and long-window volume guards still pass
+# but the 5m freshness guard (> 0) fails — no operations in the last 5 minutes.
+# The fast alert is checked too: its 5m volume guard (>= 1000) also fails.
+- interval: 1m
+  name: "Test 12: Deleted cluster suppressed by freshness guard"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-12", cluster="mgmt-12", le="0.5"}'
+    values: "0+0x60 0+0x10"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-12", cluster="mgmt-12", le="1.0"}'
+    values: "0+300x60 18000+0x10"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-12", cluster="mgmt-12", le="+Inf"}'
+    values: "0+300x60 18000+0x10"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-12", cluster="mgmt-12", le="0.5"}'
+    values: "0+0x60 0+0x10"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-12", cluster="mgmt-12", le="1.0"}'
+    values: "0+300x60 18000+0x10"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-12", cluster="mgmt-12", le="+Inf"}'
+    values: "0+300x60 18000+0x10"
+  alert_rule_test:
+  - eval_time: 68m
+    alertname: userJourneyEtcdReadLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 68m
+    alertname: userJourneyEtcdWriteLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 68m
+    alertname: userJourneyEtcdReadLatencyP996h30m
+    exp_alerts: []
+  - eval_time: 68m
+    alertname: userJourneyEtcdWriteLatencyP996h30m
+    exp_alerts: []
+# Test 12b: Production false positive scenario — cluster runs for 60 minutes with
+# high volume (300 req/min = 18,000 total), then is deleted. At 78h the 3d and 6h
+# volume guards still pass (18,000 >= 1000), and P99 remains above threshold from
+# stale histogram data, but the 5m freshness guard (> 0) blocks the slow alerts.
+- interval: 1m
+  name: "Test 12b: Deleted cluster suppresses slow alerts via freshness guard"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-12b", cluster="mgmt-12b", le="0.5"}'
+    values: "0+0x60 0+0x4620"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-12b", cluster="mgmt-12b", le="1.0"}'
+    values: "0+300x60 18000+0x4620"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-12b", cluster="mgmt-12b", le="+Inf"}'
+    values: "0+300x60 18000+0x4620"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-12b", cluster="mgmt-12b", le="0.5"}'
+    values: "0+0x60 0+0x4620"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-12b", cluster="mgmt-12b", le="1.0"}'
+    values: "0+300x60 18000+0x4620"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-12b", cluster="mgmt-12b", le="+Inf"}'
+    values: "0+300x60 18000+0x4620"
+  alert_rule_test:
+  - eval_time: 78h
+    alertname: userJourneyEtcdReadLatencyP993d6h
+    exp_alerts: []
+  - eval_time: 78h
+    alertname: userJourneyEtcdWriteLatencyP993d6h
+    exp_alerts: []
+  - eval_time: 78h
+    alertname: userJourneyEtcdReadLatencyP996h30m
+    exp_alerts: []
+  - eval_time: 78h
+    alertname: userJourneyEtcdWriteLatencyP996h30m
+    exp_alerts: []
+# Test 12c: Non-ocm namespace excluded — high P99, high volume, active traffic,
+# but namespace does not match the ocm-.* filter so no alert fires.
+- interval: 1m
+  name: "Test 12c: Non-ocm namespace excluded from all alerts"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="kube-system", cluster="mgmt-1", le="0.5"}'
+    values: "0+0x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="kube-system", cluster="mgmt-1", le="1.0"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="kube-system", cluster="mgmt-1", le="+Inf"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="kube-system", cluster="mgmt-1", le="0.5"}'
+    values: "0+0x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="kube-system", cluster="mgmt-1", le="1.0"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="kube-system", cluster="mgmt-1", le="+Inf"}'
+    values: "0+300x4680"
+  alert_rule_test: *no_alerts
+# Test 13: Long-lived cluster with sustained high volume and high P99 still fires
+# the slow alerts (both read and write). Traffic is continuous at 300 req/min
+# throughout 78h, so volume guards AND freshness guard all pass. Confirms the
+# freshness guard does not suppress legitimate alerts on active clusters.
+- interval: 1m
+  name: "Test 13: Active cluster with sustained high P99 fires slow alerts"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-13", cluster="mgmt-13", le="0.5"}'
+    values: "0+0x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-13", cluster="mgmt-13", le="1.0"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Range", namespace="ocm-test-13", cluster="mgmt-13", le="+Inf"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-13", cluster="mgmt-13", le="0.5"}'
+    values: "0+0x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-13", cluster="mgmt-13", le="1.0"}'
+    values: "0+300x4680"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", grpc_method="Txn", namespace="ocm-test-13", cluster="mgmt-13", le="+Inf"}'
+    values: "0+300x4680"
+  alert_rule_test:
+  - eval_time: 78h
+    alertname: userJourneyEtcdReadLatencyP993d6h
+    exp_alerts:
+    - exp_labels:
+        slo: etcd-grpc-read-latency
+        component: etcd
+        namespace: ocm-test-13
+        cluster: mgmt-13
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+      exp_annotations:
+        summary: "[userJourneyEtcdReadLatencyP99] mgmt-13 / ocm-test-13 P99 > 500ms (3d/6h)"
+        description: |
+          etcd gRPC Range (read) P99 latency has exceeded 500ms over 3d/6h windows.
+          Management Cluster: mgmt-13
+          Namespace: ocm-test-13
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+        correlationId: "userJourneyEtcdReadLatencyP99/mgmt-13/ocm-test-13"
+  - eval_time: 78h
+    alertname: userJourneyEtcdWriteLatencyP993d6h
+    exp_alerts:
+    - exp_labels:
+        slo: etcd-grpc-write-latency
+        component: etcd
+        namespace: ocm-test-13
+        cluster: mgmt-13
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+      exp_annotations:
+        summary: "[userJourneyEtcdWriteLatencyP99] mgmt-13 / ocm-test-13 P99 > 500ms (3d/6h)"
+        description: |
+          etcd gRPC Txn (write) P99 latency has exceeded 500ms over 3d/6h windows.
+          Management Cluster: mgmt-13
+          Namespace: ocm-test-13
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+        correlationId: "userJourneyEtcdWriteLatencyP99/mgmt-13/ocm-test-13"
