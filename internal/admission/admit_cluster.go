@@ -503,8 +503,11 @@ func admitClusterContainerRegistryPullManagedIdentity(_ context.Context, admissi
 // admitClusterManagedResourceGroupName ensures the managed resource group name
 // is unique within the subscription on CREATE.
 //
-// Best-effort only: compares against SubscriptionClusters prefetched before
-// admission runs. Concurrent creates with the same MRG name can both succeed.
+// Best-effort only: compares against SubscriptionClusters loaded from the
+// frontend change-feed cache before admission runs. Concurrent creates with
+// the same MRG name can both succeed, and another frontend replica can miss a
+// write until the change feed delivers it (the feed is polled about once a
+// second).
 func admitClusterManagedResourceGroupName(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile) field.ErrorList {
 	if op.Type != operation.Create {
 		return nil
@@ -542,8 +545,10 @@ func admitClusterManagedResourceGroupName(_ context.Context, admissionContext *C
 // cluster or node pool within the same subscription when creating a new cluster.
 //
 // Best-effort only: compares against SubscriptionClusters and SubscriptionNodePools
-// prefetched before admission runs. Concurrent creates (or a create racing with a
-// node pool create) using the same subnet can both succeed.
+// loaded from the frontend change-feed cache before admission runs. Concurrent
+// creates (or a create racing with a node pool create) using the same subnet can
+// both succeed, and another frontend replica can miss a write until the change
+// feed delivers it (the feed is polled about once a second).
 func admitClusterSubnetResourceID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile) field.ErrorList {
 	if op.Type != operation.Create {
 		return nil
@@ -594,8 +599,10 @@ func admitClusterSubnetResourceID(_ context.Context, admissionContext *ClusterAd
 // admitClusterNetworkSecurityGroupResourceID ensures that the network security group ID is not already in use by any other
 // cluster within the same subscription when creating a new cluster.
 //
-// Best-effort only: compares against SubscriptionClusters prefetched before
-// admission runs. Concurrent creates with the same NSG can both succeed.
+// Best-effort only: compares against SubscriptionClusters loaded from the
+// frontend change-feed cache before admission runs. Concurrent creates with
+// the same NSG can both succeed, and another frontend replica can miss a write
+// until the change feed delivers it (the feed is polled about once a second).
 func admitClusterNetworkSecurityGroupResourceID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile) field.ErrorList {
 	if op.Type != operation.Create {
 		return nil

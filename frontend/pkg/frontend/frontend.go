@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -55,6 +57,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -69,6 +73,10 @@ type Frontend struct {
 	server               http.Server
 	metricsServer        http.Server
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
+	clusterInformer      cache.SharedIndexInformer
+	nodePoolInformer     cache.SharedIndexInformer
+	clusterLister        corelisters.ClusterLister
+	nodePoolLister       corelisters.NodePoolLister
 	auditClient          audit.Client
 	healthGauge          prometheus.Gauge
 	// this is the azure location for this instance of the frontend
@@ -152,8 +160,13 @@ func (f *Frontend) Run(ctx context.Context) error {
 	}
 
 	// We set k8s.io/apimachinery/pkg/util/runtime.ReallyCrash to the value of the ExitOnPanic option to
-	// control the behavior of k8s.io/apimachinery/pkg/util/runtime.HandleCrash* methods
+	// control the behavior of k8s.io/apimachinery/pkg/util/runtime.HandleCrash* methods.
+	// Admission informers start before this would otherwise run, so set it first.
 	k8sutilruntime.ReallyCrash = f.exitOnPanic
+
+	if err := f.startAdmissionInformers(ctx); err != nil {
+		return err
+	}
 
 	// This just digs up the logger passed to NewFrontend.
 	logger := utils.LoggerFromContext(ctx)
@@ -199,6 +212,50 @@ func (f *Frontend) Run(ctx context.Context) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// startAdmissionInformers lists clusters and node pools once, then keeps those
+// stores current from the Cosmos change feed. Create admission reads the
+// resulting listers instead of issuing a live subscription scan per request.
+// Serving starts only after the first sync so creates are not admitted
+// against an empty cache.
+func (f *Frontend) startAdmissionInformers(ctx context.Context) error {
+	if f.resourcesDBClient == nil {
+		return fmt.Errorf("resources database client is required to start admission informers")
+	}
+
+	logger := utils.LoggerFromContext(ctx)
+	f.clusterInformer = coreinformers.NewClusterInformer(
+		f.resourcesDBClient.ResourcesGlobalListers().Clusters(),
+		f.resourcesDBClient,
+	)
+	f.nodePoolInformer = coreinformers.NewNodePoolInformer(
+		f.resourcesDBClient.ResourcesGlobalListers().NodePools(),
+		f.resourcesDBClient,
+	)
+	f.clusterLister = corelisters.NewClusterLister(f.clusterInformer.GetIndexer())
+	f.nodePoolLister = corelisters.NewNodePoolLister(f.nodePoolInformer.GetIndexer())
+
+	go func() {
+		defer k8sutilruntime.HandleCrash()
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.Cluster{}).String())
+		f.clusterInformer.RunWithContext(utils.ContextWithLogger(ctx, localLogger))
+	}()
+	go func() {
+		defer k8sutilruntime.HandleCrash()
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.NodePool{}).String())
+		f.nodePoolInformer.RunWithContext(utils.ContextWithLogger(ctx, localLogger))
+	}()
+
+	logger.Info("waiting for cluster and node pool admission caches")
+	if !cache.WaitForCacheSync(ctx.Done(), f.clusterInformer.HasSynced, f.nodePoolInformer.HasSynced) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return fmt.Errorf("timed out waiting for cluster and node pool admission caches")
+	}
+	logger.Info("cluster and node pool admission caches synced")
+	return nil
 }
 
 func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {

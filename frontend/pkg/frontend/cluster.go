@@ -253,7 +253,8 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 // existing resource ID; the constructor then prefetches the
 // ServiceProviderCluster and the list of node pools (plus their service-provider
 // records) so admission can validate version skew without hitting the DB itself.
-// On CREATE pass a nil clusterResourceID — no prior state exists to prefetch.
+// On CREATE pass a nil clusterResourceID. Clusters and node pools in the
+// subscription are read from the changefeed-backed listers started in Run.
 //
 // Architectural rule: the frontend must NEVER reach the management cluster
 // directly (no kube-applier, no ReadDesireLister, no Maestro, no HostedCluster
@@ -280,27 +281,16 @@ func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.
 
 	if op.Type == operation.Create {
 		subscriptionID := originalCluster.ID.SubscriptionID
-		clusterIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+		clusters, err := f.clusterLister.ListForSubscription(ctx, subscriptionID)
 		if err != nil {
 			return nil, fmt.Errorf("cannot list clusters for cluster admission: %w", err)
 		}
-		for _, cluster := range clusterIterator.Items(ctx) {
-			admissionContext.SubscriptionClusters = append(admissionContext.SubscriptionClusters, cluster)
-
-			nodePoolIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
-			if err != nil {
-				return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
-			}
-			for _, nodePool := range nodePoolIterator.Items(ctx) {
-				admissionContext.SubscriptionNodePools = append(admissionContext.SubscriptionNodePools, nodePool)
-			}
-			if err := nodePoolIterator.GetError(); err != nil {
-				return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
-			}
+		nodePools, err := f.nodePoolLister.ListForSubscription(ctx, subscriptionID)
+		if err != nil {
+			return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
 		}
-		if err := clusterIterator.GetError(); err != nil {
-			return nil, fmt.Errorf("cannot list clusters for cluster admission: %w", err)
-		}
+		admissionContext.SubscriptionClusters = clusters
+		admissionContext.SubscriptionNodePools = nodePools
 		return admissionContext, nil
 	}
 
