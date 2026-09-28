@@ -25,42 +25,69 @@ import (
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
 
+// Kind identifies an asset category shared by catalog declarations and handlers.
 type Kind = slots.AssetKind
 
+// KindE2EIdentities identifies reusable E2E managed identity containers.
 const KindE2EIdentities = slots.KindE2EIdentities
 
+// PoolRequest supplies catalog data and options for pool provisioning or validation.
+// The registry scopes pools and inventories to each handler without changing capacity.
 type PoolRequest struct {
+	// AssetInventories contains independent asset pools with whole-catalog capacities.
 	AssetInventories []slots.AssetInventory
-	Environment      string
-	Pools            []slots.Pool
+	// Environment selects the deployment environment.
+	Environment string
+	// Pools contains the primary slot pools to process.
+	Pools []slots.Pool
+	// IncludeUnmanaged includes catalog pools marked for unmanaged provisioning.
 	IncludeUnmanaged bool
-	Out              io.Writer
+	// Out receives validation reports.
+	Out io.Writer
 }
 
+// LeaseRequest shares inventory, durable ownership, and resolved slot state across
+// acquisition, admission, publication, and release.
 type LeaseRequest struct {
-	AssetInventories          []slots.AssetInventory
-	LeaseJournal              *slots.LeaseJournal
-	AcquiredSlotState         *slots.AcquiredSlotState
+	// AssetInventories supplies the pools referenced by leased asset requirements.
+	AssetInventories []slots.AssetInventory
+	// LeaseJournal records acquisitions and returns; it is required for leased assets.
+	LeaseJournal *slots.LeaseJournal
+	// AcquiredSlotState holds the slot, resolved assets, and recorded leases.
+	AcquiredSlotState *slots.AcquiredSlotState
+	// SelectedClusterProfileDir locates the selected cluster's subscription credentials.
 	SelectedClusterProfileDir string
 }
 
+// Handler implements pool management and the lease lifecycle for one asset kind.
+// The registry owns shared leasing mechanics; handlers resolve and prepare assets.
 type Handler interface {
+	// Kind returns the unique asset kind handled by this implementation.
 	Kind() Kind
+	// Declared reports whether the pool declares assets supported by this handler.
 	Declared(pool slots.Pool) bool
+	// AcquireLease resolves assets after the registry acquires any required leases.
 	AcquireLease(ctx context.Context, request LeaseRequest) error
+	// ReleaseLease performs kind-specific release before the registry's journal fallback.
 	ReleaseLease(ctx context.Context, request LeaseRequest) error
+	// ApplyPools provisions assets for the handler-scoped pools and inventories.
 	ApplyPools(ctx context.Context, request PoolRequest) error
+	// ValidatePools checks provisioned assets against the handler-scoped catalog data.
 	ValidatePools(ctx context.Context, request PoolRequest) error
 	// AdmitLease establishes readiness for exclusive reuse before publication.
 	AdmitLease(ctx context.Context, request LeaseRequest) error
+	// PublishLease adds the admitted assets' runtime exports to the shared contract.
 	PublishLease(ctx context.Context, request LeaseRequest, contract *slots.RuntimeContractBuilder) error
 }
 
+// Registry selects asset handlers and coordinates their lifecycle in registration order.
 type Registry struct {
 	handlers []Handler
 	byKind   map[Kind]Handler
 }
 
+// NewRegistry registers handlers in the supplied order, rejecting nil handlers
+// and empty, whitespace-padded, or duplicate kinds.
 func NewRegistry(handlers ...Handler) (*Registry, error) {
 	registry := &Registry{
 		handlers: make([]Handler, 0, len(handlers)),
@@ -86,6 +113,8 @@ func NewRegistry(handlers ...Handler) (*Registry, error) {
 	return registry, nil
 }
 
+// ApplyPools validates catalog demands, then provisions each selected handler's
+// declared pools. Omitting selectedKinds selects all handlers.
 func (r *Registry) ApplyPools(ctx context.Context, request PoolRequest, selectedKinds ...Kind) error {
 	if err := r.validatePoolRequest(request); err != nil {
 		return err
@@ -106,6 +135,8 @@ func (r *Registry) ApplyPools(ctx context.Context, request PoolRequest, selected
 	return nil
 }
 
+// ValidatePools validates catalog demands, then checks each selected handler's
+// declared pools. Omitting selectedKinds selects all handlers.
 func (r *Registry) ValidatePools(ctx context.Context, request PoolRequest, selectedKinds ...Kind) error {
 	if err := r.validatePoolRequest(request); err != nil {
 		return err
@@ -126,6 +157,9 @@ func (r *Registry) ValidatePools(ctx context.Context, request PoolRequest, selec
 	return nil
 }
 
+// AcquireLease validates all demands before acquiring leased units, resolving
+// assets through their handlers, and persisting state. The caller must release
+// partial acquisitions on failure.
 func (r *Registry) AcquireLease(ctx context.Context, request LeaseRequest) error {
 	if request.AcquiredSlotState == nil {
 		return errors.New("acquired slot state is nil")
@@ -182,6 +216,8 @@ func (r *Registry) ReleaseLease(ctx context.Context, request LeaseRequest) error
 	return errors.Join(errs...)
 }
 
+// ValidateRequirements checks that every pool demand has a registered handler
+// that accepts the pool's declaration.
 func (r *Registry) ValidateRequirements(pools []slots.Pool) error {
 	for _, pool := range pools {
 		for _, assetRequirement := range pool.Requirements() {
@@ -197,6 +233,8 @@ func (r *Registry) ValidateRequirements(pools []slots.Pool) error {
 	return nil
 }
 
+// AdmitLease prepares and checks demanded assets for exclusive reuse.
+// Call it after acquisition and before publishing runtime exports.
 func (r *Registry) AdmitLease(ctx context.Context, request LeaseRequest) error {
 	if request.AcquiredSlotState == nil {
 		return errors.New("acquired slot state is nil")
@@ -213,6 +251,8 @@ func (r *Registry) AdmitLease(ctx context.Context, request LeaseRequest) error {
 	return nil
 }
 
+// PublishLease adds demanded assets' runtime exports to contract.
+// The caller must successfully admit the lease first.
 func (r *Registry) PublishLease(ctx context.Context, request LeaseRequest, contract *slots.RuntimeContractBuilder) error {
 	if contract == nil {
 		return errors.New("runtime contract builder is nil")
@@ -280,12 +320,15 @@ func (r *Registry) ListHandlers() []Handler {
 	return slices.Clone(r.handlers)
 }
 
+// GetHandler looks up an exact asset kind and reports whether it is registered.
 func (r *Registry) GetHandler(assetKind Kind) (Handler, bool) {
 	handler, found := r.byKind[assetKind]
 	return handler, found
 }
 
-// FilterHandlers treats an empty CLI selection as all registered handlers.
+// FilterHandlers resolves CLI kind selectors in registration order, trimming
+// whitespace and removing duplicates. Empty selection means all handlers;
+// unknown kinds return an error.
 func (r *Registry) FilterHandlers(selectedKinds []Kind) ([]Handler, error) {
 	if len(selectedKinds) == 0 {
 		return r.ListHandlers(), nil
