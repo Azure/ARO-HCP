@@ -1,20 +1,22 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionProviders
 rolloutName: Dev CI E2E Subscription Provider Registration Rollout
+# Code generated from config/config-dev-ci.yaml. DO NOT EDIT.
+# Regenerate with: make generate-e2e-provider-pipeline
+#
 # PRIVILEGED pipeline: registers the required Azure resource providers on every
 # ARO-HCP-managed E2E subscription. The provider list lives in
 # config/config-dev-ci.yaml under ci.e2eSubscriptionProviders (the single
 # source of truth); add new provider dependencies there, not here.
 #
-# Each resource group entry targets one E2E subscription. The resource group
-# name is a placeholder — ProviderFeatureRegistration steps need only the
-# subscription, not an existing resource group. Subscriptions are resolved from
-# their display names via the Azure API using the invoking OWNERS member's CLI
-# credentials (AZURE_TOKEN_CREDENTIALS=dev). Run with:
+# The targets below are derived from the ci.<env>.e2eSubscriptions inventories
+# in that same file, so onboarding a subscription there and regenerating is all
+# that is required. Each resource group entry targets one E2E subscription; the
+# resource group name is a placeholder, because ProviderFeatureRegistration
+# steps need only the subscription, not an existing resource group. Subscriptions
+# are resolved from their display names via the Azure API using the invoking
+# OWNERS member's CLI credentials (AZURE_TOKEN_CREDENTIALS=dev). Run with:
 #   make dev-ci-privileged-local-run
-#
-# When adding a new subscription to ci.<env>.e2eSubscriptions, also add a
-# corresponding resource group entry below.
 resourceGroups:
 # ── DEV ─────────────────────────────────────────────────────────────────────
 - name: e2e-providers-dev-0
