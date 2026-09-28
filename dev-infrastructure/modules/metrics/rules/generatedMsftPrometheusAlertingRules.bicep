@@ -750,7 +750,7 @@ resource msftMise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'Envoy scrape target down for namespace=mise'
           title: 'Envoy scrape target down for namespace=mise'
         }
-        expression: 'group by (cluster, region) (up{cluster=~".*-svc(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{container="istio-proxy",endpoint="http-envoy-prom",namespace="mise"} == 1)'
+        expression: 'group by (cluster, region) (kube_node_info{cluster=~".*-svc(-[0-9]+)?$"}) unless on (cluster) group by (cluster, region) (kube_pod_container_status_ready{container="istio-proxy",namespace="mise"} == 1)'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

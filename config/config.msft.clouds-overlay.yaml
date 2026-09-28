@@ -35,6 +35,7 @@ clouds:
           # and that override wins, so any value set here is dead config.
           mgmt:
             azureCnsCpuLimits: false
+            monitoringApiGroup: "azmonitoring.coreos.com"
             aks:
               infraAgentPool:
                 minCount: 2
@@ -44,6 +45,8 @@ clouds:
                 resources:
                   requests:
                     memory: 2Gi
+          svc:
+            monitoringApiGroup: "azmonitoring.coreos.com"
       stg:
         # this is the MSFT STAGE environment
         regions:
@@ -83,10 +86,12 @@ clouds:
           # The base config.yaml default omits the environment, so prod is unchanged;
           # this only overrides stage, matching the global sub which already includes it.
           svc:
+            monitoringApiGroup: "monitoring.coreos.com"
             subscription:
               displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - SVC"
           mgmt:
             azureCnsCpuLimits: false
+            monitoringApiGroup: "monitoring.coreos.com"
             subscription:
               displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - MGMT - {{ .ctx.stamp }}"
           serviceKeyVault:
@@ -142,6 +147,10 @@ clouds:
       prod:
         # this is the MSFT PRODUCTION environment
         defaults:
+          svc:
+            monitoringApiGroup: "monitoring.coreos.com"
+          mgmt:
+            monitoringApiGroup: "monitoring.coreos.com"
           # E2E
           e2e:
             regionTest:
