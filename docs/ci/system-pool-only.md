@@ -11,8 +11,8 @@ In this mode the service-cluster Bicep deployment:
   Arobit can use the same nodes as AKS addons.
 - Does not deploy worker or infra pools. Their configuration remains available
   for deployments with the mode disabled.
-- Uses three `Standard_D4ds_v6` nodes initially, with autoscaling bounds of three
-  to five nodes. The minimum is 12 vCPUs instead of the previous 18. One pool
+- Uses two `Standard_D4ds_v6` nodes at minimum, with autoscaling bounds of two
+  to five nodes. The minimum is 8 vCPUs instead of the previous 18. One pool
   spanning the configured zones does not guarantee one node per zone.
 
 Service PrometheusAgent and Prometheus Operator affinity selects `system` in
@@ -23,6 +23,21 @@ are unchanged. The system pool retains its 100-pod-per-node limit.
 This intentionally removes workload isolation for ephemeral CI service clusters.
 It does not establish node-loss or zone-loss capacity. Live CI must validate
 AKS-managed addon placement, storage attachment, and rollout capacity under load.
+
+CI management workers use five to twenty-eight `Standard_D8ds_v6` nodes per
+zonal pool, with the 225-pod node limit unchanged. Two consecutive D8 runs grew
+every mgmt-1 worker pool from four to five on `Insufficient cpu` scheduling
+events; neither grew to six. The uniform five-node minimum pre-provisions that
+burst capacity. Mgmt-2 stayed at four in both runs, so the fifth node there is
+headroom rather than a demonstrated need.
+
+Each zone starts with 40 vCPUs, 160 GiB, 1,125 pod slots, and fifteen SWIFT
+secondary slots. Across two management clusters the worker baseline is 240
+vCPUs, half the older five-D16-per-zone baseline. More nodes repeat DaemonSet
+and node overhead. Two D8s
+cost the same as one D16 at the checked Central US Linux retail compute rate;
+the experiment targets avoiding pod-slot-driven scale-ups, not cheaper cores.
+Autoscaling remains enabled and responds to pending requests, not CPU usage alone.
 
 ## Existing Clusters
 
