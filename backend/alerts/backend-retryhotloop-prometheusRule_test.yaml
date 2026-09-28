@@ -55,3 +55,68 @@ tests:
   - eval_time: 20m
     alertname: BackendControllerRetryHotLoop
     exp_alerts: []
+# Test: BackendControllerReconcileErrorRate fires when error ratio > 50%
+- interval: 1m
+  input_series:
+  - series: 'backend_controller_reconcile_errors_total{controller="OperationClusterCreate", namespace="aro-hcp"}'
+    values: "0+80x25" # 80 errors per minute
+  - series: 'backend_controller_reconcile_total{controller="OperationClusterCreate", namespace="aro-hcp"}'
+    values: "0+100x25" # 100 reconciles per minute → error ratio = 80%
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendControllerReconcileErrorRate
+    exp_alerts:
+    - exp_labels:
+        component: backend
+        controller: OperationClusterCreate
+        severity: warning
+      exp_annotations:
+        correlationId: 'BackendControllerReconcileErrorRate//OperationClusterCreate'
+        description: 'Backend controller OperationClusterCreate has a reconcile error ratio of > 50% sustained over 10 minutes, indicating most reconciles are failing rather than succeeding.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+        summary: 'Backend controller OperationClusterCreate reconcile error rate is high'
+# Test: BackendControllerReconcileErrorRate does not fire when error ratio < 50%
+- interval: 1m
+  input_series:
+  - series: 'backend_controller_reconcile_errors_total{controller="OperationClusterCreate", namespace="aro-hcp"}'
+    values: "0+20x25" # 20 errors per minute
+  - series: 'backend_controller_reconcile_total{controller="OperationClusterCreate", namespace="aro-hcp"}'
+    values: "0+100x25" # 100 reconciles per minute → error ratio = 20%
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendControllerReconcileErrorRate
+    exp_alerts: []
+# Test: BackendControllerReconcileErrorRate does not fire when reconciles are high but there are no errors
+- interval: 1m
+  input_series:
+  - series: 'backend_controller_reconcile_errors_total{controller="ClusterValidationAzureResourceProvidersRegistrationValidation", namespace="aro-hcp"}'
+    values: "0x25"
+  - series: 'backend_controller_reconcile_total{controller="ClusterValidationAzureResourceProvidersRegistrationValidation", namespace="aro-hcp"}'
+    values: "0+100x25"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendControllerReconcileErrorRate
+    exp_alerts: []
+# Test: BackendControllerReconcileErrorRate fires when cooldown skips would otherwise hide a high error ratio
+# 40 errors / 100 reconciles = 40% (would not fire); 40 / (100 - 50 skips) = 80% (fires)
+- interval: 1m
+  input_series:
+  - series: 'backend_controller_reconcile_errors_total{controller="ClusterValidationAzureResourceProvidersRegistrationValidation", namespace="aro-hcp"}'
+    values: "0+40x25"
+  - series: 'backend_controller_reconcile_total{controller="ClusterValidationAzureResourceProvidersRegistrationValidation", namespace="aro-hcp"}'
+    values: "0+100x25"
+  - series: 'backend_controller_reconcile_cooldown_skips_total{controller="ClusterValidationAzureResourceProvidersRegistrationValidation", namespace="aro-hcp"}'
+    values: "0+50x25"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendControllerReconcileErrorRate
+    exp_alerts:
+    - exp_labels:
+        component: backend
+        controller: ClusterValidationAzureResourceProvidersRegistrationValidation
+        severity: warning
+      exp_annotations:
+        correlationId: 'BackendControllerReconcileErrorRate//ClusterValidationAzureResourceProvidersRegistrationValidation'
+        description: 'Backend controller ClusterValidationAzureResourceProvidersRegistrationValidation has a reconcile error ratio of > 50% sustained over 10 minutes, indicating most reconciles are failing rather than succeeding.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+        summary: 'Backend controller ClusterValidationAzureResourceProvidersRegistrationValidation reconcile error rate is high'
