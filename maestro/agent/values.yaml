@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 broker:
   host: "__brokerHost__"
   port: 8883

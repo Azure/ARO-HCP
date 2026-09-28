@@ -690,6 +690,8 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
+  amaMetrics:
+    kubestate: "false"
   applyKubeletFixes: true
   defaultStorageClassSkuName: PremiumV2_LRS
   hcpBackups:
@@ -711,9 +713,9 @@ mgmt:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:c5d026c4a8335c2d098ce04776e25babc3e7773e70817b5b709f388bb52488d2
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
+        sha: 9b99d6e6e3a52eeb24295f1ebbb62dd2f415b1665ca2235e259bdf79792876de
     namespace: prometheus
     namespaceNetworkPolicyGroup: monitoring
     prometheusConfigReloader:
@@ -744,7 +746,7 @@ mgmt:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: thanos/thanos
-        sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
+        sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6
         tag: v0.41.0
   rg: hcp-underlay-cspr-westus3-mgmt-1
   stampIdentifier: "1"
@@ -1066,6 +1068,8 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
+  amaMetrics:
+    kubestate: "false"
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
@@ -1073,6 +1077,7 @@ svc:
     tag: prod-stable
     targetVersion: asm-1-29
     versions: asm-1-29
+  monitoringApiGroup: monitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-usw3-svc
@@ -1089,9 +1094,9 @@ svc:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:c5d026c4a8335c2d098ce04776e25babc3e7773e70817b5b709f388bb52488d2
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
+        sha: 9b99d6e6e3a52eeb24295f1ebbb62dd2f415b1665ca2235e259bdf79792876de
     namespace: prometheus
     namespaceNetworkPolicyGroup: ""
     prometheusConfigReloader:
@@ -1123,7 +1128,7 @@ svc:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: thanos/thanos
-        sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
+        sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6
         tag: v0.41.0
   rg: hcp-underlay-cspr-westus3-svc
   subscription:

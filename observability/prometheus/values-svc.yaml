@@ -1,4 +1,5 @@
 schedulingRole: '{{ if eq (printf "%v" .svc.aks.systemPoolOnly) "true" }}system{{ else }}infra{{ end }}'
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
   crds:
@@ -30,11 +31,13 @@ kube-prometheus-stack:
   kubeApiServer:
     enabled: false
   kubeStateMetrics:
-    enabled: true # OSS prometheus scrapes kube-state-metrics so the HCP ksm are routed to the hcp Azure Monitor Workspace
+    enabled: {{ eq .svc.monitoringApiGroup "monitoring.coreos.com" }}
+  defaultRules:
+    create: {{ eq .svc.monitoringApiGroup "monitoring.coreos.com" }}
   prometheus:
     enabled: false # Prometheus is deployed using templates/prometheus.yaml
   prometheusOperator:
-    enabled: true
+    enabled: {{ eq .svc.monitoringApiGroup "monitoring.coreos.com" }}
     fullnameOverride: ""
     image:
       registry: "{{ .svc.prometheus.prometheusOperator.image.registry }}"
@@ -80,7 +83,7 @@ kube-prometheus-stack:
     image:
       registry: "{{ .svc.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .svc.prometheus.kubeStateMetrics.image.repository }}"
-      sha: "{{ .svc.prometheus.kubeStateMetrics.image.digest }}"
+      sha: "sha256:{{ .svc.prometheus.kubeStateMetrics.image.sha }}"
 # this is our own config for the files in templates/
 prometheusSpec:
   image:
@@ -93,7 +96,7 @@ prometheusSpec:
     region: "{{ .region }}"
     environment: "{{ .environmentName }}"
   remoteWriteUrl: "__dcrRemoteWriteUrl__"
-  hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
+  hcpRemoteWriteUrl: "NONE"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   maximumStartupDurationSeconds: 360
   resources:
