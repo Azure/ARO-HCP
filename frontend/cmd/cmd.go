@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -65,6 +66,8 @@ type FrontendOpts struct {
 	cosmosName string
 	cosmosURL  string
 
+	azureClusterScopedIdentitiesRoleSetName string
+
 	exitOnPanic  bool
 	logVerbosity int
 }
@@ -82,7 +85,8 @@ func NewRootCmd() *cobra.Command {
 
 	# Run ARO HCP Frontend locally to connect to a local Clusters Service at http://localhost:8000
 	./aro-hcp-frontend --cosmos-name ${DB_NAME} --cosmos-url ${DB_URL} --location ${LOCATION} \
-		--clusters-service-url "http://localhost:8000"
+		--clusters-service-url "http://localhost:8000" \
+		--azure-cluster-scoped-identities-role-set-name dev
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return opts.Run()
@@ -100,6 +104,13 @@ func NewRootCmd() *cobra.Command {
 
 	rootCmd.Flags().StringVar(&opts.clustersServiceURL, "clusters-service-url", "https://api.openshift.com", "URL of the OCM API gateway.")
 	rootCmd.Flags().BoolVar(&opts.insecure, "insecure", false, "Skip validating TLS for clusters-service.")
+
+	rootCmd.Flags().StringVar(
+		&opts.azureClusterScopedIdentitiesRoleSetName,
+		"azure-cluster-scoped-identities-role-set-name",
+		opts.azureClusterScopedIdentitiesRoleSetName,
+		"The name of the cluster scoped identities role set to use. It is used to select the appropriate set of operator role definitions associated to the cluster scoped identities. Accepted values: [dev, public].",
+	)
 
 	rootCmd.Flags().BoolVar(&opts.exitOnPanic, "exit-on-panic", opts.exitOnPanic,
 		"If set, frontend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
@@ -147,6 +158,11 @@ func (opts *FrontendOpts) Validate() error {
 
 	if opts.logVerbosity < 0 {
 		return utils.TrackError(fmt.Errorf("--log-verbosity must be a value >= 0"))
+	}
+
+	if opts.azureClusterScopedIdentitiesRoleSetName != string(internalazure.RoleDefinitionConfigSetNameDev) &&
+		opts.azureClusterScopedIdentitiesRoleSetName != string(internalazure.RoleDefinitionConfigSetNamePublic) {
+		return utils.TrackError(fmt.Errorf("--azure-cluster-scoped-identities-role-set-name must be either '%s' or '%s'", internalazure.RoleDefinitionConfigSetNameDev, internalazure.RoleDefinitionConfigSetNamePublic))
 	}
 
 	return nil
@@ -256,12 +272,15 @@ func (opts *FrontendOpts) Run() error {
 		utils.TracerName,
 	)
 
+	clusterScopedIdentitiesConfig := internalazure.NewClusterScopedIdentitiesConfig(internalazure.RoleDefinitionConfigSetName(opts.azureClusterScopedIdentitiesRoleSetName))
+
 	f := frontend.NewFrontend(
 		logger, listener, metricsListener,
 		legacyregistry.Registerer(), legacyregistry.DefaultGatherer,
 		resourcesDBClient,
 		coreinformers.NewFrontendInformers(ctx, resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient),
 		csClient, auditClient, opts.location, opts.exitOnPanic,
+		clusterScopedIdentitiesConfig,
 	)
 
 	runErrCh := make(chan error, 1)

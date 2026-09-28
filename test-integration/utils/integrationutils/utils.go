@@ -45,6 +45,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
@@ -201,7 +202,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	nodePoolInformer, _ := frontendInformers.NodePools()
 	serviceProviderClusterInformer, _ := frontendInformers.ServiceProviderClusters()
 	serviceProviderNodePoolInformer, _ := frontendInformers.ServiceProviderNodePools()
-	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, resourcesDBClient, frontendInformers, clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", true)
+	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, resourcesDBClient, frontendInformers, clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", true, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
 
 	mockKubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	testMCResourceID, err := azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
