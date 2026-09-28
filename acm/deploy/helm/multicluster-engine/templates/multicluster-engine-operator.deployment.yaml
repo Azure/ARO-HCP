@@ -96,13 +96,13 @@ spec:
         - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:6449b2bcfba47f2244f54ab72bf7a209ce238a931512887c1ba7fc2a57996b54'
         - name: OPERAND_IMAGE_OPENSHIFT_HIVE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hive-rhel9@sha256:38a7824f7d997ec03229e3f1f3761bc3f44064c6b67d202f41356bb3f0d81166'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hive-rhel9@sha256:b4313f797f3bc186bcec950510be9728393b62b6eee60b3b1a1fc5073db7973e'
         - name: OPERAND_IMAGE_HYPERSHIFT_ADDON_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-addon-rhel9-operator@sha256:dc2144a333be57b096f64bbb6126bd20df26005b9dd8d9ce7d6d2147322eaa1e'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-addon-rhel9-operator@sha256:4aba5720dee78693fc555d91c54952b2067dbc4ae5704513f5df9812f99343b6'
         - name: OPERAND_IMAGE_HYPERSHIFT_CLI
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-cli-rhel9@sha256:8fba9253acc47cda3b9578f1ae97fd4c64f984772895cfe1052dbd9240d0cd76'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-cli-rhel9@sha256:277fca1e4ea9fa705d7dda09c4d61050945183a0f1fd88cc1d2e8def63c72876'
         - name: OPERAND_IMAGE_HYPERSHIFT_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-rhel9-operator@sha256:ee112b770bca4e6fa2cfd3fc5539bc4c91087a8a24b5d7d3d5bbe22a5fb73f69'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-rhel9-operator@sha256:1b9d430592ea66a0cb317dffe12583d640a55eb0f94031293c26f5dcb4b77d67'
         - name: OPERAND_IMAGE_IMAGE_BASED_INSTALL_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/image-based-install-rhel9@sha256:ab8bb988e0d4c6a7a1bc2887da34413a046da8f8dc343a2258333ad4ff362820'
         - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
