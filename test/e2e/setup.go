@@ -34,6 +34,7 @@ var (
 func setup(ctx context.Context) error {
 	// Use GinkgoLabelFilter to determine if the test should load the e2e setup file
 	labelFilter := GinkgoLabelFilter()
+
 	if strings.Contains(labelFilter, labels.RequireNothing[0]) ||
 		strings.Contains(labelFilter, labels.UpgradeInPlace[0]) {
 		// Skip loading the e2esetup file
