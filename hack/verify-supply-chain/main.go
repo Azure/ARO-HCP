@@ -33,6 +33,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -83,6 +84,21 @@ var executableExtensions = map[string]bool{
 // confirmed real-world malware pattern. The order is fixed so that a file
 // carrying several of them always reports the same one.
 var executionKeys = []string{"command", "hooks"}
+
+// executionKeyPatterns match an execution key in key position — the quoted
+// token followed by a colon — in the same order as executionKeys. The raw-text
+// fallback needs this rather than a bare substring search: `"type": "command"`
+// is the ordinary shape of a hook definition, and matching the token anywhere
+// would report that benign value as confirmed malware.
+var executionKeyPatterns = buildExecutionKeyPatterns()
+
+func buildExecutionKeyPatterns() []*regexp.Regexp {
+	patterns := make([]*regexp.Regexp, len(executionKeys))
+	for i, key := range executionKeys {
+		patterns[i] = regexp.MustCompile(`"` + regexp.QuoteMeta(key) + `"\s*:`)
+	}
+	return patterns
+}
 
 func isExecutionKey(key string) bool {
 	return slices.Contains(executionKeys, key)
@@ -206,16 +222,18 @@ func agentJSONFiles(files []string) []string {
 
 // scanAgentJSON reports execution keys anywhere in an agent JSON file. A file
 // that does not parse is scanned as raw text instead, so that deliberately
-// malformed JSON cannot slip past the decoder.
+// malformed JSON cannot slip past the decoder. Both paths only match keys, so
+// the two agree on content like `{"type": "command"}` — the ordinary shape of
+// a hook definition — regardless of whether it happens to parse.
 func scanAgentJSON(p string, content []byte) []finding {
 	var doc any
 	if err := json.Unmarshal(content, &doc); err != nil {
-		for _, key := range executionKeys {
-			if bytes.Contains(content, []byte(`"`+key+`"`)) {
+		for i, pattern := range executionKeyPatterns {
+			if pattern.Match(content) {
 				return []finding{{
 					path:    p,
 					rule:    ruleExecutionKey,
-					detail:  fmt.Sprintf("malformed JSON containing a %q key", key),
+					detail:  fmt.Sprintf("malformed JSON containing a %q key", executionKeys[i]),
 					malware: true,
 				}}
 			}
