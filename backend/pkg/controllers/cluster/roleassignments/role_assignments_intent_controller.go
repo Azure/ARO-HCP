@@ -312,8 +312,8 @@ func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentIdentities(
 // stamp deconfigure.
 //
 // Keys that left the desired set are handled in the second loop. A key whose
-// ResourceID is still unresolved is copied unchanged so a missing source does
-// not deconfigure. A key that already has DeconfigureTimestamp keeps that
+// TargetIdentity.ResourceID is still unresolved is copied unchanged so a
+// missing source does not deconfigure. A key that already has DeconfigureTimestamp keeps that
 // stamp. A key with no AzureResource or PendingAzureResource is dropped. Any
 // other leftover key is stamped with DeconfigureTimestamp from the controller
 // clock for the executor to delete.
@@ -329,12 +329,12 @@ func (s *clusterRoleAssignmentIntentSyncer) mergeRoleAssignments(
 
 	// First loop: keys that are currently desired. Missing keys become a new
 	// status with TargetIdentity. Existing keys have DeconfigureTimestamp
-	// cleared and TargetIdentity replaced. A ClientID or TenantID change on
-	// the same key does not deconfigure.
+	// cleared and TargetIdentity replaced. A resource path, ClientID, or
+	// TenantID change on the same key does not deconfigure.
 	for key, target := range desiredIdentities {
 		existingStatus, hasExisting := existing[key]
 		if hasExisting && existingStatus == nil {
-			return nil, utils.TrackError(fmt.Errorf("RoleAssignmentsV2 has a nil status for resource ID %s principal ID %s role definition resource ID %s", key.ResourceID, key.PrincipalID, key.RoleDefinitionResourceID))
+			return nil, utils.TrackError(fmt.Errorf("RoleAssignmentsV2 has a nil status for principal ID %s role definition resource ID %s", key.PrincipalID, key.RoleDefinitionResourceID))
 		}
 		if !hasExisting {
 			desiredRoleAssignments[key] = &coreapi.RoleAssignmentStatus{
@@ -355,12 +355,12 @@ func (s *clusterRoleAssignmentIntentSyncer) mergeRoleAssignments(
 	// so a missing source does not deconfigure.
 	for key, existingStatus := range existing {
 		if existingStatus == nil {
-			return nil, utils.TrackError(fmt.Errorf("RoleAssignmentsV2 has a nil status for resource ID %s principal ID %s role definition resource ID %s", key.ResourceID, key.PrincipalID, key.RoleDefinitionResourceID))
+			return nil, utils.TrackError(fmt.Errorf("RoleAssignmentsV2 has a nil status for principal ID %s role definition resource ID %s", key.PrincipalID, key.RoleDefinitionResourceID))
 		}
 		if _, stillDesired := desiredIdentities[key]; stillDesired {
 			continue
 		}
-		if _, unresolved := unresolvedResourceIDs[key.ResourceID]; unresolved {
+		if _, unresolved := unresolvedResourceIDs[existingStatus.TargetIdentity.ResourceID]; unresolved {
 			desiredRoleAssignments[key] = existingStatus.DeepCopy()
 			continue
 		}
@@ -389,9 +389,9 @@ func (s *clusterRoleAssignmentIntentSyncer) mergeRoleAssignments(
 }
 
 // addDesiredRoleAssignmentKeys inserts one RoleAssignmentsV2 key per role
-// definition for identityResourceID. ResourceID is lowercased. PrincipalID
-// comes from target. A nil role definition ID is an error. Multiple role
-// definitions share the same TargetIdentity.
+// definition for identityResourceID. The key is PrincipalID and the role
+// definition. target already carries the lowercased identity resource ID.
+// A nil role definition ID is an error.
 func addDesiredRoleAssignmentKeys(
 	desired map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentTargetIdentity,
 	identityResourceID *azcorearm.ResourceID,
@@ -403,7 +403,6 @@ func addDesiredRoleAssignmentKeys(
 			return utils.TrackError(fmt.Errorf("unexpected nil role definition Resource ID for identity %s", identityResourceID))
 		}
 		key := coreapi.RoleAssignmentKey{
-			ResourceID:               strings.ToLower(identityResourceID.String()),
 			PrincipalID:              target.PrincipalID,
 			RoleDefinitionResourceID: roleDefinitionID.String(),
 		}
@@ -477,7 +476,7 @@ func (s *clusterRoleAssignmentIntentSyncer) resolveMSIBasedRoleAssignmentTargetI
 	if s.managedIdentitiesDataPlaneServiceAvailable {
 		source = metadata.MetadataFromManagedIdentitiesDataplaneService
 	}
-	target, ok := roleAssignmentTargetIdentityFromMetadataValue(source)
+	target, ok := roleAssignmentTargetIdentityFromMetadataValue(source, identityResourceID.String())
 	return target, ok, nil
 }
 
@@ -491,7 +490,7 @@ func resolveDataPlaneRoleAssignmentTargetIdentity(serviceProviderCluster *coreap
 	if err != nil || !ok {
 		return nil, false, err
 	}
-	target, ok := roleAssignmentTargetIdentityFromMetadataValue(metadata.MetadataFromARMUserAssignedIdentitiesAPI)
+	target, ok := roleAssignmentTargetIdentityFromMetadataValue(metadata.MetadataFromARMUserAssignedIdentitiesAPI, identityResourceID.String())
 	return target, ok, nil
 }
 
@@ -507,11 +506,12 @@ func managedIdentityMetadata(serviceProviderCluster *coreapi.ServiceProviderClus
 	return metadata, true, nil
 }
 
-func roleAssignmentTargetIdentityFromMetadataValue(value *coreapi.IdentityMetadataValue) (*coreapi.RoleAssignmentTargetIdentity, bool) {
+func roleAssignmentTargetIdentityFromMetadataValue(value *coreapi.IdentityMetadataValue, identityResourceID string) (*coreapi.RoleAssignmentTargetIdentity, bool) {
 	if value == nil || !value.HasResolvedIdentityInformation() {
 		return nil, false
 	}
 	return &coreapi.RoleAssignmentTargetIdentity{
+		ResourceID:  strings.ToLower(identityResourceID),
 		ClientID:    ptr.Deref(value.ClientID, ""),
 		TenantID:    ptr.Deref(value.TenantID, ""),
 		PrincipalID: ptr.Deref(value.PrincipalID, ""),

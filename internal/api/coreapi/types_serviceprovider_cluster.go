@@ -313,9 +313,12 @@ type ServiceProviderClusterStatus struct {
 	// RoleAssignments tracks the desired and observed managed-resource-group
 	// scoped role assignments for each control-plane operator, data-plane
 	// operator, and service managed identity role definition. The map key is
-	// ResourceID, PrincipalID, and RoleDefinitionResourceID. A PrincipalID change
-	// is a new Azure role assignment (the ARM name is UUIDv5 of scope, principal,
-	// and role definition).
+	// PrincipalID and RoleDefinitionResourceID. That matches the Azure role
+	// assignment name, which is a UUIDv5 of scope, principal, and role
+	// definition. The identity resource ID lives on TargetIdentity. A resource
+	// path change for the same principal and role definition overwrites
+	// TargetIdentity and does not start a deconfigure. A PrincipalID change is
+	// a new key.
 	// ClusterRoleAssignmentIntent adds desired keys once
 	// Status.ManagedIdentityDetails has a fully resolved source for that use:
 	// control-plane operators and the service managed identity use Managed
@@ -327,10 +330,10 @@ type ServiceProviderClusterStatus struct {
 	// The same UAMI used as both a control-plane operator and a data-plane
 	// operator can therefore have two PrincipalIDs. TargetIdentity is copied
 	// from that source. Leftovers that still have a tracked Azure ID are stamped
-	// DeconfigureTimestamp. A ClientID or TenantID change on the same key
-	// updates TargetIdentity; it does not deconfigure. A row that was never
-	// ensured is dropped instead of stamped. Unresolved ResourceIDs are not
-	// deconfigured.
+	// DeconfigureTimestamp. A resource path, ClientID, or TenantID change on the
+	// same key updates TargetIdentity; it does not deconfigure. A row that was
+	// never ensured is dropped instead of stamped. Unresolved ResourceIDs are
+	// not deconfigured.
 	// ClusterRoleAssignments creates, repairs drift, and deletes Azure role
 	// assignments after the 24h wait, then removes the map entry on a successful
 	// delete. Other controllers use RoleAssignmentStatus.Configured /
@@ -542,14 +545,13 @@ type ServiceProviderClusterActiveVersion struct {
 
 // RoleAssignmentKey is the key for RoleAssignments.
 // Fields are strings (not pointers) so the struct is a comparable map key and
-// two keys with the same values compare equal.
+// two keys with the same values compare equal. The identity resource ID is
+// not part of the key: the Azure role assignment name does not include it.
 type RoleAssignmentKey struct {
-	// ResourceID is the fully lowercased Azure Resource ID of the managed identity.
-	ResourceID string `json:"resourceId,omitempty"`
 	// PrincipalID is the Principal ID written to the Azure role assignment.
 	// For a control-plane operator or the service managed identity this is
 	// the MSI dataplane or hardcoded identity, which may differ from the ARM
-	// principal of the same ResourceID.
+	// principal of the same managed identity.
 	PrincipalID string `json:"principalId,omitempty"`
 	// RoleDefinitionResourceID is the tenant-level role definition resource ID
 	// ("/providers/Microsoft.Authorization/roleDefinitions/{guid}").
@@ -570,7 +572,7 @@ var (
 // is needed so it can be serialized/deserialized to/from Cosmos DB, as well as
 // logged as a json representation.
 func (k RoleAssignmentKey) MarshalText() ([]byte, error) {
-	return []byte(strings.Join([]string{k.ResourceID, k.PrincipalID, k.RoleDefinitionResourceID}, roleAssignmentKeySeparator)), nil
+	return []byte(strings.Join([]string{k.PrincipalID, k.RoleDefinitionResourceID}, roleAssignmentKeySeparator)), nil
 }
 
 // UnmarshalText reconstructs a RoleAssignmentKey from the text produced by
@@ -578,12 +580,11 @@ func (k RoleAssignmentKey) MarshalText() ([]byte, error) {
 // well as logged as a json representation.
 func (k *RoleAssignmentKey) UnmarshalText(text []byte) error {
 	parts := strings.Split(string(text), roleAssignmentKeySeparator)
-	if len(parts) != 3 {
-		return fmt.Errorf("invalid RoleAssignmentKey %q: expected 3 parts separated by %q", text, roleAssignmentKeySeparator)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid RoleAssignmentKey %q: expected 2 parts separated by %q", text, roleAssignmentKeySeparator)
 	}
-	k.ResourceID = parts[0]
-	k.PrincipalID = parts[1]
-	k.RoleDefinitionResourceID = parts[2]
+	k.PrincipalID = parts[0]
+	k.RoleDefinitionResourceID = parts[1]
 	return nil
 }
 
@@ -601,14 +602,15 @@ type RoleAssignmentStatus struct {
 	// managed resource group cascade removes the role assignments.
 	// Written by: ClusterRoleAssignmentIntent
 	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
-	// TargetIdentity is the ClientID, TenantID, and PrincipalID that
+	// TargetIdentity is the resource ID, ClientID, TenantID, and PrincipalID that
 	// ClusterRoleAssignmentIntent last targeted for this key. The map key is
-	// ResourceID, PrincipalID, and RoleDefinitionResourceID; this snapshot lets
-	// other controllers join a specific identity generation with Configured().
+	// PrincipalID and RoleDefinitionResourceID. This snapshot lets other
+	// controllers join a specific identity generation with Configured().
 	// ClusterRoleAssignmentIntent writes it from ManagedIdentityDetails while
-	// the key is still desired. A ClientID or TenantID change on the same
-	// principal and role definition updates this field without starting a 24h
-	// deconfigure. Draining rows keep the snapshot from when the key left.
+	// the key is still desired. A resource path, ClientID, or TenantID change
+	// on the same principal and role definition updates this field without
+	// starting a 24h deconfigure. Draining rows keep the snapshot from when
+	// the key left.
 	// Written by: ClusterRoleAssignmentIntent
 	TargetIdentity *RoleAssignmentTargetIdentity `json:"targetIdentity,omitempty"`
 	// PendingAzureResource is the role assignment resource ID that has been
@@ -637,11 +639,15 @@ func (s *RoleAssignmentStatus) Configured() bool {
 // definition have an ensured managed-resource-group role assignment. A
 // draining row is not configured.
 func (s *ServiceProviderClusterStatus) RoleAssignmentConfigured(resourceID string, principalID string, roleDefinitionResourceID string) bool {
-	return s.RoleAssignments[RoleAssignmentKey{
-		ResourceID:               strings.ToLower(resourceID),
+	status := s.RoleAssignments[RoleAssignmentKey{
 		PrincipalID:              principalID,
 		RoleDefinitionResourceID: roleDefinitionResourceID,
-	}].Configured()
+	}]
+
+	if status.TargetIdentity.ResourceID != strings.ToLower(resourceID) {
+		return false
+	}
+	return status.Configured()
 }
 
 // IdentityRoleAssignmentsConfigured reports whether every currently desired
@@ -652,7 +658,7 @@ func (s *ServiceProviderClusterStatus) IdentityRoleAssignmentsConfigured(identit
 	identityResourceIDStr = strings.ToLower(identityResourceIDStr)
 	foundDesired := false
 	for key, status := range s.RoleAssignments {
-		if key.ResourceID != identityResourceIDStr || key.PrincipalID != principalID {
+		if status.TargetIdentity.ResourceID != identityResourceIDStr || key.PrincipalID != principalID {
 			continue
 		}
 		if status.DeconfigureTimestamp != nil {
@@ -687,16 +693,20 @@ func (s *ServiceProviderClusterStatus) DesiredRoleAssignmentsConfigured() bool {
 // RoleAssignmentTargetIdentity is the identity generation ClusterRoleAssignmentIntent
 // last targeted for one RoleAssignments entry. PrincipalID matches the map key.
 type RoleAssignmentTargetIdentity struct {
+	// ResourceID is the fully lowercased Azure resource ID of the managed identity.
+	// A resource-group move changes this value and leaves the map key in place.
+	// Written by: ClusterRoleAssignmentIntent
+	ResourceID string `json:"resourceID,omitempty"`
 	// ClientID is the Client ID of the managed identity.
 	// Written by: ClusterRoleAssignmentIntent
-	ClientID string `json:"clientId,omitempty"`
+	ClientID string `json:"clientID,omitempty"`
 	// TenantID is the Tenant ID of the managed identity.
 	// Written by: ClusterRoleAssignmentIntent
-	TenantID string `json:"tenantId,omitempty"`
+	TenantID string `json:"tenantID,omitempty"`
 	// PrincipalID is the Principal ID of the managed identity. It matches
 	// RoleAssignmentKey.PrincipalID.
 	// Written by: ClusterRoleAssignmentIntent
-	PrincipalID string `json:"principalId,omitempty"`
+	PrincipalID string `json:"principalID,omitempty"`
 }
 
 type MaestroBundleReference struct {

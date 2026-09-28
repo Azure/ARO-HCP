@@ -1262,7 +1262,6 @@ func roleAssignmentID(name string) *azcorearm.ResourceID {
 
 func roleAssignmentKey(name string) coreapi.RoleAssignmentKey {
 	return coreapi.RoleAssignmentKey{
-		ResourceID:               "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.managedidentity/userassignedidentities/" + name,
 		PrincipalID:              name + "-principal",
 		RoleDefinitionResourceID: "/providers/Microsoft.Authorization/roleDefinitions/11111111-1111-1111-1111-111111111111",
 	}

@@ -238,7 +238,7 @@ func (s *clusterRoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 	for assignmentKey := range replacement.Status.RoleAssignments {
 		status := replacement.Status.RoleAssignments[assignmentKey]
 		if status == nil {
-			errs = append(errs, utils.TrackError(fmt.Errorf("RoleAssignmentsV2 has a nil status for resource ID %s principal ID %s role definition resource ID %s", assignmentKey.ResourceID, assignmentKey.PrincipalID, assignmentKey.RoleDefinitionResourceID)))
+			errs = append(errs, utils.TrackError(fmt.Errorf("RoleAssignmentsV2 has a nil status for principal ID %s role definition resource ID %s", assignmentKey.PrincipalID, assignmentKey.RoleDefinitionResourceID)))
 			continue
 		}
 
