@@ -8,4 +8,440 @@ value: 1e+06
 globalDefault: false
 preemptionPolicy: PreemptLowerPriority
 description: "Priority class for ARO-HCP service lifecycle critical DaemonSets"
+---
+# Source: service-lifecycle/templates/ama-metrics-prometheus-config-node.yaml
+# Custom DaemonSet scrape jobs for the Azure Monitor metrics add-on.
+#
+# The add-on's built-in kubelet/cadvisor default targets are disabled in
+# ama-metrics-settings-configmap, because default targets cannot carry a
+# routing label and are therefore dropped by the services data collection
+# rule's labelIncludeFilter (microsoft_metrics_include_label=service). We
+# re-create them here as custom jobs that stamp microsoft_metrics_account=service
+# (the add-on maps this onto the DCR's microsoft_metrics_include_label filter) so
+# the samples reach the Service AMW.
+#
+# These run on the ama-metrics DaemonSet: each pod scrapes only its own node's
+# kubelet via $NODE_IP, authenticating with the ama-metrics-serviceaccount token
+# (which has nodes/metrics RBAC via the ama-metrics-reader ClusterRole). The
+# metric_relabel_configs keep-lists mirror the add-on's minimal ingestion profile
+# so ingestion volume matches the default targets we replaced.
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: ama-metrics-prometheus-config-node
+  namespace: kube-system
+data:
+  prometheus-config: |-
+    scrape_configs:
+    - job_name: kubelet
+      scheme: https
+      metrics_path: /metrics
+      scrape_interval: 30s
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tls_config:
+        # The kubelet serving cert is signed by the cluster CA and carries the
+        # node's internal IP as a SAN; since the target is $NODE_IP:10250 we can
+        # verify against the in-cluster ServiceAccount CA instead of skipping it.
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      static_configs:
+      - targets: ['$NODE_IP:10250']
+      relabel_configs:
+      - source_labels: [__metrics_path__]
+        regex: '(.*)'
+        target_label: metrics_path
+      - source_labels: [__address__]
+        replacement: '$NODE_NAME'
+        target_label: instance
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(kubelet_volume_stats_used_bytes|kubelet_node_name|kubelet_running_pods|kubelet_running_pod_count|kubelet_running_containers|kubelet_running_container_count|volume_manager_total_volumes|kubelet_node_config_error|kubelet_runtime_operations_total|kubelet_runtime_operations_errors_total|kubelet_runtime_operations_duration_seconds(_bucket|_sum|_count)?|kubelet_pod_start_duration_seconds(_bucket|_sum|_count)?|kubelet_pod_worker_duration_seconds(_bucket|_sum|_count)?|storage_operation_duration_seconds(_bucket|_sum|_count)?|storage_operation_errors_total|kubelet_cgroup_manager_duration_seconds(_bucket|_sum|_count)?|kubelet_pleg_relist_duration_seconds(_bucket|_sum|_count)?|kubelet_pleg_relist_interval_seconds(_bucket|_sum|_count)?|rest_client_requests_total|rest_client_request_duration_seconds(_bucket|_sum|_count)?|process_resident_memory_bytes|process_cpu_seconds_total|go_goroutines|kubelet_volume_stats_capacity_bytes|kubelet_volume_stats_available_bytes|kubelet_volume_stats_inodes_used|kubelet_volume_stats_inodes|kubernetes_build_info)'
+    - job_name: cadvisor
+      scheme: https
+      metrics_path: /metrics/cadvisor
+      scrape_interval: 30s
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tls_config:
+        # The kubelet serving cert is signed by the cluster CA and carries the
+        # node's internal IP as a SAN; since the target is $NODE_IP:10250 we can
+        # verify against the in-cluster ServiceAccount CA instead of skipping it.
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      static_configs:
+      - targets: ['$NODE_IP:10250']
+      relabel_configs:
+      - source_labels: [__metrics_path__]
+        regex: '(.*)'
+        target_label: metrics_path
+      - source_labels: [__address__]
+        replacement: '$NODE_NAME'
+        target_label: instance
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(container_spec_cpu_period|container_spec_cpu_quota|container_cpu_usage_seconds_total|container_memory_rss|container_network_receive_bytes_total|container_network_transmit_bytes_total|container_network_receive_packets_total|container_network_transmit_packets_total|container_network_receive_packets_dropped_total|container_network_transmit_packets_dropped_total|container_fs_reads_total|container_fs_writes_total|container_fs_reads_bytes_total|container_fs_writes_bytes_total|container_memory_working_set_bytes|container_memory_cache|container_memory_swap|container_cpu_cfs_throttled_periods_total|container_cpu_cfs_periods_total|kubernetes_build_info)'
+    - job_name: nodeexporter
+      scheme: http
+      metrics_path: /metrics
+      scrape_interval: 30s
+      static_configs:
+      - targets: ['$NODE_IP:19100']
+      relabel_configs:
+      - source_labels: [__metrics_path__]
+        regex: '(.*)'
+        target_label: metrics_path
+      - source_labels: [__address__]
+        replacement: '$NODE_NAME'
+        target_label: instance
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(node_cpu_seconds_total|node_memory_MemAvailable_bytes|node_memory_Buffers_bytes|node_memory_Cached_bytes|node_memory_MemFree_bytes|node_memory_Slab_bytes|node_memory_MemTotal_bytes|node_netstat_Tcp_RetransSegs|node_netstat_Tcp_OutSegs|node_netstat_TcpExt_TCPSynRetrans|node_load1|node_load5|node_load15|node_disk_read_bytes_total|node_disk_written_bytes_total|node_disk_io_time_seconds_total|node_filesystem_size_bytes|node_filesystem_avail_bytes|node_filesystem_readonly|node_network_receive_bytes_total|node_network_transmit_bytes_total|node_vmstat_pgmajfault|node_network_receive_drop_total|node_network_transmit_drop_total|node_disk_io_time_weighted_seconds_total|node_exporter_build_info|node_time_seconds|node_uname_info)'
+    # kappie / network-observability: each DaemonSet pod discovers the kube-system
+    # service via role:service, then rewrites __address__ to its own node's
+    # $NODE_IP:<port> (the agents expose metrics per-node over http). We stamp
+    # microsoft_metrics_account=service for Service-AMW routing and keep-list to the
+    # add-on's minimal ingestion profile. $NODE_IP/$NODE_NAME are expanded by the
+    # add-on; $1/$2 are Prometheus relabel capture refs.
+    - job_name: kappie-basic
+      scheme: http
+      scrape_interval: 30s
+      kubernetes_sd_configs:
+      - role: service
+        namespaces:
+          names: [kube-system]
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+        action: keep
+        regex: kube-system;kappie-svc
+      - source_labels: [__address__]
+        target_label: __address__
+        replacement: $NODE_IP:10093
+        action: replace
+      - source_labels: [__address__]
+        replacement: $NODE_NAME
+        target_label: instance
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(kappie.*)'
+    - job_name: networkobservability-retina
+      scheme: http
+      scrape_interval: 30s
+      kubernetes_sd_configs:
+      - role: service
+        namespaces:
+          names: [kube-system]
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_service_port_name]
+        action: keep
+        regex: kube-system;network-observability;retina
+      - source_labels: [__address__]
+        target_label: __address__
+        replacement: $NODE_IP
+        action: replace
+      - source_labels: [__address__, __meta_kubernetes_service_port_number]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - source_labels: [__address__]
+        replacement: $NODE_NAME
+        target_label: instance
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(networkobservability.*)'
+    - job_name: networkobservability-hubble
+      scheme: http
+      scrape_interval: 30s
+      kubernetes_sd_configs:
+      - role: service
+        namespaces:
+          names: [kube-system]
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_service_port_name]
+        action: keep
+        regex: kube-system;network-observability;hubble
+      - source_labels: [__address__]
+        target_label: __address__
+        replacement: $NODE_IP
+        action: replace
+      - source_labels: [__address__, __meta_kubernetes_service_port_number]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - source_labels: [__address__]
+        replacement: $NODE_NAME
+        target_label: instance
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(hubble_dns_queries_total|hubble_dns_responses_total|hubble_drop_total|hubble_tcp_flags_total)'
+    - job_name: networkobservability-cilium
+      scheme: http
+      scrape_interval: 30s
+      kubernetes_sd_configs:
+      - role: service
+        namespaces:
+          names: [kube-system]
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_service_port_name]
+        action: keep
+        regex: kube-system;network-observability;cilium
+      - source_labels: [__address__]
+        target_label: __address__
+        replacement: $NODE_IP
+        action: replace
+      - source_labels: [__address__, __meta_kubernetes_service_port_number]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - source_labels: [__address__]
+        replacement: $NODE_NAME
+        target_label: instance
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(cilium_drop.*|cilium_forward.*)'
+---
+# Source: service-lifecycle/templates/ama-metrics-prometheus-config.yaml
+# Custom replica (cluster-level) scrape jobs for the Azure Monitor metrics add-on.
+#
+# Companion to ama-metrics-prometheus-config-node (node/DaemonSet jobs). The
+# add-on's built-in coredns/apiserver/kubestate default targets are disabled in
+# ama-metrics-settings-configmap, because default targets cannot carry a routing
+# label and are therefore dropped by the services data collection rule's
+# labelIncludeFilter. We re-create them here as custom jobs that stamp
+# microsoft_metrics_account=service (the add-on maps this onto the DCR's
+# microsoft_metrics_include_label=service filter) so the samples reach the Service
+# AMW. metric_relabel_configs keep-lists mirror the add-on's minimal ingestion
+# profile so ingestion volume matches the default targets we replaced.
+#
+# Node-level targets (kubelet, cadvisor, nodeexporter, kappie-basic,
+# networkobservability-retina/hubble/cilium) are recreated as DaemonSet jobs in
+# ama-metrics-prometheus-config-node instead.
+#
+# NOTE: control-plane and collector-health default targets are scraped through the
+# add-on's in-pod/managed path (collector health on 127.0.0.1:2234; control plane
+# via the separate CCP merger with privileged certs) and cannot be recreated as
+# custom jobs, so they are left enabled as defaults (and remain unrouted).
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: ama-metrics-prometheus-config
+  namespace: kube-system
+data:
+  prometheus-config: |-
+    scrape_configs:
+    - job_name: coredns
+      scheme: http
+      scrape_interval: 30s
+      kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [kube-system]
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_k8s_app]
+        action: keep
+        regex: kube-dns
+      - source_labels: [__meta_kubernetes_pod_container_port_number]
+        action: keep
+        regex: "9153"
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(coredns_build_info|coredns_panics_total|coredns_dns_responses_total|coredns_forward_responses_total|coredns_dns_request_duration_seconds(_bucket|_sum|_count)?|coredns_forward_request_duration_seconds(_bucket|_sum|_count)?|coredns_dns_requests_total|coredns_forward_requests_total|coredns_cache_hits_total|coredns_cache_misses_total|coredns_cache_entries|coredns_plugin_enabled|coredns_dns_request_size_bytes(_bucket|_sum|_count)?|coredns_dns_response_size_bytes(_bucket|_sum|_count)?|process_resident_memory_bytes|process_cpu_seconds_total|go_goroutines|kubernetes_build_info)'
+    - job_name: apiserver
+      scheme: https
+      scrape_interval: 30s
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        # The kubernetes endpoints target is the apiserver's (public) endpoint IP,
+        # which is not a SAN on the apiserver serving cert. Pin server_name to a
+        # DNS SAN that the cert does carry so TLS verifies against the in-cluster
+        # ServiceAccount CA instead of skipping verification.
+        server_name: kubernetes.default.svc
+      kubernetes_sd_configs:
+      - role: endpoints
+        namespaces:
+          names: [default]
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: kubernetes;https
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(apiserver_request_duration_seconds(_bucket|_sum|_count)?|apiserver_request_total|workqueue_adds_total|workqueue_depth|workqueue_queue_duration_seconds(_bucket|_sum|_count)?|process_resident_memory_bytes|process_cpu_seconds_total|go_goroutines|kubernetes_build_info)'
+    - job_name: kube-state-metrics
+      scheme: http
+      scrape_interval: 30s
+      static_configs:
+      - targets: ['ama-metrics-ksm.kube-system.svc.cluster.local:8080']
+      relabel_configs:
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(kube_job_status_succeeded|kube_job_spec_completions|kube_daemonset_status_current_number_scheduled|kube_daemonset_status_desired_number_scheduled|kube_daemonset_status_number_misscheduled|kube_daemonset_status_number_ready|kube_deployment_status_replicas_ready|kube_persistentvolumeclaim_access_mode|kube_persistentvolumeclaim_labels|kube_persistentvolume_status_phase|kube_pod_container_status_last_terminated_reason|kube_pod_container_status_waiting_reason|kube_pod_container_status_restarts_total|kube_node_status_allocatable|kube_pod_owner|kube_pod_container_resource_requests|kube_pod_status_phase|kube_pod_status_ready|kube_pod_status_scheduled|kube_node_spec_unschedulable|kube_pod_container_resource_limits|kube_replicaset_owner|kube_resourcequota|kube_namespace_status_phase|kube_node_status_capacity|kube_node_info|kube_pod_info|kube_deployment_spec_replicas|kube_deployment_status_replicas_available|kube_deployment_status_replicas_updated|kube_statefulset_metadata_generation|kube_statefulset_status_observed_generation|kube_statefulset_status_replicas|kube_statefulset_status_replicas_ready|kube_statefulset_status_replicas_updated|kube_job_status_start_time|kube_job_status_active|kube_job_failed|kube_horizontalpodautoscaler_status_desired_replicas|kube_horizontalpodautoscaler_status_current_replicas|kube_horizontalpodautoscaler_spec_min_replicas|kube_horizontalpodautoscaler_spec_max_replicas|kubernetes_build_info|kube_node_status_condition|kube_node_spec_taint|kube_pod_container_info|kube_.+_labels|kube_.+_annotations|kubelet_volume_stats_inodes_free)'
+---
+# Source: service-lifecycle/templates/ama-metrics-settings-configmap.yaml
+kind: ConfigMap
+apiVersion: v1
+data:
+  schema-version: v1
+  #string.used by agent to parse config. supported versions are {v1}. Configs with other schema versions will be rejected by the agent.
+  config-version: ver1
+  #string.used by customer to keep track of this config file's version in their source control/repository (max allowed 10 chars, other chars will be truncated)
+  prometheus-collector-settings: |-
+    cluster_alias = ""
+  default-scrape-settings-enabled: |-
+    # These default targets are disabled and re-created as custom scrape jobs in
+    # ama-metrics-prometheus-config(-node), so their samples can carry the
+    # microsoft_metrics_include_label=service routing label (default targets can't);
+    # otherwise the services DCR labelIncludeFilter drops them.
+    #   node/DaemonSet jobs: kubelet, cadvisor, nodeexporter, kappie-basic,
+    #                        networkobservability-retina/hubble/cilium
+    #   replica/cluster jobs: coredns, apiserver, kubestate (AMA mode only; legacy
+    #                         mode uses the OSS kube-state-metrics)
+    # kubeproxy stays off: ARO-HCP AKS use the Cilium dataplane (kube-proxy-less),
+    # so there is no kube-proxy endpoint to scrape.
+    # prometheuscollectorhealth and controlplane-* stay enabled as defaults: they
+    # are scraped through the add-on's in-pod/managed path (collector health on
+    # 127.0.0.1:2234; control plane via the separate CCP merger with privileged
+    # certs), so they cannot be re-created as custom jobs here and remain unrouted.
+    kubelet = false
+    coredns = false
+    cadvisor = false
+    kubeproxy = false
+    apiserver = false
+    kubestate = false
+    nodeexporter = false
+    windowsexporter = false
+    windowskubeproxy = false
+    kappiebasic = false
+    networkobservabilityRetina = false
+    networkobservabilityHubble = false
+    networkobservabilityCilium = false
+    prometheuscollectorhealth = true
+    controlplane-apiserver = true
+    controlplane-cluster-autoscaler = true
+    controlplane-kube-scheduler = true
+    controlplane-kube-controller-manager = true
+    controlplane-etcd = true
+  # Regex for which namespaces to scrape through pod annotation based scraping.
+  # This is none by default. Use '.*' to scrape all namespaces of annotated pods.
+  pod-annotation-based-scraping: |-
+    podannotationnamespaceregex = ""
+  default-targets-metrics-keep-list: |-
+    kubelet = ""
+    coredns = ""
+    cadvisor = ""
+    kubeproxy = ""
+    apiserver = ""
+    kubestate = ""
+    nodeexporter = ""
+    windowsexporter = ""
+    windowskubeproxy = ""
+    podannotations = ""
+    kappiebasic = ""
+    networkobservabilityRetina = ""
+    networkobservabilityHubble = ""
+    networkobservabilityCilium = ""
+    controlplane-apiserver = ""
+    controlplane-cluster-autoscaler = ""
+    controlplane-kube-scheduler = ""
+    controlplane-kube-controller-manager = ""
+    controlplane-etcd = ""
+    minimalingestionprofile = true
+  default-targets-scrape-interval-settings: |-
+    kubelet = "30s"
+    coredns = "30s"
+    cadvisor = "30s"
+    kubeproxy = "30s"
+    apiserver = "30s"
+    kubestate = "30s"
+    nodeexporter = "30s"
+    windowsexporter = "30s"
+    windowskubeproxy = "30s"
+    kappiebasic = "30s"
+    networkobservabilityRetina = "30s"
+    networkobservabilityHubble = "30s"
+    networkobservabilityCilium = "30s"
+    prometheuscollectorhealth = "30s"
+    podannotations = "30s"
+  debug-mode: |-
+    enabled = false
+metadata:
+  name: ama-metrics-settings-configmap
+  namespace: kube-system
+---
+# Source: service-lifecycle/templates/ama-metrics-configmap-reader.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+  name: ama-metrics-configmap-reader
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+---
+# Source: service-lifecycle/templates/ama-metrics-configmap-reader.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+  name: ama-metrics-configmap-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ama-metrics-configmap-reader
+subjects:
+- kind: ServiceAccount
+  name: ama-metrics-serviceaccount
+  namespace: kube-system
 

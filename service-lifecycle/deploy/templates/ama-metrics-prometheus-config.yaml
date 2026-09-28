@@ -1,0 +1,94 @@
+# Custom replica (cluster-level) scrape jobs for the Azure Monitor metrics add-on.
+#
+# Companion to ama-metrics-prometheus-config-node (node/DaemonSet jobs). The
+# add-on's built-in coredns/apiserver/kubestate default targets are disabled in
+# ama-metrics-settings-configmap, because default targets cannot carry a routing
+# label and are therefore dropped by the services data collection rule's
+# labelIncludeFilter. We re-create them here as custom jobs that stamp
+# microsoft_metrics_account=service (the add-on maps this onto the DCR's
+# microsoft_metrics_include_label=service filter) so the samples reach the Service
+# AMW. metric_relabel_configs keep-lists mirror the add-on's minimal ingestion
+# profile so ingestion volume matches the default targets we replaced.
+#
+# Node-level targets (kubelet, cadvisor, nodeexporter, kappie-basic,
+# networkobservability-retina/hubble/cilium) are recreated as DaemonSet jobs in
+# ama-metrics-prometheus-config-node instead.
+#
+# NOTE: control-plane and collector-health default targets are scraped through the
+# add-on's in-pod/managed path (collector health on 127.0.0.1:2234; control plane
+# via the separate CCP merger with privileged certs) and cannot be recreated as
+# custom jobs, so they are left enabled as defaults (and remain unrouted).
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: ama-metrics-prometheus-config
+  namespace: kube-system
+data:
+  prometheus-config: |-
+    scrape_configs:
+    - job_name: coredns
+      scheme: http
+      scrape_interval: 30s
+      kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [kube-system]
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_k8s_app]
+        action: keep
+        regex: kube-dns
+      - source_labels: [__meta_kubernetes_pod_container_port_number]
+        action: keep
+        regex: "9153"
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(coredns_build_info|coredns_panics_total|coredns_dns_responses_total|coredns_forward_responses_total|coredns_dns_request_duration_seconds(_bucket|_sum|_count)?|coredns_forward_request_duration_seconds(_bucket|_sum|_count)?|coredns_dns_requests_total|coredns_forward_requests_total|coredns_cache_hits_total|coredns_cache_misses_total|coredns_cache_entries|coredns_plugin_enabled|coredns_dns_request_size_bytes(_bucket|_sum|_count)?|coredns_dns_response_size_bytes(_bucket|_sum|_count)?|process_resident_memory_bytes|process_cpu_seconds_total|go_goroutines|kubernetes_build_info)'
+    - job_name: apiserver
+      scheme: https
+      scrape_interval: 30s
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        # The kubernetes endpoints target is the apiserver's (public) endpoint IP,
+        # which is not a SAN on the apiserver serving cert. Pin server_name to a
+        # DNS SAN that the cert does carry so TLS verifies against the in-cluster
+        # ServiceAccount CA instead of skipping verification.
+        server_name: kubernetes.default.svc
+      kubernetes_sd_configs:
+      - role: endpoints
+        namespaces:
+          names: [default]
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: kubernetes;https
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(apiserver_request_duration_seconds(_bucket|_sum|_count)?|apiserver_request_total|workqueue_adds_total|workqueue_depth|workqueue_queue_duration_seconds(_bucket|_sum|_count)?|process_resident_memory_bytes|process_cpu_seconds_total|go_goroutines|kubernetes_build_info)'
+{{- if eq .Values.monitoringApiGroup "azmonitoring.coreos.com" }}
+    - job_name: kube-state-metrics
+      scheme: http
+      scrape_interval: 30s
+      static_configs:
+      - targets: ['ama-metrics-ksm.kube-system.svc.cluster.local:8080']
+      relabel_configs:
+      - target_label: microsoft_metrics_account
+        action: replace
+        replacement: service
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        action: keep
+        regex: '(kube_job_status_succeeded|kube_job_spec_completions|kube_daemonset_status_current_number_scheduled|kube_daemonset_status_desired_number_scheduled|kube_daemonset_status_number_misscheduled|kube_daemonset_status_number_ready|kube_deployment_status_replicas_ready|kube_persistentvolumeclaim_access_mode|kube_persistentvolumeclaim_labels|kube_persistentvolume_status_phase|kube_pod_container_status_last_terminated_reason|kube_pod_container_status_waiting_reason|kube_pod_container_status_restarts_total|kube_node_status_allocatable|kube_pod_owner|kube_pod_container_resource_requests|kube_pod_status_phase|kube_pod_status_ready|kube_pod_status_scheduled|kube_node_spec_unschedulable|kube_pod_container_resource_limits|kube_replicaset_owner|kube_resourcequota|kube_namespace_status_phase|kube_node_status_capacity|kube_node_info|kube_pod_info|kube_deployment_spec_replicas|kube_deployment_status_replicas_available|kube_deployment_status_replicas_updated|kube_statefulset_metadata_generation|kube_statefulset_status_observed_generation|kube_statefulset_status_replicas|kube_statefulset_status_replicas_ready|kube_statefulset_status_replicas_updated|kube_job_status_start_time|kube_job_status_active|kube_job_failed|kube_horizontalpodautoscaler_status_desired_replicas|kube_horizontalpodautoscaler_status_current_replicas|kube_horizontalpodautoscaler_spec_min_replicas|kube_horizontalpodautoscaler_spec_max_replicas|kubernetes_build_info|kube_node_status_condition|kube_node_spec_taint|kube_pod_container_info|kube_.+_labels|kube_.+_annotations|kubelet_volume_stats_inodes_free)'
+{{- end }}
