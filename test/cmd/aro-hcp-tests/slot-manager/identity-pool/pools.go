@@ -38,10 +38,10 @@ type identityPool struct {
 }
 
 // resolveIdentityPools resolves pools for the given environment. When
-// subscriptionFilter is non-empty, only pools whose subscription_name matches
-// one of the filter values are included (regardless of identity_provisioning).
-// When subscriptionFilter is empty, pools with identity_provisioning: unmanaged
-// are skipped.
+// subscriptionFilter is non-empty, only pools whose E2E subscription matches
+// one of the filter values are included, regardless of provisioning policy.
+// Without a filter, pools with unmanaged E2E identity provisioning are skipped
+// (slot_assets.e2e_identities.provisioning in v2 catalogs).
 func resolveIdentityPools(ctx context.Context, environment string, catalogPools []slots.Pool, subscriptionFilter []string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
 	filterSet := make(map[string]struct{}, len(subscriptionFilter))
 	for _, name := range subscriptionFilter {

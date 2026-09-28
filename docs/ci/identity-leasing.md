@@ -119,16 +119,6 @@ for the required files and permissions, and
 [subscriptions](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#subscriptions)
 for the infrastructure opt-in contract used by persistent environments.
 
-#### Remaining legacy ci-operator leases
-
-The older persistent workflow in
-`openshift/release: ci-operator/step-registry/aro-hcp/e2e/aro-hcp-e2e-workflow.yaml`
-does not call slot-manager acquire or release. Jobs using that workflow request
-identity-container resource types through ci-operator `leases:`. Those leases
-populate `LEASED_MSI_CONTAINERS` directly for the test framework. Inspect a job's
-workflow and lease declarations to distinguish it from the slot-managed
-`aro-hcp-persistent-e2e` workflow.
-
 ### Subscription Sharding And Region Selection
 
 The slot-manager path is what lets CI shard `e2e-parallel` across multiple customer subscriptions without forking the workflow or the test binary.
@@ -264,7 +254,6 @@ Every input above has a stated derivation, so the whole calculation can be re-ru
 For the current live capacity model:
 
 - slot-managed DEV, INT, STG, and PROD parallel-job capacity is determined by the available slots across eligible pools in `test/e2e-config/e2e-slots.yaml`, backed by the matching release-side Boskos inventory
-- jobs using legacy ci-operator leases remain bounded by their lease counts and the flat Boskos pool sizes in `openshift/release: core-services/prow/02_config/generate-boskos.py`
 - the active job wiring and runtime-region overrides are defined in the live `openshift/release` ci-operator config
 
 ### Scaling Constraints
@@ -273,15 +262,7 @@ Three bottlenecks matter:
 
 **Bottleneck 1: maximum concurrent E2E runs.**
 
-- In the legacy flat-pool model, each E2E job leases a fixed number of identity containers, so:
-
-```text
-# pool-size here is the total size of the legacy flat identity pool, not a
-# quantity from the role-assignment model above.
-max-concurrent-runs = floor(pool-size / per-job-lease-count)
-```
-
-- In the slot-managed model, concurrency is instead bounded by the number of available slots across the pools that the job is allowed to consume.
+Concurrency is bounded by the number of available slots across the pools that the job is allowed to consume.
 
 **Bottleneck 2: parallelism within a single run.** How many HCP clusters a single suite execution holds at once is bounded by both the leased identity-container set and the effective suite parallelism, whichever is smaller — see `hcp-concurrency` above. When the suite has more specs requiring HCPs than can run concurrently, specs run in waves — the first wave runs, and the remaining specs block inside `AssignIdentityContainers()` until containers are released. This means adding more test specs increases total suite runtime even if the specs themselves are fast.
 
@@ -327,7 +308,7 @@ incomplete, reconcile only the affected subscription:
 make -C test apply-pool-assets \
   ENVIRONMENT=<dev|int|stg|prod> \
   ASSET=e2e_identities \
-  SUBSCRIPTION="<catalog subscription_name>"
+  SUBSCRIPTION="<catalog subscriptions.e2e>"
 ```
 
 The command applies one subscription-scoped deployment stack per slot. Review
@@ -341,7 +322,7 @@ Then validate the complete expected inventory against Azure:
 make -C test validate-pool-assets \
   ENVIRONMENT=<dev|int|stg|prod> \
   ASSET=e2e_identities \
-  SUBSCRIPTION="<catalog subscription_name>"
+  SUBSCRIPTION="<catalog subscriptions.e2e>"
 ```
 
 If either command fails, preserve the deployment-stack error and inspect the
@@ -352,9 +333,7 @@ stack in a non-terminal state.
 
 INT, STG, and PROD parallel jobs use the same catalog-driven acquisition and
 release path without provisioning infrastructure. Catalog changes must stay
-aligned with the release-side Boskos inventory and job selectors. For jobs
-using the older `aro-hcp-e2e` workflow, manage their ci-operator lease counts and
-flat identity-container pools separately.
+aligned with the release-side Boskos inventory and job selectors.
 
 ### Operational Notes And Troubleshooting
 
@@ -370,8 +349,7 @@ Common failure modes:
     and [acquired-state recovery rules](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquired-state)
     before retrying or manually returning a lease
 - **`expected envvar LEASED_MSI_CONTAINERS to not be empty`**
-  - on the slot-managed path, inspect `aro-hcp-lease-acquire` and the runtime slot env export
-  - on the legacy path, the job likely did not receive the ci-operator lease it expected
+  - inspect `aro-hcp-lease-acquire` and the runtime slot env export
 - **`no assigned identity containers available for <specID>`**
   - the spec tried to consume more containers than it reserved, or skipped the normal reservation path
 - **persistent FIC or role-assignment leakage in identity-container resource groups**
@@ -507,7 +485,6 @@ When you need to change or debug identity leasing, start here:
 - slot-managed identity-pool code: `test/cmd/aro-hcp-tests/slot-manager/identity-pool/`
 - release-side local workflow: `openshift/release: ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml`
 - release-side persistent workflow: `openshift/release: ci-operator/step-registry/aro-hcp/persistent-e2e/aro-hcp-persistent-e2e-workflow.yaml`
-- release-side legacy workflow: `openshift/release: ci-operator/step-registry/aro-hcp/e2e/aro-hcp-e2e-workflow.yaml`
 - release-side acquire step: `openshift/release: ci-operator/step-registry/aro-hcp/lease/acquire/`
 - release-side provision step: `openshift/release: ci-operator/step-registry/aro-hcp/provision/environment/`
 - slot catalog: `test/e2e-config/e2e-slots.yaml`

@@ -341,15 +341,14 @@ See [CI Identity Leasing](identity-leasing.md) for the full lease lifecycle, sta
 
 The Boskos resource types that back those identity containers are defined in `openshift/release` by `core-services/prow/02_config/generate-boskos.py`.
 
-Today ARO HCP uses two acquire paths for those containers:
+ARO HCP uses slot-manager to acquire identity containers in both workflows:
 
 - DEV `e2e-parallel` uses the `aro-hcp-local-e2e` workflow, whose `aro-hcp-lease-acquire` step calls `slot-manager acquire`
-- higher-environment presubmit, EV2-gating, and periodic jobs still use ci-operator `leases:` directly
+- higher-environment presubmit, EV2-gating, and periodic jobs use `aro-hcp-persistent-e2e`, which also calls `slot-manager acquire`
 
-Operationally, the important distinction is:
-
-- the slot-manager path resolves a slot from the catalog, exports `SELECTED_LOCATION`, `CUSTOMER_SUBSCRIPTION`, and `LEASED_MSI_CONTAINERS`, and then hands the same leased identity-container set to the test framework
-- the legacy path still requests environment-specific identity-container resource types in job config and populates `LEASED_MSI_CONTAINERS` directly
+Slot-manager resolves a slot from the catalog, exports `SELECTED_LOCATION`,
+`CUSTOMER_SUBSCRIPTION`, and `LEASED_MSI_CONTAINERS`, and hands the leased
+identity-container set to the test framework.
 
 This document intentionally does not freeze current runtime weights or pinned
 regions in prose. If you need the live region-selection policy for a job,
