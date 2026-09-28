@@ -166,11 +166,13 @@ safe-outputs:
     fallback-as-issue: false            # no issues: write on the App token, fail instead of opening an issue
     title-prefix: "fix(deps): "
     labels: [dependencies, security, agentic-dependabot]
+    excluded-files:
+      - CHANGELOG.md
     # gh-aw guards package manifests (go.mod/go.sum, package.json, lockfiles) as
     # supply-chain-sensitive by default and refuses to push them. Managing those files
     # IS this bot's whole job, so exclude the Go and npm manifests from the protected
-    # set. Everything else (.github/, README, AGENTS.md, security config) keeps the
-    # default request_review guard.
+    # set. Other protected files (.github/, README, AGENTS.md, security config)
+    # keep the default request-review guard.
     protected-files:
       policy: request-review
       exclude:
