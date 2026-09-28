@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/blang/semver/v4"
 
@@ -25,25 +26,30 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const cincinnatiRequestTimeout = 30 * time.Second
+
 // cincinnatiBestVersionSelector implements BestVersionSelector on top of the
 // OpenShift update service, reusing the per-cluster desired-version controller's
 // SelectControlPlaneVersion (which applies GetZStreamOffset: stable holds one
 // z-stream back, other channel groups take the latest).
-type cincinnatiBestVersionSelector struct{}
+type cincinnatiBestVersionSelector struct {
+	roundTrip func(*http.Request) (*http.Response, error)
+}
 
 var _ BestVersionSelector = cincinnatiBestVersionSelector{}
 
 // NewCincinnatiBestVersionSelector returns a BestVersionSelector backed by the
 // OpenShift update service.
 func NewCincinnatiBestVersionSelector() BestVersionSelector {
-	return cincinnatiBestVersionSelector{}
+	return cincinnatiBestVersionSelector{roundTrip: http.DefaultTransport.RoundTrip}
 }
 
 // BestExactVersionForChannel returns the best exact version for the y-stream
-// channel, offset by the channel group's z-stream offset. A fresh round-tripper
-// is used for each call. Selection currently uses recency only.
+// channel, offset by the channel group's z-stream offset. The graph request,
+// including retries and reading the body, is bounded by cincinnatiRequestTimeout.
+// Selection currently uses recency only.
 // TODO: filter platform/control-plane risks from Cincinnati conditional updates.
-func (cincinnatiBestVersionSelector) BestExactVersionForChannel(ctx context.Context, yStreamChannel string) (*semver.Version, error) {
+func (s cincinnatiBestVersionSelector) BestExactVersionForChannel(ctx context.Context, yStreamChannel string) (*semver.Version, error) {
 	channelGroup, minor, ok := parseYStreamChannel(yStreamChannel)
 	if !ok {
 		return nil, fmt.Errorf("invalid y-stream channel %q", yStreamChannel)
@@ -58,7 +64,9 @@ func (cincinnatiBestVersionSelector) BestExactVersionForChannel(ctx context.Cont
 		return nil, fmt.Errorf("invalid minor %q in channel %q: %w", minor, yStreamChannel, err)
 	}
 	utils.LoggerFromContext(ctx).Info("Querying upgrade graph for best version", "ystreamChannel", yStreamChannel, "channelGroup", channelGroup, "targetMinor", targetMinor.String(), "zStreamOffset", clusterversion.GetZStreamOffset(channelGroup))
-	best, err := clusterversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, channelGroup, targetMinor, clusterversion.GetZStreamOffset(channelGroup))
+	ctx, cancel := context.WithTimeout(ctx, cincinnatiRequestTimeout)
+	defer cancel()
+	best, err := clusterversion.SelectControlPlaneVersion(ctx, s.roundTrip, channelGroup, targetMinor, clusterversion.GetZStreamOffset(channelGroup))
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to select best version for channel %q: %w", yStreamChannel, err))
 	}
