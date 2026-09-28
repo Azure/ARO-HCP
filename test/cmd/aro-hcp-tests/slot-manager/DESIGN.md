@@ -342,7 +342,7 @@ and the referenced asset inventories. Inventory capacities remain derived
 from the whole catalog, never from that scoped request.
 
 `PoolRequest.AssetInventories` supplies inventory for pool management.
-Lease acquisition receives inventory explicitly through `Registry.AcquireLease`;
+Lease acquisition receives inventory explicitly through `Registry.AcquireLeases`;
 the shared `LeaseRequest` carries `LeaseJournal` and `AcquiredSlotState`, not
 inventory needed only during acquisition.
 Each `AssetInventory.AssetPool` is a pool definition;

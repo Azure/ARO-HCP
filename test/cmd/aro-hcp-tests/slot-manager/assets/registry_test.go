@@ -79,7 +79,7 @@ func TestRegistryRejectsDuplicateKinds(t *testing.T) {
 	}
 }
 
-func TestRegistryAcquireLeaseDiagnostics(t *testing.T) {
+func TestRegistryAcquireLeasesDiagnostics(t *testing.T) {
 	t.Parallel()
 
 	for _, test := range []struct {
@@ -119,7 +119,7 @@ func TestRegistryAcquireLeaseDiagnostics(t *testing.T) {
 			if test.journal {
 				request.LeaseJournal = &slots.LeaseJournal{}
 			}
-			if err := registry.AcquireLease(context.Background(), request, assetInventories); err == nil || err.Error() != test.want {
+			if err := registry.AcquireLeases(context.Background(), request, assetInventories); err == nil || err.Error() != test.want {
 				t.Fatalf("expected %q, got %v", test.want, err)
 			}
 			if len(calls) != 0 {
@@ -187,7 +187,7 @@ func TestRegistryValidatesAllRequirementsBeforeLeaseHandlers(t *testing.T) {
 			}}}
 			for _, operation := range []func(context.Context, LeaseRequest) error{
 				func(ctx context.Context, request LeaseRequest) error {
-					return registry.AcquireLease(ctx, request, nil)
+					return registry.AcquireLeases(ctx, request, nil)
 				},
 				registry.AdmitLease,
 				func(ctx context.Context, request LeaseRequest) error {

@@ -97,6 +97,8 @@ func ValidateLeasedResourceName(name string) error {
 func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string, timeout time.Duration) (string, error) {
 	query := url.Values{}
 	query.Set("type", resourceType)
+	// The proxy acquires batches one resource at a time but omits partial results
+	// on failure. Request one so the journal can record each acquisition for rollback.
 	query.Set("count", "1")
 
 	response, err := doLeaseProxyRequestWithRetry(
@@ -145,6 +147,8 @@ func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string,
 }
 
 func ReleaseLease(ctx context.Context, leaseProxyServerURL, name string, timeout time.Duration) error {
+	// The proxy releases batches one resource at a time without structured partial
+	// results. Return one so the journal can track each outcome independently.
 	requestBody, err := json.Marshal(releaseLeaseRequest{Names: []string{name}})
 	if err != nil {
 		return fmt.Errorf("failed to marshal lease release request: %w", err)

@@ -144,7 +144,7 @@ func lifecycleOptions(t *testing.T, catalog, server string, registry *assets.Reg
 		LeaseProxyTimeout:   100 * time.Millisecond,
 		MaxWaitForLease:     0,
 		LeaseWaitInterval:   time.Millisecond,
-		Registry:            registry,
+		AssetRegistry:       registry,
 		ResolveSubscriptions: func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error) {
 			return slots.ResolvedSubscriptions{
 				E2E:            slots.ResolvedSubscription{Name: "dev-e2e", ID: "e2e-id"},

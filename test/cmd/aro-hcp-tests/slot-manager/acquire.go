@@ -132,7 +132,7 @@ type RawAcquireOptions struct {
 	MaxWaitForLease      time.Duration
 	LeaseWaitInterval    time.Duration
 	Now                  func() time.Time
-	Registry             *assets.Registry
+	AssetRegistry        *assets.Registry
 	ResolveSubscriptions func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
 }
 
@@ -157,7 +157,7 @@ type completedAcquireOptions struct {
 	RegionSelection      RegionSelection
 	CandidatePools       []slots.Pool
 	PoolEnvironment      string
-	Registry             *assets.Registry
+	AssetRegistry        *assets.Registry
 	ResolveSubscriptions func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
 	Now                  func() time.Time
 	Sleep                func(context.Context, time.Duration) error
@@ -169,7 +169,7 @@ type AcquireOptions struct {
 
 func newAcquireCommand(registry *assets.Registry) (*cobra.Command, error) {
 	opts := DefaultAcquireOptions()
-	opts.Registry = registry
+	opts.AssetRegistry = registry
 
 	cmd := &cobra.Command{
 		Use:   "acquire",
@@ -266,7 +266,7 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 	if err != nil {
 		return nil, err
 	}
-	registry := o.Registry
+	registry := o.AssetRegistry
 	if registry == nil {
 		registry, err = newAssetRegistry()
 		if err != nil {
@@ -303,7 +303,7 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 			RegionSelection:      regionSelection,
 			CandidatePools:       candidatePools,
 			PoolEnvironment:      environment,
-			Registry:             registry,
+			AssetRegistry:        registry,
 			ResolveSubscriptions: resolveSubscriptions,
 			Now:                  o.Now,
 			Sleep:                sleepContext,
@@ -449,10 +449,10 @@ func (o *AcquireOptions) ResolveLeasedSlot(pool slots.Pool, resourceName string)
 }
 
 func (o *AcquireOptions) Run(ctx context.Context) error {
-	if o.Registry == nil {
+	if o.AssetRegistry == nil {
 		return errors.New("asset registry is nil")
 	}
-	if err := o.Registry.ValidateRequirements(o.CandidatePools); err != nil {
+	if err := o.AssetRegistry.ValidateRequirements(o.CandidatePools); err != nil {
 		return err
 	}
 	stateFile, err := slots.SlotStateFile(o.SharedDir)
@@ -615,7 +615,7 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 		// Acquisition's writer may have failed. Retry durable cleanup with the
 		// standard writer; never return a recorded resource without a journal.
 		journal.Persist = func() error { return slots.WriteAcquiredSlotState(o.SharedDir, state) }
-		cleanupErr := o.Registry.ReleaseLease(ctx, assets.LeaseRequest{AcquiredSlotState: state, LeaseJournal: journal})
+		cleanupErr := o.AssetRegistry.ReleaseLease(ctx, assets.LeaseRequest{AcquiredSlotState: state, LeaseJournal: journal})
 		if cleanupErr == nil {
 			cleanupErr = slots.RemoveStateFiles(o.SharedDir)
 		}
@@ -644,7 +644,7 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 		return err
 	}
 	request := assets.LeaseRequest{AcquiredSlotState: state, SelectedClusterProfileDir: profile, LeaseJournal: journal}
-	if err := o.Registry.AcquireLease(ctx, request, o.AssetInventories); err != nil {
+	if err := o.AssetRegistry.AcquireLeases(ctx, request, o.AssetInventories); err != nil {
 		return err
 	}
 	if err := journal.Persist(); err != nil {
@@ -653,14 +653,14 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	if err := state.Validate(); err != nil {
 		return err
 	}
-	if err := o.Registry.AdmitLease(ctx, request); err != nil {
+	if err := o.AssetRegistry.AdmitLease(ctx, request); err != nil {
 		return err
 	}
 	contract := slots.NewRuntimeContractBuilder()
 	if err := slots.AddCoreRuntimeExports(contract, state, customerSubscription, profile); err != nil {
 		return err
 	}
-	if err := o.Registry.PublishLease(ctx, request, contract); err != nil {
+	if err := o.AssetRegistry.PublishLease(ctx, request, contract); err != nil {
 		return err
 	}
 	return slots.WriteRuntimeContract(o.SharedDir, contract)

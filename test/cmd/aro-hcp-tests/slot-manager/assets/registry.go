@@ -156,10 +156,10 @@ func (r *Registry) ValidatePools(ctx context.Context, request PoolRequest, selec
 	return nil
 }
 
-// AcquireLease validates demands against assetInventories before acquiring leased
-// units, resolving assets through their handlers, and persisting state. The caller
-// must release partial acquisitions on failure.
-func (r *Registry) AcquireLease(ctx context.Context, request LeaseRequest, assetInventories []slots.AssetInventory) error {
+// AcquireLeases validates demands against assetInventories, acquires required
+// independent asset leases, and resolves all demanded assets through their handlers.
+// It persists state; the caller must release partial acquisitions on failure.
+func (r *Registry) AcquireLeases(ctx context.Context, request LeaseRequest, assetInventories []slots.AssetInventory) error {
 	if request.AcquiredSlotState == nil {
 		return errors.New("acquired slot state is nil")
 	}

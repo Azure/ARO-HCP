@@ -1371,7 +1371,7 @@ environments:
 		Now:                 staticNow(time.Unix(0, 0)),
 	})
 	calls := []string{}
-	options.Registry, err = assets.NewRegistry(&lifecycleHandler{
+	options.AssetRegistry, err = assets.NewRegistry(&lifecycleHandler{
 		kind: slots.KindE2EIdentities, calls: &calls,
 		before: func(phase string, _ assets.LeaseRequest) {
 			if phase != "publish" {
@@ -1508,7 +1508,7 @@ func completeAcquireOptions(raw *RawAcquireOptions) (*AcquireOptions, error) {
 	if err != nil {
 		return nil, err
 	}
-	raw.Registry = registry
+	raw.AssetRegistry = registry
 	raw.ResolveSubscriptions = func(_ context.Context, _, _, e2e, _ string) (slots.ResolvedSubscriptions, error) {
 		return slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{Name: e2e, ID: "e2e-id"}}, nil
 	}
