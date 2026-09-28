@@ -106,7 +106,6 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		assert.Equal(t, "dp-client-cp", got[desiredKeys[0]].TargetIdentity.ClientID)
 		assert.Equal(t, testControlPlanePrincipalID, got[desiredKeys[0]].TargetIdentity.PrincipalID)
 		assert.NotContains(t, got, coreapi.RoleAssignmentKey{
-			ResourceID:               desiredKeys[0].ResourceID,
 			PrincipalID:              testControlPlaneARMPrincipalID,
 			RoleDefinitionResourceID: desiredKeys[0].RoleDefinitionResourceID,
 		})
@@ -128,7 +127,6 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		assert.Equal(t, "dp-client-smi", got[desiredKeys[2]].TargetIdentity.ClientID)
 		assert.Equal(t, testServiceManagedIdentityPrincipalID, got[desiredKeys[2]].TargetIdentity.PrincipalID)
 		assert.NotContains(t, got, coreapi.RoleAssignmentKey{
-			ResourceID:               desiredKeys[2].ResourceID,
 			PrincipalID:              "arm-principal-smi",
 			RoleDefinitionResourceID: desiredKeys[2].RoleDefinitionResourceID,
 		})
@@ -213,7 +211,6 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		require.NoError(t, err)
 		cpKey := desiredKeys[0]
 		dpKey := coreapi.RoleAssignmentKey{
-			ResourceID:               strings.ToLower(testControlPlaneIdentityID),
 			PrincipalID:              testControlPlaneARMPrincipalID,
 			RoleDefinitionResourceID: desiredKeys[1].RoleDefinitionResourceID,
 		}
@@ -228,7 +225,13 @@ func TestDesiredRoleAssignments(t *testing.T) {
 	t.Run("identities not ready leaves a still-required key as-is", func(t *testing.T) {
 		t.Parallel()
 		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-			desiredKeys[0]: {AzureResource: testRoleAssignmentAzureResource(t)},
+			desiredKeys[0]: {
+				AzureResource: testRoleAssignmentAzureResource(t),
+				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+					ResourceID:  strings.ToLower(testControlPlaneIdentityID),
+					PrincipalID: desiredKeys[0].PrincipalID,
+				},
+			},
 		}
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, unreadySPC, current)
 		require.NoError(t, err)
@@ -269,12 +272,17 @@ func TestDesiredRoleAssignments(t *testing.T) {
 	t.Run("key that left the desired set is stamped for deconfigure", func(t *testing.T) {
 		t.Parallel()
 		stale := coreapi.RoleAssignmentKey{
-			ResourceID:               "stale-identity",
 			PrincipalID:              "stale-principal",
 			RoleDefinitionResourceID: "/providers/Microsoft.Authorization/roleDefinitions/00000000-0000-0000-0000-000000000000",
 		}
 		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-			stale: {AzureResource: testRoleAssignmentAzureResource(t)},
+			stale: {
+				AzureResource: testRoleAssignmentAzureResource(t),
+				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+					ResourceID:  "stale-identity",
+					PrincipalID: stale.PrincipalID,
+				},
+			},
 		}
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
@@ -285,7 +293,6 @@ func TestDesiredRoleAssignments(t *testing.T) {
 	t.Run("already draining leftover keeps its DeconfigureTimestamp", func(t *testing.T) {
 		t.Parallel()
 		stale := coreapi.RoleAssignmentKey{
-			ResourceID:               "stale-identity",
 			PrincipalID:              "stale-principal",
 			RoleDefinitionResourceID: "/providers/Microsoft.Authorization/roleDefinitions/00000000-0000-0000-0000-000000000000",
 		}
@@ -294,6 +301,10 @@ func TestDesiredRoleAssignments(t *testing.T) {
 			stale: {
 				DeconfigureTimestamp: &stamp,
 				AzureResource:        testRoleAssignmentAzureResource(t),
+				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+					ResourceID:  "stale-identity",
+					PrincipalID: stale.PrincipalID,
+				},
 			},
 		}
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, readySPC, current)
@@ -305,12 +316,16 @@ func TestDesiredRoleAssignments(t *testing.T) {
 	t.Run("never-ensured leftover is dropped", func(t *testing.T) {
 		t.Parallel()
 		stale := coreapi.RoleAssignmentKey{
-			ResourceID:               "stale-identity",
 			PrincipalID:              "stale-principal",
 			RoleDefinitionResourceID: "/providers/Microsoft.Authorization/roleDefinitions/00000000-0000-0000-0000-000000000000",
 		}
 		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-			stale: {},
+			stale: {
+				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+					ResourceID:  "stale-identity",
+					PrincipalID: stale.PrincipalID,
+				},
+			},
 		}
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
@@ -376,6 +391,30 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		assert.True(t, got[key].Configured())
 		require.NotNil(t, got[key].TargetIdentity)
 		assert.Equal(t, "dp-client-cp", got[key].TargetIdentity.ClientID)
+		assert.Equal(t, key.PrincipalID, got[key].TargetIdentity.PrincipalID)
+	})
+
+	t.Run("resource ID change on the same principal updates TargetIdentity without deconfigure", func(t *testing.T) {
+		t.Parallel()
+		key := desiredKeys[0]
+		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+			key: {
+				AzureResource: testRoleAssignmentAzureResource(t),
+				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+					ResourceID:  "/subscriptions/sub/resourcegroups/old/providers/microsoft.managedidentity/userassignedidentities/cp",
+					ClientID:    "dp-client-cp",
+					TenantID:    "dp-tenant-cp",
+					PrincipalID: key.PrincipalID,
+				},
+			},
+		}
+		got, err := syncer.desiredRoleAssignmentsV2(cluster, readySPC, current)
+		require.NoError(t, err)
+		require.Contains(t, got, key)
+		assert.Nil(t, got[key].DeconfigureTimestamp)
+		assert.True(t, got[key].Configured())
+		require.NotNil(t, got[key].TargetIdentity)
+		assert.Equal(t, strings.ToLower(testControlPlaneIdentityID), got[key].TargetIdentity.ResourceID)
 		assert.Equal(t, key.PrincipalID, got[key].TargetIdentity.PrincipalID)
 	})
 }
@@ -656,17 +695,14 @@ func testDesiredRoleAssignmentKeys(t *testing.T) []coreapi.RoleAssignmentKey {
 	require.NotEmpty(t, smiRoleDefs)
 	return []coreapi.RoleAssignmentKey{
 		{
-			ResourceID:               strings.ToLower(testControlPlaneIdentityID),
 			PrincipalID:              testControlPlanePrincipalID,
 			RoleDefinitionResourceID: cpRoleDefs[0].String(),
 		},
 		{
-			ResourceID:               strings.ToLower(testDataPlaneIdentityID),
 			PrincipalID:              testDataPlanePrincipalID,
 			RoleDefinitionResourceID: dpRoleDefs[0].String(),
 		},
 		{
-			ResourceID:               strings.ToLower(testServiceManagedIdentityID),
 			PrincipalID:              testServiceManagedIdentityPrincipalID,
 			RoleDefinitionResourceID: smiRoleDefs[0].String(),
 		},
