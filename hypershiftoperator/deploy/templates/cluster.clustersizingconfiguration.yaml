@@ -26,19 +26,19 @@ spec:
           - containerName: openshift-controller-manager
             deploymentName: openshift-controller-manager
             memory: 100Mi
-            cpu: 100m
+            cpu: 20m
           - containerName: cluster-policy-controller
             deploymentName: cluster-policy-controller
             memory: 100Mi
-            cpu: 100m
+            cpu: 10m
           - containerName: kube-controller-manager
             deploymentName: kube-controller-manager
             memory: 100Mi
-            cpu: 100m
+            cpu: 30m
           - containerName: openshift-apiserver
             deploymentName: openshift-apiserver
             memory: 100Mi
-            cpu: 100m
+            cpu: 30m
           - containerName: etcd
             deploymentName: etcd
             memory: 100Mi

@@ -905,19 +905,19 @@ spec:
           - containerName: openshift-controller-manager
             deploymentName: openshift-controller-manager
             memory: 100Mi
-            cpu: 100m
+            cpu: 20m
           - containerName: cluster-policy-controller
             deploymentName: cluster-policy-controller
             memory: 100Mi
-            cpu: 100m
+            cpu: 10m
           - containerName: kube-controller-manager
             deploymentName: kube-controller-manager
             memory: 100Mi
-            cpu: 100m
+            cpu: 30m
           - containerName: openshift-apiserver
             deploymentName: openshift-apiserver
             memory: 100Mi
-            cpu: 100m
+            cpu: 30m
           - containerName: etcd
             deploymentName: etcd
             memory: 100Mi
@@ -926,5 +926,19 @@ spec:
             deploymentName: ovnkube-control-plane
             memory: 100Mi
             cpu: 100m
-
+          - deploymentName: "azure-cloud-controller-manager"
+            containerName: "cloud-controller-manager"
+            cpu: "10m"
+          - deploymentName: "etcd"
+            containerName: "etcd-metrics"
+            cpu: "20m"
+          - deploymentName: "konnectivity-agent"
+            containerName: "konnectivity-agent"
+            cpu: "10m"
+          - deploymentName: "kube-scheduler"
+            containerName: "kube-scheduler"
+            cpu: "10m"
+          - deploymentName: "router"
+            containerName: "router"
+            cpu: "10m"
       name: e2e_minimal

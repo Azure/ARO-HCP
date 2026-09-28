@@ -1704,6 +1704,27 @@ clouds:
           requests:
             cpu: 1690m
             memory: 640Mi
+        additionalMinimalResourceRequests:
+          azure-cloud-controller-manager-cloud-controller-manager:
+            deploymentName: "azure-cloud-controller-manager"
+            containerName: "cloud-controller-manager"
+            cpu: 10m
+          konnectivity-agent-konnectivity-agent:
+            deploymentName: "konnectivity-agent"
+            containerName: "konnectivity-agent"
+            cpu: 10m
+          kube-scheduler-kube-scheduler:
+            deploymentName: "kube-scheduler"
+            containerName: "kube-scheduler"
+            cpu: 10m
+          router-router:
+            deploymentName: "router"
+            containerName: "router"
+            cpu: 10m
+          etcd-etcd-metrics:
+            deploymentName: "etcd"
+            containerName: "etcd-metrics"
+            cpu: 20m
       # Admin API
       adminApi:
         cert:
