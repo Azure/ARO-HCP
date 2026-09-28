@@ -28,9 +28,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path"
+	"slices"
 	"strings"
 )
 
@@ -77,10 +80,12 @@ var executableExtensions = map[string]bool{
 
 // executionKeys are JSON keys that make an agent configuration file
 // self-executing. A .claude settings file carrying one of these matches a
-// confirmed real-world malware pattern.
-var executionKeys = map[string]bool{
-	"command": true,
-	"hooks":   true,
+// confirmed real-world malware pattern. The order is fixed so that a file
+// carrying several of them always reports the same one.
+var executionKeys = []string{"command", "hooks"}
+
+func isExecutionKey(key string) bool {
+	return slices.Contains(executionKeys, key)
 }
 
 const (
@@ -198,7 +203,7 @@ func agentJSONFiles(files []string) []string {
 func scanAgentJSON(p string, content []byte) []finding {
 	var doc any
 	if err := json.Unmarshal(content, &doc); err != nil {
-		for key := range executionKeys {
+		for _, key := range executionKeys {
 			if bytes.Contains(content, []byte(`"`+key+`"`)) {
 				return []finding{{
 					path:    p,
@@ -226,11 +231,11 @@ func scanAgentJSON(p string, content []byte) []finding {
 func findExecutionKey(node any) (string, bool) {
 	switch v := node.(type) {
 	case map[string]any:
-		for key, child := range v {
-			if executionKeys[key] {
+		for _, key := range slices.Sorted(maps.Keys(v)) {
+			if isExecutionKey(key) {
 				return key, true
 			}
-			if found, ok := findExecutionKey(child); ok {
+			if found, ok := findExecutionKey(v[key]); ok {
 				return found, true
 			}
 		}
@@ -255,7 +260,7 @@ func hasSegment(p, segment string) bool {
 	return false
 }
 
-func report(w *os.File, findings []finding) {
+func report(w io.Writer, findings []finding) {
 	fmt.Fprintln(w, "ERROR: supply-chain attack indicators found in tracked files.")
 	fmt.Fprintln(w)
 
