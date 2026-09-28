@@ -4,6 +4,8 @@
 
 Resolves the HostedCluster namespace and name on the management cluster from the management cluster content datadump.
 
+Identity-seeded (`from-cluster`) runs scan `cosmosResourceSnapshots` history up to the window end rather than within the window, since it is a change feed — otherwise an idle cluster with no in-window readdesire changes yields no metadata and every dependent `hypershift/*` query returns nothing.
+
 ## What to Look For
 
 If the RP Backend was able to get any Maestro read-only bundle state, the hosted cluster namespace and name should
