@@ -306,29 +306,26 @@ func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.
 		return nil, fmt.Errorf("clusterResourceID is required for UPDATE operations")
 	}
 
-	spCluster, err := f.serviceProviderClusterLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
+	serviceProviderCluster, err := f.serviceProviderClusterLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
 	if err != nil {
 		// Do not expose a missing admission dependency as an ARM target 404.
 		return nil, fmt.Errorf("cannot load service provider cluster %s for cluster admission: %v", clusterResourceID, err)
 	}
-	admissionContext.ServiceProviderCluster = spCluster
+	admissionContext.ServiceProviderCluster = serviceProviderCluster
 
 	nodePools, err := f.nodePoolLister.ListForCluster(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
 	if err != nil {
 		return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
 	}
 	for _, nodePool := range nodePools {
-		if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
-			continue
-		}
 		nodePoolID := nodePool.ID
-		spNodePool, err := f.serviceProviderNodePoolLister.Get(ctx, nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName, nodePoolID.Parent.Name, nodePoolID.Name)
+		serviceProviderNodePool, err := f.serviceProviderNodePoolLister.Get(ctx, nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName, nodePoolID.Parent.Name, nodePoolID.Name)
 		if err != nil {
 			return nil, fmt.Errorf("cannot load service provider node pool %s for cluster admission: %v", nodePoolID, err)
 		}
 		admissionContext.ClusterNodePools = append(admissionContext.ClusterNodePools, admission.ClusterAdmissionNodePool{
 			NodePool:                nodePool,
-			ServiceProviderNodePool: spNodePool,
+			ServiceProviderNodePool: serviceProviderNodePool,
 		})
 	}
 

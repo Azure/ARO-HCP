@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 )
@@ -49,7 +50,7 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		reg,
 		reg,
 		mockResourcesDBClient,
-		newTestFrontendInformers(t),
+		newTestFrontendInformers(t, mockResourcesDBClient),
 		nil,
 		newNoopAuditClient(t),
 		coreapitesting.TestLocation,
@@ -58,10 +59,9 @@ func NewTestFrontend(t *testing.T) *Frontend {
 	return f
 }
 
-func newTestFrontendInformers(t testing.TB) coreinformers.FrontendInformers {
+func newTestFrontendInformers(t testing.TB, resourcesDBClient corecosmosstorage.ResourcesDBClient) coreinformers.FrontendInformers {
 	t.Helper()
-	db := corecosmosstoragetesting.NewMockResourcesDBClient()
-	return coreinformers.NewFrontendInformers(t.Context(), db.ResourcesGlobalListers(), db)
+	return coreinformers.NewFrontendInformers(t.Context(), resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient)
 }
 
 func newTestClusterInformer(t testing.TB, clusters ...*coreapi.Cluster) cache.SharedIndexInformer {

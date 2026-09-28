@@ -149,12 +149,12 @@ func NewFrontend(
 	return f
 }
 
-func (f *Frontend) Run(ctx context.Context) (runErr error) {
+func (f *Frontend) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancelCause(ctx)
 	logger := utils.LoggerFromContext(ctx)
 	var wg sync.WaitGroup
 	errCh := make(chan error, 2)
-	defer func() {
+	shutdown := sync.OnceFunc(func() {
 		cancel(fmt.Errorf("run returned"))
 
 		// always attempt a graceful shutdown, a double ctrl+c exits the process
@@ -170,13 +170,8 @@ func (f *Frontend) Run(ctx context.Context) (runErr error) {
 		_ = f.listener.Close()
 		_ = f.metricsListener.Close()
 		wg.Wait()
-		close(errCh)
-		for err := range errCh {
-			if !errors.Is(err, http.ErrServerClosed) {
-				runErr = errors.Join(runErr, err)
-			}
-		}
-	}()
+	})
+	defer shutdown()
 
 	if len(f.azureLocation) == 0 {
 		panic("azureLocation must be set")
@@ -204,23 +199,31 @@ func (f *Frontend) Run(ctx context.Context) (runErr error) {
 		cancel(err)
 	}()
 
+	var runErr error
 	if !cache.WaitForNamedCacheSyncWithContext(ctx, f.informers.HasSynced) {
-		return fmt.Errorf("admission cache warmup aborted: %w", context.Cause(ctx))
+		runErr = fmt.Errorf("admission cache warmup aborted: %w", context.Cause(ctx))
+	} else if ctx.Err() != nil {
+		runErr = context.Cause(ctx)
+	} else {
+		wg.Add(1)
+		go func() {
+			defer k8sutilruntime.HandleCrash()
+			defer wg.Done()
+			err := f.server.Serve(f.listener)
+			errCh <- err
+			cancel(err)
+		}()
+		<-ctx.Done()
 	}
-	if ctx.Err() != nil {
-		return context.Cause(ctx)
-	}
-	wg.Add(1)
-	go func() {
-		defer k8sutilruntime.HandleCrash()
-		defer wg.Done()
-		err := f.server.Serve(f.listener)
-		errCh <- err
-		cancel(err)
-	}()
 
-	<-ctx.Done()
-	return nil
+	shutdown()
+	close(errCh)
+	for err := range errCh {
+		if !errors.Is(err, http.ErrServerClosed) {
+			runErr = errors.Join(runErr, err)
+		}
+	}
+	return runErr
 }
 
 func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {

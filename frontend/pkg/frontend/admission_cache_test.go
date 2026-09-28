@@ -106,7 +106,7 @@ func TestClusterCreateAdmissionCachedInventory(t *testing.T) {
 
 func TestAdmissionProviderCache(t *testing.T) {
 	for _, kind := range []string{"cluster update", "node pool create", "node pool update"} {
-		for _, state := range []string{"present", "missing cluster", "missing node pool", "deleting node pool"} {
+		for _, state := range []string{"present", "missing cluster", "missing node pool", "deleting node pool", "deleting node pool missing provider"} {
 			t.Run(kind+"/"+state, func(t *testing.T) {
 				f := NewTestFrontend(t)
 				// Any DB access, including provider reads/writes or live-parent
@@ -117,21 +117,21 @@ func TestAdmissionProviderCache(t *testing.T) {
 				pool.SetResourceID(pool.ID)
 				pool.SetPartitionKey(pool.ID.SubscriptionID)
 				pool.Properties.Version.ID = "4.19.0"
-				if state == "deleting node pool" {
+				if state == "deleting node pool" || state == "deleting node pool missing provider" {
 					now := metav1.Now()
 					pool.ServiceProviderProperties.DeletionTimestamp = &now
 				}
 				poolInformer, _ := f.informers.NodePools()
 				require.NoError(t, poolInformer.GetStore().Add(pool.DeepCopy()))
-				spCluster := newTestServiceProviderCluster(cluster.ID)
-				spPool := newTestServiceProviderNodePool(pool.ID)
+				serviceProviderCluster := newTestServiceProviderCluster(cluster.ID)
+				serviceProviderNodePool := newTestServiceProviderNodePool(pool.ID)
 				if state != "missing cluster" {
 					informer, _ := f.informers.ServiceProviderClusters()
-					require.NoError(t, informer.GetStore().Add(spCluster.DeepCopy()))
+					require.NoError(t, informer.GetStore().Add(serviceProviderCluster.DeepCopy()))
 				}
-				if state == "present" || state == "missing cluster" {
+				if state == "present" || state == "missing cluster" || state == "deleting node pool" {
 					informer, _ := f.informers.ServiceProviderNodePools()
-					require.NoError(t, informer.GetStore().Add(spPool.DeepCopy()))
+					require.NoError(t, informer.GetStore().Add(serviceProviderNodePool.DeepCopy()))
 				}
 				subscription := newTestSubscription(cluster.ID.SubscriptionID, coreapi.SubscriptionStateRegistered, nil)
 				var err error
@@ -139,12 +139,8 @@ func TestAdmissionProviderCache(t *testing.T) {
 					var ac *admission.ClusterAdmissionContext
 					ac, err = f.newClusterAdmissionContext(t.Context(), operation.Operation{Type: operation.Update}, subscription, cluster, cluster.ID)
 					if err == nil {
-						require.Equal(t, spCluster, ac.ServiceProviderCluster)
-						if state == "deleting node pool" {
-							require.Empty(t, ac.ClusterNodePools)
-						} else {
-							require.Equal(t, []admission.ClusterAdmissionNodePool{{NodePool: pool, ServiceProviderNodePool: spPool}}, ac.ClusterNodePools)
-						}
+						require.Equal(t, serviceProviderCluster, ac.ServiceProviderCluster)
+						require.Equal(t, []admission.ClusterAdmissionNodePool{{NodePool: pool, ServiceProviderNodePool: serviceProviderNodePool}}, ac.ClusterNodePools)
 						_ = admission.AdmitCluster(t.Context(), ac, operation.Operation{Type: operation.Update}, cluster.DeepCopy(), cluster.DeepCopy())
 					}
 				} else {
@@ -155,16 +151,16 @@ func TestAdmissionProviderCache(t *testing.T) {
 					var ac *admission.NodePoolAdmissionContext
 					ac, err = f.newNodePoolAdmissionContext(t.Context(), op, subscription, pool, cluster)
 					if err == nil {
-						require.Equal(t, spCluster, ac.ServiceProviderCluster)
+						require.Equal(t, serviceProviderCluster, ac.ServiceProviderCluster)
 						if op.Type == operation.Update {
-							require.Equal(t, spPool, ac.ServiceProviderNodePool)
+							require.Equal(t, serviceProviderNodePool, ac.ServiceProviderNodePool)
 						} else {
 							require.Nil(t, ac.ServiceProviderNodePool)
 						}
 						_ = admission.AdmitNodePool(t.Context(), ac, op, pool.DeepCopy(), pool.DeepCopy())
 					}
 				}
-				wantError := state == "missing cluster" || (state == "missing node pool" && kind != "node pool create") || (state == "deleting node pool" && kind == "node pool update")
+				wantError := state == "missing cluster" || ((state == "missing node pool" || state == "deleting node pool missing provider") && kind != "node pool create")
 				if wantError {
 					require.ErrorContains(t, err, "cannot load service provider")
 					require.ErrorContains(t, err, cluster.ID.String())
@@ -180,6 +176,43 @@ func TestAdmissionProviderCache(t *testing.T) {
 				require.Equal(t, []*coreapi.NodePool{pool}, cachedPools, "admission must not mutate cached state")
 			})
 		}
+	}
+}
+
+func TestClusterUpdateAdmissionDeletingNodePoolVersionSkew(t *testing.T) {
+	for _, poolVersion := range []string{"4.19.0", "4.18.0"} {
+		t.Run(poolVersion, func(t *testing.T) {
+			f := NewTestFrontend(t)
+			f.resourcesDBClient = nil
+			cluster := coreapitesting.MinimumValidClusterTestCase()
+			cluster.CustomerProperties.Version.ID = "4.20"
+			desired := cluster.DeepCopy()
+			desired.CustomerProperties.Version.ID = "4.21"
+			pool := coreapi.NewDefaultNodePool(metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestNodePoolResourceID)), coreapitesting.TestLocation)
+			pool.SetResourceID(pool.ID)
+			pool.SetPartitionKey(pool.ID.SubscriptionID)
+			pool.Properties.Version.ID = poolVersion
+			now := metav1.Now()
+			pool.ServiceProviderProperties.DeletionTimestamp = &now
+			poolInformer, _ := f.informers.NodePools()
+			require.NoError(t, poolInformer.GetStore().Add(pool.DeepCopy()))
+			clusterInformer, _ := f.informers.ServiceProviderClusters()
+			require.NoError(t, clusterInformer.GetStore().Add(newTestServiceProviderCluster(cluster.ID)))
+			providerPoolInformer, _ := f.informers.ServiceProviderNodePools()
+			require.NoError(t, providerPoolInformer.GetStore().Add(newTestServiceProviderNodePool(pool.ID)))
+			subscription := newTestSubscription(cluster.ID.SubscriptionID, coreapi.SubscriptionStateRegistered, nil)
+			op := operation.Operation{Type: operation.Update}
+			ac, err := f.newClusterAdmissionContext(t.Context(), op, subscription, desired, cluster.ID)
+			require.NoError(t, err)
+			validationErrs := admission.AdmitCluster(t.Context(), ac, op, desired, cluster)
+			if poolVersion == "4.19.0" {
+				require.Empty(t, validationErrs)
+			} else {
+				require.Len(t, validationErrs, 1)
+				require.Equal(t, "properties.version.id", validationErrs[0].Field)
+				require.Contains(t, validationErrs[0].Detail, "must not be more than two minor versions ahead of node pool")
+			}
+		})
 	}
 }
 

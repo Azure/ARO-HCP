@@ -230,15 +230,15 @@ func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation
 	}
 
 	clusterID := cluster.ID
-	spCluster, err := f.serviceProviderClusterLister.Get(ctx, clusterID.SubscriptionID, clusterID.ResourceGroupName, clusterID.Name)
+	serviceProviderCluster, err := f.serviceProviderClusterLister.Get(ctx, clusterID.SubscriptionID, clusterID.ResourceGroupName, clusterID.Name)
 	if err != nil {
 		// Do not expose a missing admission dependency as an ARM target 404.
 		return nil, fmt.Errorf("cannot load service provider cluster %s for node pool admission: %v", clusterID, err)
 	}
-	var spNodePool *coreapi.ServiceProviderNodePool
+	var serviceProviderNodePool *coreapi.ServiceProviderNodePool
 	if op.Type == operation.Update {
 		nodePoolID := originalNodePool.ID
-		spNodePool, err = f.serviceProviderNodePoolLister.Get(ctx, nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName, nodePoolID.Parent.Name, nodePoolID.Name)
+		serviceProviderNodePool, err = f.serviceProviderNodePoolLister.Get(ctx, nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName, nodePoolID.Parent.Name, nodePoolID.Name)
 		if err != nil {
 			return nil, fmt.Errorf("cannot load service provider node pool %s for node pool admission: %v", nodePoolID, err)
 		}
@@ -249,8 +249,8 @@ func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation
 		Subscription:            subscription,
 		OriginalNodePool:        originalNodePool.DeepCopy(),
 		Cluster:                 cluster,
-		ServiceProviderCluster:  spCluster,
-		ServiceProviderNodePool: spNodePool,
+		ServiceProviderCluster:  serviceProviderCluster,
+		ServiceProviderNodePool: serviceProviderNodePool,
 	}, nil
 }
 

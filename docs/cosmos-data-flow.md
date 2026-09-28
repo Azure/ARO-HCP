@@ -168,7 +168,7 @@ informer/server goroutines and closes listeners, including an unserved API liste
 | Admission consumer | Cached inputs | Live inputs / effects retained |
 |---|---|---|
 | Cluster PUT create and deployment preflight | `newClusterAdmissionContext` lists clusters in the request subscription, then node pools under those cached clusters. [Collision checks](../internal/admission/admit_cluster.go) use these inventories for managed-resource-group name, subnet and NSG reuse. | Subscription and request-target existence reads remain live. Preflight does not persist resources. |
-| Cluster PUT/PATCH update | The same [context builder](../frontend/pkg/frontend/cluster.go) gets SPC and lists the cluster's node pools, pairing each nondeleting pool with its cached SPNP for version-skew admission. | Subscription and target-cluster reads remain live; the resource/operation transaction is unchanged. |
+| Cluster PUT/PATCH update | The same [context builder](../frontend/pkg/frontend/cluster.go) gets SPC and lists the cluster's node pools, pairing every cached pool, including deleting pools, with its cached SPNP for version-skew admission. | Subscription and target-cluster reads remain live; the resource/operation transaction is unchanged. |
 | Node-pool PUT create | [Node-pool admission setup](../frontend/pkg/frontend/node_pool.go) gets the parent SPC for control-plane version state; no SPNP is required for create. | Subscription, parent-cluster and target-existence reads remain live; the resource/operation transaction is unchanged. |
 | Node-pool PUT/PATCH update | The same node-pool context builder gets the parent SPC and target SPNP for version validation. | Subscription, parent-cluster and target-node-pool reads remain live; the resource/operation transaction is unchanged. |
 | Explicit node-pool DELETE | [DeleteNodePool](../frontend/pkg/frontend/node_pool.go) lists sibling pools for the [best-effort last-pool check](../internal/admission/admit_nodepool.go), which rejects inventories of at most one pool. | The target node pool, provisioning-state conflict checks and operation handling remain live; the delete transaction is unchanged. |
@@ -182,10 +182,10 @@ with backend [CreateServiceProviderCluster](#createserviceprovidercluster) and
 [CreateServiceProviderNodePool](#createserviceprovidernodepool), not an admission
 side effect of the endpoint writes listed below.
 
-Cluster-update admission skips cached node pools whose
-`ServiceProviderProperties.DeletionTimestamp` is non-nil, before looking up SPNP,
-matching the backend's [version-skew inventory](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go).
-A nondeleting cached pool with missing SPNP is an error, even if its parent
+Cluster-update admission includes cached node pools whose
+`ServiceProviderProperties.DeletionTimestamp` is non-nil: deletion intent does not
+mean the pool is gone, so its version still constrains admission.
+Any cached pool with missing SPNP is an error, even if its parent
 node-pool resource has already disappeared from Cosmos.
 
 These inputs are **best effort and eventually consistent**, not uniqueness
@@ -1408,7 +1408,7 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 ![Cluster update controller digraph](diagrams/controller-flows/cluster-update.png)
 
-[Frontend update admission](../frontend/pkg/frontend/cluster.go) combines cached node-pool inventory and SPC/SPNP state with a live target-cluster read. Deleting cached pools are skipped before SPNP lookup, consistent with backend version-skew checks. Missing required provider state produces a contextual internal error, with no GetOrCreate or live parent fallback. These [admission inputs remain best effort](#admission-caches-and-startup), not an atomic snapshot.
+[Frontend update admission](../frontend/pkg/frontend/cluster.go) combines cached node-pool inventory and SPC/SPNP state with a live target-cluster read. Deleting cached pools remain version-skew validation inputs and require cached SPNP state until they leave the inventory. Missing required provider state produces a contextual internal error, with no GetOrCreate or live parent fallback. These [admission inputs remain best effort](#admission-caches-and-startup), not an atomic snapshot.
 
 [Desired-version selection](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes and validation observations. Validation failures lasting at least five minutes also fail the operation with `InvalidResource` once the operation is at least five minutes old; sizing, identities and backup maintenance continue independently.
 

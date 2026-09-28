@@ -185,3 +185,33 @@ func TestFrontendAdmissionCacheLifecycle(t *testing.T) {
 		})
 	}
 }
+
+func TestFrontendRunReturnsServerErrors(t *testing.T) {
+	for _, failedServer := range []string{"metrics", "api"} {
+		t.Run(failedServer, func(t *testing.T) {
+			f := NewTestFrontend(t)
+			var err error
+			f.listener, err = net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			f.metricsListener, err = net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = f.listener.Close()
+				_ = f.metricsListener.Close()
+			})
+			if failedServer == "metrics" {
+				require.NoError(t, f.metricsListener.Close())
+			} else {
+				require.NoError(t, f.listener.Close())
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			require.ErrorIs(t, f.Run(ctx), net.ErrClosed, "server failure must survive cleanup")
+			require.NoError(t, ctx.Err(), "server failure must cancel Run without waiting for the caller")
+			_, err = f.listener.Accept()
+			require.ErrorIs(t, err, net.ErrClosed)
+			_, err = f.metricsListener.Accept()
+			require.ErrorIs(t, err, net.ErrClosed)
+		})
+	}
+}
