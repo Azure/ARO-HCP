@@ -359,7 +359,7 @@ spec:
   provider: azure
 ---
 # Source: backend/templates/servicemonitor.yaml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: aro-hcp-backend
@@ -370,6 +370,10 @@ spec:
     path: /metrics
     port: metrics
     scheme: http
+    metricRelabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
   namespaceSelector:
     matchNames:
     - 'aro-hcp'

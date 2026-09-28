@@ -888,7 +888,7 @@ spec:
             path: "/home/docker/azure-watson"
 ---
 # Source: arobit/templates/forwarder-servicemonitor.yaml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: arobit-forwarder
@@ -899,6 +899,10 @@ spec:
     path: /metrics
     port: metrics
     scheme: http
+    metricRelabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
   namespaceSelector:
     matchNames:
     - 'arobit'

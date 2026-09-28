@@ -86,7 +86,7 @@ clouds:
             image:
               registry: "mcr.microsoft.com/oss/v2"
               repository: "kubernetes/kube-state-metrics"
-              digest: "sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc"
+              sha256: "4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc"
           prometheusOperator:
             image:
               registry: "mcr.microsoft.com/oss/v2"

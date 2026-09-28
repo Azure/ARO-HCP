@@ -101,25 +101,40 @@ var _ = Describe("Engineering", func() {
 			}
 
 			checks := []metricCheck{
-				// SVC cluster services
+				// --- SVC cluster services ---
 				{`frontend_health`, "frontend health (SVC)"},
+				{`frontend_http_requests_total`, "frontend HTTP request counts (SVC)"},
 				{`backend_health`, "backend health (SVC)"},
 				{`fleet_controller_health`, "fleet controller health (SVC)"},
-				{`frontend_http_requests_total`, "frontend HTTP request counts (SVC)"},
+				{`api_inbound_request_count`, "cluster-service inbound requests (SVC)"},
+				{`maestro_build_info`, "maestro server build info (SVC)"},
+				{`public_ip_count_by_region_service_tag`, "aro-hcp-exporter public IP count (SVC)"},
+				{`process_start_time_seconds{namespace="aro-hcp-admin-api"}`, "admin API liveness (SVC)"},
 
-				// MGMT cluster services
+				// --- MGMT cluster services ---
 				{`kube_applier_health`, "kube-applier health (MGMT)"},
-				{`maestro_build_info`, "maestro build info (MGMT)"},
-				{`hypershift_hostedclusters`, "hypershift hosted clusters gauge (MGMT)"},
 				{`capacity_reporting_sync_errors_total`, "mgmt-agent capacity reporting sync errors (MGMT)"},
+				{`hypershift_hostedclusters`, "hypershift hosted clusters gauge (MGMT)"},
+				{`process_start_time_seconds{namespace="maestro", container="metrics-proxy"}`, "maestro agent liveness (MGMT)"},
+				{`process_start_time_seconds{namespace="velero", container="velero"}`, "velero server liveness (MGMT)"},
+				{`process_start_time_seconds{namespace="velero", container="node-agent"}`, "velero node-agent liveness (MGMT)"},
+
+				// --- Shared infra (runs on SVC + MGMT) ---
+				{`fluentbit_uptime`, "arobit forwarder uptime"},
+
+				// Not asserted here: acrpull, acm clusterlifecycle-state-metrics-v2, and
+				// swift-recorder deliver no samples to the SVC AMW today (verified empty
+				// via the workspace __name__ listing). ksm-crs hostedClusterAPI_* is
+				// per-HostedCluster, so it is covered by the HCP-KSM test instead.
 			}
 
 			By("Polling Azure Monitor for service metrics from both clusters")
 			Eventually(func(g Gomega) {
 				for _, c := range checks {
+					GinkgoWriter.Printf("Checking %s\n", c.description)
 					client.expectMetric(ctx, g, c.query, c.description)
 				}
-			}).WithTimeout(15*time.Minute).WithPolling(30*time.Second).WithContext(ctx).Should(Succeed(),
+			}).WithTimeout(3*time.Minute).WithPolling(30*time.Second).WithContext(ctx).Should(Succeed(),
 				"not all expected service metrics appeared in Azure Monitor")
 
 			for _, c := range checks {

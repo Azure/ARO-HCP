@@ -1,1 +1,5 @@
 enabled: false
+# Always supplied from config (.mgmt.monitoringApiGroup) via the templatize-rendered
+# values.yaml; declared here only so the chart documents the key. Do not hardcode a
+# group here or it will mask the per-cluster config value.
+monitoringApiGroup: ""

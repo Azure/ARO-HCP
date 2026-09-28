@@ -5,5 +5,5 @@ pull-chart:
 .PHONY: pull-chart
 
 test:
-	go test -count=1 -v scheduling_test.go
+	go test -count=1 -v crds_test.go
 .PHONY: test

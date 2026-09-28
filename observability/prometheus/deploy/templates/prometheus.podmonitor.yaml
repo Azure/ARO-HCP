@@ -1,3 +1,4 @@
+{{- if or (eq .Values.monitoringApiGroup "monitoring.coreos.com") (ne .Values.prometheusSpec.hcpRemoteWriteUrl "NONE") }}
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -9,7 +10,12 @@ spec:
   podMetricsEndpoints:
   - portNumber: 9090
     path: /metrics
+    metricRelabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
   selector:
     matchLabels:
       app.kubernetes.io/instance: prometheus
       app.kubernetes.io/managed-by: prometheus-operator
+{{- end }}

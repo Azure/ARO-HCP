@@ -1,0 +1,5 @@
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
+namespace: acrpull
+image: "{{ .acrPull.image.registry }}/{{ .acrPull.image.repository }}@{{ .acrPull.image.digest }}"
+ttlRotationFraction: 0.5
+replicas: 2

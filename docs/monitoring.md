@@ -2,101 +2,88 @@
 
 ## Overview
 
-ARO-HCP uses a combination Azure Managed Prometheus agents and self-managed Prometheus to monitor both the service/management AKS clusters and the Hosted Control Planes. Metrics are collected via Prometheus Server and remote written to regional Azure Monitor Workspaces. A global instance of Azure Managed Grafana references every Azure Monitor Workspace in the cloud environment as a data source.
+ARO-HCP collects Prometheus metrics from the service (SVC) and management (MGMT) AKS clusters and from the Hosted Control Planes (HCPs), and ingests them into regional **Azure Monitor Workspaces (AMW)**. A single global **Azure Managed Grafana** instance references every AMW in the cloud environment as a data source.
 
-## Prometheus Stack
+Each region has **two AMWs**:
 
-### Azure Managed Prometheus
+- **Service AMW** — infrastructure and application/service metrics.
+- **HCP AMW** — Hosted Control Plane metrics (OCM namespaces).
 
-Azure Managed Prometheus is enabled through the `aks-cluster-base.bicep` module via the `azureMonitorProfile.metrics.enabled: true` setting. This automatically provisions Azure Monitor agents on AKS nodes and enables comprehensive infrastructure monitoring.
+Metrics are routed to the correct AMW by a per-sample label, `microsoft_metrics_include_label` (`service` or `hcp`); see [Metric routing](#metric-routing).
 
-**Azure Managed Prometheus Configuration:**
-- Configured via `ama-metrics-settings-configmap` in the `kube-system` namespace
-- **Scrape Interval**: 30 seconds for all targets  
-- **Built-in Targets Enabled**: kubelet, coredns, cadvisor, kubeproxy, apiserver, nodeexporter, control plane components (etcd, scheduler, controller-manager), and network observability (Retina, Hubble, Cilium)
-- **Disabled Targets**: kube-state-metrics (handled by self-managed Prometheus), Windows exporters
-- **Metadata Collection**: Supports custom `metricLabelsAllowlist` and `metricAnnotationsAllowList` via Bicep parameters
+## Collection modes
 
-Azure Managed Prometheus handles **cluster-level infrastructure metrics** and automatically forwards them to the regional Azure Monitor Workspace associated with each AKS cluster.
+How metrics are scraped is controlled by a single config lever, **`monitoringApiGroup`**, set per cluster type (`svc` / `mgmt`) in `config/config.yaml` and the cloud overlays:
 
-### Self-Managed Prometheus Stack
+| `monitoringApiGroup`      | Mode        | Scraper                                              |
+| ------------------------- | ----------- | --------------------------------------------------- |
+| `azmonitoring.coreos.com` | **AMA**     | Azure Monitor managed Prometheus (AKS add-on)       |
+| `monitoring.coreos.com`   | **Legacy**  | Self-managed (OSS) `kube-prometheus-stack` Prometheus |
 
-A self-managed Prometheus stack is deployed to service and management AKS clusters using the community-maintained [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) Helm chart. This Prometheus instance handles **application and service metrics** from both service/management clusters and hosted control planes.
+The value is the Kubernetes API group used for `ServiceMonitor`/`PodMonitor` CRDs. Every service's monitor template renders its `apiVersion` from this lever (`{{ .Values.monitoringApiGroup }}/v1`), so the same chart targets either the AMA operator or the OSS operator without change.
 
-**Configuration:**
-- Helm chart customized via `observability/prometheus/values.yaml` (trimmed-down version of upstream)
-- **Replicas and shards** configurable via cluster configuration in `config/config.yaml`
-- **Global Discovery**: Monitors all namespaces (`serviceMonitorNamespaceSelector: {}`, `podMonitorNamespaceSelector: {}`)
-- **Workload Identity**: Uses Microsoft Entra Workload Identity with "Monitoring Metrics Publisher" role on DCRs
+**Current rollout:** AMA in all **dev** environments and **int**; **stg** and **prod** remain on legacy OSS Prometheus until AMA is validated there.
 
-**Dual Remote Write Architecture:**
-Self-managed Prometheus implements namespace-based routing to two Azure Monitor Workspaces:
+Azure Monitor managed Prometheus itself is enabled on every cluster via `azureMonitorProfile.metrics.enabled: true` in `aks-cluster-base.bicep`; the `monitoringApiGroup` lever only decides whether AMA or OSS Prometheus does the application scraping.
 
-1. **Service Monitoring Workspace** (`prometheusSpec.remoteWriteUrl`):
-   - Receives metrics from **all namespaces except** those matching `^ocm-<environment>.*`
-   - Handles infrastructure services, applications, and general cluster metrics
+## AMA mode
 
-2. **HCP Monitoring Workspace** (`prometheusSpec.hcpRemoteWriteUrl`):
-   - Receives metrics **only from** namespaces matching `^ocm-<environment>.*`  
-   - Handles Hosted Control Plane specific metrics (OCM-related components)
+### SVC clusters (pure AMA)
 
-**Deployment:**
-The Prometheus stack is deployed via `dev-infrastructure/mgmt-pipeline.yaml` and `dev-infrastructure/svc-pipeline.yaml` pipelines.
+- `kube-prometheus-stack` deploys **CRDs only** — the OSS operator, bundled kube-state-metrics, and default alerting rules are disabled. No OSS Prometheus server runs.
+- Services emit their `ServiceMonitor`/`PodMonitor` directly in the `azmonitoring.coreos.com` group, which the AMA-managed operator discovers.
+- AMA scrapes service metrics and kube-state-metrics (its built-in KSM is enabled in AMA mode) into the **Service AMW**.
 
-## Application Metrics Collection
+### MGMT clusters (hybrid CRD layout)
 
-Application metrics are collected through Kubernetes custom resources that define scraping targets for the self-managed Prometheus stack.
+MGMT clusters host both our services and the HCPs, so both API groups are in play:
 
-### ServiceMonitor and PodMonitor Resources
+- The OSS prometheus-operator and its CRDs **stay deployed** — HyperShift emits HCP component monitors in the `monitoring.coreos.com` group — but, as on SVC, **no OSS Prometheus server runs**. AMA does all scraping.
+- Our own services emit monitors directly in `azmonitoring.coreos.com` (via `monitoringApiGroup`), discovered by AMA → **Service AMW**.
+- Two mgmt-agent controllers bridge HCP metrics into AMA:
+  - **`monitortranslator`** copies `monitoring.coreos.com` `ServiceMonitor`/`PodMonitor` resources in OCM namespaces into `azmonitoring.coreos.com` equivalents so AMA can discover them. It injects a metric-relabel rule stamping `microsoft_metrics_include_label: hcp` so the samples route to the **HCP AMW**. It skips the per-HCP KSM monitor, which `ksmhcp` already creates directly in the target group.
+  - **`amanetpolicy`** creates a `NetworkPolicy` (`ama-metrics-allow`) in each HCP namespace permitting AMA metrics pods (in `kube-system`) to scrape the HCP Prometheus endpoints.
 
-Each service deployed to AKS clusters includes either a `ServiceMonitor` or `PodMonitor` resource in its Helm chart. The Prometheus stack automatically discovers these resources across **all namespaces** via global selectors.
+### AMA configuration
 
-**Scrape Interval**: 30 seconds (most services)
+AMA settings are deployed by the **`service-lifecycle`** chart (to `kube-system`):
 
-## Hosted Control Plane Metrics
+- `ama-metrics-settings-configmap` — scrape targets and intervals (30s). `kubestate` is enabled only in AMA mode.
+- `ama-metrics-prometheus-config` — a custom scrape job that defaults `microsoft_metrics_include_label` to `service` when unset.
+- `ama-metrics-configmap-reader` — RBAC letting the AMA service account read these ConfigMaps.
 
-Hosted Control Plane (HCP) metrics are scraped by the same Prometheus server that scrapes services on the management cluster.
+### HostedCluster custom-resource metrics
 
-To enable this, the `prometheus` namespace in the **management cluster** includes an additional label (`network.openshift.io/policy-group=monitoring`). This label is required to allow traffic through the network policy that governs Prometheus scrape access to the Hosted Control Plane namespaces.
+AMA's built-in kube-state-metrics cannot produce metrics from `HostedCluster` custom resources (the SLI/SLA availability signals). A standalone **`kube-state-metrics`** chart (`observability/kube-state-metrics/`, deployed to the `ksm-crs` namespace on MGMT clusters) fills this gap via a custom-resource-state config that emits `hostedClusterAPI_*` series. Per-HCP worker-node KSM metrics are still handled by the `ksmhcp` controller; see [`mgmt-agent/pkg/controller/ksmhcp/README.md`](../mgmt-agent/pkg/controller/ksmhcp/README.md).
 
-Each **Hosted Control Plane** will have multiple `ServiceMonitor` and `PodMonitor` resources for core control plane components such as **etcd**, **kube-apiserver**, and others.  These monitors define how Prometheus should scrape metrics from each component, including details like the endpoint, port, and **TLS configuration**.  TLS settings in the monitors reference Kubernetes **Secrets** stored in the **hosted cluster namespace**. These secrets contain the certificates required to establish secure connections to the metrics endpoints.  The Prometheus server, running in the **management cluster**, has access to these secrets and uses them to configure TLS connections when scraping the Hosted Control Plane component metrics.
+## Legacy OSS mode (stg/prod)
 
-### HCP Worker Node Metrics
+Where `monitoringApiGroup` is `monitoring.coreos.com`, a self-managed `kube-prometheus-stack` Prometheus (`observability/prometheus/`) scrapes all application and HCP metrics and remote-writes them to the AMWs:
 
-HCP worker nodes are only visible to the HCP's own API server, not the management cluster's. To monitor their health, the mgmt-agent deploys a [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics) instance per HCP that scrapes node metrics directly from the HCP API server. These metrics are routed to the HCP Monitoring Workspace via the existing namespace-based remote write filter.
+- Monitors are discovered cluster-wide (`serviceMonitorNamespaceSelector: {}`).
+- Namespace-based routing: samples from `ocm-<environment>.*` namespaces are kept for the HCP remote-write and tagged `microsoft_metrics_include_label: hcp`; everything else goes to the Service AMW.
+- Workload Identity with the "Monitoring Metrics Publisher" role authenticates remote-write to the per-cluster DCE.
 
-See [`mgmt-agent/pkg/controller/ksmhcp/README.md`](../mgmt-agent/pkg/controller/ksmhcp/README.md) for implementation details.
+The MGMT `prometheus` namespace carries the `network.openshift.io/policy-group=monitoring` label so network policy permits scraping HCP namespaces, and HCP component monitors reference TLS secrets in the hosted-cluster namespace that the management-cluster Prometheus can read.
 
-## Metrics Infrastructure
+### Migration cleanup
 
-### Dual Workspace Architecture
+Once a cluster has moved to AMA, the `*.CleanupPrometheus` pipelines (`dev-infrastructure/{svc,mgmt}-cleanup-prometheus.pipeline.yaml`, run via `scripts/cleanup-prometheus.sh`) remove the OSS prometheus namespace and cluster-scoped resources. The script no-ops unless `MONITORING_API_GROUP=azmonitoring.coreos.com`, and on MGMT clusters it preserves the CRDs (still needed by HyperShift and the translator).
 
-ARO-HCP implements two Azure Monitor Workspace to separate metrics based on their source and purpose:
+## Metric routing
 
-**1. Service Monitoring Workspace (Primary)**
-- **Scope**: Infrastructure services, applications, and general cluster metrics
-- **Sources**: Azure Managed Prometheus (infrastructure) + Self-managed Prometheus (applications)
-- **Namespace Filter**: All namespaces **except** `ocm-<environment>.*`
-- **Data Flow**: 
-  - Azure Managed Prometheus → Direct ingestion
-  - Self-managed Prometheus → Remote write with namespace filtering
+Regardless of mode, every sample is tagged with `microsoft_metrics_include_label` (`service` or `hcp`), and routing to the two AMWs is done by the **Data Collection Rules (DCR)**:
 
-**2. HCP Monitoring Workspace (Hosted Control Planes)**
-- **Scope**: Hosted Control Plane specific metrics
-- **Sources**: Self-managed Prometheus only
-- **Namespace Filter**: **Only** namespaces matching `ocm-<environment>.*`
-- **Data Flow**: Self-managed Prometheus → Remote write with namespace filtering
+- Each AKS cluster has a **Service DCR** (`labelIncludeFilter: microsoft_metrics_include_label=service` → Service AMW) and, where an HCP AMW exists, an **HCP DCR** (`labelIncludeFilter: ...=hcp` → HCP AMW), each wired to the cluster with its own **Data Collection Rule Association (DCRA)**.
+- Metrics reach the DCRs through a per-cluster **Data Collection Endpoint (DCE)**, which is the metrics-ingestion (remote-write) target.
 
-This separation ensures clean metric isolation between platform infrastructure/services and customer data.
+This label-filtered, dual-DCR design keeps platform/service metrics and customer HCP metrics cleanly isolated.
 
-### Global Grafana
+## Global Grafana
 
-A single **Azure Managed Grafana** instance is deployed globally and configured with data sources for **both workspace types** in each region. This provides:
-- Unified visualization across all services and Hosted Control Planes
-- Region-agnostic dashboard experience
-- Consolidated alerting and monitoring workflows
+A single **Azure Managed Grafana** instance is deployed globally with data sources for both AMW types in every region, providing unified, region-agnostic dashboards and alerting across services and HCPs.
 
-> **Note**: In staging, integration, and production environments, public network access to the Grafana instance may be disabled. If so, access requires connection to the **MSFT Corp VPN**. Dev environment Grafana is publicly accessible. See [Grafana VPN Access](sops/grafana-vpn-access.md) for troubleshooting.
+> **Note:** In staging, integration, and production, public network access to Grafana may be disabled, requiring the **MSFT Corp VPN**. Dev Grafana is publicly accessible. See [Grafana VPN Access](sops/grafana-vpn-access.md).
 
 ### ADX integration fabrics
 
@@ -124,32 +111,9 @@ Use this rollout order:
 
 Narrowing the geography allowlist removes owned integration fabrics that are no longer selected. Disabling integration reconciliation leaves fabrics unchanged, and Kusto principal assignments are deployed incrementally. Rollback therefore requires explicit removal of both the integration fabrics and the Viewer assignment.
 
-### Regional Azure Monitor Workspace
+## Alerting
 
-Each region contains **two Azure Monitor Workspaces (AMW)**:
-1. **Service AMW**: Receives infrastructure and application metrics
-2. **HCP AMW**: Receives Hosted Control Plane metrics
-
-Metrics are ingested via associated **Data Collection Rules (DCR)** and **Data Collection Endpoints (DCE)** for each AKS cluster.
-
-### Alerting
-
-Prometheus metrics written to Azure Monitor Workspaces can be queried using PromQL. Alert rules are defined directly within an Azure Monitor Workspace, and when triggered they generate incidents in **IcM** (Internal Case Management system).
-
-### Per-Cluster Data Collection Rule (DCR)
-
-Each AKS cluster has its own **Data Collection Rule** that defines:
-
-- **Source**: Typically a **DCE**, where Prometheus writes the metrics.
-- **Destination**: The **Azure Monitor Workspace** that stores the metrics.
-- **Routing rules**: Optional rules to filter or route metrics based on labels (e.g., sending certain metrics to specific AMWs based on cluster or workload metadata).
-
-### Per-Cluster Data Collection Endpoint (DCE)
-
-A **Data Collection Endpoint** provides a set of Azure-hosted endpoints that accept telemetry data (metrics, logs, traces). In ARO-HCP:
-
-- Only **metrics** are sent to the DCE.
-- The **metrics ingestion endpoint** on the DCE acts as the **remote write target** for the Prometheus server running in the AKS cluster.
+Prometheus metrics in the AMWs are queried with PromQL. Alert rules are defined directly in the AMW (see `dev-infrastructure/modules/metrics/rules/`); when triggered they raise incidents in **IcM**. A per-cluster `underlay_clusters{cluster=...,cluster_type=...}` series, emitted at deploy time by `underlay-clusters-metric.bicep`, provides the authoritative SVC/MGMT cluster inventory that alerts scope against.
 
 ## Azure Front Door Monitoring
 

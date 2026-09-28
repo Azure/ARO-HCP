@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 imageRegistry: "{{ .acr.svc.name }}.azurecr.io"
 imageRootRepository: acm-d-cache
 finalizeMceJobImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
