@@ -13,10 +13,7 @@ set -euo pipefail
 APPLICATION_NAME="OpenShift Release Bot MSFT Test"
 TENANT_ID="93b21e64-4824-439a-b893-46c9b2a51082"
 SECRET_COLLECTION="hcm-aro"
-SECRET_GROUPS=(
-    "aro-hcp-prod"
-    "aro-hcp-msft-test-tenant"
-)
+SECRET_GROUP="aro-hcp-prod"
 SECRET_MANAGER_CLI="${SECRET_MANAGER_CLI:-sm}"
 CREDENTIAL_LIFETIME_YEARS="${CREDENTIAL_LIFETIME_YEARS:-2}"
 
@@ -143,19 +140,15 @@ write_temp_value "${CLIENT_SECRET}" "${TEMP_DIR}/client-secret"
 write_temp_value "${TENANT_ID}" "${TEMP_DIR}/tenant"
 
 header "Updating Google Secret Manager"
-for group in "${SECRET_GROUPS[@]}"; do
-    echo "Updating ${SECRET_COLLECTION}/${group} identity fields"
-    update_secret_field "${group}" "client-id" "${TEMP_DIR}/client-id"
-    update_secret_field "${group}" "client-secret" "${TEMP_DIR}/client-secret"
-    update_secret_field "${group}" "tenant" "${TEMP_DIR}/tenant"
-done
+echo "Updating ${SECRET_COLLECTION}/${SECRET_GROUP} identity fields"
+update_secret_field "${SECRET_GROUP}" "client-id" "${TEMP_DIR}/client-id"
+update_secret_field "${SECRET_GROUP}" "client-secret" "${TEMP_DIR}/client-secret"
+update_secret_field "${SECRET_GROUP}" "tenant" "${TEMP_DIR}/tenant"
 
 header "Credential Rotation Complete"
 echo ""
 echo "Updated Test Tenant identity fields in:"
-for group in "${SECRET_GROUPS[@]}"; do
-    echo "  - ${SECRET_COLLECTION}/${group}"
-done
+echo "  - ${SECRET_COLLECTION}/${SECRET_GROUP}"
 echo ""
 echo "Existing application credentials remain valid."
 echo "After secret propagation and CI validation, list credentials with:"

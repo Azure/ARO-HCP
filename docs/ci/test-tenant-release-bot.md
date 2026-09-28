@@ -18,9 +18,7 @@ be used to rotate or repair `aro-hcp-prod-rh`.
 - Azure application: `OpenShift Release Bot MSFT Test`
 - tenant: Test Test Azure Red Hat OpenShift
 - GSM collection: `hcm-aro`
-- GSM groups containing this identity:
-  - `aro-hcp-prod`, used by E2E jobs selecting the Test Tenant customer shard
-  - `aro-hcp-msft-test-tenant`, used by Test Tenant app-registration cleanup
+- GSM group: `aro-hcp-prod`
 - credential-management scripts:
   - `dev-infrastructure/openshift-ci/create-test-tenant-openshift-release-bot.sh`
   - `dev-infrastructure/openshift-ci/rotate-test-tenant-openshift-release-bot-credentials.sh`
@@ -72,7 +70,7 @@ From `dev-infrastructure/openshift-ci/`:
 
 The script creates or updates the Test Tenant application, grants its
 configured permissions and subscription roles, and invokes the rotation script
-to update both Test Tenant GSM groups.
+to update the Test Tenant identity in `aro-hcp-prod`.
 
 ## Credential Rotation
 
@@ -93,7 +91,7 @@ The script:
 
 - appends a new credential rather than invalidating the active one
 - validates that the new credential can authenticate
-- updates the three identity fields in both GSM groups
+- updates the three identity fields in `aro-hcp-prod`
 - retains previous application credentials for rollback during propagation
 
 Google Secret Manager values cannot be read back. Previous secret versions are
@@ -105,7 +103,6 @@ The Secret Manager CLI can verify metadata, not values:
 
 ```bash
 "${SECRET_MANAGER_CLI}" describe -c hcm-aro aro-hcp-prod/client-secret
-"${SECRET_MANAGER_CLI}" describe -c hcm-aro aro-hcp-msft-test-tenant/client-secret
 ```
 
 After propagation:
@@ -114,7 +111,7 @@ After propagation:
 2. verify authentication uses the `aro-hcp-prod` profile
 3. verify the
    `delete-expired-msft-test-tenant-app-registrations` periodic succeeds with
-   `aro-hcp-msft-test-tenant`
+   the same profile
 4. only then delete superseded application credentials by key ID
 
 ## Recovery
@@ -123,7 +120,7 @@ The rotation script never deletes old application credentials. If GSM was
 updated incorrectly:
 
 1. create another credential for the same Test Tenant application
-2. rerun the rotation workflow to update both GSM groups
+2. rerun the rotation workflow to update `aro-hcp-prod`
 3. wait for secret propagation
 4. rerun both validation jobs
 
