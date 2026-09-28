@@ -112,13 +112,14 @@ func TestRegistryAcquireLeaseDiagnostics(t *testing.T) {
 					},
 				},
 			}}}
+			var assetInventories []slots.AssetInventory
 			if test.assetInventory {
-				request.AssetInventories = []slots.AssetInventory{{AssetPool: slots.AssetPool{Name: "bundles", Kind: slots.KindInfrastructureIdentities}}}
+				assetInventories = []slots.AssetInventory{{AssetPool: slots.AssetPool{Name: "bundles", Kind: slots.KindInfrastructureIdentities}}}
 			}
 			if test.journal {
 				request.LeaseJournal = &slots.LeaseJournal{}
 			}
-			if err := registry.AcquireLease(context.Background(), request); err == nil || err.Error() != test.want {
+			if err := registry.AcquireLease(context.Background(), request, assetInventories); err == nil || err.Error() != test.want {
 				t.Fatalf("expected %q, got %v", test.want, err)
 			}
 			if len(calls) != 0 {
@@ -185,7 +186,9 @@ func TestRegistryValidatesAllRequirementsBeforeLeaseHandlers(t *testing.T) {
 				},
 			}}}
 			for _, operation := range []func(context.Context, LeaseRequest) error{
-				registry.AcquireLease,
+				func(ctx context.Context, request LeaseRequest) error {
+					return registry.AcquireLease(ctx, request, nil)
+				},
 				registry.AdmitLease,
 				func(ctx context.Context, request LeaseRequest) error {
 					return registry.PublishLease(ctx, request, slots.NewRuntimeContractBuilder())

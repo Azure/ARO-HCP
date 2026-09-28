@@ -721,8 +721,8 @@ func (o *AcquireOptions) finalizeV2Lease(ctx context.Context, pool slots.Pool, l
 	if err != nil {
 		return err
 	}
-	request := assets.LeaseRequest{AcquiredSlotState: state, SelectedClusterProfileDir: profile, AssetInventories: o.AssetInventories, LeaseJournal: journal}
-	if err := o.Registry.AcquireLease(ctx, request); err != nil {
+	request := assets.LeaseRequest{AcquiredSlotState: state, SelectedClusterProfileDir: profile, LeaseJournal: journal}
+	if err := o.Registry.AcquireLease(ctx, request, o.AssetInventories); err != nil {
 		return err
 	}
 	if err := journal.Persist(); err != nil {

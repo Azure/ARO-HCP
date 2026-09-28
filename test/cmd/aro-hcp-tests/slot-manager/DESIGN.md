@@ -314,8 +314,11 @@ filter. Each handler receives only the primary pools that declare its kind
 and the referenced asset inventories. Inventory capacities remain derived
 from the whole catalog, never from that scoped request.
 
-Requests name their data explicitly: `AssetInventories`, `LeaseJournal`, and
-`AcquiredSlotState`. Each `AssetInventory.AssetPool` is a pool definition;
+`PoolRequest.AssetInventories` supplies inventory for pool management.
+Lease acquisition receives inventory explicitly through `Registry.AcquireLease`;
+the shared `LeaseRequest` carries `LeaseJournal` and `AcquiredSlotState`, not
+inventory needed only during acquisition.
+Each `AssetInventory.AssetPool` is a pool definition;
 each leased `ExpandedSlot.AssetRequirements` entry refers to an independent pool by
 `AssetRequirement.AssetPoolName`. `AssetInventoryForRequirement` matches both
 the pool name and asset kind. These Go names do not change catalog or acquired

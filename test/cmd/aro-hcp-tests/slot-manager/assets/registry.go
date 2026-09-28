@@ -46,11 +46,9 @@ type PoolRequest struct {
 	Out io.Writer
 }
 
-// LeaseRequest shares inventory, durable ownership, and resolved slot state across
+// LeaseRequest shares durable ownership and resolved slot state across
 // acquisition, admission, publication, and release.
 type LeaseRequest struct {
-	// AssetInventories supplies the pools referenced by leased asset requirements.
-	AssetInventories []slots.AssetInventory
 	// LeaseJournal records acquisitions and returns; it is required for leased assets.
 	LeaseJournal *slots.LeaseJournal
 	// AcquiredSlotState holds the slot, resolved assets, and recorded leases.
@@ -157,10 +155,10 @@ func (r *Registry) ValidatePools(ctx context.Context, request PoolRequest, selec
 	return nil
 }
 
-// AcquireLease validates all demands before acquiring leased units, resolving
-// assets through their handlers, and persisting state. The caller must release
-// partial acquisitions on failure.
-func (r *Registry) AcquireLease(ctx context.Context, request LeaseRequest) error {
+// AcquireLease validates demands against assetInventories before acquiring leased
+// units, resolving assets through their handlers, and persisting state. The caller
+// must release partial acquisitions on failure.
+func (r *Registry) AcquireLease(ctx context.Context, request LeaseRequest, assetInventories []slots.AssetInventory) error {
 	if request.AcquiredSlotState == nil {
 		return errors.New("acquired slot state is nil")
 	}
@@ -168,7 +166,7 @@ func (r *Registry) AcquireLease(ctx context.Context, request LeaseRequest) error
 	if err != nil {
 		return err
 	}
-	if err := request.validateAcquisition(); err != nil {
+	if err := request.validateAcquisition(assetInventories); err != nil {
 		return err
 	}
 	for _, handler := range handlers {
@@ -176,7 +174,7 @@ func (r *Registry) AcquireLease(ctx context.Context, request LeaseRequest) error
 			if assetRequirement.Kind != handler.Kind() || assetRequirement.Allocation != slots.AllocationLeased {
 				continue
 			}
-			assetInventory, found := slots.AssetInventoryForRequirement(request.AssetInventories, assetRequirement)
+			assetInventory, found := slots.AssetInventoryForRequirement(assetInventories, assetRequirement)
 			if !found {
 				return fmt.Errorf("unresolved inventory for demanded asset %q in pool %q", assetRequirement.Kind, assetRequirement.AssetPoolName)
 			}
@@ -380,12 +378,12 @@ func assetInventoriesForPools(assetInventories []slots.AssetInventory, pools []s
 	return selected
 }
 
-func (request LeaseRequest) validateAcquisition() error {
+func (request LeaseRequest) validateAcquisition(assetInventories []slots.AssetInventory) error {
 	for _, assetRequirement := range request.AcquiredSlotState.Slot.AssetRequirements {
 		if assetRequirement.Allocation != slots.AllocationLeased {
 			continue
 		}
-		if _, found := slots.AssetInventoryForRequirement(request.AssetInventories, assetRequirement); !found {
+		if _, found := slots.AssetInventoryForRequirement(assetInventories, assetRequirement); !found {
 			return fmt.Errorf("unresolved inventory for demanded asset %q in pool %q", assetRequirement.Kind, assetRequirement.AssetPoolName)
 		}
 		if request.LeaseJournal == nil {
