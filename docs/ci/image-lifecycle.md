@@ -104,6 +104,24 @@ Tagging aro-hcp/aro-hcp-ci-images:aro-hcp-e2e-base-ci into pipeline:root
 
 That line means "import the shared CI build root into this specific job namespace."
 
+#### Maintaining The Shared Build Root
+
+`dev-infrastructure/openshift-ci/Dockerfile` extends the OpenShift builder
+image with the tools used by ARO HCP CI, including Azure CLI with Bicep,
+`kubectl`, `kubelogin`, `oc`, and `promtool`.
+
+Version sources are:
+
+- the builder image tag in the repository root `.ci-operator.yaml`
+- the `promtool` version in `dev-infrastructure/openshift-ci/versions.mk` and
+  the matching Dockerfile build argument
+- latest stable releases for `kubectl`, `kubelogin`, and `oc`
+
+For a Go toolchain update, update `.ci-operator.yaml` before `go.work` so the
+shared build root is available first. For a `promtool` update, change both
+`versions.mk` and the Dockerfile default. Run `make verify` and the
+`dev-infrastructure/openshift-ci` image tests after either change.
+
 ### Shared CI Test Runner Image
 
 `aro-hcp-e2e-tests` has a separate but related lifecycle.

@@ -190,4 +190,4 @@ When testing your own changes, treat the run as ordinary CI feedback. Remember t
 - [EV2 Retry Catcher](../ci/ev2-retry-catcher.md)
 - [Running E2E Tests In CI](../ci/e2e-testing.md)
 - [Renew the Prow Token](renew-prow-token.md)
-- [Test Tenant Access](test-test-tenant-access.md)
+- [Test Tenant OpenShift Release Bot](../ci/test-tenant-release-bot.md)

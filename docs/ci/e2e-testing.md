@@ -143,5 +143,5 @@ See [CI Execution](execution.md#periodic-jobs) for why these jobs exist and how 
 - [CI Execution](execution.md)
 - [CI Operations](operations.md)
 - [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md)
-- [Test Test Tenant Access](../sops/test-test-tenant-access.md)
+- [Test Tenant OpenShift Release Bot](test-tenant-release-bot.md)
 - [E2E Test Code](../../test/e2e/)

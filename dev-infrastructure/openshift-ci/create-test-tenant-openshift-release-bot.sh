@@ -2,6 +2,7 @@
 set -euo pipefail
 
 APPLICATION_NAME="OpenShift Release Bot MSFT Test"
+TENANT_ID="93b21e64-4824-439a-b893-46c9b2a51082"
 SUBSCRIPTIONS=(
     "ARO HCP E2E"
     "ARO HCP E2E - Staging"
@@ -32,8 +33,6 @@ GRAPH_APP_ID="00000003-0000-0000-c000-000000000000"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-APP_ID=$(az ad app list --display-name "${APPLICATION_NAME}" --query '[*]'.appId -o tsv)
-
 header() {
     echo ""
     echo "------"
@@ -48,7 +47,8 @@ grant_api_permission() {
   local type="$3" # "Scope" or "Role"
 
   # Check if permission already exists
-  local existing_permissions=$(az ad app show --id "${app_id}" --query "requiredResourceAccess[?resourceAppId=='${GRAPH_APP_ID}'].resourceAccess[].id" -o tsv)
+  local existing_permissions
+  existing_permissions=$(az ad app show --id "${app_id}" --query "requiredResourceAccess[?resourceAppId=='${GRAPH_APP_ID}'].resourceAccess[].id" -o tsv)
 
   if echo "${existing_permissions}" | grep -q "${permission}"; then
     echo "  Permission ${permission} already exists, skipping"
@@ -62,22 +62,38 @@ grant_api_permission() {
     --api-permissions "${permission}=${type}"
 }
 
-if [[ -z "${APP_ID}" ]]; then
-    header "Creating or update application ${APPLICATION_NAME}"
-    SP_OUTPUT=$(az ad sp create-for-rbac \
-        --years 10 \
-        --display-name "${APPLICATION_NAME}" \
-        -o json)
+if ! command -v az &> /dev/null; then
+    echo "Error: az CLI is not installed"
+    exit 1
+fi
 
-    # Extract variables from the JSON output
-    APP_ID=$(echo "${SP_OUTPUT}" | jq -r '.appId')
+if ! command -v jq &> /dev/null; then
+    echo "Error: jq is not installed"
+    exit 1
+fi
+
+ACTIVE_TENANT_ID=$(az account show --query tenantId -o tsv)
+if [[ "${ACTIVE_TENANT_ID}" != "${TENANT_ID}" ]]; then
+    echo "Error: az CLI is authenticated to tenant ${ACTIVE_TENANT_ID}, expected Test Tenant ${TENANT_ID}"
+    echo "Run: az login --tenant ${TENANT_ID}"
+    exit 1
+fi
+
+APP_ID=$(az ad app list --display-name "${APPLICATION_NAME}" --query '[*].appId' -o tsv)
+
+if [[ -z "${APP_ID}" ]]; then
+    header "Creating Test Tenant application ${APPLICATION_NAME}"
+    APP_ID=$(az ad app create \
+        --display-name "${APPLICATION_NAME}" \
+        --query appId \
+        -o tsv)
+    az ad sp create --id "${APP_ID}" --output none
 
     echo "Created service principal:"
     echo "  App ID: ${APP_ID}"
 else
-    header "Application ${APPLICATION_NAME} already exists with appId ${APP_ID}"
+    header "Test Tenant application ${APPLICATION_NAME} already exists with appId ${APP_ID}"
 fi
-
 
 for SUBSCRIPTION_NAME in "${SUBSCRIPTIONS[@]}"; do
     header "Assigning roles for subscription ${SUBSCRIPTION_NAME}"
@@ -119,16 +135,15 @@ grant_api_permission "${APP_ID}" "18a4783c-866b-4cc7-a460-3d5e5662c884" "Role"
 echo "Grant admin consent to the application"
 az ad app permission admin-consent --id "${APP_ID}"
 
-header "Storing Credentials in Vault"
+header "Storing Test Tenant Credentials in Google Secret Manager"
 
-# Call recycle script to handle credential generation and Vault storage
-# This rotates credentials once and updates the active PROD Vault secret.
-"${SCRIPT_DIR}/recycle-openshift-release-bot-creds.sh"
+"${SCRIPT_DIR}/rotate-test-tenant-openshift-release-bot-credentials.sh"
 
 header "Setup Complete"
 echo ""
 echo "Application: ${APPLICATION_NAME}"
 echo "App ID: ${APP_ID}"
 echo ""
-echo "Credentials stored in:"
-echo "  - kv/selfservice/hcm-aro/aro-hcp-prod"
+echo "Test Tenant identity fields updated in hcm-aro:"
+echo "  - aro-hcp-prod"
+echo "  - aro-hcp-msft-test-tenant"

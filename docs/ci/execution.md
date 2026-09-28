@@ -352,7 +352,11 @@ Today ARO HCP uses two acquire paths for those containers:
 
 Operationally, the important distinction is:
 
-- the slot-manager path resolves a slot from the catalog, exports `SELECTED_LOCATION`, `CUSTOMER_SUBSCRIPTION`, and `LEASED_MSI_CONTAINERS`, and then hands the same leased identity-container set to the test framework
+- the slot-manager path resolves a slot from the catalog, exports
+  `CUSTOMER_SUBSCRIPTION`, `CUSTOMER_SUBSCRIPTION_ID`,
+  `SELECTED_CLUSTER_PROFILE_DIR`, `SELECTED_LOCATION`, and
+  `LEASED_MSI_CONTAINERS`, and then hands the same leased identity-container
+  set to the test framework
 - the legacy path still requests environment-specific identity-container resource types in job config and populates `LEASED_MSI_CONTAINERS` directly
 
 This document intentionally does not freeze the currently active runtime region in prose. If you need the live region or override for a job, inspect the current `openshift/release` ci-operator config.
