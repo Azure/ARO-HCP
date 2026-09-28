@@ -624,6 +624,9 @@ func TestGatherDiagnosticQueryFailureRetainsKnownAlertArtifacts(t *testing.T) {
 		amwCalled.Store(true)
 		return amwReport{}
 	}
+	deps.collectReplicaPeaks = func(context.Context, map[string]*workspaceData) replicaPeakReport {
+		return replicaPeakReport{Start: o.TimeWindow.Start, End: o.TimeWindow.End}
+	}
 	deps.queryRange = func(_ context.Context, _ *http.Client, _ azcore.TokenCredential, endpoint, expression string, _, _ time.Time, step string) (*promutil.Response, error) {
 		if expression == "panel_first" || expression == "panel_second" {
 			panelQueries.Add(1)
