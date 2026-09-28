@@ -1,0 +1,7 @@
+{
+	"id": "58ddc0c7-65bc-5e2c-8070-325bf191b27c",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel/serviceProviderClusters/default",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters"
+}

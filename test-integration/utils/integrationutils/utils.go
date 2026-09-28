@@ -33,6 +33,7 @@ import (
 	"go.uber.org/goleak"
 
 	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
 	"k8s.io/utils/set"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -51,6 +52,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -191,7 +193,15 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	}
 	fakeAuditClient := &FakeOTELClient{}
 	metricsRegistry := prometheus.NewRegistry()
-	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, storageIntegrationTestInfo.ResourcesDBClient(), clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", true)
+	resourcesDBClient := storageIntegrationTestInfo.ResourcesDBClient()
+	// Fixtures can replace documents without advancing instanceVersion, and hard
+	// deletes have no change-feed event. Relist quickly in tests only.
+	frontendInformers := coreinformers.NewFrontendInformersWithRelistDuration(ctx, resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient, ptr.To(time.Second))
+	clusterInformer, _ := frontendInformers.Clusters()
+	nodePoolInformer, _ := frontendInformers.NodePools()
+	serviceProviderClusterInformer, _ := frontendInformers.ServiceProviderClusters()
+	serviceProviderNodePoolInformer, _ := frontendInformers.ServiceProviderNodePools()
+	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, resourcesDBClient, frontendInformers, clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", true)
 
 	mockKubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	testMCResourceID, err := azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
@@ -263,15 +273,19 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	frontendURL := fmt.Sprintf("http://%s", frontendListener.Addr().String())
 	adminURL := fmt.Sprintf("http://%s", adminListener.Addr().String())
 	testInfo := &IntegrationTestInfo{
-		StorageIntegrationTestInfo: storageIntegrationTestInfo,
-		ClusterServiceMock:         clusterServiceMockInfo,
-		ArtifactsDir:               storageIntegrationTestInfo.GetArtifactDir(),
-		FrontendURL:                frontendURL,
-		Frontend:                   aroHCPFrontend,
-		AdminURL:                   adminURL,
-		AdminAPI:                   adminAPI,
-		adminAPIListener:           adminListener,
-		KubernetesClientSets:       kubernetesClientSets,
+		StorageIntegrationTestInfo:      storageIntegrationTestInfo,
+		ClusterServiceMock:              clusterServiceMockInfo,
+		ArtifactsDir:                    storageIntegrationTestInfo.GetArtifactDir(),
+		FrontendURL:                     frontendURL,
+		Frontend:                        aroHCPFrontend,
+		ClusterInformer:                 clusterInformer,
+		NodePoolInformer:                nodePoolInformer,
+		ServiceProviderClusterInformer:  serviceProviderClusterInformer,
+		ServiceProviderNodePoolInformer: serviceProviderNodePoolInformer,
+		AdminURL:                        adminURL,
+		AdminAPI:                        adminAPI,
+		adminAPIListener:                adminListener,
+		KubernetesClientSets:            kubernetesClientSets,
 	}
 	return testInfo, nil
 }

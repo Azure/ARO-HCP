@@ -36,6 +36,16 @@ func (l *SliceClusterLister) List(ctx context.Context) ([]*coreapi.Cluster, erro
 	return l.Clusters, nil
 }
 
+func (l *SliceClusterLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*coreapi.Cluster, error) {
+	var result []*coreapi.Cluster
+	for _, c := range l.Clusters {
+		if c.ID != nil && strings.EqualFold(c.ID.SubscriptionID, subscriptionID) {
+			result = append(result, c)
+		}
+	}
+	return result, nil
+}
+
 func (l *SliceClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.Cluster, error) {
 	for _, c := range l.Clusters {
 		if c.ID == nil {
