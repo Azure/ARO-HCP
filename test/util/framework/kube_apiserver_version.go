@@ -27,9 +27,10 @@ import (
 //
 // Prefer this over discovery.ServerVersion(), which issues its request with context.TODO() and so
 // can neither be cancelled nor honour the caller's deadline. Inside a polling verifier that matters:
-// a /version request that stalls would run past the verifier's timeout, and because VerifyHCPCluster
-// waits on every verifier it launches, one stalled request holds up the entire check. Issuing the
-// request through the discovery REST client keeps cancellation reaching the HTTP call.
+// a /version request that stalls would run past the verifier's timeout, and past the deadline of
+// any phase built on it. Under VerifyHCPCluster, which waits on every verifier it launches, that
+// one stalled request holds up the whole batch. Issuing the request through the discovery REST
+// client keeps cancellation reaching the HTTP call.
 //
 // The returned value is unmarshalled from the same payload discovery.ServerVersion() reads, so it is
 // directly comparable with values obtained from either.
