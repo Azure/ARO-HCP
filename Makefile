@@ -117,8 +117,12 @@ verify-agentic-maintenance:
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-agentic-maintenance
+verify: verify-supply-chain verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-agentic-maintenance
 .PHONY: verify
+
+verify-supply-chain:
+	go run ./hack/verify-supply-chain
+.PHONY: verify-supply-chain
 
 verify-schema:
 	go run ./hack/verify-schema-additional-properties config/config.schema.json
