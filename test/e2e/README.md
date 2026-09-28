@@ -102,6 +102,15 @@ $ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.21
 $ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.21.0
 ```
 
+Exact control-plane builds (for example, `4.22.7` or a full nightly version)
+are stored in the `control-plane-exact-version` experimental tag; the framework's
+`OpenshiftVersionId` carries only `major.minor`. Tests imposing a minimum version
+must use `framework.PickAtLeastControlPlaneVersion` with the current ID and tags,
+then assign its returned ID directly. This preserves satisfying exact pins and
+returns a skippable error for older prerelease builds. For explicit version
+overrides, `ApplyControlPlaneExactVersionPin` still intentionally clears an
+inherited pin when given a bare release line.
+
 When `ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION` is set, you can also set
 `ARO_HCP_OPENSHIFT_LATEST_Z_STREAM=true` to resolve that major.minor (or full
 semver) to the latest z-stream install version in the active channel group

@@ -104,7 +104,9 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters at install (previous minor) version")
 			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = installVersionId
+			// installVersionId is an exact build for nightly and a bare release line
+			// otherwise; the helper pins the former with the exact-version tag.
+			clusterParams.OpenshiftVersionId = framework.ApplyControlPlaneExactVersionPin(installVersionId, clusterParams.Tags)
 			clusterParams.ChannelGroup = channelGroup
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-cp-ystream-"+suffix, "-managed", 64)
 
@@ -155,10 +157,15 @@ var _ = Describe("Customer", func() {
 
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", upgradeVersionId,
 				upgradeVersion.String()))
+			// version.id carries only the release line; an exact build (nightly) moves
+			// to the exact-version tag. For other channel groups the returned tag map
+			// deletes any inherited pin, which is what "follow the release line" means.
+			upgradeVersionLine, upgradeTags := framework.ControlPlaneExactVersionPatchTags(upgradeVersionId)
 			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+				Tags: upgradeTags,
 				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20240610preview.VersionProfile{
-						ID:           to.Ptr(upgradeVersionId),
+						ID:           to.Ptr(upgradeVersionLine),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},

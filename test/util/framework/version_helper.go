@@ -30,6 +30,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 )
 
@@ -185,17 +186,59 @@ func getLatestInstallVersionForNightlyChannel(ctx context.Context, version strin
 	return latestTagName, nil
 }
 
-// PickAtLeastOpenshiftVersionId selects latest version based on a predefined
-// default and given minimal version constraint arguments.
+// PickAtLeastControlPlaneVersion selects a minimum-compatible version from the
+// current version.id and exact-version tag. It returns the API-ready release
+// line and updates tags only on success, preserving any satisfying exact pin.
+// Use this with NewDefaultClusterParams* results instead of selecting from their
+// shortened OpenshiftVersionId alone. A nil tag map is allowed only when the
+// selected version does not require an exact pin.
+func PickAtLeastControlPlaneVersion(versionID, minimalVersion string, tags map[string]*string) (string, error) {
+	current, err := semver.ParseTolerant(versionID)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse control plane version ID %q: %w", versionID, err)
+	}
+
+	effectiveVersion := versionID
+	if pin := tags[metadataapi.TagClusterControlPlaneExactVersion]; pin != nil {
+		exact, err := semver.Parse(*pin)
+		if err != nil {
+			return "", fmt.Errorf("invalid control plane exact-version pin %q: %w", *pin, err)
+		}
+		if exact.Major != current.Major || exact.Minor != current.Minor {
+			return "", fmt.Errorf("control plane exact-version pin %q does not match version ID %q", *pin, versionID)
+		}
+		effectiveVersion = *pin
+	}
+
+	selected, err := PickAtLeastOpenshiftVersionId(effectiveVersion, minimalVersion)
+	if err != nil {
+		return "", err
+	}
+	if _, err := semver.Parse(selected); err == nil {
+		if tags == nil {
+			return "", fmt.Errorf("cannot pin exact control plane version %q with a nil tag map", selected)
+		}
+	} else {
+		// ParseTolerant also accepts forms the API and pin setter cannot encode.
+		parsed, err := semver.ParseTolerant(selected)
+		if err != nil || selected != fmt.Sprintf("%d.%d", parsed.Major, parsed.Minor) {
+			return "", fmt.Errorf("selected control plane version %q must be a bare major.minor or an exact semantic version", selected)
+		}
+	}
+	return ApplyControlPlaneExactVersionPin(selected, tags), nil
+}
+
+// PickAtLeastOpenshiftVersionId selects a raw version string based on a
+// predefined default and a minimum version constraint. For normalized cluster
+// params with a possible exact-version tag, use PickAtLeastControlPlaneVersion.
 //   - If defaultVersion already satisfies the minimalVersion, the default is
 //     returned unchanged.
 //   - If it doesn't, the minimal version is returned instead, with one
-//     exception: For nightly builds, an error is returned instead (since
-//     nightly versions cannot be bumped to a different minor version).
+//     exception: For prerelease builds, an error is returned instead.
 //
-// Nightly versions (e.g. "4.19.0-0.nightly-multi-2026-09-01-142156") are compared
-// by Major.Minor only, not by full semver, because the pre-release suffix would
-// otherwise rank them below the bare release (4.19.0) and produce false negatives.
+// Prerelease versions (including nightly, RC, and dev-preview builds) are
+// compared by Major.Minor.Patch, ignoring the prerelease suffix, so a patch-zero
+// minimum accepts builds of that release line but a higher patch still rejects them.
 func PickAtLeastOpenshiftVersionId(defaultVersion, minimalVersion string) (string, error) {
 	defaultSemver, err := semver.ParseTolerant(defaultVersion)
 	if err != nil {

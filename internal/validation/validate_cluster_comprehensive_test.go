@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blang/semver/v4"
+
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
 
@@ -2663,6 +2665,129 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
+		{
+			// The pin supersedes version.id as the desired control plane version,
+			// so the no-downgrade guarantee validateVersionProfile puts on
+			// version.id has to hold for the tag too — otherwise it can be
+			// sidestepped by lowering the tag alone.
+			name:       "update: exact-version pin may not decrease",
+			newCluster: clusterWithExactVersionPin("4.20.2"),
+			oldCluster: clusterWithExactVersionPin("4.20.5"),
+			opOptions:  testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "may not decrease from 4.20.5", FieldPath: exactVersionTagFieldPath},
+			},
+		},
+		{
+			// The z-stream upgrade flow: the customer raises the tag to the build
+			// they want next.
+			name:         "update: raising the exact-version pin is allowed",
+			newCluster:   clusterWithExactVersionPin("4.20.5"),
+			oldCluster:   clusterWithExactVersionPin("4.20.2"),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "update: unchanged exact-version pin is allowed",
+			newCluster:   clusterWithExactVersionPin("4.20.5"),
+			oldCluster:   clusterWithExactVersionPin("4.20.5"),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Dropping the tag is not a decrease: the pin stops applying and the
+			// control plane version controllers resolve from version.id again.
+			name:         "update: removing the exact-version pin is allowed",
+			newCluster:   clusterWithExactVersionPin(""),
+			oldCluster:   clusterWithExactVersionPin("4.20.5"),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// With no old pin there is nothing to compare against, so static
+			// validation waves the first pin through even when it sits below the
+			// version the control plane is already headed for. That gap is closed
+			// by admitClusterControlPlaneExactVersion, which can read
+			// ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.
+			name:         "update: first exact-version pin is allowed by static validation",
+			newCluster:   clusterWithExactVersionPin("4.20.0"),
+			oldCluster:   clusterWithExactVersionPin(""),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Semver orders a prerelease below its release, so swapping a stable
+			// build for a nightly of the same z-stream is a decrease.
+			name: "update: exact-version pin may not move from a release to its prerelease",
+			newCluster: func() *coreapi.Cluster {
+				c := clusterWithExactVersionPin("4.20.0-0.nightly-2026-08-05-123456")
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+				return c
+			}(),
+			oldCluster: clusterWithExactVersionPin("4.20.0"),
+			opOptions:  testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "may not decrease from 4.20.0", FieldPath: exactVersionTagFieldPath},
+			},
+		},
+		{
+			// Nightly build suffixes carry the build date, which sorts
+			// lexically, so a later nightly is an increase.
+			name: "update: raising the exact-version pin between nightlies is allowed",
+			newCluster: func() *coreapi.Cluster {
+				c := clusterWithExactVersionPin("4.20.0-0.nightly-2026-09-16-123456")
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := clusterWithExactVersionPin("4.20.0-0.nightly-2026-08-05-123456")
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+				return c
+			}(),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Both tag rules are independent defects, so both are reported in one
+			// round trip rather than the first one short-circuiting the rest.
+			name:       "update: exact-version pin off the requested release line and decreasing reports both",
+			newCluster: clusterWithExactVersionPin("4.21.0"),
+			oldCluster: clusterWithExactVersionPin("4.21.5"),
+			opOptions:  testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must pin a build of the 4.20 release line requested by version.id, got 4.21", FieldPath: exactVersionTagFieldPath},
+				{Message: "may not decrease from 4.21.5", FieldPath: exactVersionTagFieldPath},
+			},
+		},
+		{
+			// Without the AFEC admission zeroes ExperimentalFeatures, so the pin
+			// cannot be set in practice; the validator stays quiet either way.
+			name:         "update: decreasing exact-version pin is ignored without experimental flag",
+			newCluster:   clusterWithExactVersionPin("4.20.2"),
+			oldCluster:   clusterWithExactVersionPin("4.20.5"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Removing the pin from a nightly cluster leaves the control plane
+			// version controllers with a bare release line they cannot resolve
+			// against the graph, so the required-value rule fires first and the
+			// decrease rule never applies.
+			name: "update: removing the exact-version pin from a nightly cluster is rejected as missing",
+			newCluster: func() *coreapi.Cluster {
+				c := clusterWithExactVersionPin("")
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := clusterWithExactVersionPin("4.20.0-0.nightly-2026-08-05-123456")
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+				return c
+			}(),
+			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "nightly builds are not published to the update graph", FieldPath: exactVersionTagFieldPath},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2682,6 +2807,22 @@ func makeUniqueCIDRs(n int) []string {
 		cidrs[i] = fmt.Sprintf("10.0.%d.%d", octet3, octet4)
 	}
 	return cidrs
+}
+
+// exactVersionTagFieldPath is where validateControlPlaneExactVersionPin reports:
+// the ARM tag, not version.id, since the tag is the only way to express an exact
+// version and the only thing the customer can change.
+const exactVersionTagFieldPath = "tags[aro-hcp.experimental.cluster.control-plane-exact-version]"
+
+// clusterWithExactVersionPin returns a valid cluster carrying the control-plane
+// exact-version pin that admission projects from the exact-version ARM tag. An
+// empty pin leaves the cluster unpinned.
+func clusterWithExactVersionPin(pin string) *coreapi.Cluster {
+	cluster := createValidCluster()
+	if len(pin) > 0 {
+		cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(semver.MustParse(pin))
+	}
+	return cluster
 }
 
 // Helper function to create a valid cluster for testing

@@ -60,6 +60,7 @@ func TestMutateCluster(t *testing.T) {
 		expectedControlPlaneAvailability  coreapi.ControlPlaneAvailability
 		expectedControlPlanePodSizing     coreapi.ControlPlanePodSizing
 		expectedControlPlaneOperatorImage string
+		expectedControlPlaneExactVersion  string
 	}{
 		{
 			name:               "AFEC registered recognizes disable-swift without projecting a feature",
@@ -276,6 +277,19 @@ func TestMutateCluster(t *testing.T) {
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
+		{
+			// The exact-version tag is translated in the same pass as every other
+			// experimental tag, so it composes with them.
+			name:         "AFEC registered with exact-version tag alongside single-replica",
+			subscription: afecRegistered,
+			tags: map[string]string{
+				metadataapi.TagClusterControlPlaneExactVersion: "4.17.3",
+				metadataapi.TagClusterSingleReplica:            string(coreapi.SingleReplicaControlPlane),
+			},
+			expectErrors:                     []utils.ExpectedError{},
+			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
+			expectedControlPlaneExactVersion: "4.17.3",
+		},
 	}
 
 	for _, tt := range tests {
@@ -311,6 +325,13 @@ func TestMutateCluster(t *testing.T) {
 			if cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage != tt.expectedControlPlaneOperatorImage {
 				t.Errorf("expected ControlPlaneOperatorImage %q, got %q",
 					tt.expectedControlPlaneOperatorImage, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage)
+			}
+			gotExact := ""
+			if exact := cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
+				gotExact = exact.String()
+			}
+			if gotExact != tt.expectedControlPlaneExactVersion {
+				t.Errorf("expected ControlPlaneExactVersion %q, got %q", tt.expectedControlPlaneExactVersion, gotExact)
 			}
 		})
 	}
@@ -391,22 +412,22 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			},
 		},
 		{
-			name:              "AFEC without exact-version tag relocates patch version.id",
-			subscription:      afecRegistered,
-			tags:              map[string]string{},
-			versionID:         "4.17.3",
-			expectErrors:      []utils.ExpectedError{},
-			expectExactString: "4.17.3",
-			expectVersionID:   "4.17",
+			name:            "AFEC without exact-version tag does not pin from patch version.id",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17.3",
 		},
 		{
-			name:              "tag value is authoritative over patch version.id",
+			name:              "tag pins the exact version and leaves a patch version.id untouched",
 			subscription:      afecRegistered,
 			tags:              map[string]string{exactTag: "4.17.3"},
 			versionID:         "4.17.9",
 			expectErrors:      []utils.ExpectedError{},
 			expectExactString: "4.17.3",
-			expectVersionID:   "4.17",
+			expectVersionID:   "4.17.9",
 		},
 		{
 			name:         "AFEC with present-but-empty exact-version tag is rejected",
@@ -427,19 +448,41 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			expectVersionID: "4.20.garbage",
 		},
 		{
-			name:              "AFEC with nightly version.id (no tag) is relocated and stripped to major.minor",
+			name:            "AFEC with nightly version.id (no tag) does not pin and is left untouched",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "5.0.0-0.nightly-multi-2026-07-09-124132",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "5.0.0-0.nightly-multi-2026-07-09-124132",
+		},
+		{
+			name:              "AFEC with nightly build in the tag pins the exact version",
 			subscription:      afecRegistered,
-			tags:              map[string]string{},
-			versionID:         "5.0.0-0.nightly-multi-2026-07-09-124132",
+			tags:              map[string]string{exactTag: "5.0.0-0.nightly-multi-2026-07-09-124132"},
+			versionID:         "5.0",
 			expectErrors:      []utils.ExpectedError{},
 			expectExactString: "5.0.0-0.nightly-multi-2026-07-09-124132",
 			expectVersionID:   "5.0",
 		},
 		{
-			name:            "AFEC with neither tag nor patch version.id clears an existing exact pin",
+			name:            "AFEC without the exact-version tag clears an existing exact pin on UPDATE",
 			subscription:    afecRegistered,
 			op:              operation.Operation{Type: operation.Update},
 			tags:            map[string]string{},
+			versionID:       "4.17",
+			oldExactVersion: "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17",
+		},
+		{
+			// The pin is derived from tags on every pass, so an unrelated tag does
+			// not resurrect a pin whose tag is gone.
+			name:            "AFEC clears an existing exact pin on UPDATE even when other tags are present",
+			subscription:    afecRegistered,
+			op:              operation.Operation{Type: operation.Update},
+			tags:            map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)},
 			versionID:       "4.17",
 			oldExactVersion: "4.17.3",
 			expectErrors:    []utils.ExpectedError{},
@@ -456,13 +499,22 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			expectVersionID:   "4.20",
 		},
 		{
-			name:              "pre-release patch version.id (no tag) is relocated and stripped to major.minor",
+			name:              "pre-release build in the tag pins the exact version",
 			subscription:      afecRegistered,
-			tags:              map[string]string{},
-			versionID:         "4.20.0-rc.1",
+			tags:              map[string]string{exactTag: "4.20.0-rc.1"},
+			versionID:         "4.20",
 			expectErrors:      []utils.ExpectedError{},
 			expectExactString: "4.20.0-rc.1",
 			expectVersionID:   "4.20",
+		},
+		{
+			name:            "pre-release patch version.id (no tag) does not pin and is left untouched",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "4.20.0-rc.1",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.20.0-rc.1",
 		},
 	}
 
@@ -781,6 +833,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 		etcd                         coreapi.EtcdProfile
 		options                      []string
 		serviceProviderClusterStatus coreapi.ServiceProviderClusterStatus
+		serviceProviderClusterSpec   coreapi.ServiceProviderClusterSpec
 		nodePools                    []*coreapi.NodePool
 		serviceProviderNodePools     []*coreapi.ServiceProviderNodePool
 		newClusterFromOld            func(*coreapi.Cluster) //This method uses a copy of the oldCluster, changes are applied to that copy.
@@ -1138,6 +1191,28 @@ func TestAdmitCluster_Update(t *testing.T) {
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.0"),
 			expectErrors:                 []utils.ExpectedError{},
 		},
+		{
+			// Proves AdmitCluster reaches the exact-version pin check through
+			// serviceProviderProperties, which no other case in this table
+			// exercises. The unit coverage of the rule itself lives in
+			// TestAdmitClusterControlPlaneExactVersion.
+			name:                "first exact-version pin below the desired version is rejected",
+			oldClusterVersionID: "4.21",
+			serviceProviderClusterSpec: coreapi.ServiceProviderClusterSpec{
+				ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{
+					DesiredVersion: ptr.To(semver.MustParse("4.21.9")),
+				},
+			},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(semver.MustParse("4.21.0"))
+			},
+			expectErrors: []utils.ExpectedError{
+				{
+					FieldPath: "tags[aro-hcp.experimental.cluster.control-plane-exact-version]",
+					Message:   "may not decrease the desired control plane version from 4.21.9",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1146,6 +1221,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 
 			serviceProviderCluster := &coreapi.ServiceProviderCluster{
 				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: serviceProviderResourceID, PartitionKey: strings.ToLower(serviceProviderResourceID.SubscriptionID)},
+				Spec:           tt.serviceProviderClusterSpec,
 				Status:         tt.serviceProviderClusterStatus,
 			}
 
@@ -1183,6 +1259,465 @@ func TestAdmitCluster_Update(t *testing.T) {
 			}
 
 			errs := AdmitCluster(ctx, admissionContext, operation.Operation{Type: operation.Update, Options: tt.options}, newCluster, oldCluster)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+func TestAdmitClusterContainerRegistryPullManagedIdentity(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	miResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/customer-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull-mi"))
+
+	makeCluster := func(version string, mi *azcorearm.ResourceID) *coreapi.Cluster {
+		return &coreapi.Cluster{
+			CustomerProperties: coreapi.ClusterCustomerProperties{
+				Version: coreapi.VersionProfile{ID: version},
+				Platform: coreapi.CustomerPlatformProfile{
+					ContainerRegistry: coreapi.ContainerRegistryProfile{
+						PullManagedIdentity: mi,
+					},
+				},
+			},
+		}
+	}
+
+	makeSPC := func(version string) *coreapi.ServiceProviderCluster {
+		v := semver.MustParse(version)
+		return &coreapi.ServiceProviderCluster{
+			Status: coreapi.ServiceProviderClusterStatus{
+				ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+					ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{
+						{Version: &v},
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name         string
+		op           operation.Operation
+		cluster      *coreapi.Cluster
+		spc          *coreapi.ServiceProviderCluster
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "create without containerRegistry — no error",
+			op:           operation.Operation{Type: operation.Create},
+			cluster:      makeCluster("4.17.5", nil),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "create with containerRegistry on 4.22 — allowed",
+			op:           operation.Operation{Type: operation.Create},
+			cluster:      makeCluster("4.22.0", miResourceID),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:    "create with containerRegistry on 4.17 — rejected",
+			op:      operation.Operation{Type: operation.Create},
+			cluster: makeCluster("4.17.5", miResourceID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:    "create with containerRegistry on 4.21 — rejected",
+			op:      operation.Operation{Type: operation.Create},
+			cluster: makeCluster("4.21.9", miResourceID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:         "update with containerRegistry on 4.22 cluster — allowed",
+			op:           operation.Operation{Type: operation.Update},
+			cluster:      makeCluster("4.22.0", miResourceID),
+			spc:          makeSPC("4.22.1"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:    "update with containerRegistry on 4.17 cluster — rejected",
+			op:      operation.Operation{Type: operation.Update},
+			cluster: makeCluster("4.17.5", miResourceID),
+			spc:     makeSPC("4.17.5"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:         "update without containerRegistry on old cluster — no error",
+			op:           operation.Operation{Type: operation.Update},
+			cluster:      makeCluster("4.17.5", nil),
+			spc:          makeSPC("4.17.5"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "update with containerRegistry and no ServiceProviderCluster falls back to requested version — allowed on 4.22",
+			op:           operation.Operation{Type: operation.Update},
+			cluster:      makeCluster("4.22.0", miResourceID),
+			spc:          nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:    "update with containerRegistry and no ServiceProviderCluster falls back to requested version — rejected on 4.21",
+			op:      operation.Operation{Type: operation.Update},
+			cluster: makeCluster("4.21.9", miResourceID),
+			spc:     nil,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:    "containerRegistry with unparseable requested version and no ServiceProviderCluster — internal error",
+			op:      operation.Operation{Type: operation.Create},
+			cluster: makeCluster("not-a-version", miResourceID),
+			spc:     nil,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "cannot parse cluster version"},
+			},
+		},
+		{
+			name:    "update with containerRegistry and empty ActiveVersions falls back to stored version",
+			op:      operation.Operation{Type: operation.Update},
+			cluster: makeCluster("4.22.0", miResourceID),
+			spc: &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{
+					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+						ActiveVersions: nil,
+					},
+				},
+			},
+			expectErrors: nil,
+		},
+		{
+			name:    "update with containerRegistry, empty ActiveVersions, and unsupported stored version rejected",
+			op:      operation.Operation{Type: operation.Update},
+			cluster: makeCluster("4.21.0", miResourceID),
+			spc: &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{
+					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+						ActiveVersions: nil,
+					},
+				},
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			admissionContext := &ClusterAdmissionContext{
+				OriginalCluster:        tt.cluster.DeepCopy(),
+				ServiceProviderCluster: tt.spc,
+			}
+
+			fldPath := field.NewPath("properties", "platform", "containerRegistry", "managedIdentity")
+			errs := admitClusterContainerRegistryPullManagedIdentity(ctx, admissionContext, tt.op, fldPath, &tt.cluster.CustomerProperties.Platform.ContainerRegistry)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+// TestAdmitClusterControlPlaneExactVersion covers the rule that an exact-version
+// pin may lower neither the version the control plane is headed for
+// (ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion) nor the one it
+// most recently ran (the first entry of Status.ControlPlaneVersion.ActiveVersions).
+//
+// The case static validation cannot reach is the *first* pin on a previously
+// unpinned cluster: its "the pin may not decrease" rule compares the new pin
+// against the old pin, and with no old pin it is skipped entirely. Both versions
+// live on a separate Cosmos document, so only admission — which the frontend hands
+// a prefetched ServiceProviderCluster — can see them.
+func TestAdmitClusterControlPlaneExactVersion(t *testing.T) {
+	t.Parallel()
+
+	// Matches the path validateControlPlaneExactVersionPin reports against: the
+	// tag is the only way to express an exact version and the only thing the
+	// customer can change.
+	const tagPath = "tags[aro-hcp.experimental.cluster.control-plane-exact-version]"
+
+	// spcWithVersions builds the prefetched ServiceProviderCluster the check reads. An
+	// empty desired models a cluster the desired-version controller has not resolved
+	// yet; passing no active versions models one whose control plane has not reported
+	// any history. Active versions are newest first, as the mirror writes them.
+	spcWithVersions := func(desired string, active ...string) *coreapi.ServiceProviderCluster {
+		spc := &coreapi.ServiceProviderCluster{}
+		if desired != "" {
+			spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse(desired))
+		}
+		for _, version := range active {
+			spc.Status.ControlPlaneVersion.ActiveVersions = append(
+				spc.Status.ControlPlaneVersion.ActiveVersions,
+				coreapi.ServiceProviderClusterActiveVersion{Version: ptr.To(semver.MustParse(version))},
+			)
+		}
+		return spc
+	}
+	spcWithDesiredVersion := func(desired string) *coreapi.ServiceProviderCluster {
+		return spcWithVersions(desired)
+	}
+	pinned := func(exact string) *coreapi.ExperimentalFeatures {
+		return &coreapi.ExperimentalFeatures{ControlPlaneExactVersion: ptr.To(semver.MustParse(exact))}
+	}
+	unpinned := func() *coreapi.ExperimentalFeatures {
+		return &coreapi.ExperimentalFeatures{}
+	}
+
+	tests := []struct {
+		name         string
+		op           operation.Operation
+		oldFeatures  *coreapi.ExperimentalFeatures
+		newFeatures  *coreapi.ExperimentalFeatures
+		spc          *coreapi.ServiceProviderCluster // nil models a missing/un-prefetched ServiceProviderCluster
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			// The gap this check exists to close: no old pin, so static
+			// validation waves it through, while the graph controller has
+			// already advanced desired to 4.21.9.
+			name:        "first pin below the desired version is rejected",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.0"),
+			spc:         spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the desired control plane version from 4.21.9"},
+			},
+		},
+		{
+			name:         "first pin equal to the desired version passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.9"),
+			spc:          spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "first pin above the desired version passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.12"),
+			spc:          spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Lowering an existing pin is also caught here, since desired
+			// tracks the pin for an already-pinned cluster. Static validation
+			// reports its own error for the same request; both are correct.
+			name:        "lowering an existing pin below the desired version is rejected",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: pinned("4.21.9"),
+			newFeatures: pinned("4.21.5"),
+			spc:         spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the desired control plane version from 4.21.9"},
+			},
+		},
+		{
+			// A cluster pinned before this check existed may already sit below
+			// its stored desired version. Re-litigating an unchanged pin would
+			// fail every unrelated update to that cluster — exactly the wedge
+			// this change set removes — so the pin is only checked when it moves.
+			name:         "unchanged pin below the desired version passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  pinned("4.21.0"),
+			newFeatures:  pinned("4.21.0"),
+			spc:          spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Dropping the tag is not a decrease: the pin stops applying and the
+			// controllers resolve from version.id again.
+			name:         "removing the pin passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  pinned("4.21.9"),
+			newFeatures:  unpinned(),
+			spc:          spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Without AFEC, mutateClusterExperimentalFeatures zeroes the struct,
+			// so the pin is nil here and the check never runs.
+			name:         "no pin at all passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  unpinned(),
+			spc:          spcWithDesiredVersion("4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Nothing to compare against. The missing prefetch is separately
+			// surfaced as an InternalError by admitClusterVersionProfile.
+			name:         "missing service provider cluster skips the check",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.0"),
+			spc:          nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "unseeded desired version skips the check",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.0"),
+			spc:          &coreapi.ServiceProviderCluster{},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// On CREATE (and preflight) nothing is desired yet and the frontend
+			// does not prefetch a ServiceProviderCluster.
+			name:         "create operation is a no-op",
+			op:           operation.Operation{Type: operation.Create},
+			oldFeatures:  nil,
+			newFeatures:  pinned("4.21.0"),
+			spc:          nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Desired is unset — the controller has not resolved yet — but the
+			// control plane is demonstrably running 4.21.9, so a 4.21.5 pin is
+			// still a downgrade. Desired alone would wave this through.
+			name:        "first pin below the latest active version is rejected",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.5"),
+			spc:         spcWithVersions("", "4.21.9"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the active control plane version from 4.21.9"},
+			},
+		},
+		{
+			// The control plane advanced past desired, so only the active
+			// comparison rejects the pin.
+			name:        "pin above desired but below the latest active version is rejected",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.5"),
+			spc:         spcWithVersions("4.21.2", "4.21.9"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the active control plane version from 4.21.9"},
+			},
+		},
+		{
+			// The mirror image: an upgrade is in flight, so the pin clears the
+			// running version but not the one the cluster is headed for.
+			name:        "pin above the latest active version but below desired is rejected",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.5"),
+			spc:         spcWithVersions("4.21.9", "4.21.2"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the desired control plane version from 4.21.9"},
+			},
+		},
+		{
+			// Below both: each comparison names a different version the pin has
+			// to clear, so the customer sees both rather than fixing the tag
+			// twice.
+			name:        "pin below both desired and the latest active version reports both",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.0"),
+			spc:         spcWithVersions("4.21.9", "4.21.2"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the desired control plane version from 4.21.9"},
+				{FieldPath: tagPath, Message: "may not decrease the active control plane version from 4.21.2"},
+			},
+		},
+		{
+			name:         "pin equal to the latest active version passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.9"),
+			spc:          spcWithVersions("", "4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// ActiveVersions is the control plane's version history newest first,
+			// so only the first entry is the version it is running now.
+			name:        "multi-entry active versions compares against the first entry",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.5"),
+			spc:         spcWithVersions("", "4.21.9", "4.21.7", "4.21.2"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the active control plane version from 4.21.9"},
+			},
+		},
+		{
+			// A cluster rolled back to 4.21.2 has 4.21.9 behind it in history, but
+			// it is running 4.21.2, so pinning 4.21.5 is an upgrade.
+			name:         "pin above the first entry but below an older one passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.5"),
+			spc:          spcWithVersions("", "4.21.2", "4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Same wedge-avoidance rule as the desired-version case: a cluster
+			// pinned before this check existed keeps reconciling, so unrelated
+			// updates to it do not start failing.
+			name:         "unchanged pin below the latest active version passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  pinned("4.21.5"),
+			newFeatures:  pinned("4.21.5"),
+			spc:          spcWithVersions("", "4.21.9"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Neither version seeded: the cluster is still installing.
+			name:         "no desired and no active versions skips the check",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  unpinned(),
+			newFeatures:  pinned("4.21.0"),
+			spc:          spcWithVersions(""),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// semver orders a pre-release below its release, so pinning a nightly
+			// build of 4.21.0 on a cluster already running GA 4.21.0 is a
+			// downgrade. Static validation states the same rule for an old pin.
+			name:        "pre-release pin below a GA active version is rejected",
+			op:          operation.Operation{Type: operation.Update},
+			oldFeatures: unpinned(),
+			newFeatures: pinned("4.21.0-0.nightly-2026-09-03-214615"),
+			spc:         spcWithVersions("", "4.21.0"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: tagPath, Message: "may not decrease the active control plane version from 4.21.0"},
+			},
+		},
+		{
+			// Within one nightly stream the date suffix sorts chronologically, so
+			// moving a nightly cluster to a newer build is accepted.
+			name:         "newer nightly build in the same stream passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldFeatures:  pinned("4.21.0-0.nightly-2026-08-05-123456"),
+			newFeatures:  pinned("4.21.0-0.nightly-2026-09-03-214615"),
+			spc:          spcWithVersions("", "4.21.0-0.nightly-2026-08-05-123456"),
+			expectErrors: []utils.ExpectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			admissionContext := &ClusterAdmissionContext{
+				ServiceProviderCluster: tt.spc,
+			}
+
+			errs := admitClusterControlPlaneExactVersion(admissionContext, tt.op, tt.newFeatures, tt.oldFeatures)
 
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
@@ -1534,169 +2069,6 @@ func TestAdmitClusterVersionID(t *testing.T) {
 			}
 
 			errs := admitClusterVersionID(ctx, admissionContext, tt.op, fldPath, tt.newVersion, tt.oldVersion)
-
-			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
-		})
-	}
-}
-
-func TestAdmitClusterContainerRegistryPullManagedIdentity(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-
-	miResourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		"/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/customer-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull-mi"))
-
-	makeCluster := func(version string, mi *azcorearm.ResourceID) *coreapi.Cluster {
-		return &coreapi.Cluster{
-			CustomerProperties: coreapi.ClusterCustomerProperties{
-				Version: coreapi.VersionProfile{ID: version},
-				Platform: coreapi.CustomerPlatformProfile{
-					ContainerRegistry: coreapi.ContainerRegistryProfile{
-						PullManagedIdentity: mi,
-					},
-				},
-			},
-		}
-	}
-
-	makeSPC := func(version string) *coreapi.ServiceProviderCluster {
-		v := semver.MustParse(version)
-		return &coreapi.ServiceProviderCluster{
-			Status: coreapi.ServiceProviderClusterStatus{
-				ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-					ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{
-						{Version: &v},
-					},
-				},
-			},
-		}
-	}
-
-	tests := []struct {
-		name         string
-		op           operation.Operation
-		cluster      *coreapi.Cluster
-		spc          *coreapi.ServiceProviderCluster
-		expectErrors []utils.ExpectedError
-	}{
-		{
-			name:         "create without containerRegistry — no error",
-			op:           operation.Operation{Type: operation.Create},
-			cluster:      makeCluster("4.17.5", nil),
-			expectErrors: []utils.ExpectedError{},
-		},
-		{
-			name:         "create with containerRegistry on 4.22 — allowed",
-			op:           operation.Operation{Type: operation.Create},
-			cluster:      makeCluster("4.22.0", miResourceID),
-			expectErrors: []utils.ExpectedError{},
-		},
-		{
-			name:    "create with containerRegistry on 4.17 — rejected",
-			op:      operation.Operation{Type: operation.Create},
-			cluster: makeCluster("4.17.5", miResourceID),
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
-			},
-		},
-		{
-			name:    "create with containerRegistry on 4.21 — rejected",
-			op:      operation.Operation{Type: operation.Create},
-			cluster: makeCluster("4.21.9", miResourceID),
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
-			},
-		},
-		{
-			name:         "update with containerRegistry on 4.22 cluster — allowed",
-			op:           operation.Operation{Type: operation.Update},
-			cluster:      makeCluster("4.22.0", miResourceID),
-			spc:          makeSPC("4.22.1"),
-			expectErrors: []utils.ExpectedError{},
-		},
-		{
-			name:    "update with containerRegistry on 4.17 cluster — rejected",
-			op:      operation.Operation{Type: operation.Update},
-			cluster: makeCluster("4.17.5", miResourceID),
-			spc:     makeSPC("4.17.5"),
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
-			},
-		},
-		{
-			name:         "update without containerRegistry on old cluster — no error",
-			op:           operation.Operation{Type: operation.Update},
-			cluster:      makeCluster("4.17.5", nil),
-			spc:          makeSPC("4.17.5"),
-			expectErrors: []utils.ExpectedError{},
-		},
-		{
-			name:         "update with containerRegistry and no ServiceProviderCluster falls back to requested version — allowed on 4.22",
-			op:           operation.Operation{Type: operation.Update},
-			cluster:      makeCluster("4.22.0", miResourceID),
-			spc:          nil,
-			expectErrors: []utils.ExpectedError{},
-		},
-		{
-			name:    "update with containerRegistry and no ServiceProviderCluster falls back to requested version — rejected on 4.21",
-			op:      operation.Operation{Type: operation.Update},
-			cluster: makeCluster("4.21.9", miResourceID),
-			spc:     nil,
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
-			},
-		},
-		{
-			name:    "containerRegistry with unparseable requested version and no ServiceProviderCluster — internal error",
-			op:      operation.Operation{Type: operation.Create},
-			cluster: makeCluster("not-a-version", miResourceID),
-			spc:     nil,
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "cannot parse cluster version"},
-			},
-		},
-		{
-			name:    "update with containerRegistry and empty ActiveVersions falls back to stored version",
-			op:      operation.Operation{Type: operation.Update},
-			cluster: makeCluster("4.22.0", miResourceID),
-			spc: &coreapi.ServiceProviderCluster{
-				Status: coreapi.ServiceProviderClusterStatus{
-					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-						ActiveVersions: nil,
-					},
-				},
-			},
-			expectErrors: nil,
-		},
-		{
-			name:    "update with containerRegistry, empty ActiveVersions, and unsupported stored version rejected",
-			op:      operation.Operation{Type: operation.Update},
-			cluster: makeCluster("4.21.0", miResourceID),
-			spc: &coreapi.ServiceProviderCluster{
-				Status: coreapi.ServiceProviderClusterStatus{
-					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-						ActiveVersions: nil,
-					},
-				},
-			},
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version"},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			admissionContext := &ClusterAdmissionContext{
-				OriginalCluster:        tt.cluster.DeepCopy(),
-				ServiceProviderCluster: tt.spc,
-			}
-
-			fldPath := field.NewPath("properties", "platform", "containerRegistry", "managedIdentity")
-			errs := admitClusterContainerRegistryPullManagedIdentity(ctx, admissionContext, tt.op, fldPath, &tt.cluster.CustomerProperties.Platform.ContainerRegistry)
 
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})

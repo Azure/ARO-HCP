@@ -15,11 +15,17 @@
 package framework
 
 import (
+	"encoding/json"
 	"errors"
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 func TestPickAtLeastOpenshiftVersionId(t *testing.T) {
@@ -271,6 +277,255 @@ func TestPickAtLeastOpenshiftVersionId(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantVersion, got)
+		})
+	}
+}
+
+func TestPickAtLeastControlPlaneVersion(t *testing.T) {
+	t.Parallel()
+
+	const nightly = "4.22.0-0.nightly-multi-2026-09-03-080000"
+	tests := []struct {
+		name      string
+		versionID string
+		minimum   string
+		pin       *string
+		nilTags   bool
+		wantID    string
+		wantPin   string
+		wantErr   string
+		wantSkip  bool
+	}{
+		{
+			name: "bare lower minor", versionID: "4.21", minimum: "4.22", wantID: "4.22",
+		},
+		{
+			name: "bare same minor", versionID: "4.22", minimum: "4.22", wantID: "4.22",
+		},
+		{
+			name: "bare higher minor", versionID: "4.23", minimum: "4.22", wantID: "4.23",
+		},
+		{
+			name: "satisfying stable pin", versionID: "4.22", pin: to.Ptr("4.22.7"),
+			minimum: "4.22", wantID: "4.22", wantPin: "4.22.7",
+		},
+		{
+			name: "stable minor promotion clears obsolete pin", versionID: "4.21", pin: to.Ptr("4.21.7"),
+			minimum: "4.22", wantID: "4.22",
+		},
+		{
+			name: "stable patch must not decrease", versionID: "4.22", pin: to.Ptr("4.22.7"),
+			minimum: "4.22.5", wantID: "4.22", wantPin: "4.22.7",
+		},
+		{
+			name: "stable patch promotion", versionID: "4.22", pin: to.Ptr("4.22.3"),
+			minimum: "4.22.5", wantID: "4.22", wantPin: "4.22.5",
+		},
+		{
+			name: "raw exact version", versionID: "4.22.7",
+			minimum: "4.22", wantID: "4.22", wantPin: "4.22.7",
+		},
+		{
+			name: "nightly same minor", versionID: "4.22", pin: to.Ptr(nightly),
+			minimum: "4.22", wantID: "4.22", wantPin: nightly,
+		},
+		{
+			name: "nightly patch-zero minimum", versionID: "4.22", pin: to.Ptr(nightly),
+			minimum: "4.22.0", wantID: "4.22", wantPin: nightly,
+		},
+		{
+			name: "nightly lower minor skips", versionID: "4.21", pin: to.Ptr("4.21.0-0.nightly-multi-2026-09-03-080000"),
+			minimum: "4.22", wantErr: "4.21.0-0.nightly-multi-2026-09-03-080000 does not satisfy minimum 4.22", wantSkip: true,
+		},
+		{
+			name: "nightly higher patch minimum skips", versionID: "4.22", pin: to.Ptr(nightly),
+			minimum: "4.22.1", wantErr: nightly + " does not satisfy minimum 4.22.1", wantSkip: true,
+		},
+		{
+			name: "nightly higher major", versionID: "5.0", pin: to.Ptr("5.0.0-0.nightly-multi-2026-09-03-080000"),
+			minimum: "4.22", wantID: "5.0", wantPin: "5.0.0-0.nightly-multi-2026-09-03-080000",
+		},
+		{
+			name: "RC same minor", versionID: "4.22", pin: to.Ptr("4.22.0-rc.3"),
+			minimum: "4.22", wantID: "4.22", wantPin: "4.22.0-rc.3",
+		},
+		{
+			name: "RC lower minor skips", versionID: "4.21", pin: to.Ptr("4.21.0-rc.3"),
+			minimum: "4.22", wantErr: "4.21.0-rc.3 does not satisfy minimum 4.22", wantSkip: true,
+		},
+		{
+			name: "dev preview same minor", versionID: "4.22", pin: to.Ptr("4.22.0-ec.3"),
+			minimum: "4.22", wantID: "4.22", wantPin: "4.22.0-ec.3",
+		},
+		{
+			name: "dev preview lower minor skips", versionID: "4.21", pin: to.Ptr("4.21.0-ec.3"),
+			minimum: "4.22", wantErr: "4.21.0-ec.3 does not satisfy minimum 4.22", wantSkip: true,
+		},
+		{
+			name: "build metadata preserved", versionID: "4.22", pin: to.Ptr("4.22.7+build.1"),
+			minimum: "4.22", wantID: "4.22", wantPin: "4.22.7+build.1",
+		},
+		{
+			name: "invalid version ID with valid pin", versionID: "invalid", pin: to.Ptr(nightly),
+			minimum: "4.22", wantErr: `failed to parse control plane version ID "invalid"`,
+		},
+		{
+			name: "invalid minimum leaves pin alone", versionID: "4.22", pin: to.Ptr(nightly),
+			minimum: "invalid", wantErr: `failed to parse minimal version "invalid"`,
+		},
+		{
+			name: "invalid pin", versionID: "4.22", pin: to.Ptr("invalid"),
+			minimum: "4.22", wantErr: `invalid control plane exact-version pin "invalid"`,
+		},
+		{
+			name: "empty pin", versionID: "4.22", pin: to.Ptr(""),
+			minimum: "4.22", wantErr: `invalid control plane exact-version pin ""`,
+		},
+		{
+			name: "non-exact pin", versionID: "4.22", pin: to.Ptr("4.22"),
+			minimum: "4.22", wantErr: `invalid control plane exact-version pin "4.22"`,
+		},
+		{
+			name: "mismatched pin", versionID: "4.22", pin: to.Ptr("4.21.7"),
+			minimum: "4.22", wantErr: `pin "4.21.7" does not match version ID "4.22"`,
+		},
+		{
+			name: "nil tags for bare version", versionID: "4.21", nilTags: true,
+			minimum: "4.22", wantID: "4.22",
+		},
+		{
+			name: "nil tags cannot store exact version", versionID: nightly, nilTags: true,
+			minimum: "4.22", wantErr: "with a nil tag map",
+		},
+		{
+			name: "nil tags cannot store exact minimum", versionID: "4.21", nilTags: true,
+			minimum: "4.22.5", wantErr: "with a nil tag map",
+		},
+		{
+			name: "noncanonical selected version", versionID: "v4.22.7",
+			minimum: "4.22", wantErr: "must be a bare major.minor or an exact semantic version",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tags := map[string]*string{
+				"unrelated": to.Ptr("keep"),
+				metadataapi.TagClusterControlPlaneExactVersion: tc.pin,
+			}
+			if tc.nilTags {
+				tags = nil
+			}
+			original := maps.Clone(tags)
+
+			got, err := PickAtLeastControlPlaneVersion(tc.versionID, tc.minimum, tags)
+			assert.Equal(t, tc.wantSkip, IsIncompatibleNightlyVersionError(err), "skip classification")
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				assert.Empty(t, got, "errors must not return a usable version ID")
+				assert.Equal(t, original, tags, "errors must not mutate tags")
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantID, got, "release line")
+			if tc.wantPin == "" {
+				assert.NotContains(t, tags, metadataapi.TagClusterControlPlaneExactVersion, "no exact pin expected")
+			} else {
+				assert.Equal(t, to.Ptr(tc.wantPin), tags[metadataapi.TagClusterControlPlaneExactVersion], "exact build")
+			}
+			assert.Equal(t, original["unrelated"], tags["unrelated"], "unrelated tags must survive")
+
+			afterFirstCall := maps.Clone(tags)
+			repeated, err := PickAtLeastControlPlaneVersion(got, tc.minimum, tags)
+			require.NoError(t, err)
+			assert.Equal(t, got, repeated, "repeat selection must keep the release line")
+			assert.Equal(t, afterFirstCall, tags, "repeat selection must keep the exact pin")
+		})
+	}
+}
+
+func TestApplyControlPlaneExactVersionPin(t *testing.T) {
+	t.Parallel()
+	for _, exact := range []string{"4.22.7", "4.22.0-0.nightly-multi-2026-09-03-080000", "4.22.0-rc.3", "4.22.7+build.1"} {
+		t.Run(exact, func(t *testing.T) {
+			t.Parallel()
+			tags := map[string]*string{
+				"unrelated": to.Ptr("keep"),
+				metadataapi.TagClusterControlPlaneExactVersion: to.Ptr("4.21.7"),
+			}
+			for range 2 {
+				assert.Equal(t, "4.22", ApplyControlPlaneExactVersionPin(exact, tags))
+				assert.Equal(t, to.Ptr(exact), tags[metadataapi.TagClusterControlPlaneExactVersion])
+			}
+			assert.Equal(t, "4.22", ApplyControlPlaneExactVersionPin("4.22", tags))
+			assert.NotContains(t, tags, metadataapi.TagClusterControlPlaneExactVersion, "same-line override must unpin")
+			assert.Equal(t, to.Ptr("keep"), tags["unrelated"])
+		})
+	}
+}
+
+func TestControlPlaneMinimumVersionPayload(t *testing.T) {
+	t.Parallel()
+	builders := map[string]func(string, string, map[string]*string) (any, error){
+		"20251223": func(version, channel string, tags map[string]*string) (any, error) {
+			return BuildHCPClusterFromParams20251223(ClusterParams20251223{
+				OpenshiftVersionId: version, ChannelGroup: channel, Tags: tags,
+				APIVisibility: "Private", VnetIntegrationSubnetID: "integration-subnet",
+			}, "test-location", nil)
+		},
+		"20260901": func(version, channel string, tags map[string]*string) (any, error) {
+			return BuildHCPClusterFromParams20260901(ClusterParams20260901{
+				OpenshiftVersionId: version, ChannelGroup: channel, Tags: tags,
+				DisableSwift: true,
+			}, "test-location", nil)
+		},
+	}
+	for apiVersion, build := range builders {
+		t.Run(apiVersion, func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name, defaultVersion, channel, minimum, wantID, wantPin string
+			}{
+				{"nightly", "4.22.0-0.nightly-multi-2026-09-03-080000", "nightly", "4.22", "4.22", "4.22.0-0.nightly-multi-2026-09-03-080000"},
+				{"stable exact", "4.22.7", "stable", "4.22", "4.22", "4.22.7"},
+				{"no patch downgrade", "4.22.7", "stable", "4.22.5", "4.22", "4.22.7"},
+				{"stable promotion", "4.21.7", "stable", "4.22", "4.22", ""},
+				{"bare promotion", "4.21", "candidate", "4.22", "4.22", ""},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					tags := map[string]*string{"unrelated": to.Ptr("keep")}
+					// Reproduce the constructor-time split without resolving defaults over the network.
+					versionID := ApplyControlPlaneExactVersionPin(tc.defaultVersion, tags)
+					versionID, err := PickAtLeastControlPlaneVersion(versionID, tc.minimum, tags)
+					require.NoError(t, err)
+					cluster, err := build(versionID, tc.channel, tags)
+					require.NoError(t, err)
+					data, err := json.Marshal(cluster)
+					require.NoError(t, err)
+
+					var payload struct {
+						Tags       map[string]*string `json:"tags"`
+						Properties struct {
+							Version struct {
+								ID           string `json:"id"`
+								ChannelGroup string `json:"channelGroup"`
+							} `json:"version"`
+						} `json:"properties"`
+					}
+					require.NoError(t, json.Unmarshal(data, &payload))
+					assert.Equal(t, tc.wantID, payload.Properties.Version.ID)
+					assert.Equal(t, tc.channel, payload.Properties.Version.ChannelGroup)
+					if tc.wantPin == "" {
+						assert.NotContains(t, payload.Tags, metadataapi.TagClusterControlPlaneExactVersion)
+					} else {
+						assert.Equal(t, to.Ptr(tc.wantPin), payload.Tags[metadataapi.TagClusterControlPlaneExactVersion])
+					}
+					assert.Equal(t, to.Ptr("keep"), payload.Tags["unrelated"])
+				})
+			}
 		})
 	}
 }

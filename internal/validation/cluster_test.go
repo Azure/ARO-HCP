@@ -369,14 +369,21 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Version ID with micro version is allowed with experimental flag",
+			// version.id carries only the release line even with the experimental
+			// flag; an exact build is pinned with the control-plane-exact-version tag.
+			name: "Version ID with micro version is rejected with experimental flag",
 			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.20.8"
 				return r
 			}(),
-			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
+			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "must be specified as MAJOR.MINOR",
+					FieldPath: "customerProperties.version.id",
+				},
+			},
 		},
 		{
 			name: "ChannelGroup candidate is rejected without experimental flag",
@@ -417,25 +424,42 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Version ID with prerelease is allowed with experimental flag",
+			name: "Version ID with prerelease is rejected with experimental flag",
 			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.21.0-rc.1"
 				return r
 			}(),
-			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
+			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "must be specified as MAJOR.MINOR",
+					FieldPath: "customerProperties.version.id",
+				},
+			},
 		},
 		{
-			name: "Version ID with nightly format is allowed with experimental flag",
+			// Putting the build in version.id is now two distinct defects: the wrong
+			// shape for version.id, and a nightly install with no pin. Both are
+			// reported so the caller learns the whole fix in one round trip.
+			name: "Nightly version.id carrying a build suffix is rejected with experimental flag",
 			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
 				r.CustomerProperties.Version.ID = "4.21.0-0.nightly-2024-01-15-123456"
 				return r
 			}(),
-			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
+			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "must be specified as MAJOR.MINOR",
+					FieldPath: "customerProperties.version.id",
+				},
+				{
+					Message:   "nightly builds are not published to the update graph",
+					FieldPath: "tags[aro-hcp.experimental.cluster.control-plane-exact-version]",
+				},
+			},
 		},
 		{
 			name: "ChannelGroup fast is allowed without experimental flag",
@@ -483,8 +507,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			// A bare "<major>.<minor>" with no exact pin is what the object looks
-			// like post-mutation when the customer did not supply a full version.
-			name: "ChannelGroup nightly without a full version is rejected with experimental flag",
+			// like when the customer omitted the exact-version tag.
+			name: "ChannelGroup nightly without an exact-version pin is rejected with experimental flag",
 			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
@@ -493,24 +517,70 @@ func TestClusterValidate(t *testing.T) {
 			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{
 				{
-					Message:   "must be specified as MAJOR.MINOR.PATCH (optionally with a pre-release, e.g. a nightly build suffix) when channelGroup is \"nightly\"",
-					FieldPath: "customerProperties.version.id",
+					Message:   "nightly builds are not published to the update graph",
+					FieldPath: "tags[aro-hcp.experimental.cluster.control-plane-exact-version]",
 				},
 			},
 		},
 		{
-			// Post-mutation shape for a full nightly version.id: version.id is
-			// reduced to its release line and the exact build is pinned on
-			// ExperimentalFeatures. The validator maps the pin back and accepts it.
-			name: "ChannelGroup nightly with a mapped exact version is allowed with experimental flag",
+			// The shape a nightly install must take: version.id carries the release
+			// line and the exact build is pinned from the exact-version tag.
+			name: "ChannelGroup nightly with an exact-version pin is allowed with experimental flag",
 			resource: func() *coreapi.Cluster {
 				r := coreapitesting.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
+				r.CustomerProperties.Version.ID = "4.20"
 				exact := semver.MustParse("4.20.0-0.nightly-2026-08-05-123456")
 				r.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &exact
 				return r
 			}(),
 			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Tag-only pinning is not nightly-specific.
+			name: "Exact-version pin on a non-nightly channel is allowed with experimental flag",
+			resource: func() *coreapi.Cluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = "4.20"
+				exact := semver.MustParse("4.20.5")
+				r.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &exact
+				return r
+			}(),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// The backend's cluster update operation compares version.id's release
+			// line against the resolved desired version, so a mismatch must be
+			// rejected up front rather than stalling the update.
+			name: "Exact-version pin from a different release line than version.id is rejected",
+			resource: func() *coreapi.Cluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = "4.20"
+				exact := semver.MustParse("4.21.3")
+				r.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &exact
+				return r
+			}(),
+			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "must pin a build of the 4.20 release line requested by version.id, got 4.21",
+					FieldPath: "tags[aro-hcp.experimental.cluster.control-plane-exact-version]",
+				},
+			},
+		},
+		{
+			// Without the AFEC admission zeroes ExperimentalFeatures, so the pin
+			// cannot be set in practice; the validator stays quiet either way.
+			name: "Exact-version pin is ignored without experimental flag",
+			resource: func() *coreapi.Cluster {
+				r := coreapitesting.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = "4.20"
+				exact := semver.MustParse("4.21.3")
+				r.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &exact
+				return r
+			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
