@@ -2,7 +2,7 @@ prometheusRules:
   rulesFolders:
   - alerts/HCPkasRecord-prometheusRule-KSM.yaml
   - alerts/HCPkasRecord-prometheusRule-apiserver-requests.yaml
-  - alerts/HCPkasRecord-prometheusRule-latency.yaml
+  - alerts/HCPkasRecord-prometheusRule-latency.yaml.tmpl
   - alerts/UserJourneyKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
   - alerts/UserJourneyEtcdLatencyRecord-prometheusRule.yaml
   - recording-rules/ingress-availability-slo-recordingRule.yaml

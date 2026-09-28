@@ -1,5 +1,5 @@
 rule_files:
-- HCPkasRecord-prometheusRule-latency.yaml
+- HCPkasRecord-prometheusRule-latency.yaml.tmpl
 evaluation_interval: 1m
 tests:
 # Test 1: All requests within threshold (100% good latency — ratio = 1.0)
