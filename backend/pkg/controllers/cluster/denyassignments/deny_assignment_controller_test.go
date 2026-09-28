@@ -763,7 +763,7 @@ func TestSyncDenyAssignmentUpsertDeletesLegacyAfterCompleteEnsured(t *testing.T)
 	syncer := &clusterDenyAssignmentSyncer{
 		clock:              fakeClock,
 		resourcesDBClient:  mockDB,
-		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cluster}},
+		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
 		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
 		azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
 			GenericResourcesClientVal: mockGenericResources,
@@ -831,7 +831,7 @@ func TestSyncDenyAssignmentUpsertRetainsLegacyWhenCompleteEnsureFails(t *testing
 	syncer := &clusterDenyAssignmentSyncer{
 		clock:              fakeClock,
 		resourcesDBClient:  mockDB,
-		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cluster}},
+		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
 		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
 		azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
 			GenericResourcesClientVal: mockGenericResources,
@@ -886,7 +886,7 @@ func TestSyncDenyAssignmentUpsertPrunesObsoletePending(t *testing.T) {
 	syncer := &clusterDenyAssignmentSyncer{
 		clock:              fakeClock,
 		resourcesDBClient:  mockDB,
-		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cluster}},
+		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
 		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
 		azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
 			GenericResourcesClientVal: mockGenericResources,
