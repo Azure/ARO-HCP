@@ -83,7 +83,7 @@ func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
 func TestHandlerPublishesIdentityGroups(t *testing.T) {
 	t.Parallel()
 
-	request := assets.LeaseRequest{State: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
 		Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
 			ResourceGroups: []string{"identity-rg-02", "identity-rg-01"},
 		}},

@@ -145,7 +145,7 @@ type ValidatedAcquireOptions struct {
 }
 
 type completedAcquireOptions struct {
-	Inventories          []slots.AssetInventory
+	AssetInventories     []slots.AssetInventory
 	WriteState           func(string, *slots.AcquiredSlotState) error
 	ClusterProfileDirs   []string
 	DeployEnvironment    string
@@ -287,7 +287,7 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 			return nil, err
 		}
 	}
-	inventories, err := catalog.AssetInventories()
+	assetInventories, err := catalog.AssetInventories()
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 
 	return &AcquireOptions{
 		completedAcquireOptions: &completedAcquireOptions{
-			Inventories:          inventories,
+			AssetInventories:     assetInventories,
 			WriteState:           o.WriteState,
 			ClusterProfileDirs:   o.effectiveClusterProfileDirs(),
 			DeployEnvironment:    o.DeployEnv,
@@ -693,7 +693,7 @@ func (o *AcquireOptions) finalizeV2Lease(ctx context.Context, pool slots.Pool, l
 		// Acquisition's writer may have failed. Retry durable cleanup with the
 		// standard writer; never return a recorded resource without a journal.
 		journal.Persist = func() error { return slots.WriteAcquiredSlotState(o.SharedDir, state) }
-		cleanupErr := o.Registry.ReleaseLease(ctx, assets.LeaseRequest{State: state, Journal: journal})
+		cleanupErr := o.Registry.ReleaseLease(ctx, assets.LeaseRequest{AcquiredSlotState: state, LeaseJournal: journal})
 		if cleanupErr == nil {
 			cleanupErr = slots.RemoveStateFiles(o.SharedDir)
 		}
@@ -721,7 +721,7 @@ func (o *AcquireOptions) finalizeV2Lease(ctx context.Context, pool slots.Pool, l
 	if err != nil {
 		return err
 	}
-	request := assets.LeaseRequest{State: state, SelectedClusterProfileDir: profile, Inventories: o.Inventories, Journal: journal}
+	request := assets.LeaseRequest{AcquiredSlotState: state, SelectedClusterProfileDir: profile, AssetInventories: o.AssetInventories, LeaseJournal: journal}
 	if err := o.Registry.AcquireLease(ctx, request); err != nil {
 		return err
 	}

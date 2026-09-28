@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
@@ -29,7 +30,7 @@ type Kind = slots.AssetKind
 const KindE2EIdentities = slots.KindE2EIdentities
 
 type PoolRequest struct {
-	Inventories      []slots.AssetInventory
+	AssetInventories []slots.AssetInventory
 	Environment      string
 	Pools            []slots.Pool
 	IncludeUnmanaged bool
@@ -37,9 +38,9 @@ type PoolRequest struct {
 }
 
 type LeaseRequest struct {
-	Inventories               []slots.AssetInventory
-	Journal                   *slots.LeaseJournal
-	State                     *slots.AcquiredSlotState
+	AssetInventories          []slots.AssetInventory
+	LeaseJournal              *slots.LeaseJournal
+	AcquiredSlotState         *slots.AcquiredSlotState
 	SelectedClusterProfileDir string
 }
 
@@ -86,77 +87,110 @@ func NewRegistry(handlers ...Handler) (*Registry, error) {
 }
 
 func (r *Registry) ApplyPools(ctx context.Context, request PoolRequest, selectedKinds ...Kind) error {
-	return r.forDeclaredPoolHandlers(ctx, request, selectedKinds, "applying", Handler.ApplyPools)
+	if err := r.validatePoolRequest(request); err != nil {
+		return err
+	}
+	handlers, err := r.FilterHandlers(selectedKinds)
+	if err != nil {
+		return err
+	}
+	for _, handler := range handlers {
+		scopedRequest := request.forHandler(handler)
+		if len(scopedRequest.Pools) == 0 {
+			continue
+		}
+		if err := handler.ApplyPools(ctx, scopedRequest); err != nil {
+			return fmt.Errorf("applying asset %q: %w", handler.Kind(), err)
+		}
+	}
+	return nil
 }
 
 func (r *Registry) ValidatePools(ctx context.Context, request PoolRequest, selectedKinds ...Kind) error {
-	return r.forDeclaredPoolHandlers(ctx, request, selectedKinds, "validating", Handler.ValidatePools)
+	if err := r.validatePoolRequest(request); err != nil {
+		return err
+	}
+	handlers, err := r.FilterHandlers(selectedKinds)
+	if err != nil {
+		return err
+	}
+	for _, handler := range handlers {
+		scopedRequest := request.forHandler(handler)
+		if len(scopedRequest.Pools) == 0 {
+			continue
+		}
+		if err := handler.ValidatePools(ctx, scopedRequest); err != nil {
+			return fmt.Errorf("validating asset %q: %w", handler.Kind(), err)
+		}
+	}
+	return nil
 }
 
 func (r *Registry) AcquireLease(ctx context.Context, request LeaseRequest) error {
-	return r.forLeaseHandlers(request, func(handler Handler) error {
-		for _, requirement := range request.State.Slot.Requirements {
-			if requirement.Kind != handler.Kind() || requirement.Allocation != slots.AllocationLeased {
+	if request.AcquiredSlotState == nil {
+		return errors.New("acquired slot state is nil")
+	}
+	handlers, err := r.HandlersForRequirements(request.AcquiredSlotState.Slot.AssetRequirements)
+	if err != nil {
+		return err
+	}
+	if err := request.validateAcquisition(); err != nil {
+		return err
+	}
+	for _, handler := range handlers {
+		for _, assetRequirement := range request.AcquiredSlotState.Slot.AssetRequirements {
+			if assetRequirement.Kind != handler.Kind() || assetRequirement.Allocation != slots.AllocationLeased {
 				continue
 			}
-			var inventory *slots.AssetInventory
-			for i := range request.Inventories {
-				if request.Inventories[i].Pool.Name == requirement.AssetPool && request.Inventories[i].Pool.Kind == requirement.Kind {
-					inventory = &request.Inventories[i]
-				}
+			assetInventory, found := slots.AssetInventoryForRequirement(request.AssetInventories, assetRequirement)
+			if !found {
+				return fmt.Errorf("unresolved inventory for demanded asset %q in pool %q", assetRequirement.Kind, assetRequirement.AssetPoolName)
 			}
-			if inventory == nil {
-				return fmt.Errorf("unresolved inventory for demanded asset %q in pool %q", requirement.Kind, requirement.AssetPool)
-			}
-			if request.Journal == nil {
-				return fmt.Errorf("missing lease journal for demanded asset %q in pool %q", requirement.Kind, requirement.AssetPool)
-			}
-			if requirement.UnitsPerSlot <= 0 {
-				return fmt.Errorf("invalid units_per_slot %d for demanded asset %q in pool %q: must be positive", requirement.UnitsPerSlot, requirement.Kind, requirement.AssetPool)
-			}
-			for range requirement.UnitsPerSlot {
-				if _, err := request.Journal.AcquireAsset(ctx, handler.Kind(), *inventory); err != nil {
+			for range assetRequirement.UnitsPerSlot {
+				if _, err := request.LeaseJournal.AcquireAsset(ctx, handler.Kind(), assetInventory); err != nil {
 					return fmt.Errorf("acquiring asset %q: %w", handler.Kind(), err)
 				}
 			}
 		}
 		if err := handler.AcquireLease(ctx, request); err != nil {
-			return fmt.Errorf("resolving asset %q for slot %q: %w", handler.Kind(), request.State.Slot.ResourceName, err)
+			return fmt.Errorf("resolving asset %q for slot %q: %w", handler.Kind(), request.AcquiredSlotState.Slot.ResourceName, err)
 		}
-		if request.Journal != nil {
-			return request.Journal.Persist()
+		if request.LeaseJournal != nil {
+			if err := request.LeaseJournal.Persist(); err != nil {
+				return err
+			}
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
 // ReleaseLease calls known handlers but always falls back to the journal for
 // every recorded name, including kinds removed since acquisition.
 func (r *Registry) ReleaseLease(ctx context.Context, request LeaseRequest) error {
-	if request.State == nil || request.Journal == nil {
+	if request.AcquiredSlotState == nil || request.LeaseJournal == nil {
 		return errors.New("release requires state and lease journal")
 	}
 	var errs []error
-	for _, handler := range r.handlers {
-		if len(request.State.Leases.Assets[handler.Kind()]) > 0 {
-			bounded, cancel := context.WithTimeout(context.WithoutCancel(ctx), request.Journal.Timeout)
+	for _, handler := range r.ListHandlers() {
+		if len(request.AcquiredSlotState.Leases.Assets[handler.Kind()]) > 0 {
+			bounded, cancel := context.WithTimeout(context.WithoutCancel(ctx), request.LeaseJournal.Timeout)
 			errs = append(errs, handler.ReleaseLease(bounded, request))
 			cancel()
 		}
 	}
-	errs = append(errs, request.Journal.ReleaseAll(ctx))
+	errs = append(errs, request.LeaseJournal.ReleaseAll(ctx))
 	return errors.Join(errs...)
 }
 
 func (r *Registry) ValidateRequirements(pools []slots.Pool) error {
 	for _, pool := range pools {
-		for _, requirement := range pool.Requirements() {
-			handler, found := r.byKind[requirement.Kind]
+		for _, assetRequirement := range pool.Requirements() {
+			handler, found := r.GetHandler(assetRequirement.Kind)
 			if !found {
-				return fmt.Errorf("pool %q demands asset %q without an implemented handler", pool.Name, requirement.Kind)
+				return fmt.Errorf("pool %q demands asset %q without an implemented handler", pool.Name, assetRequirement.Kind)
 			}
 			if !handler.Declared(pool) {
-				return fmt.Errorf("handler %q does not accept demanded asset in pool %q", requirement.Kind, pool.Name)
+				return fmt.Errorf("handler %q does not accept demanded asset in pool %q", assetRequirement.Kind, pool.Name)
 			}
 		}
 	}
@@ -164,113 +198,108 @@ func (r *Registry) ValidateRequirements(pools []slots.Pool) error {
 }
 
 func (r *Registry) AdmitLease(ctx context.Context, request LeaseRequest) error {
-	return r.forLeaseHandlers(request, func(handler Handler) error {
+	if request.AcquiredSlotState == nil {
+		return errors.New("acquired slot state is nil")
+	}
+	handlers, err := r.HandlersForRequirements(request.AcquiredSlotState.Slot.AssetRequirements)
+	if err != nil {
+		return err
+	}
+	for _, handler := range handlers {
 		if err := handler.AdmitLease(ctx, request); err != nil {
-			return fmt.Errorf("admitting asset %q for slot %q: %w", handler.Kind(), request.State.Slot.ResourceName, err)
+			return fmt.Errorf("admitting asset %q for slot %q: %w", handler.Kind(), request.AcquiredSlotState.Slot.ResourceName, err)
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
 func (r *Registry) PublishLease(ctx context.Context, request LeaseRequest, contract *slots.RuntimeContractBuilder) error {
 	if contract == nil {
 		return errors.New("runtime contract builder is nil")
 	}
-	return r.forLeaseHandlers(request, func(handler Handler) error {
+	if request.AcquiredSlotState == nil {
+		return errors.New("acquired slot state is nil")
+	}
+	handlers, err := r.HandlersForRequirements(request.AcquiredSlotState.Slot.AssetRequirements)
+	if err != nil {
+		return err
+	}
+	for _, handler := range handlers {
 		if err := handler.PublishLease(ctx, request, contract); err != nil {
-			return fmt.Errorf("publishing asset %q for slot %q: %w", handler.Kind(), request.State.Slot.ResourceName, err)
+			return fmt.Errorf("publishing asset %q for slot %q: %w", handler.Kind(), request.AcquiredSlotState.Slot.ResourceName, err)
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
-func (r *Registry) forDeclaredPoolHandlers(ctx context.Context, request PoolRequest, selectedKinds []Kind, action string, operation func(Handler, context.Context, PoolRequest) error) error {
+func (r *Registry) validatePoolRequest(request PoolRequest) error {
 	if err := r.ValidateRequirements(request.Pools); err != nil {
 		return err
 	}
 	for _, pool := range request.Pools {
-		for _, requirement := range pool.Requirements() {
-			if requirement.Allocation != slots.AllocationLeased {
+		for _, assetRequirement := range pool.Requirements() {
+			if assetRequirement.Allocation != slots.AllocationLeased {
 				continue
 			}
-			found := false
-			for _, inventory := range request.Inventories {
-				if inventory.Pool.Name == requirement.AssetPool && inventory.Pool.Kind == requirement.Kind && inventory.Capacity > 0 {
-					found = true
-					break
-				}
+			assetInventory, found := slots.AssetInventoryForRequirement(request.AssetInventories, assetRequirement)
+			if !found || assetInventory.Capacity <= 0 {
+				return fmt.Errorf("unresolved inventory for demanded asset pool %q", assetRequirement.AssetPoolName)
 			}
-			if !found {
-				return fmt.Errorf("unresolved inventory for demanded asset pool %q", requirement.AssetPool)
-			}
-		}
-	}
-	selected, err := r.selectedHandlers(selectedKinds)
-	if err != nil {
-		return err
-	}
-	for _, handler := range selected {
-		pools := make([]slots.Pool, 0, len(request.Pools))
-		for _, pool := range request.Pools {
-			if handler.Declared(pool) {
-				pools = append(pools, pool)
-			}
-		}
-		if len(pools) == 0 {
-			continue
-		}
-		filtered := request
-		filtered.Pools = pools
-		filtered.Inventories = selectedInventories(request.Inventories, pools, handler.Kind())
-		if err := operation(handler, ctx, filtered); err != nil {
-			return fmt.Errorf("%s asset %q: %w", action, handler.Kind(), err)
 		}
 	}
 	return nil
 }
 
-func (r *Registry) forLeaseHandlers(request LeaseRequest, operation func(Handler) error) error {
-	if request.State == nil {
-		return errors.New("acquired slot state is nil")
-	}
+// HandlersForRequirements validates demand before selecting handlers in registration
+// order. Unlike an empty CLI filter, empty demand selects no handlers.
+func (r *Registry) HandlersForRequirements(assetRequirements []slots.AssetRequirement) ([]Handler, error) {
 	demanded := map[Kind]bool{}
-	for _, requirement := range request.State.Slot.Requirements {
-		if _, found := r.byKind[requirement.Kind]; !found {
-			return fmt.Errorf("demanded asset %q has no implemented handler", requirement.Kind)
+	for _, assetRequirement := range assetRequirements {
+		if _, found := r.GetHandler(assetRequirement.Kind); !found {
+			return nil, fmt.Errorf("demanded asset %q has no implemented handler", assetRequirement.Kind)
 		}
-		if requirement.Allocation != slots.AllocationDedicated && requirement.Allocation != slots.AllocationLeased {
-			return fmt.Errorf("demanded asset %q has invalid allocation %q", requirement.Kind, requirement.Allocation)
+		if assetRequirement.Allocation != slots.AllocationDedicated && assetRequirement.Allocation != slots.AllocationLeased {
+			return nil, fmt.Errorf("demanded asset %q has invalid allocation %q", assetRequirement.Kind, assetRequirement.Allocation)
 		}
-		if demanded[requirement.Kind] {
-			return fmt.Errorf("duplicate demanded asset %q", requirement.Kind)
+		if demanded[assetRequirement.Kind] {
+			return nil, fmt.Errorf("duplicate demanded asset %q", assetRequirement.Kind)
 		}
-		demanded[requirement.Kind] = true
+		demanded[assetRequirement.Kind] = true
 	}
-	for _, handler := range r.handlers {
-		if !demanded[handler.Kind()] {
-			continue
-		}
-		if err := operation(handler); err != nil {
-			return err
+	handlers := make([]Handler, 0, len(demanded))
+	for _, handler := range r.ListHandlers() {
+		if demanded[handler.Kind()] {
+			handlers = append(handlers, handler)
 		}
 	}
-	return nil
+	return handlers, nil
 }
 
-func (r *Registry) selectedHandlers(selectedKinds []Kind) ([]Handler, error) {
+// ListHandlers returns a copy of the registry's handlers in registration order.
+func (r *Registry) ListHandlers() []Handler {
+	return slices.Clone(r.handlers)
+}
+
+func (r *Registry) GetHandler(assetKind Kind) (Handler, bool) {
+	handler, found := r.byKind[assetKind]
+	return handler, found
+}
+
+// FilterHandlers treats an empty CLI selection as all registered handlers.
+func (r *Registry) FilterHandlers(selectedKinds []Kind) ([]Handler, error) {
 	if len(selectedKinds) == 0 {
-		return r.handlers, nil
+		return r.ListHandlers(), nil
 	}
 	selected := map[Kind]struct{}{}
 	for _, kind := range selectedKinds {
 		kind = Kind(strings.TrimSpace(string(kind)))
-		if _, found := r.byKind[kind]; !found {
+		if _, found := r.GetHandler(kind); !found {
 			return nil, fmt.Errorf("unknown asset kind %q", kind)
 		}
 		selected[kind] = struct{}{}
 	}
 	handlers := make([]Handler, 0, len(selected))
-	for _, handler := range r.handlers {
+	for _, handler := range r.ListHandlers() {
 		if _, found := selected[handler.Kind()]; found {
 			handlers = append(handlers, handler)
 		}
@@ -278,20 +307,50 @@ func (r *Registry) selectedHandlers(selectedKinds []Kind) ([]Handler, error) {
 	return handlers, nil
 }
 
-func selectedInventories(inventories []slots.AssetInventory, pools []slots.Pool, kind Kind) []slots.AssetInventory {
+func (request PoolRequest) forHandler(handler Handler) PoolRequest {
+	scopedRequest := request
+	scopedRequest.Pools = make([]slots.Pool, 0, len(request.Pools))
+	for _, pool := range request.Pools {
+		if handler.Declared(pool) {
+			scopedRequest.Pools = append(scopedRequest.Pools, pool)
+		}
+	}
+	scopedRequest.AssetInventories = assetInventoriesForPools(request.AssetInventories, scopedRequest.Pools, handler.Kind())
+	return scopedRequest
+}
+
+func assetInventoriesForPools(assetInventories []slots.AssetInventory, pools []slots.Pool, kind Kind) []slots.AssetInventory {
 	references := map[string]bool{}
 	for _, pool := range pools {
-		for _, requirement := range pool.Requirements() {
-			if requirement.Kind == kind && requirement.Allocation == slots.AllocationLeased {
-				references[requirement.AssetPool] = true
+		for _, assetRequirement := range pool.Requirements() {
+			if assetRequirement.Kind == kind && assetRequirement.Allocation == slots.AllocationLeased {
+				references[assetRequirement.AssetPoolName] = true
 			}
 		}
 	}
 	var selected []slots.AssetInventory
-	for _, inventory := range inventories {
-		if references[inventory.Pool.Name] {
-			selected = append(selected, inventory)
+	for _, assetInventory := range assetInventories {
+		if assetInventory.AssetPool.Kind == kind && references[assetInventory.AssetPool.Name] {
+			selected = append(selected, assetInventory)
 		}
 	}
 	return selected
+}
+
+func (request LeaseRequest) validateAcquisition() error {
+	for _, assetRequirement := range request.AcquiredSlotState.Slot.AssetRequirements {
+		if assetRequirement.Allocation != slots.AllocationLeased {
+			continue
+		}
+		if _, found := slots.AssetInventoryForRequirement(request.AssetInventories, assetRequirement); !found {
+			return fmt.Errorf("unresolved inventory for demanded asset %q in pool %q", assetRequirement.Kind, assetRequirement.AssetPoolName)
+		}
+		if request.LeaseJournal == nil {
+			return fmt.Errorf("missing lease journal for demanded asset %q in pool %q", assetRequirement.Kind, assetRequirement.AssetPoolName)
+		}
+		if assetRequirement.UnitsPerSlot <= 0 {
+			return fmt.Errorf("invalid units_per_slot %d for demanded asset %q in pool %q: must be positive", assetRequirement.UnitsPerSlot, assetRequirement.Kind, assetRequirement.AssetPoolName)
+		}
+	}
+	return nil
 }

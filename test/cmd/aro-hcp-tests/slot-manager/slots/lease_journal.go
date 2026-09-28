@@ -33,18 +33,18 @@ type LeaseJournal struct {
 	attempted map[string]bool
 }
 
-func (j *LeaseJournal) AcquireAsset(ctx context.Context, kind AssetKind, inventory AssetInventory) (Lease, error) {
+func (j *LeaseJournal) AcquireAsset(ctx context.Context, kind AssetKind, assetInventory AssetInventory) (Lease, error) {
 	if j.Timeout <= 0 {
 		return Lease{}, errors.New("independent lease timeout must be positive")
 	}
 	bounded, cancel := context.WithTimeout(ctx, j.Timeout)
 	defer cancel()
-	name, err := j.Acquire(bounded, inventory.Pool.ResourceType, j.Timeout)
+	name, err := j.Acquire(bounded, assetInventory.AssetPool.ResourceType, j.Timeout)
 	if err != nil {
 		return Lease{}, err
 	}
 	if err := ValidateLeasedResourceName(name); err != nil {
-		return Lease{}, fmt.Errorf("asset lease acquisition returned an invalid name for type %q: %w", inventory.Pool.ResourceType, err)
+		return Lease{}, fmt.Errorf("asset lease acquisition returned an invalid name for type %q: %w", assetInventory.AssetPool.ResourceType, err)
 	}
 	if name == j.State.Leases.Primary.ResourceName {
 		return Lease{}, fmt.Errorf("asset lease acquisition returned already journaled resource name %q", name)
@@ -56,7 +56,7 @@ func (j *LeaseJournal) AcquireAsset(ctx context.Context, kind AssetKind, invento
 			}
 		}
 	}
-	lease := Lease{ResourceType: inventory.Pool.ResourceType, ResourceName: name}
+	lease := Lease{ResourceType: assetInventory.AssetPool.ResourceType, ResourceName: name}
 	if j.State.Leases.Assets == nil {
 		j.State.Leases.Assets = map[AssetKind][]Lease{}
 	}
@@ -65,8 +65,8 @@ func (j *LeaseJournal) AcquireAsset(ctx context.Context, kind AssetKind, invento
 	if err := j.Persist(); err != nil {
 		return lease, err
 	}
-	if !inventory.Contains(name) {
-		return lease, fmt.Errorf("leased resource %q is not in asset pool %q", name, inventory.Pool.Name)
+	if !assetInventory.Contains(name) {
+		return lease, fmt.Errorf("leased resource %q is not in asset pool %q", name, assetInventory.AssetPool.Name)
 	}
 	return lease, nil
 }

@@ -299,9 +299,27 @@ Each handler implements:
   met; and
 - `PublishLease`: contributes owned values to the runtime contract.
 
-Registry dispatch preserves registration order, filters by requested asset
-kind, adds asset context to failures, and stops lease admission on the first
-failure.
+The registry separates handler selection from lifecycle execution.
+`ListHandlers` and `GetHandler` expose registered handlers; `FilterHandlers`
+selects explicit CLI asset kinds in registration order, with an empty filter
+meaning all handlers. `HandlersForRequirements` validates asset requirements
+and selects their handlers in registration order, with empty demand meaning
+no handlers. Unknown kinds, duplicate requirements, and invalid allocations
+are rejected before lease handlers run.
+
+Lifecycle methods use explicit loops, add asset context to failures, and stop
+lease admission on the first failure. Pool commands validate all selected
+pools' demand and inventories before invoking any handler, even with an asset
+filter. Each handler receives only the primary pools that declare its kind
+and the referenced asset inventories. Inventory capacities remain derived
+from the whole catalog, never from that scoped request.
+
+Requests name their data explicitly: `AssetInventories`, `LeaseJournal`, and
+`AcquiredSlotState`. Each `AssetInventory.AssetPool` is a pool definition;
+each leased `ExpandedSlot.AssetRequirements` entry refers to an independent pool by
+`AssetRequirement.AssetPoolName`. `AssetInventoryForRequirement` matches both
+the pool name and asset kind. These Go names do not change catalog or acquired
+state YAML/JSON wire names.
 
 Admission is one handler-owned phase, not mandatory preparation and validation
 passes. Each handler decides which observations it can reuse and whether an
@@ -339,6 +357,11 @@ separate `--lease-proxy-timeout` budget for every required Boskos acquisition.
 The primary slot's optional infinite `--max-wait-for-lease` is never reused for
 secondary acquisitions. This prevents indefinite hold-and-wait when one asset
 pool is exhausted.
+
+Before acquiring or resolving assets, slot-manager validates every leased
+requirement's inventory reference, journal availability, and unit count.
+Each acquired independent lease is still persisted immediately, and resolved
+state is persisted after each handler before moving to the next handler.
 
 State is updated with every resolved lease before admission begins. The
 release step can therefore return the primary slot and every independently

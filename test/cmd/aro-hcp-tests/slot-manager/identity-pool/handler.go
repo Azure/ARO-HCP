@@ -46,10 +46,10 @@ func (h *Handler) Declared(pool slots.Pool) bool {
 }
 
 func (h *Handler) AcquireLease(_ context.Context, request assets.LeaseRequest) error {
-	if request.State == nil {
+	if request.AcquiredSlotState == nil {
 		return fmt.Errorf("acquired slot state is nil")
 	}
-	slot := &request.State.Slot
+	slot := &request.AcquiredSlotState.Slot
 	if slot.Assets.E2EIdentities == nil {
 		slot.Assets.E2EIdentities = &slots.ResolvedE2EIdentitiesAsset{
 			Allocation:     slots.AllocationDedicated,
@@ -63,7 +63,7 @@ func (h *Handler) AcquireLease(_ context.Context, request assets.LeaseRequest) e
 }
 
 func (h *Handler) ReleaseLease(ctx context.Context, request assets.LeaseRequest) error {
-	return request.Journal.ReleaseAsset(ctx, h.Kind())
+	return request.LeaseJournal.ReleaseAsset(ctx, h.Kind())
 }
 
 func (h *Handler) ApplyPools(ctx context.Context, request assets.PoolRequest) error {
@@ -130,7 +130,7 @@ func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) e
 }
 
 func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
-	return contract.Add(string(h.Kind()), "LEASED_MSI_CONTAINERS", strings.Join(request.State.Slot.IdentityContainerNames(), " "))
+	return contract.Add(string(h.Kind()), "LEASED_MSI_CONTAINERS", strings.Join(request.AcquiredSlotState.Slot.IdentityContainerNames(), " "))
 }
 
 func azurePoolDependencies() (azcore.TokenCredential, subscriptionIDResolverFunc, error) {

@@ -83,11 +83,11 @@ func TestRegistryAcquireLeaseDiagnostics(t *testing.T) {
 	t.Parallel()
 
 	for _, test := range []struct {
-		name      string
-		inventory bool
-		journal   bool
-		units     int
-		want      string
+		name           string
+		assetInventory bool
+		journal        bool
+		units          int
+		want           string
 	}{
 		{"missing inventory", false, true, 1, `unresolved inventory for demanded asset "infrastructure_identities" in pool "bundles"`},
 		{"missing journal", true, false, 1, `missing lease journal for demanded asset "infrastructure_identities" in pool "bundles"`},
@@ -96,27 +96,107 @@ func TestRegistryAcquireLeaseDiagnostics(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			calls := []string{}
-			registry, err := NewRegistry(&fakeHandler{kind: slots.KindInfrastructureIdentities, calls: &calls})
+			registry, err := NewRegistry(
+				&fakeHandler{kind: KindE2EIdentities, calls: &calls},
+				&fakeHandler{kind: slots.KindInfrastructureIdentities, calls: &calls},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			request := LeaseRequest{State: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
-				Requirements: []slots.AssetRequirement{{
-					Kind: slots.KindInfrastructureIdentities, Allocation: slots.AllocationLeased,
-					AssetPool: "bundles", UnitsPerSlot: test.units,
-				}},
+			request := LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+				AssetRequirements: []slots.AssetRequirement{
+					{Kind: KindE2EIdentities, Allocation: slots.AllocationDedicated},
+					{
+						Kind: slots.KindInfrastructureIdentities, Allocation: slots.AllocationLeased,
+						AssetPoolName: "bundles", UnitsPerSlot: test.units,
+					},
+				},
 			}}}
-			if test.inventory {
-				request.Inventories = []slots.AssetInventory{{Pool: slots.AssetPool{Name: "bundles", Kind: slots.KindInfrastructureIdentities}}}
+			if test.assetInventory {
+				request.AssetInventories = []slots.AssetInventory{{AssetPool: slots.AssetPool{Name: "bundles", Kind: slots.KindInfrastructureIdentities}}}
 			}
 			if test.journal {
-				request.Journal = &slots.LeaseJournal{}
+				request.LeaseJournal = &slots.LeaseJournal{}
 			}
 			if err := registry.AcquireLease(context.Background(), request); err == nil || err.Error() != test.want {
 				t.Fatalf("expected %q, got %v", test.want, err)
 			}
 			if len(calls) != 0 {
 				t.Fatalf("invalid request reached handler: %v", calls)
+			}
+		})
+	}
+}
+
+func TestRegistryDistinguishesEmptySelectionFromEmptyDemand(t *testing.T) {
+	t.Parallel()
+	calls := []string{}
+	first := &fakeHandler{kind: "first", calls: &calls}
+	second := &fakeHandler{kind: "second", calls: &calls}
+	registry, err := NewRegistry(first, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handlers, err := registry.FilterHandlers(nil)
+	if err != nil || !reflect.DeepEqual(handlers, []Handler{first, second}) {
+		t.Fatalf("empty CLI selection must select all handlers in registration order: %v, %v", handlers, err)
+	}
+	handlers[0] = second
+	if got := registry.ListHandlers(); !reflect.DeepEqual(got, []Handler{first, second}) {
+		t.Fatalf("modifying a selection changed registry order: %v", got)
+	}
+	handlers, err = registry.HandlersForRequirements(nil)
+	if err != nil || len(handlers) != 0 {
+		t.Fatalf("empty demand must select no handlers: %v, %v", handlers, err)
+	}
+	handlers, err = registry.HandlersForRequirements([]slots.AssetRequirement{
+		{Kind: "second", Allocation: slots.AllocationDedicated},
+		{Kind: "first", Allocation: slots.AllocationDedicated},
+	})
+	if err != nil || !reflect.DeepEqual(handlers, []Handler{first, second}) {
+		t.Fatalf("requirement order must not change registration order: %v, %v", handlers, err)
+	}
+}
+
+func TestRegistryValidatesAllRequirementsBeforeLeaseHandlers(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name             string
+		assetRequirement slots.AssetRequirement
+		want             string
+	}{
+		{"unknown kind", slots.AssetRequirement{Kind: "unknown", Allocation: slots.AllocationDedicated}, `demanded asset "unknown" has no implemented handler`},
+		{"invalid allocation", slots.AssetRequirement{Kind: "second", Allocation: "invalid"}, `demanded asset "second" has invalid allocation "invalid"`},
+		{"duplicate kind", slots.AssetRequirement{Kind: "first", Allocation: slots.AllocationDedicated}, `duplicate demanded asset "first"`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			calls := []string{}
+			registry, err := NewRegistry(
+				&fakeHandler{kind: "first", calls: &calls},
+				&fakeHandler{kind: "second", calls: &calls},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+				AssetRequirements: []slots.AssetRequirement{
+					{Kind: "first", Allocation: slots.AllocationDedicated},
+					test.assetRequirement,
+				},
+			}}}
+			for _, operation := range []func(context.Context, LeaseRequest) error{
+				registry.AcquireLease,
+				registry.AdmitLease,
+				func(ctx context.Context, request LeaseRequest) error {
+					return registry.PublishLease(ctx, request, slots.NewRuntimeContractBuilder())
+				},
+			} {
+				if err := operation(t.Context(), request); err == nil || err.Error() != test.want {
+					t.Fatalf("expected %q before invoking any handler, got %v", test.want, err)
+				}
+				if len(calls) != 0 {
+					t.Fatalf("invalid demand reached handlers: %v", calls)
+				}
 			}
 		})
 	}
@@ -161,7 +241,7 @@ func TestRegistryStopsLeaseAdmissionOnFirstFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected registry construction to succeed: %v", err)
 	}
-	request := LeaseRequest{State: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{ResourceName: "slot-00", Requirements: []slots.AssetRequirement{
+	request := LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{ResourceName: "slot-00", AssetRequirements: []slots.AssetRequirement{
 		{Kind: "first", Allocation: slots.AllocationDedicated}, {Kind: "second", Allocation: slots.AllocationDedicated},
 	}}}}
 	err = registry.AdmitLease(context.Background(), request)

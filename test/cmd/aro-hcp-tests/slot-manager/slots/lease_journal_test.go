@@ -61,7 +61,7 @@ func TestJournalRejectsInvalidAssetNameWithoutPoisoningCleanup(t *testing.T) {
 				},
 			}
 			_, err := journal.AcquireAsset(context.Background(), KindInfrastructureIdentities,
-				AssetInventory{Pool: AssetPool{ResourceType: "bundles", ResourceNamePrefix: "bundle"}, Capacity: 8})
+				AssetInventory{AssetPool: AssetPool{ResourceType: "bundles", ResourceNamePrefix: "bundle"}, Capacity: 8})
 			if err == nil || !strings.Contains(err.Error(), "resource name") {
 				t.Fatalf("expected invalid or duplicate name rejection, got %v", err)
 			}
@@ -149,7 +149,7 @@ func TestJournalInterruptedReturnCannotReturnReassignedName(t *testing.T) {
 func TestJournalIndependentAcquireDeadlineAndPersistence(t *testing.T) {
 	t.Parallel()
 	state := &AcquiredSlotState{Version: 2, Leases: LeaseSet{Primary: Lease{ResourceType: "slot", ResourceName: "slot-00"}}}
-	inventory := AssetInventory{Pool: AssetPool{ResourceType: "bundle-type", ResourceNamePrefix: "bundle"}, Capacity: 5}
+	assetInventory := AssetInventory{AssetPool: AssetPool{ResourceType: "bundle-type", ResourceNamePrefix: "bundle"}, Capacity: 5}
 	saved := false
 	journal := &LeaseJournal{
 		State: state, Timeout: 10 * time.Millisecond,
@@ -161,7 +161,7 @@ func TestJournalIndependentAcquireDeadlineAndPersistence(t *testing.T) {
 			return "bundle-04", nil
 		},
 	}
-	lease, err := journal.AcquireAsset(context.Background(), KindInfrastructureIdentities, inventory)
+	lease, err := journal.AcquireAsset(context.Background(), KindInfrastructureIdentities, assetInventory)
 	if err == nil || !saved || lease.ResourceName != "bundle-04" || len(state.Leases.Assets[KindInfrastructureIdentities]) != 1 {
 		t.Fatalf("failed write lost exact acquired lease: %+v, %+v, %v", lease, state, err)
 	}
@@ -169,7 +169,7 @@ func TestJournalIndependentAcquireDeadlineAndPersistence(t *testing.T) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	}
-	if _, err := journal.AcquireAsset(context.Background(), KindInfrastructureIdentities, inventory); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := journal.AcquireAsset(context.Background(), KindInfrastructureIdentities, assetInventory); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("independent acquisition waited without deadline: %v", err)
 	}
 }

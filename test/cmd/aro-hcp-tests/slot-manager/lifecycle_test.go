@@ -66,17 +66,18 @@ environments:
 `
 
 type lifecycleHandler struct {
-	kind        slots.AssetKind
-	calls       *[]string
-	fail        string
-	before      func(string, assets.LeaseRequest)
-	inventories *[]slots.AssetInventory
+	kind             slots.AssetKind
+	calls            *[]string
+	fail             string
+	before           func(string, assets.LeaseRequest)
+	assetInventories *[]slots.AssetInventory
+	poolRequests     *[]assets.PoolRequest
 }
 
 func (h *lifecycleHandler) Kind() assets.Kind { return h.kind }
 func (h *lifecycleHandler) Declared(pool slots.Pool) bool {
-	for _, requirement := range pool.Requirements() {
-		if requirement.Kind == h.kind {
+	for _, assetRequirement := range pool.Requirements() {
+		if assetRequirement.Kind == h.kind {
 			return true
 		}
 	}
@@ -98,21 +99,24 @@ func (h *lifecycleHandler) AcquireLease(_ context.Context, request assets.LeaseR
 	}
 	if h.kind == slots.KindInfrastructureIdentities {
 		resolved := &slots.ResolvedInfrastructureIdentities{Allocation: slots.AllocationLeased, Identities: []string{"fake-service", "fake-management"}}
-		for _, lease := range request.State.Leases.Assets[h.kind] {
+		for _, lease := range request.AcquiredSlotState.Leases.Assets[h.kind] {
 			resolved.ResourceGroups = append(resolved.ResourceGroups, lease.ResourceName)
 		}
-		request.State.Slot.Assets.InfrastructureIdentities = resolved
+		request.AcquiredSlotState.Slot.Assets.InfrastructureIdentities = resolved
 	}
 	return nil
 }
 func (h *lifecycleHandler) ReleaseLease(ctx context.Context, request assets.LeaseRequest) error {
 	*h.calls = append(*h.calls, "release:"+string(h.kind))
-	return request.Journal.ReleaseAsset(ctx, h.kind)
+	return request.LeaseJournal.ReleaseAsset(ctx, h.kind)
 }
 func (h *lifecycleHandler) ApplyPools(_ context.Context, request assets.PoolRequest) error {
 	*h.calls = append(*h.calls, "apply:"+string(h.kind))
-	if h.inventories != nil {
-		*h.inventories = request.Inventories
+	if h.assetInventories != nil {
+		*h.assetInventories = request.AssetInventories
+	}
+	if h.poolRequests != nil {
+		*h.poolRequests = append(*h.poolRequests, request)
 	}
 	return nil
 }
@@ -216,7 +220,7 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				if !reflect.DeepEqual(state.Leases.Assets[slots.KindInfrastructureIdentities], want) {
 					t.Fatalf("%s ran without exact secondary names persisted: %+v", phase, state.Leases)
 				}
-				if phase == "admit" && request.State.Slot.Assets.InfrastructureIdentities == nil {
+				if phase == "admit" && request.AcquiredSlotState.Slot.Assets.InfrastructureIdentities == nil {
 					t.Fatal("admission ran before resolution")
 				}
 				env, _ := slots.EnvFile(options.SharedDir)
@@ -317,10 +321,10 @@ func TestPoolCommandsPreserveWholeCatalogInventory(t *testing.T) {
 	t.Parallel()
 	path := writeAcquireTestCatalogFromYAML(t, lifecycleCatalog)
 	calls := []string{}
-	var inventories []slots.AssetInventory
+	var assetInventories []slots.AssetInventory
 	registry, err := assets.NewRegistry(
 		&lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls},
-		&lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls, inventories: &inventories},
+		&lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls, assetInventories: &assetInventories},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -330,8 +334,8 @@ func TestPoolCommandsPreserveWholeCatalogInventory(t *testing.T) {
 			Environment: "dev", SlotCatalog: path, Pools: []string{"shard0"}, Subscriptions: []string{"dev-e2e"},
 			AssetKinds: []string{string(slots.KindInfrastructureIdentities)},
 		}, validate)
-		if err != nil || len(inventories) != 1 || inventories[0].Capacity != 5 {
-			t.Fatalf("filtered command shrank full demand: %+v, %v", inventories, err)
+		if err != nil || len(assetInventories) != 1 || assetInventories[0].Capacity != 5 {
+			t.Fatalf("filtered command shrank full demand: %+v, %v", assetInventories, err)
 		}
 	}
 	builtIn, err := newAssetRegistry()
@@ -340,6 +344,51 @@ func TestPoolCommandsPreserveWholeCatalogInventory(t *testing.T) {
 	}
 	if err := runPoolAssetsCommand(context.Background(), builtIn, &assetCommandOptions{Environment: "dev", SlotCatalog: path}, true); err == nil || !strings.Contains(err.Error(), "without an implemented handler") {
 		t.Fatalf("unsupported asset management must fail before Azure access: %v", err)
+	}
+}
+
+func TestPoolHandlersReceiveOnlyDeclaredPoolsAndReferencedInventories(t *testing.T) {
+	t.Parallel()
+	catalog, err := slots.LoadCatalog(writeAcquireTestCatalogFromYAML(t, lifecycleCatalog))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assetInventories, err := catalog.AssetInventories()
+	if err != nil {
+		t.Fatal(err)
+	}
+	unrelatedInventory := assetInventories[0]
+	unrelatedInventory.AssetPool.Name = "unrelated"
+	assetInventories = append(assetInventories, unrelatedInventory)
+	calls := []string{}
+	var requests []assets.PoolRequest
+	registry, err := assets.NewRegistry(
+		&lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls, poolRequests: &requests},
+		&lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls, poolRequests: &requests},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pools := append([]slots.Pool{}, catalog.Environments["dev"].Pools...)
+	pools = append(pools, catalog.Environments["other"].Pools...)
+	request := assets.PoolRequest{Pools: pools, AssetInventories: assetInventories, IncludeUnmanaged: true}
+	for _, operation := range []func(context.Context, assets.PoolRequest, ...assets.Kind) error{registry.ApplyPools, registry.ValidatePools} {
+		requests = nil
+		if err := operation(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		if len(requests) != 2 {
+			t.Fatalf("expected both declared handlers, got %d requests", len(requests))
+		}
+		if !reflect.DeepEqual(requests[0].Pools, pools[:1]) || len(requests[0].AssetInventories) != 0 {
+			t.Fatalf("dedicated handler received another asset's pools or inventories: %+v", requests[0])
+		}
+		if !reflect.DeepEqual(requests[1].Pools, pools) || !reflect.DeepEqual(requests[1].AssetInventories, assetInventories[:1]) {
+			t.Fatalf("leased handler lost whole-catalog capacity or received unrelated inventory: %+v", requests[1])
+		}
+		if !requests[0].IncludeUnmanaged || !requests[1].IncludeUnmanaged || len(request.Pools) != 2 || len(request.AssetInventories) != 2 {
+			t.Fatal("handler scoping changed request options or the original request")
+		}
 	}
 }
 

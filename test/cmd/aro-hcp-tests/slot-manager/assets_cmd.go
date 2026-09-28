@@ -153,7 +153,7 @@ func runPoolAssetsCommand(ctx context.Context, registry *assets.Registry, option
 		IncludeUnmanaged: len(subscriptionFilter) > 0 || len(poolFilter) > 0,
 		Out:              options.Out,
 	}
-	request.Inventories, err = catalog.AssetInventories()
+	request.AssetInventories, err = catalog.AssetInventories()
 	if err != nil {
 		return err
 	}

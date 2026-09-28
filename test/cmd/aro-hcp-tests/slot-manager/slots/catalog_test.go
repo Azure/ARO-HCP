@@ -779,8 +779,8 @@ func TestV2E2EOnlyCatalogIgnoresInfrastructureBinding(t *testing.T) {
 		if resolved, err := catalog.ResolveEnvironmentForDeployEnv("stg"); err != nil || resolved != "dev" {
 			t.Fatalf("logical deployment environment lost: %q, %v", resolved, err)
 		}
-		if inventories, err := catalog.AssetInventories(); err != nil || len(inventories) != 0 {
-			t.Fatalf("E2E-only catalog created infrastructure inventory: %+v, %v", inventories, err)
+		if assetInventories, err := catalog.AssetInventories(); err != nil || len(assetInventories) != 0 {
+			t.Fatalf("E2E-only catalog created infrastructure inventory: %+v, %v", assetInventories, err)
 		}
 	}
 }

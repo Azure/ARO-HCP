@@ -59,9 +59,9 @@ environments:
 
 func TestAssetInventoryContainsCanonicalNames(t *testing.T) {
 	t.Parallel()
-	inventory := AssetInventory{Pool: AssetPool{ResourceNamePrefix: "bundle"}, Capacity: 101}
+	assetInventory := AssetInventory{AssetPool: AssetPool{ResourceNamePrefix: "bundle"}, Capacity: 101}
 	for _, name := range []string{"bundle-00", "bundle-01", "bundle-99", "bundle-100"} {
-		if !inventory.Contains(name) {
+		if !assetInventory.Contains(name) {
 			t.Errorf("rejected canonical name %q", name)
 		}
 	}
@@ -70,12 +70,12 @@ func TestAssetInventoryContainsCanonicalNames(t *testing.T) {
 		"bundle--1", "bundle- 1", "bundle-01 ", "bundle-01\n", "bundle-1suffix", "bundle-0x01",
 		"bundle-1.0", "bundle-99999999999999999999999999", "bundle-", "foreign-01", "01",
 	} {
-		if inventory.Contains(name) {
+		if assetInventory.Contains(name) {
 			t.Errorf("accepted noncanonical or out-of-range name %q", name)
 		}
 	}
-	inventory.Capacity = 0
-	if inventory.Contains("bundle-00") {
+	assetInventory.Capacity = 0
+	if assetInventory.Contains("bundle-00") {
 		t.Fatal("empty inventory accepted a resource")
 	}
 }
@@ -87,12 +87,12 @@ func TestAssetInventoryAggregatesWholeCatalog(t *testing.T) {
 	if err != nil || len(pools) != 1 {
 		t.Fatalf("selecting one consumer: %v, %v", pools, err)
 	}
-	inventories, err := catalog.AssetInventories()
-	if err != nil || len(inventories) != 1 || inventories[0].Capacity != 7 {
-		t.Fatalf("whole catalog demand must be 2*2 + 3*1: %+v, %v", inventories, err)
+	assetInventories, err := catalog.AssetInventories()
+	if err != nil || len(assetInventories) != 1 || assetInventories[0].Capacity != 7 {
+		t.Fatalf("whole catalog demand must be 2*2 + 3*1: %+v, %v", assetInventories, err)
 	}
-	if inventories[0].SubscriptionName != "infra" || inventories[0].Pool.Provisioning != AssetProvisioningManaged {
-		t.Fatalf("incorrect normalized inventory: %+v", inventories[0])
+	if assetInventories[0].SubscriptionName != "infra" || assetInventories[0].AssetPool.Provisioning != AssetProvisioningManaged {
+		t.Fatalf("incorrect normalized inventory: %+v", assetInventories[0])
 	}
 	slot := ExpandSlotsForPool("dev", pools[0])[0]
 	if slot.DeployEnvironment != "ci01" || slot.Subscriptions.Infrastructure.Name != "infra" || slot.Assets.E2EIdentities != nil {
@@ -161,9 +161,9 @@ func TestV2MixedPoolsRequireInfrastructureOnlyForConsumers(t *testing.T) {
 	if pools[0].InfrastructureSubscriptionName() != "" || pools[0].Subscriptions.Infrastructure != "" || pools[1].InfrastructureSubscriptionName() != "infra" {
 		t.Fatalf("infrastructure binding was not limited to consumers: %+v", pools)
 	}
-	inventories, err := catalog.AssetInventories()
-	if err != nil || len(inventories) != 1 || inventories[0].Capacity != 7 || inventories[0].SubscriptionName != "infra" {
-		t.Fatalf("E2E-only pool changed infrastructure inventory: %+v, %v", inventories, err)
+	assetInventories, err := catalog.AssetInventories()
+	if err != nil || len(assetInventories) != 1 || assetInventories[0].Capacity != 7 || assetInventories[0].SubscriptionName != "infra" {
+		t.Fatalf("E2E-only pool changed infrastructure inventory: %+v, %v", assetInventories, err)
 	}
 	_, err = loadCatalogFromYAMLWithError(t, strings.Replace(input, "name: ci01, infrastructure_subscription: infra", "name: ci01", 1))
 	if err == nil || !strings.Contains(err.Error(), "deployment_environment.infrastructure_subscription") {

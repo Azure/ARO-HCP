@@ -102,13 +102,13 @@ func RenderBoskosResourcesBlock(catalog *Catalog) (string, error) {
 			lines = append(lines, fmt.Sprintf("    CONFIG['%s']['%s-{i:0>2}'.format(i=i)] = 1", pool.ResourceType, pool.ResourceType))
 		}
 	}
-	inventories, err := catalog.AssetInventories()
+	assetInventories, err := catalog.AssetInventories()
 	if err != nil {
 		return "", fmt.Errorf("invalid asset inventory: %w", err)
 	}
-	for _, inventory := range inventories {
-		lines = append(lines, fmt.Sprintf("for i in range(%d):", inventory.Capacity))
-		lines = append(lines, fmt.Sprintf("    CONFIG['%s']['%s-{i:0>2}'.format(i=i)] = 1", inventory.Pool.ResourceType, inventory.Pool.ResourceNamePrefix))
+	for _, assetInventory := range assetInventories {
+		lines = append(lines, fmt.Sprintf("for i in range(%d):", assetInventory.Capacity))
+		lines = append(lines, fmt.Sprintf("    CONFIG['%s']['%s-{i:0>2}'.format(i=i)] = 1", assetInventory.AssetPool.ResourceType, assetInventory.AssetPool.ResourceNamePrefix))
 	}
 	lines = append(lines, BoskosResourcesEndMarker)
 	return strings.Join(lines, "\n"), nil
@@ -184,13 +184,13 @@ func ExpectedBoskosResources(catalog *Catalog) (map[string][]string, error) {
 		}
 	}
 
-	inventories, err := catalog.AssetInventories()
+	assetInventories, err := catalog.AssetInventories()
 	if err != nil {
 		return nil, err
 	}
-	for _, inventory := range inventories {
-		for i := range inventory.Capacity {
-			expected[inventory.Pool.ResourceType] = append(expected[inventory.Pool.ResourceType], inventory.ResourceName(i))
+	for _, assetInventory := range assetInventories {
+		for i := range assetInventory.Capacity {
+			expected[assetInventory.AssetPool.ResourceType] = append(expected[assetInventory.AssetPool.ResourceType], assetInventory.ResourceName(i))
 		}
 	}
 	for resourceType := range expected {

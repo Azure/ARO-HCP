@@ -171,7 +171,7 @@ type ResolvedAssets struct {
 }
 
 type ExpandedSlot struct {
-	Requirements            []AssetRequirement    `yaml:"requirements,omitempty"`
+	AssetRequirements       []AssetRequirement    `yaml:"requirements,omitempty" json:"Requirements"`
 	Environment             string                `yaml:"environment"`
 	PoolName                string                `yaml:"pool_name,omitempty"`
 	DeployEnvironment       string                `yaml:"deploy_environment,omitempty"`
@@ -620,7 +620,7 @@ func ExpandSlotsForPool(environment string, pool Pool) []ExpandedSlot {
 		identityContainerPrefix := fmt.Sprintf("%s-%0*d", pool.IdentityContainerPrefix, defaultSlotIndexWidth, i)
 		identityContainers := identityContainerNames(identityContainerPrefix, pool.IdentityContainerCount)
 		slot := ExpandedSlot{
-			Requirements:            pool.Requirements(),
+			AssetRequirements:       pool.Requirements(),
 			Environment:             environment,
 			PoolName:                pool.Name,
 			DeployEnvironment:       pool.DeployEnv,

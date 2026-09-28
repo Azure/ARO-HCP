@@ -62,10 +62,10 @@ func (a *LeasedAsset) UnmarshalYAML(node *yaml.Node) error {
 }
 
 type AssetRequirement struct {
-	Kind         AssetKind  `yaml:"kind"`
-	Allocation   Allocation `yaml:"allocation"`
-	AssetPool    string     `yaml:"asset_pool,omitempty"`
-	UnitsPerSlot int        `yaml:"units_per_slot,omitempty"`
+	Kind          AssetKind  `yaml:"kind"`
+	Allocation    Allocation `yaml:"allocation"`
+	AssetPoolName string     `yaml:"asset_pool,omitempty" json:"AssetPool"`
+	UnitsPerSlot  int        `yaml:"units_per_slot,omitempty"`
 }
 
 type InfrastructureIdentitiesConfig struct {
@@ -84,9 +84,20 @@ type AssetPool struct {
 
 // AssetInventory is derived from the whole catalog, never a filtered command selection.
 type AssetInventory struct {
-	Pool             AssetPool
+	AssetPool        AssetPool
 	Capacity         int
 	SubscriptionName string
+}
+
+// AssetInventoryForRequirement looks up a declared pool without recalculating its
+// whole-catalog capacity from a filtered set of consumers.
+func AssetInventoryForRequirement(assetInventories []AssetInventory, assetRequirement AssetRequirement) (AssetInventory, bool) {
+	for _, assetInventory := range assetInventories {
+		if assetInventory.AssetPool.Name == assetRequirement.AssetPoolName && assetInventory.AssetPool.Kind == assetRequirement.Kind {
+			return assetInventory, true
+		}
+	}
+	return AssetInventory{}, false
 }
 
 type ResolvedInfrastructureIdentities struct {
@@ -96,54 +107,54 @@ type ResolvedInfrastructureIdentities struct {
 }
 
 func (p Pool) Requirements() []AssetRequirement {
-	var requirements []AssetRequirement
+	var assetRequirements []AssetRequirement
 	if p.SlotAssets.E2EIdentities != nil || p.IdentityContainerCount > 0 {
-		requirements = append(requirements, AssetRequirement{Kind: KindE2EIdentities, Allocation: AllocationDedicated, UnitsPerSlot: 1})
+		assetRequirements = append(assetRequirements, AssetRequirement{Kind: KindE2EIdentities, Allocation: AllocationDedicated, UnitsPerSlot: 1})
 	}
 	if asset := p.SlotAssets.InfrastructureIdentities; asset != nil {
 		units := asset.UnitsPerSlot
 		if units == 0 {
 			units = 1
 		}
-		requirements = append(requirements, AssetRequirement{Kind: KindInfrastructureIdentities, Allocation: asset.Allocation, AssetPool: asset.AssetPool, UnitsPerSlot: units})
+		assetRequirements = append(assetRequirements, AssetRequirement{Kind: KindInfrastructureIdentities, Allocation: asset.Allocation, AssetPoolName: asset.AssetPool, UnitsPerSlot: units})
 	}
-	return requirements
+	return assetRequirements
 }
 
 func (s ExpandedSlot) ValidateResolvedAssets() error {
-	for _, requirement := range s.Requirements {
-		switch requirement.Kind {
+	for _, assetRequirement := range s.AssetRequirements {
+		switch assetRequirement.Kind {
 		case KindE2EIdentities:
 			asset := s.Assets.E2EIdentities
 			if asset == nil || len(asset.ResourceGroups) == 0 {
-				return fmt.Errorf("unresolved demanded asset %q", requirement.Kind)
+				return fmt.Errorf("unresolved demanded asset %q", assetRequirement.Kind)
 			}
-			if requirement.Allocation != AllocationDedicated || asset.Allocation != AllocationDedicated {
-				return fmt.Errorf("demanded asset %q requires dedicated allocation", requirement.Kind)
+			if assetRequirement.Allocation != AllocationDedicated || asset.Allocation != AllocationDedicated {
+				return fmt.Errorf("demanded asset %q requires dedicated allocation", assetRequirement.Kind)
 			}
 			if s.IdentityContainerCount <= 0 || len(asset.ResourceGroups) != s.IdentityContainerCount ||
 				strings.TrimSpace(s.IdentityContainerPrefix) == "" ||
 				!slices.Equal(asset.ResourceGroups, identityContainerNames(s.IdentityContainerPrefix, s.IdentityContainerCount)) {
-				return fmt.Errorf("resolved demanded asset %q does not match dedicated identity containers", requirement.Kind)
+				return fmt.Errorf("resolved demanded asset %q does not match dedicated identity containers", assetRequirement.Kind)
 			}
 		case KindInfrastructureIdentities:
 			asset := s.Assets.InfrastructureIdentities
-			if asset == nil || requirement.UnitsPerSlot <= 0 || len(asset.ResourceGroups) != requirement.UnitsPerSlot || len(asset.Identities) == 0 {
-				return fmt.Errorf("unresolved demanded asset %q", requirement.Kind)
+			if asset == nil || assetRequirement.UnitsPerSlot <= 0 || len(asset.ResourceGroups) != assetRequirement.UnitsPerSlot || len(asset.Identities) == 0 {
+				return fmt.Errorf("unresolved demanded asset %q", assetRequirement.Kind)
 			}
-			if requirement.Allocation != AllocationLeased || asset.Allocation != AllocationLeased {
-				return fmt.Errorf("demanded asset %q requires leased allocation", requirement.Kind)
+			if assetRequirement.Allocation != AllocationLeased || asset.Allocation != AllocationLeased {
+				return fmt.Errorf("demanded asset %q requires leased allocation", assetRequirement.Kind)
 			}
 		default:
-			return fmt.Errorf("unknown demanded asset %q", requirement.Kind)
+			return fmt.Errorf("unknown demanded asset %q", assetRequirement.Kind)
 		}
 	}
 	return nil
 }
 
 func (s ExpandedSlot) RequiresInfrastructureSubscription() bool {
-	for _, requirement := range s.Requirements {
-		if requirement.Kind == KindInfrastructureIdentities {
+	for _, assetRequirement := range s.AssetRequirements {
+		if assetRequirement.Kind == KindInfrastructureIdentities {
 			return true
 		}
 	}
@@ -151,12 +162,12 @@ func (s ExpandedSlot) RequiresInfrastructureSubscription() bool {
 }
 
 func (a AssetInventory) ResourceName(index int) string {
-	return fmt.Sprintf("%s-%02d", a.Pool.ResourceNamePrefix, index)
+	return fmt.Sprintf("%s-%02d", a.AssetPool.ResourceNamePrefix, index)
 }
 
 func (a AssetInventory) Contains(name string) bool {
 	// Compare canonical formatting, not just a prefix (or a permissive integer parse).
-	suffix, found := strings.CutPrefix(name, a.Pool.ResourceNamePrefix+"-")
+	suffix, found := strings.CutPrefix(name, a.AssetPool.ResourceNamePrefix+"-")
 	if !found {
 		return false
 	}
@@ -168,51 +179,51 @@ func (a AssetInventory) Contains(name string) bool {
 }
 
 func (c *Catalog) AssetInventories() ([]AssetInventory, error) {
-	inventory := make([]AssetInventory, len(c.AssetPools))
+	assetInventories := make([]AssetInventory, len(c.AssetPools))
 	indexes := map[string]int{}
-	for i, pool := range c.AssetPools {
-		if _, found := indexes[pool.Name]; found {
-			return nil, fmt.Errorf("duplicate asset pool %q", pool.Name)
+	for i, assetPool := range c.AssetPools {
+		if _, found := indexes[assetPool.Name]; found {
+			return nil, fmt.Errorf("duplicate asset pool %q", assetPool.Name)
 		}
-		indexes[pool.Name] = i
-		inventory[i].Pool = pool
+		indexes[assetPool.Name] = i
+		assetInventories[i].AssetPool = assetPool
 	}
 	for _, environment := range c.EnvironmentNames() {
 		for _, pool := range c.Environments[environment].Pools {
-			for _, requirement := range pool.Requirements() {
-				if requirement.Allocation != AllocationLeased {
+			for _, assetRequirement := range pool.Requirements() {
+				if assetRequirement.Allocation != AllocationLeased {
 					continue
 				}
-				i, found := indexes[requirement.AssetPool]
+				i, found := indexes[assetRequirement.AssetPoolName]
 				if !found {
-					return nil, fmt.Errorf("pool %s/%s references missing asset pool %q", environment, pool.Name, requirement.AssetPool)
+					return nil, fmt.Errorf("pool %s/%s references missing asset pool %q", environment, pool.Name, assetRequirement.AssetPoolName)
 				}
-				asset := &inventory[i]
-				if requirement.Kind != asset.Pool.Kind {
-					return nil, fmt.Errorf("asset pool %q kind mismatch: %q demanded, %q declared", asset.Pool.Name, requirement.Kind, asset.Pool.Kind)
+				assetInventory := &assetInventories[i]
+				if assetRequirement.Kind != assetInventory.AssetPool.Kind {
+					return nil, fmt.Errorf("asset pool %q kind mismatch: %q demanded, %q declared", assetInventory.AssetPool.Name, assetRequirement.Kind, assetInventory.AssetPool.Kind)
 				}
 				// Subscription ownership is part of the typed schema, not command orchestration.
 				subscription := c.Environments[environment].DeploymentEnvironment.InfrastructureSubscription
 				if strings.TrimSpace(subscription) == "" {
 					return nil, fmt.Errorf("environment %q has empty deployment_environment.infrastructure_subscription for pool %q", environment, pool.Name)
 				}
-				if asset.SubscriptionName != "" && asset.SubscriptionName != subscription {
-					return nil, fmt.Errorf("asset pool %q has incompatible consumer subscriptions %q and %q", asset.Pool.Name, asset.SubscriptionName, subscription)
+				if assetInventory.SubscriptionName != "" && assetInventory.SubscriptionName != subscription {
+					return nil, fmt.Errorf("asset pool %q has incompatible consumer subscriptions %q and %q", assetInventory.AssetPool.Name, assetInventory.SubscriptionName, subscription)
 				}
-				asset.SubscriptionName = subscription
-				if requirement.UnitsPerSlot <= 0 || pool.SlotCount <= 0 || pool.SlotCount > (math.MaxInt-asset.Capacity)/requirement.UnitsPerSlot {
-					return nil, fmt.Errorf("asset pool %q capacity is invalid or overflows int", asset.Pool.Name)
+				assetInventory.SubscriptionName = subscription
+				if assetRequirement.UnitsPerSlot <= 0 || pool.SlotCount <= 0 || pool.SlotCount > (math.MaxInt-assetInventory.Capacity)/assetRequirement.UnitsPerSlot {
+					return nil, fmt.Errorf("asset pool %q capacity is invalid or overflows int", assetInventory.AssetPool.Name)
 				}
-				asset.Capacity += pool.SlotCount * requirement.UnitsPerSlot
+				assetInventory.Capacity += pool.SlotCount * assetRequirement.UnitsPerSlot
 			}
 		}
 	}
-	for _, asset := range inventory {
-		if asset.Capacity == 0 {
-			return nil, fmt.Errorf("unused asset pool %q", asset.Pool.Name)
+	for _, assetInventory := range assetInventories {
+		if assetInventory.Capacity == 0 {
+			return nil, fmt.Errorf("unused asset pool %q", assetInventory.AssetPool.Name)
 		}
 	}
-	return inventory, nil
+	return assetInventories, nil
 }
 
 var inventoryName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)

@@ -51,7 +51,7 @@ func TestLeaseCredentialUsesSelectedProfileWithoutAzureLogin(t *testing.T) {
 	}
 	request := assets.LeaseRequest{
 		SelectedClusterProfileDir: profile,
-		State: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+		AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
 			Subscriptions: slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{ID: "customer-subscription"}},
 		}},
 	}

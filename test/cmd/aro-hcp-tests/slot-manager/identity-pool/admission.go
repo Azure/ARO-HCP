@@ -116,10 +116,10 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 }
 
 func leaseCredential(request assets.LeaseRequest) (azcore.TokenCredential, string, error) {
-	if request.State == nil {
+	if request.AcquiredSlotState == nil {
 		return nil, "", errors.New("acquired slot state is nil")
 	}
-	subscriptionID := strings.TrimSpace(request.State.Slot.Subscriptions.E2E.ID)
+	subscriptionID := strings.TrimSpace(request.AcquiredSlotState.Slot.Subscriptions.E2E.ID)
 	if subscriptionID == "" {
 		return nil, "", errors.New("resolved E2E subscription ID is empty")
 	}
@@ -141,7 +141,7 @@ func loadIdentityLeaseInventory(
 	msiFactory *armmsi.ClientFactory,
 	roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
 ) (*identityLeaseInventory, error) {
-	if request.State == nil || len(request.State.Slot.IdentityContainerNames()) == 0 {
+	if request.AcquiredSlotState == nil || len(request.AcquiredSlotState.Slot.IdentityContainerNames()) == 0 {
 		return nil, errors.New("resolved E2E identity inventory is empty")
 	}
 	expectedIdentityNames := framework.NewDefaultIdentities().ToSlice()
@@ -155,7 +155,7 @@ func loadIdentityLeaseInventory(
 	federatedCredentialsClient := msiFactory.NewFederatedIdentityCredentialsClient()
 	identitiesClient := msiFactory.NewUserAssignedIdentitiesClient()
 
-	for _, resourceGroup := range request.State.Slot.IdentityContainerNames() {
+	for _, resourceGroup := range request.AcquiredSlotState.Slot.IdentityContainerNames() {
 		actualIdentities := map[string]string{}
 		var unexpectedIdentities []string
 		pager := identitiesClient.NewListByResourceGroupPager(resourceGroup, nil)

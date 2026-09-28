@@ -138,7 +138,7 @@ func (o *ReleaseOptions) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if err := registry.ReleaseLease(ctx, assets.LeaseRequest{State: state, Journal: journal}); err != nil {
+		if err := registry.ReleaseLease(ctx, assets.LeaseRequest{AcquiredSlotState: state, LeaseJournal: journal}); err != nil {
 			return err
 		}
 		return slots.RemoveStateFiles(o.SharedDir)

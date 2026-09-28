@@ -15,12 +15,47 @@
 package slots
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
+
+func TestAssetRequirementsPreserveWireNames(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name           string
+		wire           string
+		requirementKey string
+		assetPoolKey   string
+		marshal        func(any) ([]byte, error)
+		unmarshal      func([]byte, any) error
+	}{
+		{"yaml", "requirements:\n- asset_pool: bundles\n", "requirements:", "asset_pool: bundles", yaml.Marshal, yaml.Unmarshal},
+		{"json", `{"Requirements":[{"AssetPool":"bundles"}]}`, `"Requirements":`, `"AssetPool":"bundles"`, json.Marshal, json.Unmarshal},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var slot ExpandedSlot
+			if err := test.unmarshal([]byte(test.wire), &slot); err != nil {
+				t.Fatal(err)
+			}
+			if len(slot.AssetRequirements) != 1 || slot.AssetRequirements[0].AssetPoolName != "bundles" {
+				t.Fatalf("legacy wire keys did not populate renamed fields: %+v", slot.AssetRequirements)
+			}
+			data, err := test.marshal(slot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(data), test.requirementKey) || !strings.Contains(string(data), test.assetPoolKey) {
+				t.Fatalf("renamed fields changed wire keys: %s", data)
+			}
+		})
+	}
+}
 
 func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	t.Parallel()
@@ -135,7 +170,7 @@ func TestWriteV2AcquiredSlotStateAndRuntimeContract(t *testing.T) {
 
 	sharedDir := t.TempDir()
 	state := resolvedV2TestState()
-	state.Slot.Requirements = []AssetRequirement{
+	state.Slot.AssetRequirements = []AssetRequirement{
 		{Kind: KindInfrastructureIdentities, Allocation: AllocationLeased, UnitsPerSlot: 1},
 	}
 	state.Leases.Assets = map[AssetKind][]Lease{
@@ -196,7 +231,7 @@ func TestE2EOnlyStateAndRuntimeOmitInfrastructure(t *testing.T) {
 	for _, infrastructure := range []ResolvedSubscription{{}, {Name: "unused", ID: "unused-id"}} {
 		state := resolvedV2TestState()
 		state.Slot.Subscriptions.Infrastructure = infrastructure
-		state.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+		state.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
 		state.Slot.IdentityContainerPrefix = "identities-00"
 		state.Slot.IdentityContainerCount = 1
 		state.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
@@ -322,7 +357,7 @@ func TestInfrastructureRuntimeMatchesJournal(t *testing.T) {
 			s.Slot.Assets.InfrastructureIdentities.Allocation = AllocationDedicated
 		}, "requires leased allocation"},
 		{"wrong demanded allocation", func(s *AcquiredSlotState) {
-			s.Slot.Requirements[0].Allocation = AllocationDedicated
+			s.Slot.AssetRequirements[0].Allocation = AllocationDedicated
 		}, "requires leased allocation"},
 		{"foreign group", func(s *AcquiredSlotState) {
 			s.Slot.Assets.InfrastructureIdentities.ResourceGroups[0] = "foreign-00"
@@ -334,7 +369,7 @@ func TestInfrastructureRuntimeMatchesJournal(t *testing.T) {
 			s.Leases.Assets = nil
 		}, "does not match acquired leases"},
 		{"zero demand", func(s *AcquiredSlotState) {
-			s.Slot.Requirements[0].UnitsPerSlot = 0
+			s.Slot.AssetRequirements[0].UnitsPerSlot = 0
 			s.Slot.Assets.InfrastructureIdentities.ResourceGroups = nil
 			s.Leases.Assets = nil
 		}, "unresolved demanded asset"},
@@ -344,7 +379,7 @@ func TestInfrastructureRuntimeMatchesJournal(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			state := resolvedV2TestState()
-			state.Slot.Requirements = []AssetRequirement{{Kind: KindInfrastructureIdentities, Allocation: AllocationLeased, UnitsPerSlot: 2}}
+			state.Slot.AssetRequirements = []AssetRequirement{{Kind: KindInfrastructureIdentities, Allocation: AllocationLeased, UnitsPerSlot: 2}}
 			state.Slot.Assets.InfrastructureIdentities = &ResolvedInfrastructureIdentities{
 				Allocation: AllocationLeased, ResourceGroups: []string{"bundle-00", "bundle-01"}, Identities: []string{"service"},
 			}
@@ -391,11 +426,11 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 		{"e2e name", func(s *AcquiredSlotState) { s.Slot.Subscriptions.E2E.Name = " " }, "unresolved E2E subscription"},
 		{"e2e ID", func(s *AcquiredSlotState) { s.Slot.Subscriptions.E2E.ID = " " }, "unresolved E2E subscription"},
 		{"infra name", func(s *AcquiredSlotState) {
-			s.Slot.Requirements = []AssetRequirement{{Kind: KindInfrastructureIdentities}}
+			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindInfrastructureIdentities}}
 			s.Slot.Subscriptions.Infrastructure.Name = " "
 		}, "unresolved infrastructure subscription"},
 		{"infra ID", func(s *AcquiredSlotState) {
-			s.Slot.Requirements = []AssetRequirement{{Kind: KindInfrastructureIdentities}}
+			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindInfrastructureIdentities}}
 			s.Slot.Subscriptions.Infrastructure.ID = " "
 		}, "unresolved infrastructure subscription"},
 		{"primary returning", func(s *AcquiredSlotState) { s.Leases.Primary.ReturnState = "returning" }, "primary lease is no longer held"},
@@ -407,38 +442,38 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 			s.Leases.Assets = map[AssetKind][]Lease{"unknown-kind": {{ResourceType: "bundle", ResourceName: "bundle-00", ReturnState: "returned"}}}
 		}, "asset lease \"bundle-00\" is no longer held"},
 		{"unresolved assets", func(s *AcquiredSlotState) {
-			s.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities}}
+			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities}}
 		}, "unresolved demanded asset"},
 		{"truncated dedicated identities", func(s *AcquiredSlotState) {
-			s.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
 			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 2
 			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
 				Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00-00"},
 			}
 		}, "does not match dedicated identity containers"},
 		{"foreign dedicated identity", func(s *AcquiredSlotState) {
-			s.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
 			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 1
 			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
 				Allocation: AllocationDedicated, ResourceGroups: []string{"foreign-00-00"},
 			}
 		}, "does not match dedicated identity containers"},
 		{"duplicate dedicated identities", func(s *AcquiredSlotState) {
-			s.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
 			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 2
 			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
 				Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00-00", "identities-00-00"},
 			}
 		}, "does not match dedicated identity containers"},
 		{"wrong resolved identity allocation", func(s *AcquiredSlotState) {
-			s.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
 			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 1
 			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
 				Allocation: AllocationLeased, ResourceGroups: []string{"identities-00-00"},
 			}
 		}, "requires dedicated allocation"},
 		{"wrong demanded identity allocation", func(s *AcquiredSlotState) {
-			s.Slot.Requirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationLeased}}
+			s.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationLeased}}
 			s.Slot.IdentityContainerPrefix, s.Slot.IdentityContainerCount = "identities-00", 1
 			s.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{
 				Allocation: AllocationDedicated, ResourceGroups: []string{"identities-00-00"},

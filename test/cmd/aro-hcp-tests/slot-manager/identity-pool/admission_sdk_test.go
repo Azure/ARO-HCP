@@ -198,7 +198,7 @@ func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 				transport := &admissionTransport{scenario: scenario, fic: dirty, role: dirty, latency: time.Millisecond}
 				factory, roles := admissionSDKClients(t, transport)
 				groups := []string{"identity-rg-00", "identity-rg-01"}
-				request := assets.LeaseRequest{State: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+				request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
 					Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
 						Allocation: slots.AllocationDedicated, ResourceGroups: groups,
 					}},
@@ -283,7 +283,7 @@ func TestAdmissionFailsClosed(t *testing.T) {
 		t.Run(tc.scenario, func(t *testing.T) {
 			transport := &admissionTransport{scenario: tc.scenario, fic: true, role: true}
 			factory, roles := admissionSDKClients(t, transport)
-			request := assets.LeaseRequest{State: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+			request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
 				Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
 					Allocation: slots.AllocationDedicated, ResourceGroups: []string{"identity-rg"},
 				}},
