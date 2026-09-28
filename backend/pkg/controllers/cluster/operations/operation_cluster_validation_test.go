@@ -66,15 +66,15 @@ func TestClusterValidationOperationState(t *testing.T) {
 			wantMessage: "Subnet: ValidationResult: Subnet details",
 		},
 		{
-			name:        "validation at exactly five minutes fails an older operation",
-			validations: []metav1.Condition{condition("Subnet", metav1.ConditionFalse, 5*time.Minute)},
+			name:        "validation at exactly ten minutes fails an older operation",
+			validations: []metav1.Condition{condition("Subnet", metav1.ConditionFalse, 10*time.Minute)},
 			wantState:   coreapi.ProvisioningStateFailed, wantCode: coreapi.CloudErrorCodeInvalidResource,
 			wantMessage: "Subnet: ValidationResult: Subnet details",
 		},
 		{
-			name: "any failure older than five minutes fails and all failures are reported",
+			name: "any failure older than ten minutes fails and all failures are reported",
 			validations: []metav1.Condition{
-				condition("Subnet", metav1.ConditionFalse, 5*time.Minute+time.Second),
+				condition("Subnet", metav1.ConditionFalse, 10*time.Minute+time.Second),
 				condition("Identity", metav1.ConditionFalse, time.Minute),
 				condition("Quota", metav1.ConditionTrue, time.Hour),
 			},
@@ -90,7 +90,7 @@ func TestClusterValidationOperationState(t *testing.T) {
 		{
 			name: "unknown validation does not extend a failure timeout",
 			validations: []metav1.Condition{
-				condition("Subnet", metav1.ConditionFalse, 6*time.Minute),
+				condition("Subnet", metav1.ConditionFalse, 11*time.Minute),
 				condition("Identity", metav1.ConditionUnknown, time.Minute),
 			},
 			wantState: coreapi.ProvisioningStateFailed, wantCode: coreapi.CloudErrorCodeInvalidResource,
@@ -130,7 +130,7 @@ func TestClusterValidationOperationAge(t *testing.T) {
 	spc := &coreapi.ServiceProviderCluster{Status: coreapi.ServiceProviderClusterStatus{
 		Validations: []metav1.Condition{{
 			Type: "Subnet", Status: metav1.ConditionFalse, Reason: "InvalidSubnet",
-			LastTransitionTime: metav1.NewTime(now.Add(-5 * time.Minute)),
+			LastTransitionTime: metav1.NewTime(now.Add(-10 * time.Minute)),
 		}},
 	}}
 	tests := []struct {
@@ -139,8 +139,8 @@ func TestClusterValidationOperationAge(t *testing.T) {
 		wantState coreapi.ProvisioningState
 	}{
 		{name: "new operation", startTime: now, wantState: coreapi.ProvisioningStateProvisioning},
-		{name: "operation just under five minutes", startTime: now.Add(-5*time.Minute + time.Second), wantState: coreapi.ProvisioningStateProvisioning},
-		{name: "both clocks exactly five minutes", startTime: now.Add(-5 * time.Minute), wantState: coreapi.ProvisioningStateFailed},
+		{name: "operation just under 10 minutes", startTime: now.Add(-10*time.Minute + time.Second), wantState: coreapi.ProvisioningStateProvisioning},
+		{name: "both clocks exactly 10 minutes", startTime: now.Add(-10 * time.Minute), wantState: coreapi.ProvisioningStateFailed},
 		{name: "older operation", startTime: now.Add(-time.Hour), wantState: coreapi.ProvisioningStateFailed},
 		{name: "missing operation start time", wantState: coreapi.ProvisioningStateProvisioning},
 		{name: "future operation start time", startTime: now.Add(time.Minute), wantState: coreapi.ProvisioningStateProvisioning},
@@ -172,7 +172,7 @@ func TestClusterValidationRecovery(t *testing.T) {
 	assert.Equal(t, coreapi.ProvisioningStateSucceeded, got.ProvisioningState)
 	assert.Empty(t, got.CloudErrorCode)
 	assert.Empty(t, got.Message)
-	// A subsequent failure gets its own five-minute grace period.
+	// A subsequent failure gets its own ten-minute grace period.
 	spc.Status.Validations[0].Status = metav1.ConditionFalse
 	spc.Status.Validations[0].LastTransitionTime = metav1.NewTime(now.Add(2 * time.Minute))
 	got = clusterValidationOperationState(spc, now.Add(-time.Hour), now.Add(3*time.Minute))
