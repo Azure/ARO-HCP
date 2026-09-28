@@ -8,6 +8,14 @@ deployment:
     cpu: "{{ .sessiongate.k8s.resources.requests.cpu }}"
     memory: "{{ .sessiongate.k8s.resources.requests.memory }}"
 logLevel: "2"
+certificateRefresher:
+  resources:
+    requests:
+      cpu: "{{ .sessiongate.certificateRefresher.resources.requests.cpu }}"
+      memory: "{{ .sessiongate.certificateRefresher.resources.requests.memory }}"
+    limits:
+      cpu: "{{ .sessiongate.certificateRefresher.resources.limits.cpu }}"
+      memory: "{{ .sessiongate.certificateRefresher.resources.limits.memory }}"
 leaderElection:
   leaseDuration: "15s"
   renewDeadline: "10s"

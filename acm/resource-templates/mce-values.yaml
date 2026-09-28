@@ -1,0 +1,15 @@
+resources:
+  backplaneOperator:
+    requests:
+      cpu: 100m
+      memory: 20Mi
+    limits:
+      cpu: 100m
+      memory: 2Gi
+  finalize:
+    requests:
+      cpu: NONE
+      memory: NONE
+    limits:
+      cpu: NONE
+      memory: NONE

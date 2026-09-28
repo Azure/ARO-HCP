@@ -43,6 +43,9 @@ spec:
           initialDelaySeconds: 120
           timeoutSeconds: 10
         name: postgresql
+        {{- with include "clusters-service.auxiliaryResources" .Values.databaseResources }}
+        {{- . | nindent 8 }}
+        {{- end }}
         ports:
         - containerPort: 5432
           protocol: TCP

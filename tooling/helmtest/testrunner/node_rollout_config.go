@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	sigsyaml "sigs.k8s.io/yaml"
@@ -76,6 +77,9 @@ var flagCategories = map[string]flagEffect{
 	"--hypershift-image":                  flagSafe,
 	"--install-scope":                     flagSafe, // phase selector (crds vs resources), does not affect node config
 	"--disable-capi-migration":            flagSafe,
+	"--outputs":                           flagSafe, // render output selection, does not affect node config
+	"--render-sensitive":                  flagSafe, // include secrets in rendered output
+	"--output-file":                       flagSafe, // rendered manifest destination
 
 	// Node-affecting: tracked in dedicated NodeRolloutConfig fields
 	"--registry-overrides": flagNodeAffecting,
@@ -203,6 +207,11 @@ func extractNodeRolloutConfig(manifest string) (*NodeRolloutConfig, error) {
 
 func extractInstallScript(manifest string) (string, error) {
 	decoder := utilyaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(manifest)), 4096)
+	var scripts []string
+	foundJob := false
+	// Match a complete logical command line, not text in an argument or a
+	// neighboring kubectl command. Keep the install flags for the existing parser.
+	installCommand := regexp.MustCompile(`^hypershift[\t ]+install(?:[\t ]|$)`)
 	for {
 		var job batchv1.Job
 		if err := decoder.Decode(&job); err != nil {
@@ -214,16 +223,34 @@ func extractInstallScript(manifest string) (string, error) {
 		if job.Kind != "Job" || job.Name != "install-hypershift" {
 			continue
 		}
-		if len(job.Spec.Template.Spec.Containers) == 0 {
-			return "", fmt.Errorf("install-hypershift Job has no containers")
+		foundJob = true
+		for _, containers := range [][]corev1.Container{job.Spec.Template.Spec.InitContainers, job.Spec.Template.Spec.Containers} {
+			for _, container := range containers {
+				cmd := append(append([]string(nil), container.Command...), container.Args...)
+				if len(cmd) < 3 || (filepath.Base(cmd[0]) != "sh" && filepath.Base(cmd[0]) != "bash") || cmd[1] != "-c" {
+					continue
+				}
+				for _, line := range strings.Split(strings.ReplaceAll(cmd[2], "\\\n", " "), "\n") {
+					line = strings.TrimSpace(line)
+					if installCommand.MatchString(line) {
+						// The flag parser accepts a standalone command, not shell
+						// expressions. Fail closed rather than include another command's flags.
+						if strings.ContainsAny(line, ";&|<>`$()") {
+							return "", fmt.Errorf("install-hypershift Job container %q: unsupported shell expression in hypershift install command", container.Name)
+						}
+						scripts = append(scripts, line)
+					}
+				}
+			}
 		}
-		cmd := job.Spec.Template.Spec.Containers[0].Command
-		if len(cmd) < 3 {
-			return "", fmt.Errorf("install-hypershift Job command has fewer than 3 elements")
-		}
-		return cmd[2], nil
 	}
-	return "", fmt.Errorf("install-hypershift Job not found in rendered manifest")
+	if !foundJob {
+		return "", fmt.Errorf("install-hypershift Job not found in rendered manifest")
+	}
+	if len(scripts) != 1 {
+		return "", fmt.Errorf("install-hypershift Job: expected exactly one hypershift install command, found %d", len(scripts))
+	}
+	return scripts[0], nil
 }
 
 func extractFlag(script, flagName string) (string, bool) {

@@ -10,10 +10,31 @@ deployment:
 broker:
   host: "__brokerHost__"
   port: 8883
+migrationResources:
+  requests:
+    cpu: "{{ .maestro.server.migrationResources.requests.cpu }}"
+    memory: "{{ .maestro.server.migrationResources.requests.memory }}"
+  limits:
+    cpu: "{{ .maestro.server.migrationResources.limits.cpu }}"
+    memory: "{{ .maestro.server.migrationResources.limits.memory }}"
+waitForDBResources:
+  requests:
+    cpu: "{{ .maestro.server.waitForDBResources.requests.cpu }}"
+    memory: "{{ .maestro.server.waitForDBResources.requests.memory }}"
+  limits:
+    cpu: "{{ .maestro.server.waitForDBResources.limits.cpu }}"
+    memory: "{{ .maestro.server.waitForDBResources.limits.memory }}"
 database:
   azureDb: {{ .maestro.postgres.deploy }}
   containerizedDbImage: "{{ .maestro.postgres.containerizedDb.image }}"
   containerizedDbPvcCapacity: "{{ .maestro.postgres.containerizedDb.pvcCapacity }}"
+  resources:
+    requests:
+      cpu: "{{ .maestro.postgres.containerizedDb.resources.requests.cpu }}"
+      memory: "{{ .maestro.postgres.containerizedDb.resources.requests.memory }}"
+    limits:
+      cpu: "{{ .maestro.postgres.containerizedDb.resources.limits.cpu }}"
+      memory: "{{ .maestro.postgres.containerizedDb.resources.limits.memory }}"
   host: "__databaseHost__"
   port: 5432
   name: "{{ .maestro.postgres.databaseName }}"

@@ -1,3 +1,15 @@
+{{- $resources := dict -}}
+{{- range $kind, $values := .Values.opsIngress.resources -}}
+{{- $quantities := dict -}}
+{{- range $name, $value := $values -}}
+{{- if not (has (toString $value) (list "NONE" "unlimited")) -}}
+{{- $_ := set $quantities $name $value -}}
+{{- end -}}
+{{- end -}}
+{{- if $quantities -}}
+{{- $_ := set $resources $kind $quantities -}}
+{{- end -}}
+{{- end -}}
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -6,6 +18,12 @@ metadata:
 spec:
   gatewayClassName: istio
   infrastructure:
+    {{- if $resources }}
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: ops-ingress-gateway-options
+    {{- end }}
     annotations:
       service.beta.kubernetes.io/azure-pip-name: "{{ .Values.opsIngress.publicIpAddress }}"
       service.beta.kubernetes.io/azure-load-balancer-resource-group: "{{ .Values.opsIngress.publicIpResourceGroup }}"
@@ -34,3 +52,22 @@ spec:
     allowedRoutes:
       namespaces:
         from: All
+{{- if $resources }}
+---
+# Istio Gateway API deployment customization, not an AKS-managed legacy gateway override.
+# https://istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/#automated-deployment
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ops-ingress-gateway-options
+  namespace: aks-istio-ingress
+data:
+  deployment: |
+    spec:
+      template:
+        spec:
+          containers:
+          - name: istio-proxy
+            resources:
+              {{- toYaml $resources | nindent 14 }}
+{{- end }}

@@ -138,6 +138,7 @@ sed -i.bak 's|^\([[:space:]]*image:[[:space:]]*\)"{{ .Values.global.imageOverrid
 sed -i.bak 's#{{ if .Value }} value: {{ .Value }}#{{ if .Value }} value: {{ .Value | quote }}#' "$policy_helm_charts_dir/cluster-lifecycle/templates/klusterlet-addon-deployment.yaml"
 rm -f "$policy_helm_charts_dir/cluster-lifecycle/templates/klusterlet-addon-deployment.yaml.bak"
 
+bash "$(dirname "$0")/update-resource-templates.sh" policy "$POLICY_HELM_CHART_BASE_DIR"
 
 echo "## Update version in policy chart."
 chart_files=(
