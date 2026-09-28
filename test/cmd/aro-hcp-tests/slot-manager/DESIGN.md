@@ -14,6 +14,26 @@ The catalog describes pool intent. Acquired state records the exact resolved
 allocation. Asset handlers own provisioning, admission, and publication for
 their asset type.
 
+## Package boundaries
+
+- The root `slotmanager` package owns CLI flags, compatibility command aliases,
+  and acquisition/release orchestration. `assets_cmd.go` constructs the registry
+  explicitly with `e2eidentities.NewHandler()`.
+- `assets` defines the handler contract and deterministic registry lifecycle.
+  It depends on `slots`, never on concrete handler packages.
+- `assets/e2eidentities` implements the E2E identity lifecycle: Azure provisioning
+  (`apply.go`), pool resolution, inventory validation, admission, and runtime
+  publication, with their tests alongside the implementation.
+- `slots` owns catalog and acquired-state types, wire keys, structural validation,
+  inventory derivation, and lease journaling. `slots/e2e_identities.go` groups the
+  E2E identity model types, normalization, deterministic naming, and structural
+  checks; it does not provision or inspect Azure resources. Generic catalog and
+  asset orchestration remain in `catalog.go` and `asset_pools.go`.
+- `slots/state_compatibility.go` retains the exported `WriteEnvFile` helper used
+  by v1 acquisition, including its direct `LEASED_MSI_CONTAINERS` export and
+  existing support for resolved v2 state. V2 acquisition instead uses handler
+  `PublishLease` contributions with the shared runtime contract builder.
+
 ## Implementation status
 
 Dedicated E2E identity assets are implemented. The v2 catalog, whole-catalog
@@ -287,7 +307,9 @@ on concrete asset types.
 Each handler implements:
 
 - `Kind`: returns the stable asset type identifier;
-- `Declared`: reports whether a pool declares the asset;
+- `Declared`: reports whether the handler applies to a pool. E2E identities
+  are required for every pool, so their handler always returns true; additional
+  asset kinds are opt-in;
 - `AcquireLease`: resolves a dedicated asset or acquires the required
   independent Boskos resources and records them in state;
 - `ReleaseLease`: attempts to return every independent Boskos resource recorded

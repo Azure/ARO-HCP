@@ -62,7 +62,8 @@ type LeaseRequest struct {
 type Handler interface {
 	// Kind returns the unique asset kind handled by this implementation.
 	Kind() Kind
-	// Declared reports whether the pool declares assets supported by this handler.
+	// Declared reports whether the handler applies to the pool.
+	// Required assets always apply; opt-in assets depend on the pool's declaration.
 	Declared(pool slots.Pool) bool
 	// AcquireLease resolves assets after the registry acquires any required leases.
 	AcquireLease(ctx context.Context, request LeaseRequest) error

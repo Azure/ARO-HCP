@@ -482,7 +482,7 @@ When you need to change or debug identity leasing, start here:
 - [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
 - [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md)
 - ARO HCP test framework: `test/util/framework/identities_helper.go`
-- slot-managed identity-pool code: `test/cmd/aro-hcp-tests/slot-manager/identity-pool/`
+- slot-managed E2E identity implementation: `test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities/`
 - release-side local workflow: `openshift/release: ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml`
 - release-side persistent workflow: `openshift/release: ci-operator/step-registry/aro-hcp/persistent-e2e/aro-hcp-persistent-e2e-workflow.yaml`
 - release-side acquire step: `openshift/release: ci-operator/step-registry/aro-hcp/lease/acquire/`

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package identitypool
+package e2eidentities
 
 import (
 	"context"
@@ -58,12 +58,16 @@ func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
 						return "", stop
 					}, nil
 				}}
-				request := assets.PoolRequest{Environment: "dev", Pools: test.pools, IncludeUnmanaged: test.includeUnmanaged}
-				run := handler.ApplyPools
-				if operation == "validate" {
-					run = handler.ValidatePools
+				registry, err := assets.NewRegistry(handler)
+				if err != nil {
+					t.Fatal(err)
 				}
-				err := run(context.Background(), request)
+				request := assets.PoolRequest{Environment: "dev", Pools: test.pools, IncludeUnmanaged: test.includeUnmanaged}
+				run := registry.ApplyPools
+				if operation == "validate" {
+					run = registry.ValidatePools
+				}
+				err = run(context.Background(), request)
 				if resolved != test.wantSubscription {
 					t.Fatalf("resolved subscription %q, want %q", resolved, test.wantSubscription)
 				}

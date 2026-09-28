@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"math"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -125,17 +124,8 @@ func (s ExpandedSlot) ValidateResolvedAssets() error {
 	for _, assetRequirement := range s.AssetRequirements {
 		switch assetRequirement.Kind {
 		case KindE2EIdentities:
-			asset := s.Assets.E2EIdentities
-			if asset == nil || len(asset.ResourceGroups) == 0 {
-				return fmt.Errorf("unresolved demanded asset %q", assetRequirement.Kind)
-			}
-			if assetRequirement.Allocation != AllocationDedicated || asset.Allocation != AllocationDedicated {
-				return fmt.Errorf("demanded asset %q requires dedicated allocation", assetRequirement.Kind)
-			}
-			if s.IdentityContainerCount <= 0 || len(asset.ResourceGroups) != s.IdentityContainerCount ||
-				strings.TrimSpace(s.IdentityContainerPrefix) == "" ||
-				!slices.Equal(asset.ResourceGroups, identityContainerNames(s.IdentityContainerPrefix, s.IdentityContainerCount)) {
-				return fmt.Errorf("resolved demanded asset %q does not match dedicated identity containers", assetRequirement.Kind)
+			if err := s.validateResolvedE2EIdentities(assetRequirement); err != nil {
+				return err
 			}
 		case KindInfrastructureIdentities:
 			asset := s.Assets.InfrastructureIdentities
@@ -228,9 +218,6 @@ func (c *Catalog) AssetInventories() ([]AssetInventory, error) {
 
 var inventoryName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 
-// https://learn.microsoft.com/azure/azure-resource-manager/management/resource-name-rules#microsoftresources
-var identityResourceGroupName = regexp.MustCompile(`^[\p{L}\p{Nd}_().-]{0,89}[\p{L}\p{Nd}_()-]$`)
-
 func (c *Catalog) validateAssetPools(resourceTypes map[string]string) error {
 	if c.Version == 1 {
 		if len(c.AssetPools) > 0 {
@@ -246,19 +233,8 @@ func (c *Catalog) validateAssetPools(resourceTypes map[string]string) error {
 				return fmt.Errorf("invalid resource type %q", pool.ResourceType)
 			}
 			prefixes[pool.ResourceType] = environment + "/" + pool.Name
-			if asset := pool.SlotAssets.E2EIdentities; asset != nil {
-				// Check the longest generated name without expanding the inventory.
-				name := fmt.Sprintf("%s-%0*d-%0*d", asset.ResourceGroupPrefix, defaultSlotIndexWidth, pool.SlotCount-1, defaultContainerIndexWidth, asset.ResourceGroupCount-1)
-				if !identityResourceGroupName.MatchString(name) {
-					return fmt.Errorf("environment %q pool %q has invalid identity resource group name %q from resource_group_prefix: must be at most 90 characters using letters, decimal digits, underscores, hyphens, periods or parentheses", environment, pool.Name, name)
-				}
-				// Both suffixes are decimal indices without hyphens, so removing
-				// the final two segments uniquely recovers the pool prefix.
-				key := strings.ToLower(pool.E2ESubscriptionName() + "/" + asset.ResourceGroupPrefix)
-				if previous, found := dedicatedGroups[key]; found {
-					return fmt.Errorf("incompatible dedicated resource groups in pools %s and %s/%s", previous, environment, pool.Name)
-				}
-				dedicatedGroups[key] = environment + "/" + pool.Name
+			if err := pool.validateE2EIdentityResourceGroups(environment, dedicatedGroups); err != nil {
+				return err
 			}
 		}
 	}

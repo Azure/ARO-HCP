@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -36,8 +35,7 @@ const (
 	defaultEnvFileName       = "aro-hcp-slot.env"
 	defaultSlotStateFileName = "aro-hcp-slot-state.yaml"
 
-	defaultSlotIndexWidth      = 2
-	defaultContainerIndexWidth = 2
+	defaultSlotIndexWidth = 2
 )
 
 const (
@@ -114,14 +112,6 @@ type PoolSubscriptions struct {
 	Infrastructure string `yaml:"-"`
 }
 
-type E2EIdentitiesAsset struct {
-	Allocation          Allocation `yaml:"allocation"`
-	Provisioning        string     `yaml:"provisioning,omitempty"`
-	ProvisioningRegion  string     `yaml:"provisioning_region,omitempty"`
-	ResourceGroupPrefix string     `yaml:"resource_group_prefix"`
-	ResourceGroupCount  int        `yaml:"resource_group_count"`
-}
-
 type SlotAssets struct {
 	E2EIdentities            *E2EIdentitiesAsset `yaml:"e2e_identities,omitempty"`
 	InfrastructureIdentities *LeasedAsset        `yaml:"infrastructure_identities,omitempty"`
@@ -157,12 +147,6 @@ type ResolvedSubscription struct {
 type ResolvedSubscriptions struct {
 	E2E            ResolvedSubscription `yaml:"e2e"`
 	Infrastructure ResolvedSubscription `yaml:"infrastructure,omitempty"`
-}
-
-type ResolvedE2EIdentitiesAsset struct {
-	Allocation         Allocation `yaml:"allocation"`
-	ProvisioningRegion string     `yaml:"provisioning_region"`
-	ResourceGroups     []string   `yaml:"resource_groups"`
 }
 
 type ResolvedAssets struct {
@@ -423,41 +407,7 @@ func normalizeV2Pool(environmentName string, pool *Pool) error {
 			asset.UnitsPerSlot = 1
 		}
 	}
-	asset := pool.SlotAssets.E2EIdentities
-	if asset == nil {
-		pool.IdentityContainerPrefix = ""
-		pool.IdentityContainerCount = 0
-		pool.IdentityProvisioning = ""
-		pool.IdentityProvisioningRegion = ""
-		return nil
-	}
-	asset.Provisioning = strings.TrimSpace(asset.Provisioning)
-	asset.ProvisioningRegion = strings.TrimSpace(asset.ProvisioningRegion)
-	asset.ResourceGroupPrefix = strings.TrimSpace(asset.ResourceGroupPrefix)
-	if asset.Provisioning == "" {
-		asset.Provisioning = AssetProvisioningManaged
-	}
-	switch {
-	case asset.Allocation != AllocationDedicated:
-		return fmt.Errorf("pool %q e2e_identities requires allocation dedicated", pool.Name)
-	case asset.Provisioning != AssetProvisioningManaged && asset.Provisioning != IdentityProvisioningUnmanaged:
-		return fmt.Errorf("environment %q pool %q has invalid slot_assets.e2e_identities.provisioning %q", environmentName, pool.Name, asset.Provisioning)
-	case asset.ResourceGroupPrefix == "":
-		return fmt.Errorf("environment %q pool %q has empty slot_assets.e2e_identities.resource_group_prefix", environmentName, pool.Name)
-	case asset.ResourceGroupCount <= 0:
-		return fmt.Errorf("environment %q pool %q has invalid slot_assets.e2e_identities.resource_group_count %d", environmentName, pool.Name, asset.ResourceGroupCount)
-	case pool.SlotCount > math.MaxInt/asset.ResourceGroupCount:
-		return fmt.Errorf("environment %q pool %q dedicated identity demand overflows int", environmentName, pool.Name)
-	}
-
-	pool.IdentityProvisioning = asset.Provisioning
-	if pool.IdentityProvisioning == AssetProvisioningManaged {
-		pool.IdentityProvisioning = ""
-	}
-	pool.IdentityProvisioningRegion = asset.ProvisioningRegion
-	pool.IdentityContainerPrefix = asset.ResourceGroupPrefix
-	pool.IdentityContainerCount = asset.ResourceGroupCount
-	return nil
+	return normalizeE2EIdentities(environmentName, pool)
 }
 
 func trimValues(values []string) []string {
@@ -683,10 +633,6 @@ func (c *Catalog) FindSlotByResourceName(resourceName string) (*ExpandedSlot, er
 	return nil, fmt.Errorf("failed to find slot for leased resource %q", resourceName)
 }
 
-func (p Pool) IsUnmanaged() bool {
-	return p.IdentityProvisioning == IdentityProvisioningUnmanaged
-}
-
 func (p Pool) E2ESubscriptionName() string {
 	if p.Subscriptions.E2E != "" {
 		return p.Subscriptions.E2E
@@ -703,28 +649,6 @@ func (p Pool) InfrastructureSubscriptionName() string {
 
 func (p Pool) EffectiveRegionMode() RegionMode {
 	return p.RegionMode
-}
-
-func (p Pool) EffectiveIdentityProvisioningRegion() string {
-	if p.IdentityProvisioningRegion != "" {
-		return p.IdentityProvisioningRegion
-	}
-	return p.Region
-}
-
-func (s ExpandedSlot) IdentityContainerNames() []string {
-	if s.Assets.E2EIdentities != nil {
-		return append([]string(nil), s.Assets.E2EIdentities.ResourceGroups...)
-	}
-	return identityContainerNames(s.IdentityContainerPrefix, s.IdentityContainerCount)
-}
-
-func identityContainerNames(prefix string, count int) []string {
-	names := make([]string, 0, count)
-	for i := 0; i < count; i++ {
-		names = append(names, fmt.Sprintf("%s-%0*d", prefix, defaultContainerIndexWidth, i))
-	}
-	return names
 }
 
 func SharedStateDir(sharedDir string) (string, error) {

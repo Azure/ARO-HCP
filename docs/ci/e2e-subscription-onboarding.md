@@ -137,7 +137,7 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 - `test/e2e-config/e2e-slots.yaml`
 - `test/cmd/aro-hcp-tests/slot-manager/DESIGN.md`
 - `test/cmd/aro-hcp-tests/slot-manager/release_repo.go`
-- `test/cmd/aro-hcp-tests/slot-manager/identity-pool/`
+- `test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities/`
 - `config/config-dev-ci.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`

@@ -251,17 +251,6 @@ func (s *AcquiredSlotState) Validate() error {
 	return nil
 }
 
-func WriteEnvFile(sharedDir string, state *AcquiredSlotState, customerSubscription, selectedClusterProfileDir string) error {
-	contract := NewRuntimeContractBuilder()
-	if err := AddCoreRuntimeExports(contract, state, customerSubscription, selectedClusterProfileDir); err != nil {
-		return err
-	}
-	if err := contract.Add("e2e-identities", "LEASED_MSI_CONTAINERS", strings.Join(state.Slot.IdentityContainerNames(), " ")); err != nil {
-		return err
-	}
-	return WriteRuntimeContract(sharedDir, contract)
-}
-
 func AddCoreRuntimeExports(contract *RuntimeContractBuilder, state *AcquiredSlotState, customerSubscription, selectedClusterProfileDir string) error {
 	if contract == nil {
 		return errors.New("runtime contract builder is nil")

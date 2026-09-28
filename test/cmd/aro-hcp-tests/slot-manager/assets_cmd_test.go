@@ -21,11 +21,11 @@ import (
 	"testing"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
-	identitypool "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/identity-pool"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities"
 )
 
 type recordingPoolHandler struct {
-	*identitypool.Handler
+	*e2eidentities.Handler
 	requests []assets.PoolRequest
 }
 
@@ -60,7 +60,7 @@ environments:
 	for _, validate := range []bool{false, true} {
 		for _, selector := range []string{"default", "subscription", "pool", "legacy-subscription", "missing-pool"} {
 			t.Run(map[bool]string{false: "apply", true: "validate"}[validate]+"/"+selector, func(t *testing.T) {
-				handler := &recordingPoolHandler{Handler: identitypool.NewHandler()}
+				handler := &recordingPoolHandler{Handler: e2eidentities.NewHandler()}
 				registry, err := assets.NewRegistry(handler)
 				if err != nil {
 					t.Fatal(err)

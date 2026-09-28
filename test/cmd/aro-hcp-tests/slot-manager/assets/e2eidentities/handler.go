@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package identitypool
+package e2eidentities
 
 import (
 	"context"
@@ -41,8 +41,8 @@ func (h *Handler) Kind() assets.Kind {
 	return assets.KindE2EIdentities
 }
 
-func (h *Handler) Declared(pool slots.Pool) bool {
-	return pool.SlotAssets.E2EIdentities != nil || pool.IdentityContainerCount > 0
+func (h *Handler) Declared(_ slots.Pool) bool {
+	return true
 }
 
 func (h *Handler) AcquireLease(_ context.Context, request assets.LeaseRequest) error {
