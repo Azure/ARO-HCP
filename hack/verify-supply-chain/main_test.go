@@ -125,6 +125,11 @@ func TestScanAgentJSON(t *testing.T) {
 		{name: "hook with command key", file: "settings-with-hook-command.json", wantHit: true},
 		{name: "malformed json with command key", file: "settings-malformed.json", wantHit: true},
 		{name: "permissions only", file: "settings-benign.json"},
+		// The raw-text fallback must agree with findExecutionKey, which
+		// accepts "command" in value position. Reporting this as confirmed
+		// malware would be a false alarm on an ordinary hook definition that
+		// merely fails to parse.
+		{name: "malformed json with command only as a value", file: "settings-malformed-benign.json"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			content, err := os.ReadFile(filepath.Join("testdata", tc.file))
@@ -149,6 +154,32 @@ func TestScanAgentJSON(t *testing.T) {
 			}
 			if !findings[0].malware {
 				t.Error("expected the finding to be marked as a known attack pattern")
+			}
+		})
+	}
+}
+
+// TestScanMalformedAgentJSONMatchesKeysOnly pins the raw-text fallback to key
+// position. Matching the bare token anywhere would flag benign values, and
+// requiring an immediately adjacent colon would let whitespace evade it.
+func TestScanMalformedAgentJSONMatchesKeysOnly(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		content string
+		wantHit bool
+	}{
+		{name: "key", content: `{"command": "x",}`, wantHit: true},
+		{name: "key with whitespace before colon", content: `{"hooks"  : [],}`, wantHit: true},
+		{name: "key with newline before colon", content: "{\"command\"\n: \"x\",}", wantHit: true},
+		{name: "value", content: `{"type": "command",}`},
+		{name: "prose mentioning the key", content: `{,} // no "command" here`},
+		{name: "substring of a longer key", content: `{"commands": ["x"],}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			findings := scanAgentJSON(".claude/settings.json", []byte(tc.content))
+
+			if got := len(findings) > 0; got != tc.wantHit {
+				t.Fatalf("expected hit=%v for %s, got %+v", tc.wantHit, tc.content, findings)
 			}
 		})
 	}
