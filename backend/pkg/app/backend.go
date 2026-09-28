@@ -49,7 +49,7 @@ import (
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
+	clusterdenyassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
@@ -1012,13 +1012,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
-	// The deny assignment controller creates Azure deny assignments through the FPA, which only
+	// The deny assignment controllers create Azure deny assignments through the FPA, which only
 	// exists in environments with a real First Party Application (stage/prod). Skip it entirely when
 	// running against the MI mock (dev/int), where deny assignments cannot be created.
+	var clusterDenyAssignmentIntentController controllerutils.Controller
 	var clusterDenyAssignmentController controllerutils.Controller
 	if b.options.HasRealFPA {
-		clusterDenyAssignmentController = denyassignments.NewClusterDenyAssignmentController(
-			utilsclock.RealClock{},
+		clusterDenyAssignmentIntentController = clusterdenyassignments.NewClusterDenyAssignmentIntentController(
+			b.clock,
+			b.options.ResourcesDBClient,
+			backendInformers,
+			b.options.HardcodedIdentity == nil, // When hardcodedIdentity is nil, the real Managed Identities Data Plane is available.
+		)
+		clusterDenyAssignmentController = clusterdenyassignments.NewClusterDenyAssignmentController(
+			b.clock,
 			b.options.ResourcesDBClient,
 			b.options.FPAClientBuilder,
 			backendInformers,
@@ -1178,6 +1185,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go systemAdminCredentialRevocationDeletionController.Run(ctx, 20)
 				if clusterDenyAssignmentController != nil {
 					go clusterDenyAssignmentController.Run(ctx, 20)
+				}
+				if clusterDenyAssignmentIntentController != nil {
+					go clusterDenyAssignmentIntentController.Run(ctx, 20)
 				}
 				go clusterPendingClusterServiceIDAssignController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)

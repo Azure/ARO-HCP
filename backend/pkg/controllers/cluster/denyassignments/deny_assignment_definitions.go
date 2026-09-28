@@ -17,10 +17,13 @@ package denyassignments
 import (
 	"fmt"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -208,25 +211,33 @@ func denyAssignmentDefinitions(cluster *coreapi.Cluster) []denyAssignmentDefinit
 	return defs
 }
 
-func allDenyAssignmentReferences(cluster *coreapi.Cluster) ([]coreapi.DenyAssignmentReference, error) {
+// RequiredDenyAssignmentTypes returns the deny assignment type names ClusterDenyAssignment
+// must create for cluster. The set is every deny assignment definition.
+func RequiredDenyAssignmentTypes(cluster *coreapi.Cluster) map[string]struct{} {
 	defs := denyAssignmentDefinitions(cluster)
-	csClusterID := controllerutils.ClusterServiceIDForCluster(cluster)
-	subscriptionID := cluster.ID.SubscriptionID
-	managedResourceGroup := cluster.CustomerProperties.Platform.ManagedResourceGroup
-
-	denyAssignmentReferences := make([]coreapi.DenyAssignmentReference, 0, len(defs))
-	for _, d := range defs {
-		daUUID := generateDenyAssignmentUUID(csClusterID, d.denyAssignmentType)
-		azureResourceID, err := coreapihelpers.ToDenyAssignmentResourceID(subscriptionID, managedResourceGroup, daUUID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build deny assignment resource ID for %s: %w", d.denyAssignmentType, err)
-		}
-		denyAssignmentReferences = append(denyAssignmentReferences, coreapi.DenyAssignmentReference{
-			DenyAssignmentType:       d.denyAssignmentType,
-			DenyAssignmentResourceID: azureResourceID,
-		})
+	required := make(map[string]struct{}, len(defs))
+	for _, definition := range defs {
+		required[definition.denyAssignmentType] = struct{}{}
 	}
-	return denyAssignmentReferences, nil
+	return required
+}
+
+func denyAssignmentDefinitionsByType(cluster *coreapi.Cluster) map[string]*denyAssignmentDefinition {
+	defs := denyAssignmentDefinitions(cluster)
+	byType := make(map[string]*denyAssignmentDefinition, len(defs))
+	for i := range defs {
+		byType[defs[i].denyAssignmentType] = &defs[i]
+	}
+	return byType
+}
+
+func generateDenyAssignmentResourceID(cluster *coreapi.Cluster, denyAssignmentType string) (*azcorearm.ResourceID, error) {
+	daUUID := generateDenyAssignmentUUID(controllerutils.ClusterServiceIDForCluster(cluster), denyAssignmentType)
+	azureResourceID, err := coreapihelpers.ToDenyAssignmentResourceID(cluster.ID.SubscriptionID, cluster.CustomerProperties.Platform.ManagedResourceGroup, daUUID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to build deny assignment resource ID for %s: %w", denyAssignmentType, err))
+	}
+	return azureResourceID, nil
 }
 
 func isKMSEncryptionEnabled(cluster *coreapi.Cluster) bool {

@@ -26,13 +26,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -143,12 +143,16 @@ func newTestSPC(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceP
 }
 
 func setDenyAssignmentsCreated(spc *coreapi.ServiceProviderCluster) {
-	spc.Status.AzureResources.DenyAssignments.AzureResources = []coreapi.DenyAssignmentReference{{
-		DenyAssignmentType:       "resources-deny-assignment",
-		DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001")),
-	}}
-	recheckTime := metav1.Now()
-	spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = &recheckTime
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))
+	requiredTypes := denyassignments.RequiredDenyAssignmentTypes(newTestCluster())
+	denyAssignments := make(map[string]*coreapi.DenyAssignmentStatus, len(requiredTypes))
+	for denyAssignmentType := range requiredTypes {
+		denyAssignments[denyAssignmentType] = &coreapi.DenyAssignmentStatus{
+			AzureResource:      resourceID,
+			EnsuredPermissions: &coreapi.DenyAssignmentEnsuredPermissions{},
+		}
+	}
+	spc.Status.DenyAssignmentsOverManagedResourceGroup = denyAssignments
 }
 
 func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
@@ -276,10 +280,16 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				// The desired version is resolved (that precondition passes)...
+				// The desired version is resolved and placement is set, so this case reaches the
+				// deny-assignment precondition. One required type is still pending and the rest
+				// are absent, so cluster creation must not dispatch yet.
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
-				// ...but deny assignments are still pending, so cluster creation must not dispatch yet.
-				spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{{DenyAssignmentType: "resources-deny-assignment", DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))}}
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+				spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+					"resources-deny-assignment": {
+						PendingAzureResource: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001")),
+					},
+				}
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				// No CS calls are expected: gomock fails the test if the controller dispatches.
@@ -290,6 +300,33 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch while deny assignments are pending")
+			},
+		},
+		{
+			name: "deny assignment exclusion not yet ensured waits without dispatching",
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+				setDenyAssignmentsCreated(spc)
+				// The Azure resource exists, but a desired principal has not been applied yet.
+				spc.Status.DenyAssignmentsOverManagedResourceGroup["resources-deny-assignment"].ExcludedIdentities = map[string]*coreapi.DenyAssignmentExcludedIdentityStatus{
+					"principal-1": {},
+				}
+			}),
+			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
+			},
+			expectError: false,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch before deny assignment exclusions are ensured")
 			},
 		},
 		{
@@ -345,8 +382,12 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				// Placement is resolved so this case reaches the deny-assignment precondition.
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 				setDenyAssignmentsCreated(spc)
-				spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = nil
+				// The Azure resource is confirmed, but the last successful PUT has not
+				// recorded EnsuredPermissions, so reconciliation is not complete.
+				spc.Status.DenyAssignmentsOverManagedResourceGroup["resources-deny-assignment"].EnsuredPermissions = nil
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)

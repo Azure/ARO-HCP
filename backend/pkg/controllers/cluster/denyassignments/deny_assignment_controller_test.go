@@ -21,8 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr/testr"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -39,10 +37,11 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -53,12 +52,591 @@ const (
 	testManagedRG         = "testManagedResourceGroup"
 )
 
-func testClusterResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + testSubscriptionID +
-			"/resourceGroups/" + testResourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
-	))
+func TestClusterDenyAssignmentV2NeedsWork(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	future := metav1.NewTime(now.Add(time.Hour))
+	past := metav1.NewTime(now.Add(-time.Hour))
+	elapsedWait := metav1.NewTime(now.Add(-25 * time.Hour))
+	syncer := &clusterDenyAssignmentSyncer{clock: clocktesting.NewFakePassiveClock(now)}
+	cluster := newTestCluster()
+	azureResource := testDenyAssignmentResourceID("resources-uuid")
+
+	testCases := []struct {
+		name              string
+		cluster           *coreapi.Cluster
+		spc               *coreapi.ServiceProviderCluster
+		expectedNeedsWork bool
+	}{
+		{
+			name:              "empty map does not need work",
+			spc:               newTestSPC(),
+			expectedNeedsWork: false,
+		},
+		{
+			name: "desired type without AzureResource needs work",
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+					denyAssignmentSuffixResources: {
+						ExcludedIdentities: seedTestExcludedIdentities(cluster, spc, denyAssignmentSuffixResources),
+					},
+				}
+			}),
+			expectedNeedsWork: true,
+		},
+		{
+			name: "draining type needs work",
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+					denyAssignmentSuffixResources: {
+						DeconfigureTimestamp: &past,
+						AzureResource:        azureResource,
+					},
+				}
+			}),
+			expectedNeedsWork: true,
+		},
+		{
+			name: "ensured type with nil controller recheck needs work",
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+					denyAssignmentSuffixResources: seedEnsuredTypeStatus(cluster, spc, denyAssignmentSuffixResources, azureResource),
+				}
+			}),
+			expectedNeedsWork: true,
+		},
+		{
+			name: "ensured type with future recheck and elapsed cooldown needs work",
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				status := seedEnsuredTypeStatus(cluster, spc, denyAssignmentSuffixResources, azureResource)
+				status.ExcludedIdentities["principal-a"] = &coreapi.DenyAssignmentExcludedIdentityStatus{
+					DeconfigureTimestamp: &elapsedWait,
+					EnsuredIdentity:      &coreapi.DenyAssignmentExcludedEnsuredIdentity{PrincipalID: "principal-a"},
+				}
+				spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+					denyAssignmentSuffixResources: status,
+				}
+				spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
+					ClusterDenyAssignmentControllerName: &future,
+				}
+			}),
+			expectedNeedsWork: true,
+		},
+		{
+			name: "ensured type with future recheck and cooldown inside 24h does not need work",
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				status := seedEnsuredTypeStatus(cluster, spc, denyAssignmentSuffixResources, azureResource)
+				status.ExcludedIdentities["principal-a"] = &coreapi.DenyAssignmentExcludedIdentityStatus{
+					DeconfigureTimestamp: &past,
+					EnsuredIdentity:      &coreapi.DenyAssignmentExcludedEnsuredIdentity{PrincipalID: "principal-a"},
+				}
+				spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+					denyAssignmentSuffixResources: status,
+				}
+				spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
+					ClusterDenyAssignmentControllerName: &future,
+				}
+			}),
+			expectedNeedsWork: false,
+		},
+		{
+			name: "ensured type with past controller recheck needs work",
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+					denyAssignmentSuffixResources: seedEnsuredTypeStatus(cluster, spc, denyAssignmentSuffixResources, azureResource),
+				}
+				spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
+					ClusterDenyAssignmentControllerName: &past,
+				}
+			}),
+			expectedNeedsWork: true,
+		},
+		{
+			name: "unstamped type that left the definition set does not need work",
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+					"stale-type-not-in-definitions": {
+						AzureResource: azureResource,
+					},
+				}
+			}),
+			expectedNeedsWork: false,
+		},
+		{
+			name: "desired type does not need work when the observed managed resource group is missing",
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.AzureResources.ManagedResourceGroup.AzureResource = nil
+				spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+					denyAssignmentSuffixResources: {},
+				}
+			}),
+			expectedNeedsWork: false,
+		},
+		{
+			name: "desired type does not need work when the cluster is being deleted",
+			cluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.DeletionTimestamp = &future
+			}),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+					denyAssignmentSuffixResources: {},
+				}
+			}),
+			expectedNeedsWork: false,
+		},
+		{
+			name: "permissions drift needs work even with future recheck",
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				status := seedEnsuredTypeStatus(cluster, spc, denyAssignmentSuffixResources, azureResource)
+				status.EnsuredPermissions.Actions = append(status.EnsuredPermissions.Actions, "Microsoft.Example/drifted")
+				spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+					denyAssignmentSuffixResources: status,
+				}
+				spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
+					ClusterDenyAssignmentControllerName: &future,
+				}
+			}),
+			expectedNeedsWork: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			c := tc.cluster
+			if c == nil {
+				c = cluster
+			}
+			assert.Equal(t, tc.expectedNeedsWork, syncer.needsWork(c, tc.spc))
+		})
+	}
+}
+
+func TestClusterDenyAssignmentV2SyncOncePersistsPendingBeforeAzure(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	cluster := newTestCluster()
+	desiredID, err := generateDenyAssignmentResourceID(cluster, denyAssignmentSuffixResources)
+	require.NoError(t, err)
+
+	serviceProviderCluster := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+			denyAssignmentSuffixResources: {
+				ExcludedIdentities: desiredIdentityRows(cluster, spc, denyAssignmentSuffixResources),
+			},
+		}
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, testSubscription()})
+	require.NoError(t, err)
+
+	mockGeneric := &azuremockclient.GenericResourcesClientFunc{
+		CreateErr: &azcore.ResponseError{StatusCode: 500, ErrorCode: "InternalServerError"},
+	}
+	syncer := newTestDenyAssignmentV2Syncer(t, mockResourcesDB, &azuremockclient.DenyAssignmentsClientFunc{
+		GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
+			return armauthorization.DenyAssignmentsClientGetResponse{}, denyAssignmentNotFoundError()
+		},
+	}, mockGeneric)
+
+	err = syncer.SyncOnce(ctx, testKey())
+	require.Error(t, err)
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	status := updated.Status.DenyAssignmentsOverManagedResourceGroup[denyAssignmentSuffixResources]
+	require.NotNil(t, status)
+	require.NotNil(t, status.PendingAzureResource)
+	assert.True(t, controllerutil.ResourceIDsEqual(desiredID, status.PendingAzureResource))
+	assert.Nil(t, status.AzureResource)
+	require.NotEmpty(t, mockGeneric.CreateCalls)
+}
+
+func TestClusterDenyAssignmentV2SyncOnceConfiguresWhenAzureAlreadyMatches(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	cluster := newTestCluster()
+	desiredID, err := generateDenyAssignmentResourceID(cluster, denyAssignmentSuffixResources)
+	require.NoError(t, err)
+
+	serviceProviderCluster := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+			denyAssignmentSuffixResources: {
+				ExcludedIdentities: desiredIdentityRows(cluster, spc, denyAssignmentSuffixResources),
+			},
+		}
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, testSubscription()})
+	require.NoError(t, err)
+
+	mockGeneric := &azuremockclient.GenericResourcesClientFunc{
+		CreateErr: &azcore.ResponseError{StatusCode: 500, ErrorCode: "should not create"},
+	}
+	denyAssignmentsClient := &azuremockclient.DenyAssignmentsClientFunc{}
+	syncer := newTestDenyAssignmentV2Syncer(t, mockResourcesDB, denyAssignmentsClient, mockGeneric)
+	denyAssignmentsClient.GetFunc = matchingGetResponseForAllTypes(cluster, serviceProviderCluster, syncer)
+
+	err = syncer.SyncOnce(ctx, testKey())
+	require.NoError(t, err)
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	status := updated.Status.DenyAssignmentsOverManagedResourceGroup[denyAssignmentSuffixResources]
+	require.NotNil(t, status)
+	require.NotNil(t, status.AzureResource)
+	assert.True(t, controllerutil.ResourceIDsEqual(desiredID, status.AzureResource))
+	assert.Nil(t, status.PendingAzureResource)
+	require.NotNil(t, updated.Spec.EarliestRecheckTimesByController[ClusterDenyAssignmentControllerName])
+	assert.Empty(t, mockGeneric.CreateCalls)
+	assert.Equal(t, seedTestEnsuredPermissions(cluster, denyAssignmentSuffixResources), status.EnsuredPermissions)
+	require.NotEmpty(t, status.ExcludedIdentities)
+	for _, identityStatus := range status.ExcludedIdentities {
+		require.NotNil(t, identityStatus)
+		require.NotNil(t, identityStatus.EnsuredIdentity)
+		assert.NotEmpty(t, identityStatus.EnsuredIdentity.PrincipalID)
+		assert.Nil(t, identityStatus.DeconfigureTimestamp)
+	}
+}
+
+func TestClusterDenyAssignmentV2SyncOnceDeconfiguresTrackedResource(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	cluster := newTestCluster()
+	resourceID := testDenyAssignmentResourceID("stale-uuid")
+	stamped := metav1.NewTime(time.Date(2026, 9, 5, 11, 0, 0, 0, time.UTC))
+
+	serviceProviderCluster := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+			"stale-type-not-in-definitions": {
+				DeconfigureTimestamp: &stamped,
+				AzureResource:        resourceID,
+				ExcludedIdentities: map[string]*coreapi.DenyAssignmentExcludedIdentityStatus{
+					"principal-a": {
+						EnsuredIdentity: &coreapi.DenyAssignmentExcludedEnsuredIdentity{PrincipalID: "principal-a"},
+					},
+				},
+			},
+		}
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, testSubscription()})
+	require.NoError(t, err)
+
+	mockGeneric := &azuremockclient.GenericResourcesClientFunc{
+		DeleteErr: resourceNotFoundError(),
+	}
+	syncer := newTestDenyAssignmentV2Syncer(t, mockResourcesDB, &azuremockclient.DenyAssignmentsClientFunc{}, mockGeneric)
+
+	err = syncer.SyncOnce(ctx, testKey())
+	require.NoError(t, err)
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.NotContains(t, updated.Status.DenyAssignmentsOverManagedResourceGroup, "stale-type-not-in-definitions")
+	require.Equal(t, []string{resourceID.String()}, mockGeneric.DeleteCalls)
+}
+
+func TestClusterDenyAssignmentV2SyncOnceSkipsUnstampedTypeThatLeftDefinitions(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	cluster := newTestCluster()
+	staleResourceID := testDenyAssignmentResourceID("stale-uuid")
+
+	serviceProviderCluster := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+			denyAssignmentSuffixResources: {
+				ExcludedIdentities: desiredIdentityRows(cluster, spc, denyAssignmentSuffixResources),
+			},
+			"stale-type-not-in-definitions": {
+				AzureResource: staleResourceID,
+			},
+		}
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, testSubscription()})
+	require.NoError(t, err)
+
+	mockGeneric := &azuremockclient.GenericResourcesClientFunc{
+		CreateErr: &azcore.ResponseError{StatusCode: 500, ErrorCode: "should not create"},
+		DeleteErr: &azcore.ResponseError{StatusCode: 500, ErrorCode: "should not delete"},
+	}
+	denyAssignmentsClient := &azuremockclient.DenyAssignmentsClientFunc{}
+	syncer := newTestDenyAssignmentV2Syncer(t, mockResourcesDB, denyAssignmentsClient, mockGeneric)
+	denyAssignmentsClient.GetFunc = matchingGetResponseForAllTypes(cluster, serviceProviderCluster, syncer)
+
+	err = syncer.SyncOnce(ctx, testKey())
+	require.NoError(t, err)
+	assert.Empty(t, mockGeneric.DeleteCalls)
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	require.Contains(t, updated.Status.DenyAssignmentsOverManagedResourceGroup, "stale-type-not-in-definitions")
+	assert.True(t, controllerutil.ResourceIDsEqual(staleResourceID, updated.Status.DenyAssignmentsOverManagedResourceGroup["stale-type-not-in-definitions"].AzureResource))
+	assert.Nil(t, updated.Status.DenyAssignmentsOverManagedResourceGroup["stale-type-not-in-definitions"].DeconfigureTimestamp)
+	require.Contains(t, updated.Status.DenyAssignmentsOverManagedResourceGroup, denyAssignmentSuffixResources)
+	require.NotNil(t, updated.Status.DenyAssignmentsOverManagedResourceGroup[denyAssignmentSuffixResources].AzureResource)
+}
+
+func TestClusterDenyAssignmentV2SyncOnceSkipsClusterDeletion(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	now := metav1.NewTime(time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC))
+	cluster := newTestCluster(func(c *coreapi.Cluster) {
+		c.ServiceProviderProperties.DeletionTimestamp = &now
+	})
+	serviceProviderCluster := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+			denyAssignmentSuffixResources: {},
+		}
+	})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster, testSubscription()})
+	require.NoError(t, err)
+
+	mockGeneric := &azuremockclient.GenericResourcesClientFunc{
+		CreateErr: &azcore.ResponseError{StatusCode: 500, ErrorCode: "should not create"},
+	}
+	syncer := newTestDenyAssignmentV2Syncer(t, mockResourcesDB, &azuremockclient.DenyAssignmentsClientFunc{
+		GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
+			t.Fatal("Azure Get should not run during cluster deletion")
+			return armauthorization.DenyAssignmentsClientGetResponse{}, nil
+		},
+	}, mockGeneric)
+
+	err = syncer.SyncOnce(ctx, testKey())
+	require.NoError(t, err)
+	assert.Empty(t, mockGeneric.CreateCalls)
+}
+
+func testDenyAssignmentResourceID(name string) *azcorearm.ResourceID {
+	id, err := coreapihelpers.ToDenyAssignmentResourceID(testSubscriptionID, testManagedRG, name)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
+func seedEnsuredTypeStatus(
+	cluster *coreapi.Cluster,
+	spc *coreapi.ServiceProviderCluster,
+	denyAssignmentType string,
+	azureResource *azcorearm.ResourceID,
+) *coreapi.DenyAssignmentStatus {
+	return &coreapi.DenyAssignmentStatus{
+		AzureResource:      azureResource,
+		EnsuredPermissions: seedTestEnsuredPermissions(cluster, denyAssignmentType),
+		ExcludedIdentities: seedTestExcludedIdentities(cluster, spc, denyAssignmentType),
+	}
+}
+
+func desiredIdentityRows(
+	cluster *coreapi.Cluster,
+	spc *coreapi.ServiceProviderCluster,
+	denyAssignmentType string,
+) map[string]*coreapi.DenyAssignmentExcludedIdentityStatus {
+	identities := seedTestExcludedIdentities(cluster, spc, denyAssignmentType)
+	for _, status := range identities {
+		status.EnsuredIdentity = nil
+	}
+	return identities
+}
+
+func newTestDenyAssignmentV2Syncer(
+	t *testing.T,
+	resourcesDB *corecosmosstoragetesting.MockResourcesDBClient,
+	denyAssignmentsClient *azuremockclient.DenyAssignmentsClientFunc,
+	genericResourcesClient *azuremockclient.GenericResourcesClientFunc,
+) *clusterDenyAssignmentSyncer {
+	t.Helper()
+	return &clusterDenyAssignmentSyncer{
+		clock:                        clocktesting.NewFakePassiveClock(time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)),
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: resourcesDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: resourcesDB},
+		subscriptionLister:           &corelistertesting.DBSubscriptionLister{ResourcesDBClient: resourcesDB},
+		resourcesDBClient:            resourcesDB,
+		azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
+			DenyAssignmentsClientVal:  denyAssignmentsClient,
+			GenericResourcesClientVal: genericResourcesClient,
+		},
+	}
+}
+
+func TestSelectExcludedPrincipalsForPUT(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	insideWait := metav1.NewTime(now.Add(-time.Hour))
+	elapsedWait := metav1.NewTime(now.Add(-25 * time.Hour))
+	olderWait := metav1.NewTime(now.Add(-2 * time.Hour))
+
+	const (
+		liveA = "principal-a"
+		liveB = "principal-b"
+		waitC = "principal-c"
+		waitD = "principal-d"
+	)
+
+	syncer := &clusterDenyAssignmentSyncer{}
+	ensured := func(principalID string) *coreapi.DenyAssignmentExcludedEnsuredIdentity {
+		return &coreapi.DenyAssignmentExcludedEnsuredIdentity{PrincipalID: principalID}
+	}
+
+	t.Run("live desired principals are always included", func(t *testing.T) {
+		t.Parallel()
+		desired := map[string]struct{}{
+			liveA: {},
+			liveB: {},
+		}
+		included, dropped, err := syncer.selectExcludedPrincipalsForDenyAssignmentPUT(&coreapi.DenyAssignmentStatus{}, desired, now, 25)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{liveA, liveB}, included)
+		assert.Empty(t, dropped)
+	})
+
+	t.Run("nil timestamp row not in desired is not included", func(t *testing.T) {
+		t.Parallel()
+		status := &coreapi.DenyAssignmentStatus{
+			ExcludedIdentities: map[string]*coreapi.DenyAssignmentExcludedIdentityStatus{
+				liveA: {EnsuredIdentity: ensured(liveA)},
+			},
+		}
+		included, dropped, err := syncer.selectExcludedPrincipalsForDenyAssignmentPUT(status, nil, now, 25)
+		require.NoError(t, err)
+		assert.Empty(t, included)
+		assert.Empty(t, dropped)
+	})
+
+	t.Run("elapsed cooldown is dropped when nothing is desired", func(t *testing.T) {
+		t.Parallel()
+		status := &coreapi.DenyAssignmentStatus{
+			ExcludedIdentities: map[string]*coreapi.DenyAssignmentExcludedIdentityStatus{
+				waitC: {DeconfigureTimestamp: &elapsedWait, EnsuredIdentity: ensured(waitC)},
+			},
+		}
+		included, dropped, err := syncer.selectExcludedPrincipalsForDenyAssignmentPUT(status, nil, now, 25)
+		require.NoError(t, err)
+		assert.Empty(t, included)
+		assert.Equal(t, []string{waitC}, dropped)
+	})
+
+	t.Run("cooldown inside 24h is included", func(t *testing.T) {
+		t.Parallel()
+		desired := map[string]struct{}{
+			liveA: {},
+		}
+		status := &coreapi.DenyAssignmentStatus{
+			ExcludedIdentities: map[string]*coreapi.DenyAssignmentExcludedIdentityStatus{
+				liveA: {EnsuredIdentity: ensured(liveA)},
+				waitC: {DeconfigureTimestamp: &insideWait, EnsuredIdentity: ensured(waitC)},
+			},
+		}
+		included, dropped, err := syncer.selectExcludedPrincipalsForDenyAssignmentPUT(status, desired, now, 25)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{liveA, waitC}, included)
+		assert.Empty(t, dropped)
+	})
+
+	t.Run("cooldown after 24h is dropped", func(t *testing.T) {
+		t.Parallel()
+		desired := map[string]struct{}{
+			liveA: {},
+		}
+		status := &coreapi.DenyAssignmentStatus{
+			ExcludedIdentities: map[string]*coreapi.DenyAssignmentExcludedIdentityStatus{
+				liveA: {EnsuredIdentity: ensured(liveA)},
+				waitC: {DeconfigureTimestamp: &elapsedWait, EnsuredIdentity: ensured(waitC)},
+			},
+		}
+		included, dropped, err := syncer.selectExcludedPrincipalsForDenyAssignmentPUT(status, desired, now, 25)
+		require.NoError(t, err)
+		assert.Equal(t, []string{liveA}, included)
+		assert.Equal(t, []string{waitC}, dropped)
+	})
+
+	t.Run("LRU drops older waiters when over the principal limit", func(t *testing.T) {
+		t.Parallel()
+		desired := map[string]struct{}{
+			liveA: {},
+			liveB: {},
+		}
+		status := &coreapi.DenyAssignmentStatus{
+			ExcludedIdentities: map[string]*coreapi.DenyAssignmentExcludedIdentityStatus{
+				liveA: {EnsuredIdentity: ensured(liveA)},
+				liveB: {EnsuredIdentity: ensured(liveB)},
+				waitC: {DeconfigureTimestamp: &insideWait, EnsuredIdentity: ensured(waitC)},
+				waitD: {DeconfigureTimestamp: &olderWait, EnsuredIdentity: ensured(waitD)},
+			},
+		}
+		included, dropped, err := syncer.selectExcludedPrincipalsForDenyAssignmentPUT(status, desired, now, 3)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{liveA, liveB, waitC}, included)
+		assert.Equal(t, []string{waitD}, dropped)
+	})
+
+	t.Run("must-include over the limit is an error", func(t *testing.T) {
+		t.Parallel()
+		desired := map[string]struct{}{
+			liveA: {},
+			liveB: {},
+		}
+		_, _, err := syncer.selectExcludedPrincipalsForDenyAssignmentPUT(&coreapi.DenyAssignmentStatus{}, desired, now, 1)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "exceed Azure ExcludePrincipals limit")
+	})
+}
+
+func TestSyncEnsuredExcludedIdentities(t *testing.T) {
+	t.Parallel()
+
+	const (
+		liveA = "principal-a"
+		waitC = "principal-c"
+	)
+	insideWait := metav1.NewTime(time.Date(2026, 9, 5, 11, 0, 0, 0, time.UTC))
+	targetA := &coreapi.DenyAssignmentTargetIdentity{
+		ResourceID:  metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/a")),
+		ClientID:    "client-a",
+		TenantID:    "tenant-a",
+		PrincipalID: liveA,
+	}
+	syncer := &clusterDenyAssignmentSyncer{}
+
+	t.Run("existing desired row is ensured and dropped waiters are deleted", func(t *testing.T) {
+		t.Parallel()
+		status := &coreapi.DenyAssignmentStatus{
+			ExcludedIdentities: map[string]*coreapi.DenyAssignmentExcludedIdentityStatus{
+				liveA: {TargetIdentity: targetA},
+				waitC: {
+					DeconfigureTimestamp: &insideWait,
+					EnsuredIdentity:      &coreapi.DenyAssignmentExcludedEnsuredIdentity{PrincipalID: waitC},
+				},
+			},
+		}
+		desired := map[string]struct{}{
+			liveA: {},
+		}
+		require.NoError(t, syncer.syncEnsuredExcludedIdentities(status, desired, map[string]struct{}{}))
+
+		require.Contains(t, status.ExcludedIdentities, liveA)
+		require.NotNil(t, status.ExcludedIdentities[liveA].EnsuredIdentity)
+		assert.Equal(t, liveA, status.ExcludedIdentities[liveA].EnsuredIdentity.PrincipalID)
+		assert.Nil(t, status.ExcludedIdentities[liveA].DeconfigureTimestamp)
+		assert.Equal(t, targetA, status.ExcludedIdentities[liveA].TargetIdentity)
+		require.Contains(t, status.ExcludedIdentities, waitC)
+		require.NotNil(t, status.ExcludedIdentities[waitC].DeconfigureTimestamp)
+
+		require.NoError(t, syncer.syncEnsuredExcludedIdentities(status, desired, map[string]struct{}{waitC: {}}))
+		require.Contains(t, status.ExcludedIdentities, liveA)
+		assert.Equal(t, targetA, status.ExcludedIdentities[liveA].TargetIdentity)
+		assert.NotContains(t, status.ExcludedIdentities, waitC)
+	})
 }
 
 func testManagedResourceGroupID() *azcorearm.ResourceID {
@@ -152,33 +730,12 @@ func testPrincipalID(id *azcorearm.ResourceID) string {
 	return "principal-" + id.Name
 }
 
-// seedResolvedIdentities mirrors the cluster's managed identities onto the ServiceProviderCluster
-// status the same way the MSI and data-plane identity-resolution controllers do in production, so
-// resolvePrincipalID can find a resolved principal ID for every excluded identity.
-func seedResolvedIdentities(spc *coreapi.ServiceProviderCluster) {
-	cpOps, dpOps, serviceManagedID := testClusterIdentities()
+func testClientID(id *azcorearm.ResourceID) string {
+	return "client-" + id.Name
+}
 
-	cpIdentities := make(map[string]*coreapi.ServiceProviderClusterControlPlaneOperatorIdentity, len(cpOps))
-	for _, id := range cpOps {
-		cpIdentities[strings.ToLower(id.String())] = &coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{
-			ResourceID:  id,
-			PrincipalID: ptr.To(testPrincipalID(id)),
-		}
-	}
-	spc.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities = cpIdentities
-	spc.Status.MSIManagedIdentities.ServiceManagedIdentity = &coreapi.ServiceProviderClusterServiceManagedIdentity{
-		ResourceID:  serviceManagedID,
-		PrincipalID: ptr.To(testPrincipalID(serviceManagedID)),
-	}
-
-	dpIdentities := make(map[string]*coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity, len(dpOps))
-	for _, id := range dpOps {
-		dpIdentities[strings.ToLower(id.String())] = &coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity{
-			ResourceID:  id,
-			PrincipalID: ptr.To(testPrincipalID(id)),
-		}
-	}
-	spc.Status.DataPlaneOperatorsManagedIdentities.Identities = dpIdentities
+func testIdentityTenantID(id *azcorearm.ResourceID) string {
+	return "tenant-" + id.Name
 }
 
 func newTestSPC(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceProviderCluster {
@@ -198,6 +755,108 @@ func newTestSPC(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceP
 		opt(spc)
 	}
 	return spc
+
+}
+
+func seedTestEnsuredPermissions(cluster *coreapi.Cluster, denyAssignmentType string) *coreapi.DenyAssignmentEnsuredPermissions {
+	definition := denyAssignmentDefinitionsByType(cluster)[denyAssignmentType]
+	if definition == nil {
+		panic("no definition for deny assignment type " + denyAssignmentType)
+	}
+	return (&clusterDenyAssignmentSyncer{}).ensuredPermissionsFromDefinition(definition)
+}
+
+func testClusterResourceID() *azcorearm.ResourceID {
+	return metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
+	))
+}
+
+// seedResolvedIdentities mirrors the cluster's managed identities onto the ServiceProviderCluster
+// status the same way the MSI and data-plane identity-resolution controllers do in production, so
+// resolvePrincipalID can find a resolved principal ID for every excluded identity.
+func seedResolvedIdentities(spc *coreapi.ServiceProviderCluster) {
+	cpOps, dpOps, serviceManagedID := testClusterIdentities()
+
+	cpIdentities := make(map[string]*coreapi.ServiceProviderClusterControlPlaneOperatorIdentity, len(cpOps))
+	for _, id := range cpOps {
+		cpIdentities[strings.ToLower(id.String())] = &coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{
+			ResourceID:  id,
+			ClientID:    ptr.To(testClientID(id)),
+			PrincipalID: ptr.To(testPrincipalID(id)),
+		}
+	}
+	spc.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities = cpIdentities
+	spc.Status.MSIManagedIdentities.ServiceManagedIdentity = &coreapi.ServiceProviderClusterServiceManagedIdentity{
+		ResourceID:  serviceManagedID,
+		ClientID:    ptr.To(testClientID(serviceManagedID)),
+		PrincipalID: ptr.To(testPrincipalID(serviceManagedID)),
+	}
+
+	dpIdentities := make(map[string]*coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity, len(dpOps))
+	for _, id := range dpOps {
+		dpIdentities[strings.ToLower(id.String())] = &coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity{
+			ResourceID:  id,
+			ClientID:    ptr.To(testClientID(id)),
+			PrincipalID: ptr.To(testPrincipalID(id)),
+		}
+	}
+	spc.Status.DataPlaneOperatorsManagedIdentities.Identities = dpIdentities
+
+	details := make(map[string]*coreapi.ManagedIdentityMetadata, len(cpOps)+len(dpOps)+1)
+	metadataValue := func(id *azcorearm.ResourceID) *coreapi.IdentityMetadataValue {
+		return &coreapi.IdentityMetadataValue{
+			ClientID:    ptr.To(testClientID(id)),
+			PrincipalID: ptr.To(testPrincipalID(id)),
+			TenantID:    ptr.To(testIdentityTenantID(id)),
+		}
+	}
+	seedIdentity := func(id *azcorearm.ResourceID) {
+		details[strings.ToLower(id.String())] = &coreapi.ManagedIdentityMetadata{
+			ResourceID:                                    id,
+			MetadataFromARMUserAssignedIdentitiesAPI:      metadataValue(id),
+			MetadataFromManagedIdentitiesDataplaneService: metadataValue(id),
+			MetadataFromHardcodedIdentity:                 metadataValue(id),
+		}
+	}
+	for _, id := range cpOps {
+		seedIdentity(id)
+	}
+	for _, id := range dpOps {
+		seedIdentity(id)
+	}
+	seedIdentity(serviceManagedID)
+	spc.Status.ManagedIdentityDetails = details
+}
+
+func seedTestExcludedIdentities(
+	cluster *coreapi.Cluster,
+	spc *coreapi.ServiceProviderCluster,
+	denyAssignmentType string,
+) map[string]*coreapi.DenyAssignmentExcludedIdentityStatus {
+	definition := denyAssignmentDefinitionsByType(cluster)[denyAssignmentType]
+	desired, unresolved, err := (&clusterDenyAssignmentIntentSyncer{}).desiredExcludedIdentities(cluster, spc, definition)
+	if err != nil {
+		panic(err)
+	}
+	if len(unresolved) > 0 {
+		panic("test identities are unresolved")
+	}
+	identities := make(map[string]*coreapi.DenyAssignmentExcludedIdentityStatus, len(desired))
+	for principalID, target := range desired {
+		identities[principalID] = &coreapi.DenyAssignmentExcludedIdentityStatus{
+			TargetIdentity: target,
+			EnsuredIdentity: &coreapi.DenyAssignmentExcludedEnsuredIdentity{
+				PrincipalID: principalID,
+			},
+		}
+	}
+	if len(identities) == 0 {
+		return nil
+	}
+	return identities
 }
 
 func denyAssignmentNotFoundError() error {
@@ -208,18 +867,18 @@ func resourceNotFoundError() error {
 	return &azcore.ResponseError{StatusCode: 404}
 }
 
-func matchingGetResponseForAllTypes(cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) func(ctx context.Context, scope string, denyAssignmentID string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
-	refs, _ := allDenyAssignmentReferences(cluster)
-	nameToType := make(map[string]string, len(refs))
-	for _, ref := range refs {
-		nameToType[ref.DenyAssignmentResourceID.Name] = ref.DenyAssignmentType
+func matchingGetResponseForAllTypes(cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster, syncer *clusterDenyAssignmentSyncer) func(ctx context.Context, scope string, denyAssignmentID string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
+	defs := denyAssignmentDefinitions(cluster)
+	nameToType := make(map[string]string, len(defs))
+	for _, def := range defs {
+		resourceID, err := generateDenyAssignmentResourceID(cluster, def.denyAssignmentType)
+		if err != nil {
+			panic(err)
+		}
+		nameToType[resourceID.Name] = def.denyAssignmentType
 	}
 
-	defs := denyAssignmentDefinitions(cluster)
-	defsByType := make(map[string]denyAssignmentDefinition, len(defs))
-	for _, d := range defs {
-		defsByType[d.denyAssignmentType] = d
-	}
+	defsByType := denyAssignmentDefinitionsByType(cluster)
 
 	return func(ctx context.Context, scope string, denyAssignmentID string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
 		daType, ok := nameToType[denyAssignmentID]
@@ -235,8 +894,18 @@ func matchingGetResponseForAllTypes(cluster *coreapi.Cluster, spc *coreapi.Servi
 		if dataActions == nil {
 			dataActions = []string{}
 		}
-		excludedIDs, _ := collectExcludedPrincipalIDs(cluster, def)
-		principalIDs, _ := resolvePrincipalIDs(spc, excludedIDs)
+		var principalIDs []string
+		if status := spc.Status.DenyAssignmentsOverManagedResourceGroup[daType]; status != nil {
+			desired, err := desiredExcludedIdentitiesFromDenyAssignmentStatus(status)
+			if err != nil {
+				panic(err)
+			}
+			included, _, err := syncer.selectExcludedPrincipalsForDenyAssignmentPUT(status, desired, syncer.clock.Now(), denyAssignmentExcludePrincipalsLimit)
+			if err != nil {
+				panic(err)
+			}
+			principalIDs = included
+		}
 		excludedPrincipals := make([]*armauthorization.Principal, 0, len(principalIDs))
 		for _, pid := range principalIDs {
 			excludedPrincipals = append(excludedPrincipals, &armauthorization.Principal{ID: ptr.To(pid)})
@@ -256,819 +925,5 @@ func matchingGetResponseForAllTypes(cluster *coreapi.Cluster, spc *coreapi.Servi
 				},
 			},
 		}, nil
-	}
-}
-
-func TestGenerateDenyAssignmentUUIDMatchesClusterService(t *testing.T) {
-	// referenceClusterServiceUUID replicates Cluster Service's derivation exactly
-	// (pkg/utils/uuid/generators.go generateUuidV5WithSeparator): a v5 UUID over the shared
-	// namespace and strings.Join([]string{suffix, clusterID}, "$"). If this diverges from
-	// generateDenyAssignmentUUID, the RP and Cluster Service would compute different deny assignment
-	// IDs for the same cluster and stop recognizing each other's assignments.
-	referenceClusterServiceUUID := func(clusterID, suffix string) string {
-		ns := uuid.MustParse(denyAssignmentNamespaceUUID)
-		return uuid.NewSHA1(ns, []byte(strings.Join([]string{suffix, clusterID}, "$"))).String()
-	}
-
-	clusterIDs := []string{"2abcdef1234567890abcdef123456789", "another-cs-cluster-id"}
-	for _, clusterID := range clusterIDs {
-		for _, def := range denyAssignmentDefinitions(newTestCluster()) {
-			assert.Equal(t,
-				referenceClusterServiceUUID(clusterID, def.denyAssignmentType),
-				generateDenyAssignmentUUID(clusterID, def.denyAssignmentType),
-				"deny assignment UUID for %q must match Cluster Service's derivation", def.denyAssignmentType)
-		}
-	}
-
-	// Golden value (computed with Cluster Service's algorithm) guards against the namespace,
-	// separator, or salt order changing on both sides at once.
-	assert.Equal(t,
-		"c4ff85a1-5daa-5ed4-b4e2-fdf60a7d24ad",
-		generateDenyAssignmentUUID("2abcdef1234567890abcdef123456789", "compute-deny-assignment"),
-		"deny assignment UUID derivation must not change (would desync from Cluster Service)")
-}
-
-func TestResolvePrincipalID(t *testing.T) {
-	cpOps, dpOps, serviceManagedID := testClusterIdentities()
-	controlPlaneID := cpOps["cluster-api-azure"]
-	dataPlaneID := dpOps["image-registry"]
-	untrackedID := testIdentityResourceID("not-mirrored")
-
-	tests := []struct {
-		name          string
-		spc           *coreapi.ServiceProviderCluster
-		identity      *azcorearm.ResourceID
-		expected      string
-		expectErr     bool
-		errorContains string
-	}{
-		{
-			name:     "control plane operator identity resolves",
-			spc:      newTestSPC(),
-			identity: controlPlaneID,
-			expected: testPrincipalID(controlPlaneID),
-		},
-		{
-			name:     "service managed identity resolves",
-			spc:      newTestSPC(),
-			identity: serviceManagedID,
-			expected: testPrincipalID(serviceManagedID),
-		},
-		{
-			name:     "data plane operator identity resolves",
-			spc:      newTestSPC(),
-			identity: dataPlaneID,
-			expected: testPrincipalID(dataPlaneID),
-		},
-		{
-			name: "lookup is case-insensitive on the resource ID",
-			spc:  newTestSPC(),
-			identity: metadataapi.Must(azcorearm.ParseResourceID(strings.ToUpper(
-				"/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName +
-					"/providers/Microsoft.ManagedIdentity/userAssignedIdentities/capi-azure"))),
-			expected: testPrincipalID(controlPlaneID),
-		},
-		{
-			name:          "identity not mirrored onto the SPC returns an error",
-			spc:           newTestSPC(),
-			identity:      untrackedID,
-			expectErr:     true,
-			errorContains: "no resolved principal ID",
-		},
-		{
-			name: "control plane identity with unresolved principal ID returns an error",
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[strings.ToLower(controlPlaneID.String())].PrincipalID = nil
-			}),
-			identity:      controlPlaneID,
-			expectErr:     true,
-			errorContains: "no resolved principal ID",
-		},
-		{
-			name: "data plane identity with empty principal ID returns an error",
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.DataPlaneOperatorsManagedIdentities.Identities[strings.ToLower(dataPlaneID.String())].PrincipalID = ptr.To("")
-			}),
-			identity:      dataPlaneID,
-			expectErr:     true,
-			errorContains: "no resolved principal ID",
-		},
-		{
-			name: "service managed identity with mismatched resource ID returns an error",
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.MSIManagedIdentities.ServiceManagedIdentity.ResourceID = testIdentityResourceID("some-other-identity")
-			}),
-			identity:      serviceManagedID,
-			expectErr:     true,
-			errorContains: "no resolved principal ID",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			principalID, err := resolvePrincipalID(tt.spc, tt.identity)
-			if tt.expectErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errorContains, "unexpected error message")
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, principalID, "unexpected principal ID")
-		})
-	}
-}
-
-func TestSyncOnce(t *testing.T) {
-	tests := []struct {
-		name    string
-		cluster *coreapi.Cluster
-	}{
-		{
-			name:    "cluster not found returns nil",
-			cluster: nil,
-		},
-		{
-			name: "deletion timestamp set returns nil",
-			cluster: newTestCluster(func(c *coreapi.Cluster) {
-				now := metav1.Now()
-				c.ServiceProviderProperties.DeletionTimestamp = &now
-			}),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			var clusters []*coreapi.Cluster
-			if tt.cluster != nil {
-				clusters = []*coreapi.Cluster{tt.cluster}
-			}
-			syncer := &clusterDenyAssignmentSyncer{
-				clock:         clocktesting.NewFakeClock(time.Now()),
-				clusterLister: &corelistertesting.SliceClusterLister{Clusters: clusters},
-			}
-			err := syncer.SyncOnce(ctx, testKey())
-			require.NoError(t, err)
-		})
-	}
-}
-
-func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
-	fakeClock := clocktesting.NewFakeClock(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
-	syncer := &clusterDenyAssignmentSyncer{clock: fakeClock}
-
-	tests := []struct {
-		name     string
-		cluster  *coreapi.Cluster
-		spc      *coreapi.ServiceProviderCluster
-		expected bool
-	}{
-		{
-			name: "no cluster service ID",
-			cluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = nil
-				c.ServiceProviderProperties.ClusterServiceID = nil
-			}),
-			spc:      newTestSPC(),
-			expected: false,
-		},
-		{
-			name:    "managed resource group not observed",
-			cluster: newTestCluster(),
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.ManagedResourceGroup.AzureResource = nil
-			}),
-			expected: false,
-		},
-		{
-			name:    "managed resource group pending",
-			cluster: newTestCluster(),
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.ManagedResourceGroup.AzureResource = nil
-				spc.Status.AzureResources.ManagedResourceGroup.PendingAzureResource = testManagedResourceGroupID()
-			}),
-			expected: false,
-		},
-		{
-			name: "no managed resource group",
-			cluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.CustomerProperties.Platform.ManagedResourceGroup = ""
-			}),
-			spc:      newTestSPC(),
-			expected: false,
-		},
-		{
-			name: "empty control plane operators",
-			cluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = nil
-			}),
-			spc:      newTestSPC(),
-			expected: false,
-		},
-		{
-			name: "empty data plane operators",
-			cluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = nil
-			}),
-			spc:      newTestSPC(),
-			expected: false,
-		},
-		{
-			name: "nil service managed identity",
-			cluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = nil
-			}),
-			spc:      newTestSPC(),
-			expected: false,
-		},
-		{
-			name: "nil control plane operator value",
-			cluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators["cluster-api-azure"] = nil
-			}),
-			spc:      newTestSPC(),
-			expected: false,
-		},
-		{
-			name: "nil data plane operator value",
-			cluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["image-registry"] = nil
-			}),
-			spc:      newTestSPC(),
-			expected: false,
-		},
-		{
-			name:    "control plane operator identities not yet mirrored onto the SPC",
-			cluster: newTestCluster(),
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities = nil
-			}),
-			expected: false,
-		},
-		{
-			name:    "data plane operator identities not yet mirrored onto the SPC",
-			cluster: newTestCluster(),
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.DataPlaneOperatorsManagedIdentities.Identities = nil
-			}),
-			expected: false,
-		},
-		{
-			name:    "has pending deny assignments",
-			cluster: newTestCluster(),
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{
-					{DenyAssignmentType: "some-type"},
-				}
-			}),
-			expected: true,
-		},
-		{
-			name:     "no azure resources and no pending -- first time",
-			cluster:  newTestCluster(),
-			spc:      newTestSPC(),
-			expected: true,
-		},
-		{
-			name:    "azure resources present, before recheck time",
-			cluster: newTestCluster(),
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.DenyAssignments.AzureResources = []coreapi.DenyAssignmentReference{
-					{DenyAssignmentType: "resources-deny-assignment"},
-				}
-				future := metav1.NewTime(fakeClock.Now().Add(1 * time.Hour))
-				spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = &future
-			}),
-			expected: false,
-		},
-		{
-			name:    "azure resources present, past recheck time",
-			cluster: newTestCluster(),
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.DenyAssignments.AzureResources = []coreapi.DenyAssignmentReference{
-					{DenyAssignmentType: "resources-deny-assignment"},
-				}
-				past := metav1.NewTime(fakeClock.Now().Add(-1 * time.Hour))
-				spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = &past
-			}),
-			expected: true,
-		},
-		{
-			name:    "azure resources present, nil recheck time",
-			cluster: newTestCluster(),
-			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.DenyAssignments.AzureResources = []coreapi.DenyAssignmentReference{
-					{DenyAssignmentType: "resources-deny-assignment"},
-				}
-			}),
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := syncer.syncDenyAssignmentNeedsWork(tt.cluster, tt.spc)
-			assert.Equal(t, tt.expected, got)
-		})
-	}
-}
-
-func TestSyncDenyAssignmentUpsert(t *testing.T) {
-	fakeClock := clocktesting.NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
-
-	tests := []struct {
-		name                 string
-		cluster              *coreapi.Cluster
-		existingSPC          *coreapi.ServiceProviderCluster
-		mockDenyAssignments  *azuremockclient.DenyAssignmentsClientFunc
-		mockGenericResources *azuremockclient.GenericResourcesClientFunc
-		expectError          bool
-		verify               func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient)
-	}{
-		{
-			name:        "first time initializes pending, create fails leaves them pending",
-			cluster:     newTestCluster(),
-			existingSPC: newTestSPC(),
-			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
-				GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
-					return armauthorization.DenyAssignmentsClientGetResponse{}, denyAssignmentNotFoundError()
-				},
-			},
-			mockGenericResources: &azuremockclient.GenericResourcesClientFunc{
-				CreateErr: fmt.Errorf("simulated create failure"),
-			},
-			expectError: true,
-			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
-				spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err)
-				assert.NotEmpty(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources, "pending should be populated after first-time initialization")
-			},
-		},
-		{
-			name:    "removes stale deny assignment not in definitions",
-			cluster: newTestCluster(),
-			existingSPC: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.DenyAssignments.AzureResources = []coreapi.DenyAssignmentReference{
-					{
-						DenyAssignmentType:       "stale-type-not-in-definitions",
-						DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedRG + "/providers/Microsoft.Authorization/denyAssignments/stale-uuid")),
-					},
-				}
-			}),
-			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
-				GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
-					return armauthorization.DenyAssignmentsClientGetResponse{}, denyAssignmentNotFoundError()
-				},
-			},
-			mockGenericResources: &azuremockclient.GenericResourcesClientFunc{
-				DeleteErr: resourceNotFoundError(),
-				CreateErr: fmt.Errorf("simulated create failure"),
-			},
-			expectError: true,
-			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
-				spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err)
-				for _, ref := range spc.Status.AzureResources.DenyAssignments.AzureResources {
-					assert.NotEqual(t, "stale-type-not-in-definitions", ref.DenyAssignmentType, "stale type should have been removed")
-				}
-			},
-		},
-		{
-			name:    "existing content up to date sets recheck time",
-			cluster: newTestCluster(),
-			existingSPC: func() *coreapi.ServiceProviderCluster {
-				cluster := newTestCluster()
-				refs, _ := allDenyAssignmentReferences(cluster)
-				return newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-					spc.Status.AzureResources.DenyAssignments.AzureResources = refs
-				})
-			}(),
-			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
-				GetFunc: matchingGetResponseForAllTypes(newTestCluster(), newTestSPC()),
-			},
-			mockGenericResources: &azuremockclient.GenericResourcesClientFunc{},
-			expectError:          false,
-			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
-				spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err)
-				assert.NotEmpty(t, spc.Status.AzureResources.DenyAssignments.AzureResources, "AzureResources should remain populated")
-				assert.Empty(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources, "PendingAzureResources should be empty")
-				assert.NotNil(t, spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime, "EarliestRecheckTime should be set")
-			},
-		},
-		{
-			name:    "existing content mismatched triggers update attempt, failure moves to pending",
-			cluster: newTestCluster(),
-			existingSPC: func() *coreapi.ServiceProviderCluster {
-				cluster := newTestCluster()
-				refs, _ := allDenyAssignmentReferences(cluster)
-				return newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-					spc.Status.AzureResources.DenyAssignments.AzureResources = refs
-				})
-			}(),
-			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
-				GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
-					return armauthorization.DenyAssignmentsClientGetResponse{
-						DenyAssignment: armauthorization.DenyAssignment{
-							Properties: &armauthorization.DenyAssignmentProperties{
-								Permissions: []*armauthorization.DenyAssignmentPermission{
-									{
-										Actions:     to.SliceOfPtrs("wrong-action"),
-										NotActions:  to.SliceOfPtrs[string](),
-										DataActions: to.SliceOfPtrs[string](),
-									},
-								},
-							},
-						},
-					}, nil
-				},
-			},
-			mockGenericResources: &azuremockclient.GenericResourcesClientFunc{
-				CreateErr: fmt.Errorf("simulated create failure"),
-			},
-			expectError: true,
-			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
-				spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err)
-				assert.NotEmpty(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources, "failed ensure should move refs to pending")
-			},
-		},
-		{
-			name:    "recheck time in future skips all work",
-			cluster: newTestCluster(),
-			existingSPC: func() *coreapi.ServiceProviderCluster {
-				cluster := newTestCluster()
-				refs, _ := allDenyAssignmentReferences(cluster)
-				future := metav1.NewTime(fakeClock.Now().Add(6 * time.Hour))
-				return newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-					spc.Status.AzureResources.DenyAssignments.AzureResources = refs
-					spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = &future
-				})
-			}(),
-			mockDenyAssignments:  nil,
-			mockGenericResources: nil,
-			expectError:          false,
-			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
-				spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err)
-				assert.NotEmpty(t, spc.Status.AzureResources.DenyAssignments.AzureResources, "AzureResources should be untouched")
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-
-			if tt.existingSPC != nil {
-				_, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, tt.existingSPC, nil)
-				require.NoError(t, err)
-			}
-
-			var builder *azuremockclient.FirstPartyApplicationClientBuilderFunc
-			if tt.mockDenyAssignments != nil || tt.mockGenericResources != nil {
-				builder = &azuremockclient.FirstPartyApplicationClientBuilderFunc{
-					GenericResourcesClientVal: tt.mockGenericResources,
-					DenyAssignmentsClientVal:  tt.mockDenyAssignments,
-				}
-			}
-
-			syncer := &clusterDenyAssignmentSyncer{
-				clock:                 fakeClock,
-				resourcesDBClient:     mockDB,
-				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.cluster}},
-				subscriptionLister:    &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
-				azureFPAClientBuilder: builder,
-			}
-
-			err := syncer.SyncOnce(ctx, testKey())
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			if tt.verify != nil {
-				tt.verify(t, ctx, mockDB)
-			}
-		})
-	}
-}
-
-func TestEnsureDenyAssignmentReferences(t *testing.T) {
-	cluster := newTestCluster()
-	spc := newTestSPC()
-	defs := denyAssignmentDefinitions(cluster)
-	defsByType := make(map[string]denyAssignmentDefinition, len(defs))
-	for _, d := range defs {
-		defsByType[d.denyAssignmentType] = d
-	}
-
-	allRefs, err := allDenyAssignmentReferences(cluster)
-	require.NoError(t, err)
-
-	var resourcesRef coreapi.DenyAssignmentReference
-	for _, ref := range allRefs {
-		if ref.DenyAssignmentType == denyAssignmentSuffixResources {
-			resourcesRef = ref
-			break
-		}
-	}
-
-	tests := []struct {
-		name                 string
-		refs                 []coreapi.DenyAssignmentReference
-		defsByType           map[string]denyAssignmentDefinition
-		mockDenyAssignments  *azuremockclient.DenyAssignmentsClientFunc
-		mockGenericResources *azuremockclient.GenericResourcesClientFunc
-		expectSucceeded      int
-		expectFailed         int
-		expectError          bool
-	}{
-		{
-			name:       "existing content up to date",
-			refs:       []coreapi.DenyAssignmentReference{resourcesRef},
-			defsByType: defsByType,
-			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
-				GetFunc: matchingGetResponseForAllTypes(cluster, spc),
-			},
-			mockGenericResources: &azuremockclient.GenericResourcesClientFunc{},
-			expectSucceeded:      1,
-			expectFailed:         0,
-			expectError:          false,
-		},
-		{
-			name:       "content mismatch triggers update attempt",
-			refs:       []coreapi.DenyAssignmentReference{resourcesRef},
-			defsByType: defsByType,
-			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
-				GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
-					return armauthorization.DenyAssignmentsClientGetResponse{
-						DenyAssignment: armauthorization.DenyAssignment{
-							Properties: &armauthorization.DenyAssignmentProperties{
-								Permissions: []*armauthorization.DenyAssignmentPermission{
-									{Actions: to.SliceOfPtrs("wrong-action"), NotActions: to.SliceOfPtrs[string](), DataActions: to.SliceOfPtrs[string]()},
-								},
-							},
-						},
-					}, nil
-				},
-			},
-			mockGenericResources: &azuremockclient.GenericResourcesClientFunc{CreateErr: fmt.Errorf("simulated create failure")},
-			expectSucceeded:      0,
-			expectFailed:         1,
-			expectError:          true,
-		},
-		{
-			name: "unknown type goes to failed and surfaces an error",
-			refs: []coreapi.DenyAssignmentReference{
-				{
-					DenyAssignmentType:       "unknown-type",
-					DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedRG + "/providers/Microsoft.Authorization/denyAssignments/test-uuid")),
-				},
-			},
-			defsByType:           map[string]denyAssignmentDefinition{},
-			mockDenyAssignments:  &azuremockclient.DenyAssignmentsClientFunc{},
-			mockGenericResources: &azuremockclient.GenericResourcesClientFunc{},
-			expectSucceeded:      0,
-			expectFailed:         1,
-			expectError:          true,
-		},
-		{
-			name:       "deny assignment not found triggers create",
-			refs:       []coreapi.DenyAssignmentReference{resourcesRef},
-			defsByType: defsByType,
-			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
-				GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
-					return armauthorization.DenyAssignmentsClientGetResponse{}, denyAssignmentNotFoundError()
-				},
-			},
-			mockGenericResources: &azuremockclient.GenericResourcesClientFunc{CreateErr: fmt.Errorf("simulated create failure")},
-			expectSucceeded:      0,
-			expectFailed:         1,
-			expectError:          true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			syncer := &clusterDenyAssignmentSyncer{clock: clocktesting.NewFakeClock(time.Now())}
-
-			succeeded, failed, err := syncer.ensureDenyAssignmentReferences(ctx, cluster, spc, tt.mockDenyAssignments, tt.mockGenericResources,
-				testManagedResourceGroupID(), tt.defsByType, tt.refs)
-
-			if tt.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-			assert.Len(t, succeeded, tt.expectSucceeded)
-			assert.Len(t, failed, tt.expectFailed)
-		})
-	}
-}
-
-func TestDeleteDenyAssignment(t *testing.T) {
-	rid := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedRG + "/providers/Microsoft.Authorization/denyAssignments/test-uuid"))
-
-	tests := []struct {
-		name        string
-		deleteErr   error
-		expectError bool
-	}{
-		{
-			name:        "resource not found is no-op",
-			deleteErr:   resourceNotFoundError(),
-			expectError: false,
-		},
-		{
-			name:        "other error propagates",
-			deleteErr:   fmt.Errorf("some azure error"),
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			mockGenericResources := &azuremockclient.GenericResourcesClientFunc{DeleteErr: tt.deleteErr}
-			syncer := &clusterDenyAssignmentSyncer{clock: clocktesting.NewFakeClock(time.Now())}
-
-			err := syncer.deleteDenyAssignment(ctx, mockGenericResources, rid)
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-			assert.Len(t, mockGenericResources.DeleteCalls, 1)
-		})
-	}
-}
-
-func TestDenyAssignmentNeedsUpdate(t *testing.T) {
-	actions := []string{"action1", "action2"}
-	notActions := []string{"notAction1"}
-	dataActions := []string{}
-	excludedPrincipalIDs := []string{"principal-1"}
-
-	tests := []struct {
-		name     string
-		existing *armauthorization.DenyAssignment
-		expected bool
-	}{
-		{
-			name:     "nil properties",
-			existing: &armauthorization.DenyAssignment{},
-			expected: true,
-		},
-		{
-			name: "matching content",
-			existing: &armauthorization.DenyAssignment{
-				Properties: &armauthorization.DenyAssignmentProperties{
-					Permissions: []*armauthorization.DenyAssignmentPermission{
-						{Actions: to.SliceOfPtrs(actions...), NotActions: to.SliceOfPtrs(notActions...), DataActions: to.SliceOfPtrs[string]()},
-					},
-					ExcludePrincipals: []*armauthorization.Principal{{ID: ptr.To("principal-1")}},
-				},
-			},
-			expected: false,
-		},
-		{
-			name: "different actions",
-			existing: &armauthorization.DenyAssignment{
-				Properties: &armauthorization.DenyAssignmentProperties{
-					Permissions: []*armauthorization.DenyAssignmentPermission{
-						{Actions: to.SliceOfPtrs("wrong-action"), NotActions: to.SliceOfPtrs(notActions...), DataActions: to.SliceOfPtrs[string]()},
-					},
-					ExcludePrincipals: []*armauthorization.Principal{{ID: ptr.To("principal-1")}},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "different excluded principals",
-			existing: &armauthorization.DenyAssignment{
-				Properties: &armauthorization.DenyAssignmentProperties{
-					Permissions: []*armauthorization.DenyAssignmentPermission{
-						{Actions: to.SliceOfPtrs(actions...), NotActions: to.SliceOfPtrs(notActions...), DataActions: to.SliceOfPtrs[string]()},
-					},
-					ExcludePrincipals: []*armauthorization.Principal{{ID: ptr.To("wrong-principal")}},
-				},
-			},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := denyAssignmentNeedsUpdate(tt.existing, actions, notActions, dataActions, excludedPrincipalIDs)
-			assert.Equal(t, tt.expected, got)
-		})
-	}
-}
-
-func TestReplaceServiceProviderClusterIfChanged(t *testing.T) {
-	tests := []struct {
-		name              string
-		modifyReplacement func(spc *coreapi.ServiceProviderCluster)
-		priorErrs         []error
-		expectError       bool
-		expectNilReturn   bool
-	}{
-		{
-			name:              "no change, no errors",
-			modifyReplacement: nil,
-			priorErrs:         nil,
-			expectError:       false,
-			expectNilReturn:   false,
-		},
-		{
-			name: "with change persists",
-			modifyReplacement: func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{
-					{DenyAssignmentType: "new-type"},
-				}
-			},
-			priorErrs:       nil,
-			expectError:     false,
-			expectNilReturn: false,
-		},
-		{
-			name:              "prior errors return error",
-			modifyReplacement: nil,
-			priorErrs:         []error{fmt.Errorf("prior error")},
-			expectError:       true,
-			expectNilReturn:   true,
-		},
-		{
-			name:              "nil error in slice is not treated as error",
-			modifyReplacement: nil,
-			priorErrs:         []error{nil},
-			expectError:       false,
-			expectNilReturn:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-
-			spc := newTestSPC()
-			_, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, spc, nil)
-			require.NoError(t, err)
-
-			spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
-			original, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-			require.NoError(t, err)
-			replacement := original.DeepCopy()
-
-			if tt.modifyReplacement != nil {
-				tt.modifyReplacement(replacement)
-			}
-
-			returned, retReplacement, err := replaceServiceProviderClusterIfChanged(ctx, spcCRUD, original, replacement, tt.priorErrs)
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-			if tt.expectNilReturn {
-				assert.Nil(t, returned)
-				assert.Nil(t, retReplacement)
-			} else {
-				assert.NotNil(t, returned)
-				assert.NotNil(t, retReplacement)
-			}
-		})
-	}
-}
-
-func TestAppendDenyAssignmentReference(t *testing.T) {
-	ref1 := coreapi.DenyAssignmentReference{DenyAssignmentType: "type-a"}
-	ref2 := coreapi.DenyAssignmentReference{DenyAssignmentType: "type-b"}
-	ref3 := coreapi.DenyAssignmentReference{DenyAssignmentType: "type-a"}
-
-	result := appendDenyAssignmentReference(nil, ref1, ref2, ref3)
-	assert.Len(t, result, 2)
-	assert.Equal(t, "type-a", result[0].DenyAssignmentType)
-	assert.Equal(t, "type-b", result[1].DenyAssignmentType)
-
-	result = appendDenyAssignmentReference([]coreapi.DenyAssignmentReference{ref1}, ref2, ref3)
-	assert.Len(t, result, 2)
-}
-
-func TestRemoveDenyAssignmentRef(t *testing.T) {
-	refs := []coreapi.DenyAssignmentReference{
-		{DenyAssignmentType: "type-a"},
-		{DenyAssignmentType: "type-b"},
-		{DenyAssignmentType: "type-c"},
-	}
-	result := removeDenyAssignmentRef(refs, "type-b")
-	assert.Len(t, result, 2)
-	for _, ref := range result {
-		assert.NotEqual(t, "type-b", ref.DenyAssignmentType)
 	}
 }

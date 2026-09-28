@@ -307,6 +307,40 @@ type ServiceProviderClusterStatus struct {
 	// TODO: Move the controllers to use this information. For already introduced controllers that need to support identities replacement, move them
 	// to use this at the point those are updated to support identity replacement.
 	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
+
+	// DenyAssignmentsOverManagedResourceGroup tracks the desired and observed deny assignment state
+	// for each required deny assignment type. The map key is the deny assignment
+	// type (for example "resources-deny-assignment").
+	// Desired types are the deny assignment definitions for the cluster.
+	// ClusterDenyAssignmentIntent adds those types once the identities they
+	// exclude have a fully resolved principal ID on Status.ManagedIdentityDetails,
+	// and inserts nested ExcludedIdentities rows for those principals.
+	// Control-plane operators and the service managed identity use
+	// MetadataFromManagedIdentitiesDataplaneService when the real Managed
+	// Identities Data Plane is available, and MetadataFromHardcodedIdentity
+	// otherwise. Data-plane operators use MetadataFromARMUserAssignedIdentitiesAPI.
+	// The other source is not consulted. The nested map key is PrincipalID.
+	// TargetIdentity holds the resource path, client ID, and tenant ID, and
+	// Intent overwrites it when those change for the same principal. A
+	// PrincipalID change is a new row. Intent stamps DeconfigureTimestamp on
+	// principals that left so ClusterDenyAssignment keeps them on Azure for
+	// 24 hours, and stamps
+	// type DeconfigureTimestamp on types that have left the definition set.
+	// Types with nothing tracked to delete are dropped. ClusterDenyAssignment
+	// skips types that have left the definition set until this stamp is set.
+	// It creates or deletes the Azure deny assignment, writes ExcludePrincipals
+	// from ExcludedIdentities rows whose DeconfigureTimestamp is nil plus observed cooldown waiters (dropping
+	// waiting principals early only when the 25-principal Azure limit requires
+	// it), and after a successful PUT writes EnsuredIdentity for included
+	// principals and deletes omitted waiters. A successful type delete removes
+	// the map entry.
+	// Other controllers use IdentityExcluded / IdentityExcludedOnManagedResourceGroup
+	// to know whether a principal is on ExcludePrincipals of the MRG deny
+	// assignments. Cluster deletion is a no-op: deny assignments are scoped to
+	// the managed resource group, so Azure deletes them in cascade when that
+	// resource group is removed.
+	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignment
+	DenyAssignmentsOverManagedResourceGroup map[string]*DenyAssignmentStatus `json:"denyAssignmentsOverManagedResourceGroup,omitempty"`
 }
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
@@ -428,8 +462,6 @@ type ServiceProviderClusterDataPlaneOperatorManagedIdentity struct {
 
 // AzureResources groups the Azure resource references associated with a cluster.
 type AzureResources struct {
-	// DenyAssignments tracks the deny assignments applied to the cluster's resources.
-	DenyAssignments DenyAssignmentReferences `json:"denyAssignments,omitempty"`
 	// ManagedResourceGroup tracks the managed resource group for the cluster.
 	// Written by: EnsureManagedResourceGroup
 	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
@@ -460,38 +492,6 @@ type AzureReference struct {
 	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
 	// AzureResource is the resource ID that has been confirmed to exist in Azure.
 	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
-}
-
-type DenyAssignmentReferences struct {
-	// PendingAzureResources contains resource IDs that have been requested but
-	// not yet confirmed to exist in Azure.
-	// Written by: ClusterDenyAssignment
-	PendingAzureResources []DenyAssignmentReference `json:"pendingDenyAssignments,omitempty"`
-	// AzureResources contains resource IDs that have been confirmed to exist in Azure.
-	// Written by: ClusterDenyAssignment
-	AzureResources []DenyAssignmentReference `json:"denyAssignments,omitempty"`
-	// EarliestRecheckTime is the earliest time at which the controller should
-	// re-check the pending resources. Nil means recheck immediately.
-	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% is considered normal
-	// so that any storms are quickly dissipated.
-	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
-	// six hours is, with durations up to 24 hours considered normal.
-	// Written by: ClusterDenyAssignment
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
-}
-
-// DenyAssignmentReference identifies a single Azure deny assignment.
-// +k8s:deepcopy-gen=true
-type DenyAssignmentReference struct {
-	// DenyAssignmentType identifies the category of deny assignment (e.g. "resources-deny-assignment").
-	// Used as a suffix when generating the deterministic deny assignment UUID.
-	// Written by: ClusterDenyAssignment
-	DenyAssignmentType string `json:"denyAssignmentType"`
-	// DenyAssignmentResourceID is the full Azure resource ID of the deny assignment,
-	// e.g. "/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Authorization/denyAssignments/{uuid}".
-	// Written by: ClusterDenyAssignment
-	DenyAssignmentResourceID *azcorearm.ResourceID `json:"denyAssignmentResourceID"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
@@ -700,4 +700,198 @@ type IdentityMetadataValue struct {
 	// ClientID, PrincipalID, and TenantID.
 	// Written by: FetchManagedIdentitiesInfo
 	RetrievalError *string `json:"retrievalError,omitempty"`
+}
+
+// DenyAssignmentStatus is the reconciliation state of one deny assignment type
+// on DenyAssignmentsOverManagedResourceGroup. Each type maps to a single Azure deny assignment.
+// Configure vs deconfigure is derived from DeconfigureTimestamp, AzureResource,
+// EnsuredIdentity, and EnsuredPermissions; there is no stored phase.
+type DenyAssignmentStatus struct {
+	// DeconfigureTimestamp is when deconfigure of this deny assignment type was
+	// requested. Nil means the type is still desired. ClusterDenyAssignment
+	// deletes the Azure deny assignment as soon as this is set; there is no 24h
+	// wait at the type level. Nested identity cooldowns do not apply once the
+	// type itself is draining. Cleared when the type is required again.
+	// Successful deconfigure removes this type from DenyAssignmentsOverManagedResourceGroup rather
+	// than clearing this field in place.
+	// Written by: ClusterDenyAssignmentIntent
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
+	// PendingAzureResource is the deny assignment resource ID that has been
+	// requested but not yet confirmed to exist in Azure. ClusterDenyAssignment
+	// persists this ID before CreateOrUpdate, so a crash or replace failure
+	// cannot lose the tracked set. Type deconfigure also deletes a leftover
+	// ID here from a previous incomplete configure.
+	// Written by: ClusterDenyAssignment
+	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
+	// AzureResource is the deny assignment resource ID that has been confirmed
+	// to exist in Azure. It moves from PendingAzureResource when the object
+	// exists. Cleared after a successful delete. Membership of ExcludePrincipals
+	// is tracked on ExcludedIdentities after each successful PUT.
+	// Written by: ClusterDenyAssignment
+	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
+	// EnsuredPermissions is the Actions / NotActions / DataActions written on
+	// the last successful Azure PUT for this type. ClusterDenyAssignment
+	// compares this snapshot to the live deny assignment definition and ensures
+	// immediately when they differ, so a definition change does not wait for
+	// Spec.EarliestRecheckTimesByController. Missing on a type that still has
+	// AzureResource is also an immediate ensure so the snapshot is populated.
+	// Cleared after a successful type delete. Intent does not write this field.
+	// Written by: ClusterDenyAssignment
+	EnsuredPermissions *DenyAssignmentEnsuredPermissions `json:"ensuredPermissions,omitempty"`
+	// ExcludedIdentities is the desired and observed ExcludePrincipals set for
+	// this type, keyed by PrincipalID. ClusterDenyAssignmentIntent inserts a
+	// row when a principal is desired and writes TargetIdentity. A nil
+	// DeconfigureTimestamp means the principal should be excluded. Intent
+	// overwrites TargetIdentity when the resource path, client ID, or tenant
+	// ID changes for that same principal, and does not clear EnsuredIdentity.
+	// A PrincipalID change is a new key; the old key keeps its row until
+	// ClusterDenyAssignment omits it. Intent stamps DeconfigureTimestamp
+	// when a principal leaves the live desired set and clears it if that
+	// principal is desired again before the wait ends. A row that was never
+	// ensured is dropped instead of stamped. ClusterDenyAssignment builds
+	// ExcludePrincipals from live desired principals plus rows still inside
+	// the 24h wait, omits wait-elapsed or LRU-evicted waiters (Azure allows
+	// at most 25 ExcludePrincipals), and after a successful PUT writes
+	// EnsuredIdentity on included principals that already have a row and
+	// deletes omitted waiters. A desired principal with no row is an error.
+	// Written by: ClusterDenyAssignmentIntent, ClusterDenyAssignment
+	ExcludedIdentities map[string]*DenyAssignmentExcludedIdentityStatus `json:"excludedIdentities,omitempty"`
+}
+
+// DenyAssignmentEnsuredPermissions is the permission set associated with one
+// deny assignment type on the last successful Azure PUT.
+type DenyAssignmentEnsuredPermissions struct {
+	// Actions is the deny assignment Actions list written to Azure.
+	// Written by: ClusterDenyAssignment
+	Actions []string `json:"actions,omitempty"`
+	// NotActions is the deny assignment NotActions list written to Azure.
+	// Written by: ClusterDenyAssignment
+	NotActions []string `json:"notActions,omitempty"`
+	// DataActions is the deny assignment DataActions list written to Azure.
+	// Written by: ClusterDenyAssignment
+	DataActions []string `json:"dataActions,omitempty"`
+}
+
+// DenyAssignmentExcludedIdentityStatus is the desired or observed Azure
+// exclusion of one principal on a deny assignment type. The ExcludedIdentities
+// map key is the principal ID. ClusterDenyAssignmentIntent inserts a row when
+// the principal is desired and writes TargetIdentity. ClusterDenyAssignment
+// writes EnsuredIdentity after a successful PUT that included this principal.
+// A row with DeconfigureTimestamp set is kept on ExcludePrincipals during the
+// 24h wait.
+type DenyAssignmentExcludedIdentityStatus struct {
+	// TargetIdentity is the managed identity ClusterDenyAssignmentIntent last
+	// targeted for this principal. A resource path, client ID, or tenant ID
+	// change on the same principal overwrites this field and does not start
+	// a cooldown. A cooldown row keeps the snapshot from when the principal
+	// left. Intent uses ResourceID to skip deconfigure while
+	// ManagedIdentityDetails has not resolved that path.
+	// Written by: ClusterDenyAssignmentIntent
+	TargetIdentity *DenyAssignmentTargetIdentity `json:"targetIdentity,omitempty"`
+	// DeconfigureTimestamp is the timestamp at which deconfigure of this
+	// identity's exclusion was requested. The timestamp is in UTC.
+	// A nil value indicates that deconfigure has not been requested and the
+	// principal is still desired. On a live cluster ClusterDenyAssignment
+	// waits 24 hours from this timestamp before omitting the principal from
+	// ExcludePrincipals, unless the 25-principal Azure limit requires dropping
+	// older waiters sooner.
+	// Written by: ClusterDenyAssignmentIntent
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
+	// EnsuredIdentity is the principal that was on Azure ExcludePrincipals
+	// on the last successful PUT. Nil means this desired principal has not been
+	// applied yet. PrincipalID matches the ExcludedIdentities map key.
+	// Cooldown rows keep the snapshot from when the principal left. A
+	// TargetIdentity change for the same principal does not clear this field.
+	// Written by: ClusterDenyAssignment
+	EnsuredIdentity *DenyAssignmentExcludedEnsuredIdentity `json:"ensuredIdentity,omitempty"`
+}
+
+// DenyAssignmentTargetIdentity is the identity generation targeted for one
+// excluded principal. PrincipalID matches the ExcludedIdentities map key.
+// ClientID and TenantID are not written to the deny assignment. Azure
+// ExcludePrincipals receives only the principal ID.
+type DenyAssignmentTargetIdentity struct {
+	// ResourceID is the Azure resource ID of the managed identity.
+	// Written by: ClusterDenyAssignmentIntent
+	ResourceID *azcorearm.ResourceID `json:"resourceID,omitempty"`
+	// ClientID is the Client ID from the chosen ManagedIdentityDetails source.
+	// Written by: ClusterDenyAssignmentIntent
+	ClientID string `json:"clientID,omitempty"`
+	// TenantID is the Tenant ID from the chosen ManagedIdentityDetails source.
+	// Written by: ClusterDenyAssignmentIntent
+	TenantID string `json:"tenantID,omitempty"`
+	// PrincipalID is the Principal ID from that source. It matches the
+	// ExcludedIdentities map key.
+	// Written by: ClusterDenyAssignmentIntent
+	PrincipalID string `json:"principalID,omitempty"`
+}
+
+// DenyAssignmentExcludedEnsuredIdentity is the principal associated
+// with one ExcludedIdentities entry after a successful Azure PUT.
+type DenyAssignmentExcludedEnsuredIdentity struct {
+	// PrincipalID is the Principal ID written to Azure ExcludePrincipals.
+	// It matches the ExcludedIdentities map key.
+	// Written by: ClusterDenyAssignment
+	PrincipalID string `json:"principalID,omitempty"`
+}
+
+// Ensured reports whether ClusterDenyAssignment has applied this deny assignment
+// type on the managed resource group. A nil status, a type being deconfigured,
+// or a desired principal that is not yet on ExcludePrincipals is not ensured.
+func (s *DenyAssignmentStatus) Ensured() bool {
+	if s == nil || s.DeconfigureTimestamp != nil {
+		return false
+	}
+	if s.PendingAzureResource != nil || s.AzureResource == nil || s.EnsuredPermissions == nil {
+		return false
+	}
+	for principalID, identity := range s.ExcludedIdentities {
+		if identity == nil || identity.DeconfigureTimestamp != nil {
+			continue
+		}
+		if identity.EnsuredIdentity == nil || identity.EnsuredIdentity.PrincipalID != principalID {
+			return false
+		}
+	}
+	return true
+}
+
+// IdentityExcluded reports whether this deny assignment exists on the managed
+// resource group and the given principal is on its last successful
+// ExcludePrincipals set. A draining type or identity is not excluded.
+func (s *DenyAssignmentStatus) IdentityExcluded(resourceID, principalID string) bool {
+	if s == nil || s.AzureResource == nil || s.DeconfigureTimestamp != nil {
+		return false
+	}
+	row := s.ExcludedIdentities[principalID]
+	if row == nil || row.DeconfigureTimestamp != nil || row.EnsuredIdentity == nil {
+		return false
+	}
+	return row.EnsuredIdentity.PrincipalID == principalID
+}
+
+// IdentityExcludedOnManagedResourceGroup reports whether identity resourceID's
+// principalID is excluded on every deny assignment type that currently desires
+// it. Types with no desired (non-draining) row for this principal are ignored.
+// False when no type currently desires the principal, or when any desired type
+// has not yet applied it.
+func (s *ServiceProviderClusterStatus) IdentityExcludedOnManagedResourceGroup(resourceID, principalID string) bool {
+	if s == nil {
+		return false
+	}
+	foundDesired := false
+	for _, status := range s.DenyAssignmentsOverManagedResourceGroup {
+		if status == nil {
+			continue
+		}
+		row := status.ExcludedIdentities[principalID]
+		if row == nil || row.DeconfigureTimestamp != nil {
+			continue
+		}
+		foundDesired = true
+		if !status.IdentityExcluded(resourceID, principalID) {
+			return false
+		}
+	}
+	return foundDesired
 }
