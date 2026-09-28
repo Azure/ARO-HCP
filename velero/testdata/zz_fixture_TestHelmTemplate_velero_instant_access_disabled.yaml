@@ -433,9 +433,9 @@ spec:
             --image arohcpsvcdev.azurecr.io/oadp/oadp-velero-rhel9@sha256:1234567890 \
             --concurrent-backups 4 \
             --velero-pod-mem-limit '0' \
-            --velero-pod-mem-request '1024Mi' \
+            --velero-pod-mem-request '190Mi' \
             --velero-pod-cpu-limit '0' \
-            --velero-pod-cpu-request '1000m' \
+            --velero-pod-cpu-request '30m' \
             --node-agent-pod-mem-limit '0' \
             --node-agent-pod-mem-request '0' \
             --node-agent-pod-cpu-limit '0' \

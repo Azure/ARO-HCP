@@ -1955,8 +1955,8 @@ spec:
           readOnlyRootFilesystem: true
         resources:
           requests:
-            cpu: 50m
-            memory: 96Mi
+            cpu: 20m
+            memory: 30Mi
         env:
           - name: WATCH_NAMESPACE
           - name: POD_NAME
@@ -2070,7 +2070,7 @@ spec:
         name: manager
         resources:
           requests:
-            cpu: 25m
+            cpu: 70m
             memory: 64Mi
         securityContext:
           allowPrivilegeEscalation: false
@@ -2226,8 +2226,8 @@ spec:
           timeoutSeconds: 1
         resources:
           requests:
-            cpu: 25m
-            memory: 64Mi
+            cpu: 10m
+            memory: 50Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
