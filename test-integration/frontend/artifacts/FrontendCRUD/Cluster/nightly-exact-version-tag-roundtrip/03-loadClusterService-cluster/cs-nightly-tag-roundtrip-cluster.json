@@ -1,0 +1,11 @@
+{
+	"href": "/api/clusters_mgmt/v1/clusters/cs-nightly-tag-roundtrip",
+	"id": "cs-nightly-tag-roundtrip",
+	"kind": "Cluster",
+	"name": "nightly-full-version",
+	"version": {
+		"channel_group": "nightly",
+		"id": "openshift-v4.20.0-0.nightly-2026-08-05-123456",
+		"kind": "Version"
+	}
+}
