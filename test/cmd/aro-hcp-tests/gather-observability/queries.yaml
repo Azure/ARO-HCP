@@ -41,7 +41,7 @@ panels:
     workspace: svc
     step: "60s"
   - title: "Frontend Write Median (p50) Request Latency"
-    description: "Median (p50) PUT/POST/PATCH/DELETE request latency by method/route/cluster. Uses the same 30-minute window and 5-minute offset as FrontendPathWriteMedianLatency, so post-optimization measurements can justify its threshold. The draft alert's 1s threshold and >=10 request floor are provisional (AROSLSRE-2287). Excludes hcpoperationresults."
+    description: "Median (p50) PUT/POST/PATCH/DELETE request latency by method/route/cluster. Uses the same 30-minute window and 5-minute offset as FrontendPathWriteMedianLatency. The candidate write threshold is 200ms with >=5 requests/30m, calibrated from post-#7185 DEV E2E runs (AROSLSRE-2287); verify other target workspaces before merge. It is not a documented SLO. Excludes hcpoperationresults."
     query: |
       histogram_quantile(0.5,
         sum by (le, route, method, cluster) (
@@ -52,7 +52,7 @@ panels:
     workspace: svc
     step: "60s"
   - title: "Frontend Write Request Count (30m sliding)"
-    description: "PUT/POST/PATCH/DELETE request count by method/route/cluster, deduplicated across Prometheus replicas with the same 30-minute window and 5-minute offset as FrontendPathWriteMedianLatency. Use this with write p50 to choose a meaningful request-volume floor (AROSLSRE-2287). Excludes hcpoperationresults."
+    description: "PUT/POST/PATCH/DELETE request count by method/route/cluster, deduplicated across Prometheus replicas with the same 30-minute window and 5-minute offset as FrontendPathWriteMedianLatency. The write alert requires >=5 requests/30m; compare this with write p50 when investigating a firing or a route with no alert (AROSLSRE-2287). Excludes hcpoperationresults."
     query: |
       sum by (route, method, cluster) (
         max without (prometheus_replica) (

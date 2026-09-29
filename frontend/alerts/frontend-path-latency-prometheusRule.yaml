@@ -30,16 +30,17 @@ spec:
     #                                 is robust at low sample counts (an outlier sits far from
     #                                 rank 0.5·N), so it needs only a light volume floor
     #                                 (≥10 req/30m) and a 250ms bound. Mutating methods are
-    #                                 excluded — 250ms is the existing read-path alert bound, and cluster-create PUT
-    #                                 p50 routinely exceeds it in e2e (AROSLSRE-2232), failing
-    #                                 gather-observability after Ginkgo already passed. Write
-    #                                 paths also have a separate median alert below, in addition
+    #                                 excluded — 250ms is the existing read-path alert bound;
+    #                                 cluster-create PUT p50 exceeded it before #7185, failing
+    #                                 gather-observability after Ginkgo passed (AROSLSRE-2232).
+    #                                 Write paths have a separate median alert below, in addition
     #                                 to FrontendPathLatency (5% > 1s, with its volume gates).
     #   * FrontendPathWriteMedianLatency — WRITE-path median (PUT/POST/PATCH/DELETE),
-    #                                 with its own bound and volume gate. Both values are
-    #                                 provisional until AROSLSRE-2287 has post-#7185 CI
-    #                                 measurements by method, route, and cluster. Do not
-    #                                 merge this rule without validating them against data.
+    #                                 p50 >200ms with >=5 req/30m. Candidate values from
+    #                                 three post-#7185 DEV e2e reports, not a documented
+    #                                 write SLO. Validate other deployment workspaces and
+    #                                 #7185 rollout before merge. See
+    #                                 docs/frontend-write-latency-alert.md for evidence.
     #
     # HA Prometheus replica handling:
     #   * Ratio/quantile clauses use sum (not max): doubled per-bucket counts from two
@@ -118,17 +119,17 @@ spec:
           sum by (le, route, method, cluster) (
             rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)
           )
-        ) > 1
+        ) > 0.2
         and on (route, method, cluster)
         (
           sum by (route, method, cluster) (
             max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))
           )
-        ) >= 10
+        ) >= 5
       for: 1m
       labels:
         severity: warning
       annotations:
-        description: 'The median (p50) of frontend write request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 30 minutes (cluster {{ $labels.cluster }}).'
+        description: 'The median (p50) of frontend write request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 200ms over the past 30 minutes (cluster {{ $labels.cluster }}).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend write p50 exceeds 1s for {{ $labels.method }} {{ $labels.route }} on cluster {{ $labels.cluster }} over 30m'
+        summary: 'Frontend write p50 exceeds 200ms for {{ $labels.method }} {{ $labels.route }} on cluster {{ $labels.cluster }} over 30m'

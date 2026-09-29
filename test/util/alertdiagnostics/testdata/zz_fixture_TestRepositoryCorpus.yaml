@@ -3698,27 +3698,27 @@
   group: svc-frontend-path-latency
   alert: FrontendPathWriteMedianLatency
   occurrence: 1
-  input: histogram_quantile(0.5, sum by (le, route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 1 and on (route, method, cluster) (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 10
+  input: histogram_quantile(0.5, sum by (le, route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 0.2 and on (route, method, cluster) (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 5
   plan:
-    expression: histogram_quantile(0.5, sum by (le, route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 1 and on (route, method, cluster) (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 10
+    expression: histogram_quantile(0.5, sum by (le, route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 0.2 and on (route, method, cluster) (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 5
     conditions:
-      - expression: histogram_quantile(0.5, sum by (le, route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 1
+      - expression: histogram_quantile(0.5, sum by (le, route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 0.2
         path: root/and:left
         queries:
           - expression: histogram_quantile(0.5, sum by (le, route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))
             role: signal
         thresholds:
           - operator: '>'
-            value: 1
+            value: 0.2
         unsupported: ""
-      - expression: (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 10
+      - expression: (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 5
         path: root/and:right
         queries:
           - expression: sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))
             role: signal
         thresholds:
           - operator: '>='
-            value: 10
+            value: 5
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
   group: svc-kube-apiserver-slos
@@ -6565,33 +6565,33 @@
       sum by (le, route, method, cluster) (
         rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)
       )
-    ) > 1
+    ) > 0.2
     and on (route, method, cluster)
     (
       sum by (route, method, cluster) (
         max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))
       )
-    ) >= 10
+    ) >= 5
   plan:
-    expression: histogram_quantile(0.5, sum by (le, route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 1 and on (route, method, cluster) (sum by (route, method, cluster) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 10
+    expression: histogram_quantile(0.5, sum by (le, route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 0.2 and on (route, method, cluster) (sum by (route, method, cluster) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 5
     conditions:
-      - expression: histogram_quantile(0.5, sum by (le, route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 1
+      - expression: histogram_quantile(0.5, sum by (le, route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 0.2
         path: root/and:left
         queries:
           - expression: histogram_quantile(0.5, sum by (le, route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))
             role: signal
         thresholds:
           - operator: '>'
-            value: 1
+            value: 0.2
         unsupported: ""
-      - expression: (sum by (route, method, cluster) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 10
+      - expression: (sum by (route, method, cluster) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 5
         path: root/and:right
         queries:
           - expression: sum by (route, method, cluster) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))
             role: signal
         thresholds:
           - operator: '>='
-            value: 10
+            value: 5
         unsupported: ""
 - source: frontend/alerts/frontend-prometheusRule.yaml
   group: frontend
