@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -378,6 +379,90 @@ func TestReportOmitsMalwareWarningWhenNotApplicable(t *testing.T) {
 	}
 }
 
+// TestBlobContentIgnoresTheWorkingTree pins the rule that content comes from
+// the object store. An index entry and the path it names can disagree, and
+// both directions of that disagreement defeat a working-tree read: swapping a
+// staged regular file for a symlink to a fifo leaves mode 100644 while the
+// path blocks forever, and a benign copy on disk hides a staged command key.
+// Scanning by object ID is what makes the mode check mean anything.
+func TestBlobContentIgnoresTheWorkingTree(t *testing.T) {
+	const staged = `{"hooks":[{"command":"node .claude/setup.mjs"}]}`
+
+	dir := t.TempDir()
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"config", "user.email", "test@example.invalid"},
+		{"config", "user.name", "test"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+
+	name := filepath.Join(dir, "agent.json")
+	if err := os.WriteFile(name, []byte(staged), 0o644); err != nil {
+		t.Fatalf("writing fixture: %v", err)
+	}
+	add := exec.Command("git", "add", "agent.json")
+	add.Dir = dir
+	if out, err := add.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v: %s", err, out)
+	}
+
+	// Replace the working-tree copy with a symlink to a fifo. The index still
+	// records a regular file, so readableBlob keeps saying "scan this"; a
+	// reader that opened the path here would never return.
+	fifo := filepath.Join(dir, "trap.fifo")
+	if out, err := exec.Command("mkfifo", fifo).CombinedOutput(); err != nil {
+		t.Skipf("mkfifo unavailable: %v: %s", err, out)
+	}
+	if err := os.Remove(name); err != nil {
+		t.Fatalf("removing working copy: %v", err)
+	}
+	if err := os.Symlink(fifo, name); err != nil {
+		t.Fatalf("symlinking: %v", err)
+	}
+
+	files, err := trackedFiles(dir)
+	if err != nil {
+		t.Fatalf("listing tracked files: %v", err)
+	}
+	selected := agentJSONFiles(files)
+
+	var entry trackedFile
+	for _, f := range files {
+		if f.path == "agent.json" {
+			entry = f
+		}
+	}
+	if entry.oid == "" {
+		t.Fatalf("expected agent.json in the index, got %+v", files)
+	}
+	if !readableBlob(entry) {
+		t.Fatalf("expected mode %s to stay readable after the swap, got %q", modeRegular, entry.mode)
+	}
+
+	got, err := blobContent(dir, entry.oid)
+	if err != nil {
+		t.Fatalf("reading blob: %v", err)
+	}
+	if string(got) != staged {
+		t.Errorf("expected the staged bytes %q, got %q", staged, got)
+	}
+
+	// agent.json is not under .claude and is not an MCP config, so it is not
+	// selected here; the point of the fixture is the read path, not the
+	// selector. Guard the assumption so the test cannot quietly stop testing.
+	if len(selected) != 0 {
+		t.Errorf("fixture unexpectedly selected for scanning: %+v", selected)
+	}
+	if findings := scanAgentJSON("agent.json", got); len(findings) != 1 || findings[0].rule != ruleExecutionKey {
+		t.Errorf("expected the staged command key to be found, got %+v", findings)
+	}
+}
+
 // TestRepositoryIsClean is the check running against its own repository. It
 // guards against a rule that is too broad to ever pass.
 func TestRepositoryIsClean(t *testing.T) {
@@ -391,9 +476,10 @@ func TestRepositoryIsClean(t *testing.T) {
 
 	// Parsing the index format wrongly would silently blank every mode, which
 	// would make readableBlob reject everything and the content rules vacuous.
+	// A blank oid fails louder, but only once something is actually scanned.
 	// Assert the shape before relying on it.
 	for _, f := range files {
-		if f.path == "" || f.mode == "" {
+		if f.path == "" || f.mode == "" || f.oid == "" {
 			t.Fatalf("incomplete index entry %+v", f)
 		}
 	}
@@ -409,9 +495,11 @@ func TestRepositoryIsClean(t *testing.T) {
 		if !readableBlob(f) {
 			t.Fatalf("%s is tracked as mode %s and would be refused unread", f.path, f.mode)
 		}
-		content, err := os.ReadFile(filepath.Join("../..", f.path))
+		// Read the blob, not the path, for the same reason main does: a
+		// working-tree copy is not necessarily what the index holds.
+		content, err := blobContent("../..", f.oid)
 		if err != nil {
-			t.Fatalf("reading %s: %v", f.path, err)
+			t.Fatalf("reading %s (%s): %v", f.path, f.oid, err)
 		}
 		if findings := scanAgentJSON(f.path, content); len(findings) != 0 {
 			t.Fatalf("expected no findings in this repository, got %+v", findings)

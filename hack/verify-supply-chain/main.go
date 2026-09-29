@@ -20,7 +20,9 @@
 // cannot be read at all, is refused rather than given the benefit of the
 // doubt.
 //
-// Only tracked files are inspected. Developers routinely keep gitignored agent
+// Only tracked files are inspected, and they are inspected as git has them:
+// paths and modes come from the index, contents from the object store, never
+// from the working tree. Developers routinely keep gitignored agent
 // configuration (for example .claude/settings.local.json) in their working
 // copy, and that is not what this check is about.
 //
@@ -133,9 +135,9 @@ func main() {
 	for _, f := range agentJSONFiles(files) {
 		var found []finding
 		if readableBlob(f) {
-			content, err := os.ReadFile(path.Join(root, f.path))
+			content, err := blobContent(root, f.oid)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error reading %s: %v\n", f.path, err)
+				fmt.Fprintf(os.Stderr, "error reading %s (%s): %v\n", f.path, f.oid, err)
 				os.Exit(2)
 			}
 			found = scanAgentJSON(f.path, content)
@@ -171,11 +173,12 @@ const (
 	modeExecutable = "100755"
 )
 
-// trackedFile is one entry of the git index: the path, plus the mode git
-// stores alongside it.
+// trackedFile is one entry of the git index: the path, plus the mode and
+// object ID git stores alongside it.
 type trackedFile struct {
 	path string
 	mode string
+	oid  string
 }
 
 // trackedFiles returns every entry in the git index.
@@ -208,32 +211,52 @@ func trackedFiles(root string) ([]trackedFile, error) {
 		if !ok {
 			return nil, fmt.Errorf("unexpected git ls-files entry %q", entry)
 		}
-		mode, _, ok := bytes.Cut(meta, []byte{' '})
+		mode, rest, ok := bytes.Cut(meta, []byte{' '})
 		if !ok {
 			return nil, fmt.Errorf("unexpected git ls-files metadata %q", meta)
 		}
-		files = append(files, trackedFile{path: string(p), mode: string(mode)})
+		oid, _, ok := bytes.Cut(rest, []byte{' '})
+		if !ok {
+			return nil, fmt.Errorf("unexpected git ls-files metadata %q", meta)
+		}
+		files = append(files, trackedFile{path: string(p), mode: string(mode), oid: string(oid)})
 	}
 	return files, nil
 }
 
-// readableBlob reports whether an entry's contents can be opened from the
-// working tree.
+// blobContent returns the bytes git has recorded for an object ID.
 //
-// Content scanning uses os.ReadFile, which follows symlinks. A tracked
-// .claude/*.json symlinked to /dev/zero would read forever, and one pointing
-// at a fifo would block until the CI job times out — in both cases without
-// ever reporting a finding. So the entry's type is taken from the index and
-// anything that is not a plain blob is never opened.
+// Content must come from the object store, not from the working tree. The two
+// are not the same thing, and only one of them is what a PR proposes: an
+// entry staged as a regular file can be swapped for a symlink to a fifo
+// afterwards, leaving index mode 100644 while the path on disk hangs the
+// reader, and a benign working-tree copy can just as easily mask a staged
+// command key. Reading by object ID removes that gap by construction — the
+// same bytes the index names are the bytes scanned — and it is also what
+// makes the scan unhangable, since a blob is inert storage with no filesystem
+// behaviour to trigger.
 //
-// Not opening it is not the same as letting it pass. Agent JSON that cannot
-// be scanned is reported instead — see unreadableAgentJSON. Skipping it
-// silently would invert the check: what git stores for a symlink is a target
-// path, but an agent resolves that link and reads whatever is on the other
-// end, so a symlinked .claude/skills/x/meta.json delivers its target's hooks
-// and command keys just as a regular file would. The rule cannot follow the
-// link to find out — that would inspect bytes outside this diff, and reopens
-// the /dev/zero hang — so it refuses the entry rather than guessing.
+// One git invocation per file is fine at the scale this runs: the selector
+// matches agent JSON only, of which this repository tracks none.
+func blobContent(root, oid string) ([]byte, error) {
+	cmd := exec.Command("git", "cat-file", "blob", oid)
+	cmd.Dir = root
+	cmd.Stderr = os.Stderr
+	return cmd.Output()
+}
+
+// readableBlob reports whether an index entry names a blob worth scanning.
+//
+// This is a policy rule, not a safety guard — blobContent cannot hang however
+// it is called, so nothing here is protecting the reader. What it decides is
+// that agent JSON which is not a plain file gets refused rather than
+// interpreted. For a symlink the blob is a target path, and scanning that
+// string would be answering the wrong question: an agent resolves the link
+// and reads whatever is on the other end, so the entry delivers its target's
+// hooks and command keys while a scan of the link itself finds nothing. For a
+// submodule the object is a commit that need not exist in this repository at
+// all. Neither can be judged here, so both are reported — see
+// unreadableAgentJSON — and left to a human.
 func readableBlob(f trackedFile) bool {
 	return f.mode == modeRegular || f.mode == modeExecutable
 }
