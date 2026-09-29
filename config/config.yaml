@@ -418,7 +418,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:263ab1ec7f7d67ce658cd035eb650096dd172f0615f82c33677b4ac809b8364d # 552a2b312332e6cff4909f6dad277948c98169de (2026-09-28 15:31)
+      digest: sha256:912940c64c2443a5b40c238145bfd425b271f424b8cdedd96eee10bb9699825d # 0d9d305ea5ab6d63e9080f4349c3364376b6baa6 (2026-09-29 14:52)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -1119,18 +1119,18 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:df578499c052e134b0d2609d8852389586ec21e704938fe9b3f570c70c8845df # v2.17.3-468 (2026-09-28 14:11)
+        digest: sha256:abcdf5a55a98ea7f4666ab8da5718e09756b62dda2df296c5914ec0f7d582faf # v2.17.3-469 (2026-09-29 14:12)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:b32b15dd72581e52fe2488d90478cdc758d79e659c489545ef082090cb9a83c5 # v2.17.3-508 (2026-09-28 20:08)
+        digest: sha256:fb3fba1aa64d42a5ae41f03efd062ae4727c204853564cdcebb7b655bc8c18cb # v2.17.3-509 (2026-09-29 14:20)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:39b62d34c0ae6caad264fcc2a086fe84c7a97da3f7baab017f01c28e10c3ba6f # 68ecbc6bed9fda594f7f845285176c245c20d4c7 (2026-09-24 19:28)
+      digest: sha256:5c662dad313fad3db28d5b82d2b171d2590e5f9200cb0cf6659538e14bd0c837 # 79e8c8e3222746326713fb1c5d15943b64322ffb (2026-09-29 15:23)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
