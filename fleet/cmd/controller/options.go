@@ -77,7 +77,6 @@ type RawControllerOptions struct {
 	AMWScalingPollInterval  time.Duration
 
 	NodePoolProfile string
-	NodePoolZones   string
 
 	AzureRegionAvailabilityZoneCount int
 }
@@ -106,8 +105,7 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 	cmd.Flags().StringArrayVar(&opts.AMWWorkspaceResourceIDs, "amw-workspace-resource-id", opts.AMWWorkspaceResourceIDs, "Azure Monitor Workspace resource ID to manage ingestion limits for. Can be specified multiple times.")
 	cmd.Flags().DurationVar(&opts.AMWScalingPollInterval, "amw-scaling-poll-interval", opts.AMWScalingPollInterval, "Interval at which the AMW ingestion limits scaling controller checks utilization and scales limits.")
 	cmd.Flags().StringVar(&opts.NodePoolProfile, "nodepool-profile", opts.NodePoolProfile, "Shadow-only node pool tier profile (ci, development, production); empty disables reporting. Never mutates pools.")
-	cmd.Flags().StringVar(&opts.NodePoolZones, "nodepool-zones", opts.NodePoolZones, "Availability zone override for node pools: exactly three distinct zones, comma-separated (e.g. 1,3,4 to skip a known-bad zone 2). Each zone must be within 1..azure-region-availability-zone-count. If empty, zones 1,2,3 are used.")
-	cmd.Flags().IntVar(&opts.AzureRegionAvailabilityZoneCount, "azure-region-availability-zone-count", opts.AzureRegionAvailabilityZoneCount, "Number of availability zones the region offers. Node pool planning fails if this is zero.")
+	cmd.Flags().IntVar(&opts.AzureRegionAvailabilityZoneCount, "azure-region-availability-zone-count", opts.AzureRegionAvailabilityZoneCount, fmt.Sprintf("Number of availability zones the region offers. Node pool planning fails if this is below %d.", compute.RequiredAvailabilityZones))
 	for _, flag := range []string{
 		"cloud-environment",
 		"region",
@@ -286,9 +284,9 @@ func resolveNodePoolProfile(o *RawControllerOptions) (*compute.Profile, []string
 	if err := compute.ValidateProfile(profile); err != nil {
 		return nil, nil, fmt.Errorf("--nodepool-profile %q is invalid: %w", o.NodePoolProfile, err)
 	}
-	zones, err := compute.ResolveZones(o.NodePoolZones, o.AzureRegionAvailabilityZoneCount)
+	zones, err := compute.ResolvePlanningZones(o.AzureRegionAvailabilityZoneCount)
 	if err != nil {
-		return nil, nil, fmt.Errorf("--nodepool-zones/--azure-region-availability-zone-count: %w", err)
+		return nil, nil, fmt.Errorf("--azure-region-availability-zone-count: %w", err)
 	}
 	return &profile, zones, nil
 }
