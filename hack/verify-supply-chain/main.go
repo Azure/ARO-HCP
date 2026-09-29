@@ -16,6 +16,9 @@
 // them match a high-confidence supply-chain attack indicator: an AI-agent
 // settings file, MCP server configuration, or an editor configuration file.
 // Agent JSON carrying an execution key is reported as a known attack pattern.
+// Agent JSON that cannot be parsed, or that is not a regular file and so
+// cannot be read at all, is refused rather than given the benefit of the
+// doubt.
 //
 // Only tracked files are inspected. Developers routinely keep gitignored agent
 // configuration (for example .claude/settings.local.json) in their working
@@ -96,6 +99,7 @@ const (
 	ruleEditorConfig  = "editor-config"
 	ruleExecutionKey  = "execution-key"
 	ruleInvalidJSON   = "invalid-json"
+	ruleUnreadable    = "unreadable"
 )
 
 // finding is a single violation. malware marks the indicators that match a
@@ -126,21 +130,29 @@ func main() {
 		flagged[f.path] = true
 	}
 
-	for _, rel := range agentJSONFiles(files) {
-		content, err := os.ReadFile(path.Join(root, rel))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", rel, err)
-			os.Exit(2)
+	for _, f := range agentJSONFiles(files) {
+		var found []finding
+		if readableBlob(f) {
+			content, err := os.ReadFile(path.Join(root, f.path))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error reading %s: %v\n", f.path, err)
+				os.Exit(2)
+			}
+			found = scanAgentJSON(f.path, content)
+		} else {
+			found = []finding{unreadableAgentJSON(f)}
 		}
-		for _, f := range scanAgentJSON(rel, content) {
+
+		for _, fd := range found {
 			// A file the path rules already reject is blocked whatever its
-			// syntax, so a second line saying it is also unparseable adds
-			// nothing. The execution-key finding is never suppressed: it
-			// escalates a merely unwanted file to a known attack pattern.
-			if f.rule == ruleInvalidJSON && flagged[rel] {
+			// syntax or type, so a second line saying it is also unparseable
+			// or unreadable adds nothing. Only the execution-key finding
+			// survives: it escalates a merely unwanted file to a known attack
+			// pattern, which the reader needs to be told either way.
+			if fd.rule != ruleExecutionKey && flagged[fd.path] {
 				continue
 			}
-			findings = append(findings, f)
+			findings = append(findings, fd)
 		}
 	}
 
@@ -209,18 +221,33 @@ func trackedFiles(root string) ([]trackedFile, error) {
 // working tree.
 //
 // Content scanning uses os.ReadFile, which follows symlinks. A tracked
-// .claude/*.json symlinked to /dev/zero would otherwise read forever, and one
-// pointing at a fifo would block until the CI job times out — in both cases
-// without ever reporting a finding. So the entry's type is taken from the
-// index and anything that is not a plain blob is left alone.
+// .claude/*.json symlinked to /dev/zero would read forever, and one pointing
+// at a fifo would block until the CI job times out — in both cases without
+// ever reporting a finding. So the entry's type is taken from the index and
+// anything that is not a plain blob is never opened.
 //
-// Skipping them loses nothing, because what git tracks for a symlink is the
-// target path, a short string that cannot carry an execution key; for a
-// submodule it is a commit reference, with no file to read at all. Following
-// the link would inspect bytes that are not in this repository and not in
-// this diff, which is the opposite of what this check promises.
+// Not opening it is not the same as letting it pass. Agent JSON that cannot
+// be scanned is reported instead — see unreadableAgentJSON. Skipping it
+// silently would invert the check: what git stores for a symlink is a target
+// path, but an agent resolves that link and reads whatever is on the other
+// end, so a symlinked .claude/skills/x/meta.json delivers its target's hooks
+// and command keys just as a regular file would. The rule cannot follow the
+// link to find out — that would inspect bytes outside this diff, and reopens
+// the /dev/zero hang — so it refuses the entry rather than guessing.
 func readableBlob(f trackedFile) bool {
 	return f.mode == modeRegular || f.mode == modeExecutable
+}
+
+// unreadableAgentJSON reports agent JSON whose contents the execution-key rule
+// could not examine. The mode is quoted because it is the whole reason: a
+// reviewer seeing 120000 knows to look at what the link resolves to, which is
+// the judgement this check deliberately leaves to a human.
+func unreadableAgentJSON(f trackedFile) finding {
+	return finding{
+		path:   f.path,
+		rule:   ruleUnreadable,
+		detail: fmt.Sprintf("agent configuration must be a regular file; git records mode %s, which is not followed", f.mode),
+	}
 }
 
 // checkPaths applies the path-shaped rules. It is pure so that the denylist
@@ -259,22 +286,23 @@ func checkPaths(files []trackedFile) []finding {
 	return findings
 }
 
-// agentJSONFiles returns the tracked JSON whose contents need inspecting for
-// execution keys: anything under an agent configuration directory, plus MCP
-// server configuration wherever it sits. Entries whose contents cannot be
-// safely opened are excluded — see readableBlob.
-func agentJSONFiles(files []trackedFile) []string {
-	var out []string
+// agentJSONFiles returns the tracked JSON subject to the execution-key rule:
+// anything under an agent configuration directory, plus MCP server
+// configuration wherever it sits.
+//
+// Selection is by path alone. Entries that cannot be opened are still
+// selected, so that the caller reports them rather than dropping them; that
+// the mode decides how an entry is handled, not whether it is considered at
+// all, is what keeps a symlink from being a way out of this rule.
+func agentJSONFiles(files []trackedFile) []trackedFile {
+	var out []trackedFile
 	for _, f := range files {
-		if !readableBlob(f) {
-			continue
-		}
 		lower := strings.ToLower(f.path)
 		switch {
 		case mcpConfigFiles[path.Base(lower)]:
-			out = append(out, f.path)
+			out = append(out, f)
 		case hasSegment(lower, agentConfigDir) && path.Ext(lower) == ".json":
-			out = append(out, f.path)
+			out = append(out, f)
 		}
 	}
 	return out

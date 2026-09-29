@@ -48,7 +48,7 @@ The `ci/prow/verify` presubmit runs `make verify-supply-chain` (implemented in `
 1. `settings.json`, `settings.local.json`, or `mcp.json` under a `.claude/` segment, at any depth.
 2. `settings.json`, `extensions.json`, `tasks.json`, or `launch.json` under a `.vscode/` segment, at any depth.
 3. An `mcp.json` or `.mcp.json` anywhere, including the project-scoped file at the repository root.
-4. Agent JSON carrying a `command` or `hooks` key, reported as a known attack pattern. Such files must parse as strict JSON; unparseable ones are rejected rather than guessed at.
+4. Agent JSON carrying a `command` or `hooks` key, reported as a known attack pattern. Such files must parse as strict JSON, and must be regular files: unparseable ones are rejected rather than guessed at, and symlinks are rejected rather than followed. A symlinked `.claude/**/*.json` is blocked without the check reading its target — **if you see that finding, look at what the link resolves to yourself**, because an agent will resolve it and read whatever is there.
 
 **It checks nothing else, and that is deliberate.** It does not judge what kinds of file may live under `.claude/` — no extension rules, no executable-bit or shebang detection. `CONTRIBUTING.md` tells contributors to commit shared tooling to `.claude/skills/`, so a script, an image, or an `OWNERS` file there is ordinary and passes silently. Deciding whether one of them belongs is your job, not the gate's.
 
