@@ -21,6 +21,7 @@ import (
 
 func HelloWorldHandler() http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusOK)
 		fmt.Fprintln(writer, "Hello, world!")
 	})
 }

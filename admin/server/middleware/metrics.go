@@ -15,9 +15,6 @@
 package middleware
 
 import (
-	"bufio"
-	"errors"
-	"net"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -55,6 +52,10 @@ type MetricsMiddleware struct {
 
 // NewMiddlewareMetrics registers the HTTP request metrics against r and returns
 // the middleware that records them.
+//
+// Note: Handlers must use coreapihelpers.WriteJSONResponse or explicitly call
+// WriteHeader prior to Write in order for this middleware to properly capture
+// the status code.
 func NewMiddlewareMetrics(r prometheus.Registerer) *MetricsMiddleware {
 	labels := []string{"method", "code", "route"}
 	return &MetricsMiddleware{
@@ -79,16 +80,7 @@ func NewMiddlewareMetrics(r prometheus.Registerer) *MetricsMiddleware {
 	}
 }
 
-// metricsResponseWriter captures the status code written to the client. It
-// forwards Hijack and Flush so streaming/hijacking handlers (e.g. the serial
-// console) keep working when their ResponseWriter is wrapped.
-//
-// statusCode is left at its zero value until WriteHeader is observed. Note this
-// wrapper overrides WriteHeader but not Write: when a handler calls Write
-// without an explicit WriteHeader, net/http's implicit WriteHeader(200) runs on
-// the underlying writer and bypasses this override, so statusCode stays 0. A
-// statusCode of 0 therefore means "no explicit status" and is normalized to 200
-// (what the client actually receives) at recording time by statusOrDefault.
+// metricsResponseWriter captures the status code written to the client.
 type metricsResponseWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -100,55 +92,30 @@ func (w *metricsResponseWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
-// statusOrDefault returns the captured status code, or 200 when none was
-// explicitly written (the default net/http sends to the client).
-func (w *metricsResponseWriter) statusOrDefault() int {
-	if w.statusCode == 0 {
-		return http.StatusOK
-	}
-	return w.statusCode
-}
-
-// Hijack forwards to the underlying ResponseWriter when it supports hijacking.
-func (w *metricsResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	hj, ok := w.ResponseWriter.(http.Hijacker)
-	if !ok {
-		return nil, nil, errors.New("underlying ResponseWriter does not support hijacking")
-	}
-	return hj.Hijack()
-}
-
-// Flush forwards to the underlying ResponseWriter when it supports flushing.
-func (w *metricsResponseWriter) Flush() {
-	if f, ok := w.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
-	}
-}
-
 // HandleRequest records request count and latency labeled by method, status
 // code, and matched route template. It is intended to run first in the pre-mux
 // chain so it also captures responses from middlewares that short-circuit
 // before mux dispatch (e.g. an unauthenticated 401). The route label is read
 // from the pattern captured in the request context by MiddlewareMux after the
 // mux resolves the request.
+//
+// Panics are explicitly not captured by these metrics, which should be handled
+// by a separate dedicated metric.
 func (m *MetricsMiddleware) HandleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	startTime := time.Now()
 	mw := &metricsResponseWriter{ResponseWriter: w}
 
-	// Record in a defer so a panicking handler is still counted.
-	defer func() {
-		route := noMatchRouteLabel
-		if pattern := PatternFromContext(r.Context()); pattern != nil && *pattern != "" {
-			route = muxPatternRoute(*pattern)
-		}
-		labels := prometheus.Labels{
-			"method": r.Method,
-			"code":   strconv.Itoa(mw.statusOrDefault()),
-			"route":  route,
-		}
-		m.requestCounter.With(labels).Inc()
-		m.requestDuration.With(labels).Observe(time.Since(startTime).Seconds())
-	}()
-
 	next(mw, r)
+
+	route := noMatchRouteLabel
+	if pattern := PatternFromContext(r.Context()); pattern != nil && *pattern != "" {
+		route = muxPatternRoute(*pattern)
+	}
+	labels := prometheus.Labels{
+		"method": r.Method,
+		"code":   strconv.Itoa(mw.statusCode),
+		"route":  route,
+	}
+	m.requestCounter.With(labels).Inc()
+	m.requestDuration.With(labels).Observe(time.Since(startTime).Seconds())
 }
