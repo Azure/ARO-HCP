@@ -15,6 +15,7 @@
 package nodepool
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -31,6 +32,7 @@ type traceStep struct {
 	HeadroomBefore map[compute.VMFamily]int64
 	HeadroomAfter  map[compute.VMFamily]int64
 	Capacity       compute.CapacityByRole
+	ZoneCapacity   compute.WorkerCapacityByZone
 }
 
 type trace struct {
@@ -41,6 +43,7 @@ type trace struct {
 	FullyAllocated  bool
 	InitialCapacity compute.CapacityByRole
 	RoleFloor       compute.CapacityByRole
+	WorkerZoneFloor compute.WorkerCapacityByZone
 	RejectedPlan    error
 	Outcome         string
 	Reason          string
@@ -92,11 +95,13 @@ func simulateAndTrace(desired []compute.Pool, initial []PoolState, familyBudgets
 	if err != nil {
 		return tr, fmt.Errorf("desired capacity: %w", err)
 	}
-	capacity, err := stateCapacity(initial)
+	pools := ceilingPools(initial)
+	capacity, err := compute.PoolCapacities(pools)
 	if err != nil {
 		return tr, fmt.Errorf("initial capacity: %w", err)
 	}
 	tr.InitialCapacity = capacity
+	zoneCapacity, initialZoneErr := compute.WorkerZoneCapacities(pools)
 	state := clonePoolStates(initial)
 	runInitial := runningVCPU(initial)
 	// The floor is resolved once from the initial capacity and stays fixed for
@@ -105,13 +110,21 @@ func simulateAndTrace(desired []compute.Pool, initial []PoolState, familyBudgets
 	// persist the capacity baseline and advance it only after convergence;
 	// re-deriving it from a partially migrated state would raise it and strand
 	// the migration.
-	capacityFloor, floorErr := desiredCapacity.ResolveEffectiveFloor(capacity, fullyAllocated)
+	roleFloor, roleFloorErr := desiredCapacity.ResolveEffectiveFloor(capacity, fullyAllocated)
+	desiredZoneCapacity, desiredZoneErr := compute.WorkerZoneCapacities(desired)
+	zoneFloorErr := errors.Join(initialZoneErr, desiredZoneErr)
+	var zoneFloor compute.WorkerCapacityByZone
+	if zoneFloorErr == nil {
+		zoneFloor, zoneFloorErr = desiredZoneCapacity.ResolveEffectiveFloor(zoneCapacity, fullyAllocated)
+	}
+	floorErr := errors.Join(roleFloorErr, zoneFloorErr)
 	if floorErr != nil {
 		// The planner's observed-operation wait takes precedence. No
 		// capacity-changing action can use this unaccepted fallback floor.
-		capacityFloor = maps.Clone(capacity)
+		roleFloor, zoneFloor = maps.Clone(capacity), maps.Clone(zoneCapacity)
 	}
-	tr.RoleFloor = capacityFloor
+	tr.RoleFloor, tr.WorkerZoneFloor = roleFloor, zoneFloor
+	capacityFloor := transitionFloor{roles: roleFloor, workerZones: zoneFloor}
 	for {
 		live := liveBudget(familyBudgets, runInitial, runningVCPU(state))
 		action := findNextAction(desired, state, live, capacityFloor, compute.NetworkConfig{})
@@ -135,7 +148,7 @@ func simulateAndTrace(desired []compute.Pool, initial []PoolState, familyBudgets
 		before := computeFamilyHeadroom(live, state)
 		switch action.(type) {
 		case waitAction, reconcileAction:
-			tr.Steps = append(tr.Steps, traceStep{Action: action, State: clonePoolStates(state), HeadroomBefore: before, HeadroomAfter: maps.Clone(before), Capacity: maps.Clone(capacity)})
+			tr.Steps = append(tr.Steps, traceStep{Action: action, State: clonePoolStates(state), HeadroomBefore: before, HeadroomAfter: maps.Clone(before), Capacity: maps.Clone(capacity), ZoneCapacity: maps.Clone(zoneCapacity)})
 			tr.Outcome = "waiting"
 			if action.kind() == actionWait {
 				tr.Reason = fmt.Sprintf("pool %s has an observed in-progress operation; a new observation is required", action.poolName())
@@ -148,25 +161,39 @@ func simulateAndTrace(desired []compute.Pool, initial []PoolState, familyBudgets
 		if err != nil {
 			return tr, err
 		}
-		capacity, err = stateCapacity(state)
+		pools = ceilingPools(state)
+		capacity, err = compute.PoolCapacities(pools)
 		if err != nil {
 			return tr, fmt.Errorf("projected capacity: %w", err)
 		}
+		zoneCapacity, err = compute.WorkerZoneCapacities(pools)
+		if err != nil {
+			return tr, fmt.Errorf("projected worker zone capacity: %w", err)
+		}
 		after := computeFamilyHeadroom(liveBudget(familyBudgets, runInitial, runningVCPU(state)), state)
-		tr.Steps = append(tr.Steps, traceStep{Action: cloneAction(action), State: clonePoolStates(state), HeadroomBefore: before, HeadroomAfter: after, Capacity: capacity})
-		if err := capacity.EnsureMeetsBaseline(capacityFloor); err != nil {
+		tr.Steps = append(tr.Steps, traceStep{Action: cloneAction(action), State: clonePoolStates(state), HeadroomBefore: before, HeadroomAfter: after, Capacity: capacity, ZoneCapacity: zoneCapacity})
+		if err := capacity.EnsureMeetsBaseline(roleFloor); err != nil {
+			return tr, fmt.Errorf("projected %s on %s violates capacity floor: %w", action.kind(), action.poolName(), err)
+		}
+		if err := zoneCapacity.EnsureMeetsBaseline(zoneFloor); err != nil {
 			return tr, fmt.Errorf("projected %s on %s violates capacity floor: %w", action.kind(), action.poolName(), err)
 		}
 	}
 }
 
 func stateCapacity(state []PoolState) (compute.CapacityByRole, error) {
+	return compute.PoolCapacities(ceilingPools(state))
+}
+
+// ceilingPools projects pool states to pools whose MaxCount is their capacity
+// ceiling: the autoscaler maximum, or the static count when autoscaling is off.
+func ceilingPools(state []PoolState) []compute.Pool {
 	pools := make([]compute.Pool, len(state))
 	for i, cur := range state {
 		pools[i] = cur.Pool
 		pools[i].MaxCount = int32(poolCeiling(cur))
 	}
-	return compute.PoolCapacities(pools)
+	return pools
 }
 
 // Pool metadata is copied only at ownership boundaries: inputs, action payloads,
@@ -304,14 +331,27 @@ func formatTrace(tr trace) string {
 			fmt.Fprintf(w, "  %s:\t%s\n", role, formatCapacity(tr.RoleFloor[role]))
 		}
 	}
+	if len(tr.WorkerZoneFloor) > 0 {
+		fmt.Fprintln(w, "\nworker zone floor:")
+		for _, zone := range slices.Sorted(maps.Keys(tr.WorkerZoneFloor)) {
+			fmt.Fprintf(w, "  zone %s:\t%s\n", zone, formatCapacity(tr.WorkerZoneFloor[zone]))
+		}
+	}
 	if tr.RejectedPlan != nil {
 		fmt.Fprintf(w, "\nrejected desired plan: %v\n", tr.RejectedPlan)
 	}
 
 	fmt.Fprintln(w, "\nactions:")
+	// The zone margin column only appears when workers have per-zone floors,
+	// i.e. the initial state has worker pools pinned to zones.
+	zoneColumn := len(tr.WorkerZoneFloor) > 0
 	if len(tr.Steps) > 0 {
 		fmt.Fprintln(w, "  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)")
-		fmt.Fprintln(w, "\n     #\taction\trole\tpool\tvm size\tchange\trole margin\tquota left")
+		header := "\n     #\taction\trole\tpool\tvm size\tchange\trole margin\t"
+		if zoneColumn {
+			header += "zone margin\t"
+		}
+		fmt.Fprintln(w, header+"quota left")
 	}
 	prevState := tr.Initial
 	for i, step := range tr.Steps {
@@ -322,6 +362,15 @@ func formatTrace(tr trace) string {
 		line := fmt.Sprintf("  %4d\t%s\t%s\t%s\t%s\t%s\t%s\t",
 			i+1, step.Action.kind(), role, step.Action.poolName(), strings.TrimPrefix(step.Action.vmSize(), "Standard_"),
 			actionDetail(step.Action), formatMargin(step.Capacity[role], tr.RoleFloor[role]))
+		if zoneColumn {
+			// Worker actions on a single-zone pool show that zone's margin, the
+			// check that gates worker reductions. Other actions leave it empty.
+			zone := ""
+			if zoneFloor, ok := tr.WorkerZoneFloor[step.Action.zone()]; ok && role == compute.PoolRoleWorker {
+				zone = "z" + step.Action.zone() + " " + formatMargin(step.ZoneCapacity[step.Action.zone()], zoneFloor)
+			}
+			line += zone + "\t"
+		}
 		// Always emit the quota cell, even when empty: tabwriter aligns a
 		// column only across consecutive lines that all have it.
 		fmt.Fprintln(w, line+formatQuotaLeft(step.HeadroomBefore, step.HeadroomAfter, families))

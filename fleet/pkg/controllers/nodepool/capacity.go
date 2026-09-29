@@ -42,29 +42,41 @@ func configurationConverged(desired []compute.Pool, current []PoolState) bool {
 	return true
 }
 
+// transitionFloor is the capacity a pool transition must preserve: per role,
+// and for worker pools additionally per zone (see compute.WorkerCapacityByZone).
+type transitionFloor struct {
+	roles       compute.CapacityByRole
+	workerZones compute.WorkerCapacityByZone
+}
+
 // allowsCapacityReduction protects the accepted transition floor of the affected
-// role. A rejected candidate does not prevent the planner from considering
-// other pools or growing replacement capacity. ARM/SKU data is validated by
-// the controller before planning; Swift counts are the pool's configured counts.
-func allowsCapacityReduction(current []PoolState, pool PoolState, newCeiling int64, capacityFloor compute.CapacityByRole) bool {
+// role and, for a worker pool pinned to one zone, of that zone. A rejected
+// candidate does not prevent the planner from considering other pools or
+// growing replacement capacity. ARM/SKU data is validated by the controller
+// before planning; Swift counts are the pool's configured counts.
+func allowsCapacityReduction(current []PoolState, pool PoolState, newCeiling int64, floor transitionFloor) bool {
 	delta := poolCeiling(pool) - newCeiling
 	if delta <= 0 {
 		return true
 	}
-	var capacity compute.RoleCapacity
-	for _, cur := range current {
-		if cur.Role != pool.Role {
-			continue
-		}
-		poolCapacity := cur.CapacityAtCount(poolCeiling(cur))
-		capacity.VCPUs += poolCapacity.VCPUs
-		capacity.MemoryBytes += poolCapacity.MemoryBytes
-		capacity.SwiftNICs += poolCapacity.SwiftNICs
-	}
 	reduction := pool.CapacityAtCount(delta)
-	capacity.VCPUs -= reduction.VCPUs
-	capacity.MemoryBytes -= reduction.MemoryBytes
-	capacity.SwiftNICs -= reduction.SwiftNICs
-	floor := capacityFloor[pool.Role]
-	return capacity.VCPUs >= floor.VCPUs && capacity.MemoryBytes >= floor.MemoryBytes && capacity.SwiftNICs >= floor.SwiftNICs
+	var roleCapacity compute.RoleCapacity
+	for _, cur := range current {
+		if cur.Role == pool.Role {
+			roleCapacity = roleCapacity.Add(cur.CapacityAtCount(poolCeiling(cur)))
+		}
+	}
+	if !roleCapacity.Sub(reduction).Covers(floor.roles[pool.Role]) {
+		return false
+	}
+	if pool.Role != compute.PoolRoleWorker || len(pool.AvailabilityZones) != 1 {
+		return true
+	}
+	zoneCapacity, err := compute.WorkerZoneCapacities(ceilingPools(current))
+	if err != nil {
+		// Unattributable worker capacity: refuse rather than guess.
+		return false
+	}
+	zone := pool.AvailabilityZones[0]
+	return zoneCapacity[zone].Sub(reduction).Covers(floor.workerZones[zone])
 }

@@ -25,15 +25,18 @@ role floor:
   infra:   cpu=0    memory=0GiB     swiftNICs=0
   worker:  cpu=192  memory=1536GiB  swiftNICs=42
 
+worker zone floor:
+  zone 1:  cpu=192  memory=1536GiB  swiftNICs=42
+
 actions:
   margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
 
-     #  action    role    pool   vm size   change         role margin            quota left
-     1  Reduce    worker  w1abc  E32ds_v6  count=9          +96c   +768G   +21n  Edsv6 352c
-     2  Reduce    worker  w1abc  E32ds_v6  count=8          +64c   +512G   +14n  Edsv6 384c
-     3  Reduce    worker  w1abc  E32ds_v6  count=7          +32c   +256G    +7n  Edsv6 416c
-     4  Reduce    worker  w1abc  E32ds_v6  count=6           +0c     +0G    +0n  Edsv6 448c
-     5  Unfreeze  worker  w1abc  E32ds_v6  min=1   max=6     +0c     +0G    +0n
+     #  action    role    pool   vm size   change         role margin            zone margin               quota left
+     1  Reduce    worker  w1abc  E32ds_v6  count=9          +96c   +768G   +21n  z1   +96c   +768G   +21n  Edsv6 352c
+     2  Reduce    worker  w1abc  E32ds_v6  count=8          +64c   +512G   +14n  z1   +64c   +512G   +14n  Edsv6 384c
+     3  Reduce    worker  w1abc  E32ds_v6  count=7          +32c   +256G    +7n  z1   +32c   +256G    +7n  Edsv6 416c
+     4  Reduce    worker  w1abc  E32ds_v6  count=6           +0c     +0G    +0n  z1    +0c     +0G    +0n  Edsv6 448c
+     5  Unfreeze  worker  w1abc  E32ds_v6  min=1   max=6     +0c     +0G    +0n  z1    +0c     +0G    +0n
 
 steps:      5
 converged:  true

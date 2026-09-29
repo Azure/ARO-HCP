@@ -25,19 +25,22 @@ role floor:
   infra:   cpu=0    memory=0GiB     swiftNICs=0
   worker:  cpu=192  memory=1536GiB  swiftNICs=42
 
+worker zone floor:
+  zone 1:  cpu=192  memory=1536GiB  swiftNICs=42
+
 actions:
   margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
 
-     #  action            role    pool  vm size   change         role margin            quota left
-     1  Create            worker  new1  E32ds_v6  min=1   max=2    +64c   +512G   +14n  Edsv6 0c
-     2  SetScalingBounds  worker  old1  E32ds_v6  min=1   max=4     +0c     +0G    +0n  Edsv6 64c
-     3  SetScalingBounds  worker  new1  E32ds_v6  min=1   max=4    +64c   +512G   +14n  Edsv6 0c
-     4  SetScalingBounds  worker  old1  E32ds_v6  min=1   max=2     +0c     +0G    +0n  Edsv6 64c
-     5  SetScalingBounds  worker  new1  E32ds_v6  min=1   max=6    +64c   +512G   +14n  Edsv6 0c
-     6  Freeze            worker  old1  E32ds_v6  count=2          +64c   +512G   +14n
-     7  Reduce            worker  old1  E32ds_v6  count=1          +32c   +256G    +7n  Edsv6 32c
-     8  Reduce            worker  old1  E32ds_v6  count=0           +0c     +0G    +0n  Edsv6 64c
-     9  Delete            worker  old1  E32ds_v6                    +0c     +0G    +0n
+     #  action            role    pool  vm size   change         role margin            zone margin               quota left
+     1  Create            worker  new1  E32ds_v6  min=1   max=2    +64c   +512G   +14n  z1   +64c   +512G   +14n  Edsv6 0c
+     2  SetScalingBounds  worker  old1  E32ds_v6  min=1   max=4     +0c     +0G    +0n  z1    +0c     +0G    +0n  Edsv6 64c
+     3  SetScalingBounds  worker  new1  E32ds_v6  min=1   max=4    +64c   +512G   +14n  z1   +64c   +512G   +14n  Edsv6 0c
+     4  SetScalingBounds  worker  old1  E32ds_v6  min=1   max=2     +0c     +0G    +0n  z1    +0c     +0G    +0n  Edsv6 64c
+     5  SetScalingBounds  worker  new1  E32ds_v6  min=1   max=6    +64c   +512G   +14n  z1   +64c   +512G   +14n  Edsv6 0c
+     6  Freeze            worker  old1  E32ds_v6  count=2          +64c   +512G   +14n  z1   +64c   +512G   +14n
+     7  Reduce            worker  old1  E32ds_v6  count=1          +32c   +256G    +7n  z1   +32c   +256G    +7n  Edsv6 32c
+     8  Reduce            worker  old1  E32ds_v6  count=0           +0c     +0G    +0n  z1    +0c     +0G    +0n  Edsv6 64c
+     9  Delete            worker  old1  E32ds_v6                    +0c     +0G    +0n  z1    +0c     +0G    +0n
 
 steps:      9
 converged:  true

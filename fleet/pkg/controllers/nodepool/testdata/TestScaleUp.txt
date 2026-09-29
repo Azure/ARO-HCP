@@ -29,13 +29,18 @@ role floor:
   infra:   cpu=0    memory=0GiB     swiftNICs=0
   worker:  cpu=576  memory=4608GiB  swiftNICs=126
 
+worker zone floor:
+  zone 1:  cpu=192  memory=1536GiB  swiftNICs=42
+  zone 2:  cpu=192  memory=1536GiB  swiftNICs=42
+  zone 3:  cpu=192  memory=1536GiB  swiftNICs=42
+
 actions:
   margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
 
-     #  action            role    pool   vm size   change          role margin            quota left
-     1  SetScalingBounds  worker  w1abc  E32ds_v6  min=1   max=10   +128c  +1024G   +28n  Edsv6 544c
-     2  SetScalingBounds  worker  w2abc  E32ds_v6  min=1   max=10   +256c  +2048G   +56n  Edsv6 416c
-     3  SetScalingBounds  worker  w3abc  E32ds_v6  min=1   max=10   +384c  +3072G   +84n  Edsv6 288c
+     #  action            role    pool   vm size   change          role margin            zone margin               quota left
+     1  SetScalingBounds  worker  w1abc  E32ds_v6  min=1   max=10   +128c  +1024G   +28n  z1  +128c  +1024G   +28n  Edsv6 544c
+     2  SetScalingBounds  worker  w2abc  E32ds_v6  min=1   max=10   +256c  +2048G   +56n  z2  +128c  +1024G   +28n  Edsv6 416c
+     3  SetScalingBounds  worker  w3abc  E32ds_v6  min=1   max=10   +384c  +3072G   +84n  z3  +128c  +1024G   +28n  Edsv6 288c
 
 steps:      3
 converged:  true

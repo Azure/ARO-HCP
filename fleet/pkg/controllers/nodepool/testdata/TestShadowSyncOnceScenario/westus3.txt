@@ -48,7 +48,13 @@ role floor:
   infra:   cpu=24   memory=96GiB    swiftNICs=0
   worker:  cpu=672  memory=5376GiB  swiftNICs=294
 
+worker zone floor:
+  zone 1:  cpu=224  memory=1792GiB  swiftNICs=98
+  zone 2:  cpu=224  memory=1792GiB  swiftNICs=98
+  zone 3:  cpu=224  memory=1792GiB  swiftNICs=98
+
 rejected desired plan: system capacity {VCPUs:24 MemoryGiB:192 SwiftNICs:0} is below protected baseline {VCPUs:32 MemoryGiB:256 SwiftNICs:0}
+worker capacity {VCPUs:208 MemoryGiB:1664 SwiftNICs:84} in zone 1 is below protected baseline {VCPUs:224 MemoryGiB:1792 SwiftNICs:98}
 
 actions:
   (none)
@@ -57,3 +63,4 @@ steps:      0
 converged:  false
 outcome:    rejected
 reason:     system capacity {VCPUs:24 MemoryGiB:192 SwiftNICs:0} is below protected baseline {VCPUs:32 MemoryGiB:256 SwiftNICs:0}
+worker capacity {VCPUs:208 MemoryGiB:1664 SwiftNICs:84} in zone 1 is below protected baseline {VCPUs:224 MemoryGiB:1792 SwiftNICs:98}

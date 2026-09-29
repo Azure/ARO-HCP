@@ -138,3 +138,103 @@ func TestResolveEffectiveFloor(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkerZoneCapacities(t *testing.T) {
+	spec := VMSpec{VCPUs: 4, MemoryBytes: 16 << 30, SecondaryNICs: 2}
+	tests := []struct {
+		name    string
+		pools   []Pool
+		want    WorkerCapacityByZone
+		wantErr string
+	}{
+		{
+			name: "single-zone worker pools sum per zone",
+			pools: []Pool{
+				{Name: "a", Role: PoolRoleWorker, Spec: spec, AvailabilityZones: []string{"1"}, MaxCount: 2, EnableSwift: true},
+				{Name: "b", Role: PoolRoleWorker, Spec: spec, AvailabilityZones: []string{"1"}, MaxCount: 1, EnableSwift: true},
+				{Name: "c", Role: PoolRoleWorker, Spec: spec, AvailabilityZones: []string{"2"}, MaxCount: 1, EnableSwift: true},
+			},
+			want: WorkerCapacityByZone{"1": {VCPUs: 12, MemoryBytes: 48 << 30, SwiftNICs: 6}, "2": {VCPUs: 4, MemoryBytes: 16 << 30, SwiftNICs: 2}},
+		},
+		{
+			name: "other roles and zoneless worker pools count towards no zone",
+			pools: []Pool{
+				{Name: "infra", Role: PoolRoleInfra, Spec: spec, AvailabilityZones: []string{"1"}, MaxCount: 3},
+				{Name: "regional", Role: PoolRoleWorker, Spec: spec, MaxCount: 3, EnableSwift: true},
+			},
+			want: WorkerCapacityByZone{},
+		},
+		{
+			name: "worker pool spanning several zones is rejected",
+			pools: []Pool{
+				{Name: "spread", Role: PoolRoleWorker, Spec: spec, AvailabilityZones: []string{"1", "2"}, MaxCount: 3, EnableSwift: true},
+			},
+			wantErr: `worker pool "spread" spans zones 1,2`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := WorkerZoneCapacities(test.pools)
+			if len(test.wantErr) > 0 {
+				require.ErrorContains(t, err, test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestWorkerCapacityByZoneResolveEffectiveFloor(t *testing.T) {
+	baseline := WorkerCapacityByZone{"1": {100, 800, 40}, "2": {100, 800, 40}}
+	tests := []struct {
+		name           string
+		desired        WorkerCapacityByZone
+		fullyAllocated bool
+		want           WorkerCapacityByZone
+		wantErr        string
+	}{
+		{
+			name:           "full plan protects the per-zone minimum of current and desired",
+			desired:        WorkerCapacityByZone{"1": {80, 900, 50}, "2": {120, 600, 30}},
+			fullyAllocated: true,
+			want:           WorkerCapacityByZone{"1": {80, 800, 40}, "2": {100, 600, 30}},
+		},
+		{
+			name:    "partial plan protects every zone's current capacity",
+			desired: WorkerCapacityByZone{"1": {120, 900, 50}, "2": {100, 800, 40}},
+			want:    baseline,
+		},
+		{
+			name:    "partial plan moving capacity out of a zone is rejected",
+			desired: WorkerCapacityByZone{"1": {150, 1200, 60}, "2": {50, 400, 20}},
+			wantErr: "zone 2 is below protected baseline",
+		},
+		{
+			name:           "full plan without a current worker zone is rejected",
+			desired:        WorkerCapacityByZone{"1": {200, 1600, 80}},
+			fullyAllocated: true,
+			wantErr:        "no worker capacity in zone 2",
+		},
+		{
+			name:           "full plan may add a zone",
+			desired:        WorkerCapacityByZone{"1": {100, 800, 40}, "2": {100, 800, 40}, "3": {100, 800, 40}},
+			fullyAllocated: true,
+			want:           baseline,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			before := maps.Clone(baseline)
+			floor, err := test.desired.ResolveEffectiveFloor(baseline, test.fullyAllocated)
+			require.Equal(t, before, baseline, "selecting a floor must not modify the supplied baseline")
+			if len(test.wantErr) > 0 {
+				require.ErrorContains(t, err, test.wantErr)
+				require.Nil(t, floor)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.want, floor)
+		})
+	}
+}

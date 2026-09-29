@@ -31,28 +31,33 @@ role floor:
   infra:   cpu=0   memory=0GiB    swiftNICs=0
   worker:  cpu=72  memory=288GiB  swiftNICs=18
 
+worker zone floor:
+  zone 1:  cpu=24  memory=96GiB  swiftNICs=6
+  zone 2:  cpu=24  memory=96GiB  swiftNICs=6
+  zone 3:  cpu=24  memory=96GiB  swiftNICs=6
+
 actions:
   margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
 
-     #  action            role    pool  vm size   change         role margin            quota left
-     1  Create            worker  new1  E32ds_v6  min=1   max=6   +192c  +1536G   +42n  Edsv6 384c
-     2  Create            worker  new2  E32ds_v6  min=1   max=6   +384c  +3072G   +84n  Edsv6 192c
-     3  Create            worker  new3  E32ds_v6  min=1   max=6   +576c  +4608G  +126n  Edsv6 0c
-     4  SetScalingBounds  worker  old1  D4s_v3    min=1   max=2   +560c  +4544G  +122n  DSv3 40c
-     5  SetScalingBounds  worker  old2  D4s_v3    min=1   max=2   +544c  +4480G  +118n  DSv3 56c
-     6  SetScalingBounds  worker  old3  D4s_v3    min=1   max=2   +528c  +4416G  +114n  DSv3 72c
-     7  Freeze            worker  old1  D4s_v3    count=2         +528c  +4416G  +114n
-     8  Freeze            worker  old2  D4s_v3    count=2         +528c  +4416G  +114n
-     9  Freeze            worker  old3  D4s_v3    count=2         +528c  +4416G  +114n
-    10  Reduce            worker  old1  D4s_v3    count=1         +524c  +4400G  +113n  DSv3 76c
-    11  Reduce            worker  old1  D4s_v3    count=0         +520c  +4384G  +112n  DSv3 80c
-    12  Reduce            worker  old2  D4s_v3    count=1         +516c  +4368G  +111n  DSv3 84c
-    13  Reduce            worker  old2  D4s_v3    count=0         +512c  +4352G  +110n  DSv3 88c
-    14  Reduce            worker  old3  D4s_v3    count=1         +508c  +4336G  +109n  DSv3 92c
-    15  Reduce            worker  old3  D4s_v3    count=0         +504c  +4320G  +108n  DSv3 96c
-    16  Delete            worker  old1  D4s_v3                    +504c  +4320G  +108n
-    17  Delete            worker  old2  D4s_v3                    +504c  +4320G  +108n
-    18  Delete            worker  old3  D4s_v3                    +504c  +4320G  +108n
+     #  action            role    pool  vm size   change         role margin            zone margin               quota left
+     1  Create            worker  new1  E32ds_v6  min=1   max=6   +192c  +1536G   +42n  z1  +192c  +1536G   +42n  Edsv6 384c
+     2  Create            worker  new2  E32ds_v6  min=1   max=6   +384c  +3072G   +84n  z2  +192c  +1536G   +42n  Edsv6 192c
+     3  Create            worker  new3  E32ds_v6  min=1   max=6   +576c  +4608G  +126n  z3  +192c  +1536G   +42n  Edsv6 0c
+     4  SetScalingBounds  worker  old1  D4s_v3    min=1   max=2   +560c  +4544G  +122n  z1  +176c  +1472G   +38n  DSv3 40c
+     5  SetScalingBounds  worker  old2  D4s_v3    min=1   max=2   +544c  +4480G  +118n  z2  +176c  +1472G   +38n  DSv3 56c
+     6  SetScalingBounds  worker  old3  D4s_v3    min=1   max=2   +528c  +4416G  +114n  z3  +176c  +1472G   +38n  DSv3 72c
+     7  Freeze            worker  old1  D4s_v3    count=2         +528c  +4416G  +114n  z1  +176c  +1472G   +38n
+     8  Freeze            worker  old2  D4s_v3    count=2         +528c  +4416G  +114n  z2  +176c  +1472G   +38n
+     9  Freeze            worker  old3  D4s_v3    count=2         +528c  +4416G  +114n  z3  +176c  +1472G   +38n
+    10  Reduce            worker  old1  D4s_v3    count=1         +524c  +4400G  +113n  z1  +172c  +1456G   +37n  DSv3 76c
+    11  Reduce            worker  old1  D4s_v3    count=0         +520c  +4384G  +112n  z1  +168c  +1440G   +36n  DSv3 80c
+    12  Reduce            worker  old2  D4s_v3    count=1         +516c  +4368G  +111n  z2  +172c  +1456G   +37n  DSv3 84c
+    13  Reduce            worker  old2  D4s_v3    count=0         +512c  +4352G  +110n  z2  +168c  +1440G   +36n  DSv3 88c
+    14  Reduce            worker  old3  D4s_v3    count=1         +508c  +4336G  +109n  z3  +172c  +1456G   +37n  DSv3 92c
+    15  Reduce            worker  old3  D4s_v3    count=0         +504c  +4320G  +108n  z3  +168c  +1440G   +36n  DSv3 96c
+    16  Delete            worker  old1  D4s_v3                    +504c  +4320G  +108n  z1  +168c  +1440G   +36n
+    17  Delete            worker  old2  D4s_v3                    +504c  +4320G  +108n  z2  +168c  +1440G   +36n
+    18  Delete            worker  old3  D4s_v3                    +504c  +4320G  +108n  z3  +168c  +1440G   +36n
 
 steps:      18
 converged:  true
