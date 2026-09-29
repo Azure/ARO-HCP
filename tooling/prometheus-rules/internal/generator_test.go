@@ -76,7 +76,6 @@ func TestManagementKSMRegistrations(t *testing.T) {
 		"HCPkasRecord-prometheusRule-latency.yaml":                            "recording-rules-hcps.yaml",
 		"UserJourneyEtcdLatencyRecord-prometheusRule.yaml":                    "recording-rules-hcps.yaml",
 		"ingress-availability-slo-recordingRule.yaml":                         "recording-rules-hcps.yaml",
-		"UserJourneyEtcdLatencyMonitor-prometheusRule.yaml":                   "alerts-rp-hcps.yaml",
 		"HCPclusterOperators-prometheusRule.yaml":                             "alerts-dev-hcps.yaml",
 	} {
 		assert.Equal(t, []string{owner}, owners[rule], "registration for %s", rule)

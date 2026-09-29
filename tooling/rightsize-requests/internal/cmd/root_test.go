@@ -32,6 +32,24 @@ const cliInput = `{
   }]
 }`
 
+// Keep report requests and CLI inputs independent of changes to chart sizing.
+const cliSizingDocument = `apiVersion: scheduling.hypershift.openshift.io/v1alpha1
+kind: ClusterSizingConfiguration
+metadata:
+  name: cluster
+spec:
+  sizes:
+  - name: e2e_minimal
+    effects:
+      resourceRequests:
+      - containerName: etcd
+        deploymentName: etcd
+        memory: 100Mi
+        cpu: 100m
+`
+
+const cliSizingTemplate = "{{ if .Values.limitClusterSizes }}\n" + cliSizingDocument + "{{ else }}\n" + cliSizingDocument + "{{ end }}\n"
+
 func TestExperimentalHCPCPUFlags(t *testing.T) {
 	for _, args := range [][]string{
 		{"--input=not-read", "--allow-decrease"},
@@ -166,11 +184,7 @@ func TestRepeatedInputCLI(t *testing.T) {
 				args := []string{"--config", target}
 				if sizing {
 					data = strings.NewReplacer(`"namespace": "aro-hcp"`, `"namespace": "ocm-arohcpci01-cluster"`, `"workload": "backend"`, `"workload": "etcd"`, `"container": "aro-hcp-backend"`, `"container": "etcd"`, `"kind": "Deployment"`, `"kind": "StatefulSet"`).Replace(data)
-					template, err := os.ReadFile("../../../../hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml")
-					if err != nil {
-						t.Fatal(err)
-					}
-					before = strings.Replace(string(template), "deploymentName: etcd\n            memory: 100Mi\n            cpu: 100m", "deploymentName: etcd\n            memory: 100Mi\n            cpu: 300m", 1)
+					before = strings.Replace(cliSizingTemplate, "cpu: 100m", "cpu: 300m", 1)
 					args = []string{"--sizing-template", target, "--namespace-prefix=ocm-arohcpci01-"}
 				}
 				quietData := strings.NewReplacer(`"peak": 0.239`, `"peak": 0.119`, `"suggested": 0.24`, `"suggested": 0.12`, `"240m"`, `"120m"`).Replace(data)
@@ -211,7 +225,7 @@ func TestRepeatedInputCLI(t *testing.T) {
 						t.Fatalf("validation failure or dry run wrote target:\n%s", got)
 					}
 				} else if sizing {
-					want := strings.Replace(before, "deploymentName: etcd\n            memory: 100Mi\n            cpu: 300m", "deploymentName: etcd\n            memory: 100Mi\n            cpu: 480m", 1)
+					want := strings.Replace(before, "cpu: 300m", "cpu: 480m", 1)
 					if string(got) != want || want == before {
 						t.Fatalf("expected only etcd CPU to become 480m:\n%s", got)
 					}
@@ -238,14 +252,10 @@ func TestSizingInputCLI(t *testing.T) {
 		dir := t.TempDir()
 		input, templatePath := filepath.Join(dir, "input.json"), filepath.Join(dir, "sizing.yaml")
 		data := strings.NewReplacer(`"namespace": "aro-hcp"`, `"namespace": "ocm-arohcpci01-cluster"`, `"workload": "backend"`, `"workload": "etcd"`, `"container": "aro-hcp-backend"`, `"container": "etcd"`, `"kind": "Deployment"`, `"kind": "StatefulSet"`).Replace(cliInput)
-		template, err := os.ReadFile("../../../../hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml")
-		if err != nil {
-			t.Fatal(err)
-		}
 		if err := os.WriteFile(input, []byte(data), 0600); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(templatePath, template, 0600); err != nil {
+		if err := os.WriteFile(templatePath, []byte(cliSizingTemplate), 0600); err != nil {
 			t.Fatal(err)
 		}
 		cmd := NewRootCommand()
@@ -261,9 +271,12 @@ func TestSizingInputCLI(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := string(template)
+		want := cliSizingTemplate
 		if !dry {
-			want = strings.Replace(want, "deploymentName: etcd\n            memory: 100Mi\n            cpu: 100m", "deploymentName: etcd\n            memory: 100Mi\n            cpu: 240m", 1)
+			want = strings.Replace(want, "cpu: 100m", "cpu: 240m", 1)
+			if want == cliSizingTemplate {
+				t.Fatal("expected etcd CPU to become 240m")
+			}
 		}
 		if string(got) != want {
 			t.Fatal("sizing CLI changed unexpected template content")

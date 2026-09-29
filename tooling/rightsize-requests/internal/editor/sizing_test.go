@@ -81,11 +81,11 @@ func TestSizingRealTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 	entries := ed.Entries()
-	if len(entries) != 7 || entries[0] != (SizingEntry{"kube-apiserver", "kube-apiserver", "100m", "100Mi"}) {
+	if len(entries) != 7 || entries[0] != (SizingEntry{"kube-apiserver", "kube-apiserver", "300m", "1600Mi"}) {
 		t.Fatalf("unexpected limited entries: %+v", entries)
 	}
 	entries[0].CPU = "invalid"
-	if ed.Entries()[0].CPU != "100m" {
+	if ed.Entries()[0].CPU != "300m" {
 		t.Fatal("Entries exposed internal state")
 	}
 	if err := ed.Apply(nil); err != nil {
@@ -102,8 +102,8 @@ func TestSizingRealTemplate(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	want := strings.Replace(original, "cpu: 100m", "cpu: 230m", 1)
-	want = strings.Replace(want, "memory: 100Mi", "memory: 384Mi", 1)
+	want := strings.Replace(original, "cpu: 300m", "cpu: 230m", 1)
+	want = strings.Replace(want, "memory: 1600Mi", "memory: 384Mi", 1)
 	assertSizingContent(t, path, want)
 	got, err := os.ReadFile(path)
 	if err != nil {
