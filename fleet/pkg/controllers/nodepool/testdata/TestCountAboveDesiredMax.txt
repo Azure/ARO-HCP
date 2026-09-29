@@ -8,10 +8,10 @@ desired:
   w1abc  worker  Standard_E32ds_v6  zone=1  max=4
 
 budget (vCPUs):
-  standardEDSv6Family:  160
+  StandardEdsv6Family:  160
 
 initial headroom (vCPUs):
-  standardEDSv6Family:  160
+  StandardEdsv6Family:  160
 
 fully allocated: true
 
@@ -22,7 +22,7 @@ initial capacity:
 
 actions:
     1.  Freeze    worker  Standard_E32ds_v6  w1abc  count=5        floor: cpu=64   memory=512GiB   swiftNICs=14  capacity: cpu=160  (+96)  memory=1280GiB  (+768GiB)  swiftNICs=35  (+21)
-    2.  Reduce    worker  Standard_E32ds_v6  w1abc  count=4        floor: cpu=128  memory=1024GiB  swiftNICs=28  capacity: cpu=128  (+0)   memory=1024GiB  (+0GiB)    swiftNICs=28  (+0)  EDSv6:    192c remaining
+    2.  Reduce    worker  Standard_E32ds_v6  w1abc  count=4        floor: cpu=128  memory=1024GiB  swiftNICs=28  capacity: cpu=128  (+0)   memory=1024GiB  (+0GiB)    swiftNICs=28  (+0)  StandardEdsv6:  192c remaining
     3.  Unfreeze  worker  Standard_E32ds_v6  w1abc  min=1   max=4  floor: cpu=128  memory=1024GiB  swiftNICs=28  capacity: cpu=128  (+0)   memory=1024GiB  (+0GiB)    swiftNICs=28  (+0)
 
 steps:      3

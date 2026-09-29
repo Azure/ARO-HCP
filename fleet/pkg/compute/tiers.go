@@ -33,8 +33,8 @@ var tierNameRegex = regexp.MustCompile(`^[a-z][a-z0-9]{0,4}$`)
 // for system/infra pools (D-series) and worker pools (E-series), from newest
 // to oldest generation.
 var (
-	dFamilyPriority = []VMFamily{"standardDDSv7Family", "standardDDSv6Family", "standardDDSv5Family", "standardDDSv4Family", "standardDSv3Family"}
-	eFamilyPriority = []VMFamily{"standardEDSv7Family", "standardEDSv6Family", "standardEDSv5Family", "standardEDSv4Family", "standardESv3Family"}
+	dFamilyPriority = []VMFamily{"StandardDdsv7Family", "StandardDdsv6Family", "standardDDSv5Family", "standardDDSv4Family", "standardDSv3Family"}
+	eFamilyPriority = []VMFamily{"StandardEdsv7Family", "StandardEdsv6Family", "standardEDSv5Family", "standardEDSv4Family", "standardESv3Family"}
 )
 
 // TierConfig defines a single node pool tier — a desired VM size class with
