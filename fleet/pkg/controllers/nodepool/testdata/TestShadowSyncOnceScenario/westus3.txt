@@ -10,17 +10,16 @@ initial:
   userswft3  worker  Standard_E16ds_v6  zone=3      max=14  count=6  autoscaled
 
 desired:
-  sys0fe1457    system  Standard_E8ds_v7   zone=   max=3
-  inf16a742c    infra   Standard_E32ds_v7  zone=1  max=1
-  inf17dc270    infra   Standard_E32ds_v6  zone=1  max=2
-  inf27dc270    infra   Standard_E32ds_v6  zone=2  max=3
-  wrk161690783  worker  Standard_E16ds_v6  zone=1  max=11
-  wrk162690783  worker  Standard_E16ds_v6  zone=2  max=11
-  wrk163690783  worker  Standard_E16ds_v6  zone=3  max=9
-  wrk1635a648b  worker  Standard_E16ds_v5  zone=3  max=2
-  wrk3216c3e65  worker  Standard_E32ds_v5  zone=1  max=1
+  sys02efde4    system  Standard_E4ds_v7   zone=   max=2
+  inf1be9253    infra   Standard_E16ds_v7  zone=1  max=4
+  inf284867b    infra   Standard_E16ds_v6  zone=2  max=4
+  wrk161690783  worker  Standard_E16ds_v6  zone=1  max=14
+  wrk162690783  worker  Standard_E16ds_v6  zone=2  max=14
+  wrk163690783  worker  Standard_E16ds_v6  zone=3  max=10
+  wrk1635a648b  worker  Standard_E16ds_v5  zone=3  max=4
+  wrk32175eaaf  worker  Standard_E32ds_v4  zone=1  max=1
   wrk32275eaaf  worker  Standard_E32ds_v4  zone=2  max=1
-  wrk32375eaaf  worker  Standard_E32ds_v4  zone=3  max=1
+  wrk3236dfcaa  worker  Standard_E32s_v3   zone=3  max=1
 
 budget (vCPUs):
   StandardEdsv6Family:  392
@@ -53,8 +52,7 @@ worker zone floor:
   zone 2:  cpu=224  memory=1792GiB  swiftNICs=98
   zone 3:  cpu=224  memory=1792GiB  swiftNICs=98
 
-rejected desired plan: system capacity {VCPUs:24 MemoryGiB:192 SwiftNICs:0} is below protected baseline {VCPUs:32 MemoryGiB:256 SwiftNICs:0}
-worker capacity {VCPUs:208 MemoryGiB:1664 SwiftNICs:84} in zone 1 is below protected baseline {VCPUs:224 MemoryGiB:1792 SwiftNICs:98}
+rejected desired plan: system capacity {VCPUs:8 MemoryGiB:64 SwiftNICs:0} is below protected baseline {VCPUs:32 MemoryGiB:256 SwiftNICs:0}
 
 actions:
   (none)
@@ -62,5 +60,4 @@ actions:
 steps:      0
 converged:  false
 outcome:    rejected
-reason:     system capacity {VCPUs:24 MemoryGiB:192 SwiftNICs:0} is below protected baseline {VCPUs:32 MemoryGiB:256 SwiftNICs:0}
-worker capacity {VCPUs:208 MemoryGiB:1664 SwiftNICs:84} in zone 1 is below protected baseline {VCPUs:224 MemoryGiB:1792 SwiftNICs:98}
+reason:     system capacity {VCPUs:8 MemoryGiB:64 SwiftNICs:0} is below protected baseline {VCPUs:32 MemoryGiB:256 SwiftNICs:0}

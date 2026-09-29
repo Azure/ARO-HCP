@@ -1,8 +1,8 @@
 zones: 1,2,3
 
 tiers:
-  sys    system  Regional  pools=1  cores=8   maxNodes=3   initialMinNodes=0  osDisk=128GB  maxPods=100  swift=true   required=true   families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
-  inf    infra   PerZone   pools=2  cores=32  maxNodes=3   initialMinNodes=0  osDisk=128GB  maxPods=225  swift=false  required=true   families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
+  sys    system  Regional  pools=1  cores=4   maxNodes=2   initialMinNodes=0  osDisk=128GB  maxPods=100  swift=true   required=true   families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
+  inf    infra   PerZone   pools=2  cores=16  maxNodes=4   initialMinNodes=0  osDisk=128GB  maxPods=225  swift=false  required=true   families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
   wrk16  worker  PerZone   pools=3  cores=16  maxNodes=20  initialMinNodes=5  osDisk=512GB  maxPods=225  swift=true   required=false  families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
   wrk32  worker  PerZone   pools=3  cores=32  maxNodes=3   initialMinNodes=1  osDisk=512GB  maxPods=225  swift=true   required=false  families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
 
@@ -65,11 +65,11 @@ available vCPUs:
 fully allocated: true
 
 pools:
-  sys0fe1457    system  Standard_E8ds_v7   cpu=8   memory=64GiB   nics=3  zone=regional  min=1  max=3   osDisk=128GB  maxPods=100  swift=true   labels=aro-hcp.azure.com/role=system  taints=CriticalAddonsOnly=true:NoSchedule
-  inf16a742c    infra   Standard_E32ds_v7  cpu=32  memory=256GiB  nics=7  zone=1         min=1  max=1   osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
-  inf17dc270    infra   Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=1         min=1  max=2   osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
-  inf20c182e    infra   Standard_E32ds_v5  cpu=32  memory=256GiB  nics=7  zone=2         min=1  max=3   osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
-  wrk1615a648b  worker  Standard_E16ds_v5  cpu=16  memory=128GiB  nics=7  zone=1         min=5  max=20  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  sys02efde4    system  Standard_E4ds_v7   cpu=4   memory=32GiB   nics=3  zone=regional  min=1  max=2   osDisk=128GB  maxPods=100  swift=true   labels=aro-hcp.azure.com/role=system  taints=CriticalAddonsOnly=true:NoSchedule
+  inf1be9253    infra   Standard_E16ds_v7  cpu=16  memory=128GiB  nics=7  zone=1         min=1  max=4   osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
+  inf284867b    infra   Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=2         min=1  max=4   osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
+  wrk161690783  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=1         min=1  max=1   osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk1615a648b  worker  Standard_E16ds_v5  cpu=16  memory=128GiB  nics=7  zone=1         min=5  max=19  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
   wrk1625a648b  worker  Standard_E16ds_v5  cpu=16  memory=128GiB  nics=7  zone=2         min=5  max=20  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
   wrk1635a648b  worker  Standard_E16ds_v5  cpu=16  memory=128GiB  nics=7  zone=3         min=5  max=20  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
   wrk3216c3e65  worker  Standard_E32ds_v5  cpu=32  memory=256GiB  nics=7  zone=1         min=1  max=3   osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
