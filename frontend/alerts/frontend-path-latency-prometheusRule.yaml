@@ -30,10 +30,16 @@ spec:
     #                                 is robust at low sample counts (an outlier sits far from
     #                                 rank 0.5·N), so it needs only a light volume floor
     #                                 (≥10 req/30m) and a 250ms bound. Mutating methods are
-    #                                 excluded — 250ms is a read SLO, and cluster-create PUT
+    #                                 excluded — 250ms is the existing read-path alert bound, and cluster-create PUT
     #                                 p50 routinely exceeds it in e2e (AROSLSRE-2232), failing
     #                                 gather-observability after Ginkgo already passed. Write
-    #                                 paths stay gated by FrontendPathLatency (5% > 1s).
+    #                                 paths also have a separate median alert below, in addition
+    #                                 to FrontendPathLatency (5% > 1s, with its volume gates).
+    #   * FrontendPathWriteMedianLatency — WRITE-path median (PUT/POST/PATCH/DELETE),
+    #                                 with its own bound and volume gate. Both values are
+    #                                 provisional until AROSLSRE-2287 has post-#7185 CI
+    #                                 measurements by method, route, and cluster. Do not
+    #                                 merge this rule without validating them against data.
     #
     # HA Prometheus replica handling:
     #   * Ratio/quantile clauses use sum (not max): doubled per-bucket counts from two
@@ -106,3 +112,23 @@ spec:
         description: 'The median (p50) of frontend GET/HEAD request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 250ms over the past 30 minutes (cluster {{ $labels.cluster }}).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
         summary: 'Frontend GET/HEAD median latency is high: p50 exceeds 250ms for {{ $labels.method }} {{ $labels.route }} on cluster {{ $labels.cluster }} over the past 30 minutes'
+    - alert: FrontendPathWriteMedianLatency
+      expr: |
+        histogram_quantile(0.5,
+          sum by (le, route, method, cluster) (
+            rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)
+          )
+        ) > 1
+        and on (route, method, cluster)
+        (
+          sum by (route, method, cluster) (
+            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))
+          )
+        ) >= 10
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        description: 'The median (p50) of frontend write request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 30 minutes (cluster {{ $labels.cluster }}).'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend write median latency is high'

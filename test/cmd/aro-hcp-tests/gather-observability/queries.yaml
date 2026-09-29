@@ -30,7 +30,7 @@ panels:
     workspace: svc
     step: "60s"
   - title: "Frontend Median (p50) Request Latency"
-    description: "Median (p50) frontend GET/HEAD request latency by method/route/cluster over a trailing 30-minute window (matches the FrontendPathMedianLatency alert, which fires at >250ms for GET/HEAD series with >=10 requests/30m). Mutating methods are excluded from this alert — 250ms is a read SLO; write paths use FrontendPathLatency. The median is robust at low sample counts, so this catches regressions in normal-request handling that the p99 signal misses. No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alert)."
+    description: "Median (p50) frontend GET/HEAD request latency by method/route/cluster over a trailing 30-minute window. FrontendPathMedianLatency uses the existing 250ms bound for reads with >=10 requests/30m; this panel omits the rule's 5m offset for current triage. Write methods have a separate median panel and alert. No minPeakThreshold — sub-second routes must stay visible. Excludes hcpoperationresults."
     query: |
       histogram_quantile(0.5,
         sum by (le, route, method, cluster) (
@@ -40,8 +40,30 @@ panels:
     unit: seconds
     workspace: svc
     step: "60s"
+  - title: "Frontend Write Median (p50) Request Latency"
+    description: "Median (p50) PUT/POST/PATCH/DELETE request latency by method/route/cluster. Uses the same 30-minute window and 5-minute offset as FrontendPathWriteMedianLatency, so post-optimization measurements can justify its threshold. The draft alert's 1s threshold and >=10 request floor are provisional (AROSLSRE-2287). Excludes hcpoperationresults."
+    query: |
+      histogram_quantile(0.5,
+        sum by (le, route, method, cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)
+        )
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Frontend Write Request Count (30m sliding)"
+    description: "PUT/POST/PATCH/DELETE request count by method/route/cluster, deduplicated across Prometheus replicas with the same 30-minute window and 5-minute offset as FrontendPathWriteMedianLatency. Use this with write p50 to choose a meaningful request-volume floor (AROSLSRE-2287). Excludes hcpoperationresults."
+    query: |
+      sum by (route, method, cluster) (
+        max without (prometheus_replica) (
+          increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)
+        )
+      )
+    unit: requests
+    workspace: svc
+    step: "60s"
   - title: "Frontend Request Latency (p99, triage)"
-    description: "P99 frontend request latency by method/route/cluster over a trailing 30-minute window. Triage-only: the CI gate is no longer a raw p99 threshold (a p99 over a few samples is an outlier check) — it is the FrontendPathLatency slow-fraction and FrontendPathMedianLatency p50 alerts. This panel remains to spot tail behaviour. No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alerts)."
+    description: "P99 frontend request latency by method/route/cluster over a trailing 30-minute window. Triage-only: CI uses the FrontendPathLatency slow-fraction and the separate read/write median alerts. A p99 over a few samples is an outlier check. No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults."
     query: |
       histogram_quantile(0.99,
         sum by (le, route, method, cluster) (
@@ -52,7 +74,7 @@ panels:
     workspace: svc
     step: "60s"
   - title: "Frontend Request Count (30m sliding)"
-    description: "Frontend HTTP requests served in the trailing thirty-minute window (matching the alert evaluation window), broken down by method and route per svc cluster (same breakdown as the latency panels, but counting every route including hcpoperationresults). Uses increase() over frontend_http_requests_total, deduplicating HA Prometheus replicas with max without(prometheus_replica) before summing. At each point the value is the request count for the preceding thirty minutes (a sliding block); use it to see which series clear the alert volume gates (>=50/30m for FrontendPathLatency, >=10/30m for FrontendPathMedianLatency)."
+    description: "Frontend HTTP requests served in the trailing thirty-minute window, broken down by method and route per svc cluster (counting every route including hcpoperationresults). Uses increase() over frontend_http_requests_total, deduplicating HA Prometheus replicas with max without(prometheus_replica) before summing. Use the dedicated write count panel for the new alert's offset and route filter; this unscoped panel remains useful for overall traffic."
     query: |
       sum by (route, method, cluster) (
         max without (prometheus_replica) (

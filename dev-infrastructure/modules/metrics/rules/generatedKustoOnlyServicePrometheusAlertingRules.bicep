@@ -1759,6 +1759,34 @@ resource svcFrontendPathLatency 'Microsoft.AlertsManagement/prometheusRuleGroups
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendPathWriteMedianLatency'
+        enabled: true
+        labels: {
+          component: 'frontend'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FrontendPathWriteMedianLatency/{{ $labels.cluster }}/{{ $labels.method }}/{{ $labels.route }}'
+          description: 'The median (p50) of frontend write request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 30 minutes (cluster {{ $labels.cluster }}).'
+          info: 'The median (p50) of frontend write request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 30 minutes (cluster {{ $labels.cluster }}).'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+          summary: 'Frontend write median latency is high'
+          title: 'Frontend write median latency is high'
+        }
+        expression: 'histogram_quantile(0.5, sum by (le, route, method, cluster, region) (rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))) > 1 and on (route, method, cluster) (sum by (route, method, cluster, region) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(PUT|POST|PATCH|DELETE)$",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)))) >= 10'
+        for: 'PT1M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring
