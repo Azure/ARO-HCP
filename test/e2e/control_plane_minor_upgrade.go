@@ -175,9 +175,14 @@ var _ = Describe("Customer", func() {
 			// The upgrade verifiers are phased rather than fanned out through VerifyHCPCluster: the
 			// standard viability verifiers do not poll for the length of an upgrade, so running them
 			// alongside the wait would assert on the cluster as it looked when the rollout started.
-			// Both upgrade conditions share the one budget -- the kube-apiserver check confirms a
-			// rollout the control plane has already reported, it is not a second upgrade wait -- so
-			// the second verifier gets whatever is left of it.
+			//
+			// The two conditions draw on one budget rather than a budget each -- the kube-apiserver
+			// check confirms a rollout the control plane has already reported, it is not a second
+			// upgrade wait -- so the confirmation gets whatever is left of it. With one exception:
+			// when the control plane reaches the target version with less than
+			// minimumUpgradeConfirmationTimeout to spare, the confirmation is floored at that value
+			// rather than handed a non-positive timeout it would fail on outright. This phase can
+			// therefore overrun HCPClusterVersionUpgradeTimeout, by at most that floor.
 			upgradeDeadline := time.Now().Add(framework.HCPClusterVersionUpgradeTimeout)
 
 			By("verifying the control plane reached the desired version")
