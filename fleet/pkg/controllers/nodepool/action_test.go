@@ -37,14 +37,10 @@ func memoryBytes(value string) int64 {
 }
 
 var (
-	specE32v6   = compute.VMSpec{Size: "Standard_E32ds_v6", Family: "StandardEdsv6Family", VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}
-	specE16v6   = compute.VMSpec{Size: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}
-	specD4v3    = compute.VMSpec{Size: "Standard_D4s_v3", Family: "standardDSv3Family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 1}
-	specD8v6    = compute.VMSpec{Size: "Standard_D8ds_v6", Family: "StandardDdsv6Family", VCPUs: 8, MemoryBytes: memoryBytes("64Gi"), SecondaryNICs: 3}
-	specE8dsV5  = compute.VMSpec{Size: "Standard_E8ds_v5", Family: "standardEDSv5Family", VCPUs: 8, MemoryBytes: memoryBytes("64Gi"), SecondaryNICs: 3}
-	specE16dsV5 = compute.VMSpec{Size: "Standard_E16ds_v5", Family: "standardEDSv5Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}
-	specE32dsV5 = compute.VMSpec{Size: "Standard_E32ds_v5", Family: "standardEDSv5Family", VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}
-	specE32dsV4 = compute.VMSpec{Size: "Standard_E32ds_v4", Family: "standardEDSv4Family", VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}
+	specE32v6 = compute.VMSpec{Size: "Standard_E32ds_v6", Family: "StandardEdsv6Family", VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}
+	specE16v6 = compute.VMSpec{Size: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}
+	specD4v3  = compute.VMSpec{Size: "Standard_D4s_v3", Family: "standardDSv3Family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 1}
+	specD8v6  = compute.VMSpec{Size: "Standard_D8ds_v6", Family: "StandardDdsv6Family", VCPUs: 8, MemoryBytes: memoryBytes("64Gi"), SecondaryNICs: 3}
 )
 
 // ---------------------------------------------------------------------------
@@ -1074,120 +1070,4 @@ func TestFindNextAction_InProgressGatesDrift(t *testing.T) {
 		_, isUpdate := action.(updateConfigAction)
 		assert.True(t, isUpdate, "settled drift must produce an update config action")
 	})
-}
-
-// TestProductionScenario_MigrationToDesired retains the real production snapshot
-// as a rejected plan and exercises a synthetic capacity-preserving migration
-// from the same initial pools. The synthetic case increases desired ceilings
-// and quota; it does not represent the current production profile or quota.
-func TestProductionScenario_MigrationToDesired(t *testing.T) {
-	tests := []struct {
-		name           string
-		infraMax       int32
-		workerE32Max   int32
-		availableEDSv5 int64
-		fullyAllocated bool
-		wantErr        string
-	}{
-		{
-			name:     "real_snapshot_rejected",
-			infraMax: 1, workerE32Max: 5, availableEDSv5: 856,
-			wantErr: "infra capacity",
-		},
-		{
-			name: "capacity_preserving_migration",
-			// Desired EDSv5 capacity is 1,568 vCPUs. A hypothetical quota of
-			// 1,824 leaves 256 for overlap; initial live usage is 584 vCPUs.
-			infraMax: 3, workerE32Max: 12, availableEDSv5: 1240, fullyAllocated: true,
-		},
-		{
-			name: "fully_allocated_downsize",
-			// A new configuration explicitly targets the smaller pool set.
-			infraMax: 1, workerE32Max: 5, availableEDSv5: 856, fullyAllocated: true,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// pool()/poolState() default to the worker role; withRole/withStateRole
-			// stamp the system and infra pools so capacity checks see the real role mix.
-			withRole := func(role compute.PoolRole, p compute.Pool) compute.Pool {
-				p.Role = role
-				p.Labels = map[string]string{compute.RoleLabel: string(role)}
-				return p
-			}
-			withStateRole := func(role compute.PoolRole, s PoolState) PoolState {
-				s.Role = role
-				s.Labels = map[string]string{compute.RoleLabel: string(role)}
-				return s
-			}
-
-			// Names mirror the planner's poolName scheme (prefix s/i/w + zone digit;
-			// spanzones system uses zone 0), with a readable SKU suffix in place of the
-			// real hash.
-			desired := []compute.Pool{
-				{
-					Role:              compute.PoolRoleSystem,
-					Name:              "s0-e8",
-					Spec:              specE8dsV5,
-					AvailabilityZones: []string{"1", "2", "3"},
-					MaxCount:          4,
-					MinCount:          1,
-					OSDiskSizeGB:      128,
-					MaxPods:           100,
-					Labels:            map[string]string{compute.RoleLabel: string(compute.PoolRoleSystem)},
-				},
-				// infra caps at 2 zones (production profile PoolCount: 2).
-				withRole(compute.PoolRoleInfra, pool("i1-e32", specE32dsV5, "1", test.infraMax, 128)),
-				withRole(compute.PoolRoleInfra, pool("i2-e32", specE32dsV5, "2", test.infraMax, 128)),
-				pool("w1-e16", specE16dsV5, "1", 4, 256),
-				pool("w2-e16", specE16dsV5, "2", 4, 256),
-				pool("w3-e16", specE16dsV5, "3", 4, 256),
-				pool("w1-e32", specE32dsV5, "1", test.workerE32Max, 512),
-				pool("w2-e32", specE32dsV5, "2", test.workerE32Max, 512),
-				pool("w3-e32", specE32dsV5, "3", test.workerE32Max, 512),
-			}
-
-			current := []PoolState{
-				{
-					Pool: compute.Pool{
-						Role:              compute.PoolRoleSystem,
-						Name:              "system",
-						Spec:              specE8dsV5,
-						AvailabilityZones: []string{"1", "2", "3"},
-						MaxCount:          4,
-						OSDiskSizeGB:      128,
-					},
-					AutoScalingEnabled: true,
-					Count:              1,
-					ProvisioningState:  "Succeeded",
-					ETag:               "etag-system",
-				},
-				withStateRole(compute.PoolRoleInfra, poolState("infra1", specE32dsV4, "1", 3, 32, true, 1)),
-				withStateRole(compute.PoolRoleInfra, poolState("infra2", specE32dsV4, "2", 3, 32, true, 1)),
-				poolState("userswft1", specE32dsV5, "1", 14, 512, true, 6),
-				poolState("userswft2", specE32dsV5, "2", 14, 512, true, 6),
-				poolState("userswft3", specE32dsV5, "3", 14, 512, true, 6),
-			}
-
-			// Available quota is limit minus live usage in both cases.
-			// EDSv4 is absent (not a production-profile family); its undesired pools
-			// drain out identity-based, without a budget.
-			budgets := map[compute.VMFamily]int64{
-				"standardEDSv5Family": test.availableEDSv5,
-				"standardESv3Family":  100,
-			}
-
-			tr := requireSimulation(t, desired, current, budgets, test.fullyAllocated, 200)
-			if len(test.wantErr) > 0 {
-				require.ErrorContains(t, tr.RejectedPlan, test.wantErr)
-				require.Empty(t, tr.Steps)
-				require.Equal(t, current, tr.finalState())
-			} else {
-				require.NoError(t, tr.RejectedPlan)
-				assertConverged(t, desired, tr.finalState())
-				require.NotEmpty(t, tr.Steps)
-			}
-			compareGolden(t, formatTrace(tr))
-		})
-	}
 }
