@@ -352,7 +352,7 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, skuInd
 		hasZoneCoverage := false
 		for _, family := range tier.FamilyPriority {
 			_, meta, found := skuIndex.Lookup(family, tier.Cores)
-			if !found {
+			if !found || meta.EphemeralDiskSizeGB < int64(tier.OSDiskSizeGB) {
 				continue
 			}
 			hasEligible = true
@@ -364,7 +364,7 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, skuInd
 		switch {
 		case !hasEligible:
 			reason = "NoEligibleSKU"
-			message = fmt.Sprintf("tier %d (%d cores): no family has an eligible SKU (ephemeral OS disk support required)", tierIndex, tier.Cores)
+			message = fmt.Sprintf("tier %d (%d cores): no family has an eligible SKU with exactly %d vCPUs (unrestricted in region, unconstrained vCPUs, ephemeral OS disk of at least %d GB)", tierIndex, tier.Cores, tier.Cores, tier.OSDiskSizeGB)
 		case !hasZoneCoverage:
 			reason = "NoZoneCoverage"
 			message = fmt.Sprintf("tier %d (%d cores): no family has a SKU available in the required zones", tierIndex, tier.Cores)

@@ -275,6 +275,17 @@ func TestComputeDesiredPools(t *testing.T) {
 			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32NoEphemeral},
 		},
+		{
+			// The only family's SKU supports an ephemeral OS disk that is too
+			// small for the tier's 128 GB OS disk. Quota is ample, so the
+			// failure is NoEligibleSKU, not InsufficientQuota.
+			name: "ephemeral disk too small",
+			tiers: []TierConfig{
+				{Name: "sys", Role: PoolRoleSystem, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 100, PoolCount: 1},
+			},
+			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 10000},
+			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E8ds_v6": e8dsv6SmallDisk},
+		},
 	}
 
 	for _, test := range tests {
