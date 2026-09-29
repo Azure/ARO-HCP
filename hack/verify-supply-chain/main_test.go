@@ -150,7 +150,7 @@ func regularFiles(paths ...string) []trackedFile {
 }
 
 func TestAgentJSONFiles(t *testing.T) {
-	got := agentJSONFiles(regularFiles(
+	got := agentJSONFiles(append(regularFiles(
 		".claude/settings.json",
 		".claude/skills/x/SKILL.md",
 		"frontend/.claude/other.json",
@@ -161,6 +161,14 @@ func TestAgentJSONFiles(t *testing.T) {
 		// a project-scoped server entry still reaches the content rules.
 		".mcp.json",
 		".cursor/mcp.json",
+	),
+		// Content scanning opens these with os.ReadFile, so a non-regular
+		// entry must never reach it: a symlink leads out of the repository and
+		// can block forever on a fifo or device, and a submodule has no file
+		// to read. checkPaths reports all of them by path already.
+		trackedFile{path: ".claude/linked.json", mode: modeSymlink},
+		trackedFile{path: "frontend/.mcp.json", mode: modeSymlink},
+		trackedFile{path: ".claude/vendor.json", mode: modeSubmodule},
 	))
 
 	want := []string{
@@ -212,12 +220,16 @@ func TestScanAgentShebang(t *testing.T) {
 }
 
 func TestAgentDirFiles(t *testing.T) {
-	got := agentDirFiles(regularFiles(
+	got := agentDirFiles(append(regularFiles(
 		".claude/skills/x/SKILL.md",
 		"frontend/.Claude/notes.md",
 		"README.md",
 		".vscode/settings.json",
 		"notclaude/x.md",
+	),
+		// As in TestAgentJSONFiles: never hand a non-regular entry to a reader.
+		trackedFile{path: ".claude/ref.md", mode: modeSymlink},
+		trackedFile{path: ".claude/vendor", mode: modeSubmodule},
 	))
 
 	want := []string{".claude/skills/x/SKILL.md", "frontend/.Claude/notes.md"}
