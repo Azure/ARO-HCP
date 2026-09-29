@@ -650,6 +650,25 @@ func TestMaxCountDecreaseBelowRunning(t *testing.T) {
 	compareGolden(t, formatTrace(tr))
 }
 
+// An autoscaled pool running above its own maximum (e.g. after an external
+// max-count reduction) is not scaled down by the cluster autoscaler, so the
+// controller must drain it to the desired maximum instead of only raising the
+// ceiling toward the desired value.
+func TestCountAboveDesiredMax(t *testing.T) {
+	desired := []compute.Pool{
+		pool("w1abc", specE32v6, "1", 4, 512),
+	}
+	current := []PoolState{
+		poolState("w1abc", specE32v6, "1", 2, 512, true, 5),
+	}
+	budgets := map[compute.VMFamily]int64{specE32v6.Family: 5 * specE32v6.VCPUs}
+
+	tr := requireSimulation(t, desired, current, budgets, true, 10)
+	require.NoError(t, tr.RejectedPlan)
+	assertConverged(t, desired, tr.finalState())
+	compareGolden(t, formatTrace(tr))
+}
+
 func TestUnfreezeBlockedByHighCount(t *testing.T) {
 	desired := []compute.Pool{
 		pool("w1abc", specE32v6, "1", 6, 512),
