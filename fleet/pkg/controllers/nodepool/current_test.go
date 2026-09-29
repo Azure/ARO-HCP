@@ -119,7 +119,7 @@ func TestCurrentPoolStates(t *testing.T) {
 		{
 			name: "configured Swift NIC count overrides the SKU maximum",
 			skuMetadata: map[string]*skucache.SKUMetadata{
-				"Standard_E16ds_v6": {Name: "Standard_E16ds_v6", Family: "standardEDSv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7},
+				"Standard_E16ds_v6": {Name: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7},
 			},
 			pools: []armcontainerservice.AgentPool{
 				{
@@ -148,7 +148,7 @@ func TestCurrentPoolStates(t *testing.T) {
 				{
 					Pool: compute.Pool{
 						Role: compute.PoolRoleWorker, Name: "wrk161",
-						Spec:              compute.VMSpec{Size: "Standard_E16ds_v6", Family: "standardEDSv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 3},
+						Spec:              compute.VMSpec{Size: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 3},
 						AvailabilityZones: []string{"1"}, MaxCount: 10, OSDiskSizeGB: 256, MaxPods: 225,
 						Labels:      map[string]string{compute.RoleLabel: "worker", "workload": "general"},
 						Taints:      []string{"dedicated=worker:NoSchedule"},

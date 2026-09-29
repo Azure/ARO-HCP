@@ -58,7 +58,7 @@ var (
 
 	e32dsv6 = &skucache.SKUMetadata{
 		Name:                     "Standard_E32ds_v6",
-		Family:                   "standardEDSv6Family",
+		Family:                   "StandardEdsv6Family",
 		VCPUs:                    32,
 		MemoryBytes:              memoryBytes("256Gi"),
 		SecondaryNICs:            7,
@@ -69,7 +69,7 @@ var (
 
 	e16dsv6 = &skucache.SKUMetadata{
 		Name:                     "Standard_E16ds_v6",
-		Family:                   "standardEDSv6Family",
+		Family:                   "StandardEdsv6Family",
 		VCPUs:                    16,
 		MemoryBytes:              memoryBytes("128Gi"),
 		SecondaryNICs:            7,
@@ -80,7 +80,7 @@ var (
 
 	e8dsv6 = &skucache.SKUMetadata{
 		Name:                     "Standard_E8ds_v6",
-		Family:                   "standardEDSv6Family",
+		Family:                   "StandardEdsv6Family",
 		VCPUs:                    8,
 		MemoryBytes:              memoryBytes("64Gi"),
 		SecondaryNICs:            3,
@@ -91,7 +91,7 @@ var (
 
 	d4dsv6 = &skucache.SKUMetadata{
 		Name:                     "Standard_D4ds_v6",
-		Family:                   "standardDDSv6Family",
+		Family:                   "StandardDdsv6Family",
 		VCPUs:                    4,
 		MemoryBytes:              memoryBytes("16Gi"),
 		SecondaryNICs:            1,
@@ -104,7 +104,7 @@ var (
 	// zones 1 and 2. It exercises per-mode zone eligibility.
 	e32dsv6Zone12 = &skucache.SKUMetadata{
 		Name:                     "Standard_E32ds_v6",
-		Family:                   "standardEDSv6Family",
+		Family:                   "StandardEdsv6Family",
 		VCPUs:                    32,
 		MemoryBytes:              memoryBytes("256Gi"),
 		SecondaryNICs:            7,
@@ -118,7 +118,7 @@ var (
 	// to the next family.
 	e8dsv6SmallDisk = &skucache.SKUMetadata{
 		Name:                     "Standard_E8ds_v6",
-		Family:                   "standardEDSv6Family",
+		Family:                   "StandardEdsv6Family",
 		VCPUs:                    8,
 		MemoryBytes:              memoryBytes("64Gi"),
 		SecondaryNICs:            3,
@@ -131,7 +131,7 @@ var (
 	// disk; it serves as the fallback family for e8dsv6SmallDisk.
 	d8dsv6 = &skucache.SKUMetadata{
 		Name:                     "Standard_D8ds_v6",
-		Family:                   "standardDDSv6Family",
+		Family:                   "StandardDdsv6Family",
 		VCPUs:                    8,
 		MemoryBytes:              memoryBytes("32Gi"),
 		SecondaryNICs:            2,
@@ -144,7 +144,7 @@ var (
 	// BuildEligibleSKUIndex excludes it and no family has an eligible SKU.
 	e32NoEphemeral = &skucache.SKUMetadata{
 		Name:                     "Standard_E32ds_v6",
-		Family:                   "standardEDSv6Family",
+		Family:                   "StandardEdsv6Family",
 		VCPUs:                    32,
 		MemoryBytes:              memoryBytes("256Gi"),
 		SecondaryNICs:            7,
@@ -164,28 +164,28 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			name: "single tier single family",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
 			},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 224},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
 		},
 		{
 			name: "insufficient quota",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 0},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 0},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
 		},
 		{
 			name: "multi role production like",
 			tiers: []TierConfig{
-				{Name: "sys", Role: PoolRoleSystem, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 100, Taints: []string{TaintCriticalAddonsOnly}, PoolCount: 1},
-				{Name: "inf", Role: PoolRoleInfra, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 128, MaxNodes: 1, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 225, Taints: []string{TaintInfra}, PoolCount: 3},
-				{Name: "wrk16", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 16, OSDiskSizeGB: 256, MaxNodes: 2, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
-				{Name: "wrk32", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 8, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+				{Name: "sys", Role: PoolRoleSystem, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 100, Taints: []string{TaintCriticalAddonsOnly}, PoolCount: 1},
+				{Name: "inf", Role: PoolRoleInfra, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 128, MaxNodes: 1, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, Taints: []string{TaintInfra}, PoolCount: 3},
+				{Name: "wrk16", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 16, OSDiskSizeGB: 256, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+				{Name: "wrk32", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 8, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
 			},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 1000},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 1000},
 			skuMetadata: map[string]*skucache.SKUMetadata{
 				"Standard_E32ds_v6": e32dsv6,
 				"Standard_E16ds_v6": e16dsv6,
@@ -195,18 +195,18 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			name: "family fallback",
 			tiers: []TierConfig{
-				{Name: "sys", Role: PoolRoleSystem, PoolMode: PoolModeRegional, Cores: 4, OSDiskSizeGB: 32, MaxNodes: 3, FamilyPriority: []VMFamily{"standardEDSv6Family", "standardDDSv6Family"}, MaxPods: 100, PoolCount: 1},
+				{Name: "sys", Role: PoolRoleSystem, PoolMode: PoolModeRegional, Cores: 4, OSDiskSizeGB: 32, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family", "StandardDdsv6Family"}, MaxPods: 100, PoolCount: 1},
 			},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 0, "standardDDSv6Family": 100},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 0, "StandardDdsv6Family": 100},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_D4ds_v6": d4dsv6},
 		},
 		{
 			name: "surge reservation",
 			tiers: []TierConfig{
-				{Name: "wrk16", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 16, OSDiskSizeGB: 256, MaxNodes: 2, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 225, PoolCount: 3},
-				{Name: "wrk32", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 8, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk16", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 16, OSDiskSizeGB: 256, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk32", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 8, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 232},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 232},
 			skuMetadata: map[string]*skucache.SKUMetadata{
 				"Standard_E32ds_v6": e32dsv6,
 				"Standard_E16ds_v6": e16dsv6,
@@ -215,31 +215,31 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			name:          "no tiers",
 			tiers:         []TierConfig{},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 100},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 100},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
 		},
 		{
 			name: "regional sets no zones and accepts zone restricted sku",
 			tiers: []TierConfig{
-				{Name: "ovfl", Role: PoolRoleWorker, PoolMode: PoolModeRegional, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 225, PoolCount: 1, EnableSwift: true},
+				{Name: "ovfl", Role: PoolRoleWorker, PoolMode: PoolModeRegional, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 1, EnableSwift: true},
 			},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 224},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6Zone12},
 		},
 		{
 			name: "per zone poolcount two uses zone restricted sku",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 225, PoolCount: 2, EnableSwift: true},
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 2, EnableSwift: true},
 			},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 224},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6Zone12},
 		},
 		{
 			name: "per zone poolcount three rejects zone restricted sku",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
 			},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 224},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6Zone12},
 		},
 		{
@@ -248,9 +248,9 @@ func TestComputeDesiredPools(t *testing.T) {
 			// family[1] (DDSv6), which is viable.
 			name: "family fallback ephemeral disk too small",
 			tiers: []TierConfig{
-				{Name: "sys", Role: PoolRoleSystem, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"standardEDSv6Family", "standardDDSv6Family"}, MaxPods: 100, PoolCount: 1},
+				{Name: "sys", Role: PoolRoleSystem, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family", "StandardDdsv6Family"}, MaxPods: 100, PoolCount: 1},
 			},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 100, "standardDDSv6Family": 100},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 100, "StandardDdsv6Family": 100},
 			skuMetadata: map[string]*skucache.SKUMetadata{
 				"Standard_E8ds_v6": e8dsv6SmallDisk,
 				"Standard_D8ds_v6": d8dsv6,
@@ -262,7 +262,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			tiers: []TierConfig{
 				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{}, MaxPods: 225, PoolCount: 3},
 			},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 224},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
 		},
 		{
@@ -270,9 +270,9 @@ func TestComputeDesiredPools(t *testing.T) {
 			// index excludes it and no family has an eligible SKU: NoEligibleSKU.
 			name: "no eligible sku",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 224},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32NoEphemeral},
 		},
 		{
@@ -281,9 +281,9 @@ func TestComputeDesiredPools(t *testing.T) {
 			// failure is NoEligibleSKU, not InsufficientQuota.
 			name: "ephemeral disk too small",
 			tiers: []TierConfig{
-				{Name: "sys", Role: PoolRoleSystem, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"standardEDSv6Family"}, MaxPods: 100, PoolCount: 1},
+				{Name: "sys", Role: PoolRoleSystem, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 100, PoolCount: 1},
 			},
-			familyBudgets: map[VMFamily]int64{"standardEDSv6Family": 10000},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 10000},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E8ds_v6": e8dsv6SmallDisk},
 		},
 	}
@@ -457,9 +457,9 @@ func TestBuildEligibleSKUIndex(t *testing.T) {
 		{
 			name: "exact core match",
 			skuMetadata: map[string]*skucache.SKUMetadata{
-				"Standard_E32ds_v6": {VCPUs: 32, Family: "standardEDSv6Family", EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 1792},
+				"Standard_E32ds_v6": {VCPUs: 32, Family: "StandardEdsv6Family", EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 1792},
 			},
-			lookupFamily: "standardEDSv6Family",
+			lookupFamily: "StandardEdsv6Family",
 			lookupCores:  32,
 			wantVMSize:   "Standard_E32ds_v6",
 			wantFound:    true,
@@ -467,9 +467,9 @@ func TestBuildEligibleSKUIndex(t *testing.T) {
 		{
 			name: "no exact core match",
 			skuMetadata: map[string]*skucache.SKUMetadata{
-				"Standard_E32ds_v6": {VCPUs: 32, Family: "standardEDSv6Family", EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 1792},
+				"Standard_E32ds_v6": {VCPUs: 32, Family: "StandardEdsv6Family", EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 1792},
 			},
-			lookupFamily: "standardEDSv6Family",
+			lookupFamily: "StandardEdsv6Family",
 			lookupCores:  16,
 			wantFound:    false,
 		},
@@ -485,9 +485,9 @@ func TestBuildEligibleSKUIndex(t *testing.T) {
 		{
 			name: "zero ephemeral disk size filtered out",
 			skuMetadata: map[string]*skucache.SKUMetadata{
-				"Standard_E32ds_v6": {VCPUs: 32, Family: "standardEDSv6Family", EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 0},
+				"Standard_E32ds_v6": {VCPUs: 32, Family: "StandardEdsv6Family", EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 0},
 			},
-			lookupFamily: "standardEDSv6Family",
+			lookupFamily: "StandardEdsv6Family",
 			lookupCores:  32,
 			wantFound:    false,
 		},
@@ -505,9 +505,9 @@ func TestBuildEligibleSKUIndex(t *testing.T) {
 		{
 			name: "zone restricted SKU is still indexed (zone eligibility is per-tier at allocation)",
 			skuMetadata: map[string]*skucache.SKUMetadata{
-				"Standard_E32ds_v6": {VCPUs: 32, Family: "standardEDSv6Family", EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 1792, Zones: []string{"1", "2"}},
+				"Standard_E32ds_v6": {VCPUs: 32, Family: "StandardEdsv6Family", EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 1792, Zones: []string{"1", "2"}},
 			},
-			lookupFamily: "standardEDSv6Family",
+			lookupFamily: "StandardEdsv6Family",
 			lookupCores:  32,
 			wantVMSize:   "Standard_E32ds_v6",
 			wantFound:    true,
@@ -515,10 +515,10 @@ func TestBuildEligibleSKUIndex(t *testing.T) {
 		{
 			name: "deterministic selection picks lexicographically smallest",
 			skuMetadata: map[string]*skucache.SKUMetadata{
-				"Standard_E32ds_v6": {VCPUs: 32, Family: "standardEDSv6Family", EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 1792},
-				"Standard_E32as_v6": {VCPUs: 32, Family: "standardEDSv6Family", EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 1792},
+				"Standard_E32ds_v6": {VCPUs: 32, Family: "StandardEdsv6Family", EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 1792},
+				"Standard_E32as_v6": {VCPUs: 32, Family: "StandardEdsv6Family", EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 1792},
 			},
-			lookupFamily: "standardEDSv6Family",
+			lookupFamily: "StandardEdsv6Family",
 			lookupCores:  32,
 			wantVMSize:   "Standard_E32as_v6",
 			wantFound:    true,

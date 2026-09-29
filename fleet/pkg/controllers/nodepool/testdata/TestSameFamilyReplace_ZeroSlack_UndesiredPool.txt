@@ -8,10 +8,10 @@ desired:
   new1  worker  Standard_E32ds_v6  zone=1  max=6
 
 budget (vCPUs):
-  standardEDSv6Family:  192
+  StandardEdsv6Family:  192
 
 initial headroom (vCPUs):
-  standardEDSv6Family:  64
+  StandardEdsv6Family:  64
 
 fully allocated: true
 
@@ -21,7 +21,7 @@ initial capacity:
   worker:  cpu=192  memory=1536GiB  swiftNICs=42
 
 actions:
-    1.  Create  worker  Standard_E32ds_v6  new1  min=1   max=2  floor: cpu=192  memory=1536GiB  swiftNICs=42  capacity: cpu=256  (+64)  memory=2048GiB  (+512GiB)  swiftNICs=56  (+14)  EDSv6:      0c remaining
+    1.  Create  worker  Standard_E32ds_v6  new1  min=1   max=2  floor: cpu=192  memory=1536GiB  swiftNICs=42  capacity: cpu=256  (+64)  memory=2048GiB  (+512GiB)  swiftNICs=56  (+14)  StandardEdsv6:    0c remaining
 
 steps:      1
 converged:  false
