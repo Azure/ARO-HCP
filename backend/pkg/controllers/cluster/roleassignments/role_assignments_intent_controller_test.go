@@ -32,7 +32,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azure"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -228,7 +230,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 			desiredKeys[0]: {
 				AzureResource: testRoleAssignmentAzureResource(t),
 				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
-					ResourceID:  strings.ToLower(testControlPlaneIdentityID),
+					ResourceID:  mustParseResourceID(testControlPlaneIdentityID),
 					PrincipalID: desiredKeys[0].PrincipalID,
 				},
 			},
@@ -236,7 +238,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, unreadySPC, current)
 		require.NoError(t, err)
 		require.Contains(t, got, desiredKeys[0])
-		assert.True(t, got[desiredKeys[0]].Configured())
+		assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(got[desiredKeys[0]]))
 	})
 
 	t.Run("ensured key that is still required stays configured", func(t *testing.T) {
@@ -249,8 +251,8 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		}
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
-		assert.True(t, got[desiredKeys[0]].Configured())
-		assert.False(t, got[desiredKeys[1]].Configured())
+		assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(got[desiredKeys[0]]))
+		assert.False(t, coreapihelpers.RoleAssignmentStatusConfigured(got[desiredKeys[1]]))
 		assert.Nil(t, got[desiredKeys[1]].DeconfigureTimestamp)
 	})
 
@@ -266,7 +268,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
 		assert.Nil(t, got[desiredKeys[0]].DeconfigureTimestamp)
-		assert.True(t, got[desiredKeys[0]].Configured())
+		assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(got[desiredKeys[0]]))
 	})
 
 	t.Run("key that left the desired set is stamped for deconfigure", func(t *testing.T) {
@@ -279,7 +281,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 			stale: {
 				AzureResource: testRoleAssignmentAzureResource(t),
 				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
-					ResourceID:  "stale-identity",
+					ResourceID:  mustParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/stale-identity"),
 					PrincipalID: stale.PrincipalID,
 				},
 			},
@@ -287,7 +289,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		got, err := syncer.desiredRoleAssignmentsV2(cluster, readySPC, current)
 		require.NoError(t, err)
 		require.NotNil(t, got[stale].DeconfigureTimestamp)
-		assert.False(t, got[stale].Configured())
+		assert.False(t, coreapihelpers.RoleAssignmentStatusConfigured(got[stale]))
 	})
 
 	t.Run("already draining leftover keeps its DeconfigureTimestamp", func(t *testing.T) {
@@ -302,7 +304,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 				DeconfigureTimestamp: &stamp,
 				AzureResource:        testRoleAssignmentAzureResource(t),
 				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
-					ResourceID:  "stale-identity",
+					ResourceID:  mustParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/stale-identity"),
 					PrincipalID: stale.PrincipalID,
 				},
 			},
@@ -322,7 +324,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		current := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
 			stale: {
 				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
-					ResourceID:  "stale-identity",
+					ResourceID:  mustParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/stale-identity"),
 					PrincipalID: stale.PrincipalID,
 				},
 			},
@@ -349,6 +351,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 			oldKey: {
 				AzureResource: testRoleAssignmentAzureResource(t),
 				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+					ResourceID:  mustParseResourceID(testControlPlaneIdentityID),
 					ClientID:    "old-client",
 					TenantID:    "old-tenant",
 					PrincipalID: "old-principal",
@@ -366,7 +369,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		newStatus := got[desiredKeys[0]]
 		require.NotNil(t, newStatus)
 		assert.Nil(t, newStatus.DeconfigureTimestamp)
-		assert.False(t, newStatus.Configured())
+		assert.False(t, coreapihelpers.RoleAssignmentStatusConfigured(newStatus))
 		require.NotNil(t, newStatus.TargetIdentity)
 		assert.Equal(t, desiredKeys[0].PrincipalID, newStatus.TargetIdentity.PrincipalID)
 	})
@@ -388,7 +391,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, got, key)
 		assert.Nil(t, got[key].DeconfigureTimestamp)
-		assert.True(t, got[key].Configured())
+		assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(got[key]))
 		require.NotNil(t, got[key].TargetIdentity)
 		assert.Equal(t, "dp-client-cp", got[key].TargetIdentity.ClientID)
 		assert.Equal(t, key.PrincipalID, got[key].TargetIdentity.PrincipalID)
@@ -401,7 +404,7 @@ func TestDesiredRoleAssignments(t *testing.T) {
 			key: {
 				AzureResource: testRoleAssignmentAzureResource(t),
 				TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
-					ResourceID:  "/subscriptions/sub/resourcegroups/old/providers/microsoft.managedidentity/userassignedidentities/cp",
+					ResourceID:  mustParseResourceID("/subscriptions/sub/resourcegroups/old/providers/microsoft.managedidentity/userassignedidentities/cp"),
 					ClientID:    "dp-client-cp",
 					TenantID:    "dp-tenant-cp",
 					PrincipalID: key.PrincipalID,
@@ -412,9 +415,9 @@ func TestDesiredRoleAssignments(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, got, key)
 		assert.Nil(t, got[key].DeconfigureTimestamp)
-		assert.True(t, got[key].Configured())
+		assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(got[key]))
 		require.NotNil(t, got[key].TargetIdentity)
-		assert.Equal(t, strings.ToLower(testControlPlaneIdentityID), got[key].TargetIdentity.ResourceID)
+		assert.True(t, controllerutil.ResourceIDsEqual(mustParseResourceID(testControlPlaneIdentityID), got[key].TargetIdentity.ResourceID))
 		assert.Equal(t, key.PrincipalID, got[key].TargetIdentity.PrincipalID)
 	})
 }
@@ -439,7 +442,7 @@ func TestRoleAssignmentIntentSyncOncePersistsDesiredKeys(t *testing.T) {
 	for _, key := range testDesiredRoleAssignmentKeys(t) {
 		require.Contains(t, updated.Status.RoleAssignmentsOverManagedResourceGroup, key)
 		assert.Nil(t, updated.Status.RoleAssignmentsOverManagedResourceGroup[key].DeconfigureTimestamp)
-		assert.False(t, updated.Status.RoleAssignmentsOverManagedResourceGroup[key].Configured())
+		assert.False(t, coreapihelpers.RoleAssignmentStatusConfigured(updated.Status.RoleAssignmentsOverManagedResourceGroup[key]))
 	}
 }
 
