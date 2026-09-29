@@ -6,7 +6,7 @@
       "name": "sys0703b3f",
       "spec": {
         "size": "Standard_D8ds_v6",
-        "family": "standardDDSv6Family",
+        "family": "StandardDdsv6Family",
         "vcpus": 8,
         "memoryBytes": 34359738368,
         "secondaryNICs": 2
