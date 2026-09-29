@@ -297,17 +297,22 @@ func formatTrace(tr trace) string {
 	}
 
 	fmt.Fprintln(w, "\nactions:")
+	if len(tr.Steps) > 0 {
+		fmt.Fprintln(w, "  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)")
+		fmt.Fprintln(w, "\n     #\taction\trole\tpool\tvm size\tchange\trole margin\tquota left")
+	}
 	prevState := tr.Initial
 	for i, step := range tr.Steps {
 		// Role isn't carried on the Action; look up the acted-on pool in the
 		// post-action state (create), falling back to the pre-action state
 		// (delete removes it from the post state).
 		role := roleOf(step.Action.poolName(), step.State, prevState)
-		action := fmt.Sprintf("  %3d.\t%s\t%s\t%s\t%s\t%s\t",
-			i+1, step.Action.kind(), role, step.Action.vmSize(), step.Action.poolName(), actionDetail(step.Action))
-		capacity := "floor: " + formatCapacity(step.CapacityFloor[role]) + "\tcapacity: " + formatCapacityAgainstFloor(step.Capacity[role], step.CapacityFloor[role])
-		delta := formatHeadroomDelta(step.HeadroomBefore, step.HeadroomAfter, families)
-		fmt.Fprintln(w, strings.TrimRight(action+capacity+"\t"+delta, "\t"))
+		line := fmt.Sprintf("  %4d\t%s\t%s\t%s\t%s\t%s\t%s\t",
+			i+1, step.Action.kind(), role, step.Action.poolName(), strings.TrimPrefix(step.Action.vmSize(), "Standard_"),
+			actionDetail(step.Action), formatMargin(step.Capacity[role], step.CapacityFloor[role]))
+		// Always emit the quota cell, even when empty: tabwriter aligns a
+		// column only across consecutive lines that all have it.
+		fmt.Fprintln(w, line+formatQuotaLeft(step.HeadroomBefore, step.HeadroomAfter, families))
 		prevState = step.State
 	}
 	if len(tr.Steps) == 0 {
@@ -327,30 +332,32 @@ func formatCapacity(capacity compute.RoleCapacity) string {
 	return fmt.Sprintf("cpu=%d\tmemory=%dGiB\tswiftNICs=%d", capacity.VCPUs, capacity.MemoryBytes>>30, capacity.SwiftNICs)
 }
 
-func formatCapacityAgainstFloor(capacity, floor compute.RoleCapacity) string {
-	return fmt.Sprintf("cpu=%d\t(%+d)\tmemory=%dGiB\t(%+dGiB)\tswiftNICs=%d\t(%+d)",
-		capacity.VCPUs, capacity.VCPUs-floor.VCPUs,
-		capacity.MemoryBytes>>30, (capacity.MemoryBytes-floor.MemoryBytes)>>30,
-		capacity.SwiftNICs, capacity.SwiftNICs-floor.SwiftNICs)
+// formatMargin renders how far capacity is above the floor, with fixed widths
+// so the vCPU, memory, and NIC margins line up across rows.
+func formatMargin(capacity, floor compute.RoleCapacity) string {
+	return fmt.Sprintf("%+5dc %+6dG %+5dn",
+		capacity.VCPUs-floor.VCPUs, (capacity.MemoryBytes-floor.MemoryBytes)>>30, capacity.SwiftNICs-floor.SwiftNICs)
 }
 
-func formatHeadroomDelta(before, after map[compute.VMFamily]int64, families []compute.VMFamily) string {
+// formatQuotaLeft lists the remaining vCPU quota of every family the action
+// changed.
+func formatQuotaLeft(before, after map[compute.VMFamily]int64, families []compute.VMFamily) string {
 	var parts []string
 	for _, family := range families {
 		if before[family] != after[family] {
-			parts = append(parts, fmt.Sprintf("%-8s %4dc remaining", shortFamily(family)+":", after[family]))
+			parts = append(parts, fmt.Sprintf("%s %dc", shortFamily(family), after[family]))
 		}
-	}
-
-	if len(parts) == 0 {
-		return ""
 	}
 	return strings.Join(parts, "  ")
 }
 
 func shortFamily(family compute.VMFamily) string {
 	name := string(family)
-	name = strings.TrimPrefix(name, "standard")
+	// Azure spells families both ways, e.g. standardEDSv5Family and
+	// StandardEdsv6Family.
+	if strings.HasPrefix(strings.ToLower(name), "standard") {
+		name = name[len("standard"):]
+	}
 	name = strings.TrimSuffix(name, "Family")
 	return name
 }
