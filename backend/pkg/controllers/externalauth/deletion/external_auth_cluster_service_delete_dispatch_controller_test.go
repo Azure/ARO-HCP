@@ -72,14 +72,18 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp)
 	}
 
-	verifyClusterServiceDeletionTimestampStamped := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-		t.Helper()
-		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
-			ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
-		require.NoError(t, err)
-		require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp, "expected ClusterServiceDeletionTimestamp to be stamped")
-		assert.True(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time.Equal(fixedClockTime),
-			"expected ClusterServiceDeletionTimestamp to equal fixedClockTime, got %v", stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time)
+	verifyDispatchComplete := func(wantAccepted bool) func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+		return func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+			t.Helper()
+			stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+				ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
+			require.NoError(t, err)
+			require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp, "expected ClusterServiceDeletionTimestamp to be stamped")
+			assert.True(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time.Equal(fixedClockTime),
+				"expected ClusterServiceDeletionTimestamp to equal fixedClockTime, got %v", stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time)
+			assert.Equal(t, wantAccepted, stored.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted,
+				"expected ClusterServiceExternalAuthDeleteAccepted=%v", wantAccepted)
+		}
 	}
 
 	testCases := []struct {
@@ -135,7 +139,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 				ea.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout - time.Second),
-			verifyDB:            verifyClusterServiceDeletionTimestampStamped,
+			verifyDB:            verifyDispatchComplete(false),
 		},
 		{
 			name: "when ClusterServiceID is set we trigger CS external auth deletion and set ClusterServiceDeletionTimestamp",
@@ -148,7 +152,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 					DeleteExternalAuth(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr))).
 					Return(nil)
 			},
-			verifyDB: verifyClusterServiceDeletionTimestampStamped,
+			verifyDB: verifyDispatchComplete(true),
 		},
 		{
 			name: "when CS external auth deletion returns 404 and first seen is within the missing cluster service id timeout no-op is performed",
@@ -174,7 +178,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 					DeleteExternalAuth(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr))).
 					Return(fakeOCMNotFoundError())
 			},
-			verifyDB: verifyClusterServiceDeletionTimestampStamped,
+			verifyDB: verifyDispatchComplete(false),
 		},
 		{
 			name: "when CS external auth deletion returns one of the not handled errors we propagate it without setting ClusterServiceDeletionTimestamp",
@@ -205,7 +209,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 					DeleteExternalAuth(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr))).
 					Return(parentClusterUninstallingErr)
 			},
-			verifyDB: verifyClusterServiceDeletionTimestampStamped,
+			verifyDB: verifyDispatchComplete(false),
 		},
 		{
 			name: "UsesNewExternalAuthDeletionApproach false -- no-op even when DeletionTimestamp is set",
@@ -392,6 +396,8 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeleti
 	require.NoError(t, err)
 	require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp)
 	assert.True(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time.Equal(fixedClockTime))
+	assert.True(t, stored.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted,
+		"expected ClusterServiceExternalAuthDeleteAccepted after accepted DELETE")
 }
 
 // newTestExternalAuthWithNewDeletionApproach creates a test external auth with the new

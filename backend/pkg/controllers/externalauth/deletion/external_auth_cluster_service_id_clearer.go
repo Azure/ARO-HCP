@@ -41,8 +41,9 @@ import (
 // request (ClusterServiceDeletionTimestamp is set). We poll
 // cluster-service for the ExternalAuth and zero out the stored
 // ClusterServiceID when CS returns 404, or when it still returns Ready
-// after DELETE was dispatched (CS does not transition some ExternalAuths
-// to 404, which otherwise deadlocks deletion).
+// after Cluster Service accepted DELETE (CS does not transition some
+// ExternalAuths to 404, which otherwise deadlocks deletion). Ready is not
+// treated as terminal when dispatch only observed parent-cluster uninstalling.
 type externalAuthClusterServiceIDClearer struct {
 	externalAuthLister   corelisters.ExternalAuthLister
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
@@ -73,9 +74,9 @@ func NewExternalAuthClusterServiceIDClearerController(
 }
 
 // NeedsWork reports whether this controller has unfinished business for the
-// given ExternalAuth: deletion has been started (DeletionTimestamp), the deleter
-// has already issued the CS delete (ClusterServiceDeletionTimestamp), and a
-// ClusterServiceID is still recorded that needs verification before clearing.
+// given ExternalAuth: deletion has been started (DeletionTimestamp), dispatch
+// has completed (ClusterServiceDeletionTimestamp), and a ClusterServiceID is
+// still recorded that needs verification before clearing.
 func (c *externalAuthClusterServiceIDClearer) NeedsWork(externalAuth *coreapi.ExternalAuth) bool {
 	// TODO temporary check to skip the new deletion approach for ExternalAuths that were created before the new approach was implemented.
 	// This will be removed once all externalauths whose deletion was triggered before the new approach is fully rolled out have been
@@ -91,7 +92,8 @@ func (c *externalAuthClusterServiceIDClearer) NeedsWork(externalAuth *coreapi.Ex
 
 // SyncOnce reads the ExternalAuth from cluster-service. ClusterServiceID is
 // cleared when cluster-service reports 404, or when it still reports Ready
-// after DELETE was dispatched. Uninstalling (and any other in-progress
+// after Cluster Service accepted DELETE. Ready after a parent-cluster
+// uninstalling 400 waits for 404. Uninstalling (and any other in-progress
 // state) means cluster-service is still processing; we retry on the next
 // sync.
 func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
@@ -133,11 +135,20 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 	}
 
 	if clusterServiceExternalAuthIsReady(csExternalAuth) {
+		if !externalAuth.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted {
+			// Dispatch stamped ClusterServiceDeletionTimestamp because the parent
+			// cluster is uninstalling (400); CS never accepted DELETE for this
+			// ExternalAuth. Wait for 404 rather than dropping the ID while CS
+			// still owns the object.
+			logger.Info("cluster-service ExternalAuth still Ready, DELETE was not accepted. Waiting for 404",
+				"clusterServiceID", csID.String())
+			return nil
+		}
 		// CS accepted DELETE but never leaves Ready / never 404s. Clearing the
 		// ID unblocks ExternalAuthDeletionController so the ARM operation can
 		// complete instead of waiting forever for a Cosmos delete that cannot
 		// happen while ClusterServiceID is still set.
-		logger.Info("cluster-service ExternalAuth still Ready after delete dispatch. Clearing ClusterServiceID",
+		logger.Info("cluster-service ExternalAuth still Ready after accepted delete. Clearing ClusterServiceID",
 			"clusterServiceID", csID.String())
 		return c.clearClusterServiceID(ctx, externalAuthCRUD, externalAuth)
 	}

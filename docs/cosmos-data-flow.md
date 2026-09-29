@@ -830,13 +830,13 @@ For a live resource with its Cluster Service ID, compares dispatchable customer 
 
 [Source](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_delete_dispatch_controller.go) · **Trigger:** ExternalAuth; 1m.
 
-Requires `UsesNewExternalAuthDeletionApproach`, deletion intent and no dispatch timestamp. Calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp`. A missing ID or external 404 waits up to 120s from first observed deletion to cover creation races; this is not a dispatch interval.
+Requires `UsesNewExternalAuthDeletionApproach`, deletion intent and no dispatch timestamp. Calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp`. `ClusterServiceExternalAuthDeleteAccepted` is set only when Cluster Service accepted DELETE; a parent-cluster uninstalling 400 stamps the timestamp without that flag. A missing ID or external 404 waits up to 120s from first observed deletion to cover creation races; this is not a dispatch interval.
 
 #### ExternalAuthDeletionClusterServiceIDClearer
 
 [Source](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_id_clearer.go) · **Trigger:** ExternalAuth; 1m.
 
-After delete dispatch, polls Cluster Service. A not-found result or a Ready state (Cluster Service sometimes never 404s after DELETE) clears `ServiceProviderProperties.ClusterServiceID`. Uninstalling waits; other errors retry.
+After delete dispatch, polls Cluster Service. A not-found result always clears `ServiceProviderProperties.ClusterServiceID`. Ready clears it only when Cluster Service accepted DELETE (Cluster Service sometimes never 404s after DELETE). Ready after parent-cluster uninstalling waits for 404. Uninstalling waits; other errors retry.
 
 #### ExternalAuthChildResourcesCleanupController
 
@@ -1494,6 +1494,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | `ServiceProviderProperties.DeletionTimestamp` and deletion-approach flags | Frontend stamps deletion intent; dispatch, cleanup and final deletion controllers consume it. Deletion timestamp alone does not mean external resources are gone. |
 | Cluster `PendingClusterServiceID` / `ClusterServiceID` | [Pending ID assignment](#clusterpendingclusterserviceidassign) reserves the ID. [Cluster creation](#clusterclusterservicecreate) confirms the external ID and clears pending. The [ID clearer](#clusterdeletionclusterserviceidclearer) clears confirmed ID only after external absence. Node-pool/external-auth create and clear controllers similarly share their confirmed-ID fields. |
 | `ClusterServiceDeletionTimestamp` | Each delete dispatcher stamps completion of dispatch/creation-race handling; cleanup also requires the confirmed ID cleared. It is not a timestamp of all Azure/Kubernetes deletion. |
+| External auth `ClusterServiceExternalAuthDeleteAccepted` | [ExternalAuthClusterServiceDeleteDispatch](#externalauthclusterservicedeletedispatch) sets this only when Cluster Service accepted DELETE. The [ID clearer](#externalauthdeletionclusterserviceidclearer) treats Ready as terminal only when this is true; parent-cluster uninstalling remains 404-only. |
 | Cluster `ClusterUID`, `BillingDocumentCosmosID`; Billing document `DeletionTime` | [BackfillClusterUID](#backfillclusteruid) repairs UID using billing as input. [CreateBillingDoc](#createbillingdoc) creates billing and links it. [ClusterDeletionController](#clusterdeletioncontroller) and [OrphanedBillingCleanup](#orphanedbillingcleanup) mark billing deleted. |
 | Cluster `ServiceProviderProperties.API.URL`, `.Console.URL`, `.DNS.BaseDomain`, `.Platform.IssuerURL` | [ClusterPropertiesSync](#clusterpropertiessync) writes observed values. Frontend clears supplied values on create rather than persisting them; updates preserve stored values. |
 | Cluster `Identity.UserAssignedIdentities` | Frontend supplies identity intent without create-body client/principal IDs; [ClusterIdentitySync](#clusteridentitysync) fills resolved identity fields. Updates preserve stored resolved values. Azure identities themselves are not created by that syncer. |

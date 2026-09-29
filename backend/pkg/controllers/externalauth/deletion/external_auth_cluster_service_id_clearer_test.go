@@ -45,6 +45,10 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 	}
+	withAcceptedCSDeleteExternalAuthOptsFunc := func(ea *coreapi.ExternalAuth) {
+		withDeletionStampsExternalAuthOptsFunc(ea)
+		ea.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted = true
+	}
 
 	verifyClusterServiceIDUnchanged := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
@@ -115,9 +119,9 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
-			name: "CS returns Ready after delete dispatch -- clear ClusterServiceID",
+			name: "CS returns Ready after accepted delete -- clear ClusterServiceID",
 			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.ExternalAuth) {
-				withDeletionStampsExternalAuthOptsFunc(ea)
+				withAcceptedCSDeleteExternalAuthOptsFunc(ea)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
@@ -131,6 +135,18 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 				assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "expected ClusterServiceID to be cleared")
 			},
+		},
+		{
+			name: "CS returns Ready after parent-cluster uninstall dispatch -- wait",
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.ExternalAuth) {
+				withDeletionStampsExternalAuthOptsFunc(ea)
+			}),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetExternalAuth(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr))).
+					Return(newCSExternalAuthWithState(t, string(operationbase.ExternalAuthStateReady)), nil)
+			},
+			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "CS returns 404 -- clear ClusterServiceID",
