@@ -39,9 +39,12 @@
     "@azure/ms-rest-js": {
       "uuid": "^14.0.0"
     },
-    "fast-uri": "^3.1.5",
+    "fast-uri": "^3.1.6",
     "@azure-tools/typespec-go": {
       "@azure-tools/typespec-client-generator-core": "$@azure-tools/typespec-client-generator-core"
-    }
+    },
+    "brace-expansion@>=5.0.0": "^5.0.9",
+    "js-yaml@^3": "^3.15.2",
+    "js-yaml@^4": "^4.3.2"
   }
 }
