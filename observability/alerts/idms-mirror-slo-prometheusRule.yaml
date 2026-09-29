@@ -79,7 +79,7 @@ spec:
     # Fast Burn Alert (IcM Sev 3 — RP lane / customer-facing UJ)
     # ----------------------------------------
     # 14.4x burn: >72% failures over 1h, at least 3 failures.
-    - alert: userJourneyIDMSMirrorErrorsFastBurn
+    - alert: userJourneyIDMSMirrorErrors1h5m
       expr: |
         errors:backend_cluster_update:failed_1h >= 3
         and
@@ -98,7 +98,7 @@ spec:
     # Medium Burn Alert (IcM Sev 3)
     # ----------------------------------------
     # 6x burn: >30% failures over 6h, at least 5 completions.
-    - alert: userJourneyIDMSMirrorErrorsMediumBurn
+    - alert: userJourneyIDMSMirrorErrors6h30m
       expr: |
         errors:backend_cluster_update:total_6h >= 5
         and
@@ -118,7 +118,7 @@ spec:
     # ----------------------------------------
     # Per ADR: slow burn alerts generate a ticket, not a page.
     # 1x burn: >5% failures over 3d, at least 10 completions and 2 failures.
-    - alert: userJourneyIDMSMirrorErrorsSlowBurn
+    - alert: userJourneyIDMSMirrorErrors3d
       expr: |
         errors:backend_cluster_update:total_3d >= 10
         and
@@ -137,7 +137,7 @@ spec:
     # ----------------------------------------
     # Note: there is deliberately no separate "degradation" precursor alert.
     # A >15% / 30m precursor was considered and rejected: above 30% it fires at
-    # exactly the same time as MediumBurn (same 30m 'for'), producing a Sev 4
+    # exactly the same time as Errors6h30m (same 30m 'for'), producing a Sev 4
     # ticket shadowing every Sev 3 page for one condition. Its only unique
-    # coverage was the 15-30% band, where SlowBurn already tickets at 6h.
+    # coverage was the 15-30% band, where Errors3d already tickets at 6h.
     # ----------------------------------------
