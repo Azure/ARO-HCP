@@ -250,7 +250,7 @@ func TestShadowSyncOnceReadOnly(t *testing.T) {
 			profile := syncOnceTestProfile()
 			azure := &shadowAzure{cluster: armcontainerservice.ManagedCluster{Properties: &armcontainerservice.ManagedClusterProperties{ProvisioningState: ptr.To("Succeeded")}}, limit: 100}
 			syncer := newShadowTestSyncer(t, azure, profile)
-			resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, syncer.usageFetcher(syncOnceTestSubscriptionID))
+			resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, nil, syncer.usageFetcher(syncOnceTestSubscriptionID))
 			require.NoError(t, err)
 			require.Len(t, resolved.Pools, 1)
 			properties := agentpoolspec.Build(resolved.Pools[0], compute.NetworkConfig{})
@@ -303,7 +303,7 @@ func TestShadowSyncOnceRefreshesLiveCapacity(t *testing.T) {
 	profile := syncOnceTestProfile()
 	azure := &shadowAzure{cluster: armcontainerservice.ManagedCluster{Properties: &armcontainerservice.ManagedClusterProperties{ProvisioningState: ptr.To("Succeeded")}}, limit: 12}
 	syncer := newShadowTestSyncer(t, azure, profile)
-	resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, syncer.usageFetcher(syncOnceTestSubscriptionID))
+	resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, nil, syncer.usageFetcher(syncOnceTestSubscriptionID))
 	require.NoError(t, err)
 	require.Len(t, resolved.Pools, 1)
 	properties := agentpoolspec.Build(resolved.Pools[0], compute.NetworkConfig{})
@@ -342,7 +342,7 @@ func TestShadowSyncOnceOptionalTierFailureStillProjects(t *testing.T) {
 
 	azure := &shadowAzure{cluster: armcontainerservice.ManagedCluster{Properties: &armcontainerservice.ManagedClusterProperties{ProvisioningState: ptr.To("Succeeded")}}, limit: 100}
 	syncer := newShadowTestSyncer(t, azure, profile)
-	resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, syncer.usageFetcher(syncOnceTestSubscriptionID))
+	resolved, err := compute.ResolveDesiredPools(testSyncOnceContext(), syncer.skuCache, syncOnceTestSubscriptionID, profile, syncer.zones, nil, syncer.usageFetcher(syncOnceTestSubscriptionID))
 	require.NoError(t, err)
 	require.Len(t, resolved.Pools, 1, "the required tier must allocate")
 	require.Len(t, resolved.Failures, 1)

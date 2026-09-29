@@ -1,0 +1,25 @@
+zones: 1,2,3,4
+
+tiers:
+  inf  infra  PerZone  pools=3  cores=32  maxNodes=4  initialMinNodes=0  osDisk=128GB  maxPods=225  swift=false  required=false  families=StandardEdsv6Family,standardEDSv5Family
+
+quota limits (vCPUs):
+  StandardEdsv6Family:  128
+  standardEDSv5Family:  416
+
+skus:
+  Standard_E32ds_v5  standardEDSv5Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1200GB  zones=2,3,4
+  Standard_E32ds_v6  StandardEdsv6Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1792GB  zones=1,2,3
+
+existing worker zones: 1,2,3
+
+fully allocated: true
+
+pools:
+  inf27dc270  infra  Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=2  min=1  max=3  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra  taints=infra=true:NoSchedule
+  inf20c182e  infra  Standard_E32ds_v5  cpu=32  memory=256GiB  nics=7  zone=2  min=1  max=1  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra  taints=infra=true:NoSchedule
+  inf30c182e  infra  Standard_E32ds_v5  cpu=32  memory=256GiB  nics=7  zone=3  min=1  max=4  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra  taints=infra=true:NoSchedule
+  inf40c182e  infra  Standard_E32ds_v5  cpu=32  memory=256GiB  nics=7  zone=4  min=1  max=4  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra  taints=infra=true:NoSchedule
+
+failures:
+  (none)

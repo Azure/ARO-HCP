@@ -117,6 +117,11 @@ func (idx EligibleSKUIndex) Lookup(family VMFamily, desiredCores int64) (string,
 // current usage. It returns the desired pools, failures for unallocated tiers,
 // and whether every tier reached its configured node target.
 //
+// workerZones are the zones of the cluster's existing worker pools. Etcd runs
+// on worker pools and its zonal disks cannot move, so a per-zone worker tier
+// must keep spanning every one of them; it adds the best remaining zones up to
+// PoolCount. Empty means the cluster has no worker pools yet.
+//
 // A per-family surge reservation is derived from processed tiers to ensure
 // enough headroom for AKS node pool upgrades (one surge node of the largest
 // SKU in each family). Each tier receives an available budget computed as
@@ -125,6 +130,7 @@ func ComputeDesiredPools(
 	logger logr.Logger,
 	tiers []TierConfig,
 	zones []string,
+	workerZones []string,
 	familyLimits map[VMFamily]int64,
 	skuIndex EligibleSKUIndex,
 ) ([]Pool, []AllocationFailure, bool) {
@@ -143,10 +149,14 @@ func ComputeDesiredPools(
 			available[family] = budget - consumed[family] - surge[family]
 		}
 
-		tierPools, tierFullyAllocated := allocateTier(logger, tier, zones, available, skuIndex)
+		var requiredZones []string
+		if tier.Role == PoolRoleWorker {
+			requiredZones = workerZones
+		}
+		tierPools, tierFullyAllocated := allocateTier(logger, tier, zones, requiredZones, available, skuIndex)
 		fullyAllocated = fullyAllocated && tierFullyAllocated
 		if len(tierPools) == 0 {
-			failures = append(failures, tierExhaustedFailure(tierIndex, tier, zones, skuIndex))
+			failures = append(failures, tierExhaustedFailure(tierIndex, tier, zones, requiredZones, skuIndex))
 			continue
 		}
 		for _, pool := range tierPools {
@@ -206,11 +216,13 @@ func familyAllocationOrder(tier TierConfig, zones []string, skuIndex EligibleSKU
 	return order
 }
 
-// allocateTier allocates pools for a single tier from the given per-family budgets.
+// allocateTier allocates pools for a single tier from the given per-family
+// budgets. requiredZones are zones a per-zone tier must span.
 func allocateTier(
 	logger logr.Logger,
 	tier TierConfig,
 	zones []string,
+	requiredZones []string,
 	budgets map[VMFamily]int64,
 	skuIndex EligibleSKUIndex,
 ) ([]Pool, bool) {
@@ -218,7 +230,7 @@ func allocateTier(
 	case PoolModeRegional:
 		return allocateRegionalTier(logger, tier, zones, budgets, skuIndex)
 	case PoolModePerZone:
-		return allocatePerZoneTier(logger, tier, zones, budgets, skuIndex)
+		return allocatePerZoneTier(logger, tier, zones, requiredZones, budgets, skuIndex)
 	default:
 		logger.Info("unknown pool mode, skipping tier", "poolMode", tier.PoolMode)
 		return nil, false
@@ -274,20 +286,22 @@ func allocateRegionalTier(
 // allocatePerZoneTier allocates zonal pools with the same node count in every
 // tier zone: MaxNodes, or fewer when quota runs short. Each family only serves
 // the tier zones its SKU is offered in, so a zone-restricted family still
-// fills the zones it can. The tier zones are the ones allowing the most nodes
-// per zone (see bestZones). Zones are filled one after another in family
-// priority order, so each family spans as few pools as possible.
+// fills the zones it can. The tier zones are every required zone plus the
+// remaining zones allowing the most nodes per zone (see bestZones). Zones are
+// filled one after another in family priority order, so each family spans as
+// few pools as possible.
 func allocatePerZoneTier(
 	logger logr.Logger,
 	tier TierConfig,
 	zones []string,
+	requiredZones []string,
 	budgets map[VMFamily]int64,
 	skuIndex EligibleSKUIndex,
 ) ([]Pool, bool) {
 	// PoolCount is the number of zones, clamped to the number of zones
 	// available (a 3-pool tier on 2 zones yields 2).
 	zoneCount := min(tier.PoolCount, len(zones))
-	if zoneCount == 0 {
+	if zoneCount == 0 && len(requiredZones) == 0 {
 		return nil, false
 	}
 
@@ -304,7 +318,7 @@ func allocatePerZoneTier(
 		familiesWithQuota = append(familiesWithQuota, familyQuota{meta: meta, quotaNodes: quotaNodes})
 	}
 
-	tierZones, nodesPerZone := bestZones(familiesWithQuota, zones, zoneCount, tier.MaxNodes)
+	tierZones, nodesPerZone := bestZones(familiesWithQuota, zones, requiredZones, zoneCount, tier.MaxNodes)
 
 	zoneNodesNeeded := make(map[string]int64, len(tierZones))
 	for _, zone := range tierZones {
@@ -338,7 +352,7 @@ func allocatePerZoneTier(
 			})
 		}
 	}
-	return pools, len(pools) > 0 && nodesPerZone == tier.MaxNodes
+	return pools, len(pools) > 0 && nodesPerZone == tier.MaxNodes && len(tierZones) >= zoneCount
 }
 
 // familyQuota is a family's SKU for a tier and the number of nodes of that SKU
@@ -348,21 +362,40 @@ type familyQuota struct {
 	quotaNodes int64
 }
 
-// bestZones returns the zoneCount zones that allow the most nodes per zone,
-// and that node count. Ties keep the earliest zones in the given order, so
-// equally good choices never move the tier.
-func bestZones(familiesWithQuota []familyQuota, zones []string, zoneCount int, maxNodes int64) ([]string, int64) {
+// bestZones returns the tier zones, every required zone plus the remaining
+// zones up to zoneCount that allow the most nodes per zone, and that node
+// count. Ties keep the earliest zones in the given order.
+func bestZones(familiesWithQuota []familyQuota, zones, requiredZones []string, zoneCount int, maxNodes int64) ([]string, int64) {
+	var optionalZones []string
+	for _, zone := range zones {
+		if !slices.Contains(requiredZones, zone) {
+			optionalZones = append(optionalZones, zone)
+		}
+	}
 	var (
 		bestTierZones    []string
 		bestNodesPerZone int64 = -1
 	)
-	for _, candidateZones := range combinations(zones, zoneCount) {
+	for _, extraZones := range combinations(optionalZones, max(zoneCount-len(requiredZones), 0)) {
+		candidateZones := append(slices.Clone(requiredZones), extraZones...)
+		// Fill zones in the given order, whether required or not.
+		slices.SortStableFunc(candidateZones, func(a, b string) int {
+			return zoneIndex(zones, a) - zoneIndex(zones, b)
+		})
 		nodesPerZone := maxNodesPerZone(familiesWithQuota, candidateZones, maxNodes)
 		if nodesPerZone > bestNodesPerZone {
 			bestTierZones, bestNodesPerZone = candidateZones, nodesPerZone
 		}
 	}
 	return bestTierZones, bestNodesPerZone
+}
+
+// zoneIndex returns the zone's position in zones, or len(zones) when absent.
+func zoneIndex(zones []string, zone string) int {
+	if index := slices.Index(zones, zone); index >= 0 {
+		return index
+	}
+	return len(zones)
 }
 
 // maxNodesPerZone returns the largest node count, up to maxNodes, that every
@@ -459,8 +492,9 @@ func tierSKU(logger logr.Logger, tier TierConfig, family VMFamily, skuIndex Elig
 
 // tierExhaustedFailure creates an AllocationFailure for a tier that couldn't
 // allocate any pools, classifying why: empty family list, no eligible SKU, no
-// SKU available in enough zones, or insufficient quota.
-func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, skuIndex EligibleSKUIndex) AllocationFailure {
+// SKU available in enough zones or in every required zone, or insufficient
+// quota.
+func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, requiredZones []string, skuIndex EligibleSKUIndex) AllocationFailure {
 	reason := "InsufficientQuota"
 	message := fmt.Sprintf("tier %d (%d cores): the families' quota does not cover at least one node per zone", tierIndex, tier.Cores)
 	if tier.PoolMode == PoolModeRegional {
@@ -471,6 +505,7 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, skuInd
 		reason = "NoEligibleFamily"
 		message = fmt.Sprintf("tier %d (%d cores): family priority list is empty", tierIndex, tier.Cores)
 	} else {
+		zonesNeeded := max(min(tier.PoolCount, len(zones)), len(requiredZones))
 		hasEligible := false
 		offeredZones := make(map[string]bool)
 		for _, family := range tier.FamilyPriority {
@@ -483,13 +518,22 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, skuInd
 				offeredZones[zone] = true
 			}
 		}
+		var uncoveredRequiredZones []string
+		for _, zone := range requiredZones {
+			if !offeredZones[zone] {
+				uncoveredRequiredZones = append(uncoveredRequiredZones, zone)
+			}
+		}
 		// Regional pools set no zones. A zonal tier needs its zones covered by
 		// the eligible families together.
-		hasZoneCoverage := tier.PoolMode != PoolModePerZone || len(offeredZones) >= min(tier.PoolCount, len(zones))
+		hasZoneCoverage := tier.PoolMode != PoolModePerZone || len(offeredZones) >= zonesNeeded
 		switch {
 		case !hasEligible:
 			reason = "NoEligibleSKU"
 			message = fmt.Sprintf("tier %d (%d cores): no family has an eligible SKU with exactly %d vCPUs (unrestricted in region, unconstrained vCPUs, ephemeral OS disk of at least %d GB)", tierIndex, tier.Cores, tier.Cores, tier.OSDiskSizeGB)
+		case tier.PoolMode == PoolModePerZone && len(uncoveredRequiredZones) > 0:
+			reason = "NoZoneCoverage"
+			message = fmt.Sprintf("tier %d (%d cores): the eligible families' SKUs are not offered in existing worker zones %s", tierIndex, tier.Cores, strings.Join(uncoveredRequiredZones, ","))
 		case !hasZoneCoverage:
 			reason = "NoZoneCoverage"
 			message = fmt.Sprintf("tier %d (%d cores): the eligible families' SKUs are not offered in enough zones", tierIndex, tier.Cores)

@@ -155,7 +155,7 @@ func TestResolveDesiredPools(t *testing.T) {
 				return tt.quotaUsage, tt.quotaErr
 			}
 
-			result, err := ResolveDesiredPools(utils.ContextWithLogger(context.Background(), logr.Discard()), skuCache, resolveTestSubscriptionID, testProfile(), allZones, fetchQuotaUsage)
+			result, err := ResolveDesiredPools(utils.ContextWithLogger(context.Background(), logr.Discard()), skuCache, resolveTestSubscriptionID, testProfile(), allZones, nil, fetchQuotaUsage)
 
 			assert.Equal(t, tt.wantQuotaCalls, quotaCalls, "unexpected number of quota fetches")
 			if len(tt.wantErrContains) > 0 {
@@ -240,7 +240,7 @@ func TestResolveDesiredPools_LocationRestrictions(t *testing.T) {
 					profile.Tiers[0].FamilyPriority = []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}
 					result, err := ResolveDesiredPools(
 						utils.ContextWithLogger(context.Background(), logr.Discard()),
-						cache, resolveTestSubscriptionID, profile, allZones,
+						cache, resolveTestSubscriptionID, profile, allZones, nil,
 						func(context.Context, sets.Set[VMFamily]) (map[VMFamily]QuotaUsage, error) {
 							return map[VMFamily]QuotaUsage{
 								"StandardEdsv6Family": {Limit: 1000},
@@ -314,7 +314,7 @@ func TestResolveDesiredPools_UsageDoesNotChangeDesiredPools(t *testing.T) {
 				BudgetStrategy: SubscriptionQuotaBudget,
 			}
 			result, err := ResolveDesiredPools(utils.ContextWithLogger(context.Background(), logr.Discard()), skuCache,
-				resolveTestSubscriptionID, profile, []string{"1", "2", "3"},
+				resolveTestSubscriptionID, profile, []string{"1", "2", "3"}, nil,
 				func(context.Context, sets.Set[VMFamily]) (map[VMFamily]QuotaUsage, error) {
 					return map[VMFamily]QuotaUsage{
 						"StandardEdsv6Family": {Limit: 128, CurrentValue: tt.currentUsage},
@@ -381,7 +381,7 @@ func TestResolveDesiredPools_Scenario(t *testing.T) {
 			require.True(t, ok, "profile %q must exist", tt.profile)
 
 			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-			result, err := ResolveDesiredPools(ctx, skuCache, scenarioSubscriptionID, profile, allZones, fetchQuotaUsage)
+			result, err := ResolveDesiredPools(ctx, skuCache, scenarioSubscriptionID, profile, allZones, nil, fetchQuotaUsage)
 			require.NoError(t, err, "resolving desired pools")
 
 			// Quota limits as the planner sees them: only the profile's families.
