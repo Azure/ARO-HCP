@@ -23,7 +23,10 @@ initial capacity:
 rejected desired plan: worker capacity {VCPUs:40 MemoryGiB:160 SwiftNICs:20} is below protected baseline {VCPUs:60 MemoryGiB:240 SwiftNICs:30}
 
 actions:
-    1.  Create  worker  sku  new  min=0   max=5  floor: cpu=40  memory=160GiB  swiftNICs=20  capacity: cpu=60  (+20)  memory=240GiB  (+80GiB)  swiftNICs=30  (+10)  family:     0c remaining
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action  role    pool  vm size  change         role margin            quota left
+     1  Create  worker  new   sku      min=0   max=5    +20c    +80G   +10n  family 0c
 
 steps:      1
 converged:  false

@@ -21,7 +21,10 @@ initial capacity:
   worker:  cpu=40  memory=160GiB  swiftNICs=20
 
 actions:
-    1.  Create  worker  sku  new  min=0   max=10  floor: cpu=40  memory=160GiB  swiftNICs=20  capacity: cpu=80  (+40)  memory=320GiB  (+160GiB)  swiftNICs=40  (+20)  family:     0c remaining
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action  role    pool  vm size  change          role margin            quota left
+     1  Create  worker  new   sku      min=0   max=10    +40c   +160G   +20n  family 0c
 
 steps:      1
 converged:  false

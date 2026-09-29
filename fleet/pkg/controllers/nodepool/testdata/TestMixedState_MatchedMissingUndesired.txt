@@ -28,17 +28,20 @@ initial capacity:
   worker:  cpu=240  memory=1728GiB  swiftNICs=54
 
 actions:
-    1.  Create            worker  Standard_D8ds_v6  d1  min=1   max=4  floor: cpu=224  memory=1728GiB  swiftNICs=54  capacity: cpu=272  (+48)  memory=1984GiB  (+256GiB)  swiftNICs=66  (+12)  StandardDdsv6:    0c remaining
-    2.  SetScalingBounds  worker  Standard_D4s_v3   b1  min=1   max=2  floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=256  (+32)  memory=1920GiB  (+128GiB)  swiftNICs=62  (+8)   DSv3:      32c remaining
-    3.  SetScalingBounds  worker  Standard_D4s_v3   c1  min=1   max=2  floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=240  (+16)  memory=1856GiB  (+64GiB)   swiftNICs=58  (+4)   DSv3:      48c remaining
-    4.  Freeze            worker  Standard_D4s_v3   b1  count=2        floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=240  (+16)  memory=1856GiB  (+64GiB)   swiftNICs=58  (+4)
-    5.  Freeze            worker  Standard_D4s_v3   c1  count=2        floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=240  (+16)  memory=1856GiB  (+64GiB)   swiftNICs=58  (+4)
-    6.  Reduce            worker  Standard_D4s_v3   b1  count=1        floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=236  (+12)  memory=1840GiB  (+48GiB)   swiftNICs=57  (+3)  DSv3:      52c remaining
-    7.  Reduce            worker  Standard_D4s_v3   b1  count=0        floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=232  (+8)   memory=1824GiB  (+32GiB)   swiftNICs=56  (+2)  DSv3:      56c remaining
-    8.  Reduce            worker  Standard_D4s_v3   c1  count=1        floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=228  (+4)   memory=1808GiB  (+16GiB)   swiftNICs=55  (+1)  DSv3:      60c remaining
-    9.  Reduce            worker  Standard_D4s_v3   c1  count=0        floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=224  (+0)   memory=1792GiB  (+0GiB)    swiftNICs=54  (+0)  DSv3:      64c remaining
-   10.  Delete            worker  Standard_D4s_v3   b1                 floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=224  (+0)   memory=1792GiB  (+0GiB)    swiftNICs=54  (+0)
-   11.  Delete            worker  Standard_D4s_v3   c1                 floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=224  (+0)   memory=1792GiB  (+0GiB)    swiftNICs=54  (+0)
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action            role    pool  vm size  change         role margin            quota left
+     1  Create            worker  d1    D8ds_v6  min=1   max=4    +48c   +256G   +12n  Ddsv6 0c
+     2  SetScalingBounds  worker  b1    D4s_v3   min=1   max=2    +32c   +128G    +8n  DSv3 32c
+     3  SetScalingBounds  worker  c1    D4s_v3   min=1   max=2    +16c    +64G    +4n  DSv3 48c
+     4  Freeze            worker  b1    D4s_v3   count=2          +16c    +64G    +4n
+     5  Freeze            worker  c1    D4s_v3   count=2          +16c    +64G    +4n
+     6  Reduce            worker  b1    D4s_v3   count=1          +12c    +48G    +3n  DSv3 52c
+     7  Reduce            worker  b1    D4s_v3   count=0           +8c    +32G    +2n  DSv3 56c
+     8  Reduce            worker  c1    D4s_v3   count=1           +4c    +16G    +1n  DSv3 60c
+     9  Reduce            worker  c1    D4s_v3   count=0           +0c     +0G    +0n  DSv3 64c
+    10  Delete            worker  b1    D4s_v3                     +0c     +0G    +0n
+    11  Delete            worker  c1    D4s_v3                     +0c     +0G    +0n
 
 steps:      11
 converged:  true
