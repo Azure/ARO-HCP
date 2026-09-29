@@ -24,9 +24,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
@@ -58,11 +61,18 @@ func TestMinorUpgradeNormalDesiredVersionNeedsWork(t *testing.T) {
 
 func TestMinorUpgradeNormalDesiredVersion(t *testing.T) {
 	for _, tc := range []struct {
-		name, requested, desired, want                 string
-		missingRollout, missingBest, concurrent, retry bool
-		pinned, experimental                           bool
+		name, requested, desired, want                        string
+		missingRollout, missingBest, concurrent, retry        bool
+		pinned, experimental                                  bool
+		nodePoolVersion, activeNodePoolVersion, errorContains string
+		deletingNodePool, missingNodePoolState                bool
 	}{
 		{name: "select requested minor best despite rollout failure", requested: "4.22", desired: "4.21.6", want: "4.22.8"},
+		{name: "node pool at N-2 permits upgrade", requested: "4.22", desired: "4.21.6", want: "4.22.8", nodePoolVersion: "4.20.9", activeNodePoolVersion: "4.20.9"},
+		{name: "requested node pool version blocks upgrade", requested: "4.22", desired: "4.21.6", want: "4.21.6", nodePoolVersion: "4.19.9", activeNodePoolVersion: "4.20.9", errorContains: "more than two minor versions ahead"},
+		{name: "observed node pool version blocks upgrade", requested: "4.22", desired: "4.21.6", want: "4.21.6", nodePoolVersion: "4.20.9", activeNodePoolVersion: "4.19.9", errorContains: "more than two minor versions ahead"},
+		{name: "deleting node pool still blocks upgrade", requested: "4.22", desired: "4.21.6", want: "4.21.6", nodePoolVersion: "4.19.9", activeNodePoolVersion: "4.19.9", deletingNodePool: true, errorContains: "more than two minor versions ahead"},
+		{name: "missing node pool state blocks upgrade", requested: "4.22", desired: "4.21.6", want: "4.21.6", nodePoolVersion: "4.20.9", missingNodePoolState: true, errorContains: "failed to get service provider state"},
 		{name: "requested patch selects channel best", requested: "4.22.1", desired: "4.21.6", want: "4.22.8"},
 		{name: "same minor unchanged", requested: "4.21.9", desired: "4.21.6", want: "4.21.6"},
 		{name: "missing desired belongs to initial controller", requested: "4.22"},
@@ -87,7 +97,27 @@ func TestMinorUpgradeNormalDesiredVersion(t *testing.T) {
 			if tc.experimental {
 				cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = v("4.21.6")
 			}
-			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+			resources := []any{cluster, serviceProviderCluster}
+			if tc.nodePoolVersion != "" {
+				id, err := coreapihelpers.ToNodePoolResourceID(testSubscriptionID, testResourceGroupName, "c1", "workers")
+				require.NoError(t, err)
+				nodePool := coreapi.NewDefaultNodePool(id, "eastus")
+				nodePool.CosmosMetadata = coreapi.CosmosMetadata{ResourceID: id, PartitionKey: testSubscriptionID}
+				nodePool.Properties.Version.ID = tc.nodePoolVersion
+				if tc.deletingNodePool {
+					deletionTime := metav1.NewTime(now)
+					nodePool.ServiceProviderProperties.DeletionTimestamp = &deletionTime
+				}
+				resources = append(resources, nodePool)
+				if !tc.missingNodePoolState {
+					providerID, err := azcorearm.ParseResourceID(coreapihelpers.ToServiceProviderNodePoolResourceIDString(testSubscriptionID, testResourceGroupName, "c1", "workers"))
+					require.NoError(t, err)
+					provider := &coreapi.ServiceProviderNodePool{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: providerID, PartitionKey: testSubscriptionID}}
+					provider.Status.NodePoolVersion.ActiveVersions = []coreapi.ServiceProviderNodePoolActiveVersion{{Version: v(tc.activeNodePoolVersion)}}
+					resources = append(resources, provider)
+				}
+			}
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 			rollout := newTestRollout("fast-4.22", v("4.22.8"), fleetapi.ControlPlaneVersionRolloutStatus{
 				FailedClusterCountByDesiredExactVersion: map[string]int64{"4.22.8": 100},
@@ -105,8 +135,10 @@ func TestMinorUpgradeNormalDesiredVersion(t *testing.T) {
 			retryQueue := &initialVersionRetryQueue{}
 			syncer := &minorUpgradeNormalClusterDesiredVersionSyncer{
 				clock: clocktesting.NewFakeClock(now), resourcesDBClient: db, rolloutLister: rolloutLister, enqueueAfter: retryQueue,
-				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: db},
-				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: db},
+				clusterLister:                 &corelistertesting.DBClusterLister{ResourcesDBClient: db},
+				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: db},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: db},
+				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: db},
 			}
 			crud := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, "c1")
 			before, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
@@ -119,7 +151,9 @@ func TestMinorUpgradeNormalDesiredVersion(t *testing.T) {
 				require.NoError(t, err)
 			}
 			key := controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: "c1"}
-			if tc.requested == "invalid" {
+			if tc.errorContains != "" {
+				require.ErrorContains(t, syncer.SyncOnce(ctx, key), tc.errorContains)
+			} else if tc.requested == "invalid" {
 				require.ErrorContains(t, syncer.SyncOnce(ctx, key), "cannot determine requested channel")
 			} else {
 				require.NoError(t, syncer.SyncOnce(ctx, key))
@@ -144,7 +178,9 @@ func TestMinorUpgradeNormalDesiredVersion(t *testing.T) {
 				require.NotNil(t, current.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime)
 				require.True(t, now.Equal(current.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime.Time))
 			}
-			if tc.requested == "invalid" {
+			if tc.errorContains != "" {
+				require.ErrorContains(t, syncer.SyncOnce(ctx, key), tc.errorContains)
+			} else if tc.requested == "invalid" {
 				require.ErrorContains(t, syncer.SyncOnce(ctx, key), "cannot determine requested channel")
 			} else {
 				require.NoError(t, syncer.SyncOnce(ctx, key))

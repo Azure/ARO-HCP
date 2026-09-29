@@ -19,7 +19,7 @@
 //     y-stream channel from the upgrade graph and SRE minimum-version floor.
 //   - Status Collector (per rollout): aggregates per-cluster progress into the
 //     rollout Status count maps.
-//   - Normal Cluster Desired Version Assignment (per rollout): advances eligible
+//   - Z-stream Progressive Desired Version Rollout (per rollout): advances eligible
 //     clusters toward Spec.BestExactVersion using a canary then rolling strategy,
 //     bounded by a failure budget.
 //   - Forced Cluster Desired Version Assignment (per cluster): holds an

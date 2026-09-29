@@ -36,7 +36,9 @@ const InitialNormalClusterDesiredVersionControllerName = "InitialNormalClusterDe
 
 // initialNormalClusterDesiredVersionSyncer initializes a cluster's desired
 // version from its requested channel, without progressive rollout gates or writes
-// to ControlPlaneVersionRollout conditions.
+// to ControlPlaneVersionRollout conditions. New assignments require no SRE pin
+// or experimental exact-version override; those belong to forced assignment.
+// Missing legacy transition timestamps are backfilled without changing the version.
 type initialNormalClusterDesiredVersionSyncer struct {
 	clock                        utilsclock.PassiveClock
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
@@ -103,6 +105,7 @@ func (c *initialNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context,
 		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
 	if hasForcedVersion(cluster, serviceProviderCluster) {
+		logger.Info("Leaving initial desired version to forced assignment; pin or experimental exact version is set")
 		return nil
 	}
 	yStreamChannel, ok := clusterYStreamChannel(cluster)

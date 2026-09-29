@@ -61,12 +61,12 @@ type ControlPlaneVersionRolloutSpec struct {
 type ControlPlaneVersionRolloutStatus struct {
 	// LastAssignmentTime reserves an assignment batch before any cluster writes.
 	// It enforces a minimum interval between batches, including after restarts.
-	// Written by: NormalClusterDesiredVersion
+	// Written by: ZStreamProgressiveDesiredVersionRollout
 	LastAssignmentTime *metav1.Time `json:"lastAssignmentTime,omitempty"`
 
 	// Conditions tracks the rollout's progression. Known condition types:
 	// "Progressing" (rollout is advancing), "Degraded" (failure budget exceeded).
-	// Written by: NormalClusterDesiredVersion
+	// Written by: ZStreamProgressiveDesiredVersionRollout
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// ClusterCountByDesiredExactVersion counts clusters whose

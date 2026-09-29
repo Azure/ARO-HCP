@@ -41,8 +41,8 @@ import (
 	clusterupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/update"
 	clustervalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/validation"
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version/rollout"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/versionrollout"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 )
 
@@ -1093,16 +1093,16 @@ func instantiateMinorUpgradeNormalClusterDesiredVersionController(controllerCont
 	), nil
 }
 
-func registerNormalClusterDesiredVersionController() controllerconfig.ControllerRegistration {
+func registerZStreamProgressiveDesiredVersionRolloutController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateNormalClusterDesiredVersionController, false),
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateZStreamProgressiveDesiredVersionRolloutController, false),
 	}
 }
 
-func instantiateNormalClusterDesiredVersionController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+func instantiateZStreamProgressiveDesiredVersionRolloutController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 
-	return versionrollout.NewNormalClusterDesiredVersionController(
+	return versionrollout.NewZStreamProgressiveDesiredVersionRolloutController(
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		controllerContext.FleetDBClient,
@@ -1153,7 +1153,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(versionrollout.StatusCollectorControllerName)] = registerStatusCollectorController()
 	registry[strings.ToLower(versionrollout.InitialNormalClusterDesiredVersionControllerName)] = registerInitialNormalClusterDesiredVersionController()
 	registry[strings.ToLower(versionrollout.MinorUpgradeNormalClusterDesiredVersionControllerName)] = registerMinorUpgradeNormalClusterDesiredVersionController()
-	registry[strings.ToLower(versionrollout.NormalClusterDesiredVersionControllerName)] = registerNormalClusterDesiredVersionController()
+	registry[strings.ToLower(versionrollout.ZStreamProgressiveDesiredVersionRolloutControllerName)] = registerZStreamProgressiveDesiredVersionRolloutController()
 	registry[strings.ToLower(versionrollout.ForcedClusterDesiredVersionControllerName)] = registerForcedClusterDesiredVersionController()
 	registry[strings.ToLower(versionrollout.RolloutSeedingControllerName)] = registerControlPlaneVersionRolloutSeedingController()
 	registry[strings.ToLower(legacycredentialrequest.DispatchRequestCredentialControllerName)] = registerDispatchRequestCredentialController()

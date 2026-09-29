@@ -42,8 +42,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// NormalClusterDesiredVersionControllerName is the single source of the name.
-const NormalClusterDesiredVersionControllerName = "NormalClusterDesiredVersion"
+// ZStreamProgressiveDesiredVersionRolloutControllerName is the single source of the name.
+const ZStreamProgressiveDesiredVersionRolloutControllerName = "ZStreamProgressiveDesiredVersionRollout"
 
 // Rollout status condition types written by this controller.
 const (
@@ -61,11 +61,11 @@ const (
 	failureBudgetFraction = 0.05
 )
 
-// normalClusterDesiredVersionSyncer implements the Normal Cluster Desired Version
-// Assignment controller (design §5.5). For one rollout channel it advances a
+// zStreamProgressiveDesiredVersionRolloutSyncer implements the z-stream progressive
+// desired-version rollout controller (docs/controllers/fleet-control-plane-version-rollout-implementation-plan.md, §5.5). For one rollout channel it advances a
 // bounded set of eligible clusters toward Spec.BestExactVersion using a canary
 // then rolling strategy, guarded by the failure budget.
-type normalClusterDesiredVersionSyncer struct {
+type zStreamProgressiveDesiredVersionRolloutSyncer struct {
 	clock                        utilsclock.PassiveClock
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	rolloutLister                fleetlisters.ControlPlaneVersionRolloutLister
@@ -77,17 +77,17 @@ type normalClusterDesiredVersionSyncer struct {
 	enqueueAfter                 controllerutils.AfterEnqueuer
 }
 
-// NewNormalClusterDesiredVersionController wires the syncer into a rollout
+// NewZStreamProgressiveDesiredVersionRolloutController wires the syncer into a rollout
 // watching controller, with filtered cluster and ServiceProviderCluster watches
 // for candidate channels. selector defaults to RandomClusterSelector when nil.
-func NewNormalClusterDesiredVersionController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, informers coreinformers.BackendInformers, selector ClusterSelector, config RolloutConfig) controllerutils.Controller {
+func NewZStreamProgressiveDesiredVersionRolloutController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, informers coreinformers.BackendInformers, selector ClusterSelector, config RolloutConfig) controllerutils.Controller {
 	if selector == nil {
 		selector = RandomClusterSelector{}
 	}
 	_, rolloutLister := fleetInformers.ControlPlaneVersionRollouts()
 	clusterInformer, clusterLister := informers.Clusters()
 	serviceProviderClusterInformer, serviceProviderClusterLister := informers.ServiceProviderClusters()
-	syncer := &normalClusterDesiredVersionSyncer{
+	syncer := &zStreamProgressiveDesiredVersionRolloutSyncer{
 		clock:                        clock,
 		resourcesDBClient:            resourcesDBClient,
 		rolloutLister:                rolloutLister,
@@ -98,7 +98,7 @@ func NewNormalClusterDesiredVersionController(clock utilsclock.PassiveClock, res
 		config:                       config,
 	}
 	controller := controllerutils.NewControlPlaneVersionRolloutWatchingController(
-		NormalClusterDesiredVersionControllerName, fleetInformers, 5*time.Minute, syncer)
+		ZStreamProgressiveDesiredVersionRolloutControllerName, fleetInformers, 5*time.Minute, syncer)
 	syncer.enqueueAfter = controller
 	if err := syncer.watchVersionCandidates(clusterInformer, serviceProviderClusterInformer, controller); err != nil {
 		panic(err) // coding error
@@ -108,7 +108,7 @@ func NewNormalClusterDesiredVersionController(clock utilsclock.PassiveClock, res
 
 // CooldownChecker returns nil: SyncOnce checks a persisted assignment cooldown,
 // including for changed-resource notifications that bypass the queue cooldown.
-func (c *normalClusterDesiredVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
+func (c *zStreamProgressiveDesiredVersionRolloutSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return nil
 }
 
@@ -130,6 +130,9 @@ func eligibleClusters(serviceProviderClusters []*coreapi.ServiceProviderCluster,
 		desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
 		// Initial assignment owns uninitialized clusters. Their active minor may
 		// differ from the requested minor, so this rollout must not initialize them.
+		// MinorUpgradeNormalClusterDesiredVersion owns requested minor changes.
+		// This channel handles only z-stream advances; desired at or above best
+		// already needs no progressive assignment.
 		if desired == nil || !desired.LT(best) {
 			continue
 		}
@@ -150,7 +153,7 @@ func eligibleClusters(serviceProviderClusters []*coreapi.ServiceProviderCluster,
 // (lowercased) whose experimental exact version or Immediate policy is set.
 // The forced assignment controller owns these clusters, so normal rollout
 // excludes them from eligibility.
-func (c *normalClusterDesiredVersionSyncer) clustersWithExperimentalAssignment(ctx context.Context) (map[string]bool, error) {
+func (c *zStreamProgressiveDesiredVersionRolloutSyncer) clustersWithExperimentalAssignment(ctx context.Context) (map[string]bool, error) {
 	clusters, err := c.clusterLister.List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Clusters: %w", err)
@@ -245,17 +248,8 @@ func rolloutDecision(rollout *fleetapi.ControlPlaneVersionRollout, totalClusters
 
 // SyncOnce advances clusters for one rollout channel and records the rollout
 // condition.
-func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) (syncErr error) {
-	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key).WithValues(utils.LogValues{}.AddControllerName(NormalClusterDesiredVersionControllerName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("Starting version rollout sync")
-	defer func() {
-		if syncErr != nil {
-			logger.Error(syncErr, "Version rollout sync failed")
-		} else {
-			logger.Info("Finished version rollout sync")
-		}
-	}()
+func (c *zStreamProgressiveDesiredVersionRolloutSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) error {
+	logger := utils.LoggerFromContext(ctx)
 
 	rollout, err := c.rolloutLister.Get(ctx, key.YStreamChannel)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -396,7 +390,7 @@ func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 
 // assignDesiredVersion sets a single cluster's desired version to best, recording
 // the transition time.
-func (c *normalClusterDesiredVersionSyncer) assignDesiredVersion(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster, best semver.Version, now metav1.Time) error {
+func (c *zStreamProgressiveDesiredVersionRolloutSyncer) assignDesiredVersion(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster, best semver.Version, now metav1.Time) error {
 	logger := utils.LoggerFromContext(ctx).WithValues("resourceID", serviceProviderCluster.ResourceID, "desiredVersion", best.String())
 	logger.Info("Assigning desired version", "previousDesiredVersion", versionString(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion), "previousTransitionTime", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime, "transitionTime", now)
 	subscription, resourceGroup, cluster, ok := serviceProviderClusterCoords(serviceProviderCluster)
@@ -419,7 +413,7 @@ func (c *normalClusterDesiredVersionSyncer) assignDesiredVersion(ctx context.Con
 // recordCondition writes the rollout's Progressing/Degraded conditions from the
 // decision, skipping the write when nothing changed. A non-nil syncErr forces
 // Degraded to true regardless of the decision.
-func (c *normalClusterDesiredVersionSyncer) recordCondition(ctx context.Context, rollout *fleetapi.ControlPlaneVersionRollout, decision rolloutDecisionResult, syncErr error) error {
+func (c *zStreamProgressiveDesiredVersionRolloutSyncer) recordCondition(ctx context.Context, rollout *fleetapi.ControlPlaneVersionRollout, decision rolloutDecisionResult, syncErr error) error {
 	replacement := rollout.DeepCopy()
 
 	progressing := metav1.ConditionFalse

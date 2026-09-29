@@ -38,7 +38,7 @@ import (
 const StatusCollectorControllerName = "ControlPlaneVersionStatusCollector"
 
 // statusCollectorSyncer implements the Control Plane Version Status Collector
-// controller (design §5.3). For one rollout channel it aggregates per-cluster
+// controller (docs/controllers/fleet-control-plane-version-rollout-implementation-plan.md, §5.3). For one rollout channel it aggregates per-cluster
 // desired/achieved progress into the rollout Status count maps.
 type statusCollectorSyncer struct {
 	clock                        utilsclock.PassiveClock
@@ -130,17 +130,8 @@ func computeRolloutStatusCounts(serviceProviderClusters []*coreapi.ServiceProvid
 }
 
 // SyncOnce recomputes the status counts for one rollout channel.
-func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) (syncErr error) {
-	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key).WithValues(utils.LogValues{}.AddControllerName(StatusCollectorControllerName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("Starting version rollout sync")
-	defer func() {
-		if syncErr != nil {
-			logger.Error(syncErr, "Version rollout sync failed")
-		} else {
-			logger.Info("Finished version rollout sync")
-		}
-	}()
+func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) error {
+	logger := utils.LoggerFromContext(ctx)
 
 	rollout, err := c.rolloutLister.Get(ctx, key.YStreamChannel)
 	if cosmosstorageutils.IsNotFoundError(err) {

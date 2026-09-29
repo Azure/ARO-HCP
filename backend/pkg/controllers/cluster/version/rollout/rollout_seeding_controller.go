@@ -85,17 +85,8 @@ func NewControlPlaneVersionRolloutSeedingController(
 }
 
 // SyncOnce ensures the rollout for the triggering cluster's y-stream channel exists.
-func (c *rolloutSeedingSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (syncErr error) {
-	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key).WithValues(utils.LogValues{}.AddControllerName(RolloutSeedingControllerName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("Starting version rollout sync")
-	defer func() {
-		if syncErr != nil {
-			logger.Error(syncErr, "Version rollout sync failed")
-		} else {
-			logger.Info("Finished version rollout sync")
-		}
-	}()
+func (c *rolloutSeedingSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx)
 
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {

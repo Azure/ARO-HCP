@@ -127,7 +127,7 @@ rule) and run `make deepcopy`.
 rollout flags or environment-config plumbing.
 
 ```go
-// backend/pkg/controllers/versionrollout/config.go
+// backend/pkg/controllers/cluster/version/rollout/config.go
 type RolloutConfig struct {
     CanaryPercentage        int
     RollingPercentage       int
@@ -203,7 +203,7 @@ controller** — the plan reuses the existing path. Input
     are not evaluated yet; platform/control-plane risk filtering is a follow-up.
   - `bestExactVersion = max(minimumVersions[channel], graphBest)`.
 
-### 5.5 Normal Cluster Desired Version Assignment (per-rollout, interval)
+### 5.5 Z-stream Progressive Desired Version Rollout (per-rollout, interval)
 - **Inputs**: `rollout.Spec.BestExactVersion`, `rollout.Status.*`, per-SPC `desired_version`/`active_versions`/`pinnedVersion`.
 - **Output**: `SPC.Spec…DesiredVersion` for a bounded set of clusters.
 - **Sync** (pure fns `eligibleClusters`, `rolloutDecision`):
@@ -236,8 +236,10 @@ desired versions. The backfill starts a conservative failure clock at observatio
 ### 5.8 Minor Upgrade Normal Desired Version (per-cluster)
 
 When requested and desired major/minor differ, assigns the requested channel's
-best. Pins and experimental exact overrides are owned exclusively by forced
-assignment. Both initial and minor assignment retry missing rollout/best data
+best after rechecking node-pool requested and observed versions against the shared
+minor-skew rules. Missing provider state or incompatible pools block assignment,
+including pools still being deleted. Pins and experimental exact overrides are
+owned exclusively by forced assignment. Both initial and minor assignment retry missing rollout/best data
 after ten seconds and bypass progressive z-stream gates.
 
 ## 6. Ownership and cutover
@@ -295,7 +297,12 @@ Follow-ups:
 - Filter platform/control-plane risks from Cincinnati conditional updates. The
   current graph helper selects by recency, so selected versions are not
   guaranteed to be free of conditional-update risks.
+- Validate rollback targets against previously installed versions in the admin
+  API. This protection is deferred; SRE pins remain immediate and bypass
+  progressive rollout gates.
 - Admin API contract for setting and releasing SRE pins. The consumer exists,
   but this change does not provide an operational pin-setting endpoint.
 - Environment-specific configuration for rollout policy and per-channel minimum
   versions. Production values currently come from `NewDefaultRolloutConfig`.
+  Experimental exact-version installs intentionally remain allowed below the
+  fleet minimum for testing older releases.

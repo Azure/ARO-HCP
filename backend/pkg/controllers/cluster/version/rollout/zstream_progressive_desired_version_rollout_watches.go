@@ -29,17 +29,17 @@ import (
 
 // watchVersionCandidates wakes normal assignment for new clusters and channel
 // changes without making every status update trigger a channel-wide reconcile.
-func (c *normalClusterDesiredVersionSyncer) watchVersionCandidates(clusters, serviceProviderClusters controllerutils.Notifier, queue controllerutils.Enqueuer) error {
+func (c *zStreamProgressiveDesiredVersionRolloutSyncer) watchVersionCandidates(clusters, serviceProviderClusters controllerutils.Notifier, queue controllerutils.Enqueuer) error {
 	clusterHandler, serviceProviderClusterHandler := c.versionCandidateHandlers(queue)
-	logger := utils.DefaultLogger().WithValues(utils.LogValues{}.AddControllerName(NormalClusterDesiredVersionControllerName)...)
+	logger := utils.DefaultLogger().WithValues(utils.LogValues{}.AddControllerName(ZStreamProgressiveDesiredVersionRolloutControllerName)...)
 	options := cache.HandlerOptions{Logger: &logger, ResyncPeriod: ptr.To(time.Duration(0))}
 	_, clusterErr := clusters.AddEventHandlerWithOptions(clusterHandler, options)
 	_, serviceProviderClusterErr := serviceProviderClusters.AddEventHandlerWithOptions(serviceProviderClusterHandler, options)
 	return errors.Join(clusterErr, serviceProviderClusterErr)
 }
 
-func (c *normalClusterDesiredVersionSyncer) versionCandidateHandlers(queue controllerutils.Enqueuer) (cache.ResourceEventHandlerFuncs, cache.ResourceEventHandlerFuncs) {
-	logger := utils.DefaultLogger().WithValues(utils.LogValues{}.AddControllerName(NormalClusterDesiredVersionControllerName)...)
+func (c *zStreamProgressiveDesiredVersionRolloutSyncer) versionCandidateHandlers(queue controllerutils.Enqueuer) (cache.ResourceEventHandlerFuncs, cache.ResourceEventHandlerFuncs) {
+	logger := utils.DefaultLogger().WithValues(utils.LogValues{}.AddControllerName(ZStreamProgressiveDesiredVersionRolloutControllerName)...)
 	enqueue := func(cluster *coreapi.Cluster, reason string) {
 		yStreamChannel, ok := clusterYStreamChannel(cluster)
 		if !ok {

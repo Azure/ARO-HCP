@@ -34,7 +34,7 @@ import (
 const BestVersionSelectionControllerName = "ControlPlaneVersionBestVersionSelection"
 
 // bestVersionSelectionSyncer implements the Control Plane Version Best Version
-// Selection controller (design §5.4). For a y-stream channel it computes the best
+// Selection controller (docs/controllers/fleet-control-plane-version-rollout-implementation-plan.md, §5.4). For a y-stream channel it computes the best
 // exact version from the upgrade graph (offset by zStreamOffset) floored by the
 // SRE minimum, and stores it on Spec.BestExactVersion.
 type bestVersionSelectionSyncer struct {
@@ -71,17 +71,8 @@ func selectBestExactVersion(graphBest, minimum *semver.Version) *semver.Version 
 }
 
 // SyncOnce recomputes Spec.BestExactVersion for one rollout channel.
-func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) (syncErr error) {
-	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key).WithValues(utils.LogValues{}.AddControllerName(BestVersionSelectionControllerName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("Starting version rollout sync")
-	defer func() {
-		if syncErr != nil {
-			logger.Error(syncErr, "Version rollout sync failed")
-		} else {
-			logger.Info("Finished version rollout sync")
-		}
-	}()
+func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) error {
+	logger := utils.LoggerFromContext(ctx)
 
 	rollout, err := c.rolloutLister.Get(ctx, key.YStreamChannel)
 	if cosmosstorageutils.IsNotFoundError(err) {

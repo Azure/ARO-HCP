@@ -93,7 +93,7 @@ var expectedControllerLaunches = []struct {
 	{"controlplaneversionstatuscollector", 20},
 	{"initialnormalclusterdesiredversion", 20},
 	{"minorupgradenormalclusterdesiredversion", 20},
-	{"normalclusterdesiredversion", 20},
+	{"zstreamprogressivedesiredversionrollout", 20},
 	{"forcedclusterdesiredversion", 20},
 	{"controlplaneversionrolloutseeding", 20},
 	{"triggercontrolplaneupgrade", 20},

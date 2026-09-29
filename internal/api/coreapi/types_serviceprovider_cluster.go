@@ -142,7 +142,7 @@ type ServiceProviderClusterSpec struct {
 type ServiceProviderClusterSpecVersion struct {
 	// DesiredVersion is the full version the controller has resolved and wants to upgrade to (format: x.y.z)
 	// This is compared on each sync to detect when a new upgrade should be triggered.
-	// Written by: Forced Cluster Desired Version Assignment, Normal Cluster Desired Version Assignment, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion
+	// Written by: Forced Cluster Desired Version Assignment, Z-stream Progressive Desired Version Rollout, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion
 	DesiredVersion *semver.Version `json:"desired_version,omitempty"`
 
 	// DesiredVersionLastTransitionTime is when DesiredVersion last changed. It is
@@ -152,7 +152,7 @@ type ServiceProviderClusterSpecVersion struct {
 	// InitialNormalClusterDesiredVersion without changing the desired version.
 	// TODO: align DesiredVersion with its transition time into a better structure
 	// (mirroring ServiceProviderClusterActiveVersion), instead of two loosely-coupled fields.
-	// Written by: Forced Cluster Desired Version Assignment, Normal Cluster Desired Version Assignment, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion
+	// Written by: Forced Cluster Desired Version Assignment, Z-stream Progressive Desired Version Rollout, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion
 	DesiredVersionLastTransitionTime *metav1.Time `json:"desired_version_last_transition_time,omitempty"`
 }
 

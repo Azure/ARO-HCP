@@ -4,7 +4,7 @@ digraph cluster_update {
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
   put [label="Frontend PUT / PATCH cluster\nadmission: all cached pools (including deleting) + SPC/SPNP\nmissing provider state: internal error, no live fallback\nthen replace desired state + Update Operation", fillcolor="#eee7fb", color="#7b59a4"];
   dispatch [label="ClusterClusterServiceUpdate\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
-  desired [label="MinorUpgradeNormalClusterDesiredVersion\nNormalClusterDesiredVersion / ForcedClusterDesiredVersion\nSee version-rollout panel", fillcolor="#e6f0fa", color="#35648a"];
+  desired [label="MinorUpgradeNormalClusterDesiredVersion\nZStreamProgressiveDesiredVersionRollout / ForcedClusterDesiredVersion\nSee version-rollout panel", fillcolor="#e6f0fa", color="#35648a"];
   upgrade [label="TriggerControlPlaneUpgrade", fillcolor="#e6f0fa", color="#35648a"];
   cs [label="Cluster Service\nconfiguration / upgrade policy", fillcolor="#fff0da", color="#b27624"];
   kube [label="ClusterResources → ApplyDesireController\nKubernetes / HyperShift convergence", fillcolor="#fff0da", color="#b27624"];

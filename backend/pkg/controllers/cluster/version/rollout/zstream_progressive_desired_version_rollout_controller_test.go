@@ -198,7 +198,7 @@ func TestRolloutDecision(t *testing.T) {
 	}
 }
 
-func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
+func TestZStreamProgressiveDesiredVersionRolloutSyncer_SyncOnce_Canary(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	const yStreamChannel = "stable-4.21"
@@ -238,7 +238,7 @@ func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
 
 	clock := clocktesting.NewFakeClock(statusTestNow)
 	retryQueue := &initialVersionRetryQueue{}
-	syncer := &normalClusterDesiredVersionSyncer{
+	syncer := &zStreamProgressiveDesiredVersionRolloutSyncer{
 		clock:                        clock,
 		enqueueAfter:                 retryQueue,
 		resourcesDBClient:            mockDB,
@@ -332,7 +332,7 @@ func TestRolloutControllersExcludeDeletingClusters(t *testing.T) {
 	require.Equal(t, map[string]int64{"4.21.4": 1}, rollout.Status.ClusterCountByDesiredExactVersion)
 	require.Empty(t, rollout.Status.FailedClusterCountByDesiredExactVersion, "deleting clusters must not exhaust the failure budget")
 
-	assignment := &normalClusterDesiredVersionSyncer{
+	assignment := &zStreamProgressiveDesiredVersionRolloutSyncer{
 		clock: clock, config: NewDefaultRolloutConfig(), fleetDBClient: fleetDB, rolloutLister: rolloutLister,
 		clusterLister: clusterLister, serviceProviderClusterLister: serviceProviderClusterLister,
 		resourcesDBClient: resourcesDB, selector: firstNSelector{},
@@ -355,7 +355,7 @@ func TestNormalAssignmentLeavesInitialVersionToInitialController(t *testing.T) {
 	require.NoError(t, err)
 	fleetDB, rolloutLister := newTestRolloutStore(t, newTestRollout("stable-4.21", v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
 	serviceProviderClusterLister := &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: resourcesDB}
-	syncer := &normalClusterDesiredVersionSyncer{
+	syncer := &zStreamProgressiveDesiredVersionRolloutSyncer{
 		clock: clocktesting.NewFakeClock(statusTestNow), config: NewDefaultRolloutConfig(),
 		resourcesDBClient: resourcesDB, fleetDBClient: fleetDB, rolloutLister: rolloutLister,
 		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: resourcesDB},

@@ -25,6 +25,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -40,19 +41,24 @@ const MinorUpgradeNormalClusterDesiredVersionControllerName = "MinorUpgradeNorma
 // version from its requested channel, without progressive rollout gates or writes
 // to ControlPlaneVersionRollout conditions.
 type minorUpgradeNormalClusterDesiredVersionSyncer struct {
-	clock                        utilsclock.PassiveClock
-	resourcesDBClient            corecosmosstorage.ResourcesDBClient
-	clusterLister                corelisters.ClusterLister
-	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
-	rolloutLister                fleetlisters.ControlPlaneVersionRolloutLister
-	enqueueAfter                 controllerutils.AfterEnqueuer
+	clock                         utilsclock.PassiveClock
+	resourcesDBClient             corecosmosstorage.ResourcesDBClient
+	clusterLister                 corelisters.ClusterLister
+	nodePoolLister                corelisters.NodePoolLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
+	rolloutLister                 fleetlisters.ControlPlaneVersionRolloutLister
+	enqueueAfter                  controllerutils.AfterEnqueuer
 }
 
 func NewMinorUpgradeNormalClusterDesiredVersionController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, informers coreinformers.BackendInformers, rolloutLister fleetlisters.ControlPlaneVersionRolloutLister) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
+	_, nodePoolLister := informers.NodePools()
+	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	syncer := &minorUpgradeNormalClusterDesiredVersionSyncer{
 		clock: clock, resourcesDBClient: resourcesDBClient, clusterLister: clusterLister,
+		nodePoolLister: nodePoolLister, serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 		serviceProviderClusterLister: serviceProviderClusterLister, rolloutLister: rolloutLister,
 	}
 	controller := controllerutils.NewClusterWatchingController(
@@ -120,8 +126,11 @@ func (c *minorUpgradeNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Con
 		c.enqueueAfter.EnqueueAfter(key, 10*time.Second)
 		return nil
 	}
-	replacement := serviceProviderCluster.DeepCopy()
 	best := *rollout.Spec.BestExactVersion
+	if err := c.validateNodePoolSkew(ctx, key, best); err != nil {
+		return utils.TrackError(fmt.Errorf("cannot assign minor upgrade target %s: %w", best, err))
+	}
+	replacement := serviceProviderCluster.DeepCopy()
 	setDesiredVersion(replacement, &best, metav1.Time{Time: c.clock.Now()})
 	if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
@@ -130,4 +139,25 @@ func (c *minorUpgradeNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Con
 	}
 	logger.Info("Updated desired version for minor upgrade", "ystreamChannel", yStreamChannel, "desiredVersion", best.String())
 	return nil
+}
+
+// validateNodePoolSkew rechecks both requested and observed node-pool versions
+// immediately before assignment, since they may have changed since ARM admission.
+func (c *minorUpgradeNormalClusterDesiredVersionSyncer) validateNodePoolSkew(ctx context.Context, key controllerutils.HCPClusterKey, target semver.Version) error {
+	nodePools, err := c.nodePoolLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return fmt.Errorf("failed to list node pools: %w", err)
+	}
+	clusterNodePools := make([]admission.ClusterAdmissionNodePool, 0, len(nodePools))
+	for _, nodePool := range nodePools {
+		serviceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, nodePool.ID.Name)
+		if err != nil {
+			return fmt.Errorf("failed to get service provider state for node pool %q: %w", nodePool.ID.Name, err)
+		}
+		// Deleting pools still constrain skew until they leave the inventory.
+		clusterNodePools = append(clusterNodePools, admission.ClusterAdmissionNodePool{
+			NodePool: nodePool, ServiceProviderNodePool: serviceProviderNodePool,
+		})
+	}
+	return admission.AdmitClusterNodePoolsMinorVersionSkew(ctx, clusterNodePools, target)
 }

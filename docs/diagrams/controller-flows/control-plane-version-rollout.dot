@@ -7,8 +7,8 @@ digraph control_plane_version_rollout {
   best [label="ControlPlaneVersionBestVersionSelection"];
   updategraph [label="OpenShift update graph\nstable offset 1; other channels offset 0\nrecency only; risk filtering is a follow-up", fillcolor="#fff0da", color="#b27624"];
   target [label="Fleet rollout Spec.BestExactVersion", fillcolor="#e4f2e5", color="#4c8053"];
-  initial [label="InitialNormalClusterDesiredVersion\nMinorUpgradeNormalClusterDesiredVersion\nrequested channel; no progressive gates"];
-  normal [label="NormalClusterDesiredVersion\ninitialized, non-deleting clusters\ncanary → rolling; failure budget\nETag batch reservation + 60s cooldown"];
+  initial [label="InitialNormalClusterDesiredVersion\nMinorUpgradeNormalClusterDesiredVersion\nrequested channel; no progressive gates\nminor upgrades recheck node-pool skew"];
+  normal [label="ZStreamProgressiveDesiredVersionRollout\ninitialized, non-deleting clusters\ncanary → rolling; failure budget\nETag batch reservation + 60s cooldown"];
   forced [label="ForcedClusterDesiredVersion\nSRE pin precedes experimental exact version\npin release at UntilExactVersion; otherwise\nImmediate follows best without progressive gates"];
   desired [label="Provider desired exact version\n+ DesiredVersionLastTransitionTime", fillcolor="#e4f2e5", color="#4c8053"];
   dispatch [label="ClusterClusterServiceCreate (initial)\nTriggerControlPlaneUpgrade (existing)"];

@@ -44,7 +44,7 @@ func (n *candidateNotifier) AddEventHandlerWithOptions(handler cache.ResourceEve
 	return nil, nil
 }
 
-func registerCandidateHandlers(t *testing.T, c *normalClusterDesiredVersionSyncer, q *candidateQueue) (cache.ResourceEventHandler, cache.ResourceEventHandler) {
+func registerCandidateHandlers(t *testing.T, c *zStreamProgressiveDesiredVersionRolloutSyncer, q *candidateQueue) (cache.ResourceEventHandler, cache.ResourceEventHandler) {
 	t.Helper()
 	clusters, serviceProviderClusters := &candidateNotifier{}, &candidateNotifier{}
 	require.NoError(t, c.watchVersionCandidates(clusters, serviceProviderClusters, q))
@@ -73,7 +73,7 @@ func TestNormalVersionCandidateClusterEvents(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			q := &candidateQueue{}
-			c := &normalClusterDesiredVersionSyncer{}
+			c := &zStreamProgressiveDesiredVersionRolloutSyncer{}
 			h, _ := registerCandidateHandlers(t, c, q)
 			cluster := newTestCluster("c1", tc.newGroup, tc.newVersion)
 			if tc.oldVersion == "" {
@@ -91,7 +91,7 @@ func TestNormalVersionCandidateServiceProviderClusterEvents(t *testing.T) {
 	cluster := newTestCluster("c1", "stable", "4.21")
 	db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(context.Background(), []any{cluster})
 	require.NoError(t, err)
-	c := &normalClusterDesiredVersionSyncer{clusterLister: &corelistertesting.DBClusterLister{ResourcesDBClient: db}}
+	c := &zStreamProgressiveDesiredVersionRolloutSyncer{clusterLister: &corelistertesting.DBClusterLister{ResourcesDBClient: db}}
 	for _, tc := range []struct {
 		name                                          string
 		setDesired, update, missingCluster, missingID bool

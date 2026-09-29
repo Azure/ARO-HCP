@@ -40,7 +40,7 @@ import (
 const ForcedClusterDesiredVersionControllerName = "ForcedClusterDesiredVersion"
 
 // forcedClusterDesiredVersionSyncer implements the Forced Cluster Desired
-// Version Assignment controller (design §5.2). It acts on clusters held at an
+// Version Assignment controller (docs/controllers/fleet-control-plane-version-rollout-implementation-plan.md, §5.2). It acts on clusters held at an
 // authoritative version: for an SRE-set PinnedVersion it holds the cluster at the
 // pinned exact version until the fleet's bestExactVersion for the cluster's
 // channel reaches the pin's UntilExactVersion, then adopts best and clears the
@@ -88,17 +88,8 @@ func NewForcedClusterDesiredVersionController(
 }
 
 // SyncOnce applies the forced-assignment decision for one cluster.
-func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (syncErr error) {
-	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key).WithValues(utils.LogValues{}.AddControllerName(ForcedClusterDesiredVersionControllerName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("Starting version rollout sync")
-	defer func() {
-		if syncErr != nil {
-			logger.Error(syncErr, "Version rollout sync failed")
-		} else {
-			logger.Info("Finished version rollout sync")
-		}
-	}()
+func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx)
 
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -124,7 +115,7 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 	immediate := experimentalFeatures.ZStreamUpdatePolicy == coreapi.ImmediateZStreamUpdatePolicy
 
 	// Only pins, exact overrides, and Immediate updates bypass normal rollout.
-	if pin.ExactVersion == nil && experimentalExactVersion == nil && !immediate {
+	if !hasForcedVersion(cluster, serviceProviderCluster) && !immediate {
 		logger.Info("Leaving desired version to normal rollout assignment; no pin or experimental override")
 		return nil
 	}
