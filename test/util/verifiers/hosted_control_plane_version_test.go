@@ -15,8 +15,12 @@
 package verifiers
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/onsi/ginkgo/v2"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -80,27 +84,36 @@ func TestRenderClusterVersionHistory(t *testing.T) {
 // TestUpgradePhaseReporterLogsOnlyOnChange pins the delta-only logging contract: repeated
 // observations of an unchanged history must not re-log, or a 45 minute poll emits hundreds of
 // identical lines and buries the transitions that matter.
+//
+// The assertion is on what the reporter actually emitted rather than on its recorded rendering,
+// which stays put whether or not the guard is there. GinkgoLogr writes to GinkgoWriter too, so
+// teeing the writer captures both outputs.
 func TestUpgradePhaseReporterLogsOnlyOnChange(t *testing.T) {
+	emitted := &bytes.Buffer{}
+	ginkgo.GinkgoWriter.TeeTo(emitted)
+	t.Cleanup(ginkgo.GinkgoWriter.ClearTeeWriters)
+
 	reporter := newUpgradePhaseReporter("test-verifier")
 	history := []configv1.UpdateHistory{
 		{Version: "4.20.20", State: configv1.CompletedUpdate},
 	}
 
 	reporter.observe(history)
-	firstRendering := reporter.previous
-	if firstRendering == "" {
-		t.Fatal("expected the first observation to be recorded")
+	afterFirstObservation := emitted.String()
+	if !strings.Contains(afterFirstObservation, "4.20.20=Completed") {
+		t.Fatalf("expected the first observation to be logged, got: %q", afterFirstObservation)
 	}
 
 	reporter.observe(history)
-	if reporter.previous != firstRendering {
-		t.Errorf("an unchanged history altered the recorded rendering: %s", reporter.previous)
+	if repeated := emitted.String(); repeated != afterFirstObservation {
+		t.Errorf("an unchanged history logged again:\n  first:  %q\n  second: %q", afterFirstObservation, repeated)
 	}
 
 	reporter.observe(append([]configv1.UpdateHistory{
 		{Version: "4.21.13", State: configv1.PartialUpdate},
 	}, history...))
-	if reporter.previous == firstRendering {
-		t.Error("expected a changed history to update the recorded rendering")
+	afterChange := strings.TrimPrefix(emitted.String(), afterFirstObservation)
+	if !strings.Contains(afterChange, "4.21.13=Partial") {
+		t.Errorf("expected a changed history to be logged, got: %q", afterChange)
 	}
 }
