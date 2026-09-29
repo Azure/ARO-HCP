@@ -237,8 +237,8 @@ tests:
   - eval_time: 40m
     alertname: FrontendPathMedianLatency
     exp_alerts: []
-# Cluster-create PUT with a slow median and ample volume must NOT fire: 250ms is
-# a read-path SLO (AROSLSRE-2232). Write paths stay gated by FrontendPathLatency.
+# Cluster-create PUT with a slow median and ample volume must NOT fire the
+# existing 250ms read-path alert (AROSLSRE-2232).
 - interval: 1m
   input_series:
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
@@ -351,7 +351,7 @@ tests:
       exp_annotations:
         description: 'The median (p50) of frontend write request latency for PUT /subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername} has exceeded 1 second over the past 30 minutes (cluster test).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend write median latency is high'
+        summary: 'Frontend write p50 exceeds 1s for PUT /subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername} on cluster test over 30m'
 # Other mutating methods and lowercase labels fire; a slow GET is not a write alert.
 - interval: 1m
   input_series:
@@ -418,7 +418,7 @@ tests:
       exp_annotations:
         description: 'The median (p50) of frontend write request latency for POST /api/clusters has exceeded 1 second over the past 30 minutes (cluster test).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend write median latency is high'
+        summary: 'Frontend write p50 exceeds 1s for POST /api/clusters on cluster test over 30m'
     - exp_labels:
         component: frontend
         severity: warning
@@ -428,7 +428,7 @@ tests:
       exp_annotations:
         description: 'The median (p50) of frontend write request latency for PATCH /api/clusters has exceeded 1 second over the past 30 minutes (cluster test).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend write median latency is high'
+        summary: 'Frontend write p50 exceeds 1s for PATCH /api/clusters on cluster test over 30m'
     - exp_labels:
         component: frontend
         severity: warning
@@ -438,7 +438,7 @@ tests:
       exp_annotations:
         description: 'The median (p50) of frontend write request latency for DELETE /api/clusters has exceeded 1 second over the past 30 minutes (cluster test).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend write median latency is high'
+        summary: 'Frontend write p50 exceeds 1s for DELETE /api/clusters on cluster test over 30m'
     - exp_labels:
         component: frontend
         severity: warning
@@ -448,7 +448,7 @@ tests:
       exp_annotations:
         description: 'The median (p50) of frontend write request latency for put /api/clusters has exceeded 1 second over the past 30 minutes (cluster test).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend write median latency is high'
+        summary: 'Frontend write p50 exceeds 1s for put /api/clusters on cluster test over 30m'
 # Two HA replicas each see six slow writes in 30m: deduped volume stays below ten.
 - interval: 1m
   input_series:
