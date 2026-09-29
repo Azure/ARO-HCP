@@ -20,6 +20,11 @@ initial capacity:
   infra:   cpu=0    memory=0GiB     swiftNICs=0
   worker:  cpu=320  memory=2560GiB  swiftNICs=70
 
+role floor:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=192  memory=1536GiB  swiftNICs=42
+
 actions:
   margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
 
