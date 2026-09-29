@@ -89,7 +89,7 @@ tests:
         cluster: "mgmt-1"
         component: slo
         long_window: 1h
-        severity: "3"
+        severity: "2"
         short_window: 5m
         slo: cluster-provision-errors
       exp_annotations:
@@ -159,7 +159,7 @@ tests:
         cluster: "mgmt-1"
         component: slo
         long_window: 6h
-        severity: "3"
+        severity: "2"
         short_window: 30m
         slo: cluster-provision-errors
       exp_annotations:
