@@ -17,11 +17,13 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/rest"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -453,6 +455,65 @@ var _ = Describe("SRE", func() {
 			Expect(err.Error()).To(ContainSubstring("Conflict"), "error for disabled boot diagnostics should contain Conflict")
 			Expect(err.Error()).To(ContainSubstring("Boot diagnostics are unexpectedly not enabled"), "error should mention boot diagnostics not enabled")
 			Expect(err.Error()).To(ContainSubstring(vmName), "error should reference VM name %q", vmName)
+		})
+
+	It("should be able to perform alert processing rule CRUD operations",
+		labels.RequireNothing,
+		labels.Medium,
+		labels.Positive,
+		labels.CoreInfraService,
+		labels.DevelopmentOnly,
+		labels.AroRpApiCompatible,
+		labels.MIContainers(0),
+		func(ctx context.Context) {
+			tc := framework.NewTestContext()
+
+			By("getting services AMW resource ID")
+			servicesAMW, err := tc.GetServicesAMWResourceID(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to get services AMW resource ID")
+
+			By("creating an alert processing rule")
+			createReq := framework.AlertProcessingRuleRequest{
+				AlertRuleName: "TestAlertRule",
+				StartTime:     "2025-01-01T00:00:00",
+				EndTime:       "2025-01-02T00:00:00",
+				Description:   "Test alert processing rule",
+				Scopes:        []string{servicesAMW},
+			}
+			ruleName := fmt.Sprintf("test-apr-%s", rand.String(4))
+			createdRule, err := tc.CreateAlertProcessingRule(ctx, ruleName, createReq, http.StatusOK)
+			Expect(err).NotTo(HaveOccurred(), "failed to create alert processing rule")
+			Expect(createdRule.Name).To(Equal(ruleName), "created rule name should match request")
+
+			By("getting the alert processing rule")
+			retrievedRule, err := tc.GetAlertProcessingRule(ctx, ruleName, http.StatusOK)
+			Expect(err).NotTo(HaveOccurred(), "failed to get alert processing rule")
+			Expect(retrievedRule.Description).To(Equal(createReq.Description), "description mismatch")
+
+			By("updating the alert processing rule")
+			updateReq := framework.AlertProcessingRuleRequest{
+				AlertRuleName: "TestAlertRuleUpdated",
+				StartTime:     "2025-01-01T00:00:00",
+				EndTime:       "2025-01-03T00:00:00",
+				Description:   "Updated test alert processing rule",
+				Scopes:        []string{servicesAMW},
+			}
+			updatedRule, err := tc.UpdateAlertProcessingRule(ctx, ruleName, updateReq, http.StatusOK)
+			Expect(err).NotTo(HaveOccurred(), "failed to update alert processing rule")
+			Expect(updatedRule.Description).To(Equal(updateReq.Description), "updated description mismatch")
+
+			By("listing alert processing rules")
+			listResp, err := tc.ListAlertProcessingRules(ctx, http.StatusOK)
+			Expect(err).NotTo(HaveOccurred(), "failed to list alert processing rules")
+			Expect(len(listResp.Value)).To(BeNumerically(">", 0), "list should contain at least one rule")
+
+			By("deleting the alert processing rule")
+			err = tc.DeleteAlertProcessingRule(ctx, ruleName, http.StatusNoContent)
+			Expect(err).NotTo(HaveOccurred(), "failed to delete alert processing rule")
+
+			By("verifying the rule no longer exists")
+			_, err = tc.GetAlertProcessingRule(ctx, ruleName, http.StatusNotFound)
+			Expect(err).NotTo(HaveOccurred(), "expected 404 status code for deleted rule")
 		})
 })
 
