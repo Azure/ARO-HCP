@@ -137,10 +137,11 @@ func TestAgentJSONFiles(t *testing.T) {
 		".mcp.json",
 		".cursor/mcp.json",
 	),
-		// os.ReadFile follows symlinks, so a non-regular entry must never
-		// reach it: a symlink to a fifo or /dev/zero blocks the presubmit
-		// until the job times out, and a submodule has no file to read. What
-		// git tracks for either is not JSON, so nothing is lost by skipping.
+		// Selected despite not being readable. A symlink is how an execution
+		// key would otherwise walk straight through this rule: git stores a
+		// target path, but an agent resolves the link and reads the keys on
+		// the other end. Selecting it here is what lets the caller refuse it;
+		// dropping it at selection time is the bypass.
 		trackedFile{path: ".claude/skills/x/meta.json", mode: "120000"},
 		trackedFile{path: "frontend/.mcp.json", mode: "120000"},
 		trackedFile{path: ".claude/vendor.json", mode: "160000"},
@@ -154,15 +155,60 @@ func TestAgentJSONFiles(t *testing.T) {
 		".Claude/Payload.JSON",
 		".mcp.json",
 		".cursor/mcp.json",
+		".claude/skills/x/meta.json",
+		"frontend/.mcp.json",
+		".claude/vendor.json",
 		".claude/exec.json",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("expected %v, got %v", want, got)
 	}
 	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("index %d: expected %q, got %q", i, want[i], got[i])
+		if got[i].path != want[i] {
+			t.Errorf("index %d: expected %q, got %q", i, want[i], got[i].path)
 		}
+	}
+}
+
+// TestReadableBlob pins which index modes may reach os.ReadFile. Widening this
+// set means the check will follow a symlink, so it should not be changed
+// without deciding what happens when the target is a fifo.
+func TestReadableBlob(t *testing.T) {
+	for _, tc := range []struct {
+		mode string
+		want bool
+	}{
+		{mode: modeRegular, want: true},
+		{mode: modeExecutable, want: true},
+		{mode: "120000"}, // symlink
+		{mode: "160000"}, // submodule
+		{mode: ""},       // an index entry that failed to parse
+	} {
+		t.Run(tc.mode, func(t *testing.T) {
+			if got := readableBlob(trackedFile{path: ".claude/x.json", mode: tc.mode}); got != tc.want {
+				t.Errorf("mode %q: expected %v, got %v", tc.mode, tc.want, got)
+			}
+		})
+	}
+}
+
+// TestUnreadableAgentJSON checks the wording of the finding a non-regular
+// entry produces. It must not claim malware: an unreadable file is one this
+// check declined to judge, not one it convicted.
+func TestUnreadableAgentJSON(t *testing.T) {
+	got := unreadableAgentJSON(trackedFile{path: ".claude/skills/x/meta.json", mode: "120000"})
+
+	if got.rule != ruleUnreadable {
+		t.Errorf("expected rule %q, got %q", ruleUnreadable, got.rule)
+	}
+	if got.path != ".claude/skills/x/meta.json" {
+		t.Errorf("unexpected path %q", got.path)
+	}
+	if got.malware {
+		t.Error("an unreadable entry is not a confirmed attack pattern")
+	}
+	if !strings.Contains(got.detail, "120000") {
+		t.Errorf("expected the detail to name the mode, got %q", got.detail)
 	}
 }
 
@@ -359,12 +405,15 @@ func TestRepositoryIsClean(t *testing.T) {
 		t.Fatalf("expected no findings in this repository, got %+v", findings)
 	}
 
-	for _, rel := range agentJSONFiles(files) {
-		content, err := os.ReadFile(filepath.Join("../..", rel))
-		if err != nil {
-			t.Fatalf("reading %s: %v", rel, err)
+	for _, f := range agentJSONFiles(files) {
+		if !readableBlob(f) {
+			t.Fatalf("%s is tracked as mode %s and would be refused unread", f.path, f.mode)
 		}
-		if findings := scanAgentJSON(rel, content); len(findings) != 0 {
+		content, err := os.ReadFile(filepath.Join("../..", f.path))
+		if err != nil {
+			t.Fatalf("reading %s: %v", f.path, err)
+		}
+		if findings := scanAgentJSON(f.path, content); len(findings) != 0 {
 			t.Fatalf("expected no findings in this repository, got %+v", findings)
 		}
 	}
