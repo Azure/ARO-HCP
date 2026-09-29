@@ -62,7 +62,7 @@ identities; see the [credential contract](../../test/cmd/aro-hcp-tests/slot-mana
 
 ### Prerequisites
 
-Register the Azure resource providers required for E2E test operations. For **externally-managed** subscriptions the ARO-HCP pipeline does not run against them, so you must register providers manually. The complete set required by ARO-HCP E2E tests matches `ci.e2eSubscriptionProviders` in `config/config-dev-ci.yaml` (the canonical list for internally-managed subscriptions):
+Register the Azure resource providers required for E2E test operations. For **externally-managed** subscriptions the ARO-HCP pipeline does not run against them, so you must register providers manually. This includes **Test Tenant subscriptions**, which are explicitly excluded from the automated registration pipeline because they live outside the Red Hat tenant our pipeline identity can authenticate into — do not add them to `ci.<env>.e2eSubscriptions`. The complete set required by ARO-HCP E2E tests matches `ci.e2eSubscriptionProviders` in `config/config-dev-ci.yaml` (the canonical list for internally-managed subscriptions):
 
 ```sh
 for ns in \

@@ -150,6 +150,8 @@ For subscriptions owned by a different team where our pipeline identity does **n
 
 The external team runs the RBAC setup and identity-pool provisioning themselves using our Bicep modules. See [External Subscription Onboarding](external-subscription-onboarding.md) for the full procedure and grant contract.
 
+This is also why **Test Tenant subscriptions are excluded from automated provider registration**. The privileged pipeline registers providers only on the subscriptions listed in `ci.<env>.e2eSubscriptions`, which is by definition the Red Hat tenant inventory our pipeline identity holds **Owner** on. Test Tenant subscriptions live in a tenant we cannot authenticate into, so adding them to that inventory would not work and must not be attempted — they follow the external onboarding procedure, where their owning team registers providers manually.
+
 ---
 
 ## INT/STG/PROD E2E Subscription Onboarding
