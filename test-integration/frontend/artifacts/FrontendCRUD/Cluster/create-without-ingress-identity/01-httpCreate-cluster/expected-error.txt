@@ -1,0 +1,5 @@
+{
+    "code": "InvalidRequestContent",
+    "message": "Required value: a user-assigned identity for the \"ingress\" control plane operator is required",
+    "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[ingress]"
+  }

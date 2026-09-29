@@ -45,6 +45,21 @@
       }
       {
         "code": "InvalidRequestContent",
+        "message": "Invalid value: \"operator1\": unrecognized operator name; supported values: cloud-controller-manager, cloud-network-config, cluster-api-azure, control-plane, disk-csi-driver, file-csi-driver, image-registry, ingress, kms",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operator1]"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"operator2\": unrecognized operator name; supported values: cloud-controller-manager, cloud-network-config, cluster-api-azure, control-plane, disk-csi-driver, file-csi-driver, image-registry, ingress, kms",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operator2]"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"dataplane-operator\": unrecognized operator name; supported values: disk-csi-driver, file-csi-driver, image-registry",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"
+      }
+      {
+        "code": "InvalidRequestContent",
         "message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity\": identity is used multiple times",
         "target": "identity.userAssignedIdentities[/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"
       }
