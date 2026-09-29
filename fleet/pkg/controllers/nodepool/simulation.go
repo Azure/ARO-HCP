@@ -31,7 +31,6 @@ type traceStep struct {
 	HeadroomBefore map[compute.VMFamily]int64
 	HeadroomAfter  map[compute.VMFamily]int64
 	Capacity       compute.CapacityByRole
-	CapacityFloor  compute.CapacityByRole
 }
 
 type trace struct {
@@ -41,6 +40,7 @@ type trace struct {
 	Steps           []traceStep
 	FullyAllocated  bool
 	InitialCapacity compute.CapacityByRole
+	RoleFloor       compute.CapacityByRole
 	RejectedPlan    error
 	Outcome         string
 	Reason          string
@@ -99,14 +99,20 @@ func simulateAndTrace(desired []compute.Pool, initial []PoolState, familyBudgets
 	tr.InitialCapacity = capacity
 	state := clonePoolStates(initial)
 	runInitial := runningVCPU(initial)
+	// The floor is resolved once from the initial capacity and stays fixed for
+	// the whole projection: growth never raises it before convergence. An
+	// acting controller must keep the same floor across reconciles, i.e.
+	// persist the capacity baseline and advance it only after convergence;
+	// re-deriving it from a partially migrated state would raise it and strand
+	// the migration.
+	capacityFloor, floorErr := desiredCapacity.ResolveEffectiveFloor(capacity, fullyAllocated)
+	if floorErr != nil {
+		// The planner's observed-operation wait takes precedence. No
+		// capacity-changing action can use this unaccepted fallback floor.
+		capacityFloor = maps.Clone(capacity)
+	}
+	tr.RoleFloor = capacityFloor
 	for {
-		// A partial allocation protects the live ceiling at every step, not t0.
-		capacityFloor, floorErr := desiredCapacity.ResolveEffectiveFloor(capacity, fullyAllocated)
-		if floorErr != nil {
-			// The planner's observed-operation wait takes precedence. No
-			// capacity-changing action can use this unaccepted fallback floor.
-			capacityFloor = maps.Clone(capacity)
-		}
 		live := liveBudget(familyBudgets, runInitial, runningVCPU(state))
 		action := findNextAction(desired, state, live, capacityFloor, compute.NetworkConfig{})
 		if _, waiting := action.(waitAction); floorErr != nil && !waiting {
@@ -129,7 +135,7 @@ func simulateAndTrace(desired []compute.Pool, initial []PoolState, familyBudgets
 		before := computeFamilyHeadroom(live, state)
 		switch action.(type) {
 		case waitAction, reconcileAction:
-			tr.Steps = append(tr.Steps, traceStep{Action: action, State: clonePoolStates(state), HeadroomBefore: before, HeadroomAfter: maps.Clone(before), Capacity: maps.Clone(capacity), CapacityFloor: capacityFloor})
+			tr.Steps = append(tr.Steps, traceStep{Action: action, State: clonePoolStates(state), HeadroomBefore: before, HeadroomAfter: maps.Clone(before), Capacity: maps.Clone(capacity)})
 			tr.Outcome = "waiting"
 			if action.kind() == actionWait {
 				tr.Reason = fmt.Sprintf("pool %s has an observed in-progress operation; a new observation is required", action.poolName())
@@ -147,7 +153,7 @@ func simulateAndTrace(desired []compute.Pool, initial []PoolState, familyBudgets
 			return tr, fmt.Errorf("projected capacity: %w", err)
 		}
 		after := computeFamilyHeadroom(liveBudget(familyBudgets, runInitial, runningVCPU(state)), state)
-		tr.Steps = append(tr.Steps, traceStep{Action: cloneAction(action), State: clonePoolStates(state), HeadroomBefore: before, HeadroomAfter: after, Capacity: capacity, CapacityFloor: capacityFloor})
+		tr.Steps = append(tr.Steps, traceStep{Action: cloneAction(action), State: clonePoolStates(state), HeadroomBefore: before, HeadroomAfter: after, Capacity: capacity})
 		if err := capacity.EnsureMeetsBaseline(capacityFloor); err != nil {
 			return tr, fmt.Errorf("projected %s on %s violates capacity floor: %w", action.kind(), action.poolName(), err)
 		}
@@ -292,6 +298,12 @@ func formatTrace(tr trace) string {
 	for _, role := range compute.CapacityRoles {
 		fmt.Fprintf(w, "  %s:\t%s\n", role, formatCapacity(tr.InitialCapacity[role]))
 	}
+	if tr.RoleFloor != nil {
+		fmt.Fprintln(w, "\nrole floor:")
+		for _, role := range compute.CapacityRoles {
+			fmt.Fprintf(w, "  %s:\t%s\n", role, formatCapacity(tr.RoleFloor[role]))
+		}
+	}
 	if tr.RejectedPlan != nil {
 		fmt.Fprintf(w, "\nrejected desired plan: %v\n", tr.RejectedPlan)
 	}
@@ -309,7 +321,7 @@ func formatTrace(tr trace) string {
 		role := roleOf(step.Action.poolName(), step.State, prevState)
 		line := fmt.Sprintf("  %4d\t%s\t%s\t%s\t%s\t%s\t%s\t",
 			i+1, step.Action.kind(), role, step.Action.poolName(), strings.TrimPrefix(step.Action.vmSize(), "Standard_"),
-			actionDetail(step.Action), formatMargin(step.Capacity[role], step.CapacityFloor[role]))
+			actionDetail(step.Action), formatMargin(step.Capacity[role], tr.RoleFloor[role]))
 		// Always emit the quota cell, even when empty: tabwriter aligns a
 		// column only across consecutive lines that all have it.
 		fmt.Fprintln(w, line+formatQuotaLeft(step.HeadroomBefore, step.HeadroomAfter, families))
