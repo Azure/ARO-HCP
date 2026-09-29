@@ -162,7 +162,7 @@ func (s *nodePoolSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.Mana
 	}
 
 	resolved, err := compute.ResolveDesiredPools(ctx, s.skuCache, aksResourceID.SubscriptionID, s.profile, s.zones,
-		s.usageFetcher(aksResourceID.SubscriptionID))
+		workerPoolZones(pools), s.usageFetcher(aksResourceID.SubscriptionID))
 	if err != nil {
 		return utils.TrackError(err)
 	}

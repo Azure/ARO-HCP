@@ -296,6 +296,7 @@ func TestComputeDesiredPools(t *testing.T) {
 	tests := []struct {
 		name          string
 		zones         []string // defaults to allZones
+		workerZones   []string
 		tiers         []TierConfig
 		familyBudgets map[VMFamily]int64
 		skuMetadata   map[string]*skucache.SKUMetadata
@@ -569,6 +570,91 @@ func TestComputeDesiredPools(t *testing.T) {
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 96},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
 		},
+		{
+			// The four-zone setup above, but the cluster already has worker
+			// pools in zones 1-3. Zones 2-4 would allow 4 nodes per zone; the
+			// worker tier keeps zones 1-3 instead, where zone 1 only gets
+			// EDSv6's 3 nodes.
+			name:        "per zone worker tier keeps the zones of existing worker pools",
+			zones:       []string{"1", "2", "3", "4"},
+			workerZones: []string{"1", "2", "3"},
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 128, "standardEDSv5Family": 416},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_E32ds_v6": e32dsv6,
+				"Standard_E32ds_v5": e32dsv5Zone234,
+			},
+		},
+		{
+			// The four-zone setup above with worker pools in zone 4 only. The
+			// tier keeps zone 4 and adds zones 2 and 3, which allow the full 4
+			// nodes per zone; zone 1 would only get EDSv6's 3.
+			name:        "per zone worker tier adds the best zones to an existing worker zone",
+			zones:       []string{"1", "2", "3", "4"},
+			workerZones: []string{"4"},
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 128, "standardEDSv5Family": 416},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_E32ds_v6": e32dsv6,
+				"Standard_E32ds_v5": e32dsv5Zone234,
+			},
+		},
+		{
+			// Worker pools exist in zones 1 and 3. The tier keeps both and adds
+			// zone 2 to reach its 3 zones.
+			name:        "per zone worker tier fills up to pool count around existing worker zones",
+			workerZones: []string{"1", "3"},
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
+			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
+		},
+		{
+			// Worker pools exist in all four zones, more than the tier's 3. The
+			// tier keeps every one of them rather than leaving a zone.
+			name:        "per zone worker tier keeps more existing worker zones than pool count",
+			zones:       []string{"1", "2", "3", "4"},
+			workerZones: []string{"1", "2", "3", "4"},
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 128, "standardEDSv5Family": 416},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_E32ds_v6": e32dsv6,
+				"Standard_E32ds_v5": e32dsv5Zone234,
+			},
+		},
+		{
+			// Only worker zones are fixed: an infra tier still picks the zones
+			// allowing the most nodes, 2-4.
+			name:        "per zone infra tier ignores the zones of existing worker pools",
+			zones:       []string{"1", "2", "3", "4"},
+			workerZones: []string{"1", "2", "3"},
+			tiers: []TierConfig{
+				{Name: "inf", Role: PoolRoleInfra, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 128, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, Taints: []string{TaintInfra}, PoolCount: 3},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 128, "standardEDSv5Family": 416},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_E32ds_v6": e32dsv6,
+				"Standard_E32ds_v5": e32dsv5Zone234,
+			},
+		},
+		{
+			// The only family is offered in zones 2 and 3, but the cluster has
+			// worker pools in zone 1. The tier fails instead of leaving zone 1.
+			name:        "per zone worker tier fails when an existing worker zone is not offered",
+			workerZones: []string{"1", "2", "3"},
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"standardEDSv5Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"standardEDSv5Family": 416},
+			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v5": e32dsv5Zone23},
+		},
 	}
 
 	for _, test := range tests {
@@ -578,10 +664,13 @@ func TestComputeDesiredPools(t *testing.T) {
 				zones = allZones
 			}
 			skuIndex := BuildEligibleSKUIndex(test.skuMetadata)
-			pools, failures, fullyAllocated := ComputeDesiredPools(logr.Discard(), test.tiers, zones, test.familyBudgets, skuIndex)
+			pools, failures, fullyAllocated := ComputeDesiredPools(logr.Discard(), test.tiers, zones, test.workerZones, test.familyBudgets, skuIndex)
 
 			assertGolden(t, renderReport(func(w io.Writer) {
 				writeAllocationInputs(w, zones, test.tiers, test.familyBudgets, test.skuMetadata)
+				if len(test.workerZones) > 0 {
+					fmt.Fprintf(w, "\nexisting worker zones: %s\n", strings.Join(test.workerZones, ","))
+				}
 				writeAllocationResult(w, pools, failures, fullyAllocated)
 			}))
 		})
@@ -720,7 +809,7 @@ func TestComputeDesiredPoolsCompleteness(t *testing.T) {
 				"sku-a": {Name: "sku-a", Family: "a", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 100, Zones: []string{"1", "2", "3"}},
 				"sku-b": {Name: "sku-b", Family: "b", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 100, Zones: []string{"1", "2", "3"}},
 			})
-			pools, failures, full := ComputeDesiredPools(logr.Discard(), test.tiers, test.zones, test.limits, index)
+			pools, failures, full := ComputeDesiredPools(logr.Discard(), test.tiers, test.zones, nil, test.limits, index)
 			require.Equal(t, test.wantFull, full)
 			require.Len(t, failures, test.wantFailures)
 			var nodes int64
