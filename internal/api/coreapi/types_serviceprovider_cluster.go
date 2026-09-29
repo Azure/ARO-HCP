@@ -15,7 +15,9 @@
 package coreapi
 
 import (
+	"encoding"
 	"fmt"
+	"strings"
 
 	"github.com/blang/semver/v4"
 
@@ -124,7 +126,7 @@ type ServiceProviderClusterSpec struct {
 	// dissipated. Additionally, long recheck times are recommended for resources
 	// outside of their active phases. Order of at least six hours is, with
 	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, IdentityRoleAssignments
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, ClusterRoleAssignments
 	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 }
 
@@ -294,6 +296,55 @@ type ServiceProviderClusterStatus struct {
 	// cannot lose the record. Empty means no backup has completed.
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
+
+	// ManagedIdentityDetails is a map containing the details for the
+	// managed identities associated with the cluster.
+	// The key is the fully lowercased Azure Resource ID of the identity.
+	// Each entry contains identity metadata retrieved from the different sources
+	// that apply to that identity as well as whether those sources can be leveraged
+	// to retrieve the identity metadata. The sources are: the ARM User Assigned Identities API, the real Managed
+	// Identities Dataplane Service, and/or the Hardcoded Identity used when the dataplane service is not available.
+	// Depending on to what cluster operators the identity is associated with, different sources apply.
+	// Written by: FetchManagedIdentitiesInfo
+	// TODO: Move the controllers to use this information. For already introduced controllers that need to support identities replacement, move them
+	// to use this at the point those are updated to support identity replacement.
+	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
+
+	// RoleAssignmentsOverManagedResourceGroup tracks the desired and observed managed-resource-group
+	// scoped role assignments for each control-plane operator, data-plane
+	// operator, and service managed identity role definition. The map key is
+	// PrincipalID and RoleDefinitionResourceID. That matches the Azure role
+	// assignment name, which is a UUIDv5 of scope, principal, and role
+	// definition. The identity resource ID lives on TargetIdentity. A resource
+	// path change for the same principal and role definition overwrites
+	// TargetIdentity and does not start a deconfigure. A PrincipalID change is
+	// a new key.
+	// ClusterRoleAssignmentIntent adds desired keys once
+	// Status.ManagedIdentityDetails has a fully resolved source for that use:
+	// control-plane operators and the service managed identity use Managed
+	// Identities Dataplane Service when ClusterRoleAssignmentIntent is wired
+	// with managedIdentitiesDataPlaneServiceAvailable, or hardcoded identity
+	// otherwise (the same environment signal as FetchManagedIdentitiesInfo). A nil or unresolved
+	// value on that chosen source waits; the other MSI source is not consulted.
+	// Never ARM. Data-plane operators use ARM User Assigned Identities only.
+	// The same UAMI used as both a control-plane operator and a data-plane
+	// operator can therefore have two PrincipalIDs. TargetIdentity is copied
+	// from that source. Leftovers that still have a tracked Azure ID are stamped
+	// DeconfigureTimestamp. A resource path, ClientID, or TenantID change on the
+	// same key updates TargetIdentity; it does not deconfigure. A row that was
+	// never ensured is dropped instead of stamped. Unresolved ResourceIDs are
+	// not deconfigured.
+	// ClusterRoleAssignments creates, repairs drift, and deletes Azure role
+	// assignments after the 24h wait, then removes the map entry on a successful
+	// delete. Other controllers use the coreapihelpers.RoleAssignmentStatusConfigured,
+	// ServiceProviderClusterStatusRoleAssignmentConfigured,
+	// ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured, and
+	// ServiceProviderClusterStatusDesiredRoleAssignmentsConfigured helpers, to
+	// know whether a principal's assignments exist in Azure. Cluster deletion is a no-op: role
+	// assignments are scoped to the managed resource group, so Azure deletes them
+	// in cascade when that resource group is removed.
+	// Written by: ClusterRoleAssignmentIntent, ClusterRoleAssignments
+	RoleAssignmentsOverManagedResourceGroup map[RoleAssignmentKey]*RoleAssignmentStatus `json:"roleAssignmentsOverManagedResourceGroup,omitempty"`
 }
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
@@ -420,11 +471,6 @@ type AzureResources struct {
 	// ManagedResourceGroup tracks the managed resource group for the cluster.
 	// Written by: EnsureManagedResourceGroup
 	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
-	// RoleAssignments tracks the role assignments created on the managed resource group
-	// for the cluster's control-plane and data-plane operator identities and its service
-	// managed identity.
-	// Written by: IdentityRoleAssignments
-	RoleAssignments AzureMultiReference `json:"roleAssignments,omitempty"`
 }
 
 // AzureMultiReference tracks a set of Azure resources through their creation lifecycle.
@@ -496,6 +542,114 @@ type ServiceProviderClusterActiveVersion struct {
 	Version *semver.Version `json:"version,omitempty"`
 	// State is the update state from OpenShift (e.g. configv1.CompletedUpdate or configv1.PartialUpdate).
 	State configv1.UpdateState `json:"state,omitempty"`
+}
+
+// RoleAssignmentKey is the key for RoleAssignments.
+// Fields are strings (not pointers) so the struct is a comparable map key and
+// two keys with the same values compare equal. The identity resource ID is
+// not part of the key: the Azure role assignment name does not include it.
+type RoleAssignmentKey struct {
+	// PrincipalID is the Principal ID written to the Azure role assignment.
+	// For a control-plane operator or the service managed identity this is
+	// the MSI dataplane or hardcoded identity, which may differ from the ARM
+	// principal of the same managed identity.
+	PrincipalID string `json:"principalID,omitempty"`
+	// RoleDefinitionResourceID is the tenant-level role definition resource ID
+	// ("/providers/Microsoft.Authorization/roleDefinitions/{guid}"). Its casing
+	// is significant and must not be normalized: the Azure role assignment
+	// name is a UUIDv5 derived from scope, principal, and this value, so a
+	// casing change produces a different assignment name and is treated as a
+	// different key.
+	RoleDefinitionResourceID string `json:"roleDefinitionResourceID,omitempty"`
+}
+
+const (
+	roleAssignmentKeySeparator = "|"
+)
+
+var (
+	_ encoding.TextMarshaler   = RoleAssignmentKey{}
+	_ encoding.TextUnmarshaler = (*RoleAssignmentKey)(nil)
+)
+
+// MarshalText allows RoleAssignmentKey to be used as a JSON object key.
+// encoding/json requires encoding.TextMarshaler for non-string map keys. This
+// is needed so it can be serialized/deserialized to/from Cosmos DB, as well as
+// logged as a json representation.
+func (k RoleAssignmentKey) MarshalText() ([]byte, error) {
+	return []byte(strings.Join([]string{k.PrincipalID, k.RoleDefinitionResourceID}, roleAssignmentKeySeparator)), nil
+}
+
+// UnmarshalText reconstructs a RoleAssignmentKey from the text produced by
+// MarshalText. This is needed so it can be deserialized from Cosmos DB, as
+// well as logged as a json representation.
+func (k *RoleAssignmentKey) UnmarshalText(text []byte) error {
+	parts := strings.Split(string(text), roleAssignmentKeySeparator)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid RoleAssignmentKey %q: expected 2 parts separated by %q", text, roleAssignmentKeySeparator)
+	}
+	k.PrincipalID = parts[0]
+	k.RoleDefinitionResourceID = parts[1]
+	return nil
+}
+
+// RoleAssignmentStatus is the reconciliation state of one managed-resource-group
+// scoped role assignment on RoleAssignments. Each key maps to a single Azure
+// role assignment. Configure vs deconfigure is derived from DeconfigureTimestamp
+// and AzureResource; there is no stored phase.
+type RoleAssignmentStatus struct {
+	// DeconfigureTimestamp is when deconfigure of this role assignment was
+	// requested. Nil means the assignment is still desired. ClusterRoleAssignments
+	// waits 24 hours from this timestamp before deleting the Azure role assignment
+	// on a live cluster. Cleared when the key is required again. Successful
+	// deconfigure removes this key from RoleAssignments rather than clearing
+	// this field in place. Cluster deletion skips Azure deletes because the
+	// managed resource group cascade removes the role assignments.
+	// Written by: ClusterRoleAssignmentIntent
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
+	// TargetIdentity is the resource ID, ClientID, TenantID, and PrincipalID that
+	// ClusterRoleAssignmentIntent last targeted for this key. The map key is
+	// PrincipalID and RoleDefinitionResourceID. This snapshot lets other
+	// controllers join a specific identity generation with Configured().
+	// ClusterRoleAssignmentIntent writes it from ManagedIdentityDetails while
+	// the key is still desired. A resource path, ClientID, or TenantID change
+	// on the same principal and role definition updates this field without
+	// starting a 24h deconfigure. Draining rows keep the snapshot from when
+	// the key left.
+	// Written by: ClusterRoleAssignmentIntent
+	TargetIdentity *RoleAssignmentTargetIdentity `json:"targetIdentity,omitempty"`
+	// PendingAzureResource is the role assignment resource ID that has been
+	// requested but not yet confirmed to exist in Azure. ClusterRoleAssignments
+	// persists this ID before Create, so a crash or replace failure cannot lose
+	// the tracked ID. Deconfigure also deletes a leftover ID here from a
+	// previous incomplete configure.
+	// Written by: ClusterRoleAssignments
+	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
+	// AzureResource is the role assignment resource ID that has been confirmed
+	// to exist in Azure. It moves from PendingAzureResource when the object
+	// exists with the expected principal and role definition. Successful
+	// deconfigure removes this key from RoleAssignments rather than clearing
+	// this field in place.
+	// Written by: ClusterRoleAssignments
+	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
+}
+
+// RoleAssignmentTargetIdentity is the identity generation ClusterRoleAssignmentIntent
+// last targeted for one RoleAssignments entry. PrincipalID matches the map key.
+type RoleAssignmentTargetIdentity struct {
+	// ResourceID is the Azure resource ID of the managed identity.
+	// Written by: ClusterRoleAssignmentIntent
+	ResourceID *azcorearm.ResourceID `json:"resourceID,omitempty"`
+	// ClientID is the Client ID of the managed identity.
+	// Written by: ClusterRoleAssignmentIntent
+	ClientID string `json:"clientID,omitempty"`
+	// TenantID is the Tenant ID of the managed identity.
+	// Written by: ClusterRoleAssignmentIntent
+	TenantID string `json:"tenantID,omitempty"`
+	// PrincipalID is the Principal ID of the managed identity. It matches
+	// RoleAssignmentKey.PrincipalID.
+	// Written by: ClusterRoleAssignmentIntent
+	PrincipalID string `json:"principalID,omitempty"`
 }
 
 type MaestroBundleReference struct {
@@ -614,3 +768,77 @@ const (
 	// the cluster-autoscaler ControlPlaneComponent on the management cluster control plane namespace.
 	ReadonlyHypershiftControlPlaneComponentClusterAutoscaler MaestroBundleInternalName = "readonlyHypershiftControlPlaneComponentClusterAutoscaler"
 )
+
+// ManagedIdentityMetadata holds the metadata retrieved for a single managed
+// identity from each source that applies to it. Sources that do not apply
+// are left as nil. Identity metadata on each source is last-pass-only: see
+// IdentityMetadataValue.
+type ManagedIdentityMetadata struct {
+	// ResourceID is the Azure Resource ID of the managed identity.
+	// Written by: FetchManagedIdentitiesInfo
+	ResourceID *azcorearm.ResourceID `json:"resourceID,omitempty"`
+
+	// MetadataFromARMUserAssignedIdentitiesAPI is the metadata for the identity retrieved from
+	// the ARM User Assigned Identities API (https://learn.microsoft.com/en-us/rest/api/managedidentity/user-assigned-identities)
+	// as the source. Nil when ARM does not apply: ARM is queried for control-plane and data-plane operator
+	// identities. It is not queried for an identity used only as the service managed identity, because
+	// end-users are not asked to grant the Service Managed Identity read on itself. If the same resource ID is also a
+	// control-plane or data-plane operator identity, ARM still applies.
+	// When this metadata source applies, a failure to retrieve this metadata using the API results in the
+	// ClientID, PrincipalID, and TenantID attributes being set to nil and RetrievalError records what went wrong. This includes the case
+	// where the identity does not exist in Azure.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromARMUserAssignedIdentitiesAPI *IdentityMetadataValue `json:"metadataFromARMUserAssignedIdentitiesAPI,omitempty"`
+	// MetadataFromManagedIdentitiesDataplaneService is the metadata for the identity retrieved from the **real**
+	// Managed Identities Dataplane Service as the source. Nil when:
+	// - The real Managed Identities Dataplane Service is not available in the environment
+	// - The identity is not configured as a cluster's control plane operator identity and/or as the cluster's service managed identity
+	// When this metadata source applies, if the identity does not exist the entry will be initialized with an empty ClientID, PrincipalID, and TenantID.
+	// This can also happen if there has been a transient error retrieving the identity metadata.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromManagedIdentitiesDataplaneService *IdentityMetadataValue `json:"metadataFromManagedIdentitiesDataplaneService,omitempty"`
+	// MetadataFromHardcodedIdentity is the metadata for the identity retrieved from the Hardcoded Identity (backend/pkg/azure/client.HardcodedIdentity) as the source.
+	// This is set only in environments where the real Managed Identities Data Plane
+	// service is not available, and only for identities that are configured as a cluster's control plane operator identity and/or as
+	// the cluster's Service Managed Identity.
+	// When this metadata source applies, a failure to set this metadata results in the ClientID, PrincipalID and TenantID being set to nil
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromHardcodedIdentity *IdentityMetadataValue `json:"metadataFromHardcodedIdentity,omitempty"`
+}
+
+// IdentityMetadataValue is ClientID/PrincipalID/TenantID retrieved from one
+// identity metadata source, a RetrievalError from the last retrieval attempt,
+// or an empty value (all fields nil) when that source applies but has not
+// been resolved yet or could not be resolved in this pass.
+//
+// ClientID, PrincipalID, and TenantID are the result of the most recent
+// retrieval for this source. They are not sticky. A later pass that fails,
+// including an intermittent API error, persists them as nil and may set
+// RetrievalError. A later successful pass can populate them again. Readers
+// must not assume that once-resolved values remain set.
+type IdentityMetadataValue struct {
+	// ClientID is the Client ID of the managed identity as returned by the
+	// source on the most recent retrieval. It may be nil even after a previous
+	// successful retrieval. See IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	ClientID *string `json:"clientID,omitempty"`
+	// PrincipalID is the Principal ID of the managed identity as returned by
+	// the source on the most recent retrieval. It may be nil even after a
+	// previous successful retrieval; see IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	PrincipalID *string `json:"principalID,omitempty"`
+	// TenantID is the Tenant ID of the managed identity as returned by the
+	// source on the most recent retrieval. It may be nil even after a previous
+	// successful retrieval. See IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	TenantID *string `json:"tenantID,omitempty"`
+	// RetrievalError, when non-nil, is the error (truncated to the first 1024
+	// characters) from the most recent attempt to retrieve this identity's
+	// metadata from this source. When set, ClientID, PrincipalID, and TenantID
+	// are nil because the last retrieval attempt failed, and any previously
+	// resolved values are no longer trustworthy. It is nil when the last
+	// retrieval succeeded. A later successful pass clears this and may restore
+	// ClientID, PrincipalID, and TenantID.
+	// Written by: FetchManagedIdentitiesInfo
+	RetrievalError *string `json:"retrievalError,omitempty"`
+}
