@@ -22,6 +22,8 @@ import (
 	"k8s.io/utils/lru"
 
 	checkaccessv2 "github.com/Azure/checkaccess-v2-go-sdk/client"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/validationmetrics"
 )
 
 const (
@@ -60,10 +62,16 @@ var _ CheckAccessV2Client = (*rateLimitedCheckAccessV2Client)(nil)
 
 // CheckAccess waits for a token from the shared rate limiter (returning its error, e.g. from context cancellation, without calling the API if one isn't available) and then delegates to the inner client.
 func (c *rateLimitedCheckAccessV2Client) CheckAccess(ctx context.Context, authzReq checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-	if err := c.rateLimiter.Wait(ctx); err != nil {
+	finishWait := validationmetrics.StartPhase(ctx, "check_access_wait")
+	err := c.rateLimiter.Wait(ctx)
+	finishWait(err)
+	if err != nil {
 		return nil, err
 	}
-	return c.inner.CheckAccess(ctx, authzReq)
+	finishCall := validationmetrics.StartPhase(ctx, "check_access_call")
+	response, err := c.inner.CheckAccess(ctx, authzReq)
+	finishCall(err)
+	return response, err
 }
 
 // CreateAuthorizationRequest is local request construction rather than an API call, so it is not subject to rate limiting; it delegates directly to the inner client.

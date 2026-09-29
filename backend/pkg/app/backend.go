@@ -80,6 +80,7 @@ import (
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/validationmetrics"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -407,6 +408,7 @@ func shutdownHTTPServer(ctx context.Context, server *http.Server, name string) e
 // runBackendControllersUnderLeaderElection runs the backen controllers under
 // a leader election loop.
 func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor) error {
+	ctx = validationmetrics.WithMetrics(ctx, validationmetrics.New(b.options.MetricsRegisterer))
 	logger := utils.LoggerFromContext(ctx)
 
 	backendInformers := coreinformers.NewBackendInformers(ctx,

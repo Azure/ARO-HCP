@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/azurehelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/backend/pkg/validationmetrics"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -109,7 +110,9 @@ func (v *DataPlaneIdentitiesPermissionsValidation) Validate(ctx context.Context,
 
 	// Fetch the subnet details to validate subnet-attached resources (NAT gateway, route table) permissions.
 	subnetResourceID := cluster.CustomerProperties.Platform.SubnetID
+	finishSubnet := validationmetrics.StartPhase(ctx, "subnet_get")
 	subnet, err := subnetsClient.Get(ctx, subnetResourceID.ResourceGroupName, subnetResourceID.Parent.Name, subnetResourceID.Name, nil)
+	finishSubnet(err)
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
@@ -212,7 +215,9 @@ func (v *DataPlaneIdentitiesPermissionsValidation) roleDataActionsForOperator(ct
 func (v *DataPlaneIdentitiesPermissionsValidation) fetchRoleDefinitions(ctx context.Context, resourceIDs []*azcorearm.ResourceID) ([]armauthorization.RoleDefinition, error) {
 	roleDefinitions := make([]armauthorization.RoleDefinition, 0, len(resourceIDs))
 	for _, resourceID := range resourceIDs {
+		finishLookup := validationmetrics.StartPhase(ctx, "role_definition_lookup")
 		response, err := v.backendIdentityAzureCachedReaders.RoleDefinitionsCachedReader.GetCachedByID(ctx, resourceID.String(), nil)
+		finishLookup(err)
 		if err != nil {
 			return nil, utils.TrackError(fmt.Errorf("failed to get role definition %q: %w", resourceID.String(), err))
 		}
@@ -224,7 +229,9 @@ func (v *DataPlaneIdentitiesPermissionsValidation) fetchRoleDefinitions(ctx cont
 // retrieveIdentityObjectID resolves the Entra object ID (PrincipalID) of the given data plane operator identity. This is the CheckAccessV2 subject for data plane operators: unlike control plane operators,
 // MI Dataplane cannot mint an access token for them, so CheckAccessV2 must identify the subject by ObjectId instead of by JWT. See createAuthorizationRequestForDataPlaneIdentity.
 func (v *DataPlaneIdentitiesPermissionsValidation) retrieveIdentityObjectID(ctx context.Context, userAssignedIdentitiesClient azureclient.UserAssignedIdentitiesClient, identity *azcorearm.ResourceID) (string, error) {
+	finishIdentity := validationmetrics.StartPhase(ctx, "identity_get")
 	operatorIdentity, err := userAssignedIdentitiesClient.Get(ctx, identity.ResourceGroupName, identity.Name, nil)
+	finishIdentity(err)
 	if err != nil {
 		return "", utils.TrackError(fmt.Errorf("failed to get user assigned managed identity %q: %w", identity, err))
 	}

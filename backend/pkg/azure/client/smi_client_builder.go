@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/validationmetrics"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -78,7 +79,9 @@ func (b *serviceManagedIdentityClientBuilder) credentialsForServiceManagedIdenti
 	dataplaneRequest := dataplane.UserAssignedIdentitiesRequest{
 		IdentityIDs: []string{smiResourceID.String()},
 	}
+	finishCredentials := validationmetrics.StartPhase(ctx, "identity_credentials")
 	resp, err := miDataplaneClient.GetUserAssignedIdentitiesCredentials(ctx, dataplaneRequest)
+	finishCredentials(err)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get user assigned identities credentials: %w", err))
 	}
@@ -86,7 +89,10 @@ func (b *serviceManagedIdentityClientBuilder) credentialsForServiceManagedIdenti
 		return nil, utils.TrackError(fmt.Errorf("managed identities data plane returned no credentials for the cluster's service managed identity '%s'", smiResourceID.String()))
 	}
 
-	return dataplane.GetCredential(b.azCoreARMClientOptions.ClientOptions, resp.ExplicitIdentities[0])
+	finishBuild := validationmetrics.StartPhase(ctx, "identity_credential_build")
+	credential, err := dataplane.GetCredential(b.azCoreARMClientOptions.ClientOptions, resp.ExplicitIdentities[0])
+	finishBuild(err)
+	return credential, err
 }
 
 func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error) {

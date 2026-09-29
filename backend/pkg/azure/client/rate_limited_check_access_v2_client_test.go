@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -31,6 +32,8 @@ import (
 	"k8s.io/utils/lru"
 
 	checkaccessv2 "github.com/Azure/checkaccess-v2-go-sdk/client"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/validationmetrics"
 )
 
 func TestRateLimitedCheckAccessV2Client_CheckAccess(t *testing.T) {
@@ -64,6 +67,120 @@ func TestRateLimitedCheckAccessV2Client_CheckAccess(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
+}
+
+func TestRateLimitedCheckAccessV2Client_Phases(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		cancelWait bool
+		callErr    error
+		wantPhases map[string]string
+	}{
+		{name: "admitted", wantPhases: map[string]string{"check_access_wait": "success", "check_access_call": "success"}},
+		{name: "call error", callErr: fmt.Errorf("check access failed"), wantPhases: map[string]string{"check_access_wait": "success", "check_access_call": "error"}},
+		{name: "call canceled", callErr: context.Canceled, wantPhases: map[string]string{"check_access_wait": "success", "check_access_call": "canceled"}},
+		{name: "wait canceled", cancelWait: true, wantPhases: map[string]string{"check_access_wait": "canceled"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			registry := prometheus.NewRegistry()
+			ctx := validationmetrics.WithMetrics(t.Context(), validationmetrics.New(registry))
+			ctx, validation := validationmetrics.StartValidation(ctx, "test-controller")
+			defer validation.Complete(ctx, "test-validation", "success")
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			ctrl := gomock.NewController(t)
+			inner := NewMockCheckAccessV2Client(ctrl)
+			request := checkaccessv2.AuthorizationRequest{}
+			wantResponse := &checkaccessv2.AuthorizationDecisionResponse{}
+			wantErr := tt.callErr
+			if tt.cancelWait {
+				cancel()
+				wantResponse = nil
+				wantErr = context.Canceled
+				inner.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).Times(0)
+			} else {
+				inner.EXPECT().CheckAccess(ctx, request).Return(wantResponse, wantErr).Times(1)
+			}
+			client := &rateLimitedCheckAccessV2Client{inner: inner, rateLimiter: flowcontrol.NewTokenBucketRateLimiter(1, 1)}
+			response, err := client.CheckAccess(ctx, request)
+			assert.True(t, response == wantResponse, "the original response must be returned unchanged")
+			assert.True(t, err == wantErr, "the original error must be returned unchanged")
+
+			families, err := registry.Gather()
+			require.NoError(t, err)
+			gotPhases := map[string]string{}
+			gauges := 0
+			for _, family := range families {
+				for _, metric := range family.Metric {
+					labels := map[string]string{}
+					for _, label := range metric.Label {
+						labels[label.GetName()] = label.GetValue()
+					}
+					if labels["controller"] != "test-controller" {
+						continue
+					}
+					switch family.GetName() {
+					case "backend_validation_phase_duration_seconds":
+						assert.Equal(t, uint64(1), metric.GetHistogram().GetSampleCount())
+						assert.NotContains(t, gotPhases, labels["phase"], "each phase must have exactly one result series")
+						gotPhases[labels["phase"]] = labels["result"]
+					case "backend_validation_phase_inflight":
+						gauges++
+						assert.Zero(t, metric.GetGauge().GetValue(), "phase %s must finish before validation cleanup", labels["phase"])
+					}
+				}
+			}
+			assert.Equal(t, tt.wantPhases, gotPhases)
+			assert.Equal(t, len(tt.wantPhases), gauges)
+			validation.Observe("passed")
+		})
+	}
+}
+
+func TestRateLimitedCheckAccessV2Client_Panic(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	ctx := validationmetrics.WithMetrics(t.Context(), validationmetrics.New(registry))
+	ctx, validation := validationmetrics.StartValidation(ctx, "test-controller")
+	inner := NewMockCheckAccessV2Client(gomock.NewController(t))
+	wantPanic := fmt.Errorf("check access panic")
+	inner.EXPECT().CheckAccess(ctx, gomock.Any()).DoAndReturn(func(context.Context, checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
+		panic(wantPanic)
+	})
+	client := &rateLimitedCheckAccessV2Client{inner: inner, rateLimiter: flowcontrol.NewFakeAlwaysRateLimiter()}
+	var gotPanic any
+	func() {
+		defer func() { gotPanic = recover() }()
+		defer validation.Complete(ctx, "test-validation", "not_attempted")
+		_, _ = client.CheckAccess(ctx, checkaccessv2.AuthorizationRequest{})
+	}()
+	require.Same(t, wantPanic, gotPanic, "validation cleanup must preserve the original panic")
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	gotPhases := map[string]string{}
+	gauges := 0
+	for _, family := range families {
+		for _, metric := range family.Metric {
+			labels := map[string]string{}
+			for _, label := range metric.Label {
+				labels[label.GetName()] = label.GetValue()
+			}
+			if labels["controller"] != "test-controller" {
+				continue
+			}
+			switch family.GetName() {
+			case "backend_validation_phase_duration_seconds":
+				assert.Equal(t, uint64(1), metric.GetHistogram().GetSampleCount())
+				assert.NotContains(t, gotPhases, labels["phase"], "each phase must have exactly one result series")
+				gotPhases[labels["phase"]] = labels["result"]
+			case "backend_validation_phase_inflight":
+				gauges++
+				assert.Zero(t, metric.GetGauge().GetValue(), "phase %s must finish during validation cleanup", labels["phase"])
+			}
+		}
+	}
+	assert.Equal(t, map[string]string{"check_access_wait": "success", "check_access_call": "error"}, gotPhases)
+	assert.Equal(t, 2, gauges)
 }
 
 func TestNewRateLimitedCheckAccessV2ClientBuilder(t *testing.T) {

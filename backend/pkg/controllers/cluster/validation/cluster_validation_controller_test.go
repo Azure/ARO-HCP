@@ -15,12 +15,19 @@
 package validation
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,13 +37,16 @@ import (
 	"k8s.io/utils/lru"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/validationmetrics"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -568,4 +578,239 @@ func TestClusterValidationSyncer_CooldownSuppression(t *testing.T) {
 
 	require.NotEmpty(t, enqueuer.enqueuedKeys, "should have re-enqueued after cooldown skip")
 	assert.Greater(t, enqueuer.enqueuedDurations[0], time.Duration(0), "enqueue duration should be positive")
+}
+
+type timedValidation struct {
+	*MockClusterValidation
+	calls  int
+	panics bool
+}
+
+func (v *timedValidation) Validate(ctx context.Context, _ *coreapi.Subscription, _ *coreapi.Cluster) validationutils.ValidationResult {
+	v.calls++
+	finish := validationmetrics.StartPhase(ctx, "check_access_call")
+	time.Sleep(120 * time.Second)
+	if v.panics {
+		panic("validation panic")
+	}
+	finish(nil)
+	return v.result
+}
+
+type persistenceDB struct {
+	corecosmosstorage.ResourcesDBClient
+	err    error
+	panics bool
+}
+
+func (d *persistenceDB) ServiceProviderClusters(subscription, group, cluster string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	return &timedPersistence{ResourceCRUD: d.ResourcesDBClient.ServiceProviderClusters(subscription, group, cluster), err: d.err, panics: d.panics}
+}
+
+type timedPersistence struct {
+	cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
+	err    error
+	panics bool
+}
+
+func (p *timedPersistence) Replace(ctx context.Context, obj *coreapi.ServiceProviderCluster, options *azcosmos.ItemOptions) (*coreapi.ServiceProviderCluster, error) {
+	time.Sleep(7 * time.Second)
+	if p.panics {
+		panic("persistence panic")
+	}
+	if p.err != nil {
+		return nil, p.err
+	}
+	return p.ResourceCRUD.Replace(ctx, obj, options)
+}
+
+func TestValidationTelemetry(t *testing.T) {
+	controlPlaneName := (&validationutils.ControlPlaneIdentitiesPermissionsClusterValidation{}).Name()
+	dataPlaneName := (&validationutils.DataPlaneIdentitiesPermissionsValidation{}).Name()
+	require.Equal(t, "ClusterValidation"+controlPlaneName, validationmetrics.ControlPlaneController)
+	require.Equal(t, "ClusterValidation"+dataPlaneName, validationmetrics.DataPlaneController)
+	malformed := NewMockClusterValidation(controlPlaneName).WithPassed()
+	malformed.result.Outcome.Passed = nil
+	for _, tc := range []struct {
+		name             string
+		validation       *MockClusterValidation
+		persistError     error
+		prerequisite     bool
+		readError        bool
+		wantError        bool
+		disposition      string
+		persistence      string
+		outcome          string
+		validationPanic  bool
+		persistencePanic bool
+	}{
+		{name: "passed and cooldown", validation: NewMockClusterValidation(controlPlaneName).WithPassed(), disposition: "completed", persistence: "success", outcome: "passed"},
+		{name: "failed and cooldown", validation: NewMockClusterValidation(dataPlaneName).WithFailed("Denied", "denied", "Denied."), disposition: "completed", persistence: "success", outcome: "failed"},
+		{name: "conflict before cooldown", validation: NewMockClusterValidation(controlPlaneName).WithPassed(), persistError: corecosmosstoragetesting.NewPreconditionFailedError(), disposition: "persist_conflict", persistence: "conflict", outcome: "passed"},
+		{name: "persistence error", validation: NewMockClusterValidation(dataPlaneName).WithPassed(), persistError: errors.New("write failed"), disposition: "persist_error", persistence: "error", outcome: "passed", wantError: true},
+		{name: "reported unknown", validation: NewMockClusterValidation(controlPlaneName).WithUnknownReportError("Unavailable", "unavailable", "Unavailable."), disposition: "reported_unknown", persistence: "success", outcome: "unknown", wantError: true},
+		{name: "invalid result", validation: NewMockClusterValidation(dataPlaneName), disposition: "invalid_result", persistence: "not_attempted", outcome: "invalid_result", wantError: true},
+		{name: "recognized outcome with malformed body", validation: malformed, disposition: "invalid_result", persistence: "not_attempted", outcome: "invalid_result", wantError: true},
+		{name: "unchanged", validation: NewMockClusterValidation(controlPlaneName).WithSkipped("NotApplicable", "not applicable", "Not applicable."), disposition: "completed", persistence: "unchanged", outcome: "skipped"},
+		{name: "prerequisite skip", validation: NewMockClusterValidation(controlPlaneName), prerequisite: true, disposition: "prerequisite_skip"},
+		{name: "read error", validation: NewMockClusterValidation(dataPlaneName), readError: true, disposition: "read_error", wantError: true},
+		{name: "other validator excluded", validation: NewMockClusterValidation(testValidationName).WithPassed()},
+		{name: "other failed validator preserves only original log", validation: NewMockClusterValidation(testValidationName).WithFailed("Denied", "denied", "Denied.")},
+		{name: "validation panic", validation: NewMockClusterValidation(controlPlaneName).WithPassed(), validationPanic: true, disposition: "panic", persistence: "not_attempted", outcome: "panic"},
+		{name: "persistence panic", validation: NewMockClusterValidation(dataPlaneName).WithPassed(), persistencePanic: true, disposition: "panic", persistence: "error", outcome: "passed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				registry := prometheus.NewPedanticRegistry()
+				var logs bytes.Buffer
+				controller := "ClusterValidation" + tc.validation.Name()
+				logger := newTestClusterKey().AddLoggerValues(logr.FromSlogHandler(slog.NewJSONHandler(&logs, nil))).WithValues(utils.LogValues{}.AddControllerName(controller)...)
+				ctx := validationmetrics.WithMetrics(utils.ContextWithLogger(t.Context(), logger), validationmetrics.New(registry))
+				baseline, err := registry.Gather()
+				require.NoError(t, err)
+				ctx = utils.ContextWithControllerName(ctx, "arbitrary-context-name-must-not-be-a-label")
+				mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+				if !tc.prerequisite {
+					cluster := newTestCluster(t)
+					_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+					require.NoError(t, err)
+					_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
+					require.NoError(t, err)
+					if !tc.readError {
+						_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+						require.NoError(t, err)
+					}
+				}
+				validation := &timedValidation{MockClusterValidation: tc.validation, panics: tc.validationPanic}
+				syncer, enqueuer := newTestSyncer(mockDB, validation, clocktesting.NewFakePassiveClock(fixedNow))
+				syncer.resourcesDBClient = &persistenceDB{ResourcesDBClient: mockDB, err: tc.persistError, panics: tc.persistencePanic}
+				if tc.validationPanic || tc.persistencePanic {
+					panicValue := "validation panic"
+					if tc.persistencePanic {
+						panicValue = "persistence panic"
+					}
+					require.PanicsWithValue(t, panicValue, func() { _ = syncer.SyncOnce(ctx, newTestClusterKey()) })
+				} else {
+					err = syncer.SyncOnce(ctx, newTestClusterKey())
+				}
+				if tc.wantError {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+				wantCalls := 1
+				if tc.prerequisite || tc.readError {
+					wantCalls = 0
+				}
+				require.Equal(t, wantCalls, validation.calls)
+				cooldown := tc.persistence == "success" || tc.persistence == "unchanged"
+				if cooldown {
+					require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
+					require.Equal(t, 1, validation.calls, "cooldown must not invoke Validate again")
+				} else if tc.persistError != nil || tc.validationPanic || tc.persistencePanic {
+					require.True(t, syncer.retryCooldownChecker.CanSync(ctx, newTestClusterKey()), "persistence failures must return before setting cooldown")
+					require.Empty(t, enqueuer.enqueuedKeys)
+				}
+
+				completionCount := 0
+				outcomeCount := 0
+				decoder := json.NewDecoder(&logs)
+				for decoder.More() {
+					var record map[string]any
+					require.NoError(t, decoder.Decode(&record))
+					if record["msg"] != "Validation completed" {
+						if record["msg"] == "Validation outcome" {
+							outcomeCount++
+							require.Equal(t, tc.validation.Name(), record["validation"])
+							wantResult, err := json.Marshal(tc.validation.result)
+							require.NoError(t, err)
+							gotResult, err := json.Marshal(record["result"])
+							require.NoError(t, err)
+							require.JSONEq(t, string(wantResult), string(gotResult), "preserve the existing outcome details")
+						}
+						continue
+					}
+					completionCount++
+					require.Equal(t, strings.ToLower(controller), record["controller_name"])
+					require.Equal(t, testSubscriptionID, record["subscription_id"])
+					require.NotEmpty(t, record["resource_id"])
+					require.Equal(t, tc.validation.Name(), record["validation"])
+					require.Equal(t, tc.outcome, record["outcome"])
+					require.Equal(t, 120.0, record["duration_seconds"])
+					require.Equal(t, tc.persistence, record["persistence_result"])
+					durations := record["phase_durations_seconds"].(map[string]any)
+					counts := record["phase_call_counts"].(map[string]any)
+					require.Equal(t, 120.0, durations["check_access_call"])
+					require.Equal(t, 1.0, counts["check_access_call"])
+					if tc.persistence != "unchanged" && tc.persistence != "not_attempted" {
+						require.Equal(t, 7.0, durations["persist_result"])
+						require.Equal(t, 1.0, counts["persist_result"])
+					}
+				}
+				wantOutcomeCount := 0
+				if wantCalls > 0 && tc.validation.result.Validate() == nil && tc.validation.result.Outcome.Type != validationutils.OutcomeTypePassed {
+					wantOutcomeCount = 1
+				}
+				require.Equal(t, wantOutcomeCount, outcomeCount)
+				if tc.disposition == "" {
+					wantCalls = 0 // Unscoped validators must produce no new telemetry.
+				}
+				require.Equal(t, wantCalls, completionCount)
+				families, err := registry.Gather()
+				require.NoError(t, err)
+				if tc.disposition == "" {
+					require.Equal(t, baseline, families, "other validators must not modify initialized telemetry")
+					return
+				}
+				attempts := map[string]float64{}
+				histogramCount := uint64(0)
+				for _, family := range families {
+					for _, metric := range family.Metric {
+						labels := map[string]string{}
+						for _, label := range metric.Label {
+							labels[label.GetName()] = label.GetValue()
+						}
+						require.Contains(t, []string{validationmetrics.ControlPlaneController, validationmetrics.DataPlaneController}, labels["controller"])
+						if labels["controller"] != controller {
+							require.Zero(t, metric.GetHistogram().GetSampleCount())
+							require.Zero(t, metric.GetCounter().GetValue())
+							require.Zero(t, metric.GetGauge().GetValue())
+							continue
+						}
+						switch family.GetName() {
+						case "backend_validation_attempts_total":
+							require.Len(t, labels, 2)
+							if metric.Counter.GetValue() != 0 {
+								attempts[labels["disposition"]] = metric.Counter.GetValue()
+							}
+						case "backend_validation_duration_seconds":
+							histogramCount += metric.Histogram.GetSampleCount()
+							if labels["outcome"] == tc.outcome {
+								require.Equal(t, 120.0, metric.Histogram.GetSampleSum())
+							} else {
+								require.Zero(t, metric.Histogram.GetSampleCount())
+								require.Zero(t, metric.Histogram.GetSampleSum())
+							}
+						case "backend_validation_phase_duration_seconds":
+							if (tc.validationPanic && labels["phase"] == "check_access_call") || (tc.persistencePanic && labels["phase"] == "persist_result") {
+								wantCount := uint64(0)
+								if labels["result"] == "error" {
+									wantCount = 1
+								}
+								require.Equal(t, wantCount, metric.Histogram.GetSampleCount(), "panicking phase must not report success")
+							}
+						case "backend_validation_phase_inflight":
+							require.Zero(t, metric.Gauge.GetValue())
+						}
+					}
+				}
+				wantAttempts := map[string]float64{tc.disposition: 1}
+				if cooldown {
+					wantAttempts["cooldown"] = 1
+				}
+				require.Equal(t, wantAttempts, attempts)
+				require.Equal(t, uint64(wantCalls), histogramCount)
+			})
+		})
+	}
 }

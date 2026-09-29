@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/azurehelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/backend/pkg/validationmetrics"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -94,7 +95,9 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 
 	// Fetch the subnet details to validate attached subnet devices permissions.
 	subnetResourceID := cluster.CustomerProperties.Platform.SubnetID
+	finishSubnet := validationmetrics.StartPhase(ctx, "subnet_get")
 	subnet, err := subnetsClient.Get(ctx, subnetResourceID.ResourceGroupName, subnetResourceID.Parent.Name, subnetResourceID.Name, nil)
+	finishSubnet(err)
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
@@ -179,7 +182,9 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) roleDataActionsForO
 func (v *ControlPlaneIdentitiesPermissionsClusterValidation) fetchRoleDefinitions(ctx context.Context, resourceIDs []*azcorearm.ResourceID) ([]armauthorization.RoleDefinition, error) {
 	roleDefinitions := make([]armauthorization.RoleDefinition, 0, len(resourceIDs))
 	for _, resourceID := range resourceIDs {
+		finishLookup := validationmetrics.StartPhase(ctx, "role_definition_lookup")
 		response, err := v.backendIdentityAzureCachedReaders.RoleDefinitionsCachedReader.GetCachedByID(ctx, resourceID.String(), nil)
+		finishLookup(err)
 		if err != nil {
 			return nil, utils.TrackError(fmt.Errorf("failed to get role definition %q: %w", resourceID.String(), err))
 		}

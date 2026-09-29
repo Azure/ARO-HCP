@@ -215,6 +215,90 @@ panels:
     unit: /s
     workspace: svc
     step: "60s"
+- title: "Identity Validation"
+  queries:
+  - title: "Validation Mean Duration"
+    description: "Mean actual validation execution time over 5 minutes, by controller and outcome, for the control-plane and data-plane identity permission validators only. Cooldown and prerequisite skips are excluded; persistence is outside this execution total. Completed validations are recorded when they finish, so gaps mean none finished. Compare with Backend Metrics for queue wait and whole-worker processing time."
+    query: |
+      sum by (controller, outcome, cluster) (
+        max without (prometheus_replica) (
+          rate(backend_validation_duration_seconds_sum{namespace="aro-hcp"}[5m])
+        )
+      )
+      /
+      (
+        sum by (controller, outcome, cluster) (
+          max without (prometheus_replica) (
+            rate(backend_validation_duration_seconds_count{namespace="aro-hcp"}[5m])
+          )
+        ) > 0
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Validation Outcome Rate"
+    description: "Completed actual identity validations per second over 5 minutes, by controller and outcome. Counts executions of the two identity permission validators, not unique resources or cooldown/prerequisite skips; the same resource can be validated repeatedly. Outcomes describe validation, not whether subsequent persistence succeeded."
+    query: |
+      sum by (controller, outcome, cluster) (
+        max without (prometheus_replica) (
+          rate(backend_validation_duration_seconds_count{namespace="aro-hcp"}[5m])
+        )
+      )
+    unit: validations/s
+    workspace: svc
+    step: "60s"
+  - title: "Validation Attempt Disposition Rate"
+    description: "Identity validation attempts per second over 5 minutes, by controller and disposition. Separates attempts that execute validation from those skipped by controller gates; repeated reconciliations count again. Use the outcome chart for actual validation results rather than treating every attempt as an execution."
+    query: |
+      sum by (controller, disposition, cluster) (
+        max without (prometheus_replica) (
+          rate(backend_validation_attempts_total{namespace="aro-hcp"}[5m])
+        )
+      )
+    unit: attempts/s
+    workspace: svc
+    step: "60s"
+  - title: "Validation Phase Mean Duration"
+    description: "Mean completed logical phase duration over 5 minutes, by controller and phase, aggregating all results. Logical SDK calls include internal retries; CheckAccess limiter wait is measured separately from the call, and role-definition lookup includes cache hits rather than only remote requests. Phases can overlap or repeat within a validation: do not sum their means into an execution total. Gaps mean no phase operations finished."
+    query: |
+      sum by (controller, phase, cluster) (
+        max without (prometheus_replica) (
+          rate(backend_validation_phase_duration_seconds_sum{namespace="aro-hcp"}[5m])
+        )
+      )
+      /
+      (
+        sum by (controller, phase, cluster) (
+          max without (prometheus_replica) (
+            rate(backend_validation_phase_duration_seconds_count{namespace="aro-hcp"}[5m])
+          )
+        ) > 0
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Validation Phase Call Rate"
+    description: "Completed logical phase operations per second over 5 minutes, by controller, phase, and result. Each operation counts once including SDK retries, not once per HTTP request; repeated calls within a validation count separately. Includes CheckAccess limiter waits and cached role-definition lookups. A successful call means the operation returned without an error, not that the identity passed its permission checks."
+    query: |
+      sum by (controller, phase, result, cluster) (
+        max without (prometheus_replica) (
+          rate(backend_validation_phase_duration_seconds_count{namespace="aro-hcp"}[5m])
+        )
+      )
+    unit: calls/s
+    workspace: svc
+    step: "60s"
+  - title: "Validation Phase Inflight"
+    description: "Currently concurrent identity validation phase operations, by controller and phase, summed across backend instances. Includes logical SDK calls during retries and separate CheckAccess limiter waits. Phases may overlap: these gauges are not total worker utilization, and summing phases does not give a count of busy workers or validations."
+    query: |
+      sum by (controller, phase, cluster) (
+        max without (prometheus_replica) (
+          backend_validation_phase_inflight{namespace="aro-hcp"}
+        )
+      )
+    unit: operations
+    workspace: svc
+    step: "60s"
 - title: "Fleet Controller Metrics"
   queries:
   - title: "Controller Workqueue Retry Ratio"
