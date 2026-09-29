@@ -105,6 +105,10 @@ func newTestCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	cluster.ServiceProviderProperties.ClusterServiceID = nil
 	cluster.ServiceProviderProperties.PendingClusterServiceID = nil
 	cluster.ServiceProviderProperties.ClusterUID = testClusterUID
+	// MinimumValidClusterTestCase does not set a service managed identity, but a real cluster
+	// always has one; several deny assignment definitions require it excluded.
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity =
+		coreapitesting.NewTestOperatorUserAssignedIdentity("service-managed-identity")
 	for _, opt := range opts {
 		opt(cluster)
 	}
@@ -142,14 +146,65 @@ func newTestSPC(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceP
 	return spc
 }
 
+// setDenyAssignmentsCreated seeds spc so every required deny assignment type
+// reports as fully created: ManagedIdentityDetails resolves every
+// control-plane operator, data-plane operator, and the service managed
+// identity of newTestCluster(), and every type's ExcludedIdentities carries
+// an ensured entry for each of those principals (a superset of what any one
+// type's definition actually requires, which is harmless: extra ensured
+// entries don't fail RequiredExcludedIdentitiesEnsured's per-type check).
 func setDenyAssignmentsCreated(spc *coreapi.ServiceProviderCluster) {
-	resourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))
+	azureResource := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))
+
+	identities := newTestCluster().CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
+	allIdentityIDs := make([]*azcorearm.ResourceID, 0, len(identities.ControlPlaneOperators)+len(identities.DataPlaneOperators)+1)
+	for _, id := range identities.ControlPlaneOperators {
+		allIdentityIDs = append(allIdentityIDs, id)
+	}
+	for _, id := range identities.DataPlaneOperators {
+		allIdentityIDs = append(allIdentityIDs, id)
+	}
+	if identities.ServiceManagedIdentity != nil {
+		allIdentityIDs = append(allIdentityIDs, identities.ServiceManagedIdentity)
+	}
+
+	managedIdentityDetails := make(map[string]*coreapi.ManagedIdentityMetadata, len(allIdentityIDs))
+	excludedIdentities := make(map[string]*coreapi.DenyAssignmentExcludedIdentityStatus, len(allIdentityIDs))
+	for _, id := range allIdentityIDs {
+		key := strings.ToLower(id.String())
+		principalID := key + "-principal"
+		// Seed every metadata source: data-plane operators resolve via ARM, control-plane
+		// operators and the service managed identity via dataplane or hardcoded depending on
+		// managedIdentitiesDataPlaneServiceAvailable, and this fixture does not care which.
+		metadataValue := &coreapi.IdentityMetadataValue{
+			ClientID:    ptr.To(principalID + "-client"),
+			PrincipalID: ptr.To(principalID),
+			TenantID:    ptr.To(principalID + "-tenant"),
+		}
+		managedIdentityDetails[key] = &coreapi.ManagedIdentityMetadata{
+			MetadataFromARMUserAssignedIdentitiesAPI:      metadataValue,
+			MetadataFromManagedIdentitiesDataplaneService: metadataValue,
+			MetadataFromHardcodedIdentity:                 metadataValue,
+		}
+		excludedIdentities[principalID] = &coreapi.DenyAssignmentExcludedIdentityStatus{
+			TargetIdentity: &coreapi.DenyAssignmentTargetIdentity{
+				ResourceID:  id,
+				ClientID:    principalID + "-client",
+				TenantID:    principalID + "-tenant",
+				PrincipalID: principalID,
+			},
+			EnsuredIdentity: &coreapi.DenyAssignmentExcludedEnsuredIdentity{PrincipalID: principalID},
+		}
+	}
+	spc.Status.ManagedIdentityDetails = managedIdentityDetails
+
 	requiredTypes := denyassignments.RequiredDenyAssignmentTypes(newTestCluster())
 	denyAssignments := make(map[string]*coreapi.DenyAssignmentStatus, len(requiredTypes))
 	for denyAssignmentType := range requiredTypes {
 		denyAssignments[denyAssignmentType] = &coreapi.DenyAssignmentStatus{
-			AzureResource:      resourceID,
+			AzureResource:      azureResource,
 			EnsuredPermissions: &coreapi.DenyAssignmentEnsuredPermissions{},
+			ExcludedIdentities: excludedIdentities,
 		}
 	}
 	spc.Status.DenyAssignmentsOverManagedResourceGroup = denyAssignments

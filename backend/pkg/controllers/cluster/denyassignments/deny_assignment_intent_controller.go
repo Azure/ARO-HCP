@@ -383,7 +383,7 @@ func (s *clusterDenyAssignmentIntentSyncer) desiredExcludedIdentities(
 		if !ok {
 			return nil, nil, utils.TrackError(fmt.Errorf("control plane operator %q not found in cluster identity configuration", operatorName))
 		}
-		target, resolved, err := s.resolveMSIBasedExcludedTargetIdentity(serviceProviderCluster, resourceID)
+		target, resolved, err := resolveMSIBasedExcludedTargetIdentity(serviceProviderCluster, resourceID, s.managedIdentitiesDataPlaneServiceAvailable)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -412,7 +412,7 @@ func (s *clusterDenyAssignmentIntentSyncer) desiredExcludedIdentities(
 
 	if definition.includeServiceManagedID {
 		resourceID := identities.ServiceManagedIdentity
-		target, resolved, err := s.resolveMSIBasedExcludedTargetIdentity(serviceProviderCluster, resourceID)
+		target, resolved, err := resolveMSIBasedExcludedTargetIdentity(serviceProviderCluster, resourceID, s.managedIdentitiesDataPlaneServiceAvailable)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -437,7 +437,7 @@ func (s *clusterDenyAssignmentIntentSyncer) desiredExcludedIdentities(
 // consulted. ARM is ignored even when the same user-assigned identity is also
 // a data-plane operator. resolved is false when the entry is missing or the
 // chosen source is not fully resolved.
-func (s *clusterDenyAssignmentIntentSyncer) resolveMSIBasedExcludedTargetIdentity(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID) (*coreapi.DenyAssignmentTargetIdentity, bool, error) {
+func resolveMSIBasedExcludedTargetIdentity(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID, managedIdentitiesDataPlaneServiceAvailable bool) (*coreapi.DenyAssignmentTargetIdentity, bool, error) {
 	metadata, ok, err := managedIdentityMetadata(serviceProviderCluster, identityResourceID)
 	if err != nil || !ok {
 		return nil, false, err
@@ -445,9 +445,9 @@ func (s *clusterDenyAssignmentIntentSyncer) resolveMSIBasedExcludedTargetIdentit
 	source := metadata.MetadataFromHardcodedIdentity
 	// TODO given that DenyAssignments are only created when the real FPA exist and that matches the availability
 	// of the Managed Identities Data Plane, do we prefer to just remove this and have as the only source the
-	// Managed Identities Data Plane, as well as remoe the s.managedIdentitiesDataPlaneServiceAvailable attribute to
+	// Managed Identities Data Plane, as well as remove the managedIdentitiesDataPlaneServiceAvailable attribute to
 	// simplify?
-	if s.managedIdentitiesDataPlaneServiceAvailable {
+	if managedIdentitiesDataPlaneServiceAvailable {
 		source = metadata.MetadataFromManagedIdentitiesDataplaneService
 	}
 	target, resolved := targetIdentityFromMetadataValue(identityResourceID, source)

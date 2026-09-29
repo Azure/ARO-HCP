@@ -1043,6 +1043,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		managementClusterLister,
 		backendInformers,
 		b.options.HasRealFPA,
+		b.options.HardcodedIdentity == nil, // When hardcodedIdentity is nil, the real Managed Identities Data Plane is available.
 	)
 
 	clusterDeletionClusterServiceDeleteDispatchController := clusterdeletion.NewClusterClusterServiceDeleteDispatchController(

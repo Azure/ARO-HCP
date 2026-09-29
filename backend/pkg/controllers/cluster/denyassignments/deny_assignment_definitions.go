@@ -231,6 +231,82 @@ func denyAssignmentDefinitionsByType(cluster *coreapi.Cluster) map[string]*denyA
 	return byType
 }
 
+// PendingRequiredExcludedIdentities reports which identities that
+// denyAssignmentType's definition requires excluded are not yet resolved and
+// ensured on serviceProviderCluster's status. A nil, non-error result means
+// every required identity is ensured.
+//
+// Every required identity is checked, even after the first miss, so the
+// result names every identity still pending rather than only the first one
+// found. This resolves each identity individually (the same resolution
+// ClusterDenyAssignmentIntent uses), rather than asking whether every
+// principal currently in DenyAssignmentStatus.ExcludedIdentities is ensured:
+// ClusterDenyAssignmentIntent only adds a principal once that identity's
+// metadata resolves, so an identity whose metadata has not resolved yet has
+// no entry there at all. A check that only looks at entries already present
+// would wrongly report the deny assignment type as fully ensured before
+// every required identity has even been considered.
+func PendingRequiredExcludedIdentities(
+	cluster *coreapi.Cluster,
+	serviceProviderCluster *coreapi.ServiceProviderCluster,
+	denyAssignmentType string,
+	managedIdentitiesDataPlaneServiceAvailable bool,
+) ([]string, error) {
+	definition, ok := denyAssignmentDefinitionsByType(cluster)[denyAssignmentType]
+	if !ok {
+		return nil, utils.TrackError(fmt.Errorf("no deny assignment definition for type %q", denyAssignmentType))
+	}
+	status := serviceProviderCluster.Status.DenyAssignmentsOverManagedResourceGroup[denyAssignmentType]
+
+	identities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
+	identityEnsured := func(target *coreapi.DenyAssignmentTargetIdentity, resolved bool) bool {
+		return resolved && coreapihelpers.DenyAssignmentStatusIdentityExcluded(status, target.PrincipalID)
+	}
+
+	var pending []string
+
+	for _, operatorName := range definition.controlPlaneOperators {
+		resourceID, ok := identities.ControlPlaneOperators[operatorName]
+		if !ok {
+			return nil, utils.TrackError(fmt.Errorf("control plane operator %q not found in cluster identity configuration", operatorName))
+		}
+		target, resolved, err := resolveMSIBasedExcludedTargetIdentity(serviceProviderCluster, resourceID, managedIdentitiesDataPlaneServiceAvailable)
+		if err != nil {
+			return nil, err
+		}
+		if !identityEnsured(target, resolved) {
+			pending = append(pending, fmt.Sprintf("control-plane operator %q (%s)", operatorName, resourceID))
+		}
+	}
+
+	for _, operatorName := range definition.dataPlaneOperators {
+		resourceID, ok := identities.DataPlaneOperators[operatorName]
+		if !ok {
+			return nil, utils.TrackError(fmt.Errorf("data plane operator %q not found in cluster identity configuration", operatorName))
+		}
+		target, resolved, err := resolveDataPlaneExcludedTargetIdentity(serviceProviderCluster, resourceID)
+		if err != nil {
+			return nil, err
+		}
+		if !identityEnsured(target, resolved) {
+			pending = append(pending, fmt.Sprintf("data-plane operator %q (%s)", operatorName, resourceID))
+		}
+	}
+
+	if definition.includeServiceManagedID {
+		resourceID := identities.ServiceManagedIdentity
+		target, resolved, err := resolveMSIBasedExcludedTargetIdentity(serviceProviderCluster, resourceID, managedIdentitiesDataPlaneServiceAvailable)
+		if err != nil {
+			return nil, err
+		}
+		if !identityEnsured(target, resolved) {
+			pending = append(pending, fmt.Sprintf("service managed identity (%s)", resourceID))
+		}
+	}
+
+	return pending, nil
+}
+
 func generateDenyAssignmentResourceID(cluster *coreapi.Cluster, denyAssignmentType string) (*azcorearm.ResourceID, error) {
 	daUUID := generateDenyAssignmentUUID(controllerutils.ClusterServiceIDForCluster(cluster), denyAssignmentType)
 	azureResourceID, err := coreapihelpers.ToDenyAssignmentResourceID(cluster.ID.SubscriptionID, cluster.CustomerProperties.Platform.ManagedResourceGroup, daUUID)
