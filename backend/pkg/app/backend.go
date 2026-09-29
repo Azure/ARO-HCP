@@ -571,6 +571,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationInformer,
 		backendInformers,
 		unionReadDesireLister,
+		b.options.HardcodedIdentity == nil, // When hardcodedIdentity is nil, it means that the real Managed Identities Data Plane is available
 	)
 	operationClusterUpdateController := clusteroperations.NewOperationClusterUpdateController(
 		b.clock,

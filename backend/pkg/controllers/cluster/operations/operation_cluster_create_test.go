@@ -17,6 +17,7 @@ package operations
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -461,7 +463,8 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 							Status: coreapi.ServiceProviderClusterStatus{
 								Validations:                             tc.validations,
 								ServingCABundle:                         "fake-ca-data",
-								RoleAssignmentsOverManagedResourceGroup: configuredRoleAssignments(roleAssignmentID("11111111-1111-1111-1111-111111111111")),
+								ManagedIdentityDetails:                  defaultManagedIdentityDetails(),
+								RoleAssignmentsOverManagedResourceGroup: defaultConfiguredRoleAssignments(),
 							},
 						},
 					},
@@ -623,6 +626,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			cluster := fixture.NewCluster(nil)
 			cluster.ServiceProviderProperties.ClusterServiceID = nil
+			cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = defaultServiceManagedIdentityID
 			if tc.overallTimeout != 0 {
 				deadline := metav1.NewTime(startTime.Add(tc.overallTimeout))
 				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
@@ -758,6 +762,11 @@ func newClusterWithAPIURL(url string, createdAt *time.Time) *coreapi.Cluster {
 	fixture := operationtesting.NewClusterTestFixture()
 	cluster := fixture.NewCluster(createdAt)
 	cluster.ServiceProviderProperties.API = coreapi.ServiceProviderAPIProfile{URL: url}
+	// roleAssignmentsOperationStatus requires a non-nil ServiceManagedIdentity
+	// (every real cluster has one); pair with defaultManagedIdentityDetails
+	// and defaultConfiguredRoleAssignments where the test also needs role
+	// assignments to report Succeeded.
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = defaultServiceManagedIdentityID
 	return cluster
 }
 
@@ -1163,7 +1172,8 @@ func TestDetermineOperationState(t *testing.T) {
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
 								ServingCABundle:                         "fake-ca-data",
-								RoleAssignmentsOverManagedResourceGroup: configuredRoleAssignments(roleAssignmentID("11111111-1111-1111-1111-111111111111")),
+								ManagedIdentityDetails:                  defaultManagedIdentityDetails(),
+								RoleAssignmentsOverManagedResourceGroup: defaultConfiguredRoleAssignments(),
 							},
 						},
 					},
@@ -1267,21 +1277,64 @@ func roleAssignmentKey(name string) coreapi.RoleAssignmentKey {
 	}
 }
 
-func configuredRoleAssignments(ids ...*azcorearm.ResourceID) map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus {
-	result := make(map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus, len(ids))
-	for i, id := range ids {
-		result[roleAssignmentKey(fmt.Sprintf("identity-%d", i))] = &coreapi.RoleAssignmentStatus{
-			AzureResource: id,
-		}
+// defaultServiceManagedIdentityID is the service managed identity every
+// newClusterWithAPIURL cluster is given, so that
+// operationClusterCreate.roleAssignmentsOperationStatus (which requires a
+// non-nil ServiceManagedIdentity) has something to resolve.
+var defaultServiceManagedIdentityID = metadataapi.Must(azcorearm.ParseResourceID(
+	"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/" + operationtesting.TestResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/default-smi-identity"))
+
+const defaultServiceManagedIdentityPrincipalID = "default-smi-principal"
+
+// defaultManagedIdentityDetails resolves defaultServiceManagedIdentityID via
+// the hardcoded-identity source, which is what
+// coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity uses when
+// managedIdentitiesDataPlaneServiceAvailable is left at its zero value
+// (false), as in these fixtures.
+func defaultManagedIdentityDetails() map[string]*coreapi.ManagedIdentityMetadata {
+	return map[string]*coreapi.ManagedIdentityMetadata{
+		strings.ToLower(defaultServiceManagedIdentityID.String()): {
+			MetadataFromHardcodedIdentity: &coreapi.IdentityMetadataValue{
+				ClientID:    ptr.To(defaultServiceManagedIdentityPrincipalID + "-client"),
+				PrincipalID: ptr.To(defaultServiceManagedIdentityPrincipalID),
+				TenantID:    ptr.To(defaultServiceManagedIdentityPrincipalID + "-tenant"),
+			},
+		},
 	}
-	return result
+}
+
+// defaultConfiguredRoleAssignments is the RoleAssignmentsOverManagedResourceGroup
+// entry matching defaultManagedIdentityDetails's resolved principal, already
+// ensured in Azure. Fixtures needing role assignments to report Succeeded use
+// this alongside defaultManagedIdentityDetails.
+func defaultConfiguredRoleAssignments() map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus {
+	return map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+		roleAssignmentKey("default-smi"): {
+			AzureResource: roleAssignmentID("11111111-1111-1111-1111-111111111111"),
+			TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+				ResourceID:  defaultServiceManagedIdentityID,
+				PrincipalID: defaultServiceManagedIdentityPrincipalID,
+			},
+		},
+	}
 }
 
 func TestRoleAssignmentsOperationStatus(t *testing.T) {
 	fixture := operationtesting.NewClusterTestFixture()
 	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 
-	spcLister := func(roleAssignments map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus) corelisters.ServiceProviderClusterLister {
+	controlPlaneOperatorID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/" + operationtesting.TestResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cpo-identity"))
+	serviceManagedIdentityID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/" + operationtesting.TestResourceGroupName + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi-identity"))
+
+	cluster := fixture.NewCluster(nil)
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities = coreapi.UserAssignedIdentitiesProfile{
+		ControlPlaneOperators:  map[string]*azcorearm.ResourceID{"cpo": controlPlaneOperatorID},
+		ServiceManagedIdentity: serviceManagedIdentityID,
+	}
+
+	spcLister := func(roleAssignments map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus, managedIdentityDetails map[string]*coreapi.ManagedIdentityMetadata) corelisters.ServiceProviderClusterLister {
 		return &corelistertesting.SliceServiceProviderClusterLister{
 			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
 				{
@@ -1293,56 +1346,123 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 					},
 					Status: coreapi.ServiceProviderClusterStatus{
 						RoleAssignmentsOverManagedResourceGroup: roleAssignments,
+						ManagedIdentityDetails:                  managedIdentityDetails,
 					},
 				},
 			},
 		}
 	}
 
-	confirmed := roleAssignmentID("11111111-1111-1111-1111-111111111111")
-	pending := roleAssignmentID("22222222-2222-2222-2222-222222222222")
-	desiredConfiguredKey := roleAssignmentKey("cpo")
-	desiredPendingKey := roleAssignmentKey("smi")
-	drainingKey := roleAssignmentKey("old-cpo")
+	// resolvedDataplaneMetadata mirrors what FetchManagedIdentitiesInfo writes
+	// for an MSI-based identity when the real Managed Identities Data Plane is
+	// available, which is the source ResolveMSIBasedRoleAssignmentTargetIdentity
+	// picks when managedIdentitiesDataPlaneServiceAvailable is true.
+	resolvedDataplaneMetadata := func(principal string) *coreapi.ManagedIdentityMetadata {
+		return &coreapi.ManagedIdentityMetadata{
+			MetadataFromManagedIdentitiesDataplaneService: &coreapi.IdentityMetadataValue{
+				ClientID:    ptr.To(principal + "-client"),
+				PrincipalID: ptr.To(principal),
+				TenantID:    ptr.To(principal + "-tenant"),
+			},
+		}
+	}
+	// bothResolved is the default fixture: both control-plane operator and
+	// service managed identity metadata already resolved.
+	bothResolved := map[string]*coreapi.ManagedIdentityMetadata{
+		strings.ToLower(controlPlaneOperatorID.String()):   resolvedDataplaneMetadata("cpo-principal"),
+		strings.ToLower(serviceManagedIdentityID.String()): resolvedDataplaneMetadata("smi-principal"),
+	}
+
+	configuredEntry := func(identityID *azcorearm.ResourceID, principal string) *coreapi.RoleAssignmentStatus {
+		return &coreapi.RoleAssignmentStatus{
+			AzureResource: roleAssignmentID(principal),
+			TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+				ResourceID:  identityID,
+				PrincipalID: principal,
+			},
+		}
+	}
+	pendingEntry := func(identityID *azcorearm.ResourceID, principal string) *coreapi.RoleAssignmentStatus {
+		return &coreapi.RoleAssignmentStatus{
+			PendingAzureResource: roleAssignmentID(principal),
+			TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+				ResourceID:  identityID,
+				PrincipalID: principal,
+			},
+		}
+	}
 
 	tests := []struct {
-		name            string
-		roleAssignments map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus
-		expectedState   coreapi.ProvisioningState
-		wantMsgSubstr   string
+		name                   string
+		roleAssignments        map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus
+		managedIdentityDetails map[string]*coreapi.ManagedIdentityMetadata
+		expectedState          coreapi.ProvisioningState
+		wantMsgSubstrs         []string
 	}{
 		{
-			name: "all desired configured → Succeeded",
+			name: "every identity from the cluster spec has a configured key → Succeeded",
 			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-				desiredConfiguredKey: {AzureResource: confirmed},
+				roleAssignmentKey("cpo"): configuredEntry(controlPlaneOperatorID, "cpo-principal"),
+				roleAssignmentKey("smi"): configuredEntry(serviceManagedIdentityID, "smi-principal"),
 			},
-			expectedState: coreapi.ProvisioningStateSucceeded,
+			managedIdentityDetails: bothResolved,
+			expectedState:          coreapi.ProvisioningStateSucceeded,
 		},
 		{
-			name:            "none desired → Provisioning",
-			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{},
-			expectedState:   coreapi.ProvisioningStateProvisioning,
-			wantMsgSubstr:   "role assignments not yet confirmed",
+			name:                   "no identity metadata resolved yet, no role assignments recorded either → Provisioning",
+			roleAssignments:        map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{},
+			managedIdentityDetails: map[string]*coreapi.ManagedIdentityMetadata{},
+			expectedState:          coreapi.ProvisioningStateProvisioning,
+			// Both identities are pending; the message must name both.
+			wantMsgSubstrs: []string{"control-plane operator", "service managed identity"},
 		},
 		{
-			name: "desired still pending → Provisioning",
+			name: "one identity's key exists but is still pending in Azure → Provisioning",
 			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-				desiredConfiguredKey: {AzureResource: confirmed},
-				desiredPendingKey:    {PendingAzureResource: pending},
+				roleAssignmentKey("cpo"): configuredEntry(controlPlaneOperatorID, "cpo-principal"),
+				roleAssignmentKey("smi"): pendingEntry(serviceManagedIdentityID, "smi-principal"),
+			},
+			managedIdentityDetails: bothResolved,
+			expectedState:          coreapi.ProvisioningStateProvisioning,
+			// The message must name the still-pending identity (SMI), not the
+			// already-configured one (CPO).
+			wantMsgSubstrs: []string{"service managed identity"},
+		},
+		{
+			// Regression case: ClusterRoleAssignmentIntent only adds a key once an
+			// identity's metadata resolves, so an unresolved identity has no key at
+			// all rather than an unconfigured one. A check that only looks at keys
+			// already present would wrongly succeed here.
+			name: "one identity has no key at all yet because its metadata has not resolved → Provisioning",
+			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+				roleAssignmentKey("cpo"): configuredEntry(controlPlaneOperatorID, "cpo-principal"),
+			},
+			managedIdentityDetails: map[string]*coreapi.ManagedIdentityMetadata{
+				strings.ToLower(controlPlaneOperatorID.String()): resolvedDataplaneMetadata("cpo-principal"),
+				// serviceManagedIdentityID intentionally has no entry: its metadata
+				// has not resolved yet, so it has no role assignment key either.
 			},
 			expectedState: coreapi.ProvisioningStateProvisioning,
-			wantMsgSubstr: "role assignments not yet confirmed",
+			// The message must name the unresolved identity (SMI), not the
+			// already-resolved-and-configured one (CPO).
+			wantMsgSubstrs: []string{"service managed identity"},
 		},
 		{
-			name: "draining leftovers are ignored when desired are configured → Succeeded",
+			name: "draining leftover for an identity is ignored once that identity also has a configured key → Succeeded",
 			roleAssignments: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
-				desiredConfiguredKey: {AzureResource: confirmed},
-				drainingKey: {
-					AzureResource:        confirmed,
+				roleAssignmentKey("cpo"): configuredEntry(controlPlaneOperatorID, "cpo-principal"),
+				roleAssignmentKey("smi"): configuredEntry(serviceManagedIdentityID, "smi-principal"),
+				roleAssignmentKey("old-cpo"): {
+					AzureResource:        roleAssignmentID("old-cpo-principal"),
 					DeconfigureTimestamp: &metav1.Time{Time: time.Now()},
+					TargetIdentity: &coreapi.RoleAssignmentTargetIdentity{
+						ResourceID:  controlPlaneOperatorID,
+						PrincipalID: "old-cpo-principal",
+					},
 				},
 			},
-			expectedState: coreapi.ProvisioningStateSucceeded,
+			managedIdentityDetails: bothResolved,
+			expectedState:          coreapi.ProvisioningStateSucceeded,
 		},
 	}
 
@@ -1350,15 +1470,16 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			controller := &operationClusterCreate{
-				serviceProviderClusterLister: spcLister(tt.roleAssignments),
+				serviceProviderClusterLister:               spcLister(tt.roleAssignments, tt.managedIdentityDetails),
+				managedIdentitiesDataPlaneServiceAvailable: true,
 			}
 
-			result, err := controller.roleAssignmentsOperationStatus(ctx, operation)
+			result, err := controller.roleAssignmentsOperationStatus(ctx, operation, cluster)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
-			if tt.wantMsgSubstr != "" {
-				assert.Contains(t, result.Message, tt.wantMsgSubstr)
+			for _, substr := range tt.wantMsgSubstrs {
+				assert.Contains(t, result.Message, substr)
 			}
 		})
 	}

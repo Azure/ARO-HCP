@@ -22,7 +22,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
-	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -239,7 +238,7 @@ func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentIdentities(
 		if identityResourceID == nil {
 			continue
 		}
-		target, ok, err := s.resolveMSIBasedRoleAssignmentTargetIdentity(serviceProviderCluster, identityResourceID)
+		target, ok, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&serviceProviderCluster.Status, identityResourceID, s.managedIdentitiesDataPlaneServiceAvailable)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -264,7 +263,7 @@ func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentIdentities(
 			return nil, nil, utils.TrackError(fmt.Errorf("unexpected nil identity Resource ID for data plane operator %q", operatorName))
 		}
 
-		target, ok, err := resolveDataPlaneRoleAssignmentTargetIdentity(serviceProviderCluster, identityResourceID)
+		target, ok, err := coreapihelpers.ResolveDataPlaneRoleAssignmentTargetIdentity(&serviceProviderCluster.Status, identityResourceID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -285,7 +284,7 @@ func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentIdentities(
 	if identityResourceID == nil {
 		return nil, nil, utils.TrackError(fmt.Errorf("unexpected nil identity Resource ID for service managed identity"))
 	}
-	target, ok, err := s.resolveMSIBasedRoleAssignmentTargetIdentity(serviceProviderCluster, identityResourceID)
+	target, ok, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&serviceProviderCluster.Status, identityResourceID, s.managedIdentitiesDataPlaneServiceAvailable)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -455,66 +454,4 @@ func serviceManagedIdentityRoleDefinitionIDsFromConfig(config *azure.ClusterScop
 		return nil, utils.TrackError(fmt.Errorf("no role definitions configured for the service managed identity"))
 	}
 	return roleDefinitionIDs, nil
-}
-
-// resolveMSIBasedRoleAssignmentTargetIdentity returns the identity generation
-// snapshot for an MSI-based role assignment (control-plane operators and the
-// service managed identity). Which Cosmos source applies is the process
-// environment, the same signal FetchManagedIdentitiesInfo uses:
-// MetadataFromManagedIdentitiesDataplaneService when
-// managedIdentitiesDataPlaneServiceAvailable is true, otherwise
-// MetadataFromHardcodedIdentity. A nil pointer or unresolved
-// value on that source means Fetch has not resolved it yet. The other MSI
-// source is not consulted. ARM is ignored even when the same UAMI is also a
-// data-plane operator. ok is false when the entry is missing or the chosen
-// source is not fully resolved.
-func (s *clusterRoleAssignmentIntentSyncer) resolveMSIBasedRoleAssignmentTargetIdentity(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID) (*coreapi.RoleAssignmentTargetIdentity, bool, error) {
-	metadata, ok, err := managedIdentityMetadata(serviceProviderCluster, identityResourceID)
-	if err != nil || !ok {
-		return nil, false, err
-	}
-	source := metadata.MetadataFromHardcodedIdentity
-	if s.managedIdentitiesDataPlaneServiceAvailable {
-		source = metadata.MetadataFromManagedIdentitiesDataplaneService
-	}
-	target, ok := roleAssignmentTargetIdentityFromMetadataValue(source, identityResourceID)
-	return target, ok, nil
-}
-
-// resolveDataPlaneRoleAssignmentTargetIdentity returns the identity
-// generation snapshot for a data-plane operator role assignment from ARM
-// User Assigned Identities. Dataplane and hardcoded metadata are ignored
-// even when the same UAMI is also a control-plane operator. ok is false when
-// the entry is missing or ARM is not fully resolved.
-func resolveDataPlaneRoleAssignmentTargetIdentity(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID) (*coreapi.RoleAssignmentTargetIdentity, bool, error) {
-	metadata, ok, err := managedIdentityMetadata(serviceProviderCluster, identityResourceID)
-	if err != nil || !ok {
-		return nil, false, err
-	}
-	target, ok := roleAssignmentTargetIdentityFromMetadataValue(metadata.MetadataFromARMUserAssignedIdentitiesAPI, identityResourceID)
-	return target, ok, nil
-}
-
-func managedIdentityMetadata(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID) (*coreapi.ManagedIdentityMetadata, bool, error) {
-	key := strings.ToLower(identityResourceID.String())
-	metadata, hasMetadata := serviceProviderCluster.Status.ManagedIdentityDetails[key]
-	if !hasMetadata {
-		return nil, false, nil
-	}
-	if metadata == nil {
-		return nil, false, utils.TrackError(fmt.Errorf("ManagedIdentityDetails has a nil metadata entry for resource ID %s", key))
-	}
-	return metadata, true, nil
-}
-
-func roleAssignmentTargetIdentityFromMetadataValue(value *coreapi.IdentityMetadataValue, identityResourceID *azcorearm.ResourceID) (*coreapi.RoleAssignmentTargetIdentity, bool) {
-	if value == nil || !coreapihelpers.IdentityMetadataValueHasResolvedIdentityInformation(value) {
-		return nil, false
-	}
-	return &coreapi.RoleAssignmentTargetIdentity{
-		ResourceID:  identityResourceID,
-		ClientID:    ptr.Deref(value.ClientID, ""),
-		TenantID:    ptr.Deref(value.TenantID, ""),
-		PrincipalID: ptr.Deref(value.PrincipalID, ""),
-	}, true
 }

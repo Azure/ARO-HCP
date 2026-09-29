@@ -469,13 +469,11 @@ func TestResolveControlPlaneRoleAssignmentTargetIdentity(t *testing.T) {
 	t.Parallel()
 
 	identityID := mustParseResourceID(testControlPlaneIdentityID)
-	dataplaneSyncer := newTestRoleAssignmentIntentSyncer(nil, true)
-	hardcodedSyncer := newTestRoleAssignmentIntentSyncer(nil, false)
 
 	t.Run("dataplane metadata is used even when ARM is resolved", func(t *testing.T) {
 		t.Parallel()
 		spc := newTestServiceProviderClusterWithIdentityDetails(t)
-		target, ok, err := dataplaneSyncer.resolveMSIBasedRoleAssignmentTargetIdentity(spc, identityID)
+		target, ok, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&spc.Status, identityID, true)
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.NotNil(t, target)
@@ -493,7 +491,7 @@ func TestResolveControlPlaneRoleAssignmentTargetIdentity(t *testing.T) {
 			PrincipalID: ptr.To(testControlPlanePrincipalID),
 			TenantID:    ptr.To("hardcoded-tenant-cp"),
 		}
-		target, ok, err := hardcodedSyncer.resolveMSIBasedRoleAssignmentTargetIdentity(spc, identityID)
+		target, ok, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&spc.Status, identityID, false)
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.NotNil(t, target)
@@ -512,7 +510,7 @@ func TestResolveControlPlaneRoleAssignmentTargetIdentity(t *testing.T) {
 			PrincipalID: ptr.To(testControlPlanePrincipalID),
 			TenantID:    ptr.To("hardcoded-tenant-cp"),
 		}
-		target, ok, err := dataplaneSyncer.resolveMSIBasedRoleAssignmentTargetIdentity(spc, identityID)
+		target, ok, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&spc.Status, identityID, true)
 		require.NoError(t, err)
 		assert.False(t, ok)
 		assert.Nil(t, target)
@@ -530,7 +528,7 @@ func TestResolveControlPlaneRoleAssignmentTargetIdentity(t *testing.T) {
 			PrincipalID: ptr.To(testControlPlanePrincipalID),
 			TenantID:    ptr.To("hardcoded-tenant-cp"),
 		}
-		target, ok, err := dataplaneSyncer.resolveMSIBasedRoleAssignmentTargetIdentity(spc, identityID)
+		target, ok, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&spc.Status, identityID, true)
 		require.NoError(t, err)
 		assert.False(t, ok)
 		assert.Nil(t, target)
@@ -540,7 +538,7 @@ func TestResolveControlPlaneRoleAssignmentTargetIdentity(t *testing.T) {
 		t.Parallel()
 		spc := newTestServiceProviderClusterWithIdentityDetails(t)
 		spc.Status.ManagedIdentityDetails[strings.ToLower(testControlPlaneIdentityID)].MetadataFromHardcodedIdentity = nil
-		target, ok, err := hardcodedSyncer.resolveMSIBasedRoleAssignmentTargetIdentity(spc, identityID)
+		target, ok, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&spc.Status, identityID, false)
 		require.NoError(t, err)
 		assert.False(t, ok)
 		assert.Nil(t, target)
@@ -552,7 +550,7 @@ func TestResolveControlPlaneRoleAssignmentTargetIdentity(t *testing.T) {
 		key := strings.ToLower(testControlPlaneIdentityID)
 		spc.Status.ManagedIdentityDetails[key].MetadataFromManagedIdentitiesDataplaneService = nil
 		spc.Status.ManagedIdentityDetails[key].MetadataFromHardcodedIdentity = nil
-		target, ok, err := dataplaneSyncer.resolveMSIBasedRoleAssignmentTargetIdentity(spc, identityID)
+		target, ok, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&spc.Status, identityID, true)
 		require.NoError(t, err)
 		assert.False(t, ok)
 		assert.Nil(t, target)
@@ -562,7 +560,7 @@ func TestResolveControlPlaneRoleAssignmentTargetIdentity(t *testing.T) {
 		t.Parallel()
 		spc := newTestServiceProviderClusterWithIdentityDetails(t)
 		spc.Status.ManagedIdentityDetails = nil
-		target, ok, err := dataplaneSyncer.resolveMSIBasedRoleAssignmentTargetIdentity(spc, identityID)
+		target, ok, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&spc.Status, identityID, true)
 		require.NoError(t, err)
 		assert.False(t, ok)
 		assert.Nil(t, target)
@@ -572,7 +570,7 @@ func TestResolveControlPlaneRoleAssignmentTargetIdentity(t *testing.T) {
 		t.Parallel()
 		spc := newTestServiceProviderClusterWithIdentityDetails(t)
 		spc.Status.ManagedIdentityDetails[strings.ToLower(testControlPlaneIdentityID)] = nil
-		_, _, err := dataplaneSyncer.resolveMSIBasedRoleAssignmentTargetIdentity(spc, identityID)
+		_, _, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&spc.Status, identityID, true)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nil metadata entry")
 	})
@@ -586,7 +584,7 @@ func TestResolveDataPlaneRoleAssignmentTargetIdentity(t *testing.T) {
 	t.Run("ARM metadata fills ClientID TenantID PrincipalID", func(t *testing.T) {
 		t.Parallel()
 		spc := newTestServiceProviderClusterWithIdentityDetails(t)
-		target, ok, err := resolveDataPlaneRoleAssignmentTargetIdentity(spc, identityID)
+		target, ok, err := coreapihelpers.ResolveDataPlaneRoleAssignmentTargetIdentity(&spc.Status, identityID)
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.NotNil(t, target)
@@ -610,7 +608,7 @@ func TestResolveDataPlaneRoleAssignmentTargetIdentity(t *testing.T) {
 			PrincipalID: ptr.To("hardcoded-principal-dp"),
 			TenantID:    ptr.To("hardcoded-tenant-dp"),
 		}
-		target, ok, err := resolveDataPlaneRoleAssignmentTargetIdentity(spc, identityID)
+		target, ok, err := coreapihelpers.ResolveDataPlaneRoleAssignmentTargetIdentity(&spc.Status, identityID)
 		require.NoError(t, err)
 		assert.False(t, ok)
 		assert.Nil(t, target)
@@ -620,7 +618,7 @@ func TestResolveDataPlaneRoleAssignmentTargetIdentity(t *testing.T) {
 		t.Parallel()
 		spc := newTestServiceProviderClusterWithIdentityDetails(t)
 		spc.Status.ManagedIdentityDetails = nil
-		target, ok, err := resolveDataPlaneRoleAssignmentTargetIdentity(spc, identityID)
+		target, ok, err := coreapihelpers.ResolveDataPlaneRoleAssignmentTargetIdentity(&spc.Status, identityID)
 		require.NoError(t, err)
 		assert.False(t, ok)
 		assert.Nil(t, target)
@@ -629,7 +627,7 @@ func TestResolveDataPlaneRoleAssignmentTargetIdentity(t *testing.T) {
 
 func mustResolveControlPlaneRoleAssignmentTargetIdentity(t *testing.T, syncer *clusterRoleAssignmentIntentSyncer, spc *coreapi.ServiceProviderCluster, identityID *azcorearm.ResourceID) *coreapi.RoleAssignmentTargetIdentity {
 	t.Helper()
-	target, ok, err := syncer.resolveMSIBasedRoleAssignmentTargetIdentity(spc, identityID)
+	target, ok, err := coreapihelpers.ResolveMSIBasedRoleAssignmentTargetIdentity(&spc.Status, identityID, syncer.managedIdentitiesDataPlaneServiceAvailable)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.NotNil(t, target)
