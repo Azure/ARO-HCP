@@ -110,7 +110,7 @@ tests:
   # ---------------------------------------------------------------------------
   # FrontendPathMedianLatency — p50 > 250ms, 30m window, light ≥10 req/30m floor.
   # The median is robust at low N, so a single outlier must not fire it.
-  # GET/HEAD only: mutating methods are a write-path concern (FrontendPathLatency).
+  # GET/HEAD only: mutating methods use FrontendPathWriteMedianLatency.
   # ---------------------------------------------------------------------------
 
   input_series:
