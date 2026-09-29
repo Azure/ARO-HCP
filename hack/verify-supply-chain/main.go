@@ -152,10 +152,34 @@ func main() {
 	os.Exit(1)
 }
 
-// trackedFiles returns every file tracked by git, which excludes both
-// untracked and gitignored files.
-func trackedFiles(root string) ([]string, error) {
-	cmd := exec.Command("git", "ls-files", "-z")
+// Index modes git records for a tracked entry. Only a regular file — with or
+// without the executable bit — has contents worth opening; see readableBlob.
+const (
+	modeRegular    = "100644"
+	modeExecutable = "100755"
+)
+
+// trackedFile is one entry of the git index: the path, plus the mode git
+// stores alongside it.
+type trackedFile struct {
+	path string
+	mode string
+}
+
+// trackedFiles returns every entry in the git index.
+//
+// Untracked files are excluded, which is the point: developers routinely keep
+// a gitignored .claude/settings.local.json in their working copy, and that is
+// not what this check is about. Being gitignored is not an escape hatch,
+// though — a force-added file is tracked from then on and git ls-files keeps
+// returning it. The two SKILL.md files in this repository are exactly that,
+// committed under a .gitignore'd /.claude/ directory.
+func trackedFiles(root string) ([]trackedFile, error) {
+	// --stage prints "<mode> <sha> <stage>\t<path>", so the entry's type is
+	// read from the index rather than the working tree. That keeps the check
+	// honest on a fresh clone and on filesystems that do not carry the
+	// executable bit.
+	cmd := exec.Command("git", "ls-files", "--stage", "-z")
 	cmd.Dir = root
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
@@ -163,14 +187,40 @@ func trackedFiles(root string) ([]string, error) {
 		return nil, err
 	}
 
-	var files []string
+	var files []trackedFile
 	for _, entry := range bytes.Split(out, []byte{0}) {
 		if len(entry) == 0 {
 			continue
 		}
-		files = append(files, string(entry))
+		meta, p, ok := bytes.Cut(entry, []byte{'\t'})
+		if !ok {
+			return nil, fmt.Errorf("unexpected git ls-files entry %q", entry)
+		}
+		mode, _, ok := bytes.Cut(meta, []byte{' '})
+		if !ok {
+			return nil, fmt.Errorf("unexpected git ls-files metadata %q", meta)
+		}
+		files = append(files, trackedFile{path: string(p), mode: string(mode)})
 	}
 	return files, nil
+}
+
+// readableBlob reports whether an entry's contents can be opened from the
+// working tree.
+//
+// Content scanning uses os.ReadFile, which follows symlinks. A tracked
+// .claude/*.json symlinked to /dev/zero would otherwise read forever, and one
+// pointing at a fifo would block until the CI job times out — in both cases
+// without ever reporting a finding. So the entry's type is taken from the
+// index and anything that is not a plain blob is left alone.
+//
+// Skipping them loses nothing, because what git tracks for a symlink is the
+// target path, a short string that cannot carry an execution key; for a
+// submodule it is a commit reference, with no file to read at all. Following
+// the link would inspect bytes that are not in this repository and not in
+// this diff, which is the opposite of what this check promises.
+func readableBlob(f trackedFile) bool {
+	return f.mode == modeRegular || f.mode == modeExecutable
 }
 
 // checkPaths applies the path-shaped rules. It is pure so that the denylist
@@ -179,9 +229,10 @@ func trackedFiles(root string) ([]string, error) {
 // Every comparison is made against the lowercased path. Git's index is
 // case-sensitive, so ".Claude/settings.json" is a distinct tracked path that
 // would otherwise sidestep the denylist while being read just the same.
-func checkPaths(files []string) []finding {
+func checkPaths(files []trackedFile) []finding {
 	var findings []finding
-	for _, p := range files {
+	for _, f := range files {
+		p := f.path
 		lower := strings.ToLower(p)
 		base := path.Base(lower)
 		switch {
@@ -210,16 +261,20 @@ func checkPaths(files []string) []finding {
 
 // agentJSONFiles returns the tracked JSON whose contents need inspecting for
 // execution keys: anything under an agent configuration directory, plus MCP
-// server configuration wherever it sits.
-func agentJSONFiles(files []string) []string {
+// server configuration wherever it sits. Entries whose contents cannot be
+// safely opened are excluded — see readableBlob.
+func agentJSONFiles(files []trackedFile) []string {
 	var out []string
-	for _, p := range files {
-		lower := strings.ToLower(p)
+	for _, f := range files {
+		if !readableBlob(f) {
+			continue
+		}
+		lower := strings.ToLower(f.path)
 		switch {
 		case mcpConfigFiles[path.Base(lower)]:
-			out = append(out, p)
+			out = append(out, f.path)
 		case hasSegment(lower, agentConfigDir) && path.Ext(lower) == ".json":
-			out = append(out, p)
+			out = append(out, f.path)
 		}
 	}
 	return out

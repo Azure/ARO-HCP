@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -77,7 +78,7 @@ func TestCheckPaths(t *testing.T) {
 		{name: "ordinary shell script", path: "hack/verify.sh"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			findings := checkPaths([]string{tc.path})
+			findings := checkPaths(regularFiles(tc.path))
 
 			if tc.rule == "" {
 				if len(findings) != 0 {
@@ -100,21 +101,31 @@ func TestCheckPaths(t *testing.T) {
 }
 
 func TestCheckPathsReportsEveryViolation(t *testing.T) {
-	findings := checkPaths([]string{
+	findings := checkPaths(regularFiles(
 		"README.md",
 		".claude/settings.json",
 		"frontend/.vscode/extensions.json",
 		".claude/skills/pr-standards/SKILL.md",
 		".mcp.json",
-	})
+	))
 
 	if len(findings) != 3 {
 		t.Fatalf("expected 3 findings, got %+v", findings)
 	}
 }
 
+// regularFiles builds index entries for paths whose mode is not what the test
+// is about.
+func regularFiles(paths ...string) []trackedFile {
+	files := make([]trackedFile, len(paths))
+	for i, p := range paths {
+		files[i] = trackedFile{path: p, mode: modeRegular}
+	}
+	return files
+}
+
 func TestAgentJSONFiles(t *testing.T) {
-	got := agentJSONFiles([]string{
+	got := agentJSONFiles(append(regularFiles(
 		".claude/settings.json",
 		".claude/skills/x/SKILL.md",
 		"frontend/.claude/other.json",
@@ -125,7 +136,17 @@ func TestAgentJSONFiles(t *testing.T) {
 		// a project-scoped server entry still reaches the content rules.
 		".mcp.json",
 		".cursor/mcp.json",
-	})
+	),
+		// os.ReadFile follows symlinks, so a non-regular entry must never
+		// reach it: a symlink to a fifo or /dev/zero blocks the presubmit
+		// until the job times out, and a submodule has no file to read. What
+		// git tracks for either is not JSON, so nothing is lost by skipping.
+		trackedFile{path: ".claude/skills/x/meta.json", mode: "120000"},
+		trackedFile{path: "frontend/.mcp.json", mode: "120000"},
+		trackedFile{path: ".claude/vendor.json", mode: "160000"},
+		// An executable regular file is still a plain blob and safe to read.
+		trackedFile{path: ".claude/exec.json", mode: modeExecutable},
+	))
 
 	want := []string{
 		".claude/settings.json",
@@ -133,6 +154,7 @@ func TestAgentJSONFiles(t *testing.T) {
 		".Claude/Payload.JSON",
 		".mcp.json",
 		".cursor/mcp.json",
+		".claude/exec.json",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("expected %v, got %v", want, got)
@@ -319,6 +341,18 @@ func TestRepositoryIsClean(t *testing.T) {
 	}
 	if len(files) == 0 {
 		t.Fatal("expected the repository to have tracked files")
+	}
+
+	// Parsing the index format wrongly would silently blank every mode, which
+	// would make readableBlob reject everything and the content rules vacuous.
+	// Assert the shape before relying on it.
+	for _, f := range files {
+		if f.path == "" || f.mode == "" {
+			t.Fatalf("incomplete index entry %+v", f)
+		}
+	}
+	if !slices.ContainsFunc(files, func(f trackedFile) bool { return f.mode == modeExecutable }) {
+		t.Error("expected at least one executable file in this repository; mode parsing is likely broken")
 	}
 
 	if findings := checkPaths(files); len(findings) != 0 {
