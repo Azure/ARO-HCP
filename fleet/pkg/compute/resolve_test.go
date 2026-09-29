@@ -91,7 +91,7 @@ func testProfile() Profile {
 				Cores:          16,
 				OSDiskSizeGB:   100,
 				MaxNodes:       5,
-				FamilyPriority: []VMFamily{"standardEDSv6Family"},
+				FamilyPriority: []VMFamily{"StandardEdsv6Family"},
 				MaxPods:        225,
 				PoolCount:      3,
 			},
@@ -114,13 +114,13 @@ func TestResolveDesiredPools(t *testing.T) {
 		{
 			name: "happy path allocates pools and passes tier families to fetchQuotaUsage",
 			skus: []*armcompute.ResourceSKU{
-				resolveTestSKU("Standard_E16ds_v6", "standardEDSv6Family", 16),
+				resolveTestSKU("Standard_E16ds_v6", "StandardEdsv6Family", 16),
 			},
 			quotaUsage: map[VMFamily]QuotaUsage{
-				"standardEDSv6Family": {Limit: 1000, CurrentValue: 0},
+				"StandardEdsv6Family": {Limit: 1000, CurrentValue: 0},
 			},
 			wantQuotaCalls:     1,
-			wantAvailableVCPUs: map[VMFamily]int64{"standardEDSv6Family": 1000},
+			wantAvailableVCPUs: map[VMFamily]int64{"StandardEdsv6Family": 1000},
 		},
 		{
 			name:            "SKU metadata fetch error is wrapped",
@@ -131,7 +131,7 @@ func TestResolveDesiredPools(t *testing.T) {
 		{
 			name: "budget computation error is wrapped",
 			skus: []*armcompute.ResourceSKU{
-				resolveTestSKU("Standard_E16ds_v6", "standardEDSv6Family", 16),
+				resolveTestSKU("Standard_E16ds_v6", "StandardEdsv6Family", 16),
 			},
 			quotaErr:        errors.New("quota API unavailable"),
 			wantQuotaCalls:  1,
@@ -145,7 +145,7 @@ func TestResolveDesiredPools(t *testing.T) {
 			quotaCalls := 0
 			fetchQuotaUsage := func(_ context.Context, families sets.Set[VMFamily]) (map[VMFamily]QuotaUsage, error) {
 				quotaCalls++
-				assert.True(t, families.Equal(sets.New[VMFamily]("standardEDSv6Family")), "expected fetchQuotaUsage to receive the tier's families, got %v", families)
+				assert.True(t, families.Equal(sets.New[VMFamily]("StandardEdsv6Family")), "expected fetchQuotaUsage to receive the tier's families, got %v", families)
 				return tt.quotaUsage, tt.quotaErr
 			}
 
@@ -222,7 +222,7 @@ func TestResolveDesiredPools_LocationRestrictions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, mode := range []PoolMode{PoolModePerZone, PoolModeRegional} {
 				t.Run(string(mode), func(t *testing.T) {
-					preferred := resolveTestSKU(preferredSize, "standardEDSv6Family", 16)
+					preferred := resolveTestSKU(preferredSize, "StandardEdsv6Family", 16)
 					preferred.Restrictions = []*armcompute.ResourceSKURestrictions{nil, {}, tt.restriction}
 					fallback := resolveTestSKU(fallbackSize, "standardEDSv5Family", 16)
 					if tt.restrictFallback {
@@ -231,13 +231,13 @@ func TestResolveDesiredPools_LocationRestrictions(t *testing.T) {
 					cache := newResolveTestCache(t, []*armcompute.ResourceSKU{preferred, fallback}, nil)
 					profile := testProfile()
 					profile.Tiers[0].PoolMode = mode
-					profile.Tiers[0].FamilyPriority = []VMFamily{"standardEDSv6Family", "standardEDSv5Family"}
+					profile.Tiers[0].FamilyPriority = []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}
 					result, err := ResolveDesiredPools(
 						utils.ContextWithLogger(context.Background(), logr.Discard()),
 						cache, resolveTestSubscriptionID, profile, allZones,
 						func(context.Context, sets.Set[VMFamily]) (map[VMFamily]QuotaUsage, error) {
 							return map[VMFamily]QuotaUsage{
-								"standardEDSv6Family": {Limit: 1000},
+								"StandardEdsv6Family": {Limit: 1000},
 								"standardEDSv5Family": {Limit: 1000},
 							}, nil
 						},
@@ -289,7 +289,7 @@ func TestResolveDesiredPools_UsageDoesNotChangeDesiredPools(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			skuCache := newResolveTestCache(t, []*armcompute.ResourceSKU{
-				resolveTestSKU("Standard_E16ds_v6", "standardEDSv6Family", 16),
+				resolveTestSKU("Standard_E16ds_v6", "StandardEdsv6Family", 16),
 			}, nil)
 			profile := Profile{
 				Tiers: []TierConfig{
@@ -301,7 +301,7 @@ func TestResolveDesiredPools_UsageDoesNotChangeDesiredPools(t *testing.T) {
 						Cores:          16,
 						OSDiskSizeGB:   100,
 						MaxNodes:       19,
-						FamilyPriority: []VMFamily{"standardEDSv6Family"},
+						FamilyPriority: []VMFamily{"StandardEdsv6Family"},
 						MaxPods:        225,
 					},
 				},
@@ -311,7 +311,7 @@ func TestResolveDesiredPools_UsageDoesNotChangeDesiredPools(t *testing.T) {
 				resolveTestSubscriptionID, profile, []string{"1", "2", "3"},
 				func(context.Context, sets.Set[VMFamily]) (map[VMFamily]QuotaUsage, error) {
 					return map[VMFamily]QuotaUsage{
-						"standardEDSv6Family": {Limit: 128, CurrentValue: tt.currentUsage},
+						"StandardEdsv6Family": {Limit: 128, CurrentValue: tt.currentUsage},
 					}, nil
 				})
 			require.NoError(t, err)
@@ -319,7 +319,7 @@ func TestResolveDesiredPools_UsageDoesNotChangeDesiredPools(t *testing.T) {
 			require.False(t, result.FullyAllocated, "nonzero allocation is not complete")
 			require.Len(t, result.Pools, 1)
 			assert.Equal(t, int32(7), result.Pools[0].MaxCount, "total quota reserves one 16-vCPU surge node regardless of current usage")
-			assert.Equal(t, map[VMFamily]int64{"standardEDSv6Family": tt.wantAvailable}, result.AvailableVCPUs)
+			assert.Equal(t, map[VMFamily]int64{"StandardEdsv6Family": tt.wantAvailable}, result.AvailableVCPUs)
 		})
 	}
 }

@@ -37,10 +37,10 @@ func memoryBytes(value string) int64 {
 }
 
 var (
-	specE32v6   = compute.VMSpec{Size: "Standard_E32ds_v6", Family: "standardEDSv6Family", VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}
-	specE16v6   = compute.VMSpec{Size: "Standard_E16ds_v6", Family: "standardEDSv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}
+	specE32v6   = compute.VMSpec{Size: "Standard_E32ds_v6", Family: "StandardEdsv6Family", VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}
+	specE16v6   = compute.VMSpec{Size: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}
 	specD4v3    = compute.VMSpec{Size: "Standard_D4s_v3", Family: "standardDSv3Family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 1}
-	specD8v6    = compute.VMSpec{Size: "Standard_D8ds_v6", Family: "standardDDSv6Family", VCPUs: 8, MemoryBytes: memoryBytes("64Gi"), SecondaryNICs: 3}
+	specD8v6    = compute.VMSpec{Size: "Standard_D8ds_v6", Family: "StandardDdsv6Family", VCPUs: 8, MemoryBytes: memoryBytes("64Gi"), SecondaryNICs: 3}
 	specE8dsV5  = compute.VMSpec{Size: "Standard_E8ds_v5", Family: "standardEDSv5Family", VCPUs: 8, MemoryBytes: memoryBytes("64Gi"), SecondaryNICs: 3}
 	specE16dsV5 = compute.VMSpec{Size: "Standard_E16ds_v5", Family: "standardEDSv5Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}
 	specE32dsV5 = compute.VMSpec{Size: "Standard_E32ds_v5", Family: "standardEDSv5Family", VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}

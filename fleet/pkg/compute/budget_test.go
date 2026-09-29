@@ -38,10 +38,10 @@ func TestUnlimitedBudget(t *testing.T) {
 		},
 		{
 			name:     "multiple families all get the unlimited cap",
-			families: sets.New[VMFamily]("standardEDSv6Family", "standardDDSv6Family"),
+			families: sets.New[VMFamily]("StandardEdsv6Family", "StandardDdsv6Family"),
 			want: map[VMFamily]QuotaUsage{
-				"standardEDSv6Family": {Limit: UnlimitedVCPUs},
-				"standardDDSv6Family": {Limit: UnlimitedVCPUs},
+				"StandardEdsv6Family": {Limit: UnlimitedVCPUs},
+				"StandardDdsv6Family": {Limit: UnlimitedVCPUs},
 			},
 		},
 	}
@@ -66,23 +66,23 @@ func TestSubscriptionQuotaBudget(t *testing.T) {
 	}{
 		{
 			name:     "preserves limit and current usage",
-			families: sets.New[VMFamily]("standardEDSv6Family"),
+			families: sets.New[VMFamily]("StandardEdsv6Family"),
 			usages: map[VMFamily]QuotaUsage{
-				"standardEDSv6Family": {Limit: 100, CurrentValue: 40},
+				"StandardEdsv6Family": {Limit: 100, CurrentValue: 40},
 			},
-			want: map[VMFamily]QuotaUsage{"standardEDSv6Family": {Limit: 100, CurrentValue: 40}},
+			want: map[VMFamily]QuotaUsage{"StandardEdsv6Family": {Limit: 100, CurrentValue: 40}},
 		},
 		{
 			name:     "preserves usage exceeding limit",
-			families: sets.New[VMFamily]("standardEDSv6Family"),
+			families: sets.New[VMFamily]("StandardEdsv6Family"),
 			usages: map[VMFamily]QuotaUsage{
-				"standardEDSv6Family": {Limit: 10, CurrentValue: 40},
+				"StandardEdsv6Family": {Limit: 10, CurrentValue: 40},
 			},
-			want: map[VMFamily]QuotaUsage{"standardEDSv6Family": {Limit: 10, CurrentValue: 40}},
+			want: map[VMFamily]QuotaUsage{"StandardEdsv6Family": {Limit: 10, CurrentValue: 40}},
 		},
 		{
 			name:     "propagates fetch error",
-			families: sets.New[VMFamily]("standardEDSv6Family"),
+			families: sets.New[VMFamily]("StandardEdsv6Family"),
 			fetchErr: errors.New("boom"),
 			wantErr:  true,
 		},
