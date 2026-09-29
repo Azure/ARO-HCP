@@ -31,7 +31,9 @@ import (
 	"k8s.io/utils/set"
 
 	"github.com/Azure/azure-kusto-go/kusto"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertprocessingrules/armalertprocessingrules"
 
+	"github.com/Azure/ARO-HCP/admin/server/handlers/alertmanagement"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	breakglasshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp/breakglass"
@@ -86,6 +88,9 @@ func NewAdminAPI(
 	gatherer prometheus.Gatherer,
 	metricsRegisterer prometheus.Registerer,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	alertProcessingRulesClient *armalertprocessingrules.Client,
+	alertProcessingRulesResourceGroup string,
+	alertProcessingRulesScopes []string,
 ) *AdminAPI {
 	// Pre-mux middleware (runs on all admin routes before pattern matching)
 	middlewareMux := middleware.NewMiddlewareMux(
@@ -152,6 +157,18 @@ func NewAdminAPI(
 		errorutils.ReportError(stamphandlers.NewStampApprovalHandler(fleetDBClient).ServeHTTP))
 	middlewareMux.Handle("GET /admin/v1/hcpresourcerequirements/{name}",
 		errorutils.ReportError(hcpresourcerequirementshandlers.NewHCPResourceRequirementsGetHandler(fleetDBClient).ServeHTTP))
+
+	// Alert processing rules routes (registered only when the feature is configured).
+	if alertProcessingRulesClient != nil {
+		middlewareMux.Handle("GET /admin/v1/alertprocessingrules",
+			errorutils.ReportError(alertmanagement.NewAlertProcessingRuleListHandler(alertProcessingRulesClient, alertProcessingRulesResourceGroup).ServeHTTP))
+		middlewareMux.Handle("GET /admin/v1/alertprocessingrules/{name}",
+			errorutils.ReportError(alertmanagement.NewAlertProcessingRuleGetHandler(alertProcessingRulesClient, alertProcessingRulesResourceGroup).ServeHTTP))
+		middlewareMux.Handle("PUT /admin/v1/alertprocessingrules/{name}",
+			errorutils.ReportError(alertmanagement.NewAlertProcessingRulePutHandler(alertProcessingRulesClient, alertProcessingRulesResourceGroup, alertProcessingRulesScopes).ServeHTTP))
+		middlewareMux.Handle("DELETE /admin/v1/alertprocessingrules/{name}",
+			errorutils.ReportError(alertmanagement.NewAlertProcessingRuleDeleteHandler(alertProcessingRulesClient, alertProcessingRulesResourceGroup).ServeHTTP))
+	}
 
 	// Top-level mux (healthz bypasses all middleware)
 	apiMux := http.NewServeMux()

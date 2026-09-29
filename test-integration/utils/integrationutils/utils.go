@@ -270,6 +270,9 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		metricsRegistry,
 		metricsRegistry,
 		mockKubeApplierClients,
+		nil, // alert processing rules client (feature disabled in integration tests)
+		"",  // alert processing rule resource group
+		nil, // alert processing rule scopes
 	)
 
 	frontendURL := fmt.Sprintf("http://%s", frontendListener.Addr().String())
