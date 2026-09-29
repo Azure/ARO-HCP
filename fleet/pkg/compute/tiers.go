@@ -64,11 +64,12 @@ type TierConfig struct {
 	Taints      []string
 	EnableSwift bool
 	Required    bool
-	// PoolCount is the number of pools the tier creates. For PoolModePerZone it
-	// must be >= 1 and is the number of zonal pools (clamped to the number of
-	// zones available); the pools land in the first PoolCount zones where the
-	// chosen SKU is available. For PoolModeRegional it must be exactly 1 — a
-	// single zoneless pool. Both constraints are enforced by ValidateProfile.
+	// PoolCount is the number of zones a PoolModePerZone tier spans and must be
+	// >= 1 (clamped to the number of zones available). The tier uses the zones
+	// allowing the most nodes per zone; every zone gets the same node count,
+	// with one pool per family serving it. For PoolModeRegional it must be
+	// exactly 1 — a single zoneless pool. Both constraints are enforced by
+	// ValidateProfile.
 	PoolCount int
 }
 
