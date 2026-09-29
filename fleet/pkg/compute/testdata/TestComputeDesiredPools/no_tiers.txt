@@ -1,0 +1,18 @@
+zones: 1,2,3
+
+tiers:
+  (none)
+
+quota limits (vCPUs):
+  StandardEdsv6Family:  100
+
+skus:
+  Standard_E32ds_v6  StandardEdsv6Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1792GB  zones=1,2,3
+
+fully allocated: false
+
+pools:
+  (none)
+
+failures:
+  NoTiersConfigured  required=false  no worker pool tiers are configured
