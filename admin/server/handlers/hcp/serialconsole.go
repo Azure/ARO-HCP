@@ -196,14 +196,15 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 			logger.Error(err, "failed to write serial console log truncation warning", "vmName", vmName)
 			return utils.TrackError(fmt.Errorf("failed to write serial console log: %w", err))
 		}
+	} else {
+		// In order to ensure that the status is available to the metrics middleware's ResponseWriter wrapper,
+		// we must call WriteHeader prior to calling Write.
+		//
+		// This is ok to do since writer.Write performs an implicit WriteHeader(StatusOK), so even in the
+		// event of an error during Write the client will see 200 OK.
+		writer.WriteHeader(http.StatusOK)
 	}
 
-	// In order to ensure that the status is available to the metrics middleware's ResponseWriter wrapper,
-	// we must call WriteHeader prior to calling Write.
-	//
-	// This is ok to do since writer.Write performs an implicit WriteHeader(StatusOK), so even in the
-	// event of an error during Write the client will see 200 OK.
-	writer.WriteHeader(http.StatusOK)
 	_, err = writer.Write(logData)
 	if err != nil {
 		logger.Error(err, "failed to write serial console log", "vmName", vmName)
