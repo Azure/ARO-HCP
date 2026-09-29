@@ -71,6 +71,7 @@ type BackendRootCmdFlags struct {
 	AzureClusterScopedIdentitiesRoleSetName                                                       string
 	BackupScheduleCadence                                                                         string
 	BackupScheduleState                                                                           string
+	EnableHostedClusterDataPlaneIdentityWriter                                                    bool
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -235,6 +236,8 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		fmt.Sprintf("Backup schedule cadence. Accepted values: '%s', '%s',", backups.BackupCadenceProduction, backups.BackupCadenceTesting))
 	cmd.Flags().StringVar(&f.BackupScheduleState, "backup-schedule-state", f.BackupScheduleState,
 		fmt.Sprintf("Backup schedule state. Accepted values: %s, %s", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
+	cmd.Flags().BoolVar(&f.EnableHostedClusterDataPlaneIdentityWriter, "enable-hosted-cluster-data-plane-identity-writer", false,
+		"Enable RP ownership of HostedCluster data-plane managed identity ClientIDs only after Cluster Service stops writing HostedCluster via Maestro")
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
@@ -561,27 +564,28 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	}
 
 	backendOptions := &app.BackendOptions{
-		AppShortDescriptionName:            cmd.Short,
-		AppVersion:                         cmd.Version,
-		AzureLocation:                      f.AzureLocation,
-		LeaderElectionLock:                 leaderElectionLock,
-		ResourcesDBClient:                  resourcesCosmosDBClient,
-		BillingDBClient:                    billingDBClient,
-		FleetDBClient:                      fleetDBClient,
-		KubeApplierDBClients:               kubeApplierDBClients,
-		ClustersServiceClient:              clustersServiceClient,
-		MetricsServerListenAddress:         f.MetricsServerListenAddress,
-		HealthzServerListenAddress:         f.HealthzServerListenAddress,
-		TracerProviderShutdownFunc:         otelShutdown,
-		MaestroSourceEnvironmentIdentifier: f.MaestroSourceEnvironmentIdentifier,
-		FPAClientBuilder:                   fpaClientBuilder,
-		HasRealFPA:                         !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock,
-		BackendIdentityAzureClients:        backendIdentityAzureClients,
-		BackendIdentityAzureCachedReaders:  backendIdentityAzureCachedReaders,
-		ExitOnPanic:                        f.ExitOnPanic,
-		BackupConfig:                       backupConfig,
-		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
-		HardcodedIdentity:                  hardcodedIdentity,
+		AppShortDescriptionName:                    cmd.Short,
+		AppVersion:                                 cmd.Version,
+		AzureLocation:                              f.AzureLocation,
+		LeaderElectionLock:                         leaderElectionLock,
+		ResourcesDBClient:                          resourcesCosmosDBClient,
+		BillingDBClient:                            billingDBClient,
+		FleetDBClient:                              fleetDBClient,
+		KubeApplierDBClients:                       kubeApplierDBClients,
+		ClustersServiceClient:                      clustersServiceClient,
+		MetricsServerListenAddress:                 f.MetricsServerListenAddress,
+		HealthzServerListenAddress:                 f.HealthzServerListenAddress,
+		TracerProviderShutdownFunc:                 otelShutdown,
+		MaestroSourceEnvironmentIdentifier:         f.MaestroSourceEnvironmentIdentifier,
+		FPAClientBuilder:                           fpaClientBuilder,
+		HasRealFPA:                                 !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock,
+		BackendIdentityAzureClients:                backendIdentityAzureClients,
+		BackendIdentityAzureCachedReaders:          backendIdentityAzureCachedReaders,
+		ExitOnPanic:                                f.ExitOnPanic,
+		EnableHostedClusterDataPlaneIdentityWriter: f.EnableHostedClusterDataPlaneIdentityWriter,
+		BackupConfig:                               backupConfig,
+		FPAMIDataplaneClientBuilder:                fpaMIDataplaneClientBuilder,
+		HardcodedIdentity:                          hardcodedIdentity,
 		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 		SMIClientBuilder:              smiClientBuilder,
 		CheckAccessV2ClientBuilder:    checkAccessV2ClientBuilder,

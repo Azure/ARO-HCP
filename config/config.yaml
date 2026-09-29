@@ -836,6 +836,7 @@ defaults:
     backupCadenceProfile: production
     backupScheduleState: Enabled
     exitOnPanic: true
+    enableHostedClusterDataPlaneIdentityWriter: false
     logVerbosity: 4
     clusterScopedIdentitiesConfig:
       roleSetName: "public"

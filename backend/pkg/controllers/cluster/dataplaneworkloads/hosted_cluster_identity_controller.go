@@ -28,6 +28,8 @@ import (
 
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -126,6 +128,22 @@ type hostedClusterDataPlaneClientIDs struct {
 	FileMSIClientID          string `json:"fileMSIClientID,omitempty"`
 }
 
+func (ids hostedClusterDataPlaneClientIDs) complete() bool {
+	return ids.ImageRegistryMSIClientID != "" && ids.DiskMSIClientID != "" && ids.FileMSIClientID != ""
+}
+
+func clientIDsFromHostedCluster(hc *v1beta1.HostedCluster) hostedClusterDataPlaneClientIDs {
+	mi := hc.Spec.Platform.Azure.AzureAuthenticationConfig.ManagedIdentities
+	if mi == nil {
+		return hostedClusterDataPlaneClientIDs{}
+	}
+	return hostedClusterDataPlaneClientIDs{
+		ImageRegistryMSIClientID: string(mi.DataPlane.ImageRegistryMSIClientID),
+		DiskMSIClientID:          string(mi.DataPlane.DiskMSIClientID),
+		FileMSIClientID:          string(mi.DataPlane.FileMSIClientID),
+	}
+}
+
 // dataplaneIdentitySlot binds a ClusterOperatorIdentifier (the key used in
 // CustomerProperties.DataPlaneOperators) to a setter that writes the resolved
 // ClientID into the correct field of hostedClusterDataPlaneClientIDs.
@@ -158,11 +176,13 @@ var dataplaneIdentitySlots = []struct {
 // (populated by DataPlaneOIDCFederation), so that a ClientID is never written
 // to the HostedCluster before the corresponding FIC exists on Azure.
 type hostedClusterDataPlaneIdentitySyncer struct {
-	clusterLister                corelisters.ClusterLister
-	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
-	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
-	applyDesireLister            kubeapplierlisters.ApplyDesireLister
-	readDesireLister             kubeapplierlisters.ReadDesireLister
+	clusterLister                 corelisters.ClusterLister
+	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
+	kubeApplierDBClients          kubeappliercosmosstorage.KubeApplierDBClients
+	applyDesireLister             kubeapplierlisters.ApplyDesireLister
+	readDesireLister              kubeapplierlisters.ReadDesireLister
+	clusterScopedIdentitiesConfig *internalazure.ClusterScopedIdentitiesConfig
+	enabled                       bool
 }
 
 var _ controllerutils.ClusterSyncer = (*hostedClusterDataPlaneIdentitySyncer)(nil)
@@ -171,28 +191,20 @@ var _ controllerutils.ClusterSyncer = (*hostedClusterDataPlaneIdentitySyncer)(ni
 // the HostedCluster data plane identity ClientIDs in sync with the resolved
 // values from ServiceProviderCluster.Status.
 //
-// On each sync it:
-//  1. Skips clusters not yet placed on a management cluster.
-//  2. On cluster deletion: drops the identity ApplyDesire document from Cosmos.
-//     We do not flip it to Type=Delete — we do not want to unset the identity
-//     fields, HyperShift reads them during teardown.
-//  3. Resolves ClientIDs from SPC.Status.ManagedIdentityDetails
-//     (MetadataFromARMUserAssignedIdentitiesAPI), returning a transient error
-//     if any is missing, nil, or has a RetrievalError so the workqueue retries.
-//  4. Gates on OIDC federation completion for each operator via
-//     SPC.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation:
-//     the HostedCluster is only updated once every operator's FIC is ensured
-//     for the current target identity, preventing Azure auth failures.
-//  5. Reads the HC name and namespace from the ReadDesire-cached HostedCluster;
-//     returns nil (not an error) if the cache is not yet populated, relying on
-//     the ReadDesire informer re-trigger when the HC is first observed.
-//  6. Writes a typed, minimal HostedCluster SSA patch containing only the
-//     three dataPlane ClientID fields under field manager "aro-hcp-mi-controller".
+// On cluster deletion it removes its ApplyDesire without clearing the live
+// fields that HyperShift needs for teardown. On live clusters it is inactive
+// until enabled after the Cluster Service/Maestro HostedCluster writer is
+// retired. It first claims the observed ClientIDs with its own SSA field
+// manager, waits for the base desire to release and successfully omit those
+// fields, then advances each operator after its own Azure dependencies are
+// confirmed. Missing or stalled operators retain their previous ClientID.
 func NewHostedClusterDataPlaneIdentitiesController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
+	clusterScopedIdentitiesConfig *internalazure.ClusterScopedIdentitiesConfig,
+	enabled bool,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
@@ -200,11 +212,13 @@ func NewHostedClusterDataPlaneIdentitiesController(
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &hostedClusterDataPlaneIdentitySyncer{
-		clusterLister:                clusterLister,
-		serviceProviderClusterLister: serviceProviderClusterLister,
-		kubeApplierDBClients:         kubeApplierDBClients,
-		applyDesireLister:            applyDesireLister,
-		readDesireLister:             readDesireLister,
+		clusterLister:                 clusterLister,
+		serviceProviderClusterLister:  serviceProviderClusterLister,
+		kubeApplierDBClients:          kubeApplierDBClients,
+		applyDesireLister:             applyDesireLister,
+		readDesireLister:              readDesireLister,
+		clusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
+		enabled:                       enabled,
 	}
 
 	// Pass kubeApplierInformers so the controller is also re-triggered on
@@ -249,12 +263,8 @@ func (c *hostedClusterDataPlaneIdentitySyncer) SyncOnce(ctx context.Context, key
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
 		return nil // not yet provisioned in Cluster Service
 	}
-
-	clientIDs, err := c.resolveAndGateClientIDs(cluster, spc)
-	if err != nil {
-		// Transient: identities not yet resolved or OIDC federation not yet
-		// complete. The SPC informer re-triggers when those fields are updated.
-		return err
+	if !c.enabled {
+		return nil
 	}
 
 	// The HC name and namespace on the management cluster come from the
@@ -278,6 +288,48 @@ func (c *hostedClusterDataPlaneIdentitySyncer) SyncOnce(ctx context.Context, key
 		cachedHC.Spec.Platform.Azure.AzureAuthenticationConfig.AzureAuthenticationConfigType !=
 			v1beta1.AzureAuthenticationTypeManagedIdentities {
 		return nil
+	}
+	currentIDs := clientIDsFromHostedCluster(cachedHC)
+	if !currentIDs.complete() {
+		return fmt.Errorf("observed HostedCluster has incomplete data-plane ClientIDs; will retry")
+	}
+
+	// Claim the live values first. Base desire may omit dataPlane only after
+	// this desire has been applied. Do not change values until the new base
+	// desire is also confirmed applied, or its final SSA omission could remove
+	// the fields before this controller owns them.
+	baseDesire, err := c.applyDesireLister.GetForCluster(ctx,
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		kubeapplierhelpers.HostedClusterBaseDesireName)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("read base HostedCluster desire: %w", err))
+	}
+	baseOmitsDataPlane, err := kubeapplierhelpers.HostedClusterBaseDesireOmitsDataPlane(baseDesire)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	clientIDs := currentIDs
+	if baseOmitsDataPlane && baseDesire.Spec.TargetItem.Name == cachedHC.Name &&
+		baseDesire.Spec.TargetItem.Namespace == cachedHC.Namespace &&
+		baseDesire.Spec.ManagementCluster != nil &&
+		strings.EqualFold(baseDesire.Spec.ManagementCluster.String(), managementCluster.String()) &&
+		kubeapplierhelpers.ApplyDesireSuccessfullyApplied(baseDesire) {
+		previous, getErr := c.applyDesireLister.GetForCluster(ctx,
+			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+			kubeapplierhelpers.HostedClusterDataPlaneIdentityDesireName)
+		if getErr != nil && !cosmosstorageutils.IsNotFoundError(getErr) {
+			return utils.TrackError(fmt.Errorf("read previous identity desire: %w", getErr))
+		}
+		fallback, valid, parseErr := clientIDsFromIdentityDesire(previous, managementCluster, cachedHC.Name, cachedHC.Namespace)
+		if parseErr != nil {
+			return utils.TrackError(parseErr)
+		}
+		if valid {
+			clientIDs = fallback
+			if kubeapplierhelpers.ApplyDesireSuccessfullyApplied(previous) {
+				clientIDs = c.resolveReadyClientIDs(ctx, cluster, spc, fallback)
+			}
+		}
 	}
 
 	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
@@ -304,95 +356,141 @@ func (c *hostedClusterDataPlaneIdentitySyncer) SyncOnce(ctx context.Context, key
 	return kubeapplierhelpers.EnsureApplyDesire(ctx, applyDesireCRUD, c.applyDesireLister, desire)
 }
 
-// resolveAndGateClientIDs resolves the ClientID for each data plane operator
-// from SPC.Status.ManagedIdentityDetails and gates on OIDC federation
-// completion via SPC.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation.
-//
-// It returns a populated hostedClusterDataPlaneClientIDs on success, or a
-// transient error when any gate is not satisfied. Transient errors are not
-// wrapped with TrackError so they do not pollute error tracking dashboards;
-// they are expected steady-state during provisioning.
-func (c *hostedClusterDataPlaneIdentitySyncer) resolveAndGateClientIDs(
-	cluster *coreapi.HCPOpenShiftCluster,
-	spc *coreapi.ServiceProviderCluster,
-) (hostedClusterDataPlaneClientIDs, error) {
-	dpOperators := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
-	identityDetails := spc.Status.ManagedIdentityDetails
-	oidcFederation := spc.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation
-
-	var clientIDs hostedClusterDataPlaneClientIDs
-	for _, slot := range dataplaneIdentitySlots {
-		resourceID, ok := dpOperators[string(slot.operator)]
-		if !ok || resourceID == nil {
-			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
-				"data plane operator %q has no identity assigned in CustomerProperties; will retry",
-				slot.operator,
-			)
-		}
-
-		identityKey := strings.ToLower(resourceID.String())
-
-		// Gate 1: ClientID must be resolved from the ARM API.
-		metadata, ok := identityDetails[identityKey]
-		if !ok || metadata == nil {
-			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
-				"ManagedIdentityDetails entry for operator %q (identity %s) not yet populated; will retry",
-				slot.operator, identityKey,
-			)
-		}
-		armMetadata := metadata.MetadataFromARMUserAssignedIdentitiesAPI
-		if armMetadata == nil {
-			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
-				"ARM metadata for operator %q (identity %s) not yet populated; will retry",
-				slot.operator, identityKey,
-			)
-		}
-		if armMetadata.RetrievalError != nil {
-			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
-				"ARM metadata retrieval failed for operator %q (identity %s): %s; will retry",
-				slot.operator, identityKey, *armMetadata.RetrievalError,
-			)
-		}
-		if armMetadata.ClientID == nil {
-			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
-				"ClientID for operator %q (identity %s) is nil; will retry",
-				slot.operator, identityKey,
-			)
-		}
-
-		// Gate 2: the ARM-resolved ClientID must match the ClientID that OIDC
-		// federation is targeting (TargetIdentity.ClientID). The two sources
-		// are written by independent controllers and can transiently diverge:
-		// FetchManagedIdentitiesInfo can refresh ARM to a new ClientID before
-		// DataPlaneOIDCFederationIntent has run to update TargetIdentity. If we
-		// wrote the new ARM ClientID in that window, the HostedCluster would
-		// reference an identity for which no FIC has been created yet, causing
-		// Azure token exchange failures. We wait until both sources agree.
-		oidcStatus := oidcFederation[identityKey]
-		var oidcTargetClientID string
-		if oidcStatus != nil {
-			oidcTargetClientID = oidcStatus.TargetIdentity.ClientID
-		}
-		if *armMetadata.ClientID != oidcTargetClientID {
-			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
-				"ARM ClientID %q for operator %q does not yet match OIDC TargetIdentity ClientID %q; will retry",
-				*armMetadata.ClientID, slot.operator, oidcTargetClientID,
-			)
-		}
-
-		// Gate 3: OIDC federation must be complete for this operator on the
-		// current TargetIdentity. At this point we know ARM and OIDC agree on
-		// the ClientID; OperatorEnsured confirms the FIC exists for it.
-		if !oidcStatus.OperatorEnsured(string(slot.operator)) {
-			return hostedClusterDataPlaneClientIDs{}, fmt.Errorf(
-				"OIDC federation not yet complete for operator %q (identity %s); will retry",
-				slot.operator, identityKey,
-			)
-		}
-
-		slot.set(&clientIDs, *armMetadata.ClientID)
+func clientIDsFromIdentityDesire(desire *kubeapplierapi.ApplyDesire, managementCluster *azcorearm.ResourceID, hcName, hcNamespace string) (hostedClusterDataPlaneClientIDs, bool, error) {
+	if desire == nil || desire.Spec.ServerSideApply == nil || desire.Spec.ServerSideApply.KubeContent == nil ||
+		desire.Spec.ServerSideApply.FieldManager == nil ||
+		*desire.Spec.ServerSideApply.FieldManager != fieldManagerDataPlaneIdentities ||
+		desire.Spec.ManagementCluster == nil ||
+		!strings.EqualFold(desire.Spec.ManagementCluster.String(), managementCluster.String()) ||
+		desire.Spec.TargetItem.Name != hcName || desire.Spec.TargetItem.Namespace != hcNamespace {
+		return hostedClusterDataPlaneClientIDs{}, false, nil
 	}
-	return clientIDs, nil
+	var patch hostedClusterDataPlanePatch
+	if err := json.Unmarshal(desire.Spec.ServerSideApply.KubeContent.Raw, &patch); err != nil {
+		return hostedClusterDataPlaneClientIDs{}, false, fmt.Errorf("decode previous HostedCluster identity desire: %w", err)
+	}
+	ids := patch.Spec.Platform.Azure.AzureAuthenticationConfig.ManagedIdentities.DataPlane
+	return ids, ids.complete(), nil
+}
+
+// resolveReadyClientIDs advances each operator independently. A dependency
+// failure leaves that operator on its observed working identity while ready
+// neighbors can move forward.
+func (c *hostedClusterDataPlaneIdentitySyncer) resolveReadyClientIDs(
+	ctx context.Context,
+	cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster,
+	current hostedClusterDataPlaneClientIDs,
+) hostedClusterDataPlaneClientIDs {
+	result := current
+	for _, slot := range dataplaneIdentitySlots {
+		id, principalID, err := c.resolveAndGateOperatorClientID(cluster, spc, slot.operator)
+		if err == nil {
+			err = c.operatorAzureAccessReady(cluster, spc, slot.operator, id, principalID)
+		}
+		if err != nil {
+			utils.LoggerFromContext(ctx).V(1).Info("data-plane identity cutover waiting for dependencies", "operator", slot.operator, "reason", err.Error())
+			continue
+		}
+		slot.set(&result, id)
+	}
+	// Persist progress even when a different operator is waiting. The informer
+	// and periodic requeue will revisit the stalled slots.
+	return result
+}
+
+func (c *hostedClusterDataPlaneIdentitySyncer) resolveAndGateOperatorClientID(
+	cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster,
+	operator internalazure.ClusterOperatorIdentifier,
+) (clientID, principalID string, err error) {
+	resourceID := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[string(operator)]
+	if resourceID == nil {
+		return "", "", fmt.Errorf("data plane operator %q has no identity assigned; will retry", operator)
+	}
+	identityKey := strings.ToLower(resourceID.String())
+	metadata := spc.Status.ManagedIdentityDetails[identityKey]
+	if metadata == nil || metadata.MetadataFromARMUserAssignedIdentitiesAPI == nil {
+		return "", "", fmt.Errorf("ARM identity metadata for operator %q (%s) is missing; will retry", operator, identityKey)
+	}
+	arm := metadata.MetadataFromARMUserAssignedIdentitiesAPI
+	if arm.RetrievalError != nil || arm.ClientID == nil || arm.PrincipalID == nil || arm.TenantID == nil ||
+		*arm.ClientID == "" || *arm.PrincipalID == "" || *arm.TenantID == "" {
+		return "", "", fmt.Errorf("ARM identity metadata for operator %q (%s) is unresolved; will retry", operator, identityKey)
+	}
+	oidcStatus := spc.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[identityKey]
+	if oidcStatus == nil || oidcStatus.TargetIdentity.ClientID != *arm.ClientID ||
+		oidcStatus.TargetIdentity.PrincipalID != *arm.PrincipalID ||
+		oidcStatus.TargetIdentity.TenantID != *arm.TenantID ||
+		!oidcStatus.OperatorEnsured(string(operator)) {
+		return "", "", fmt.Errorf("OIDC federation for operator %q (%s) is not ready for the current identity instance; will retry", operator, identityKey)
+	}
+	return *arm.ClientID, *arm.PrincipalID, nil
+}
+
+func (c *hostedClusterDataPlaneIdentitySyncer) operatorAzureAccessReady(
+	cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster,
+	operator internalazure.ClusterOperatorIdentifier, clientID, principalID string,
+) error {
+	if c.clusterScopedIdentitiesConfig == nil {
+		return fmt.Errorf("cluster-scoped identity configuration is missing")
+	}
+	resourceID := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[string(operator)]
+	identityKey := strings.ToLower(resourceID.String())
+	confirmedIdentity := spc.Status.DataPlaneOperatorsManagedIdentities.Identities[identityKey]
+	if confirmedIdentity == nil || confirmedIdentity.RetrievalError != nil ||
+		confirmedIdentity.ClientID == nil || *confirmedIdentity.ClientID != clientID ||
+		confirmedIdentity.PrincipalID == nil || *confirmedIdentity.PrincipalID != principalID {
+		return fmt.Errorf("data-plane identity principal for operator %q is not confirmed; will retry", operator)
+	}
+	opConfig := c.clusterScopedIdentitiesConfig.DataPlaneOperatorsIdentities[operator]
+	if opConfig == nil || len(opConfig.KubernetesServiceAccounts) == 0 {
+		return fmt.Errorf("data-plane identity configuration for operator %q is missing", operator)
+	}
+	for _, account := range opConfig.KubernetesServiceAccounts {
+		if account == nil || account.Name == "" || account.Namespace == "" {
+			return fmt.Errorf("data-plane operator %q has an invalid Kubernetes service account configuration", operator)
+		}
+	}
+	scope, err := coreapi.ToResourceGroupResourceID(cluster.ID.SubscriptionID, cluster.CustomerProperties.Platform.ManagedResourceGroup)
+	if err != nil {
+		return fmt.Errorf("managed resource group for operator %q: %w", operator, err)
+	}
+	confirmedRoles := make(map[string]struct{}, len(spc.Status.AzureResources.RoleAssignments.AzureResources))
+	for _, id := range spc.Status.AzureResources.RoleAssignments.AzureResources {
+		if id != nil {
+			confirmedRoles[strings.ToLower(id.String())] = struct{}{}
+		}
+	}
+	roles := opConfig.RoleDefinitionsResourceIDs()
+	if len(roles) == 0 {
+		return fmt.Errorf("data-plane operator %q has no configured role definitions", operator)
+	}
+	for _, role := range roles {
+		expected := roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope.String(), principalID, role.String())
+		if _, ok := confirmedRoles[strings.ToLower(expected)]; !ok {
+			return fmt.Errorf("role assignment for operator %q and principal %s is not confirmed; will retry", operator, principalID)
+		}
+	}
+	denyTypes := denyassignments.DataPlaneOperatorDenyAssignmentTypes(cluster, string(operator))
+	if len(denyTypes) == 0 {
+		return fmt.Errorf("data-plane operator %q has no deny-assignment exclusions", operator)
+	}
+	for _, assignmentType := range denyTypes {
+		confirmed := false
+		for _, ref := range spc.Status.AzureResources.DenyAssignments.AzureResources {
+			if ref.DenyAssignmentType == assignmentType && ref.DenyAssignmentResourceID != nil {
+				for _, excluded := range ref.ExcludedPrincipalIDs {
+					if strings.EqualFold(excluded, principalID) {
+						confirmed = true
+						break
+					}
+				}
+			}
+		}
+		if !confirmed {
+			return fmt.Errorf("deny assignment %q does not yet exclude operator %q principal %s; will retry", assignmentType, operator, principalID)
+		}
+	}
+	return nil
 }
 
 // removeIdentityDesire removes the identity ApplyDesire document from Cosmos.

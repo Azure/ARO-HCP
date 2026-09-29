@@ -152,6 +152,25 @@ func testPrincipalID(id *azcorearm.ResourceID) string {
 	return "principal-" + id.Name
 }
 
+func fullyConfirmedDenyRefs(t *testing.T, cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) []coreapi.DenyAssignmentReference {
+	t.Helper()
+	refs, err := allDenyAssignmentReferences(cluster)
+	require.NoError(t, err)
+	definitions := denyAssignmentDefinitions(cluster)
+	for i := range refs {
+		for _, definition := range definitions {
+			if refs[i].DenyAssignmentType != definition.denyAssignmentType {
+				continue
+			}
+			identityIDs, err := collectExcludedPrincipalIDs(cluster, definition)
+			require.NoError(t, err)
+			refs[i].ExcludedPrincipalIDs, err = resolvePrincipalIDs(spc, identityIDs)
+			require.NoError(t, err)
+		}
+	}
+	return refs
+}
+
 // seedResolvedIdentities mirrors the cluster's managed identities onto the ServiceProviderCluster
 // status the same way the MSI and data-plane identity-resolution controllers do in production, so
 // resolvePrincipalID can find a resolved principal ID for every excluded identity.
@@ -533,9 +552,7 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 			name:    "azure resources present, before recheck time",
 			cluster: newTestCluster(),
 			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.DenyAssignments.AzureResources = []coreapi.DenyAssignmentReference{
-					{DenyAssignmentType: "resources-deny-assignment"},
-				}
+				spc.Status.AzureResources.DenyAssignments.AzureResources = fullyConfirmedDenyRefs(t, newTestCluster(), spc)
 				future := metav1.NewTime(fakeClock.Now().Add(1 * time.Hour))
 				spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = &future
 			}),
@@ -698,10 +715,9 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 			cluster: newTestCluster(),
 			existingSPC: func() *coreapi.ServiceProviderCluster {
 				cluster := newTestCluster()
-				refs, _ := allDenyAssignmentReferences(cluster)
 				future := metav1.NewTime(fakeClock.Now().Add(6 * time.Hour))
 				return newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-					spc.Status.AzureResources.DenyAssignments.AzureResources = refs
+					spc.Status.AzureResources.DenyAssignments.AzureResources = fullyConfirmedDenyRefs(t, cluster, spc)
 					spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = &future
 				})
 			}(),

@@ -24,7 +24,9 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
@@ -32,6 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -59,10 +63,11 @@ const DataPlaneOIDCFederationIntentControllerName = "DataPlaneOIDCFederationInte
 //     and the ServiceManagedIdentity) are ignored, even when the same UAMI is
 //     still used as CP or SMI.
 //   - An operator present on an identity that is no longer assigned to that
-//     identity gets DeconfigureTimestamp on that operator entry. Operators
+//     identity gets DeconfigureTimestamp after the observed HostedCluster no
+//     longer references its old ClientID. Operators
 //     with nothing tracked to delete are dropped. The identity key is dropped
-//     when Operators is empty. The executor waits 24h from the operator stamp
-//     on a live cluster. Cluster deletion still stamps the request time; the
+//     when Operators is empty. The executor waits 24h from the observed cutover
+//     on a live cluster. A regression clears the stamp. Cluster deletion still stamps the request time; the
 //     executor ignores the wait when DeletionTimestamp is set. This stamp
 //     still happens when another operator on the same identity has unresolved
 //     ARM metadata.
@@ -75,6 +80,7 @@ type dataPlaneOIDCFederationIntentSyncer struct {
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	readDesireLister             kubeapplierlisters.ReadDesireLister
 }
 
 var _ controllerutils.ClusterSyncer = (*dataPlaneOIDCFederationIntentSyncer)(nil)
@@ -89,22 +95,25 @@ func NewDataPlaneOIDCFederationIntentController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	backendInformers coreinformers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
+	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &dataPlaneOIDCFederationIntentSyncer{
 		clock:                        clock,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		resourcesDBClient:            resourcesDBClient,
+		readDesireLister:             readDesireLister,
 	}
 
 	return controllerutils.NewClusterWatchingController(
 		DataPlaneOIDCFederationIntentControllerName,
 		resourcesDBClient,
 		backendInformers,
-		nil,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)
@@ -136,12 +145,25 @@ func (s *dataPlaneOIDCFederationIntentSyncer) SyncOnce(ctx context.Context, key 
 		// is marked for deconfigure and the DataPlaneOIDCFederation controller can deconfigure the data-plane operator identities.
 		desiredDataplaneOperators = nil
 	}
+	canDeconfigure := func(operator, oldClientID string) bool { return true }
+	if !s.clusterServiceGone(existingCluster) && s.readDesireLister != nil {
+		var observed *v1beta1.HostedCluster
+		observed, err = kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, s.readDesireLister,
+			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("read HostedCluster before OIDC deconfigure: %w", err))
+		}
+		canDeconfigure = func(operator, oldClientID string) bool {
+			return kubeapplierhelpers.HostedClusterNoLongerUsesClientID(observed, operator, oldClientID)
+		}
+	}
 
 	desiredManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation, err := s.desiredDataPlaneOIDCFederationStatus(
 		ctx,
 		desiredDataplaneOperators,
 		existingServiceProviderCluster.Status.ManagedIdentityDetails,
 		existingServiceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation,
+		canDeconfigure,
 	)
 	if err != nil {
 		return err
@@ -207,6 +229,7 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 	dataPlaneOperators map[string]*azcorearm.ResourceID,
 	existingManagedIdentityDetails map[string]*coreapi.ManagedIdentityMetadata,
 	existingManagedIdentityDataplaneOIDCFederationStatus map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
+	canDeconfigure func(operator, oldClientID string) bool,
 ) (map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -329,7 +352,7 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 			next.Operators[operatorName].DeconfigureTimestamp = nil
 		}
 
-		s.stampOrDropUndesiredOperators(next, desiredOperators, deconfigureRequestedAt)
+		s.stampOrDropUndesiredOperators(next, desiredOperators, deconfigureRequestedAt, canDeconfigure)
 		if len(next.Operators) == 0 {
 			continue
 		}
@@ -366,7 +389,7 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 		// until the metadata is resolved?
 		if _, unresolved := resourceIDsWithUnresolvedIdentityMetadata[resourceIDKey]; unresolved {
 			next := existing.DeepCopy()
-			s.stampOrDropUndesiredOperators(next, desiredDataPlaneOperatorsByIdentity[resourceIDKey], deconfigureRequestedAt)
+			s.stampOrDropUndesiredOperators(next, desiredDataPlaneOperatorsByIdentity[resourceIDKey], deconfigureRequestedAt, canDeconfigure)
 			if len(next.Operators) == 0 {
 				continue
 			}
@@ -375,7 +398,7 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 		}
 
 		next := existing.DeepCopy()
-		s.stampOrDropAllOperatorsForIdentity(next, deconfigureRequestedAt)
+		s.stampOrDropAllOperatorsForIdentity(next, deconfigureRequestedAt, canDeconfigure)
 		if len(next.Operators) == 0 {
 			continue
 		}
@@ -396,13 +419,20 @@ func (s *dataPlaneOIDCFederationIntentSyncer) desiredDataPlaneOIDCFederationStat
 func (s *dataPlaneOIDCFederationIntentSyncer) stampOrDropAllOperatorsForIdentity(
 	status *coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
 	deconfigureRequestedAt metav1.Time,
+	canDeconfigure func(operator, oldClientID string) bool,
 ) {
 	for operatorName, operatorStatus := range status.Operators {
 		if operatorStatus.DeconfigureTimestamp != nil {
+			if !canDeconfigure(operatorName, status.TargetIdentity.ClientID) {
+				operatorStatus.DeconfigureTimestamp = nil
+			}
 			continue
 		}
 		if len(operatorStatus.AzureResources) == 0 && len(operatorStatus.PendingAzureResources) == 0 {
 			delete(status.Operators, operatorName)
+			continue
+		}
+		if !canDeconfigure(operatorName, status.TargetIdentity.ClientID) {
 			continue
 		}
 		stamp := deconfigureRequestedAt
@@ -422,16 +452,23 @@ func (s *dataPlaneOIDCFederationIntentSyncer) stampOrDropUndesiredOperators(
 	status *coreapi.ManagedIdentityDataplaneOIDCFederationStatus,
 	desiredOperators map[string]struct{},
 	deconfigureRequestedAt metav1.Time,
+	canDeconfigure func(operator, oldClientID string) bool,
 ) {
 	for operatorName, operatorStatus := range status.Operators {
 		if _, desired := desiredOperators[operatorName]; desired {
 			continue
 		}
 		if operatorStatus.DeconfigureTimestamp != nil {
+			if !canDeconfigure(operatorName, status.TargetIdentity.ClientID) {
+				operatorStatus.DeconfigureTimestamp = nil
+			}
 			continue
 		}
 		if len(operatorStatus.AzureResources) == 0 && len(operatorStatus.PendingAzureResources) == 0 {
 			delete(status.Operators, operatorName)
+			continue
+		}
+		if !canDeconfigure(operatorName, status.TargetIdentity.ClientID) {
 			continue
 		}
 		stamp := deconfigureRequestedAt

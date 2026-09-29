@@ -539,6 +539,11 @@ func (in *DenyAssignmentReference) DeepCopyInto(out *DenyAssignmentReference) {
 		in, out := &in.DenyAssignmentResourceID, &out.DenyAssignmentResourceID
 		*out = DeepCopyResourceID(*in)
 	}
+	if in.ExcludedPrincipalIDs != nil {
+		in, out := &in.ExcludedPrincipalIDs, &out.ExcludedPrincipalIDs
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

@@ -89,6 +89,7 @@ azure:
 maestro:
   sourceEnvironmentIdentifier: "{{ .backend.maestro.sourceEnvironmentIdentifier }}"
 exitOnPanic: {{ .backend.exitOnPanic }}
+enableHostedClusterDataPlaneIdentityWriter: {{ .backend.enableHostedClusterDataPlaneIdentityWriter }}
 # The name of the role set to use for the cluster scoped identities configuration.
 # This value is used to select the appropriate set of role definitions to be used by the cluster scoped
 # identities. What role definitions are used by each cluster scoped identity for each role set and the role set names

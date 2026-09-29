@@ -30,6 +30,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -87,14 +89,14 @@ func buildFullyResolvedSPCStatus(
 		strings.ToLower(fileID.String()):          resolvedARMManagedIdentityMetadata(fileID, fileClientID, "p3", "t3"),
 	}
 
-	mkEnsured := func(id *azcorearm.ResourceID, clientID, operatorName string) *coreapi.ManagedIdentityDataplaneOIDCFederationStatus {
-		target := coreapi.DataplaneOIDCFederationIdentityInstance{ClientID: clientID, PrincipalID: "p", TenantID: "t"}
+	mkEnsured := func(id *azcorearm.ResourceID, clientID, principalID, operatorName string) *coreapi.ManagedIdentityDataplaneOIDCFederationStatus {
+		target := coreapi.DataplaneOIDCFederationIdentityInstance{ClientID: clientID, PrincipalID: principalID, TenantID: "t1"}
 		return oidcIdentityStatus(target, operatorName, oidcOperatorEnsured(target, nil))
 	}
 	oidc = map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
-		strings.ToLower(imageRegistryID.String()): mkEnsured(imageRegistryID, imageClientID, testImageRegistryOp),
-		strings.ToLower(diskID.String()):          mkEnsured(diskID, diskClientID, testDiskCSIOperator),
-		strings.ToLower(fileID.String()):          mkEnsured(fileID, fileClientID, testFileCSIOperator),
+		strings.ToLower(imageRegistryID.String()): mkEnsured(imageRegistryID, imageClientID, "p1", testImageRegistryOp),
+		strings.ToLower(diskID.String()):          mkEnsured(diskID, diskClientID, "p2", testDiskCSIOperator),
+		strings.ToLower(fileID.String()):          mkEnsured(fileID, fileClientID, "p3", testFileCSIOperator),
 	}
 	return
 }
@@ -113,6 +115,13 @@ func buildReadDesireWithHC(t *testing.T, hcName, hcNamespace string) *kubeapplie
 				"azure": map[string]interface{}{
 					"azureAuthenticationConfig": map[string]interface{}{
 						"azureAuthenticationConfigType": "ManagedIdentities",
+						"managedIdentities": map[string]interface{}{
+							"dataPlane": map[string]interface{}{
+								"imageRegistryMSIClientID": "client-img",
+								"diskMSIClientID":          "client-disk",
+								"fileMSIClientID":          "client-file",
+							},
+						},
 					},
 				},
 			},
@@ -341,7 +350,7 @@ func TestResolveAndGateClientIDs(t *testing.T) {
 			spc.Status.ManagedIdentityDetails = tc.details
 			spc.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = tc.oidc
 
-			got, err := syncer.resolveAndGateClientIDs(cluster, spc)
+			got, err := resolveAndGateClientIDsForTest(syncer, cluster, spc)
 			if tc.wantErr {
 				require.Error(t, err, "expected an error")
 				return
@@ -350,6 +359,22 @@ func TestResolveAndGateClientIDs(t *testing.T) {
 			assert.Equal(t, tc.wantIDs, got)
 		})
 	}
+}
+
+func resolveAndGateClientIDsForTest(
+	syncer *hostedClusterDataPlaneIdentitySyncer,
+	cluster *coreapi.HCPOpenShiftCluster,
+	spc *coreapi.ServiceProviderCluster,
+) (hostedClusterDataPlaneClientIDs, error) {
+	var ids hostedClusterDataPlaneClientIDs
+	for _, slot := range dataplaneIdentitySlots {
+		id, _, err := syncer.resolveAndGateOperatorClientID(cluster, spc, slot.operator)
+		if err != nil {
+			return hostedClusterDataPlaneClientIDs{}, err
+		}
+		slot.set(&ids, id)
+	}
+	return ids, nil
 }
 
 // --- TestBuildDataPlaneIdentityDesire ---------------------------------------
@@ -463,6 +488,30 @@ func TestBuildDataPlaneIdentityDesireRejectsEmptyClientIDs(t *testing.T) {
 	}
 }
 
+func TestClientIDsFromIdentityDesirePreservesPriorProgress(t *testing.T) {
+	t.Parallel()
+	want := hostedClusterDataPlaneClientIDs{
+		ImageRegistryMSIClientID: "new-image",
+		DiskMSIClientID:          "old-disk",
+		FileMSIClientID:          "old-file",
+	}
+	desire, err := buildDataPlaneIdentityDesire(testSubscriptionID, testResourceGroupName, testClusterName,
+		testMgmtClusterResourceID, testHCName, testHCNamespace, want)
+	require.NoError(t, err)
+	got, valid, err := clientIDsFromIdentityDesire(desire, testMgmtClusterResourceID, testHCName, testHCNamespace)
+	require.NoError(t, err)
+	assert.True(t, valid)
+	assert.Equal(t, want, got)
+	_, valid, err = clientIDsFromIdentityDesire(desire, testMgmtClusterResourceID, "different-hc", testHCNamespace)
+	require.NoError(t, err)
+	assert.False(t, valid)
+	otherManagementCluster := metadataapi.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/other"))
+	_, valid, err = clientIDsFromIdentityDesire(desire, otherManagementCluster, testHCName, testHCNamespace)
+	require.NoError(t, err)
+	assert.False(t, valid)
+}
+
 // --- TestHostedClusterDataPlaneIdentitiesSyncOnce ---------------------------
 
 // testCtx returns a context with a test logger attached, suppressing the
@@ -499,6 +548,7 @@ func buildHappyPathSyncer(
 		kubeApplierDBClients:         mockKAClients,
 		applyDesireLister:            &kubeapplierlistertesting.SliceApplyDesireLister{Desires: existingDesires},
 		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{readDesire}},
+		enabled:                      true,
 	}, mockKAClient
 }
 
@@ -659,7 +709,7 @@ func TestHostedClusterDataPlaneIdentitiesSyncOnceClusterServiceIDMissing(t *test
 		"no ClusterServiceID must be a silent no-op")
 }
 
-func TestHostedClusterDataPlaneIdentitiesSyncOnceGateFailsWhenClientIDMissing(t *testing.T) {
+func TestHostedClusterDataPlaneIdentitiesSyncOnceClaimsCurrentValuesWhenClientIDMissing(t *testing.T) {
 	t.Parallel()
 	ctx := testCtx(t)
 
@@ -672,20 +722,23 @@ func TestHostedClusterDataPlaneIdentitiesSyncOnceGateFailsWhenClientIDMissing(t 
 	require.NoError(t, err)
 
 	mockKAClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
-	mockKAClients.Register(testMgmtClusterResourceID, kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient())
+	mockKAClient := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+	mockKAClients.Register(testMgmtClusterResourceID, mockKAClient)
 
 	syncer := &hostedClusterDataPlaneIdentitySyncer{
 		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
 		kubeApplierDBClients:         mockKAClients,
 		applyDesireLister:            &kubeapplierlistertesting.SliceApplyDesireLister{},
-		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
+		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{buildReadDesireWithHC(t, testHCName, testHCNamespace)}},
+		enabled:                      true,
 	}
-	require.Error(t, syncer.SyncOnce(ctx, testKey()),
-		"missing ClientID must return an error so the workqueue retries")
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()),
+		"identity readiness is not required to claim the current HostedCluster values")
+	require.Len(t, listApplyDesiresForCluster(t, ctx, mockKAClient), 1)
 }
 
-func TestHostedClusterDataPlaneIdentitiesSyncOnceGateFailsWhenOIDCNotEnsured(t *testing.T) {
+func TestHostedClusterDataPlaneIdentitiesSyncOnceClaimsCurrentValuesWhenOIDCNotEnsured(t *testing.T) {
 	t.Parallel()
 	ctx := testCtx(t)
 
@@ -701,17 +754,20 @@ func TestHostedClusterDataPlaneIdentitiesSyncOnceGateFailsWhenOIDCNotEnsured(t *
 	require.NoError(t, err)
 
 	mockKAClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
-	mockKAClients.Register(testMgmtClusterResourceID, kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient())
+	mockKAClient := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+	mockKAClients.Register(testMgmtClusterResourceID, mockKAClient)
 
 	syncer := &hostedClusterDataPlaneIdentitySyncer{
 		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
 		kubeApplierDBClients:         mockKAClients,
 		applyDesireLister:            &kubeapplierlistertesting.SliceApplyDesireLister{},
-		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
+		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{buildReadDesireWithHC(t, testHCName, testHCNamespace)}},
+		enabled:                      true,
 	}
-	require.Error(t, syncer.SyncOnce(ctx, testKey()),
-		"OIDC not ensured must return an error so the workqueue retries")
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()),
+		"identity readiness is not required to claim the current HostedCluster values")
+	require.Len(t, listApplyDesiresForCluster(t, ctx, mockKAClient), 1)
 }
 
 func TestHostedClusterDataPlaneIdentitiesSyncOnceSilentSkipWhenCachedHCAbsent(t *testing.T) {
@@ -775,6 +831,16 @@ func TestHostedClusterDataPlaneIdentitiesSyncOnceHappyPathCreatesDesire(t *testi
 	assert.Equal(t, "client-file", dataPlane["fileMSIClientID"])
 }
 
+func TestHostedClusterDataPlaneIdentitiesWriterDisabledByDefault(t *testing.T) {
+	t.Parallel()
+	ctx := testCtx(t)
+	cluster, spc := newFullyResolvedClusterAndSPC(t)
+	syncer, mockKAClient := buildHappyPathSyncer(t, ctx, cluster, spc, nil)
+	syncer.enabled = false
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+	assert.Empty(t, listApplyDesiresForCluster(t, ctx, mockKAClient))
+}
+
 func TestHostedClusterDataPlaneIdentitiesSyncOnceIdempotentWhenUnchanged(t *testing.T) {
 	t.Parallel()
 	ctx := testCtx(t)
@@ -798,4 +864,60 @@ func TestHostedClusterDataPlaneIdentitiesSyncOnceIdempotentWhenUnchanged(t *test
 	require.NoError(t, syncer.SyncOnce(ctx, key))
 	assert.Len(t, listApplyDesiresForCluster(t, ctx, mockKAClient), 1,
 		"second sync with identical content must not write a new desire")
+}
+
+func TestResolveReadyClientIDsRequiresCurrentAzureAccessPerOperator(t *testing.T) {
+	t.Parallel()
+	cluster, spc := newFullyResolvedClusterAndSPC(t)
+	cluster.CustomerProperties.Platform.ManagedResourceGroup = "managed-rg"
+	imageID := testIdentityResourceID("image-registry-mi")
+	imageKey := strings.ToLower(imageID.String())
+	roleID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/providers/Microsoft.Authorization/roleDefinitions/11111111-1111-1111-1111-111111111111"))
+	config := &azure.ClusterScopedIdentitiesConfig{
+		DataPlaneOperatorsIdentities: azure.DataPlaneOperatorsIdentities{
+			azure.ClusterOperatorIdentifierImageRegistry: {
+				KubernetesServiceAccounts: []*azure.KubernetesServiceAccount{{Name: "image-registry", Namespace: "openshift-image-registry"}},
+				BaseClusterScopedOperatorIdentity: azure.BaseClusterScopedOperatorIdentity{
+					BaseClusterScopedIdentity: azure.BaseClusterScopedIdentity{
+						RoleDefinitions: []*azure.ClusterScopedIdentityRoleDefinition{{ResourceID: roleID}},
+					},
+				},
+			},
+		},
+	}
+	syncer := &hostedClusterDataPlaneIdentitySyncer{clusterScopedIdentitiesConfig: config}
+	current := hostedClusterDataPlaneClientIDs{
+		ImageRegistryMSIClientID: "old-image-client",
+		DiskMSIClientID:          "old-disk-client",
+		FileMSIClientID:          "old-file-client",
+	}
+	check := func(expectedImage string) {
+		t.Helper()
+		got := syncer.resolveReadyClientIDs(testCtx(t), cluster, spc, current)
+		assert.Equal(t, expectedImage, got.ImageRegistryMSIClientID)
+		assert.Equal(t, current.DiskMSIClientID, got.DiskMSIClientID)
+		assert.Equal(t, current.FileMSIClientID, got.FileMSIClientID)
+	}
+
+	check(current.ImageRegistryMSIClientID)
+	spc.Status.DataPlaneOperatorsManagedIdentities.Identities = map[string]*coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity{
+		imageKey: {ResourceID: imageID, ClientID: ptr.To("client-img"), PrincipalID: ptr.To("p1")},
+	}
+	denyID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID + "/resourceGroups/managed-rg/providers/Microsoft.Authorization/denyAssignments/22222222-2222-2222-2222-222222222222"))
+	for _, assignmentType := range denyassignments.DataPlaneOperatorDenyAssignmentTypes(cluster, testImageRegistryOp) {
+		spc.Status.AzureResources.DenyAssignments.AzureResources = append(
+			spc.Status.AzureResources.DenyAssignments.AzureResources,
+			coreapi.DenyAssignmentReference{DenyAssignmentType: assignmentType, DenyAssignmentResourceID: denyID, ExcludedPrincipalIDs: []string{"p1"}},
+		)
+	}
+	check(current.ImageRegistryMSIClientID) // role still absent
+	scope, err := coreapi.ToResourceGroupResourceID(testSubscriptionID, "managed-rg")
+	require.NoError(t, err)
+	assignmentID := roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope.String(), "p1", roleID.String())
+	spc.Status.AzureResources.RoleAssignments.AzureResources = []*azcorearm.ResourceID{metadataapi.Must(azcorearm.ParseResourceID(assignmentID))}
+	check("client-img")
+	spc.Status.AzureResources.DenyAssignments.AzureResources[0].ExcludedPrincipalIDs = nil
+	check(current.ImageRegistryMSIClientID) // a missing exclusion blocks cutover
 }

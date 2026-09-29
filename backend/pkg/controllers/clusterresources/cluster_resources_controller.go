@@ -55,12 +55,13 @@ const (
 
 // clusterResourcesController polls the Cluster Service SDK endpoint for cluster resources information
 type clusterResourcesController struct {
-	clusterLister                corelisters.ClusterLister
-	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
-	nodePoolLister               corelisters.NodePoolLister
-	clustersServiceClient        ocm.ClusterServiceClientSpec
-	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
-	applyDesireLister            kubeapplierlisters.ApplyDesireLister
+	clusterLister                 corelisters.ClusterLister
+	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
+	nodePoolLister                corelisters.NodePoolLister
+	clustersServiceClient         ocm.ClusterServiceClientSpec
+	kubeApplierDBClients          kubeappliercosmosstorage.KubeApplierDBClients
+	applyDesireLister             kubeapplierlisters.ApplyDesireLister
+	enableDataPlaneIdentityWriter bool
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterResourcesController)(nil)
@@ -71,6 +72,7 @@ func NewClusterResourcesController(
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
+	enableDataPlaneIdentityWriter bool,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
@@ -78,12 +80,13 @@ func NewClusterResourcesController(
 	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 
 	syncer := &clusterResourcesController{
-		clusterLister:                clusterLister,
-		serviceProviderClusterLister: serviceProviderClusterLister,
-		nodePoolLister:               nodePoolLister,
-		clustersServiceClient:        clustersServiceClient,
-		kubeApplierDBClients:         kubeApplierDBClients,
-		applyDesireLister:            applyDesireLister,
+		clusterLister:                 clusterLister,
+		serviceProviderClusterLister:  serviceProviderClusterLister,
+		nodePoolLister:                nodePoolLister,
+		clustersServiceClient:         clustersServiceClient,
+		kubeApplierDBClients:          kubeApplierDBClients,
+		applyDesireLister:             applyDesireLister,
+		enableDataPlaneIdentityWriter: enableDataPlaneIdentityWriter,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -299,26 +302,24 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		default:
 			crud = applyDesireCRUD
 
-			// For HostedCluster objects, strip the data plane identity fields
-			// before writing the base desire. Those fields are owned exclusively
-			// by HostedClusterDataPlaneIdentitiesController under a distinct SSA
-			// field manager ("aro-hcp-mi-controller"), which gates on OIDC
-			// federation completion before writing new ClientIDs. Leaving them
-			// in the base desire would cause work-agent to re-claim them on
-			// every CS reconcile, creating a permanent ownership conflict once
-			// the two controllers diverge on values during identity replacement.
-			//
-			// Stripping is safe even while CS still sends these fields via
-			// Maestro (pre-ARO-27507): omitting a field in an SSA apply means
-			// "I don't manage this field", so work-agent stops claiming it and
-			// aro-hcp-mi-controller's next apply takes exclusive ownership.
-			//
-			// After ARO-27507 (CS stops writing HC via Maestro entirely), this
-			// strip is a no-op defensive measure preventing CS's resources
-			// endpoint response (which may still include the fields) from leaking
-			// stale identity values through the base desire.
-			if classified.desireName == "HostedCluster" {
-				stripHostedClusterDataPlaneIdentityFields(&unstructuredObj)
+			// The base manager releases dataPlane only after the identity
+			// manager has successfully claimed the live values. This prevents
+			// an SSA omission from deleting required fields during handoff.
+			if classified.desireName == kubeapplierhelpers.HostedClusterBaseDesireName {
+				strip, handoffErr := c.shouldReleaseHostedClusterDataPlane(ctx, key, managementCluster, target)
+				if handoffErr != nil {
+					errs = append(errs, utils.TrackError(handoffErr))
+					// An unreadable handoff state must not make stale-desire
+					// cleanup delete the existing base HostedCluster desire.
+					baseID := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+						key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+						kubeapplierhelpers.HostedClusterBaseDesireName)
+					desiredResourceIDs[strings.ToLower(baseID)] = true
+					continue
+				}
+				if strip {
+					stripHostedClusterDataPlaneIdentityFields(&unstructuredObj)
+				}
 			}
 
 			desire, err = buildClusterResourceApplyDesire(
@@ -531,6 +532,54 @@ func stripHostedClusterDataPlaneIdentityFields(obj *unstructured.Unstructured) {
 		obj.Object,
 		"spec", "platform", "azure", "azureAuthenticationConfig", "managedIdentities", "dataPlane",
 	)
+}
+
+// shouldReleaseHostedClusterDataPlane performs the ownership handoff in two
+// steps. The identity manager first applies the values already on the live HC;
+// only after kube-applier confirms that apply may the base manager omit them.
+// Once the base desire omits the fields, keep omitting them during later
+// identity-desire updates and temporary informer gaps.
+func (c *clusterResourcesController) shouldReleaseHostedClusterDataPlane(
+	ctx context.Context, key controllerutils.HCPClusterKey,
+	managementCluster *azcorearm.ResourceID, target kubeapplierapi.ResourceReference,
+) (bool, error) {
+	baseDesire, err := c.applyDesireLister.GetForCluster(ctx,
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		kubeapplierhelpers.HostedClusterBaseDesireName)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return false, fmt.Errorf("read base HostedCluster desire for handoff: %w", err)
+	}
+	if baseDesire != nil && (baseDesire.Spec.TargetItem != target ||
+		baseDesire.Spec.ManagementCluster == nil ||
+		!strings.EqualFold(baseDesire.Spec.ManagementCluster.String(), managementCluster.String())) {
+		return false, nil // a recreated HostedCluster needs its own handoff
+	}
+	alreadyReleased, err := kubeapplierhelpers.HostedClusterBaseDesireOmitsDataPlane(baseDesire)
+	if err != nil {
+		return false, err
+	}
+	if alreadyReleased {
+		return true, nil
+	}
+	if !c.enableDataPlaneIdentityWriter {
+		return false, nil
+	}
+	identityDesire, err := c.applyDesireLister.GetForCluster(ctx,
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		kubeapplierhelpers.HostedClusterDataPlaneIdentityDesireName)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return false, fmt.Errorf("read identity desire for HostedCluster handoff: %w", err)
+	}
+	if identityDesire == nil {
+		return false, nil
+	}
+	return identityDesire.Spec.TargetItem == target &&
+		identityDesire.Spec.ManagementCluster != nil &&
+		strings.EqualFold(identityDesire.Spec.ManagementCluster.String(), managementCluster.String()) &&
+		identityDesire.Spec.ServerSideApply != nil &&
+		identityDesire.Spec.ServerSideApply.FieldManager != nil &&
+		*identityDesire.Spec.ServerSideApply.FieldManager == kubeapplierhelpers.HostedClusterDataPlaneIdentityFieldManager &&
+		kubeapplierhelpers.ApplyDesireSuccessfullyApplied(identityDesire), nil
 }
 
 func (c *clusterResourcesController) deleteStaleApplyDesires(

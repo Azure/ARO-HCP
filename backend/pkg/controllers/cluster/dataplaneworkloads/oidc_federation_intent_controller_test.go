@@ -399,7 +399,7 @@ func TestDesiredDataPlaneOIDCFederationStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := syncer.desiredDataPlaneOIDCFederationStatus(context.Background(), tc.dataPlaneOperators, tc.details, tc.current)
+			got, err := syncer.desiredDataPlaneOIDCFederationStatus(context.Background(), tc.dataPlaneOperators, tc.details, tc.current, func(string, string) bool { return true })
 			require.NoError(t, err)
 			if tc.expectNilWhenEmpty {
 				assert.Nil(t, got)
@@ -480,7 +480,7 @@ func TestDesiredDataPlaneOIDCFederationStatusNilEntryErrors(t *testing.T) {
 			clock: clocktesting.NewFakePassiveClock(time.Time{}),
 		}).desiredDataPlaneOIDCFederationStatus(context.Background(), nil, nil, map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
 			keyA: nil,
-		})
+		}, func(string, string) bool { return true })
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nil status")
 	})
@@ -493,7 +493,7 @@ func TestDesiredDataPlaneOIDCFederationStatusNilEntryErrors(t *testing.T) {
 			"cloud-controller-manager": identityA,
 		}, map[string]*coreapi.ManagedIdentityMetadata{
 			strings.ToLower(identityA.String()): nil,
-		}, nil)
+		}, nil, func(string, string) bool { return true })
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nil metadata")
 	})
@@ -707,6 +707,32 @@ func TestDataPlaneOIDCFederationIntentSyncOnceMarksPendingDeconfigureOnClusterDe
 			}
 		})
 	}
+}
+
+func TestDataPlaneOIDCDrainStartsAfterObservedCutover(t *testing.T) {
+	t.Parallel()
+	identity := testIdentityResourceID("retiring-image-mi")
+	key := strings.ToLower(identity.String())
+	target := coreapi.DataplaneOIDCFederationIdentityInstance{ClientID: "old-client", PrincipalID: "old-principal", TenantID: "tenant"}
+	fic := metadataapi.Must(azcorearm.ParseResourceID(identity.String() + "/federatedIdentityCredentials/old-fic"))
+	current := map[string]*coreapi.ManagedIdentityDataplaneOIDCFederationStatus{
+		key: oidcIdentityStatus(target, testImageRegistryOp, oidcOperatorEnsured(target, []*azcorearm.ResourceID{fic})),
+	}
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	syncer := &dataPlaneOIDCFederationIntentSyncer{clock: clocktesting.NewFakePassiveClock(now)}
+	before, err := syncer.desiredDataPlaneOIDCFederationStatus(context.Background(), nil, nil, current,
+		func(string, string) bool { return false })
+	require.NoError(t, err)
+	assert.Nil(t, before[key].Operators[testImageRegistryOp].DeconfigureTimestamp)
+	after, err := syncer.desiredDataPlaneOIDCFederationStatus(context.Background(), nil, nil, before,
+		func(string, string) bool { return true })
+	require.NoError(t, err)
+	require.NotNil(t, after[key].Operators[testImageRegistryOp].DeconfigureTimestamp)
+	assert.Equal(t, now, after[key].Operators[testImageRegistryOp].DeconfigureTimestamp.Time)
+	regressed, err := syncer.desiredDataPlaneOIDCFederationStatus(context.Background(), nil, nil, after,
+		func(string, string) bool { return false })
+	require.NoError(t, err)
+	assert.Nil(t, regressed[key].Operators[testImageRegistryOp].DeconfigureTimestamp)
 }
 
 func TestTargetIdentityFromARMUserAssignedIdentities(t *testing.T) {

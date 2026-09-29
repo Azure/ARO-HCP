@@ -71,6 +71,7 @@ spec:
         - "--maestro-source-environment-identifier"
         - "{{ .Values.maestro.sourceEnvironmentIdentifier }}"
         - "--exit-on-panic={{ .Values.exitOnPanic }}"
+        - "--enable-hosted-cluster-data-plane-identity-writer={{ .Values.enableHostedClusterDataPlaneIdentityWriter }}"
         - "--log-verbosity={{ .Values.logVerbosity }}"
        {{- if and .Values.miMock.certName (or .Values.miMock.clientId .Values.miMock.clientIdSecretName) (or .Values.miMock.principalId .Values.miMock.principalIdSecretName) .Values.miMock.tenantId
                   .Values.armPermissionsManagerIdentity.certName .Values.armPermissionsManagerIdentity.clientId .Values.armPermissionsManagerIdentity.tenantId

@@ -16,11 +16,25 @@ package denyassignments
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
+
+// DataPlaneOperatorDenyAssignmentTypes returns the deny assignments whose
+// confirmed exclusions must contain an operator's principal before the
+// HostedCluster can switch to its identity.
+func DataPlaneOperatorDenyAssignmentTypes(cluster *coreapi.HCPOpenShiftCluster, operator string) []string {
+	var types []string
+	for _, definition := range denyAssignmentDefinitions(cluster) {
+		if slices.Contains(definition.dataPlaneOperators, operator) {
+			types = append(types, definition.denyAssignmentType)
+		}
+	}
+	return types
+}
 
 const (
 	operatorClusterAPIAzure        = "cluster-api-azure"

@@ -29,11 +29,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -64,6 +66,56 @@ func testKey() controllerutils.HCPClusterKey {
 		ResourceGroupName: testResourceGroupName,
 		HCPClusterName:    testClusterName,
 	}
+}
+
+func TestHostedClusterDataPlaneOwnershipHandoff(t *testing.T) {
+	t.Parallel()
+	newDesire := func(name, manager string, content []byte) *kubeapplierapi.ApplyDesire {
+		id := metadataapi.Must(azcorearm.ParseResourceID(kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+			testSubscriptionID, testResourceGroupName, testClusterName, name)))
+		return &kubeapplierapi.ApplyDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id},
+			Spec: kubeapplierapi.ApplyDesireSpec{
+				Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+				ManagementCluster: testManagementClusterResourceID,
+				ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
+					FieldManager: ptr.To(manager), KubeContent: &runtime.RawExtension{Raw: content},
+				},
+			},
+		}
+	}
+	base := newDesire(kubeapplierhelpers.HostedClusterBaseDesireName, "work-agent",
+		[]byte(`{"spec":{"platform":{"azure":{"azureAuthenticationConfig":{"managedIdentities":{"dataPlane":{"diskMSIClientID":"old"}}}}}}}`))
+	identity := newDesire(kubeapplierhelpers.HostedClusterDataPlaneIdentityDesireName,
+		kubeapplierhelpers.HostedClusterDataPlaneIdentityFieldManager, []byte(`{}`))
+	target := kubeapplierapi.ResourceReference{Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "hostedclusters", Name: "hc", Namespace: "ns"}
+	base.Spec.TargetItem = target
+	identity.Spec.TargetItem = target
+	lister := &kubeapplierlistertesting.SliceApplyDesireLister{Desires: []*kubeapplierapi.ApplyDesire{base}}
+	controller := &clusterResourcesController{applyDesireLister: lister, enableDataPlaneIdentityWriter: true}
+	shouldStrip := func(want bool) {
+		t.Helper()
+		got, err := controller.shouldReleaseHostedClusterDataPlane(context.Background(), testKey(), testManagementClusterResourceID, target)
+		require.NoError(t, err)
+		assert.Equal(t, want, got)
+	}
+	shouldStrip(false)
+	lister.Desires = append(lister.Desires, identity)
+	shouldStrip(false)
+	identity.Status.AppliedKubeGeneration = ptr.To(int64(1))
+	identity.Status.Conditions = []metav1.Condition{{Type: kubeapplierapi.ConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue}}
+	shouldStrip(true)
+	base.Spec.ServerSideApply.KubeContent.Raw = []byte(`{"spec":{"platform":{"azure":{"azureAuthenticationConfig":{"managedIdentities":{}}}}}}`)
+	identity.Status.AppliedKubeGeneration = nil
+	controller.enableDataPlaneIdentityWriter = false
+	shouldStrip(true) // retain the released ownership boundary during rollback
+	lister.Desires = []*kubeapplierapi.ApplyDesire{base}
+	shouldStrip(true) // an informer gap must not reintroduce stale CS values
+	newTarget := target
+	newTarget.Name = "replacement-hc"
+	got, err := controller.shouldReleaseHostedClusterDataPlane(context.Background(), testKey(), testManagementClusterResourceID, newTarget)
+	require.NoError(t, err)
+	assert.False(t, got) // a new object cannot inherit the old handoff
 }
 
 func newCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {

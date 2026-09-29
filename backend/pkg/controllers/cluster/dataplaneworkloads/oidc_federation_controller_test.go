@@ -2099,3 +2099,24 @@ func assertOIDCFederationRecheckScheduled(t *testing.T, serviceProviderCluster *
 	require.NotNil(t, recheck)
 	assert.True(t, recheck.After(now))
 }
+
+func TestFederationRejectsUnknownOrEmptyOperatorConfiguration(t *testing.T) {
+	t.Parallel()
+	identity := testIdentityResourceID("image-registry-mi")
+	cluster := newTestClusterWithIdentities(t, testClusterName, nil, map[string]*azcorearm.ResourceID{
+		testImageRegistryOp: identity,
+	})
+	syncer := &dataPlaneOIDCFederationSyncer{
+		clusterScopedIdentitiesConfig: &azure.ClusterScopedIdentitiesConfig{
+			DataPlaneOperatorsIdentities: azure.DataPlaneOperatorsIdentities{},
+		},
+	}
+	_, err := syncer.federatedIdentityCredentialsForOperator(cluster, identity, testImageRegistryOp, "cluster-id")
+	require.ErrorContains(t, err, "no configured Kubernetes service accounts")
+	syncer.clusterScopedIdentitiesConfig.DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifierImageRegistry] = &azure.DataPlaneOperatorIdentity{}
+	_, err = syncer.federatedIdentityCredentialsForOperator(cluster, identity, testImageRegistryOp, "cluster-id")
+	require.ErrorContains(t, err, "no configured Kubernetes service accounts")
+	syncer.clusterScopedIdentitiesConfig.DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifierImageRegistry].KubernetesServiceAccounts = []*azure.KubernetesServiceAccount{nil}
+	_, err = syncer.federatedIdentityCredentialsForOperator(cluster, identity, testImageRegistryOp, "cluster-id")
+	require.ErrorContains(t, err, "invalid Kubernetes service account")
+}

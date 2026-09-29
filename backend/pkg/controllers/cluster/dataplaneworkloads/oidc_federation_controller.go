@@ -30,9 +30,11 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/federatedidentitycredential"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/azure"
@@ -41,6 +43,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -107,6 +111,7 @@ type dataPlaneOIDCFederationSyncer struct {
 	fpaMIdataplaneClientBuilder   azureclient.FPAMIDataplaneClientBuilder
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
 	oidcIssuerBaseURL             string
+	readDesireLister              kubeapplierlisters.ReadDesireLister
 }
 
 var _ controllerutils.ClusterSyncer = (*dataPlaneOIDCFederationSyncer)(nil)
@@ -119,6 +124,7 @@ func NewDataPlaneOIDCFederationController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	backendInformers coreinformers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	smiClientBuilder azureclient.ServiceManagedIdentityClientBuilder,
 	fpaMIdataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder,
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig,
@@ -128,6 +134,7 @@ func NewDataPlaneOIDCFederationController(
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, subscriptionLister := backendInformers.Subscriptions()
+	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &dataPlaneOIDCFederationSyncer{
 		clock:                         clock,
@@ -139,13 +146,14 @@ func NewDataPlaneOIDCFederationController(
 		fpaMIdataplaneClientBuilder:   fpaMIdataplaneClientBuilder,
 		clusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
 		oidcIssuerBaseURL:             oidcIssuerBaseURL,
+		readDesireLister:              readDesireLister,
 	}
 
 	return controllerutils.NewClusterWatchingController(
 		DataPlaneOIDCFederationControllerName,
 		resourcesDBClient,
 		backendInformers,
-		nil,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)
@@ -279,6 +287,8 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 	if !s.needsWork(existingCluster, existingServiceProviderCluster) {
 		return nil
 	}
+	var observedHC *v1beta1.HostedCluster
+	observedHCLoaded := false
 
 	smiResourceID := existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 	if smiResourceID == nil {
@@ -372,6 +382,26 @@ func (s *dataPlaneOIDCFederationSyncer) SyncOnce(ctx context.Context, key contro
 			if operatorStatus.DeconfigureTimestamp != nil {
 				if !s.deconfigureCanStartForOperator(existingCluster, operatorStatus) {
 					continue
+				}
+				if existingCluster.ServiceProviderProperties.DeletionTimestamp == nil && s.readDesireLister != nil {
+					if !observedHCLoaded {
+						observedHC, err = kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, s.readDesireLister,
+							key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+						if err != nil {
+							errs = append(errs, utils.TrackError(fmt.Errorf("read HostedCluster before OIDC deconfigure: %w", err)))
+							continue
+						}
+						observedHCLoaded = true
+					}
+					if !kubeapplierhelpers.HostedClusterNoLongerUsesClientID(observedHC, operatorName, identityStatus.TargetIdentity.ClientID) {
+						// A regression to the old ClientID invalidates the 24h drain
+						// window. Intent will stamp a fresh timestamp after the next
+						// observed cutover. An absent mirror alone is not a regression.
+						if observedHC != nil {
+							operatorStatus.DeconfigureTimestamp = nil
+						}
+						continue
+					}
 				}
 				smiExists, err := serviceManagedIdentityExistsGetter()
 				if err != nil {
@@ -696,15 +726,16 @@ func (s *dataPlaneOIDCFederationSyncer) federatedIdentityCredentialsForOperator(
 		return nil, nil
 	}
 
-	// TODO in case the operator is not found in the cluster scoped identities config, do we want to return an error, or
-	// do we want to continue ignoring that operator?
 	operatorIdentity, ok := s.clusterScopedIdentitiesConfig.DataPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)]
-	if !ok {
-		return nil, nil
+	if !ok || operatorIdentity == nil || len(operatorIdentity.KubernetesServiceAccounts) == 0 {
+		return nil, fmt.Errorf("data plane operator %q has no configured Kubernetes service accounts", operatorName)
 	}
 
 	var credentials []dataPlaneOIDCFederatedIdentityCredential
 	for _, serviceAccount := range operatorIdentity.KubernetesServiceAccounts {
+		if serviceAccount == nil || serviceAccount.Name == "" || serviceAccount.Namespace == "" {
+			return nil, fmt.Errorf("data plane operator %q has an invalid Kubernetes service account configuration", operatorName)
+		}
 		federatedIdentityCredentialResourceID, err := federatedidentitycredential.GenerateFederatedIdentityCredentialResourceID(
 			identityResourceID,
 			csClusterID,

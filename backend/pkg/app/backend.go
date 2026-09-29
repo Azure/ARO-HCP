@@ -121,11 +121,12 @@ type BackendOptions struct {
 	// HasRealFPA indicates the backend runs against a real First Party Application rather than the
 	// insecure MI mock. Controllers that create Azure resources only a real FPA can create (e.g.
 	// deny assignments) are disabled when this is false (dev/int environments).
-	HasRealFPA                        bool
-	BackendIdentityAzureClients       *azureclient.BackendIdentityAzureClients
-	BackendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
-	ExitOnPanic                       bool
-	FPAMIDataplaneClientBuilder       azureclient.FPAMIDataplaneClientBuilder
+	HasRealFPA                                 bool
+	BackendIdentityAzureClients                *azureclient.BackendIdentityAzureClients
+	BackendIdentityAzureCachedReaders          *cachedreader.BackendIdentityAzureCachedReaders
+	ExitOnPanic                                bool
+	EnableHostedClusterDataPlaneIdentityWriter bool
+	FPAMIDataplaneClientBuilder                azureclient.FPAMIDataplaneClientBuilder
 	// HardcodedIdentity is the identity used for the cluster's control plane operator identities and the cluster's service managed identity when
 	// the Managed Identities Data Plane service is not available.
 	// HardcodedIdentity is nil when the real Managed Identities Data Plane is available.
@@ -1109,12 +1110,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.clock,
 		b.options.ResourcesDBClient,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 
 	dataPlaneWorkloadsOIDCFederationController := clusterdataplaneworkloads.NewDataPlaneOIDCFederationController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		backendInformers,
+		unionKubeApplierInformers,
 		b.options.SMIClientBuilder,
 		b.options.FPAMIDataplaneClientBuilder,
 		b.options.ClusterScopedIdentitiesConfig,
@@ -1150,6 +1153,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.KubeApplierDBClients,
 		backendInformers,
 		unionKubeApplierInformers,
+		b.options.ClusterScopedIdentitiesConfig,
+		b.options.EnableHostedClusterDataPlaneIdentityWriter,
 	)
 
 	clusterResourcesController := clusterresources.NewClusterResourcesController(
@@ -1158,6 +1163,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 		b.options.ClustersServiceClient,
+		b.options.EnableHostedClusterDataPlaneIdentityWriter,
 	)
 
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{

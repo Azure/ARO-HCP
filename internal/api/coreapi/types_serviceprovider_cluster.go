@@ -373,8 +373,10 @@ type DataplaneOIDCFederationOperatorStatus struct {
 	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
 	EnsuredIdentity *DataplaneOIDCFederationIdentityInstance `json:"ensuredIdentity,omitempty"`
 	// DeconfigureTimestamp is when deconfigure of this operator's FICs on this
-	// identity was requested. Nil means deconfigure has not been requested.
+	// identity was first observed safe to deconfigure after HostedCluster
+	// stopped referencing its old ClientID. Nil means cleanup is not yet safe.
 	// Once set, DataPlaneOIDCFederation waits 24 hours before Azure deletes.
+	// A regression to the old ClientID clears the timestamp.
 	// Cluster deletion (DeletionTimestamp set) starts deconfigure immediately.
 	// Cleared when this operator is desired on this identity again.
 	// Successful deconfigure removes this operator entry rather than clearing
@@ -621,6 +623,10 @@ type DenyAssignmentReference struct {
 	// e.g. "/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Authorization/denyAssignments/{uuid}".
 	// Written by: ClusterDenyAssignment
 	DenyAssignmentResourceID *azcorearm.ResourceID `json:"denyAssignmentResourceID"`
+	// ExcludedPrincipalIDs is the principal set confirmed on the Azure deny
+	// assignment during the last successful reconciliation.
+	// Written by: ClusterDenyAssignment
+	ExcludedPrincipalIDs []string `json:"excludedPrincipalIDs,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
