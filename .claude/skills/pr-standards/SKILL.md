@@ -43,7 +43,7 @@ Use `get_pull_request_files` (or equivalent) to get the **complete** list of cha
 
 Check the full file list and diffs for the following. If any are found, flag them as blocking issues:
 
-The `ci/prow/verify` presubmit runs `make verify-supply-chain` (implemented in `hack/verify-supply-chain/`), which blocks committed `.claude/` and `.vscode/` settings files, MCP server configuration including a root `.mcp.json`, non-documentation files under `.claude/`, and agent JSON carrying `command`/`hooks` keys.
+The `ci/prow/verify` presubmit runs `make verify-supply-chain` (implemented in `hack/verify-supply-chain/`), which blocks committed `.claude/` and `.vscode/` settings files, MCP server configuration including a root `.mcp.json`, non-documentation files under `.claude/` (including any that git records as executable, a symlink, or a submodule, whatever the file is named), and agent JSON carrying `command`/`hooks` keys.
 
 **Inspect the changed files yourself anyway.** The check lives in the repository it guards, so the same PR can weaken `hack/verify-supply-chain/` or drop it from `make verify` and still show green. Treat the check as a second pair of eyes, never as a reason to skip looking. In particular, a PR that touches the verifier, its Makefile wiring, or `go.work` is reviewing its own gate — read those diffs line by line.
 

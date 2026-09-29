@@ -135,6 +135,26 @@ func main() {
 
 	findings := checkPaths(files)
 
+	// A path already reported as a payload needs no second payload finding.
+	// The JSON scan below is exempt: it escalates a file that checkPaths has
+	// merely rejected into one that matches a known attack pattern.
+	flagged := make(map[string]bool, len(findings))
+	for _, f := range findings {
+		flagged[f.path] = true
+	}
+
+	for _, rel := range agentDirFiles(files) {
+		if flagged[rel] {
+			continue
+		}
+		content, err := os.ReadFile(path.Join(root, rel))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", rel, err)
+			os.Exit(2)
+		}
+		findings = append(findings, scanAgentShebang(rel, content)...)
+	}
+
 	for _, rel := range agentJSONFiles(files) {
 		content, err := os.ReadFile(path.Join(root, rel))
 		if err != nil {
@@ -152,10 +172,31 @@ func main() {
 	os.Exit(1)
 }
 
-// trackedFiles returns the repository-relative paths of every file tracked by
-// git, which excludes both untracked and gitignored files.
-func trackedFiles(root string) ([]string, error) {
-	cmd := exec.Command("git", "ls-files", "-z")
+// Index modes git records for a tracked entry. Anything other than a plain
+// non-executable file is worth knowing about inside an agent directory: the
+// executable bit makes a payload runnable whatever its name ends in, and a
+// symlink or submodule resolves to content that is not reviewed in this diff.
+const (
+	modeRegular    = "100644"
+	modeExecutable = "100755"
+	modeSymlink    = "120000"
+	modeSubmodule  = "160000"
+)
+
+// trackedFile is one entry of the git index: the path, plus the mode git
+// stores alongside it.
+type trackedFile struct {
+	path string
+	mode string
+}
+
+// trackedFiles returns every file tracked by git, which excludes both
+// untracked and gitignored files, with the mode recorded in the index.
+func trackedFiles(root string) ([]trackedFile, error) {
+	// --stage prints "<mode> <sha> <stage>\t<path>", so the executable bit is
+	// read from the index rather than the working tree. That keeps the check
+	// honest on a fresh clone and on filesystems that do not carry the bit.
+	cmd := exec.Command("git", "ls-files", "--stage", "-z")
 	cmd.Dir = root
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
@@ -163,11 +204,20 @@ func trackedFiles(root string) ([]string, error) {
 		return nil, err
 	}
 
-	var files []string
-	for _, f := range bytes.Split(out, []byte{0}) {
-		if len(f) > 0 {
-			files = append(files, string(f))
+	var files []trackedFile
+	for _, entry := range bytes.Split(out, []byte{0}) {
+		if len(entry) == 0 {
+			continue
 		}
+		meta, p, ok := bytes.Cut(entry, []byte{'\t'})
+		if !ok {
+			return nil, fmt.Errorf("unexpected git ls-files entry %q", entry)
+		}
+		mode, _, ok := bytes.Cut(meta, []byte{' '})
+		if !ok {
+			return nil, fmt.Errorf("unexpected git ls-files metadata %q", meta)
+		}
+		files = append(files, trackedFile{path: string(p), mode: string(mode)})
 	}
 	return files, nil
 }
@@ -179,56 +229,114 @@ func trackedFiles(root string) ([]string, error) {
 // case-sensitive, so ".claude/Setup.SH" and ".Claude/settings.json" are
 // distinct tracked paths that would otherwise sidestep the denylist while
 // remaining just as executable.
-func checkPaths(files []string) []finding {
+func checkPaths(files []trackedFile) []finding {
 	var findings []finding
 	for _, f := range files {
-		lower := strings.ToLower(f)
+		lower := strings.ToLower(f.path)
 		base := path.Base(lower)
 		switch {
 		case mcpConfigFiles[base]:
 			findings = append(findings, finding{
-				path:   f,
+				path:   f.path,
 				rule:   ruleAgentSettings,
 				detail: "MCP server configuration must not be committed",
 			})
 		case hasSegment(lower, agentConfigDir) && agentSettingsFiles[base]:
 			findings = append(findings, finding{
-				path:   f,
+				path:   f.path,
 				rule:   ruleAgentSettings,
 				detail: "AI-agent settings files must not be committed",
 			})
 		case hasSegment(lower, editorConfigDir) && editorConfigFiles[base]:
 			findings = append(findings, finding{
-				path:   f,
+				path:   f.path,
 				rule:   ruleEditorConfig,
 				detail: "editor configuration files must not be committed",
 			})
 		case hasSegment(lower, agentConfigDir) && !inertAgentExtensions[path.Ext(base)]:
 			findings = append(findings, finding{
-				path:   f,
+				path:   f.path,
 				rule:   ruleAgentPayload,
 				detail: "only documentation and data files may live in an agent configuration directory",
+			})
+		// Checked after the suffix rule so that a plainly named script still
+		// reports the clearer message. A suffix is only a claim about content;
+		// this catches the file that dresses as documentation and keeps the
+		// executable bit, which is what actually makes it runnable.
+		case hasSegment(lower, agentConfigDir) && f.mode != modeRegular:
+			findings = append(findings, finding{
+				path:   f.path,
+				rule:   ruleAgentPayload,
+				detail: modeDetail(f.mode),
 			})
 		}
 	}
 	return findings
 }
 
+func modeDetail(mode string) string {
+	switch mode {
+	case modeExecutable:
+		return "files in an agent configuration directory must not be executable"
+	case modeSymlink:
+		return "symlinks must not live in an agent configuration directory"
+	case modeSubmodule:
+		return "submodules must not live in an agent configuration directory"
+	default:
+		return fmt.Sprintf("unexpected git mode %s in an agent configuration directory", mode)
+	}
+}
+
 // agentJSONFiles returns the tracked JSON whose contents need inspecting for
 // execution keys: anything under an agent configuration directory, plus MCP
 // server configuration wherever it sits.
-func agentJSONFiles(files []string) []string {
+func agentJSONFiles(files []trackedFile) []string {
 	var out []string
 	for _, f := range files {
-		lower := strings.ToLower(f)
+		lower := strings.ToLower(f.path)
 		switch {
 		case mcpConfigFiles[path.Base(lower)]:
-			out = append(out, f)
+			out = append(out, f.path)
 		case hasSegment(lower, agentConfigDir) && path.Ext(lower) == ".json":
-			out = append(out, f)
+			out = append(out, f.path)
 		}
 	}
 	return out
+}
+
+// agentDirFiles returns the tracked files inside an agent configuration
+// directory, whose first bytes need checking for a shebang.
+func agentDirFiles(files []trackedFile) []string {
+	var out []string
+	for _, f := range files {
+		if hasSegment(strings.ToLower(f.path), agentConfigDir) {
+			out = append(out, f.path)
+		}
+	}
+	return out
+}
+
+// scanAgentShebang reports a file in an agent configuration directory that
+// opens with a shebang.
+//
+// This is the companion to the mode rule: dropping the executable bit is
+// enough to get a script past it, but `bash .claude/setup.md` runs the file
+// either way, so the interpreter line is the part worth recognising.
+//
+// Deliberately only the first two bytes. Looking for shell syntax anywhere in
+// the file would flag every SKILL.md in this repository, since agent
+// documentation is mostly fenced command examples — the thing being detected
+// and the thing being documented are written identically. A leading shebang
+// is not ambiguous in that way.
+func scanAgentShebang(p string, content []byte) []finding {
+	if !bytes.HasPrefix(content, []byte("#!")) {
+		return nil
+	}
+	return []finding{{
+		path:   p,
+		rule:   ruleAgentPayload,
+		detail: "file in an agent configuration directory begins with a shebang",
+	}}
 }
 
 // scanAgentJSON reports execution keys anywhere in an agent JSON file. A file
