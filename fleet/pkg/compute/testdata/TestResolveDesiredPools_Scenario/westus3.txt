@@ -3,8 +3,8 @@ zones: 1,2,3
 tiers:
   sys    system  Regional  pools=1  cores=8   maxNodes=3   initialMinNodes=0  osDisk=128GB  maxPods=100  swift=true   required=true   families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
   inf    infra   PerZone   pools=2  cores=32  maxNodes=3   initialMinNodes=0  osDisk=128GB  maxPods=225  swift=false  required=true   families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
-  wrk16  worker  PerZone   pools=3  cores=16  maxNodes=19  initialMinNodes=5  osDisk=512GB  maxPods=225  swift=true   required=false  families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
-  wrk32  worker  PerZone   pools=3  cores=32  maxNodes=4   initialMinNodes=1  osDisk=512GB  maxPods=225  swift=true   required=false  families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
+  wrk16  worker  PerZone   pools=3  cores=16  maxNodes=20  initialMinNodes=5  osDisk=512GB  maxPods=225  swift=true   required=false  families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
+  wrk32  worker  PerZone   pools=3  cores=32  maxNodes=3   initialMinNodes=1  osDisk=512GB  maxPods=225  swift=true   required=false  families=StandardEdsv7Family,StandardEdsv6Family,standardEDSv5Family,standardEDSv4Family,standardESv3Family
 
 quota limits (vCPUs):
   StandardEdsv6Family:  696
