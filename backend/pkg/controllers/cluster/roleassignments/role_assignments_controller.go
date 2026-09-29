@@ -136,13 +136,13 @@ func (s *clusterRoleAssignmentsSyncer) needsWork(cluster *coreapi.Cluster, servi
 	earliestRecheckTime := serviceProviderCluster.Spec.EarliestRecheckTimesByController[ClusterRoleAssignmentsControllerName]
 
 	// If there are no role assignments to process, we consider there's no need to work.
-	if len(serviceProviderCluster.Status.RoleAssignments) == 0 {
+	if len(serviceProviderCluster.Status.RoleAssignmentsOverManagedResourceGroup) == 0 {
 		return false
 	}
 
 	// If there are role assignments to process, we need to check if there's any immediate work to do. If there is at
 	// least one assignment that needs immediate work, we return true.
-	for _, status := range serviceProviderCluster.Status.RoleAssignments {
+	for _, status := range serviceProviderCluster.Status.RoleAssignmentsOverManagedResourceGroup {
 		if s.roleAssignmentNeedsImmediateWork(status, now) {
 			return true
 		}
@@ -196,7 +196,7 @@ func (s *clusterRoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 	// not already AzureResource. Draining keys are skipped: their IDs are
 	// already on AzureResource or leftover PendingAzureResource.
 	// Cluster deletion is handled by needsWork and never reaches here.
-	for assignmentKey, status := range replacement.Status.RoleAssignments {
+	for assignmentKey, status := range replacement.Status.RoleAssignmentsOverManagedResourceGroup {
 		if status.DeconfigureTimestamp != nil {
 			// If the role assignment is marked for deconfiguration, we skip it, as we will handle it in the next loop.
 			continue
@@ -235,8 +235,8 @@ func (s *clusterRoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 	// AzureResource is written only when the Azure call for that key succeeds.
 	// Successful key deconfigure removes the map entry. Draining keys wait
 	// 24h (deconfigureCanStartForRoleAssignment) before Delete.
-	for assignmentKey := range replacement.Status.RoleAssignments {
-		status := replacement.Status.RoleAssignments[assignmentKey]
+	for assignmentKey := range replacement.Status.RoleAssignmentsOverManagedResourceGroup {
+		status := replacement.Status.RoleAssignmentsOverManagedResourceGroup[assignmentKey]
 		if status == nil {
 			errs = append(errs, utils.TrackError(fmt.Errorf("RoleAssignmentsV2 has a nil status for principal ID %s role definition resource ID %s", assignmentKey.PrincipalID, assignmentKey.RoleDefinitionResourceID)))
 			continue
@@ -256,7 +256,7 @@ func (s *clusterRoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 				errs = append(errs, err)
 				continue
 			}
-			delete(replacement.Status.RoleAssignments, assignmentKey)
+			delete(replacement.Status.RoleAssignmentsOverManagedResourceGroup, assignmentKey)
 			continue
 		}
 
@@ -271,8 +271,8 @@ func (s *clusterRoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 		}
 	}
 
-	if len(replacement.Status.RoleAssignments) == 0 {
-		replacement.Status.RoleAssignments = nil
+	if len(replacement.Status.RoleAssignmentsOverManagedResourceGroup) == 0 {
+		replacement.Status.RoleAssignmentsOverManagedResourceGroup = nil
 	}
 
 	if len(errs) == 0 {
@@ -440,7 +440,7 @@ func (s *clusterRoleAssignmentsSyncer) deconfigureRoleAssignment(
 // leaves any existing time in place so needsWork stays true until that work
 // finishes.
 func (s *clusterRoleAssignmentsSyncer) syncRoleAssignmentRecheckTime(replacement *coreapi.ServiceProviderCluster) {
-	if len(replacement.Status.RoleAssignments) == 0 {
+	if len(replacement.Status.RoleAssignmentsOverManagedResourceGroup) == 0 {
 		delete(replacement.Spec.EarliestRecheckTimesByController, ClusterRoleAssignmentsControllerName)
 		return
 	}
@@ -458,7 +458,7 @@ func (s *clusterRoleAssignmentsSyncer) syncRoleAssignmentRecheckTime(replacement
 
 func (s *clusterRoleAssignmentsSyncer) roleAssignmentsAzureIdle(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	now := s.clock.Now()
-	for _, status := range serviceProviderCluster.Status.RoleAssignments {
+	for _, status := range serviceProviderCluster.Status.RoleAssignmentsOverManagedResourceGroup {
 		if s.roleAssignmentNeedsImmediateWork(status, now) {
 			return false
 		}

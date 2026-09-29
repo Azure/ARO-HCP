@@ -225,7 +225,7 @@ func TestClusterRoleAssignmentV2SyncOncePersistsPendingBeforeAzure(t *testing.T)
 
 	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	status := updated.Status.RoleAssignments[keys[0]]
+	status := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]]
 	require.NotNil(t, status)
 	assert.False(t, status.Configured())
 	require.NotNil(t, status.PendingAzureResource)
@@ -263,7 +263,7 @@ func TestClusterRoleAssignmentSyncOnceConfiguresWhenAzureAlreadyMatches(t *testi
 
 	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	status := updated.Status.RoleAssignments[keys[0]]
+	status := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]]
 	require.NotNil(t, status)
 	assert.True(t, status.Configured())
 	require.NotNil(t, status.AzureResource)
@@ -303,7 +303,7 @@ func TestClusterRoleAssignmentV2SyncOnceCreatesWhenMissing(t *testing.T) {
 
 	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	status := updated.Status.RoleAssignments[keys[0]]
+	status := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]]
 	require.NotNil(t, status)
 	assert.True(t, status.Configured())
 	require.NotNil(t, status.AzureResource)
@@ -350,7 +350,7 @@ func TestClusterRoleAssignmentV2SyncOnceWaitsBeforeDeconfigure(t *testing.T) {
 
 	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	status := updated.Status.RoleAssignments[keys[0]]
+	status := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]]
 	require.NotNil(t, status)
 	assert.NotNil(t, status.DeconfigureTimestamp)
 	require.NotNil(t, status.AzureResource)
@@ -389,7 +389,7 @@ func TestClusterRoleAssignmentSyncOnceDeconfiguresAfterWait(t *testing.T) {
 
 	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	assert.Empty(t, updated.Status.RoleAssignments)
+	assert.Empty(t, updated.Status.RoleAssignmentsOverManagedResourceGroup)
 	assert.Nil(t, updated.Spec.EarliestRecheckTimesByController[ClusterRoleAssignmentsControllerName])
 }
 
@@ -566,7 +566,7 @@ func newTestServiceProviderCluster(t *testing.T, mrgConfirmed, cpResolved, dpRes
 			},
 		}
 	}
-	serviceProviderCluster.Status.RoleAssignments = roleAssignments
+	serviceProviderCluster.Status.RoleAssignmentsOverManagedResourceGroup = roleAssignments
 	return serviceProviderCluster
 }
 

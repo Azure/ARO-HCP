@@ -435,11 +435,11 @@ func TestRoleAssignmentIntentSyncOncePersistsDesiredKeys(t *testing.T) {
 
 	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	require.Len(t, updated.Status.RoleAssignments, 3)
+	require.Len(t, updated.Status.RoleAssignmentsOverManagedResourceGroup, 3)
 	for _, key := range testDesiredRoleAssignmentKeys(t) {
-		require.Contains(t, updated.Status.RoleAssignments, key)
-		assert.Nil(t, updated.Status.RoleAssignments[key].DeconfigureTimestamp)
-		assert.False(t, updated.Status.RoleAssignments[key].Configured())
+		require.Contains(t, updated.Status.RoleAssignmentsOverManagedResourceGroup, key)
+		assert.Nil(t, updated.Status.RoleAssignmentsOverManagedResourceGroup[key].DeconfigureTimestamp)
+		assert.False(t, updated.Status.RoleAssignmentsOverManagedResourceGroup[key].Configured())
 	}
 }
 
@@ -459,7 +459,7 @@ func TestRoleAssignmentIntentSyncOnceSkipsClusterDeletion(t *testing.T) {
 
 	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	assert.Empty(t, updated.Status.RoleAssignments)
+	assert.Empty(t, updated.Status.RoleAssignmentsOverManagedResourceGroup)
 }
 
 func TestResolveControlPlaneRoleAssignmentTargetIdentity(t *testing.T) {
