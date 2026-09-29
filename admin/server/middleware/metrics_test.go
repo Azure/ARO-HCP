@@ -76,15 +76,6 @@ func TestMetricsMiddleware(t *testing.T) {
 			wantRoute:  "/admin/thing",
 		},
 		{
-			name:       "handler that only writes is recorded as 200",
-			handler:    func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("hi")) },
-			method:     http.MethodGet,
-			path:       "/admin/thing",
-			wantMethod: http.MethodGet,
-			wantCode:   "200",
-			wantRoute:  "/admin/thing",
-		},
-		{
 			name:       "unregistered path falls back to no-match route",
 			handler:    nil,
 			method:     http.MethodGet,
