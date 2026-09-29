@@ -742,9 +742,9 @@ func TestSameFamilyRebalanceZeroSlack(t *testing.T) {
 	compareGolden(t, formatTrace(tr))
 }
 
-// TestSameFamilyReplace_ZeroSlack_UndesiredPool protects reserved capacity when
-// quota permits a partial replacement but squeezing the old pool would cross
-// the current reconcile's floor. The planner must stop with both pools preserved.
+// TestSameFamilyReplace_ZeroSlack_UndesiredPool replaces a pool when quota only
+// permits a partial replacement: the old pool's ceiling is lowered in steps the
+// floor allows, each freeing quota to grow the replacement, until it converges.
 func TestSameFamilyReplace_ZeroSlack_UndesiredPool(t *testing.T) {
 	desired := []compute.Pool{
 		pool("new1", specE32v6, "1", 6, 512),
@@ -756,8 +756,7 @@ func TestSameFamilyReplace_ZeroSlack_UndesiredPool(t *testing.T) {
 
 	tr := requireSimulation(t, desired, current, budgets, true, 100)
 	require.NoError(t, tr.RejectedPlan)
-	require.False(t, configurationConverged(desired, tr.finalState()))
-	require.Len(t, tr.Steps, 1, "creation fits, but squeezing old1 would cross the capacity floor")
+	assertConverged(t, desired, tr.finalState())
 	compareGolden(t, formatTrace(tr))
 }
 

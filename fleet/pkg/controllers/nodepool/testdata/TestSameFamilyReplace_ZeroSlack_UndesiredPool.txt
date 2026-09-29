@@ -23,10 +23,18 @@ initial capacity:
 actions:
   margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
 
-     #  action  role    pool  vm size   change         role margin            quota left
-     1  Create  worker  new1  E32ds_v6  min=1   max=2    +64c   +512G   +14n  Edsv6 0c
+     #  action            role    pool  vm size   change         role margin            quota left
+     1  Create            worker  new1  E32ds_v6  min=1   max=2    +64c   +512G   +14n  Edsv6 0c
+     2  SetScalingBounds  worker  old1  E32ds_v6  min=1   max=4     +0c     +0G    +0n  Edsv6 64c
+     3  SetScalingBounds  worker  new1  E32ds_v6  min=1   max=4    +64c   +512G   +14n  Edsv6 0c
+     4  SetScalingBounds  worker  old1  E32ds_v6  min=1   max=2     +0c     +0G    +0n  Edsv6 64c
+     5  SetScalingBounds  worker  new1  E32ds_v6  min=1   max=6    +64c   +512G   +14n  Edsv6 0c
+     6  Freeze            worker  old1  E32ds_v6  count=2          +64c   +512G   +14n
+     7  Reduce            worker  old1  E32ds_v6  count=1          +32c   +256G    +7n  Edsv6 32c
+     8  Reduce            worker  old1  E32ds_v6  count=0           +0c     +0G    +0n  Edsv6 64c
+     9  Delete            worker  old1  E32ds_v6                    +0c     +0G    +0n
 
-steps:      1
-converged:  false
-outcome:    blocked
-reason:     no safe planner action is available for the remaining configuration difference (quota, capacity floor, or pool safety constraints)
+steps:      9
+converged:  true
+outcome:    converged
+reason:     pool configuration matches desired
