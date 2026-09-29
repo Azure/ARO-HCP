@@ -66,6 +66,12 @@ That combination means these jobs are not automatically triggered on merge. Inst
 
 This is why EV2-triggered runs show up in Prow as postsubmit-like jobs even though the trigger originated from EV2 rather than from a normal GitHub merge event.
 
+## PROD Regional Suite Parallelism
+
+The PROD `prod-e2e-parallel` job in `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml` sets `ARO_HCP_SUITE_PARALLELISM_BY_LOCATION: eastus2=15`. The persistent test step reads the effective location after slot-manager and Gangway overrides. Additional comma-separated `location=parallelism` entries can set different suite caps per region; omitted regions keep the test binary's default. An explicit `ARO_HCP_SUITE_PARALLELISM` value for a single invocation takes precedence over the regional mapping.
+
+This limits tests within each matching regional gate invocation, not the number of simultaneous Prow jobs or EV2 retries. Adjust the map in the CI job configuration to change regional caps; the test suite's global defaults are unchanged.
+
 ## Commit Pinning And Test Image Fidelity
 
 The commit-pinning path is what makes EV2 gating materially different from scheduled tests.

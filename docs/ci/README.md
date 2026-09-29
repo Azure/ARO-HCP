@@ -123,6 +123,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Current Environment Mapping](ev2-integration.md#current-environment-mapping)
 - [How EV2 Maps To Prow Jobs](ev2-integration.md#how-ev2-maps-to-prow-jobs)
 - [Programmatic Triggering And The `__e2e` Variant](ev2-integration.md#programmatic-triggering-and-the-__e2e-variant)
+- [PROD Regional Suite Parallelism](ev2-integration.md#prod-regional-suite-parallelism)
 - [Commit Pinning And Test Image Fidelity](ev2-integration.md#commit-pinning-and-test-image-fidelity)
 - [Gangway Authentication And prow-token](ev2-integration.md#gangway-authentication-and-prow-token)
 - [Identifying Rollouts From Prow Metadata](ev2-integration.md#identifying-rollouts-from-prow-metadata)
