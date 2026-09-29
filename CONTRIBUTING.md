@@ -108,7 +108,7 @@ All pull requests must follow these standards. Reviewers will check for complian
 ### 6. Self-Review Before Requesting Review
 - Run `git diff` and review every changed line yourself before requesting others.
 - Look for: leftover debug code, TODOs, unintended changes, secrets, formatting issues.
-- **Security self-check**: Verify your PR does not accidentally include `.claude/settings.json`, `.vscode/` configuration files, or other IDE/agent config that shouldn't be committed. The `verify` presubmit enforces this automatically via `make verify-supply-chain` — run that target locally to check before pushing. Changes to CI/CD configuration (`.github/workflows/`, `Makefile`, `*pipeline.yaml`, `Dockerfile`) are **not** covered by the automated check and should be called out explicitly in your PR description.
+- **Security self-check**: Verify your PR does not accidentally include `.claude/settings.json`, `.mcp.json`, `.vscode/` configuration files, or other IDE/agent config that shouldn't be committed. The `verify` presubmit enforces this automatically via `make verify-supply-chain` — run that target locally to check before pushing. A green check is not a clean bill of health: it lives in this repository, so a PR that edits `hack/verify-supply-chain/` or its `Makefile` wiring can weaken it. Changes to CI/CD configuration (`.github/workflows/`, `Makefile`, `*pipeline.yaml`, `Dockerfile`) are **not** covered by the automated check and should be called out explicitly in your PR description.
 
 ### 7. CI/CD Checks Must Pass
 - All tests, linting, and CI/CD pipeline checks must be green before requesting review, except for `aro-hcp-robot[bot]` PRs, which open ready while checks run. All required checks must pass before merge, **excluding Tide**.
