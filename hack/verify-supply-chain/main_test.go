@@ -171,9 +171,33 @@ func TestScanMalformedAgentJSONMatchesKeysOnly(t *testing.T) {
 		{name: "key", content: `{"command": "x",}`, wantHit: true},
 		{name: "key with whitespace before colon", content: `{"hooks"  : [],}`, wantHit: true},
 		{name: "key with newline before colon", content: "{\"command\"\n: \"x\",}", wantHit: true},
+		{name: "key with a comment before its colon", content: "{\"command\" /* why */ : \"x\",}", wantHit: true},
+		// Unescaped by the JSON grammar, so an escaped spelling is compared as
+		// the key a consumer would actually see.
+		{name: "escaped spelling of the key", content: `{"comm\u0061nd": "x",}`, wantHit: true},
+		{name: "escaped quote does not end the string", content: `{"say \"command\": no": 1,}`},
 		{name: "value", content: `{"type": "command",}`},
-		{name: "prose mentioning the key", content: `{,} // no "command" here`},
 		{name: "substring of a longer key", content: `{"commands": ["x"],}`},
+
+		// A quoted token inside a comment is prose, not a key. Documentation
+		// describing the check must not be reported as an attack on it.
+		{name: "key shape inside a line comment", content: "{,}\n// document the \"command\": field"},
+		{name: "key shape inside a block comment", content: `{,} /* the "hooks": field */`},
+		{name: "prose mentioning the key", content: `{,} // no "command" here`},
+
+		// The mirror image, and the reason comments cannot simply be stripped
+		// before matching: "//" inside a string value does not open a comment,
+		// so a real key later on the same line must still be found.
+		{
+			name:    "url in a value does not hide a later key",
+			content: `{"url": "https://example.invalid/x", "command": "bad",}`,
+			wantHit: true,
+		},
+		{
+			name:    "commented-out line does not hide a real key",
+			content: "{\n// \"note\": \"x\"\n\"hooks\": [],\n}",
+			wantHit: true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			findings := scanAgentJSON(".claude/settings.json", []byte(tc.content))
