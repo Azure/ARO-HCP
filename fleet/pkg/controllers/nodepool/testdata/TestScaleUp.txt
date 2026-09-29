@@ -24,13 +24,18 @@ initial capacity:
   infra:   cpu=0    memory=0GiB     swiftNICs=0
   worker:  cpu=576  memory=4608GiB  swiftNICs=126
 
+role floor:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=576  memory=4608GiB  swiftNICs=126
+
 actions:
   margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
 
      #  action            role    pool   vm size   change          role margin            quota left
      1  SetScalingBounds  worker  w1abc  E32ds_v6  min=1   max=10   +128c  +1024G   +28n  Edsv6 544c
-     2  SetScalingBounds  worker  w2abc  E32ds_v6  min=1   max=10   +128c  +1024G   +28n  Edsv6 416c
-     3  SetScalingBounds  worker  w3abc  E32ds_v6  min=1   max=10   +128c  +1024G   +28n  Edsv6 288c
+     2  SetScalingBounds  worker  w2abc  E32ds_v6  min=1   max=10   +256c  +2048G   +56n  Edsv6 416c
+     3  SetScalingBounds  worker  w3abc  E32ds_v6  min=1   max=10   +384c  +3072G   +84n  Edsv6 288c
 
 steps:      3
 converged:  true

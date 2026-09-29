@@ -140,15 +140,10 @@ func TestProtectedReplacement(t *testing.T) {
 		available  int64
 		desiredMax int32
 		converged  bool
-		partial    bool
-		wantErr    bool
 	}{
 		{name: "spare_quota", available: 40, desiredMax: 10, converged: true},
 		{name: "no_spare_quota", available: 20, desiredMax: 10},
-		// Overlap reaches the desired total, so the next reconcile cannot
-		// squeeze the old pool to free quota for further replacement growth.
-		{name: "growing_replacement", available: 60, desiredMax: 20},
-		{name: "partial_replacement_overlap_rejected", available: 40, desiredMax: 10, partial: true, wantErr: true},
+		{name: "growing_replacement", available: 60, desiredMax: 20, converged: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -157,28 +152,55 @@ func TestProtectedReplacement(t *testing.T) {
 			old.Name = "old"
 			old.MaxCount = 10
 			current := []PoolState{{Pool: old, Count: 5, AutoScalingEnabled: true, ProvisioningState: "Succeeded"}}
-			tr := requireSimulation(t, desired, current, map[compute.VMFamily]int64{"family": test.available}, !test.partial, 30)
-			if test.wantErr {
-				require.Equal(t, "rejected", tr.Outcome)
-				require.ErrorContains(t, tr.RejectedPlan, "worker capacity")
-				require.Len(t, tr.Steps, 1, "overlap must raise the live baseline before the next reconcile")
-			} else {
-				require.NoError(t, tr.RejectedPlan)
-			}
+			tr := requireSimulation(t, desired, current, map[compute.VMFamily]int64{"family": test.available}, true, 30)
+			require.NoError(t, tr.RejectedPlan)
 			if test.converged {
 				require.Equal(t, "converged", tr.Outcome)
-			} else if !test.wantErr {
+			} else {
 				require.Equal(t, "blocked", tr.Outcome)
 			}
 			require.Equal(t, test.converged, configurationConverged(desired, tr.finalState()))
 			if !test.converged {
 				require.Equal(t, current[0], tr.finalState()[0], "blocked replacement must preserve the old pool")
 			}
-			if test.name == "growing_replacement" {
-				require.Len(t, tr.Steps, 1)
-				require.Equal(t, compute.RoleCapacity{VCPUs: 80, MemoryBytes: memoryBytes("320Gi"), SwiftNICs: 40}, requireStateCapacity(t, tr.finalState())[compute.PoolRoleWorker])
-			}
 			compareGolden(t, formatTrace(tr))
+		})
+	}
+}
+
+// A partial plan (quota short of the target) must keep the initial capacity of
+// the worker role; it may only replace it.
+func TestPartialPlanProtectsInitialCapacity(t *testing.T) {
+	spec := compute.VMSpec{Size: "sku", Family: "family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}
+	tests := []struct {
+		name    string
+		desired []compute.Pool
+		current []PoolState
+		wantErr string
+	}{
+		{
+			name:    "replacement at the initial capacity converges",
+			desired: []compute.Pool{pool("new", spec, "1", 10, 32)},
+			current: []PoolState{poolState("old", spec, "1", 10, 32, true, 5)},
+		},
+		{
+			name:    "shrinking below the initial capacity is rejected",
+			desired: []compute.Pool{pool("new", spec, "1", 8, 32)},
+			current: []PoolState{poolState("old", spec, "1", 10, 32, true, 5)},
+			wantErr: "worker capacity",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tr := requireSimulation(t, test.desired, test.current, map[compute.VMFamily]int64{"family": 40}, false, 60)
+			if len(test.wantErr) > 0 {
+				require.Equal(t, "rejected", tr.Outcome)
+				require.ErrorContains(t, tr.RejectedPlan, test.wantErr)
+				require.Empty(t, tr.Steps)
+				return
+			}
+			require.NoError(t, tr.RejectedPlan)
+			assertConverged(t, test.desired, tr.finalState())
 		})
 	}
 }

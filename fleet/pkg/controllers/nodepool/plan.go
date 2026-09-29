@@ -259,14 +259,19 @@ func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool
 		return newDeleteAction(cur.Name, cur.Spec.Size, cur.ZoneString(), cur.ETag), true
 	}
 
-	// Squeeze unused ceiling without evicting nodes. This may dip below the
-	// new desired total but must preserve the accepted transition floor.
+	// Squeeze unused ceiling without evicting nodes, down to the lowest ceiling
+	// the accepted transition floor allows. This may dip below the new desired
+	// total. When the floor stops the squeeze short of the node count, the freed
+	// quota grows replacement capacity first, which lets the next squeeze go
+	// further.
 	for _, cur := range undesired {
-		if cur.AutoScalingEnabled && cur.MaxCount > cur.Count {
-			if !allowsCapacityReduction(current, cur, int64(cur.Count), capacityFloor) {
-				continue
+		if !cur.AutoScalingEnabled || cur.MaxCount <= cur.Count {
+			continue
+		}
+		for ceiling := cur.Count; ceiling < cur.MaxCount; ceiling++ {
+			if allowsCapacityReduction(current, cur, int64(ceiling), capacityFloor) {
+				return newSetScalingBoundsAction(cur.Name, cur.Spec.Size, cur.ZoneString(), cur.ETag, min(cur.MinCount, ceiling), ceiling), true
 			}
-			return newSetScalingBoundsAction(cur.Name, cur.Spec.Size, cur.ZoneString(), cur.ETag, min(cur.MinCount, cur.Count), cur.Count), true
 		}
 	}
 
