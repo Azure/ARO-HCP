@@ -119,7 +119,7 @@ func NewClusterRoleAssignmentsController(
 	)
 }
 
-func (s *clusterRoleAssignmentsSyncer) needsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+func (s *clusterRoleAssignmentsSyncer) needsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	// If the cluster is being deleted, we skip the role assignment work. Because the role assignments are scoped to the managed resource group, when
 	// the managed resource group is deleted, the role assignments are also deleted so no need to do anything in this controller in that case.
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {

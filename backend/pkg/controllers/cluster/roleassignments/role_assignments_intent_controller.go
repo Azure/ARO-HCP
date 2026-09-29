@@ -199,7 +199,7 @@ func (s *clusterRoleAssignmentIntentSyncer) SyncOnce(ctx context.Context, key co
 // Keys that have left the desired set are stamped for deconfigure or dropped.
 // Unresolved ResourceIDs are not deconfigured.
 func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentsV2(
-	cluster *coreapi.HCPOpenShiftCluster,
+	cluster *coreapi.Cluster,
 	serviceProviderCluster *coreapi.ServiceProviderCluster,
 	existingRoleAssignments map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus,
 ) (map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus, error) {
@@ -227,7 +227,7 @@ func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentsV2(
 // it. A nil control-plane or data-plane identity ResourceID is skipped. A nil
 // service managed identity is an error.
 func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentIdentities(
-	cluster *coreapi.HCPOpenShiftCluster,
+	cluster *coreapi.Cluster,
 	serviceProviderCluster *coreapi.ServiceProviderCluster,
 ) (map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentTargetIdentity, map[string]struct{}, error) {
 	desired := map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentTargetIdentity{}

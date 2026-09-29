@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/azuremockclient"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -88,7 +89,7 @@ func TestClusterRoleAssignmentsNeedsWork(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		cluster           *coreapi.HCPOpenShiftCluster
+		cluster           *coreapi.Cluster
 		mrgConfirmed      bool
 		roleAssignments   map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus
 		recheckTime       *metav1.Time
@@ -491,7 +492,7 @@ func matchingRoleAssignmentGet(key coreapi.RoleAssignmentKey, desiredID *azcorea
 // newTestCluster builds an HCPOpenShiftCluster addressable by the mock
 // ResourcesDBClient with one control-plane and one data-plane operator identity and
 // the given deletion state.
-func newTestCluster(deleting bool) *coreapi.HCPOpenShiftCluster {
+func newTestCluster(deleting bool) *coreapi.Cluster {
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
@@ -605,5 +606,5 @@ func roleAssignmentNotFoundError() *azcore.ResponseError {
 // resource ID used to open the observation gate.
 func testManagedResourceGroupID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
-	return metadataapi.Must(coreapi.ToResourceGroupResourceID(testSubscriptionID, testManagedRGName))
+	return metadataapi.Must(coreapihelpers.ToResourceGroupResourceID(testSubscriptionID, testManagedRGName))
 }
