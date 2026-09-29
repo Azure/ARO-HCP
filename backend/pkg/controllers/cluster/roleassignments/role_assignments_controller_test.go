@@ -227,7 +227,7 @@ func TestClusterRoleAssignmentV2SyncOncePersistsPendingBeforeAzure(t *testing.T)
 	require.NoError(t, err)
 	status := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]]
 	require.NotNil(t, status)
-	assert.False(t, status.Configured())
+	assert.False(t, coreapihelpers.RoleAssignmentStatusConfigured(status))
 	require.NotNil(t, status.PendingAzureResource)
 	assert.True(t, controllerutil.ResourceIDsEqual(desiredID, status.PendingAzureResource))
 	assert.Nil(t, status.AzureResource)
@@ -265,7 +265,7 @@ func TestClusterRoleAssignmentSyncOnceConfiguresWhenAzureAlreadyMatches(t *testi
 	require.NoError(t, err)
 	status := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]]
 	require.NotNil(t, status)
-	assert.True(t, status.Configured())
+	assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(status))
 	require.NotNil(t, status.AzureResource)
 	assert.True(t, controllerutil.ResourceIDsEqual(desiredID, status.AzureResource))
 	assert.Nil(t, status.PendingAzureResource)
@@ -305,7 +305,7 @@ func TestClusterRoleAssignmentV2SyncOnceCreatesWhenMissing(t *testing.T) {
 	require.NoError(t, err)
 	status := updated.Status.RoleAssignmentsOverManagedResourceGroup[keys[0]]
 	require.NotNil(t, status)
-	assert.True(t, status.Configured())
+	assert.True(t, coreapihelpers.RoleAssignmentStatusConfigured(status))
 	require.NotNil(t, status.AzureResource)
 	assert.True(t, controllerutil.ResourceIDsEqual(desiredID, status.AzureResource))
 	assert.Nil(t, status.PendingAzureResource)
