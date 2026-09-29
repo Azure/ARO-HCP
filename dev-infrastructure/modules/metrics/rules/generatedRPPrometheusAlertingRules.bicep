@@ -433,7 +433,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'userJourneyIDMSMirrorErrorsFastBurn'
+        alert: 'userJourneyIDMSMirrorErrors1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -443,7 +443,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
           slo: 'idms-mirror-errors'
         }
         annotations: {
-          correlationId: 'userJourneyIDMSMirrorErrorsFastBurn/{{ $labels.cluster }}'
+          correlationId: 'userJourneyIDMSMirrorErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of clusters on {{ $labels.cluster }} whose latest update completed in the last hour have it in failed state (at least 3 failures), a 14.4x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
           info: 'More than 72% of clusters on {{ $labels.cluster }} whose latest update completed in the last hour have it in failed state (at least 3 failures), a 14.4x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
           runbook_url: 'https://aka.ms/arohcp-runbook-idms'
@@ -464,7 +464,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'userJourneyIDMSMirrorErrorsMediumBurn'
+        alert: 'userJourneyIDMSMirrorErrors6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -474,7 +474,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
           slo: 'idms-mirror-errors'
         }
         annotations: {
-          correlationId: 'userJourneyIDMSMirrorErrorsMediumBurn/{{ $labels.cluster }}'
+          correlationId: 'userJourneyIDMSMirrorErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of clusters on {{ $labels.cluster }} whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), a 6x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
           info: 'More than 30% of clusters on {{ $labels.cluster }} whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), a 6x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue.'
           runbook_url: 'https://aka.ms/arohcp-runbook-idms'
@@ -495,7 +495,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'userJourneyIDMSMirrorErrorsSlowBurn'
+        alert: 'userJourneyIDMSMirrorErrors3d'
         enabled: true
         labels: {
           component: 'slo'
@@ -504,7 +504,7 @@ resource arohcpIdmsMirrorSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRu
           slo: 'idms-mirror-errors'
         }
         annotations: {
-          correlationId: 'userJourneyIDMSMirrorErrorsSlowBurn/{{ $labels.cluster }}'
+          correlationId: 'userJourneyIDMSMirrorErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed.'
           info: 'More than 5% of clusters on {{ $labels.cluster }} whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed.'
           runbook_url: 'https://aka.ms/arohcp-runbook-idms'
