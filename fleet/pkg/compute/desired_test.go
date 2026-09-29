@@ -15,10 +15,15 @@
 package compute
 
 import (
-	"encoding/json"
+	"fmt"
+	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
+	"text/tabwriter"
 
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
@@ -28,15 +33,9 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 )
 
-type desiredPoolsResult struct {
-	FullyAllocated bool                `json:"fullyAllocated"`
-	Pools          []Pool              `json:"pools"`
-	Failures       []AllocationFailure `json:"failures,omitempty"`
-}
-
 func assertGolden(t *testing.T, got string) {
 	t.Helper()
-	golden := filepath.Join("testdata", t.Name()+".json")
+	golden := filepath.Join("testdata", t.Name()+".txt")
 
 	if os.Getenv("UPDATE_GOLDEN") != "" {
 		require.NoError(t, os.MkdirAll(filepath.Dir(golden), 0o755))
@@ -51,6 +50,95 @@ func assertGolden(t *testing.T, got string) {
 	if diff := cmp.Diff(string(want), got); diff != "" {
 		t.Errorf("golden file mismatch (-want +got):\n%s", diff)
 	}
+}
+
+// renderReport runs write against an aligning writer and returns the text.
+// Each blank-line separated section aligns its columns on its own.
+func renderReport(write func(w io.Writer)) string {
+	var buf strings.Builder
+	w := tabwriter.NewWriter(&buf, 0, 8, 2, ' ', 0)
+	write(w)
+	_ = w.Flush() // strings.Builder writes cannot fail.
+	return buf.String()
+}
+
+// writeAllocationInputs renders what a desired-pool allocation starts from:
+// zones, tiers, family quota limits, and SKUs.
+func writeAllocationInputs(w io.Writer, zones []string, tiers []TierConfig, familyLimits map[VMFamily]int64, skuMetadata map[string]*skucache.SKUMetadata) {
+	fmt.Fprintf(w, "zones: %s\n", strings.Join(zones, ","))
+
+	fmt.Fprintln(w, "\ntiers:")
+	if len(tiers) == 0 {
+		fmt.Fprintln(w, "  (none)")
+	}
+	for _, tier := range tiers {
+		families := make([]string, 0, len(tier.FamilyPriority))
+		for _, family := range tier.FamilyPriority {
+			families = append(families, string(family))
+		}
+		fmt.Fprintf(w, "  %s\t%s\t%s\tpools=%d\tcores=%d\tmaxNodes=%d\tinitialMinNodes=%d\tosDisk=%dGB\tmaxPods=%d\tswift=%t\trequired=%t\tfamilies=%s\n",
+			tier.Name, tier.Role, tier.PoolMode, tier.PoolCount, tier.Cores, tier.MaxNodes, tier.InitialMinNodes,
+			tier.OSDiskSizeGB, tier.MaxPods, tier.EnableSwift, tier.Required, orNone(strings.Join(families, ",")))
+	}
+
+	fmt.Fprintln(w, "\nquota limits (vCPUs):")
+	if len(familyLimits) == 0 {
+		fmt.Fprintln(w, "  (none)")
+	}
+	for _, family := range slices.Sorted(maps.Keys(familyLimits)) {
+		fmt.Fprintf(w, "  %s:\t%d\n", family, familyLimits[family])
+	}
+
+	fmt.Fprintln(w, "\nskus:")
+	if len(skuMetadata) == 0 {
+		fmt.Fprintln(w, "  (none)")
+	}
+	for _, name := range slices.Sorted(maps.Keys(skuMetadata)) {
+		sku := skuMetadata[name]
+		fmt.Fprintf(w, "  %s\t%s\tcpu=%d\tmemory=%dGiB\tnics=%d\tephemeralOSDisk=%t\tephemeralDisk=%dGB\tzones=%s\n",
+			name, sku.Family, sku.VCPUs, sku.MemoryBytes>>30, sku.SecondaryNICs,
+			sku.EphemeralOSDiskSupported, sku.EphemeralDiskSizeGB, orNone(strings.Join(sku.Zones, ",")))
+	}
+}
+
+// writeAllocationResult renders desired pools, allocation failures, and
+// whether every tier reached its node target.
+func writeAllocationResult(w io.Writer, pools []Pool, failures []AllocationFailure, fullyAllocated bool) {
+	fmt.Fprintf(w, "\nfully allocated: %t\n", fullyAllocated)
+
+	fmt.Fprintln(w, "\npools:")
+	if len(pools) == 0 {
+		fmt.Fprintln(w, "  (none)")
+	}
+	for _, pool := range pools {
+		zone := "regional"
+		if len(pool.AvailabilityZones) > 0 {
+			zone = strings.Join(pool.AvailabilityZones, ",")
+		}
+		labels := make([]string, 0, len(pool.Labels))
+		for _, key := range slices.Sorted(maps.Keys(pool.Labels)) {
+			labels = append(labels, key+"="+pool.Labels[key])
+		}
+		fmt.Fprintf(w, "  %s\t%s\t%s\tcpu=%d\tmemory=%dGiB\tnics=%d\tzone=%s\tmin=%d\tmax=%d\tosDisk=%dGB\tmaxPods=%d\tswift=%t\tlabels=%s\ttaints=%s\n",
+			pool.Name, pool.Role, pool.Spec.Size, pool.Spec.VCPUs, pool.Spec.MemoryBytes>>30, pool.Spec.SecondaryNICs,
+			zone, pool.MinCount, pool.MaxCount, pool.OSDiskSizeGB, pool.MaxPods, pool.EnableSwift,
+			orNone(strings.Join(labels, ",")), orNone(strings.Join(pool.Taints, ",")))
+	}
+
+	fmt.Fprintln(w, "\nfailures:")
+	if len(failures) == 0 {
+		fmt.Fprintln(w, "  (none)")
+	}
+	for _, failure := range failures {
+		fmt.Fprintf(w, "  %s\trequired=%t\t%s\n", failure.Reason, failure.Required, failure.Message)
+	}
+}
+
+func orNone(value string) string {
+	if len(value) == 0 {
+		return "-"
+	}
+	return value
 }
 
 var (
@@ -152,11 +240,62 @@ var (
 		EphemeralDiskSizeGB:      0,
 		Zones:                    allZones,
 	}
+
+	e32dsv5 = &skucache.SKUMetadata{
+		Name:                     "Standard_E32ds_v5",
+		Family:                   "standardEDSv5Family",
+		VCPUs:                    32,
+		MemoryBytes:              memoryBytes("256Gi"),
+		SecondaryNICs:            7,
+		EphemeralOSDiskSupported: true,
+		EphemeralDiskSizeGB:      1200,
+		Zones:                    allZones,
+	}
+
+	// e32dsv5Zone23 is a zone-restricted variant of e32dsv5, available only in
+	// zones 2 and 3.
+	e32dsv5Zone23 = &skucache.SKUMetadata{
+		Name:                     "Standard_E32ds_v5",
+		Family:                   "standardEDSv5Family",
+		VCPUs:                    32,
+		MemoryBytes:              memoryBytes("256Gi"),
+		SecondaryNICs:            7,
+		EphemeralOSDiskSupported: true,
+		EphemeralDiskSizeGB:      1200,
+		Zones:                    []string{"2", "3"},
+	}
+
+	// e32dsv5Zone1 is a zone-restricted variant of e32dsv5, available only in
+	// zone 1.
+	e32dsv5Zone1 = &skucache.SKUMetadata{
+		Name:                     "Standard_E32ds_v5",
+		Family:                   "standardEDSv5Family",
+		VCPUs:                    32,
+		MemoryBytes:              memoryBytes("256Gi"),
+		SecondaryNICs:            7,
+		EphemeralOSDiskSupported: true,
+		EphemeralDiskSizeGB:      1200,
+		Zones:                    []string{"1"},
+	}
+
+	// e32dsv5Zone234 is a variant of e32dsv5 for a four-zone region, available
+	// in zones 2, 3, and 4.
+	e32dsv5Zone234 = &skucache.SKUMetadata{
+		Name:                     "Standard_E32ds_v5",
+		Family:                   "standardEDSv5Family",
+		VCPUs:                    32,
+		MemoryBytes:              memoryBytes("256Gi"),
+		SecondaryNICs:            7,
+		EphemeralOSDiskSupported: true,
+		EphemeralDiskSizeGB:      1200,
+		Zones:                    []string{"2", "3", "4"},
+	}
 )
 
 func TestComputeDesiredPools(t *testing.T) {
 	tests := []struct {
 		name          string
+		zones         []string // defaults to allZones
 		tiers         []TierConfig
 		familyBudgets map[VMFamily]int64
 		skuMetadata   map[string]*skucache.SKUMetadata
@@ -286,17 +425,149 @@ func TestComputeDesiredPools(t *testing.T) {
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 10000},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E8ds_v6": e8dsv6SmallDisk},
 		},
+		{
+			// After the 32-vCPU surge reservation EDSv6 has quota for 8 nodes and
+			// EDSv5 for 5, both offered in every zone; the tier targets 4 per zone.
+			name: "per zone fills zones in family priority order",
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 312, "standardEDSv5Family": 192},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_E32ds_v6": e32dsv6,
+				"Standard_E32ds_v5": e32dsv5,
+			},
+		},
+		{
+			// EDSv6 has quota for 8 nodes and EDSv5 for 1, both offered in every
+			// zone; the tier targets 4 per zone.
+			name: "per zone family switch inside a zone",
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 312, "standardEDSv5Family": 64},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_E32ds_v6": e32dsv6,
+				"Standard_E32ds_v5": e32dsv5,
+			},
+		},
+		{
+			// EDSv6 has quota for 8 nodes, 2 per zone. Quota for the remaining
+			// 2 nodes cannot give every zone another node and stays unused.
+			name: "per zone remainder short of every zone stays unused",
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 312},
+			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
+		},
+		{
+			// EDSv6 is offered in zones 1 and 2, EDSv5 in zones 2 and 3; each
+			// has quota for 3 nodes after the surge reservation. The tier spans
+			// 2 of the 3 zones and targets 2 per zone.
+			name: "per zone tie keeps earliest zones",
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 2, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 128, "standardEDSv5Family": 128},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_E32ds_v6": e32dsv6Zone12,
+				"Standard_E32ds_v5": e32dsv5Zone23,
+			},
+		},
+		{
+			// EDSv6 is offered in zones 1 and 2 with quota for 2 nodes, EDSv5 in
+			// zones 2 and 3 with quota for 8. The tier spans 2 of the 3 zones and
+			// targets 4 per zone.
+			name: "per zone picks zones allowing the most nodes",
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 2, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 96, "standardEDSv5Family": 288},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_E32ds_v6": e32dsv6Zone12,
+				"Standard_E32ds_v5": e32dsv5Zone23,
+			},
+		},
+		{
+			// EDSv6 is offered in zones 1 and 2 only, with quota for 8 nodes;
+			// EDSv5 is offered everywhere with quota for 12.
+			name: "per zone restricted preferred family fills the zones it is offered in",
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 288, "standardEDSv5Family": 416},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_E32ds_v6": e32dsv6Zone12,
+				"Standard_E32ds_v5": e32dsv5,
+			},
+		},
+		{
+			// EDSv6, offered everywhere, has quota for 2 nodes; EDSv5, offered
+			// only in zone 1, has quota for 2.
+			name: "per zone preferred family leaves a zone to a restricted family",
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 96, "standardEDSv5Family": 96},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_E32ds_v6": e32dsv6,
+				"Standard_E32ds_v5": e32dsv5Zone1,
+			},
+		},
+		{
+			// EDSv6 is offered in zones 1 and 2, EDSv5 in zones 2 and 3, each
+			// with quota for 2 nodes. Neither covers the 3 tier zones alone.
+			name: "per zone families together cover zones none covers alone",
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 1, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 96, "standardEDSv5Family": 96},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_E32ds_v6": e32dsv6Zone12,
+				"Standard_E32ds_v5": e32dsv5Zone23,
+			},
+		},
+		{
+			// In a four-zone region EDSv6 is offered in zones 1-3 with quota for
+			// 3 nodes and EDSv5 in zones 2-4 with quota for 12. The tier spans 3
+			// of the 4 zones and targets 4 per zone.
+			name:  "per zone four zones picks best three",
+			zones: []string{"1", "2", "3", "4"},
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 128, "standardEDSv5Family": 416},
+			skuMetadata: map[string]*skucache.SKUMetadata{
+				"Standard_E32ds_v6": e32dsv6,
+				"Standard_E32ds_v5": e32dsv5Zone234,
+			},
+		},
+		{
+			// Quota covers 2 nodes after the surge reservation, fewer than the 3
+			// tier zones, so no zone gets a node and the tier fails.
+			name: "per zone quota for fewer nodes than zones",
+			tiers: []TierConfig{
+				{Name: "wrk", Role: PoolRoleWorker, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3, EnableSwift: true},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 96},
+			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			zones := test.zones
+			if zones == nil {
+				zones = allZones
+			}
 			skuIndex := BuildEligibleSKUIndex(test.skuMetadata)
-			pools, failures, fullyAllocated := ComputeDesiredPools(logr.Discard(), test.tiers, allZones, test.familyBudgets, skuIndex)
+			pools, failures, fullyAllocated := ComputeDesiredPools(logr.Discard(), test.tiers, zones, test.familyBudgets, skuIndex)
 
-			result := desiredPoolsResult{Pools: pools, Failures: failures, FullyAllocated: fullyAllocated}
-			b, err := json.MarshalIndent(result, "", "  ")
-			require.NoError(t, err)
-			assertGolden(t, string(b)+"\n")
+			assertGolden(t, renderReport(func(w io.Writer) {
+				writeAllocationInputs(w, zones, test.tiers, test.familyBudgets, test.skuMetadata)
+				writeAllocationResult(w, pools, failures, fullyAllocated)
+			}))
 		})
 	}
 }
