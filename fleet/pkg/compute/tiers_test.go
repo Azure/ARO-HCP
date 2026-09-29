@@ -45,7 +45,7 @@ func TestLookupProfile(t *testing.T) {
 
 func TestValidProfileNames(t *testing.T) {
 	names := ValidProfileNames()
-	assert.Equal(t, []string{ProfileCI, ProfileDevelopment, ProfileProduction}, names, "expected sorted, deduplicated profile names")
+	assert.Equal(t, []string{ProfileCI, ProfileDevelopment, ProfileIntegration, ProfileProduction}, names, "expected sorted, deduplicated profile names")
 }
 
 func TestTierFamilies(t *testing.T) {

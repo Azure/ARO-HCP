@@ -1688,7 +1688,7 @@
           "properties": {
             "profile": {
               "type": "string",
-              "enum": ["", "ci", "development", "production"],
+              "enum": ["", "ci", "development", "integration", "production"],
               "description": "Nodepool tier profile. Empty means disabled. Tier definitions (VM cores, disk sizes, nodes per zone, family priorities) are defined in code."
             }
           },
