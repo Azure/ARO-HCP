@@ -15,6 +15,7 @@
 package gatherobservability
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -233,6 +234,95 @@ func TestExpiredKnownIssueFailsAlertJUnit(t *testing.T) {
 	}
 }
 
+// TestDefaultKnownIssuesClassification classifies alerts against the actual
+// embedded knownIssues.yaml (not an inline copy), so a typo or label mismatch
+// in the production entries fails this test directly. Covers the
+// FrontendPathMedianLatency PUT/GET split added for AROSLSRE-2232.
+//
+// Uses a fixed reference time rather than classifyAlerts' wall clock: the
+// production FrontendPathMedianLatency entry has expiresAfter: "2026-10-15"
+// (Copilot review finding on PR #7124), so a wall-clock test would start
+// failing on 2026-10-16 once the entry stops applying. The "before expiry"
+// cases pin to a date clearly inside the window; a dedicated "after expiry"
+// case pins past it and asserts the exception correctly stops suppressing.
+func TestDefaultKnownIssuesClassification(t *testing.T) {
+	t.Parallel()
+	issues, err := parseKnownIssues(defaultKnownIssuesData)
+	if err != nil {
+		t.Fatalf("embedded knownIssues.yaml failed to parse: %v", err)
+	}
+
+	beforeExpiry := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	afterExpiry := time.Date(2026, 10, 16, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name          string
+		at            time.Time
+		alertName     string
+		labels        map[string]string
+		wantKnown     bool
+		wantReasonSub string
+	}{
+		{
+			name:          "median_latency_put_is_known",
+			at:            beforeExpiry,
+			alertName:     "FrontendPathMedianLatency",
+			labels:        map[string]string{"method": "PUT", "route": "/clusters"},
+			wantKnown:     true,
+			wantReasonSub: "AROSLSRE-2232",
+		},
+		{
+			name:          "median_latency_lowercase_put_is_known",
+			at:            beforeExpiry,
+			alertName:     "FrontendPathMedianLatency",
+			labels:        map[string]string{"method": "put", "route": "/clusters"},
+			wantKnown:     true,
+			wantReasonSub: "AROSLSRE-2232",
+		},
+		{
+			name:      "median_latency_get_is_not_known",
+			at:        beforeExpiry,
+			alertName: "FrontendPathMedianLatency",
+			labels:    map[string]string{"method": "GET", "route": "/clusters"},
+			wantKnown: false,
+		},
+		{
+			name:      "median_latency_head_is_not_known",
+			at:        beforeExpiry,
+			alertName: "FrontendPathMedianLatency",
+			labels:    map[string]string{"method": "HEAD", "route": "/clusters"},
+			wantKnown: false,
+		},
+		{
+			// After expiresAfter, the mutating-method skip must stop
+			// applying so a still-firing alert fails CI again per the
+			// documented behavior in docs/ci/operations.md.
+			name:      "median_latency_put_after_expiry_is_not_known",
+			at:        afterExpiry,
+			alertName: "FrontendPathMedianLatency",
+			labels:    map[string]string{"method": "PUT", "route": "/clusters"},
+			wantKnown: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			classified := classifyAlertsAt([]alert{{Alert: alertData{Name: tt.alertName, Labels: tt.labels}}}, issues, tt.at)
+			if len(classified) != 1 {
+				t.Fatalf("expected 1 classified alert, got %d", len(classified))
+			}
+			got := classified[0].Metadata.KnownIssue
+			if got != tt.wantKnown {
+				t.Errorf("%s{%v}: KnownIssue = %v, want %v (reason: %q)", tt.alertName, tt.labels, got, tt.wantKnown, classified[0].Metadata.KnownIssueReason)
+			}
+			if tt.wantReasonSub != "" && !strings.Contains(classified[0].Metadata.KnownIssueReason, tt.wantReasonSub) {
+				t.Errorf("%s{%v}: KnownIssueReason = %q, want substring %q", tt.alertName, tt.labels, classified[0].Metadata.KnownIssueReason, tt.wantReasonSub)
+			}
+		})
+	}
+}
+
 func TestClassifyAlerts(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -328,6 +418,29 @@ func TestClassifyAlerts(t *testing.T) {
 				{Alert: alertData{
 					Name:   "BackendControllerRetryHotLoop",
 					Labels: map[string]string{"name": "operationcreate"},
+				}},
+			},
+		},
+		{
+			name: "median_latency_mutating_methods",
+			knownIssuesYAML: `knownIssues:
+- name: "FrontendPathMedianLatency"
+  reason: "read-path SLO"
+  labels:
+    method: "(?i)(PUT|POST|PATCH|DELETE)"
+`,
+			alerts: []alert{
+				{Alert: alertData{
+					Name:   "FrontendPathMedianLatency",
+					Labels: map[string]string{"method": "PUT", "route": "/clusters"},
+				}},
+				{Alert: alertData{
+					Name:   "FrontendPathMedianLatency",
+					Labels: map[string]string{"method": "put", "route": "/clusters"},
+				}},
+				{Alert: alertData{
+					Name:   "FrontendPathMedianLatency",
+					Labels: map[string]string{"method": "GET", "route": "/clusters"},
 				}},
 			},
 		},
