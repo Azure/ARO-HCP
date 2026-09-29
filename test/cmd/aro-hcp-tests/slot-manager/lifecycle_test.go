@@ -28,6 +28,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/funcr"
+	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
@@ -164,15 +165,24 @@ func lifecycleOptions(t *testing.T, catalog, server string, registry *assets.Reg
 
 func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []string{"success", "resolve", "admit", "publish", "second acquire", "duplicate secondary", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state"} {
+	for _, scenario := range []string{"success", "resolve", "admit", "publish", "second acquire", "duplicate secondary", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state", "skip e2e admission", "skip infra admission", "skip both admissions", "unskipped admission fails"} {
 		t.Run(scenario, func(t *testing.T) {
 			calls := []string{}
+			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
 			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
+			skipE2E := scenario == "skip e2e admission" || scenario == "skip both admissions" || scenario == "unskipped admission fails"
+			skipInfra := scenario == "skip infra admission" || scenario == "skip both admissions"
+			if skipE2E {
+				e2e.fail = "admit"
+			}
+			if skipInfra || scenario == "unskipped admission fails" {
+				infra.fail = "admit"
+			}
 			if scenario == "resolve" || scenario == "admit" || scenario == "publish" {
 				infra.fail = scenario
 			}
 			registry, err := assets.NewRegistry(
-				&lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls},
+				e2e,
 				infra,
 			)
 			if err != nil {
@@ -197,6 +207,20 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			})
 			defer server.Close()
 			options := lifecycleOptions(t, lifecycleCatalog, server.URL, registry)
+			command := &cobra.Command{}
+			if err := BindAcquireOptions(options, command); err != nil {
+				t.Fatal(err)
+			}
+			var flags []string
+			if skipE2E {
+				flags = append(flags, "--disable-asset-admission=e2e_identities")
+			}
+			if skipInfra {
+				flags = append(flags, "--disable-asset-admission=infrastructure_identities")
+			}
+			if err := command.ParseFlags(flags); err != nil {
+				t.Fatal(err)
+			}
 			var logs bytes.Buffer
 			logger := funcr.New(func(_, message string) {
 				fmt.Fprintln(&logs, message)
@@ -250,14 +274,33 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				}
 			}
 			err = Acquire(logr.NewContext(context.Background(), logger), options)
-			if loggedSuccess := strings.Contains(logs.String(), "Acquired slot and wrote shared artifacts"); loggedSuccess != (scenario == "success") {
+			wantSuccess := scenario == "success" || scenario == "skip e2e admission" || scenario == "skip infra admission" || scenario == "skip both admissions"
+			if loggedSuccess := strings.Contains(logs.String(), "Acquired slot and wrote shared artifacts"); loggedSuccess != wantSuccess {
 				t.Fatalf("success log does not match acquisition outcome: %s; error: %v", logs.String(), err)
 			}
-			if scenario == "success" {
+			for kind, skipped := range map[slots.AssetKind]bool{slots.KindE2EIdentities: skipE2E, slots.KindInfrastructureIdentities: skipInfra} {
+				loggedSkip := false
+				for _, line := range strings.Split(logs.String(), "\n") {
+					if strings.Contains(line, "WARNING: asset admission explicitly disabled") && strings.Contains(line, string(kind)) {
+						loggedSkip = true
+					}
+				}
+				if loggedSkip != skipped {
+					t.Fatalf("admission warning does not match opt-out for %s: %s", kind, logs.String())
+				}
+			}
+			if wantSuccess {
 				if err != nil {
 					t.Fatalf("acquire failed: %v", err)
 				}
-				wantCalls := []string{"resolve:e2e_identities", "resolve:infrastructure_identities", "admit:e2e_identities", "admit:infrastructure_identities", "publish:e2e_identities", "publish:infrastructure_identities"}
+				wantCalls := []string{"resolve:e2e_identities", "resolve:infrastructure_identities"}
+				if !skipE2E {
+					wantCalls = append(wantCalls, "admit:e2e_identities")
+				}
+				if !skipInfra {
+					wantCalls = append(wantCalls, "admit:infrastructure_identities")
+				}
+				wantCalls = append(wantCalls, "publish:e2e_identities", "publish:infrastructure_identities")
 				if !reflect.DeepEqual(calls, wantCalls) {
 					t.Fatalf("incorrect admission order: %v", calls)
 				}
@@ -271,6 +314,14 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				}
 				if err := Acquire(context.Background(), options); err == nil || !strings.Contains(err.Error(), "already exists") {
 					t.Fatalf("second acquisition should not overwrite existing leases: %v", err)
+				}
+				if err := Release(context.Background(), &RawReleaseOptions{
+					SharedDir: options.SharedDir, LeaseProxyServerURL: server.URL, LeaseProxyTimeout: time.Second,
+				}); err != nil {
+					t.Fatalf("releasing acquired assets: %v", err)
+				}
+				if want := []string{"bundle-04", "bundle-01", "aro-hcp-dev-shard0-slot-00"}; !reflect.DeepEqual(*released, want) {
+					t.Fatalf("release missed acquired assets: got %v want %v", *released, want)
 				}
 				return
 			}
@@ -315,7 +366,7 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 
 func TestUnsupportedAssetsAndConflictingSelectorsFailBeforeNetwork(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []string{"unsupported", "missing demanded infra binding", "conflicting selector"} {
+	for _, scenario := range []string{"unsupported", "missing demanded infra binding", "conflicting selector", "unknown admission kind"} {
 		t.Run(scenario, func(t *testing.T) {
 			server, acquired, _ := newTestLeaseProxyServer(t, nil)
 			defer server.Close()
@@ -324,6 +375,10 @@ func TestUnsupportedAssetsAndConflictingSelectorsFailBeforeNetwork(t *testing.T)
 			if scenario == "missing demanded infra binding" {
 				options.CatalogPath = writeAcquireTestCatalogFromYAML(t, strings.Replace(lifecycleCatalog, "name: ci01, infrastructure_subscription: dev-infra", "name: ci01", 1))
 				expected = "deployment_environment.infrastructure_subscription"
+			} else if scenario == "unknown admission kind" {
+				options.CatalogPath = writeAcquireTestCatalog(t, slots.RegionModeFixed, "westus3")
+				options.DisabledAssetAdmission = []string{"e2e-identities"}
+				expected = `--disable-asset-admission: unknown asset kind "e2e-identities"`
 			} else if scenario != "unsupported" {
 				options.CatalogPath = writeAcquireTestCatalog(t, slots.RegionModeFixed, "westus3")
 				options.DeployEnv = "prod"

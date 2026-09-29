@@ -261,7 +261,8 @@ Asset presence already means required.
 - `unmanaged`: another owner provisions the backing resources.
 
 Provisioning ownership does not alter admission. Every declared asset must pass
-admission before publication.
+admission before publication unless explicitly disabled with the emergency
+opt-out below.
 
 Implementation details that are intrinsic to an asset, such as the standard
 E2E identity set, belong in the handler and its provisioning code rather than
@@ -379,7 +380,7 @@ load and validate catalog
   -> resolve cluster profile and subscriptions
   -> acquire or resolve all declared assets in registry order
      (persist each independent lease immediately, before resolving its assets)
-  -> admit all declared assets
+  -> admit declared assets except explicitly disabled kinds
   -> build core and asset runtime exports
   -> atomically publish runtime contract
 ```
@@ -407,16 +408,39 @@ that cleanup or the process itself fails, Test Platform's job-lifecycle
 reconciliation provides the same eventual lease cleanup guarantee as static
 ci-operator Boskos leases.
 
-The runtime contract is withheld until every declared asset passes admission.
-Downstream provisioning cannot start with a partially prepared slot.
+The runtime contract is withheld until every non-disabled asset passes admission.
+All assets must still be fully acquired and resolved before publication.
 
 Admission assumes exclusive ownership of the allocated assets: previous
 consumers must no longer modify them, and handlers must not invalidate another
 asset's readiness. It does not protect against concurrent external writers.
 
+### Emergency admission opt-out
+
+`slot-manager acquire --disable-asset-admission=e2e_identities` skips only that
+asset kind's admission phase. The flag accepts comma-separated values and can be
+repeated. Admission remains enabled for every kind not explicitly listed,
+including newly added kinds. Unknown or unimplemented kinds fail before leasing.
+
+`ARO_HCP_DISABLE_ASSET_ADMISSION` supplies the default list for CI invocations;
+explicit flag values replace it. `--disable-asset-admission=` clears an inherited
+list and restores admission for all assets. The acquire step in `openshift/release`
+exposes the environment parameter with an empty default.
+
+Each skipped, demanded asset produces a warning with its kind and slot name.
+Acquisition, subscription resolution, structural state validation, runtime exports,
+and release remain unchanged. Disabling admission does not make an asset optional
+and does not bypass catalog validation or provisioning checks.
+
+Use this only as a temporary mitigation, for example during ARM throttling.
+For E2E identities it skips identity/principal verification and cleanup of stale
+FICs and role assignments, so the identities are not guaranteed clean for reuse.
+Remove the opt-out after mitigation; it applies only to that acquisition and is
+not a persistent catalog or release setting.
+
 ### Failure behavior
 
-Admission is fail-closed:
+For asset kinds without an explicit opt-out, admission is fail-closed:
 
 - a missing required resource fails;
 - incomplete inventory fails;

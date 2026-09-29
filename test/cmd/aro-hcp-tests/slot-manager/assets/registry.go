@@ -23,6 +23,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
 
@@ -76,7 +78,7 @@ type Handler interface {
 	ValidatePools(ctx context.Context, request PoolRequest) error
 	// AdmitLease establishes readiness for exclusive reuse before publication.
 	AdmitLease(ctx context.Context, request LeaseRequest) error
-	// PublishLease adds the admitted assets' runtime exports to the shared contract.
+	// PublishLease adds the assets' runtime exports after admission or an explicit opt-out.
 	PublishLease(ctx context.Context, request LeaseRequest, contract *slots.RuntimeContractBuilder) error
 }
 
@@ -242,7 +244,8 @@ func (r *Registry) ValidateRequirements(pools []slots.Pool) error {
 
 // AdmitLease prepares and checks demanded assets for exclusive reuse.
 // Call it after acquisition and before publishing runtime exports.
-func (r *Registry) AdmitLease(ctx context.Context, request LeaseRequest) error {
+// Only explicitly disabled kinds skip admission; unknown kinds are rejected.
+func (r *Registry) AdmitLease(ctx context.Context, request LeaseRequest, disabledKinds ...Kind) error {
 	if request.AcquiredSlotState == nil {
 		return errors.New("acquired slot state is nil")
 	}
@@ -250,7 +253,24 @@ func (r *Registry) AdmitLease(ctx context.Context, request LeaseRequest) error {
 	if err != nil {
 		return err
 	}
+	disabled := map[Kind]bool{}
+	if len(disabledKinds) > 0 {
+		disabledHandlers, err := r.FilterHandlers(disabledKinds)
+		if err != nil {
+			return err
+		}
+		for _, handler := range disabledHandlers {
+			disabled[handler.Kind()] = true
+		}
+	}
 	for _, handler := range handlers {
+		if disabled[handler.Kind()] {
+			logr.FromContextOrDiscard(ctx).Info("WARNING: asset admission explicitly disabled; reuse readiness is not checked",
+				"assetKind", handler.Kind(),
+				"slotName", request.AcquiredSlotState.Slot.ResourceName,
+			)
+			continue
+		}
 		if err := handler.AdmitLease(ctx, request); err != nil {
 			return fmt.Errorf("admitting asset %q for slot %q: %w", handler.Kind(), request.AcquiredSlotState.Slot.ResourceName, err)
 		}
@@ -259,7 +279,7 @@ func (r *Registry) AdmitLease(ctx context.Context, request LeaseRequest) error {
 }
 
 // PublishLease adds demanded assets' runtime exports to contract.
-// The caller must successfully admit the lease first.
+// The caller must first admit the lease, except for explicitly disabled asset kinds.
 func (r *Registry) PublishLease(ctx context.Context, request LeaseRequest, contract *slots.RuntimeContractBuilder) error {
 	if contract == nil {
 		return errors.New("runtime contract builder is nil")

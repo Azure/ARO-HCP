@@ -208,7 +208,9 @@ func TestRegistryValidatesAllRequirementsBeforeLeaseHandlers(t *testing.T) {
 				func(ctx context.Context, request LeaseRequest) error {
 					return registry.AcquireLeases(ctx, request, nil)
 				},
-				registry.AdmitLease,
+				func(ctx context.Context, request LeaseRequest) error {
+					return registry.AdmitLease(ctx, request)
+				},
 				func(ctx context.Context, request LeaseRequest) error {
 					return registry.PublishLease(ctx, request, slots.NewRuntimeContractBuilder())
 				},

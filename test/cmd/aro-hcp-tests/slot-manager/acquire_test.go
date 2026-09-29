@@ -23,14 +23,47 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
+
+func TestAcquireAdmissionFlagAndEnvironment(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		env   string
+		flags []string
+		want  []string
+	}{
+		{name: "enabled by default"},
+		{name: "environment", env: " e2e_identities, e2e_identities\ninfrastructure_identities ", want: []string{"e2e_identities", "infrastructure_identities"}},
+		{name: "comma-separated flag", flags: []string{"--disable-asset-admission=e2e_identities,infrastructure_identities"}, want: []string{"e2e_identities", "infrastructure_identities"}},
+		{name: "flag overrides environment", env: "infrastructure_identities", flags: []string{"--disable-asset-admission=e2e_identities"}, want: []string{"e2e_identities"}},
+		{name: "empty flag restores admission", env: "e2e_identities", flags: []string{"--disable-asset-admission="}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("ARO_HCP_DISABLE_ASSET_ADMISSION", test.env)
+			options := DefaultAcquireOptions()
+			command := &cobra.Command{}
+			if err := BindAcquireOptions(options, command); err != nil {
+				t.Fatal(err)
+			}
+			if err := command.ParseFlags(test.flags); err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(options.DisabledAssetAdmission, test.want) {
+				t.Fatalf("unexpected admission opt-out: got %v want %v", options.DisabledAssetAdmission, test.want)
+			}
+		})
+	}
+}
 
 func TestResolveLeasedSlot(t *testing.T) {
 	t.Parallel()

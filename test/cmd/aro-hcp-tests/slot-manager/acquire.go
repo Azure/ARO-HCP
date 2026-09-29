@@ -42,16 +42,17 @@ const (
 func DefaultAcquireOptions() *RawAcquireOptions {
 	allowedSubscriptions, allowedLocations, selectedLocation := defaultAcquireSelectors()
 	return &RawAcquireOptions{
-		ClusterProfileDir:    strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
-		ClusterProfileDirs:   splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
-		Environment:          strings.TrimSpace(os.Getenv("ARO_HCP_SLOT_ENV")),
-		DeployEnv:            strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")),
-		AllowedSubscriptions: allowedSubscriptions,
-		AllowedLocations:     allowedLocations,
-		SelectedLocation:     selectedLocation,
-		LocationWeights:      strings.TrimSpace(os.Getenv("LOCATION_WEIGHTS")),
-		BuildID:              strings.TrimSpace(os.Getenv("BUILD_ID")),
-		SharedDir:            strings.TrimSpace(os.Getenv("SHARED_DIR")),
+		ClusterProfileDir:      strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
+		ClusterProfileDirs:     splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
+		Environment:            strings.TrimSpace(os.Getenv("ARO_HCP_SLOT_ENV")),
+		DeployEnv:              strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")),
+		AllowedSubscriptions:   allowedSubscriptions,
+		AllowedLocations:       allowedLocations,
+		SelectedLocation:       selectedLocation,
+		LocationWeights:        strings.TrimSpace(os.Getenv("LOCATION_WEIGHTS")),
+		BuildID:                strings.TrimSpace(os.Getenv("BUILD_ID")),
+		SharedDir:              strings.TrimSpace(os.Getenv("SHARED_DIR")),
+		DisabledAssetAdmission: splitSelectorValues(os.Getenv("ARO_HCP_DISABLE_ASSET_ADMISSION")),
 
 		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
 		LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
@@ -107,6 +108,7 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.BuildID, "build-id", opts.BuildID, "Stable per-run key used for deterministic weighted location selection.")
 	cmd.Flags().StringVar(&opts.SharedDir, "shared-dir", opts.SharedDir, "Path to SHARED_DIR")
 	cmd.Flags().StringVar(&opts.CatalogPath, "slot-catalog", opts.CatalogPath, "Path to the canonical E2E slot catalog")
+	cmd.Flags().StringSliceVar(&opts.DisabledAssetAdmission, "disable-asset-admission", opts.DisabledAssetAdmission, "Emergency opt-out of admission for named asset kinds (repeatable or comma-separated). All other assets remain admitted. Defaults from ARO_HCP_DISABLE_ASSET_ADMISSION.")
 	cmd.Flags().StringVar(&opts.LeaseProxyServerURL, "lease-proxy-server-url", opts.LeaseProxyServerURL, "Lease proxy server URL")
 	cmd.Flags().DurationVar(&opts.LeaseProxyTimeout, "lease-proxy-timeout", opts.LeaseProxyTimeout, "Maximum time to spend probing a single candidate pool, including retryable proxy/network retries.")
 	cmd.Flags().DurationVar(&opts.MaxWaitForLease, "max-wait-for-lease", opts.MaxWaitForLease, "Maximum total time to keep retrying after full candidate-pool passes yield no immediate lease. Zero waits forever.")
@@ -115,25 +117,26 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 }
 
 type RawAcquireOptions struct {
-	WriteState           func(string, *slots.AcquiredSlotState) error
-	ClusterProfileDir    string
-	ClusterProfileDirs   []string
-	Environment          string
-	DeployEnv            string
-	AllowedSubscriptions []string
-	AllowedLocations     []string
-	SelectedLocation     string
-	LocationWeights      string
-	BuildID              string
-	SharedDir            string
-	CatalogPath          string
-	LeaseProxyServerURL  string
-	LeaseProxyTimeout    time.Duration
-	MaxWaitForLease      time.Duration
-	LeaseWaitInterval    time.Duration
-	Now                  func() time.Time
-	AssetRegistry        *assets.Registry
-	ResolveSubscriptions func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
+	WriteState             func(string, *slots.AcquiredSlotState) error
+	ClusterProfileDir      string
+	ClusterProfileDirs     []string
+	Environment            string
+	DeployEnv              string
+	AllowedSubscriptions   []string
+	AllowedLocations       []string
+	SelectedLocation       string
+	LocationWeights        string
+	BuildID                string
+	SharedDir              string
+	CatalogPath            string
+	LeaseProxyServerURL    string
+	LeaseProxyTimeout      time.Duration
+	MaxWaitForLease        time.Duration
+	LeaseWaitInterval      time.Duration
+	Now                    func() time.Time
+	AssetRegistry          *assets.Registry
+	DisabledAssetAdmission []string
+	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
 }
 
 type validatedAcquireOptions struct {
@@ -145,22 +148,23 @@ type ValidatedAcquireOptions struct {
 }
 
 type completedAcquireOptions struct {
-	AssetInventories     []slots.AssetInventory
-	WriteState           func(string, *slots.AcquiredSlotState) error
-	ClusterProfileDirs   []string
-	DeployEnvironment    string
-	SharedDir            string
-	LeaseProxyURL        string
-	LeaseProxyTimeout    time.Duration
-	MaxWaitForLease      time.Duration
-	LeaseWaitInterval    time.Duration
-	RegionSelection      RegionSelection
-	CandidatePools       []slots.Pool
-	PoolEnvironment      string
-	AssetRegistry        *assets.Registry
-	ResolveSubscriptions func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
-	Now                  func() time.Time
-	Sleep                func(context.Context, time.Duration) error
+	AssetInventories       []slots.AssetInventory
+	WriteState             func(string, *slots.AcquiredSlotState) error
+	ClusterProfileDirs     []string
+	DeployEnvironment      string
+	SharedDir              string
+	LeaseProxyURL          string
+	LeaseProxyTimeout      time.Duration
+	MaxWaitForLease        time.Duration
+	LeaseWaitInterval      time.Duration
+	RegionSelection        RegionSelection
+	CandidatePools         []slots.Pool
+	PoolEnvironment        string
+	AssetRegistry          *assets.Registry
+	DisabledAssetAdmission []assets.Kind
+	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
+	Now                    func() time.Time
+	Sleep                  func(context.Context, time.Duration) error
 }
 
 type AcquireOptions struct {
@@ -288,25 +292,30 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 	if err != nil {
 		return nil, err
 	}
+	disabledAssetAdmission := make([]assets.Kind, 0, len(o.DisabledAssetAdmission))
+	for _, kind := range o.DisabledAssetAdmission {
+		disabledAssetAdmission = append(disabledAssetAdmission, assets.Kind(strings.TrimSpace(kind)))
+	}
 
 	return &AcquireOptions{
 		completedAcquireOptions: &completedAcquireOptions{
-			AssetInventories:     assetInventories,
-			WriteState:           o.WriteState,
-			ClusterProfileDirs:   o.effectiveClusterProfileDirs(),
-			DeployEnvironment:    o.DeployEnv,
-			SharedDir:            o.SharedDir,
-			LeaseProxyURL:        o.LeaseProxyServerURL,
-			LeaseProxyTimeout:    o.LeaseProxyTimeout,
-			MaxWaitForLease:      o.MaxWaitForLease,
-			LeaseWaitInterval:    o.LeaseWaitInterval,
-			RegionSelection:      regionSelection,
-			CandidatePools:       candidatePools,
-			PoolEnvironment:      environment,
-			AssetRegistry:        registry,
-			ResolveSubscriptions: resolveSubscriptions,
-			Now:                  o.Now,
-			Sleep:                sleepContext,
+			AssetInventories:       assetInventories,
+			WriteState:             o.WriteState,
+			ClusterProfileDirs:     o.effectiveClusterProfileDirs(),
+			DeployEnvironment:      o.DeployEnv,
+			SharedDir:              o.SharedDir,
+			LeaseProxyURL:          o.LeaseProxyServerURL,
+			LeaseProxyTimeout:      o.LeaseProxyTimeout,
+			MaxWaitForLease:        o.MaxWaitForLease,
+			LeaseWaitInterval:      o.LeaseWaitInterval,
+			RegionSelection:        regionSelection,
+			CandidatePools:         candidatePools,
+			PoolEnvironment:        environment,
+			AssetRegistry:          registry,
+			DisabledAssetAdmission: disabledAssetAdmission,
+			ResolveSubscriptions:   resolveSubscriptions,
+			Now:                    o.Now,
+			Sleep:                  sleepContext,
 		},
 	}, nil
 }
@@ -454,6 +463,9 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 	}
 	if err := o.AssetRegistry.ValidateRequirements(o.CandidatePools); err != nil {
 		return err
+	}
+	if _, err := o.AssetRegistry.FilterHandlers(o.DisabledAssetAdmission); err != nil {
+		return fmt.Errorf("--disable-asset-admission: %w", err)
 	}
 	stateFile, err := slots.SlotStateFile(o.SharedDir)
 	if err != nil {
@@ -663,7 +675,7 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 		"assetCount", len(state.Slot.AssetRequirements),
 		"runtimeRegion", state.RuntimeRegion,
 	)
-	if err := o.AssetRegistry.AdmitLease(ctx, request); err != nil {
+	if err := o.AssetRegistry.AdmitLease(ctx, request, o.DisabledAssetAdmission...); err != nil {
 		return err
 	}
 	contract := slots.NewRuntimeContractBuilder()
@@ -677,6 +689,7 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 		return err
 	}
 	logger.Info("Acquired slot and wrote shared artifacts",
+		"disabledAssetAdmission", o.DisabledAssetAdmission,
 		"regionMode", o.RegionSelection.Mode,
 		"catalogRegions", strings.Join(o.RegionSelection.CatalogRegions, ","),
 		"locationWeights", strings.Join(o.RegionSelection.NormalizedWeights, ","),

@@ -341,11 +341,21 @@ aligned with the release-side Boskos inventory and job selectors.
 - the framework records dedicated timing steps such as `Assign N identity containers`, `Lease identity container`, and `Release leased identities`
 - this lets you separate infra wait time from actual test logic when reviewing artifacts
 - slot-manager logs primary slot acquisition and the start of asset admission;
-  `Acquired slot and wrote shared artifacts` confirms that admission and runtime
-  contract publication both succeeded, with the selected slot, pool, and region details
+  `Acquired slot and wrote shared artifacts` confirms that non-disabled admission
+  and runtime contract publication succeeded, with the selected slot, pool, and region details
 
 Common failure modes:
 
+- **ARM throttling during admission**
+  - temporarily pass `--disable-asset-admission=e2e_identities` to `slot-manager acquire`,
+    or set the acquire step's `ARO_HCP_DISABLE_ASSET_ADMISSION` environment parameter
+    to `e2e_identities`
+  - other asset kinds still run admission by default; repeated flags or a
+    comma-separated list can explicitly disable additional kinds
+  - this skips E2E identity verification and stale FIC/RBAC cleanup, not leasing,
+    structural validation, exports, or release; each actual skip is logged as a warning
+  - clear the parameter after mitigation to restore clean-reuse checks; see the
+    [admission opt-out contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#emergency-admission-opt-out)
 - **slot-manager acquisition or release failure**
   - inspect the acquire/release step logs and `${SHARED_DIR}/aro-hcp-slot-state.yaml`
   - follow the design's [failure behavior](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#failure-behavior)
