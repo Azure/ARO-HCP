@@ -8,7 +8,9 @@ environments:
     # Jobs select the runtime region from these weighted pools. Existing jobs
     # with an explicit location override remain pinned during rollout.
     # Identity containers remain provisioned in westus3.
-    # Each managed subscription keeps 300 containers split into five 60-container job slots.
+    # Each managed subscription keeps 290 containers split into five 58-container job slots.
+    # At the current role-assignment cost, five full runs consume 7,615 of the
+    # 8,000-assignment quota, leaving 385 assignments of gross headroom.
     - subscription_name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
       region_mode: weighted
       regions:
@@ -19,7 +21,7 @@ environments:
       resource_type: aro-hcp-dev-shard0-slot
       slot_count: 5
       identity_container_prefix: aro-hcp-msi-container-dev-shard0
-      identity_container_count: 60
+      identity_container_count: 58
     - subscription_name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
       region_mode: weighted
       regions:
@@ -30,7 +32,7 @@ environments:
       resource_type: aro-hcp-dev-shard1-slot
       slot_count: 5
       identity_container_prefix: aro-hcp-msi-container-dev-shard1
-      identity_container_count: 60
+      identity_container_count: 58
     - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 02"
       region_mode: weighted
       regions:
@@ -41,7 +43,7 @@ environments:
       resource_type: aro-hcp-dev-shard2-slot
       slot_count: 5
       identity_container_prefix: aro-hcp-msi-container-dev-shard2
-      identity_container_count: 60
+      identity_container_count: 58
     - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 03"
       region_mode: weighted
       regions:
@@ -52,7 +54,7 @@ environments:
       resource_type: aro-hcp-dev-shard3-slot
       slot_count: 5
       identity_container_prefix: aro-hcp-msi-container-dev-shard3
-      identity_container_count: 60
+      identity_container_count: 58
     - subscription_name: "Hypershift Managed Azure"
       region_mode: weighted
       regions:
