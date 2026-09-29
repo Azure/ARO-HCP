@@ -17,14 +17,17 @@ package creation
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -45,6 +48,12 @@ type clusterClusterServiceCreateSyncer struct {
 	// FPA is available). When false, cluster creation must not wait for deny assignments to be
 	// created, because nothing creates them.
 	denyAssignmentsEnabled bool
+	// managedIdentitiesDataPlaneServiceAvailable is the same environment signal
+	// ClusterDenyAssignmentIntent and FetchManagedIdentitiesInfo use (hardcodedIdentity == nil): it
+	// selects MetadataFromManagedIdentitiesDataplaneService versus MetadataFromHardcodedIdentity when
+	// resolving MSI-based identities (control-plane operators and the service managed identity) in
+	// createPreconditionDenyAssignmentsCreated.
+	managedIdentitiesDataPlaneServiceAvailable bool
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceCreateSyncer)(nil)
@@ -55,6 +64,7 @@ func NewClusterClusterServiceCreateController(
 	managementClusterLister fleetlisters.ManagementClusterLister,
 	backendInformers coreinformers.BackendInformers,
 	denyAssignmentsEnabled bool,
+	managedIdentitiesDataPlaneServiceAvailable bool,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
@@ -67,6 +77,7 @@ func NewClusterClusterServiceCreateController(
 		managementClusterLister:      managementClusterLister,
 		clustersServiceClient:        clustersServiceClient,
 		denyAssignmentsEnabled:       denyAssignmentsEnabled,
+		managedIdentitiesDataPlaneServiceAvailable: managedIdentitiesDataPlaneServiceAvailable,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -150,7 +161,7 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 
-	ready, err = c.createPreconditionDenyAssignmentsCreated(ctx, existingServiceProviderCluster)
+	ready, err = c.createPreconditionDenyAssignmentsCreated(ctx, cluster, existingServiceProviderCluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -212,10 +223,28 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDesiredVersionReso
 	return false, nil
 }
 
-// createPreconditionDenyAssignmentsCreated reports whether the ClusterDenyAssignment
-// controller has finished creating all deny assignments.
+// createPreconditionDenyAssignmentsCreated reports whether ClusterDenyAssignment
+// has finished creating every deny assignment type required for cluster.
+// A required type that Intent has not yet inserted is not created.
+// A type is created when its Azure resource is confirmed, its last successful
+// PUT recorded EnsuredPermissions, and every identity the type's definition
+// requires excluded has EnsuredIdentity.
+//
+// A required identity is resolved individually (the same resolution
+// ClusterDenyAssignmentIntent uses) rather than asking whether every
+// principal currently in DenyAssignmentStatus.ExcludedIdentities is ensured:
+// ClusterDenyAssignmentIntent only adds a principal once that identity's
+// metadata resolves, so an identity whose metadata has not resolved yet has
+// no entry there at all, and a check that only looks at entries already
+// present would wrongly report the type as fully ensured too early.
+//
+// Every type and identity is checked, even after the first miss, so the
+// logged message names every type (and, for a type whose resource already
+// exists, every pending identity within it) rather than only the first one
+// found.
+//
 // Returns (false, nil) when this controller should wait and retry.
-func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCreated(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
+func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCreated(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	if !c.denyAssignmentsEnabled {
@@ -225,18 +254,28 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCre
 		return true, nil
 	}
 
-	denyAssignments := serviceProviderCluster.Status.AzureResources.DenyAssignments
-	if len(denyAssignments.PendingAzureResources) == 0 &&
-		len(denyAssignments.AzureResources) > 0 &&
-		denyAssignments.EarliestRecheckTime != nil {
+	denyAssignments := serviceProviderCluster.Status.DenyAssignmentsOverManagedResourceGroup
+	requiredTypes := denyassignments.RequiredDenyAssignmentTypes(cluster)
+	var pending []string
+	for denyAssignmentType := range requiredTypes {
+		if !coreapihelpers.DenyAssignmentStatusEnsured(denyAssignments[denyAssignmentType]) {
+			pending = append(pending, denyAssignmentType)
+			continue
+		}
+		pendingIdentities, err := denyassignments.PendingRequiredExcludedIdentities(cluster, serviceProviderCluster, denyAssignmentType, c.managedIdentitiesDataPlaneServiceAvailable)
+		if err != nil {
+			return false, err
+		}
+		for _, identity := range pendingIdentities {
+			pending = append(pending, fmt.Sprintf("%s: %s", denyAssignmentType, identity))
+		}
+	}
+	if len(pending) == 0 {
 		return true, nil
 	}
-	pendingTypes := make([]string, 0, len(denyAssignments.PendingAzureResources))
-	for _, denyAssignmentReference := range denyAssignments.PendingAzureResources {
-		pendingTypes = append(pendingTypes, denyAssignmentReference.DenyAssignmentType)
-	}
+	slices.Sort(pending)
 	logger.Info("Deny assignments not yet created, waiting for ClusterDenyAssignment controller",
-		"pendingDenyAssignmentTypes", pendingTypes)
+		"pendingDenyAssignments", pending)
 	return false, nil
 }
 

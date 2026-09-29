@@ -26,13 +26,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -105,6 +105,10 @@ func newTestCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	cluster.ServiceProviderProperties.ClusterServiceID = nil
 	cluster.ServiceProviderProperties.PendingClusterServiceID = nil
 	cluster.ServiceProviderProperties.ClusterUID = testClusterUID
+	// MinimumValidClusterTestCase does not set a service managed identity, but a real cluster
+	// always has one; several deny assignment definitions require it excluded.
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity =
+		coreapitesting.NewTestOperatorUserAssignedIdentity("service-managed-identity")
 	for _, opt := range opts {
 		opt(cluster)
 	}
@@ -142,13 +146,68 @@ func newTestSPC(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceP
 	return spc
 }
 
+// setDenyAssignmentsCreated seeds spc so every required deny assignment type
+// reports as fully created: ManagedIdentityDetails resolves every
+// control-plane operator, data-plane operator, and the service managed
+// identity of newTestCluster(), and every type's ExcludedIdentities carries
+// an ensured entry for each of those principals (a superset of what any one
+// type's definition actually requires, which is harmless: extra ensured
+// entries don't fail RequiredExcludedIdentitiesEnsured's per-type check).
 func setDenyAssignmentsCreated(spc *coreapi.ServiceProviderCluster) {
-	spc.Status.AzureResources.DenyAssignments.AzureResources = []coreapi.DenyAssignmentReference{{
-		DenyAssignmentType:       "resources-deny-assignment",
-		DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001")),
-	}}
-	recheckTime := metav1.Now()
-	spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = &recheckTime
+	azureResource := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))
+
+	identities := newTestCluster().CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
+	allIdentityIDs := make([]*azcorearm.ResourceID, 0, len(identities.ControlPlaneOperators)+len(identities.DataPlaneOperators)+1)
+	for _, id := range identities.ControlPlaneOperators {
+		allIdentityIDs = append(allIdentityIDs, id)
+	}
+	for _, id := range identities.DataPlaneOperators {
+		allIdentityIDs = append(allIdentityIDs, id)
+	}
+	if identities.ServiceManagedIdentity != nil {
+		allIdentityIDs = append(allIdentityIDs, identities.ServiceManagedIdentity)
+	}
+
+	managedIdentityDetails := make(map[string]*coreapi.ManagedIdentityMetadata, len(allIdentityIDs))
+	excludedIdentities := make(map[string]*coreapi.DenyAssignmentExcludedIdentityStatus, len(allIdentityIDs))
+	for _, id := range allIdentityIDs {
+		key := strings.ToLower(id.String())
+		principalID := key + "-principal"
+		// Seed every metadata source: data-plane operators resolve via ARM, control-plane
+		// operators and the service managed identity via dataplane or hardcoded depending on
+		// managedIdentitiesDataPlaneServiceAvailable, and this fixture does not care which.
+		metadataValue := &coreapi.IdentityMetadataValue{
+			ClientID:    ptr.To(principalID + "-client"),
+			PrincipalID: ptr.To(principalID),
+			TenantID:    ptr.To(principalID + "-tenant"),
+		}
+		managedIdentityDetails[key] = &coreapi.ManagedIdentityMetadata{
+			MetadataFromARMUserAssignedIdentitiesAPI:      metadataValue,
+			MetadataFromManagedIdentitiesDataplaneService: metadataValue,
+			MetadataFromHardcodedIdentity:                 metadataValue,
+		}
+		excludedIdentities[principalID] = &coreapi.DenyAssignmentExcludedIdentityStatus{
+			TargetIdentity: &coreapi.DenyAssignmentTargetIdentity{
+				ResourceID:  id,
+				ClientID:    principalID + "-client",
+				TenantID:    principalID + "-tenant",
+				PrincipalID: principalID,
+			},
+			EnsuredIdentity: &coreapi.DenyAssignmentExcludedEnsuredIdentity{PrincipalID: principalID},
+		}
+	}
+	spc.Status.ManagedIdentityDetails = managedIdentityDetails
+
+	requiredTypes := denyassignments.RequiredDenyAssignmentTypes(newTestCluster())
+	denyAssignments := make(map[string]*coreapi.DenyAssignmentStatus, len(requiredTypes))
+	for denyAssignmentType := range requiredTypes {
+		denyAssignments[denyAssignmentType] = &coreapi.DenyAssignmentStatus{
+			AzureResource:      azureResource,
+			EnsuredPermissions: &coreapi.DenyAssignmentEnsuredPermissions{},
+			ExcludedIdentities: excludedIdentities,
+		}
+	}
+	spc.Status.DenyAssignmentsOverManagedResourceGroup = denyAssignments
 }
 
 func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
@@ -276,10 +335,16 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				// The desired version is resolved (that precondition passes)...
+				// The desired version is resolved and placement is set, so this case reaches the
+				// deny-assignment precondition. One required type is still pending and the rest
+				// are absent, so cluster creation must not dispatch yet.
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
-				// ...but deny assignments are still pending, so cluster creation must not dispatch yet.
-				spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{{DenyAssignmentType: "resources-deny-assignment", DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))}}
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+				spc.Status.DenyAssignmentsOverManagedResourceGroup = map[string]*coreapi.DenyAssignmentStatus{
+					"resources-deny-assignment": {
+						PendingAzureResource: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001")),
+					},
+				}
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				// No CS calls are expected: gomock fails the test if the controller dispatches.
@@ -290,6 +355,33 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch while deny assignments are pending")
+			},
+		},
+		{
+			name: "deny assignment exclusion not yet ensured waits without dispatching",
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+				setDenyAssignmentsCreated(spc)
+				// The Azure resource exists, but a desired principal has not been applied yet.
+				spc.Status.DenyAssignmentsOverManagedResourceGroup["resources-deny-assignment"].ExcludedIdentities = map[string]*coreapi.DenyAssignmentExcludedIdentityStatus{
+					"principal-1": {},
+				}
+			}),
+			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
+			},
+			expectError: false,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch before deny assignment exclusions are ensured")
 			},
 		},
 		{
@@ -345,8 +437,12 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				// Placement is resolved so this case reaches the deny-assignment precondition.
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 				setDenyAssignmentsCreated(spc)
-				spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = nil
+				// The Azure resource is confirmed, but the last successful PUT has not
+				// recorded EnsuredPermissions, so reconciliation is not complete.
+				spc.Status.DenyAssignmentsOverManagedResourceGroup["resources-deny-assignment"].EnsuredPermissions = nil
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)

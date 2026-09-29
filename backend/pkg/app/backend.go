@@ -49,7 +49,7 @@ import (
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
+	clusterdenyassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
@@ -120,11 +120,15 @@ type BackendOptions struct {
 	// HasRealFPA indicates the backend runs against a real First Party Application rather than the
 	// insecure MI mock. Controllers that create Azure resources only a real FPA can create (e.g.
 	// deny assignments) are disabled when this is false (dev/int environments).
-	HasRealFPA                                          bool
-	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
-	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
-	ExitOnPanic                                         bool
-	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
+	HasRealFPA                        bool
+	BackendIdentityAzureClients       *azureclient.BackendIdentityAzureClients
+	BackendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
+	ExitOnPanic                       bool
+	FPAMIDataplaneClientBuilder       azureclient.FPAMIDataplaneClientBuilder
+	// HardcodedIdentity is the identity used for the cluster's control plane operator identities and the cluster's service managed identity when
+	// the Managed Identities Data Plane service is not available.
+	// HardcodedIdentity is nil when the real Managed Identities Data Plane is available.
+	HardcodedIdentity                                   *azureclient.HardcodedIdentity
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	BackupConfig                                        *clusterbackups.BackupConfig
 	SMIClientBuilder                                    azureclient.ServiceManagedIdentityClientBuilder
@@ -1008,13 +1012,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
-	// The deny assignment controller creates Azure deny assignments through the FPA, which only
+	// The deny assignment controllers create Azure deny assignments through the FPA, which only
 	// exists in environments with a real First Party Application (stage/prod). Skip it entirely when
 	// running against the MI mock (dev/int), where deny assignments cannot be created.
+	var clusterDenyAssignmentIntentController controllerutils.Controller
 	var clusterDenyAssignmentController controllerutils.Controller
 	if b.options.HasRealFPA {
-		clusterDenyAssignmentController = denyassignments.NewClusterDenyAssignmentController(
-			utilsclock.RealClock{},
+		clusterDenyAssignmentIntentController = clusterdenyassignments.NewClusterDenyAssignmentIntentController(
+			b.clock,
+			b.options.ResourcesDBClient,
+			backendInformers,
+			b.options.HardcodedIdentity == nil, // When hardcodedIdentity is nil, the real Managed Identities Data Plane is available.
+		)
+		clusterDenyAssignmentController = clusterdenyassignments.NewClusterDenyAssignmentController(
+			b.clock,
 			b.options.ResourcesDBClient,
 			b.options.FPAClientBuilder,
 			backendInformers,
@@ -1032,6 +1043,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		managementClusterLister,
 		backendInformers,
 		b.options.HasRealFPA,
+		b.options.HardcodedIdentity == nil, // When hardcodedIdentity is nil, the real Managed Identities Data Plane is available.
 	)
 
 	clusterDeletionClusterServiceDeleteDispatchController := clusterdeletion.NewClusterClusterServiceDeleteDispatchController(
@@ -1111,6 +1123,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 
+	var fetchManagedIdentitiesInfoDataplaneBuilder azureclient.FPAMIDataplaneClientBuilder
+	if b.options.HardcodedIdentity == nil {
+		fetchManagedIdentitiesInfoDataplaneBuilder = b.options.FPAMIDataplaneClientBuilder
+	}
+	fetchManagedIdentitiesInfoController := clusteridentity.NewFetchManagedIdentitiesInfoController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.HardcodedIdentity,
+		fetchManagedIdentitiesInfoDataplaneBuilder,
+		b.options.SMIClientBuilder,
+	)
+
 	clusterResourcesController := clusterresources.NewClusterResourcesController(
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
@@ -1161,6 +1186,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go systemAdminCredentialRevocationDeletionController.Run(ctx, 20)
 				if clusterDenyAssignmentController != nil {
 					go clusterDenyAssignmentController.Run(ctx, 20)
+				}
+				if clusterDenyAssignmentIntentController != nil {
+					go clusterDenyAssignmentIntentController.Run(ctx, 20)
 				}
 				go clusterPendingClusterServiceIDAssignController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
@@ -1244,6 +1272,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go backupScheduleController.Run(ctx, 20)
 				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
 				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
+				go fetchManagedIdentitiesInfoController.Run(ctx, 20)
 				go identityRoleAssignmentsController.Run(ctx, 20)
 				go keyRotationBackupController.Run(ctx, 20)
 				go clusterResourcesController.Run(ctx, 20)
