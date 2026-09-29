@@ -40,6 +40,7 @@ ignore:
 - 'swift-recorder/deploy/templates/rbac.yaml'
 - 'swift-recorder/values.yaml'
 - 'mgmt-fixes/deploy/kubelet-ds/templates/ds-kubelet-parameters.yaml'
+- 'mgmt-fixes/deploy/mitigations/templates/azure-cns-cpu-limits.yaml'
 - 'sessiongate/deploy/templates/deployment.yaml'
 - 'sessiongate/deploy/templates/ext-authz.authorizationpolicy.yaml'
 - '**/zz_fixture_TestHelmTemplate*.yaml'
