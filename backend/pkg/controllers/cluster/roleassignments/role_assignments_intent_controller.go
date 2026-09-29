@@ -164,14 +164,14 @@ func (s *clusterRoleAssignmentIntentSyncer) SyncOnce(ctx context.Context, key co
 	desiredRoleAssignmentsV2, err := s.desiredRoleAssignmentsV2(
 		existingCluster,
 		existingServiceProviderCluster,
-		existingServiceProviderCluster.Status.RoleAssignments,
+		existingServiceProviderCluster.Status.RoleAssignmentsOverManagedResourceGroup,
 	)
 	if err != nil {
 		return err
 	}
 
 	replacement := existingServiceProviderCluster.DeepCopy()
-	replacement.Status.RoleAssignments = desiredRoleAssignmentsV2
+	replacement.Status.RoleAssignmentsOverManagedResourceGroup = desiredRoleAssignmentsV2
 
 	if !controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
 		return nil

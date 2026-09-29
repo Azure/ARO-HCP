@@ -459,9 +459,9 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 									"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/service/providers/Microsoft.RedHatOpenShift/managementClusters/test")),
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
-								Validations:     tc.validations,
-								ServingCABundle: "fake-ca-data",
-								RoleAssignments: configuredRoleAssignments(roleAssignmentID("11111111-1111-1111-1111-111111111111")),
+								Validations:                             tc.validations,
+								ServingCABundle:                         "fake-ca-data",
+								RoleAssignmentsOverManagedResourceGroup: configuredRoleAssignments(roleAssignmentID("11111111-1111-1111-1111-111111111111")),
 							},
 						},
 					},
@@ -1162,8 +1162,8 @@ func TestDetermineOperationState(t *testing.T) {
 									"/subscriptions/" + operationtesting.TestSubscriptionID + "/resourceGroups/service/providers/Microsoft.RedHatOpenShift/managementClusters/test")),
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
-								ServingCABundle: "fake-ca-data",
-								RoleAssignments: configuredRoleAssignments(roleAssignmentID("11111111-1111-1111-1111-111111111111")),
+								ServingCABundle:                         "fake-ca-data",
+								RoleAssignmentsOverManagedResourceGroup: configuredRoleAssignments(roleAssignmentID("11111111-1111-1111-1111-111111111111")),
 							},
 						},
 					},
@@ -1292,7 +1292,7 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 								coreapi.ServiceProviderClusterResourceName)),
 					},
 					Status: coreapi.ServiceProviderClusterStatus{
-						RoleAssignments: roleAssignments,
+						RoleAssignmentsOverManagedResourceGroup: roleAssignments,
 					},
 				},
 			},

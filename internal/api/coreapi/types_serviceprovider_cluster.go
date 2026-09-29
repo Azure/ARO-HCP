@@ -310,7 +310,7 @@ type ServiceProviderClusterStatus struct {
 	// to use this at the point those are updated to support identity replacement.
 	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
 
-	// RoleAssignments tracks the desired and observed managed-resource-group
+	// RoleAssignmentsOverManagedResourceGroup tracks the desired and observed managed-resource-group
 	// scoped role assignments for each control-plane operator, data-plane
 	// operator, and service managed identity role definition. The map key is
 	// PrincipalID and RoleDefinitionResourceID. That matches the Azure role
@@ -343,7 +343,7 @@ type ServiceProviderClusterStatus struct {
 	// assignments are scoped to the managed resource group, so Azure deletes them
 	// in cascade when that resource group is removed.
 	// Written by: ClusterRoleAssignmentIntent, ClusterRoleAssignments
-	RoleAssignments map[RoleAssignmentKey]*RoleAssignmentStatus `json:"roleAssignments,omitempty"`
+	RoleAssignmentsOverManagedResourceGroup map[RoleAssignmentKey]*RoleAssignmentStatus `json:"roleAssignmentsOverManagedResourceGroup,omitempty"`
 }
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
@@ -639,7 +639,7 @@ func (s *RoleAssignmentStatus) Configured() bool {
 // definition have an ensured managed-resource-group role assignment. A
 // draining row is not configured.
 func (s *ServiceProviderClusterStatus) RoleAssignmentConfigured(resourceID string, principalID string, roleDefinitionResourceID string) bool {
-	status := s.RoleAssignments[RoleAssignmentKey{
+	status := s.RoleAssignmentsOverManagedResourceGroup[RoleAssignmentKey{
 		PrincipalID:              principalID,
 		RoleDefinitionResourceID: roleDefinitionResourceID,
 	}]
@@ -657,7 +657,7 @@ func (s *ServiceProviderClusterStatus) RoleAssignmentConfigured(resourceID strin
 func (s *ServiceProviderClusterStatus) IdentityRoleAssignmentsConfigured(identityResourceIDStr string, principalID string) bool {
 	identityResourceIDStr = strings.ToLower(identityResourceIDStr)
 	foundDesired := false
-	for key, status := range s.RoleAssignments {
+	for key, status := range s.RoleAssignmentsOverManagedResourceGroup {
 		if status.TargetIdentity.ResourceID != identityResourceIDStr || key.PrincipalID != principalID {
 			continue
 		}
@@ -678,7 +678,7 @@ func (s *ServiceProviderClusterStatus) IdentityRoleAssignmentsConfigured(identit
 // desired key has not yet been applied.
 func (s *ServiceProviderClusterStatus) DesiredRoleAssignmentsConfigured() bool {
 	foundDesired := false
-	for _, status := range s.RoleAssignments {
+	for _, status := range s.RoleAssignmentsOverManagedResourceGroup {
 		if status.DeconfigureTimestamp != nil {
 			continue
 		}

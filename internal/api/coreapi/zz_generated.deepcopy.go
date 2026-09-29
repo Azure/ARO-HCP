@@ -2574,8 +2574,8 @@ func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderCluster
 			(*out)[key] = outVal
 		}
 	}
-	if in.RoleAssignments != nil {
-		in, out := &in.RoleAssignments, &out.RoleAssignments
+	if in.RoleAssignmentsOverManagedResourceGroup != nil {
+		in, out := &in.RoleAssignmentsOverManagedResourceGroup, &out.RoleAssignmentsOverManagedResourceGroup
 		*out = make(map[RoleAssignmentKey]*RoleAssignmentStatus, len(*in))
 		for key, val := range *in {
 			var outVal *RoleAssignmentStatus
