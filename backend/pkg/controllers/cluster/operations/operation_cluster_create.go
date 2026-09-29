@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -457,9 +458,10 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 // resource group scoped role assignments for the cluster's control-plane operator,
 // data-plane operator, and service managed identity have all been confirmed present.
 // ClusterRoleAssignmentIntent writes desired keys onto
-// ServiceProviderCluster.Status.RoleAssignments and ClusterRoleAssignments
-// creates them in Azure. Creation is considered complete for this source once
-// every currently desired assignment is Configured.
+// ServiceProviderCluster.Status.RoleAssignmentsOverManagedResourceGroup and
+// ClusterRoleAssignments creates them in Azure. Creation is considered
+// complete for this source once every currently desired assignment is
+// Configured.
 func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -468,7 +470,7 @@ func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Cont
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	if !serviceProviderCluster.Status.DesiredRoleAssignmentsConfigured() {
+	if !coreapihelpers.ServiceProviderClusterStatusDesiredRoleAssignmentsConfigured(&serviceProviderCluster.Status) {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "role assignments not yet confirmed"), nil
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil

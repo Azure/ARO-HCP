@@ -336,10 +336,11 @@ type ServiceProviderClusterStatus struct {
 	// not deconfigured.
 	// ClusterRoleAssignments creates, repairs drift, and deletes Azure role
 	// assignments after the 24h wait, then removes the map entry on a successful
-	// delete. Other controllers use RoleAssignmentStatus.Configured /
-	// RoleAssignmentConfigured / IdentityRoleAssignmentsConfigured /
-	// DesiredRoleAssignmentsConfigured to know whether a principal's assignments
-	// exist in Azure. Cluster deletion is a no-op: role
+	// delete. Other controllers use the coreapihelpers.RoleAssignmentStatusConfigured,
+	// ServiceProviderClusterStatusRoleAssignmentConfigured,
+	// ServiceProviderClusterStatusIdentityRoleAssignmentsConfigured, and
+	// ServiceProviderClusterStatusDesiredRoleAssignmentsConfigured helpers, to
+	// know whether a principal's assignments exist in Azure. Cluster deletion is a no-op: role
 	// assignments are scoped to the managed resource group, so Azure deletes them
 	// in cascade when that resource group is removed.
 	// Written by: ClusterRoleAssignmentIntent, ClusterRoleAssignments
@@ -552,10 +553,14 @@ type RoleAssignmentKey struct {
 	// For a control-plane operator or the service managed identity this is
 	// the MSI dataplane or hardcoded identity, which may differ from the ARM
 	// principal of the same managed identity.
-	PrincipalID string `json:"principalId,omitempty"`
+	PrincipalID string `json:"principalID,omitempty"`
 	// RoleDefinitionResourceID is the tenant-level role definition resource ID
-	// ("/providers/Microsoft.Authorization/roleDefinitions/{guid}").
-	RoleDefinitionResourceID string `json:"roleDefinitionResourceId,omitempty"`
+	// ("/providers/Microsoft.Authorization/roleDefinitions/{guid}"). Its casing
+	// is significant and must not be normalized: the Azure role assignment
+	// name is a UUIDv5 derived from scope, principal, and this value, so a
+	// casing change produces a different assignment name and is treated as a
+	// different key.
+	RoleDefinitionResourceID string `json:"roleDefinitionResourceID,omitempty"`
 }
 
 const (
@@ -629,74 +634,12 @@ type RoleAssignmentStatus struct {
 	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
 }
 
-// Configured reports whether this role assignment exists on the managed
-// resource group. A draining assignment is not configured.
-func (s *RoleAssignmentStatus) Configured() bool {
-	return s.DeconfigureTimestamp == nil && s.AzureResource != nil
-}
-
-// RoleAssignmentConfigured reports whether the given identity and role
-// definition have an ensured managed-resource-group role assignment. A
-// draining row is not configured.
-func (s *ServiceProviderClusterStatus) RoleAssignmentConfigured(resourceID string, principalID string, roleDefinitionResourceID string) bool {
-	status := s.RoleAssignmentsOverManagedResourceGroup[RoleAssignmentKey{
-		PrincipalID:              principalID,
-		RoleDefinitionResourceID: roleDefinitionResourceID,
-	}]
-
-	if status.TargetIdentity.ResourceID != strings.ToLower(resourceID) {
-		return false
-	}
-	return status.Configured()
-}
-
-// IdentityRoleAssignmentsConfigured reports whether every currently desired
-// role assignment for identity resourceID's principalID is configured. Keys
-// with DeconfigureTimestamp set are ignored. False when no key currently
-// desires the principal, or when any desired key has not yet been applied.
-func (s *ServiceProviderClusterStatus) IdentityRoleAssignmentsConfigured(identityResourceIDStr string, principalID string) bool {
-	identityResourceIDStr = strings.ToLower(identityResourceIDStr)
-	foundDesired := false
-	for key, status := range s.RoleAssignmentsOverManagedResourceGroup {
-		if status.TargetIdentity.ResourceID != identityResourceIDStr || key.PrincipalID != principalID {
-			continue
-		}
-		if status.DeconfigureTimestamp != nil {
-			continue
-		}
-		foundDesired = true
-		if !status.Configured() {
-			return false
-		}
-	}
-	return foundDesired
-}
-
-// DesiredRoleAssignmentsConfigured reports whether every currently desired
-// role assignment is configured. Keys with DeconfigureTimestamp set are
-// ignored. False when no key currently desires an assignment, or when any
-// desired key has not yet been applied.
-func (s *ServiceProviderClusterStatus) DesiredRoleAssignmentsConfigured() bool {
-	foundDesired := false
-	for _, status := range s.RoleAssignmentsOverManagedResourceGroup {
-		if status.DeconfigureTimestamp != nil {
-			continue
-		}
-		foundDesired = true
-		if !status.Configured() {
-			return false
-		}
-	}
-	return foundDesired
-}
-
 // RoleAssignmentTargetIdentity is the identity generation ClusterRoleAssignmentIntent
 // last targeted for one RoleAssignments entry. PrincipalID matches the map key.
 type RoleAssignmentTargetIdentity struct {
-	// ResourceID is the fully lowercased Azure resource ID of the managed identity.
-	// A resource-group move changes this value and leaves the map key in place.
+	// ResourceID is the Azure resource ID of the managed identity.
 	// Written by: ClusterRoleAssignmentIntent
-	ResourceID string `json:"resourceID,omitempty"`
+	ResourceID *azcorearm.ResourceID `json:"resourceID,omitempty"`
 	// ClientID is the Client ID of the managed identity.
 	// Written by: ClusterRoleAssignmentIntent
 	ClientID string `json:"clientID,omitempty"`

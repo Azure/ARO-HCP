@@ -361,7 +361,7 @@ func (s *clusterRoleAssignmentIntentSyncer) mergeRoleAssignments(
 		if _, stillDesired := desiredIdentities[key]; stillDesired {
 			continue
 		}
-		if _, unresolved := unresolvedResourceIDs[existingStatus.TargetIdentity.ResourceID]; unresolved {
+		if _, unresolved := unresolvedResourceIDs[strings.ToLower(existingStatus.TargetIdentity.ResourceID.String())]; unresolved {
 			desiredRoleAssignments[key] = existingStatus.DeepCopy()
 			continue
 		}
@@ -477,7 +477,7 @@ func (s *clusterRoleAssignmentIntentSyncer) resolveMSIBasedRoleAssignmentTargetI
 	if s.managedIdentitiesDataPlaneServiceAvailable {
 		source = metadata.MetadataFromManagedIdentitiesDataplaneService
 	}
-	target, ok := roleAssignmentTargetIdentityFromMetadataValue(source, identityResourceID.String())
+	target, ok := roleAssignmentTargetIdentityFromMetadataValue(source, identityResourceID)
 	return target, ok, nil
 }
 
@@ -491,7 +491,7 @@ func resolveDataPlaneRoleAssignmentTargetIdentity(serviceProviderCluster *coreap
 	if err != nil || !ok {
 		return nil, false, err
 	}
-	target, ok := roleAssignmentTargetIdentityFromMetadataValue(metadata.MetadataFromARMUserAssignedIdentitiesAPI, identityResourceID.String())
+	target, ok := roleAssignmentTargetIdentityFromMetadataValue(metadata.MetadataFromARMUserAssignedIdentitiesAPI, identityResourceID)
 	return target, ok, nil
 }
 
@@ -507,12 +507,12 @@ func managedIdentityMetadata(serviceProviderCluster *coreapi.ServiceProviderClus
 	return metadata, true, nil
 }
 
-func roleAssignmentTargetIdentityFromMetadataValue(value *coreapi.IdentityMetadataValue, identityResourceID string) (*coreapi.RoleAssignmentTargetIdentity, bool) {
+func roleAssignmentTargetIdentityFromMetadataValue(value *coreapi.IdentityMetadataValue, identityResourceID *azcorearm.ResourceID) (*coreapi.RoleAssignmentTargetIdentity, bool) {
 	if value == nil || !coreapihelpers.IdentityMetadataValueHasResolvedIdentityInformation(value) {
 		return nil, false
 	}
 	return &coreapi.RoleAssignmentTargetIdentity{
-		ResourceID:  strings.ToLower(identityResourceID),
+		ResourceID:  identityResourceID,
 		ClientID:    ptr.Deref(value.ClientID, ""),
 		TenantID:    ptr.Deref(value.TenantID, ""),
 		PrincipalID: ptr.Deref(value.PrincipalID, ""),
