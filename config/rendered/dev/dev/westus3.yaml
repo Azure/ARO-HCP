@@ -499,7 +499,7 @@ hypershift:
     registry: quay.io
     repository: redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main
 imageRegistryPolicy:
-  extraAllowedRegistries: docker.io/grafana,docker.io/library/postgres
+  extraAllowedRegistries: docker.io/grafana,docker.io/library/postgres,quay.io/redhat-user-workloads/crt-redhat-acm-tenant,quay.io/openshift-release-dev/ocp-release
   validationActions: Deny
 imageSync:
   environmentName: aro-hcp-image-sync
