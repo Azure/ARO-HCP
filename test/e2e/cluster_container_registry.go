@@ -133,6 +133,18 @@ var _ = Describe("Customer", func() {
 
 			tc := framework.NewTestContext()
 
+			By("selecting a control plane version >= 4.22 for ACR managed identity support")
+			clusterParams := framework.NewDefaultClusterParams20261001()
+			clusterParams.ClusterName = customerClusterName
+			versionID, err := framework.PickAtLeastOpenshiftVersionId(clusterParams.OpenshiftVersionId, "4.22")
+			if framework.IsIncompatibleNightlyVersionError(err) {
+				skipMsg := fmt.Sprintf("ACR managed identity requires OCP >= 4.22, but default version %q does not satisfy it: %v", clusterParams.OpenshiftVersionId, err)
+				GinkgoLogr.Info(skipMsg)
+				Skip(skipMsg)
+			}
+			Expect(err).NotTo(HaveOccurred(), "failed to select OpenShift version >= 4.22 for ACR managed identity (default version: %q)", clusterParams.OpenshiftVersionId)
+			clusterParams.OpenshiftVersionId = versionID
+
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
@@ -203,9 +215,6 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to grant AcrPull to MI on ACR")
 
 			By("granting CAPZ 'Managed Identity Operator' on the ACR pull MI")
-			clusterParams := framework.NewDefaultClusterParams20261001()
-			clusterParams.ClusterName = customerClusterName
-			clusterParams.OpenshiftVersionId = "4.22"
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 
 			By("creating customer resources (infrastructure and managed identities)")
