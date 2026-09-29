@@ -30,3 +30,29 @@ func IsValidHostedClusterControlPlaneSize(s string) bool {
 	}
 	return false
 }
+
+// ServiceProviderClusterStatusIdentityExcludedOnManagedResourceGroup reports
+// whether principalID is excluded on every deny assignment type that
+// currently desires it. Types with no desired (non-draining) row for this
+// principal are ignored. False when no type currently desires the principal,
+// or when any desired type has not yet applied it.
+func ServiceProviderClusterStatusIdentityExcludedOnManagedResourceGroup(status *coreapi.ServiceProviderClusterStatus, principalID string) bool {
+	if status == nil {
+		return false
+	}
+	foundDesired := false
+	for _, denyStatus := range status.DenyAssignmentsOverManagedResourceGroup {
+		if denyStatus == nil {
+			continue
+		}
+		row := denyStatus.ExcludedIdentities[principalID]
+		if row == nil || row.DeconfigureTimestamp != nil {
+			continue
+		}
+		foundDesired = true
+		if !DenyAssignmentStatusIdentityExcluded(denyStatus, principalID) {
+			return false
+		}
+	}
+	return foundDesired
+}

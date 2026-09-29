@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -235,7 +236,7 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCre
 	requiredTypes := denyassignments.RequiredDenyAssignmentTypes(cluster)
 	pendingTypes := make([]string, 0, len(requiredTypes))
 	for denyAssignmentType := range requiredTypes {
-		if denyAssignments[denyAssignmentType].Ensured() {
+		if coreapihelpers.DenyAssignmentStatusEnsured(denyAssignments[denyAssignmentType]) {
 			continue
 		}
 		pendingTypes = append(pendingTypes, denyAssignmentType)
