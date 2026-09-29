@@ -37,20 +37,44 @@ func TestCheckPaths(t *testing.T) {
 		{name: "editor extensions", path: ".vscode/extensions.json", rule: ruleEditorConfig},
 		{name: "nested editor tasks", path: "a/b/.vscode/tasks.json", rule: ruleEditorConfig},
 		{name: "editor launch", path: ".vscode/launch.json", rule: ruleEditorConfig},
-		{name: "shell script in agent dir", path: ".claude/setup.sh", rule: ruleAgentExecutable},
-		{name: "node script in agent dir", path: ".claude/skills/x/setup.mjs", rule: ruleAgentExecutable},
-		{name: "python script in agent dir", path: "backend/.claude/hook.py", rule: ruleAgentExecutable},
+		{name: "shell script in agent dir", path: ".claude/setup.sh", rule: ruleAgentPayload},
+		{name: "node script in agent dir", path: ".claude/skills/x/setup.mjs", rule: ruleAgentPayload},
+		{name: "python script in agent dir", path: "backend/.claude/hook.py", rule: ruleAgentPayload},
+
+		// Windows batch scripts, which an extension denylist had missed.
+		{name: "cmd script in agent dir", path: ".claude/setup.cmd", rule: ruleAgentPayload},
+		{name: "bat script in agent dir", path: ".claude/setup.bat", rule: ruleAgentPayload},
+
+		// And the reason the rule is an allowlist: each of these runs too, and
+		// no denylist was ever going to name them all.
+		{name: "macos double-clickable script", path: ".claude/setup.command", rule: ruleAgentPayload},
+		{name: "applescript in agent dir", path: ".claude/setup.scpt", rule: ruleAgentPayload},
+		{name: "encoded jscript in agent dir", path: ".claude/setup.jse", rule: ruleAgentPayload},
+		{name: "powershell module in agent dir", path: ".claude/setup.psm1", rule: ruleAgentPayload},
+		{name: "extensionless payload in agent dir", path: ".claude/setup", rule: ruleAgentPayload},
+
+		// MCP server config is matched by basename at any path: the
+		// project-scoped form has no .claude segment to key off.
+		{name: "project-scoped mcp config", path: ".mcp.json", rule: ruleAgentSettings},
+		{name: "nested project-scoped mcp config", path: "frontend/.mcp.json", rule: ruleAgentSettings},
+		{name: "cursor mcp config", path: ".cursor/mcp.json", rule: ruleAgentSettings},
+		{name: "editor mcp config", path: ".vscode/mcp.json", rule: ruleAgentSettings},
+		{name: "uppercased project-scoped mcp config", path: ".MCP.json", rule: ruleAgentSettings},
 
 		// Git's index is case-sensitive, so each of these is a distinct
 		// tracked path that must not be able to sidestep the denylist.
-		{name: "uppercased script extension", path: ".claude/setup.SH", rule: ruleAgentExecutable},
-		{name: "mixed-case script extension", path: ".claude/hook.Ps1", rule: ruleAgentExecutable},
+		{name: "uppercased script extension", path: ".claude/setup.SH", rule: ruleAgentPayload},
+		{name: "mixed-case script extension", path: ".claude/hook.Ps1", rule: ruleAgentPayload},
 		{name: "uppercased settings basename", path: ".claude/Settings.json", rule: ruleAgentSettings},
 		{name: "uppercased agent directory", path: ".Claude/settings.json", rule: ruleAgentSettings},
 		{name: "uppercased editor directory", path: ".VSCode/extensions.json", rule: ruleEditorConfig},
 		{name: "fully uppercased path", path: "FRONTEND/.CLAUDE/SETTINGS.JSON", rule: ruleAgentSettings},
 
 		{name: "checked-in skill", path: ".claude/skills/pr-standards/SKILL.md"},
+		{name: "skill reference doc", path: ".claude/skills/x/reference.md"},
+		{name: "skill data file", path: ".claude/skills/x/data.yaml"},
+		{name: "non-settings agent json", path: ".claude/skills/x/meta.json"},
+		{name: "similarly named file", path: "config/mcp.json.tmpl"},
 		{name: "devcontainer config", path: ".devcontainer/devcontainer.json"},
 		{name: "devcontainer script", path: ".devcontainer/postCreate.sh"},
 		{name: "unrelated settings file", path: "config/settings.json"},
@@ -103,9 +127,19 @@ func TestAgentJSONFiles(t *testing.T) {
 		"config/config.json",
 		".vscode/settings.json",
 		".Claude/Payload.JSON",
+		// MCP config is scanned wherever it sits, so that a command hidden in
+		// a project-scoped server entry still reaches the content rules.
+		".mcp.json",
+		".cursor/mcp.json",
 	})
 
-	want := []string{".claude/settings.json", "frontend/.claude/other.json", ".Claude/Payload.JSON"}
+	want := []string{
+		".claude/settings.json",
+		"frontend/.claude/other.json",
+		".Claude/Payload.JSON",
+		".mcp.json",
+		".cursor/mcp.json",
+	}
 	if len(got) != len(want) {
 		t.Fatalf("expected %v, got %v", want, got)
 	}

@@ -43,9 +43,11 @@ Use `get_pull_request_files` (or equivalent) to get the **complete** list of cha
 
 Check the full file list and diffs for the following. If any are found, flag them as blocking issues:
 
-The `ci/prow/verify` presubmit runs `make verify-supply-chain` (implemented in `hack/verify-supply-chain/`), which already blocks committed `.claude/` and `.vscode/` settings files, executable scripts under `.claude/`, and `.claude/` JSON carrying `command`/`hooks` keys. Confirm that check is green rather than re-deriving it by hand, and spend your attention on the CI/CD-config and new-executable-script checks below, which are **not** automated.
+The `ci/prow/verify` presubmit runs `make verify-supply-chain` (implemented in `hack/verify-supply-chain/`), which blocks committed `.claude/` and `.vscode/` settings files, MCP server configuration including a root `.mcp.json`, non-documentation files under `.claude/`, and agent JSON carrying `command`/`hooks` keys.
 
-- **`.claude/` or `.vscode/` directories added or modified:** *(automated)*
+**Inspect the changed files yourself anyway.** The check lives in the repository it guards, so the same PR can weaken `hack/verify-supply-chain/` or drop it from `make verify` and still show green. Treat the check as a second pair of eyes, never as a reason to skip looking. In particular, a PR that touches the verifier, its Makefile wiring, or `go.work` is reviewing its own gate — read those diffs line by line.
+
+- **`.claude/`, `.vscode/`, or `.mcp.json` added or modified:**
   - **Block immediately** if a `.claude/settings.json` is present — especially one containing `"command"` keys (e.g. `"command": "node .claude/setup.mjs"`). This is confirmed malware. Do not interact with it; instruct the user to report it.
   - *Exception*: changes to `.claude/skills/` files within this repository are expected. Only flag if the change introduces executable commands, `settings.json` files, or unknown scripts.
   - `.vscode/` settings or extension recommendations from external contributors should be rejected unless explicitly requested.
