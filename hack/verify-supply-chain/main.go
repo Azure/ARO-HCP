@@ -14,8 +14,8 @@
 
 // verify-supply-chain inspects the files tracked by git and fails if any of
 // them match a high-confidence supply-chain attack indicator: an AI-agent
-// settings file, an editor configuration file, or an executable payload
-// dropped into an agent configuration directory.
+// settings file, MCP server configuration, an editor configuration file, or a
+// payload dropped into an agent configuration directory.
 //
 // Only tracked files are inspected. Developers routinely keep gitignored
 // agent configuration (for example .claude/settings.local.json) in their
@@ -63,19 +63,36 @@ var editorConfigFiles = map[string]bool{
 	"launch.json":     true,
 }
 
-// executableExtensions are script types that have no business living inside an
-// agent configuration directory. Markdown is deliberately absent: checked-in
-// skills under .claude/skills/ are expected.
-var executableExtensions = map[string]bool{
-	".sh":   true,
-	".bash": true,
-	".mjs":  true,
-	".cjs":  true,
-	".js":   true,
-	".ts":   true,
-	".py":   true,
-	".rb":   true,
-	".ps1":  true,
+// mcpConfigFiles name an MCP server set, every entry of which carries a
+// command that the agent launches. These are matched by basename at any path,
+// not under an agent directory: the project-scoped form sits at the repository
+// root with no .claude segment to key off, and it is not gitignored. This
+// repository already treats it as auto-discovered agent configuration — see
+// the EnableConfigDiscovery comment in tooling/hcpctl/pkg/agent/agent.go.
+// Matching by basename also covers .cursor/mcp.json and .vscode/mcp.json.
+var mcpConfigFiles = map[string]bool{
+	"mcp.json":  true,
+	".mcp.json": true,
+}
+
+// inertAgentExtensions are the only file types that may live in an agent
+// configuration directory: documentation and data, nothing a shell,
+// interpreter or desktop environment will run.
+//
+// This is an allowlist because the denylist it replaced could not be
+// completed. Enumerating executable types missed .cmd and .bat, and would
+// have gone on missing .command (double-clickable on macOS), .scpt, .jse, and
+// files with no extension at all — each a payload that runs just as well from
+// a path the agent is pointed at. Inverting the test removes the whole class
+// of bypass instead of the instances found so far.
+//
+// Extending this list is deliberately a code change, reviewed like any other.
+var inertAgentExtensions = map[string]bool{
+	".md":   true,
+	".json": true,
+	".txt":  true,
+	".yaml": true,
+	".yml":  true,
 }
 
 // executionKeys are JSON keys that make an agent configuration file
@@ -89,10 +106,10 @@ func isExecutionKey(key string) bool {
 }
 
 const (
-	ruleAgentSettings   = "agent-settings"
-	ruleEditorConfig    = "editor-config"
-	ruleAgentExecutable = "agent-executable"
-	ruleExecutionKey    = "execution-key"
+	ruleAgentSettings = "agent-settings"
+	ruleEditorConfig  = "editor-config"
+	ruleAgentPayload  = "agent-payload"
+	ruleExecutionKey  = "execution-key"
 )
 
 // finding is a single violation. malware marks the indicators that match a
@@ -168,6 +185,12 @@ func checkPaths(files []string) []finding {
 		lower := strings.ToLower(f)
 		base := path.Base(lower)
 		switch {
+		case mcpConfigFiles[base]:
+			findings = append(findings, finding{
+				path:   f,
+				rule:   ruleAgentSettings,
+				detail: "MCP server configuration must not be committed",
+			})
 		case hasSegment(lower, agentConfigDir) && agentSettingsFiles[base]:
 			findings = append(findings, finding{
 				path:   f,
@@ -180,24 +203,28 @@ func checkPaths(files []string) []finding {
 				rule:   ruleEditorConfig,
 				detail: "editor configuration files must not be committed",
 			})
-		case hasSegment(lower, agentConfigDir) && executableExtensions[path.Ext(base)]:
+		case hasSegment(lower, agentConfigDir) && !inertAgentExtensions[path.Ext(base)]:
 			findings = append(findings, finding{
 				path:   f,
-				rule:   ruleAgentExecutable,
-				detail: "executable scripts must not live in an agent configuration directory",
+				rule:   ruleAgentPayload,
+				detail: "only documentation and data files may live in an agent configuration directory",
 			})
 		}
 	}
 	return findings
 }
 
-// agentJSONFiles returns the tracked JSON files under an agent configuration
-// directory, whose contents need inspecting for execution keys.
+// agentJSONFiles returns the tracked JSON whose contents need inspecting for
+// execution keys: anything under an agent configuration directory, plus MCP
+// server configuration wherever it sits.
 func agentJSONFiles(files []string) []string {
 	var out []string
 	for _, f := range files {
 		lower := strings.ToLower(f)
-		if hasSegment(lower, agentConfigDir) && path.Ext(lower) == ".json" {
+		switch {
+		case mcpConfigFiles[path.Base(lower)]:
+			out = append(out, f)
+		case hasSegment(lower, agentConfigDir) && path.Ext(lower) == ".json":
 			out = append(out, f)
 		}
 	}
