@@ -312,7 +312,6 @@ fleet:
   managedIdentityName: fleet
   nodePoolPlanning:
     profile: development
-    zones: ""
   registration:
     autoApproveStamps: true
     stampIdentifier: "1"
