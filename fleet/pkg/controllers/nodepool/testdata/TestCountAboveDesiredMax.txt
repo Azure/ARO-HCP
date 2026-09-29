@@ -21,9 +21,12 @@ initial capacity:
   worker:  cpu=64  memory=512GiB  swiftNICs=14
 
 actions:
-    1.  Freeze    worker  Standard_E32ds_v6  w1abc  count=5        floor: cpu=64   memory=512GiB   swiftNICs=14  capacity: cpu=160  (+96)  memory=1280GiB  (+768GiB)  swiftNICs=35  (+21)
-    2.  Reduce    worker  Standard_E32ds_v6  w1abc  count=4        floor: cpu=128  memory=1024GiB  swiftNICs=28  capacity: cpu=128  (+0)   memory=1024GiB  (+0GiB)    swiftNICs=28  (+0)  StandardEdsv6:  192c remaining
-    3.  Unfreeze  worker  Standard_E32ds_v6  w1abc  min=1   max=4  floor: cpu=128  memory=1024GiB  swiftNICs=28  capacity: cpu=128  (+0)   memory=1024GiB  (+0GiB)    swiftNICs=28  (+0)
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action    role    pool   vm size   change         role margin            quota left
+     1  Freeze    worker  w1abc  E32ds_v6  count=5          +96c   +768G   +21n
+     2  Reduce    worker  w1abc  E32ds_v6  count=4           +0c     +0G    +0n  Edsv6 192c
+     3  Unfreeze  worker  w1abc  E32ds_v6  min=1   max=4     +0c     +0G    +0n
 
 steps:      3
 converged:  true

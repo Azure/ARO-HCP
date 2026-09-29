@@ -16,9 +16,12 @@ package compute
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -326,14 +329,14 @@ func TestResolveDesiredPools_UsageDoesNotChangeDesiredPools(t *testing.T) {
 
 const productionSubscriptionID = "bc9d60c7-95e2-4e49-8100-85b9cfcb23a0"
 
-// productionEDSv5SKU builds an EDSv5 Resource SKU as it appears in uksouth:
+// productionSKU builds an EDSv4/EDSv5 Resource SKU as it appears in uksouth:
 // ephemeral OS disk is supported only on the temp/resource disk (no cache or
 // NVMe disk capability), so its size comes from MaxResourceVolumeMB. This is
 // the exact shape that motivated the extractSKUMetadata ResourceDisk fallback.
-func productionEDSv5SKU(name string, vcpus, memoryGB, maxResourceMB, maxNICs int64) *armcompute.ResourceSKU {
+func productionSKU(name, family string, vcpus, memoryGB, maxResourceMB, maxNICs int64) *armcompute.ResourceSKU {
 	return &armcompute.ResourceSKU{
 		Name:         ptr.To(name),
-		Family:       ptr.To("standardEDSv5Family"),
+		Family:       ptr.To(family),
 		ResourceType: ptr.To("virtualMachines"),
 		LocationInfo: []*armcompute.ResourceSKULocationInfo{
 			{Zones: []*string{ptr.To("1"), ptr.To("2"), ptr.To("3")}},
@@ -352,24 +355,27 @@ func productionEDSv5SKU(name string, vcpus, memoryGB, maxResourceMB, maxNICs int
 // TestResolveDesiredPools_ProductionScenario exercises desire planning against
 // the real uksouth production shape with the production profile: the intended
 // EDSv6 worker family is absent from the region, so allocation falls back to
-// EDSv5 (temp-disk ephemeral). Values are the real subscription's SKUs and
-// quota (EDSv5 limit 1440 / used 584; ESv3 limit 100). Pins the resolved pool
-// set, available vCPUs per family, and allocation failures.
+// EDSv5 (temp-disk ephemeral) and then EDSv4. Values are the real
+// subscription's SKUs and quota (EDSv5 limit 1440 / used 584; EDSv4 limit 192
+// / used 64 by the infra pools; ESv3 limit 100). Pins the resolved pool set,
+// available vCPUs per family, and allocation failures.
 func TestResolveDesiredPools_ProductionScenario(t *testing.T) {
 	skuCache := newResolveTestCache(t, []*armcompute.ResourceSKU{
-		productionEDSv5SKU("Standard_E8ds_v5", 8, 64, 307200, 4),
-		productionEDSv5SKU("Standard_E16ds_v5", 16, 128, 614400, 8),
-		productionEDSv5SKU("Standard_E32ds_v5", 32, 256, 1228800, 8),
+		productionSKU("Standard_E8ds_v5", "standardEDSv5Family", 8, 64, 307200, 4),
+		productionSKU("Standard_E16ds_v5", "standardEDSv5Family", 16, 128, 614400, 8),
+		productionSKU("Standard_E32ds_v5", "standardEDSv5Family", 32, 256, 1228800, 8),
+		productionSKU("Standard_E32ds_v4", "standardEDSv4Family", 32, 256, 1228800, 8),
 	}, nil)
 
 	// EDSv6 is absent from usage (unavailable in-region); the planner falls
-	// back through eFamilyPriority to EDSv5. ESv3 has budget but is never
-	// reached because EDSv5 satisfies every tier first.
+	// back through eFamilyPriority to EDSv5 and EDSv4. ESv3 has quota but no
+	// SKU in the cache, so it never yields pools.
+	usage := map[VMFamily]QuotaUsage{
+		"standardEDSv5Family": {Limit: 1440, CurrentValue: 584},
+		"standardEDSv4Family": {Limit: 192, CurrentValue: 64},
+		"standardESv3Family":  {Limit: 100},
+	}
 	fetchQuotaUsage := func(_ context.Context, families sets.Set[VMFamily]) (map[VMFamily]QuotaUsage, error) {
-		usage := map[VMFamily]QuotaUsage{
-			"standardEDSv5Family": {Limit: 1440, CurrentValue: 584},
-			"standardESv3Family":  {Limit: 100},
-		}
 		result := make(map[VMFamily]QuotaUsage)
 		for family := range families {
 			if u, ok := usage[family]; ok {
@@ -386,18 +392,16 @@ func TestResolveDesiredPools_ProductionScenario(t *testing.T) {
 	result, err := ResolveDesiredPools(ctx, skuCache, productionSubscriptionID, profile, allZones, fetchQuotaUsage)
 	require.NoError(t, err, "resolving desired pools")
 
-	golden := struct {
-		FullyAllocated bool                `json:"fullyAllocated"`
-		AvailableVCPUs map[VMFamily]int64  `json:"availableVCPUs"`
-		Pools          []Pool              `json:"pools"`
-		Failures       []AllocationFailure `json:"failures,omitempty"`
-	}{
-		FullyAllocated: result.FullyAllocated,
-		AvailableVCPUs: result.AvailableVCPUs,
-		Pools:          result.Pools,
-		Failures:       result.Failures,
+	limits := make(map[VMFamily]int64, len(usage))
+	for family, u := range usage {
+		limits[family] = u.Limit
 	}
-	b, err := json.MarshalIndent(golden, "", "  ")
-	require.NoError(t, err)
-	assertGolden(t, string(b)+"\n")
+	assertGolden(t, renderReport(func(w io.Writer) {
+		writeAllocationInputs(w, allZones, profile.Tiers, limits, result.SKUMetadata)
+		fmt.Fprintln(w, "\navailable vCPUs:")
+		for _, family := range slices.Sorted(maps.Keys(result.AvailableVCPUs)) {
+			fmt.Fprintf(w, "  %s:\t%d\n", family, result.AvailableVCPUs[family])
+		}
+		writeAllocationResult(w, result.Pools, result.Failures, result.FullyAllocated)
+	}))
 }
