@@ -137,7 +137,9 @@ func main() {
 
 	// A path already reported as a payload needs no second payload finding.
 	// The JSON scan below is exempt: it escalates a file that checkPaths has
-	// merely rejected into one that matches a known attack pattern.
+	// merely rejected into one that matches a known attack pattern. That
+	// exemption is safe only because both selectors drop non-regular entries —
+	// see readable.
 	flagged := make(map[string]bool, len(findings))
 	for _, f := range findings {
 		flagged[f.path] = true
@@ -287,12 +289,32 @@ func modeDetail(mode string) string {
 	}
 }
 
+// readable reports whether an entry's contents can be scanned.
+//
+// The content rules read the working tree, so they must only ever open an
+// entry git records as a regular file. A symlink resolves to a target this
+// diff never shows: os.ReadFile follows it out of the repository, and a target
+// that never reaches EOF — a fifo, /dev/zero — hangs the presubmit until the
+// CI job times out, or exhausts its memory, rather than reporting the
+// violation. A submodule has no file to read at all, so the read fails and the
+// tool exits as though it had hit an internal error.
+//
+// Skipping them costs nothing. checkPaths already rejects every non-regular
+// entry under an agent directory, so the path is reported either way; all that
+// is given up is escalating a file whose real content is not in this diff.
+func readable(f trackedFile) bool {
+	return f.mode == modeRegular
+}
+
 // agentJSONFiles returns the tracked JSON whose contents need inspecting for
 // execution keys: anything under an agent configuration directory, plus MCP
 // server configuration wherever it sits.
 func agentJSONFiles(files []trackedFile) []string {
 	var out []string
 	for _, f := range files {
+		if !readable(f) {
+			continue
+		}
 		lower := strings.ToLower(f.path)
 		switch {
 		case mcpConfigFiles[path.Base(lower)]:
@@ -309,6 +331,9 @@ func agentJSONFiles(files []trackedFile) []string {
 func agentDirFiles(files []trackedFile) []string {
 	var out []string
 	for _, f := range files {
+		if !readable(f) {
+			continue
+		}
 		if hasSegment(strings.ToLower(f.path), agentConfigDir) {
 			out = append(out, f.path)
 		}
