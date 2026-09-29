@@ -43,9 +43,16 @@ Use `get_pull_request_files` (or equivalent) to get the **complete** list of cha
 
 Check the full file list and diffs for the following. If any are found, flag them as blocking issues:
 
-The `ci/prow/verify` presubmit runs `make verify-supply-chain` (implemented in `hack/verify-supply-chain/`), which blocks committed `.claude/` and `.vscode/` settings files, MCP server configuration including a root `.mcp.json`, non-documentation files under `.claude/` (including any that git records as executable, a symlink, or a submodule, whatever the file is named), and agent JSON carrying `command`/`hooks` keys.
+The `ci/prow/verify` presubmit runs `make verify-supply-chain` (implemented in `hack/verify-supply-chain/`). It blocks exactly four things, by path or by parsed content:
 
-**Inspect the changed files yourself anyway.** The check lives in the repository it guards, so the same PR can weaken `hack/verify-supply-chain/` or drop it from `make verify` and still show green. Treat the check as a second pair of eyes, never as a reason to skip looking. In particular, a PR that touches the verifier, its Makefile wiring, or `go.work` is reviewing its own gate — read those diffs line by line.
+1. `settings.json`, `settings.local.json`, or `mcp.json` under a `.claude/` segment, at any depth.
+2. `settings.json`, `extensions.json`, `tasks.json`, or `launch.json` under a `.vscode/` segment, at any depth.
+3. An `mcp.json` or `.mcp.json` anywhere, including the project-scoped file at the repository root.
+4. Agent JSON carrying a `command` or `hooks` key, reported as a known attack pattern. Such files must parse as strict JSON; unparseable ones are rejected rather than guessed at.
+
+**It checks nothing else, and that is deliberate.** It does not judge what kinds of file may live under `.claude/` — no extension rules, no executable-bit or shebang detection. `CONTRIBUTING.md` tells contributors to commit shared tooling to `.claude/skills/`, so a script, an image, or an `OWNERS` file there is ordinary and passes silently. Deciding whether one of them belongs is your job, not the gate's.
+
+**Inspect the changed files yourself regardless.** The check lives in the repository it guards, so the same PR can weaken `hack/verify-supply-chain/` or drop it from `make verify` and still show green. Treat it as a second pair of eyes, never as a reason to skip looking. In particular, a PR that touches the verifier, its Makefile wiring, or `go.work` is reviewing its own gate — read those diffs line by line. And note that a committed `SKILL.md` is itself an attack surface: it is prose an agent reads and follows, needs no executable bit and no script, and no automated rule here will catch it.
 
 - **`.claude/`, `.vscode/`, or `.mcp.json` added or modified:**
   - **Block immediately** if a `.claude/settings.json` is present — especially one containing `"command"` keys (e.g. `"command": "node .claude/setup.mjs"`). This is confirmed malware. Do not interact with it; instruct the user to report it.
