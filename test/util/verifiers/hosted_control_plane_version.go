@@ -32,7 +32,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -119,6 +118,13 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Name() string {
 }
 
 func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	// Parse the caller's input before polling. It cannot become valid by waiting, so leaving it in
+	// the poll callback would spend the whole timeout retrying a fixed error and then report it as
+	// if the cluster had failed to upgrade.
+	initialSemver, err := semver.ParseTolerant(v.initialVersion)
+	if err != nil {
+		return fmt.Errorf("parse initial version %q: %w", v.initialVersion, err)
+	}
 	configClient, err := configv1client.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create config client: %w", err)
@@ -127,16 +133,11 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, 
 	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig,
 		DefaultDiagnoseTimeout, diagnoseClusterVersion,
 		func(ctx context.Context) error {
-			return v.check(ctx, configClient, reporter)
+			return v.check(ctx, configClient, reporter, initialSemver)
 		})
 }
 
-func (v verifyHostedControlPlaneZStreamUpgradeOnly) check(ctx context.Context, configClient configv1client.ConfigV1Interface, reporter *upgradePhaseReporter) error {
-	initialSemver, err := semver.ParseTolerant(v.initialVersion)
-	if err != nil {
-		return fmt.Errorf("parse initial version %q: %w", v.initialVersion, err)
-	}
-
+func (v verifyHostedControlPlaneZStreamUpgradeOnly) check(ctx context.Context, configClient configv1client.ConfigV1Interface, reporter *upgradePhaseReporter, initialSemver semver.Version) error {
 	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get clusterversion %q: %w", "version", err)
@@ -207,6 +208,17 @@ func (v verifyHostedControlPlaneYStreamUpgrade) Name() string {
 }
 
 func (v verifyHostedControlPlaneYStreamUpgrade) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	// Parse the caller's input before polling, and as errors rather than panics. Neither value can
+	// become valid by waiting, so parsing inside the poll callback would panic out of the loop on
+	// the first check with a stack trace instead of naming the offending string.
+	parsedPreviousMinor, err := semver.ParseTolerant(v.previousMinor)
+	if err != nil {
+		return fmt.Errorf("parse previous minor %q: %w", v.previousMinor, err)
+	}
+	parsedTargetMinor, err := semver.ParseTolerant(v.targetMinor)
+	if err != nil {
+		return fmt.Errorf("parse target minor %q: %w", v.targetMinor, err)
+	}
 	configClient, err := configv1client.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create config client: %w", err)
@@ -215,20 +227,17 @@ func (v verifyHostedControlPlaneYStreamUpgrade) Verify(ctx context.Context, admi
 	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig,
 		DefaultDiagnoseTimeout, diagnoseClusterVersion,
 		func(ctx context.Context) error {
-			return v.check(ctx, configClient, reporter)
+			return v.check(ctx, configClient, reporter, parsedPreviousMinor, parsedTargetMinor)
 		})
 }
 
-func (v verifyHostedControlPlaneYStreamUpgrade) check(ctx context.Context, configClient configv1client.ConfigV1Interface, reporter *upgradePhaseReporter) error {
+func (v verifyHostedControlPlaneYStreamUpgrade) check(ctx context.Context, configClient configv1client.ConfigV1Interface, reporter *upgradePhaseReporter, parsedPreviousMinor, parsedTargetMinor semver.Version) error {
 	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get clusterversion %q: %w", "version", err)
 	}
 
 	reporter.observe(clusterVersion.Status.History)
-
-	parsedPreviousMinor := metadataapi.Must(semver.ParseTolerant(v.previousMinor))
-	parsedTargetMinor := metadataapi.Must(semver.ParseTolerant(v.targetMinor))
 
 	var previousMinorFound, targetMinorFound bool
 	for _, historyEntry := range clusterVersion.Status.History {
