@@ -172,6 +172,7 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 		return nil, fmt.Errorf("%s pool VM size %q not found in region SKUs", role, cfg.vmSize)
 	}
 
+	agentPoolMode := armcontainerservice.AgentPoolModeUser
 	var (
 		maxPods     int32
 		taints      []string
@@ -180,6 +181,7 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 	)
 	switch role {
 	case compute.PoolRoleSystem:
+		agentPoolMode = armcontainerservice.AgentPoolModeSystem
 		maxPods = systemMaxPods
 		taints = []string{compute.TaintCriticalAddonsOnly}
 		mode = compute.PoolModeRegional
@@ -195,10 +197,9 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 	}
 
 	spec := compute.NewVMSpecFromSKU(meta)
-	// Only worker pools attach secondary NICs, sized to the SKU's NIC ceiling
-	// (set by NewVMSpecFromSKU). System and infra pools carry none.
-	if role != compute.PoolRoleWorker {
-		spec.SecondaryNICs = 0
+	var secondaryNICs int64
+	if role == compute.PoolRoleWorker {
+		secondaryNICs = spec.SecondaryNICs
 	}
 
 	var placements []poolPlacement
@@ -216,6 +217,8 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 	for _, placement := range placements {
 		pools = append(pools, compute.Pool{
 			Role:              role,
+			AgentPoolMode:     agentPoolMode,
+			SecondaryNICs:     secondaryNICs,
 			Name:              placement.name,
 			Spec:              spec,
 			AvailabilityZones: placement.zones,

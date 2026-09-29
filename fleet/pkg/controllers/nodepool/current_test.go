@@ -59,6 +59,7 @@ func TestCurrentPoolStates(t *testing.T) {
 				{
 					Pool: compute.Pool{
 						Role: compute.PoolRoleSystem, Name: "s1abc", Spec: compute.VMSpec{Size: "Standard_D4s_v3"},
+						AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
 						AvailabilityZones: []string{"1"}, MaxCount: 3, OSDiskSizeGB: 32,
 						Labels: map[string]string{compute.RoleLabel: "system"},
 					},
@@ -79,6 +80,7 @@ func TestCurrentPoolStates(t *testing.T) {
 				{
 					Pool: compute.Pool{
 						Role: compute.PoolRoleWorker, Name: "w1abc", Spec: compute.VMSpec{Size: "Standard_E32ds_v6"},
+						AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
 						AvailabilityZones: []string{"1"}, MaxCount: 14, OSDiskSizeGB: 512,
 						Labels: map[string]string{compute.RoleLabel: "worker"},
 					},
@@ -99,6 +101,7 @@ func TestCurrentPoolStates(t *testing.T) {
 				{
 					Pool: compute.Pool{
 						Role: compute.PoolRoleWorker, Name: "w1abc", Spec: compute.VMSpec{Size: "Standard_E32ds_v6"},
+						AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
 						AvailabilityZones: []string{"1"}, MaxCount: 5, OSDiskSizeGB: 512,
 						Labels: map[string]string{compute.RoleLabel: "worker"},
 					},
@@ -117,7 +120,7 @@ func TestCurrentPoolStates(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name: "configured Swift NIC count overrides the SKU maximum",
+			name: "configured Swift NIC count preserves the SKU maximum",
 			skuMetadata: map[string]*skucache.SKUMetadata{
 				"Standard_E16ds_v6": {Name: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7},
 			},
@@ -126,6 +129,7 @@ func TestCurrentPoolStates(t *testing.T) {
 					Name: ptr.To("wrk161"),
 					Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
 						VMSize:            ptr.To("Standard_E16ds_v6"),
+						Mode:              ptr.To(armcontainerservice.AgentPoolModeUser),
 						AvailabilityZones: []*string{ptr.To("1")},
 						OSDiskSizeGB:      ptr.To(int32(256)),
 						Count:             ptr.To(int32(3)),
@@ -148,6 +152,7 @@ func TestCurrentPoolStates(t *testing.T) {
 				{
 					Pool: compute.Pool{
 						Role: compute.PoolRoleWorker, Name: "wrk161",
+						AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
 						Spec:              compute.VMSpec{Size: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 3},
 						AvailabilityZones: []string{"1"}, MaxCount: 10, OSDiskSizeGB: 256, MaxPods: 225,
 						Labels:      map[string]string{compute.RoleLabel: "worker", "workload": "general"},
@@ -208,6 +213,40 @@ func TestUnresolvedSKUSizes(t *testing.T) {
 	}
 }
 
+func makeWorkerAgentPool(name, vmSize string, zones []string, osDiskSizeGB, count int32, autoScale bool, minCount, maxCount int32) armcontainerservice.AgentPool {
+	labels := map[string]*string{
+		compute.RoleLabel: ptr.To(string(compute.PoolRoleWorker)),
+	}
+	return makeAgentPool(name, vmSize, zones, osDiskSizeGB, count, autoScale, minCount, maxCount, labels)
+}
+
+func makeAgentPool(name, vmSize string, zones []string, osDiskSizeGB, count int32, autoScale bool, minCount, maxCount int32, labels map[string]*string) armcontainerservice.AgentPool {
+	zonePtrs := make([]*string, len(zones))
+	for i, z := range zones {
+		zonePtrs[i] = ptr.To(z)
+	}
+
+	pool := armcontainerservice.AgentPool{
+		Name: ptr.To(name),
+		Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
+			Mode:              ptr.To(armcontainerservice.AgentPoolModeUser),
+			VMSize:            ptr.To(vmSize),
+			AvailabilityZones: zonePtrs,
+			OSDiskSizeGB:      &osDiskSizeGB,
+			Count:             &count,
+			EnableAutoScaling: &autoScale,
+			NodeLabels:        labels,
+			ProvisioningState: ptr.To("Succeeded"),
+			ETag:              ptr.To("etag-" + name),
+		},
+	}
+	if autoScale {
+		pool.Properties.MinCount = &minCount
+		pool.Properties.MaxCount = &maxCount
+	}
+	return pool
+}
+
 func TestHasSwiftTags(t *testing.T) {
 	tests := []struct {
 		name string
@@ -260,39 +299,6 @@ func TestHasSwiftTags(t *testing.T) {
 			assert.Equal(t, test.want, hasSwiftTags(test.pool))
 		})
 	}
-}
-
-func makeWorkerAgentPool(name, vmSize string, zones []string, osDiskSizeGB, count int32, autoScale bool, minCount, maxCount int32) armcontainerservice.AgentPool {
-	labels := map[string]*string{
-		compute.RoleLabel: ptr.To(string(compute.PoolRoleWorker)),
-	}
-	return makeAgentPool(name, vmSize, zones, osDiskSizeGB, count, autoScale, minCount, maxCount, labels)
-}
-
-func makeAgentPool(name, vmSize string, zones []string, osDiskSizeGB, count int32, autoScale bool, minCount, maxCount int32, labels map[string]*string) armcontainerservice.AgentPool {
-	zonePtrs := make([]*string, len(zones))
-	for i, z := range zones {
-		zonePtrs[i] = ptr.To(z)
-	}
-
-	pool := armcontainerservice.AgentPool{
-		Name: ptr.To(name),
-		Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
-			VMSize:            ptr.To(vmSize),
-			AvailabilityZones: zonePtrs,
-			OSDiskSizeGB:      &osDiskSizeGB,
-			Count:             &count,
-			EnableAutoScaling: &autoScale,
-			NodeLabels:        labels,
-			ProvisioningState: ptr.To("Succeeded"),
-			ETag:              ptr.To("etag-" + name),
-		},
-	}
-	if autoScale {
-		pool.Properties.MinCount = &minCount
-		pool.Properties.MaxCount = &maxCount
-	}
-	return pool
 }
 
 func TestCurrentPoolStatesSwiftNICValidation(t *testing.T) {
@@ -364,17 +370,19 @@ func TestUnfreezeObservedPoolMinimum(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		role        compute.PoolRole
+		mode        armcontainerservice.AgentPoolMode
 		minCount    *int32
 		wantMinimum int32
 	}{
-		{name: "system without previous autoscaler bounds", role: compute.PoolRoleSystem, wantMinimum: 1},
-		{name: "user preserves explicit zero minimum", role: compute.PoolRoleWorker, minCount: ptr.To[int32](0), wantMinimum: 0},
-		{name: "system preserves previous positive minimum", role: compute.PoolRoleSystem, minCount: ptr.To[int32](2), wantMinimum: 2},
+		{name: "system mode with arbitrary role", role: "control", mode: armcontainerservice.AgentPoolModeSystem, wantMinimum: 1},
+		{name: "user mode with system role preserves zero minimum", role: compute.PoolRoleSystem, mode: armcontainerservice.AgentPoolModeUser, minCount: ptr.To[int32](0), wantMinimum: 0},
+		{name: "system mode preserves positive minimum", role: "custom", mode: armcontainerservice.AgentPoolModeSystem, minCount: ptr.To[int32](2), wantMinimum: 2},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			observed := makeAgentPool("existing", specD4v3.Size, []string{"1"}, 32, 3, false, 0, 0,
 				map[string]*string{compute.RoleLabel: ptr.To(string(test.role))})
 			observed.Properties.MinCount = test.minCount
+			observed.Properties.Mode = ptr.To(test.mode)
 			metadata := map[string]*skucache.SKUMetadata{
 				specD4v3.Size: {Name: specD4v3.Size, Family: string(specD4v3.Family), VCPUs: specD4v3.VCPUs, MemoryBytes: specD4v3.MemoryBytes},
 			}
@@ -393,7 +401,7 @@ func TestUnfreezeObservedPoolMinimum(t *testing.T) {
 	}
 }
 
-func TestWorkerPoolZones(t *testing.T) {
+func TestPoolZonesByRole(t *testing.T) {
 	agentPool := func(role string, zones ...string) armcontainerservice.AgentPool {
 		properties := &armcontainerservice.ManagedClusterAgentPoolProfileProperties{}
 		if len(role) > 0 {
@@ -407,27 +415,27 @@ func TestWorkerPoolZones(t *testing.T) {
 	tests := []struct {
 		name  string
 		pools []armcontainerservice.AgentPool
-		want  []string
+		want  map[compute.PoolRole][]string
 	}{
 		{
 			name:  "zones of worker pools, deduplicated and sorted",
 			pools: []armcontainerservice.AgentPool{agentPool("worker", "3"), agentPool("worker", "1"), agentPool("worker", "3")},
-			want:  []string{"1", "3"},
+			want:  map[compute.PoolRole][]string{compute.PoolRoleWorker: {"1", "3"}},
 		},
 		{
-			name:  "other roles and unmanaged pools do not pin zones",
-			pools: []armcontainerservice.AgentPool{agentPool("infra", "2"), agentPool("system", "1", "2", "3"), agentPool("", "3")},
-			want:  []string{},
+			name:  "all managed roles pin their own zones",
+			pools: []armcontainerservice.AgentPool{agentPool("infra", "2"), agentPool("custom", "3", "1"), agentPool("", "3")},
+			want:  map[compute.PoolRole][]string{compute.PoolRoleInfra: {"2"}, "custom": {"1", "3"}},
 		},
 		{
-			name:  "zoneless worker pools pin no zone",
-			pools: []armcontainerservice.AgentPool{agentPool("worker"), {Name: ptr.To("no-properties")}},
-			want:  []string{},
+			name:  "non-zonal pools pin no actual zone",
+			pools: []armcontainerservice.AgentPool{agentPool("custom", ""), {Name: ptr.To("no-properties")}},
+			want:  map[compute.PoolRole][]string{"custom": {}},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.want, workerPoolZones(test.pools))
+			require.Equal(t, test.want, poolZonesByRole(test.pools))
 		})
 	}
 }

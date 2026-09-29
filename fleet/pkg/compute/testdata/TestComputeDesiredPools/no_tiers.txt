@@ -15,4 +15,4 @@ pools:
   (none)
 
 failures:
-  NoTiersConfigured  required=false  no worker pool tiers are configured
+  NoTiersConfigured  required=false  no pool tiers are configured

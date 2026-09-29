@@ -35,7 +35,7 @@ const aksAPIVersion = "2026-04-02-preview"
 
 func (o *validatedOptions) buildDeployment(existing *armcontainerservice.ManagedCluster, pools []compute.Pool) (armdeployments.Deployment, []string, error) {
 	// Locate the system pool, which is created inline with the cluster resource.
-	bootstrapIndex := slices.IndexFunc(pools, func(pool compute.Pool) bool { return pool.Role == compute.PoolRoleSystem })
+	bootstrapIndex := slices.IndexFunc(pools, func(pool compute.Pool) bool { return pool.AgentPoolMode == armcontainerservice.AgentPoolModeSystem })
 	if bootstrapIndex < 0 {
 		return armdeployments.Deployment{}, nil, fmt.Errorf("no system pool was configured")
 	}

@@ -45,30 +45,29 @@ func TestBuild(t *testing.T) {
 		wantTags      map[string]string
 	}{
 		{
-			name: "system role selects system mode",
+			name: "custom role selects explicit system mode",
 			pool: compute.Pool{
-				Role: compute.PoolRoleSystem,
+				Role:          "platform",
+				AgentPoolMode: armcontainerservice.AgentPoolModeSystem,
 			},
 			wantMode: armcontainerservice.AgentPoolModeSystem,
 		},
 		{
-			name: "worker role selects user mode",
+			name: "system role does not imply system mode",
 			pool: compute.Pool{
-				Role: compute.PoolRoleWorker,
+				Role:          compute.PoolRoleSystem,
+				AgentPoolMode: armcontainerservice.AgentPoolModeUser,
 			},
-			wantMode: armcontainerservice.AgentPoolModeUser,
-		},
-		{
-			name:     "no role set defaults to user mode",
-			pool:     compute.Pool{},
 			wantMode: armcontainerservice.AgentPoolModeUser,
 		},
 		{
 			name: "swift enabled with secondary NICs sets multi-tenancy tags",
 			pool: compute.Pool{
-				Role:        compute.PoolRoleWorker,
-				EnableSwift: true,
-				Spec:        compute.VMSpec{Size: "Standard_D8ds_v6", Family: "standardDDSv6Family", VCPUs: 8, MemoryBytes: memoryBytes("32Gi"), SecondaryNICs: 4},
+				Role:          "storage",
+				AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				SecondaryNICs: 4,
+				EnableSwift:   true,
+				Spec:          compute.VMSpec{Size: "Standard_D8ds_v6", Family: "standardDDSv6Family", VCPUs: 8, MemoryBytes: memoryBytes("32Gi"), SecondaryNICs: 4},
 			},
 			wantMode: armcontainerservice.AgentPoolModeUser,
 			wantTags: map[string]string{
@@ -79,8 +78,9 @@ func TestBuild(t *testing.T) {
 		{
 			name: "swift enabled without a secondary NIC override sets multi-tenancy",
 			pool: compute.Pool{
-				EnableSwift: true,
-				Spec:        compute.VMSpec{Size: "Standard_D8ds_v6", Family: "standardDDSv6Family", VCPUs: 8, MemoryBytes: memoryBytes("32Gi"), SecondaryNICs: 0},
+				AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				EnableSwift:   true,
+				Spec:          compute.VMSpec{Size: "Standard_D8ds_v6", Family: "standardDDSv6Family", VCPUs: 8, MemoryBytes: memoryBytes("32Gi"), SecondaryNICs: 0},
 			},
 			wantMode: armcontainerservice.AgentPoolModeUser,
 			wantTags: map[string]string{
@@ -90,9 +90,10 @@ func TestBuild(t *testing.T) {
 		{
 			name: "swift enabled system pool omits secondary-count tag",
 			pool: compute.Pool{
-				Role:        compute.PoolRoleSystem,
-				EnableSwift: true,
-				Spec:        compute.VMSpec{Size: "Standard_D8ds_v6", Family: "standardDDSv6Family", VCPUs: 8, MemoryBytes: memoryBytes("32Gi"), SecondaryNICs: 4},
+				Role:          compute.PoolRoleSystem,
+				AgentPoolMode: armcontainerservice.AgentPoolModeSystem,
+				EnableSwift:   true,
+				Spec:          compute.VMSpec{Size: "Standard_D8ds_v6", Family: "standardDDSv6Family", VCPUs: 8, MemoryBytes: memoryBytes("32Gi"), SecondaryNICs: 4},
 			},
 			wantMode: armcontainerservice.AgentPoolModeSystem,
 			wantTags: map[string]string{
@@ -102,7 +103,8 @@ func TestBuild(t *testing.T) {
 		{
 			name: "swift disabled with secondary NICs sets no tags",
 			pool: compute.Pool{
-				Spec: compute.VMSpec{Size: "Standard_D8ds_v6", Family: "standardDDSv6Family", VCPUs: 8, MemoryBytes: memoryBytes("32Gi"), SecondaryNICs: 4},
+				AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				Spec:          compute.VMSpec{Size: "Standard_D8ds_v6", Family: "standardDDSv6Family", VCPUs: 8, MemoryBytes: memoryBytes("32Gi"), SecondaryNICs: 4},
 			},
 			wantMode: armcontainerservice.AgentPoolModeUser,
 		},
@@ -138,6 +140,7 @@ func TestBuild(t *testing.T) {
 func TestBuild_FullWorkerPoolPayload(t *testing.T) {
 	pool := compute.Pool{
 		Role:              compute.PoolRoleWorker,
+		AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
 		Name:              "wrk16",
 		Spec:              compute.VMSpec{Size: "Standard_E16ds_v6", Family: "standardEDSv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7},
 		AvailabilityZones: []string{"1"},
@@ -148,6 +151,7 @@ func TestBuild_FullWorkerPoolPayload(t *testing.T) {
 		Labels:            map[string]string{compute.RoleLabel: string(compute.PoolRoleWorker), "workload": "general"},
 		Taints:            []string{"dedicated=worker:NoSchedule"},
 		EnableSwift:       true,
+		SecondaryNICs:     7,
 	}
 	networkConfig := compute.NetworkConfig{
 		VnetSubnetID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/node",
@@ -176,7 +180,7 @@ func TestBuild_FullWorkerPoolPayload(t *testing.T) {
 }
 
 func TestBuild_NetworkConfig(t *testing.T) {
-	properties := Build(compute.Pool{}, compute.NetworkConfig{})
+	properties := Build(compute.Pool{AgentPoolMode: armcontainerservice.AgentPoolModeUser}, compute.NetworkConfig{})
 	assert.Nil(t, properties.VnetSubnetID)
 	assert.Nil(t, properties.PodSubnetID)
 }

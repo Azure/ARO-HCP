@@ -28,6 +28,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
@@ -50,6 +52,8 @@ var (
 func pool(name string, spec compute.VMSpec, zone string, maxCount, osDiskSizeGB int32) compute.Pool {
 	return compute.Pool{
 		Role:              compute.PoolRoleWorker,
+		AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
+		SecondaryNICs:     spec.SecondaryNICs,
 		Name:              name,
 		Spec:              spec,
 		AvailabilityZones: []string{zone},
@@ -66,6 +70,8 @@ func poolState(name string, spec compute.VMSpec, zone string, maxCount, osDiskSi
 	return PoolState{
 		Pool: compute.Pool{
 			Role:              compute.PoolRoleWorker,
+			AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
+			SecondaryNICs:     spec.SecondaryNICs,
 			Name:              name,
 			Spec:              spec,
 			AvailabilityZones: []string{zone},
@@ -86,6 +92,7 @@ func poolState(name string, spec compute.VMSpec, zone string, maxCount, osDiskSi
 func systemPool(name string, spec compute.VMSpec, zone string, maxCount, osDiskSizeGB int32) compute.Pool {
 	return compute.Pool{
 		Role:              compute.PoolRoleSystem,
+		AgentPoolMode:     armcontainerservice.AgentPoolModeSystem,
 		Name:              name,
 		Spec:              spec,
 		AvailabilityZones: []string{zone},
@@ -101,6 +108,7 @@ func systemPoolState(name string, spec compute.VMSpec, zone string, maxCount, os
 	return PoolState{
 		Pool: compute.Pool{
 			Role:              compute.PoolRoleSystem,
+			AgentPoolMode:     armcontainerservice.AgentPoolModeSystem,
 			Name:              name,
 			Spec:              spec,
 			AvailabilityZones: []string{zone},
@@ -305,7 +313,7 @@ func TestCrossFamilyGrowBeforeSqueeze(t *testing.T) {
 		poolState("old1", specD4v3, "1", 6, 100, true, 2),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	create, ok := action.(createAction)
 	require.True(t, ok, "cross-family: should create new pool immediately (independent headroom)")
@@ -321,7 +329,7 @@ func TestSameFamilyGrowBeforeSqueeze(t *testing.T) {
 		poolState("old1", specE32v6, "1", 6, 100, true, 2),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	create, ok := action.(createAction)
 	require.True(t, ok, "same-family with generous budget: should create new pool immediately")
@@ -344,7 +352,7 @@ func TestSameFamilyConstrainedBudget(t *testing.T) {
 	// controller creates the replacement pool throttled to what currently fits
 	// quota (max=2) instead of refusing all progress. old1's 2 running nodes are
 	// accounted via the budget baseline, not double-counted in the ceiling.
-	action := findNextAction(desired, current, tightBudget, compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, tightBudget, transitionFloor{}, compute.NetworkConfig{})
 	create, ok := action.(createAction)
 	require.True(t, ok, "tight budget should still allow a throttled create")
 	assert.Equal(t, "new1", create.poolName())
@@ -365,7 +373,7 @@ func TestFailedUndesiredPoolDoesNotBlock(t *testing.T) {
 		},
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action, "Failed undesired pool should not block")
 	_, isWait := action.(waitAction)
 	assert.False(t, isWait, "should not return waitAction for failed undesired pool")
@@ -386,8 +394,10 @@ func TestUndesiredSystemPoolDeletedDirectly(t *testing.T) {
 		poolState("wrk1", specE32v6, "1", 2, 512, true, 1),
 		systemPoolState("s0old", specD4v3, "1", 1, 128, false, 1),
 	}
+	// Provider mode, not the grouping label, determines the deletion path.
+	current[0].Role, current[2].Role = "control", "legacy"
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	requireAction(t, newDeleteAction("s0old", "Standard_D4s_v3", "1", "etag-s0old"), action)
 }
@@ -404,8 +414,9 @@ func TestUndesiredSystemPoolPreservedWithoutSurvivor(t *testing.T) {
 		poolState("wrk1", specE32v6, "1", 2, 512, true, 1),
 		systemPoolState("s0old", specD4v3, "1", 1, 128, false, 1),
 	}
+	current[1].Role = "custom"
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	assert.Nil(t, action, "must not drain or delete the last system pool")
 }
 
@@ -436,7 +447,7 @@ func TestCreateSeedsMinCountFromTier(t *testing.T) {
 	p.MinCount = 3
 	desired := []compute.Pool{p}
 
-	action := findNextAction(desired, nil, generousBudgets(desired, nil), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, nil, generousBudgets(desired, nil), transitionFloor{}, compute.NetworkConfig{})
 	create, ok := action.(createAction)
 	require.True(t, ok, "expected a create action")
 	assert.Equal(t, int32(3), create.Pool.MinCount)
@@ -453,7 +464,7 @@ func TestCreateReclampsMinToFitHeadroom(t *testing.T) {
 	// One node of headroom (specE32v6 is 32 vCPUs) forces MaxCount to 1.
 	budgets := map[compute.VMFamily]int64{specE32v6.Family: 32}
 
-	action := findNextAction(desired, nil, budgets, compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, nil, budgets, transitionFloor{}, compute.NetworkConfig{})
 	create, ok := action.(createAction)
 	require.True(t, ok, "expected a create action")
 	assert.Equal(t, int32(1), create.Pool.MaxCount)
@@ -470,7 +481,7 @@ func TestUnfreezePreservesLiveMin(t *testing.T) {
 	cur.MinCount = 3
 	current := []PoolState{cur}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	requireAction(t, newUnfreezeAction("w1", "Standard_E32ds_v6", "1", "etag-w1", 3, 6), action)
 }
 
@@ -484,7 +495,7 @@ func TestSetScalingBoundsClampsMinToNewMax(t *testing.T) {
 	cur.MinCount = 4
 	current := []PoolState{cur}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	requireAction(t, newSetScalingBoundsAction("w1", "Standard_E32ds_v6", "1", "etag-w1", 2, 2), action)
 }
 
@@ -499,7 +510,7 @@ func TestMatchedPoolMinNotReset(t *testing.T) {
 	cur.MinCount = 5
 	current := []PoolState{cur}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	assert.Nil(t, action, "must not reset a live MinCount owned by another controller")
 }
 
@@ -517,7 +528,7 @@ func TestFailedDesiredPoolReconcileBeforeMaxCountChange(t *testing.T) {
 		},
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	requireAction(t, newReconcileAction("w1abc", "Standard_E32ds_v6", "1", "etag-w1abc"), action)
 }
@@ -537,7 +548,7 @@ func TestInProgressPoolBlocksAllZones(t *testing.T) {
 		},
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	requireAction(t, newWaitAction("old1", "Standard_D4s_v3", "1", 1*time.Minute), action)
 }
@@ -551,7 +562,7 @@ func TestOperatorReenablesAutoscaler(t *testing.T) {
 		poolState("new1", specE32v6, "1", 6, 512, true, 1),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	setBounds, ok := action.(setScalingBoundsAction)
 	require.True(t, ok, "should squeeze old1 max toward count")
@@ -568,7 +579,7 @@ func TestConfigRollback(t *testing.T) {
 		poolState("w1abc", specE32v6, "1", 2, 512, false, 2),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	requireAction(t, newUnfreezeAction("w1abc", "Standard_E32ds_v6", "1", "etag-w1abc", 1, 6), action)
 }
@@ -602,7 +613,7 @@ func TestDesiredChangesMidReplace(t *testing.T) {
 
 	desired := []compute.Pool{pool("new1", specE32v6, "1", 6, 512)}
 	budgets := generousBudgets(desired, current)
-	action := findNextAction(desired, current, budgets, compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, budgets, transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	create, ok := action.(createAction)
 	require.True(t, ok, "same-family with generous budget: should create new pool immediately")
@@ -624,7 +635,7 @@ func TestNodeFailureDuringDrain(t *testing.T) {
 		poolState("new1", specE32v6, "1", 6, 512, true, 1),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	reduce, ok := action.(reduceAction)
 	require.True(t, ok, "should reduce remaining node")
@@ -764,7 +775,7 @@ func TestMixedState_MatchedMissingUndesired(t *testing.T) {
 	current := []PoolState{
 		poolState("a1", specE32v6, "1", 6, 512, true, 3),
 		poolState("b1", specD4v3, "1", 6, 100, true, 2),
-		poolState("c1", specD4v3, "2", 6, 100, true, 2),
+		poolState("c1", specD4v3, "1", 6, 100, true, 2),
 	}
 	budgets := map[compute.VMFamily]int64{
 		specE32v6.Family: 6 * specE32v6.VCPUs,
@@ -789,7 +800,7 @@ func TestMultipleUndesiredAtDifferentStages(t *testing.T) {
 		poolState("old_empty", specE32v6, "3", 0, 100, false, 0),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	setBounds, ok := action.(setScalingBoundsAction)
 	require.True(t, ok, "should squeeze autoscaled undesired pool first")
@@ -812,7 +823,7 @@ func TestReconcileDesiredBeforeShrinkUndesired(t *testing.T) {
 		poolState("old1", specE32v6, "1", 6, 100, true, 2),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	reconcile, ok := action.(reconcileAction)
 	require.True(t, ok, "should reconcile failed desired pool before shrinking undesired")
@@ -834,7 +845,7 @@ func TestUndesiredPoolCountExceedsMax(t *testing.T) {
 		},
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action, "should not be stuck — undesired pool needs freezing")
 	freeze, ok := action.(freezeAction)
 	require.True(t, ok, "should freeze undesired pool where count > max")
@@ -853,9 +864,9 @@ func TestDeterministicActionSelection(t *testing.T) {
 		poolState("old3", specE32v6, "3", 2, 100, false, 1),
 	}
 
-	first := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	first := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	for range 20 {
-		again := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+		again := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 		assert.Equal(t, first.poolName(), again.poolName(), "action pool should be deterministic")
 		assert.Equal(t, first.kind(), again.kind(), "action type should be deterministic")
 	}
@@ -867,7 +878,7 @@ func TestCompleteTeardownPreservesExisting(t *testing.T) {
 		poolState("a2", specD4v3, "2", 6, 100, true, 3),
 	}
 
-	action := findNextAction(nil, current, generousBudgets(nil, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(nil, current, generousBudgets(nil, current), transitionFloor{}, compute.NetworkConfig{})
 	assert.Nil(t, action, "should preserve existing pools when desired is empty")
 }
 
@@ -1059,13 +1070,13 @@ func TestFindNextAction_InProgressGatesDrift(t *testing.T) {
 	budgets := generousBudgets(desired, drifted("Succeeded"))
 
 	t.Run("in-progress pool gates drift", func(t *testing.T) {
-		action := findNextAction(desired, drifted(provisioningStateUpdating), budgets, compute.CapacityByRole{}, compute.NetworkConfig{})
+		action := findNextAction(desired, drifted(provisioningStateUpdating), budgets, transitionFloor{}, compute.NetworkConfig{})
 		_, isWait := action.(waitAction)
 		assert.True(t, isWait, "drift correction must wait while the pool is in progress")
 	})
 
 	t.Run("settled pool gets drift correction", func(t *testing.T) {
-		action := findNextAction(desired, drifted("Succeeded"), budgets, compute.CapacityByRole{}, compute.NetworkConfig{})
+		action := findNextAction(desired, drifted("Succeeded"), budgets, transitionFloor{}, compute.NetworkConfig{})
 		_, isUpdate := action.(updateConfigAction)
 		assert.True(t, isUpdate, "settled drift must produce an update config action")
 	})

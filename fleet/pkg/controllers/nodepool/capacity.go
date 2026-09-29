@@ -35,6 +35,7 @@ func configurationConverged(desired []compute.Pool, current []PoolState) bool {
 		if !exists || cur.ProvisioningState != "Succeeded" || !cur.AutoScalingEnabled ||
 			cur.MaxCount != pool.MaxCount || cur.Count > pool.MaxCount || cur.Spec.Size != pool.Spec.Size || cur.Role != pool.Role ||
 			cur.OSDiskSizeGB != pool.OSDiskSizeGB || cur.MaxPods != pool.MaxPods || cur.EnableSwift != pool.EnableSwift ||
+			cur.AgentPoolMode != pool.AgentPoolMode || cur.SecondaryNICs != pool.SecondaryNICs ||
 			!taintsEqual(cur.AvailabilityZones, pool.AvailabilityZones) || !maps.Equal(cur.Labels, pool.Labels) || !taintsEqual(cur.Taints, pool.Taints) {
 			return false
 		}
@@ -42,29 +43,26 @@ func configurationConverged(desired []compute.Pool, current []PoolState) bool {
 	return true
 }
 
-// allowsCapacityReduction protects the accepted transition floor of the affected
-// role. A rejected candidate does not prevent the planner from considering
-// other pools or growing replacement capacity. ARM/SKU data is validated by
-// the controller before planning; Swift counts are the pool's configured counts.
-func allowsCapacityReduction(current []PoolState, pool PoolState, newCeiling int64, capacityFloor compute.CapacityByRole) bool {
+// transitionFloor is the capacity a pool transition must preserve in every
+// role-zone bucket, including the non-zonal bucket.
+type transitionFloor struct {
+	zones compute.CapacityByRoleZone
+}
+
+// allowsCapacityReduction protects the accepted floor of the affected role-zone
+// bucket. A rejected candidate does not prevent the planner from considering
+// other pools or growing replacement capacity.
+func allowsCapacityReduction(current []PoolState, pool PoolState, newCeiling int64, floor transitionFloor) bool {
 	delta := poolCeiling(pool) - newCeiling
 	if delta <= 0 {
 		return true
 	}
-	var capacity compute.RoleCapacity
-	for _, cur := range current {
-		if cur.Role != pool.Role {
-			continue
-		}
-		poolCapacity := cur.CapacityAtCount(poolCeiling(cur))
-		capacity.VCPUs += poolCapacity.VCPUs
-		capacity.MemoryBytes += poolCapacity.MemoryBytes
-		capacity.SwiftNICs += poolCapacity.SwiftNICs
-	}
 	reduction := pool.CapacityAtCount(delta)
-	capacity.VCPUs -= reduction.VCPUs
-	capacity.MemoryBytes -= reduction.MemoryBytes
-	capacity.SwiftNICs -= reduction.SwiftNICs
-	floor := capacityFloor[pool.Role]
-	return capacity.VCPUs >= floor.VCPUs && capacity.MemoryBytes >= floor.MemoryBytes && capacity.SwiftNICs >= floor.SwiftNICs
+	zoneCapacity, err := compute.PoolZoneCapacities(ceilingPools(current))
+	if err != nil {
+		// Unattributable capacity: refuse rather than guess.
+		return false
+	}
+	key := pool.RoleZoneKey()
+	return zoneCapacity[key].Sub(reduction).Covers(floor.zones[key])
 }

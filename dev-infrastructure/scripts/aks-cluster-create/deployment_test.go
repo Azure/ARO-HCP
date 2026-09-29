@@ -81,7 +81,9 @@ func TestBuildDeploymentResourceOwnership(t *testing.T) {
 	bootstrap.EnableSwift = true
 	worker := compute.Pool{
 		Name: "worker1", Role: compute.PoolRoleWorker,
+		AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
 		Spec:              compute.VMSpec{Size: "Standard_E16ds_v6", SecondaryNICs: 2},
+		SecondaryNICs:     2,
 		AvailabilityZones: []string{"2"}, MinCount: 2, MaxCount: 7,
 		OSDiskSizeGB: 128, MaxPods: 42, EnableSwift: true,
 		Labels: map[string]string{compute.RoleLabel: string(compute.PoolRoleWorker)},

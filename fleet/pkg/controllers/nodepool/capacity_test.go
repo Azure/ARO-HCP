@@ -19,6 +19,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
@@ -43,7 +45,12 @@ func TestConfigurationConverged(t *testing.T) {
 		{name: "zone drift", change: func(p []PoolState) []PoolState { p[0].AvailabilityZones = []string{"2"}; return p }},
 		{name: "disk drift", change: func(p []PoolState) []PoolState { p[0].OSDiskSizeGB = 64; return p }},
 		{name: "node count exceeds target", change: func(p []PoolState) []PoolState { p[0].Count = 4; return p }},
-		{name: "operator-configured NIC count below the SKU ceiling", change: func(p []PoolState) []PoolState { p[0].Spec.SecondaryNICs = 2; return p }, want: true},
+		{name: "SKU NIC maximum is not configured capacity", change: func(p []PoolState) []PoolState { p[0].Spec.SecondaryNICs = 2; return p }, want: true},
+		{name: "configured NIC drift", change: func(p []PoolState) []PoolState { p[0].SecondaryNICs = 2; return p }},
+		{name: "provider mode drift", change: func(p []PoolState) []PoolState {
+			p[0].AgentPoolMode = armcontainerservice.AgentPoolModeSystem
+			return p
+		}},
 		{name: "vm size drift", change: func(p []PoolState) []PoolState { p[0].Spec.Size = "other"; return p }},
 	}
 	for _, test := range tests {
@@ -79,14 +86,53 @@ func TestAllowsCapacityReduction(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			current := []PoolState{{Pool: compute.Pool{Name: "old", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: test.ceiling, EnableSwift: true}, Count: test.count, AutoScalingEnabled: true}}
+			current := []PoolState{{Pool: compute.Pool{Name: "old", Role: "custom", SecondaryNICs: 2, Spec: compute.VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 7}, MaxCount: test.ceiling, EnableSwift: true}, Count: test.count, AutoScalingEnabled: true}}
 			if test.overlap {
-				current = append(current, PoolState{Pool: compute.Pool{Name: "new", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: 5, EnableSwift: true}, Count: 1, AutoScalingEnabled: true})
+				current = append(current, PoolState{Pool: compute.Pool{Name: "new", Role: "custom", SecondaryNICs: 2, Spec: compute.VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 7}, MaxCount: 5, EnableSwift: true}, Count: 1, AutoScalingEnabled: true})
 			}
-			baseline := compute.CapacityByRole{compute.PoolRoleSystem: {}, compute.PoolRoleInfra: {}, compute.PoolRoleWorker: test.floor}
-			require.Equal(t, test.want, allowsCapacityReduction(current, current[0], test.next, baseline))
+			baseline := compute.CapacityByRoleZone{{Role: "custom"}: test.floor}
+			require.Equal(t, test.want, allowsCapacityReduction(current, current[0], test.next, transitionFloor{zones: baseline}))
 			require.Equal(t, test.ceiling, current[0].MaxCount)
 			require.Equal(t, test.count, current[0].Count)
+		})
+	}
+}
+
+// Capacity in another zone cannot cover a reduction in any role.
+func TestAllowsCapacityReductionRoleZoneFloor(t *testing.T) {
+	onlyCPU := func(c compute.RoleCapacity) compute.RoleCapacity { return compute.RoleCapacity{VCPUs: c.VCPUs} }
+	onlyMemory := func(c compute.RoleCapacity) compute.RoleCapacity {
+		return compute.RoleCapacity{MemoryBytes: c.MemoryBytes}
+	}
+	onlyNICs := func(c compute.RoleCapacity) compute.RoleCapacity { return compute.RoleCapacity{SwiftNICs: c.SwiftNICs} }
+	tests := []struct {
+		name      string
+		role      compute.PoolRole
+		zone      string
+		coverZone string
+		zoneFloor func(compute.RoleCapacity) compute.RoleCapacity
+		want      bool
+	}{
+		{name: "custom role covered in its own zone", role: "custom", zone: "1", coverZone: "1", zoneFloor: onlyCPU, want: true},
+		{name: "CPU covered only in another zone", role: "custom", zone: "1", coverZone: "2", zoneFloor: onlyCPU},
+		{name: "memory covered only in another zone", role: "custom", zone: "1", coverZone: "2", zoneFloor: onlyMemory},
+		{name: "NICs covered only in another zone", role: "custom", zone: "1", coverZone: "2", zoneFloor: onlyNICs},
+		{name: "infra covered only in another zone", role: compute.PoolRoleInfra, zone: "1", coverZone: "2", zoneFloor: onlyCPU},
+		{name: "non-zonal floor not covered by zonal capacity", role: "custom", coverZone: "2", zoneFloor: onlyCPU},
+		{name: "non-zonal capacity covers its bucket", role: "custom", zoneFloor: onlyCPU, want: true},
+		{name: "zone without floor", role: "custom", zone: "1", coverZone: "2", want: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			old := poolState("old", specE32v6, test.zone, 4, 512, false, 4)
+			cover := poolState("cover", specE32v6, test.coverZone, 4, 512, true, 1)
+			old.Role, cover.Role = test.role, test.role
+			current := []PoolState{old, cover}
+			floor := transitionFloor{}
+			if test.zoneFloor != nil {
+				floor.zones = compute.CapacityByRoleZone{{Role: test.role, Zone: test.zone}: test.zoneFloor(old.CapacityAtCount(4))}
+			}
+			require.Equal(t, test.want, allowsCapacityReduction(current, old, 3, floor))
 		})
 	}
 }
@@ -121,8 +167,8 @@ func TestFindNextActionSkipsUnsafeCorrections(t *testing.T) {
 				infra.MaxCount = 2
 				current = append(current, PoolState{Pool: infra, Count: 1, AutoScalingEnabled: true, ProvisioningState: "Succeeded"})
 			}
-			baseline := compute.CapacityByRole{compute.PoolRoleSystem: {}, compute.PoolRoleInfra: {}, compute.PoolRoleWorker: {VCPUs: 40, MemoryBytes: memoryBytes("160Gi")}}
-			action := findNextAction(desired, current, map[compute.VMFamily]int64{"family": test.headroom}, baseline, compute.NetworkConfig{})
+			baseline := compute.CapacityByRoleZone{{Role: compute.PoolRoleWorker}: {VCPUs: 40, MemoryBytes: memoryBytes("160Gi")}}
+			action := findNextAction(desired, current, map[compute.VMFamily]int64{"family": test.headroom}, transitionFloor{zones: baseline}, compute.NetworkConfig{})
 			if len(test.wantType) == 0 {
 				require.Nil(t, action)
 				return
@@ -147,7 +193,7 @@ func TestProtectedReplacement(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			desired := []compute.Pool{{Name: "new", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Size: "sku", Family: "family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: test.desiredMax, EnableSwift: true}}
+			desired := []compute.Pool{{Name: "new", Role: "custom", AgentPoolMode: armcontainerservice.AgentPoolModeUser, SecondaryNICs: 2, Spec: compute.VMSpec{Size: "sku", Family: "family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: test.desiredMax, EnableSwift: true}}
 			old := desired[0]
 			old.Name = "old"
 			old.MaxCount = 10
@@ -168,15 +214,14 @@ func TestProtectedReplacement(t *testing.T) {
 	}
 }
 
-// A partial plan (quota short of the target) must keep the initial capacity of
-// the worker role; it may only replace it.
+// A partial plan must keep the initial capacity of every role-zone bucket.
 func TestPartialPlanProtectsInitialCapacity(t *testing.T) {
 	spec := compute.VMSpec{Size: "sku", Family: "family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}
 	tests := []struct {
-		name    string
-		desired []compute.Pool
-		current []PoolState
-		wantErr string
+		name     string
+		desired  []compute.Pool
+		current  []PoolState
+		rejected bool
 	}{
 		{
 			name:    "replacement at the initial capacity converges",
@@ -184,18 +229,24 @@ func TestPartialPlanProtectsInitialCapacity(t *testing.T) {
 			current: []PoolState{poolState("old", spec, "1", 10, 32, true, 5)},
 		},
 		{
-			name:    "shrinking below the initial capacity is rejected",
-			desired: []compute.Pool{pool("new", spec, "1", 8, 32)},
-			current: []PoolState{poolState("old", spec, "1", 10, 32, true, 5)},
-			wantErr: "worker capacity",
+			name:     "shrinking below the initial capacity is rejected",
+			desired:  []compute.Pool{pool("new", spec, "1", 8, 32)},
+			current:  []PoolState{poolState("old", spec, "1", 10, 32, true, 5)},
+			rejected: true,
+		},
+		{
+			name:     "moving worker capacity between zones is rejected",
+			desired:  []compute.Pool{pool("new1", spec, "1", 8, 32), pool("new2", spec, "2", 2, 32)},
+			current:  []PoolState{poolState("old1", spec, "1", 5, 32, true, 5), poolState("old2", spec, "2", 5, 32, true, 5)},
+			rejected: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			tr := requireSimulation(t, test.desired, test.current, map[compute.VMFamily]int64{"family": 40}, false, 60)
-			if len(test.wantErr) > 0 {
+			if test.rejected {
 				require.Equal(t, "rejected", tr.Outcome)
-				require.ErrorContains(t, tr.RejectedPlan, test.wantErr)
+				require.Error(t, tr.RejectedPlan)
 				require.Empty(t, tr.Steps)
 				return
 			}
@@ -205,12 +256,24 @@ func TestPartialPlanProtectsInitialCapacity(t *testing.T) {
 	}
 }
 
+// A pool spanning several zones cannot be protected per zone.
+func TestPoolSpanningZonesIsRejected(t *testing.T) {
+	desired := []compute.Pool{pool("new", specE32v6, "1", 4, 512)}
+	spread := poolState("spread", specE32v6, "1", 4, 512, true, 2)
+	spread.AvailabilityZones = []string{"1", "2"}
+	desired[0].Role = "custom"
+	spread.Role = "custom"
+	tr := requireSimulation(t, desired, []PoolState{spread}, map[compute.VMFamily]int64{specE32v6.Family: 1000}, true, 10)
+	require.Equal(t, "rejected", tr.Outcome)
+	require.Error(t, tr.RejectedPlan)
+}
+
 func TestFindNextActionSkipsUnsafeShrinks(t *testing.T) {
 	tests := []struct {
 		name     string
 		desired  []compute.Pool
 		current  []PoolState
-		baseline compute.CapacityByRole
+		baseline compute.CapacityByRoleZone
 		wantType actionType
 		wantPool string
 	}{
@@ -224,21 +287,21 @@ func TestFindNextActionSkipsUnsafeShrinks(t *testing.T) {
 				{Pool: compute.Pool{Name: "a-worker", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Family: "workerFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 10}, Count: 5, AutoScalingEnabled: true},
 				{Pool: compute.Pool{Name: "z-infra", Role: compute.PoolRoleInfra, Spec: compute.VMSpec{Family: "infraFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 2}, Count: 1, AutoScalingEnabled: true},
 			},
-			baseline: compute.CapacityByRole{compute.PoolRoleSystem: {}, compute.PoolRoleInfra: {VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, compute.PoolRoleWorker: {VCPUs: 40, MemoryBytes: memoryBytes("160Gi")}},
+			baseline: compute.CapacityByRoleZone{{Role: compute.PoolRoleInfra}: {VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, {Role: compute.PoolRoleWorker}: {VCPUs: 40, MemoryBytes: memoryBytes("160Gi")}},
 			wantType: actionSetScalingBounds, wantPool: "z-infra",
 		},
 		{
 			name: "blocked system deletion permits worker squeeze",
 			desired: []compute.Pool{
-				{Name: "keep-system", Role: compute.PoolRoleSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 3},
+				{Name: "keep-system", Role: compute.PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 3},
 				{Name: "new-worker", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Family: "workerFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 1},
 			},
 			current: []PoolState{
-				{Pool: compute.Pool{Name: "keep-system", Role: compute.PoolRoleSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 1}, Count: 1, AutoScalingEnabled: true},
-				{Pool: compute.Pool{Name: "old-system", Role: compute.PoolRoleSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 3}, Count: 3, AutoScalingEnabled: true},
+				{Pool: compute.Pool{Name: "keep-system", Role: compute.PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 1}, Count: 1, AutoScalingEnabled: true},
+				{Pool: compute.Pool{Name: "old-system", Role: compute.PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 3}, Count: 3, AutoScalingEnabled: true},
 				{Pool: compute.Pool{Name: "old-worker", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Family: "workerFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 5}, Count: 1, AutoScalingEnabled: true},
 			},
-			baseline: compute.CapacityByRole{compute.PoolRoleSystem: {VCPUs: 12, MemoryBytes: memoryBytes("48Gi")}, compute.PoolRoleInfra: {}, compute.PoolRoleWorker: {VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}},
+			baseline: compute.CapacityByRoleZone{{Role: compute.PoolRoleSystem}: {VCPUs: 12, MemoryBytes: memoryBytes("48Gi")}, {Role: compute.PoolRoleWorker}: {VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}},
 			wantType: actionSetScalingBounds, wantPool: "old-worker",
 		},
 		{
@@ -248,16 +311,16 @@ func TestFindNextActionSkipsUnsafeShrinks(t *testing.T) {
 				{Pool: compute.Pool{Name: "a-high-memory", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Family: "family", VCPUs: 4, MemoryBytes: memoryBytes("32Gi")}, MaxCount: 1}, Count: 1},
 				{Pool: compute.Pool{Name: "b-low-memory", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Family: "family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 1}, Count: 1},
 			},
-			baseline: compute.CapacityByRole{compute.PoolRoleSystem: {}, compute.PoolRoleInfra: {}, compute.PoolRoleWorker: {VCPUs: 4, MemoryBytes: memoryBytes("32Gi")}},
+			baseline: compute.CapacityByRoleZone{{Role: compute.PoolRoleWorker}: {VCPUs: 4, MemoryBytes: memoryBytes("32Gi")}},
 			wantType: actionReduce, wantPool: "b-low-memory",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			desiredCapacity, err := compute.PoolCapacities(test.desired)
+			desiredCapacity, err := compute.PoolZoneCapacities(test.desired)
 			require.NoError(t, err)
 			require.NoError(t, desiredCapacity.EnsureMeetsBaseline(test.baseline))
-			action := findNextAction(test.desired, test.current, map[compute.VMFamily]int64{}, test.baseline, compute.NetworkConfig{})
+			action := findNextAction(test.desired, test.current, map[compute.VMFamily]int64{}, transitionFloor{zones: test.baseline}, compute.NetworkConfig{})
 			require.NotNil(t, action)
 			require.Equal(t, test.wantType, action.kind())
 			require.Equal(t, test.wantPool, action.poolName())
@@ -281,8 +344,8 @@ func TestFindNextActionDrainUsesBaseline(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			desired := []compute.Pool{
-				{Name: "new-a", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Size: "sku-a", Family: "family-a", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: 10, EnableSwift: true},
-				{Name: "new-b", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Size: "sku-b", Family: "family-b", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: 10, EnableSwift: true},
+				{Name: "new-a", Role: compute.PoolRoleWorker, SecondaryNICs: 2, Spec: compute.VMSpec{Size: "sku-a", Family: "family-a", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: 10, EnableSwift: true},
+				{Name: "new-b", Role: compute.PoolRoleWorker, SecondaryNICs: 2, Spec: compute.VMSpec{Size: "sku-b", Family: "family-b", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: 10, EnableSwift: true},
 			}
 			old := desired[0]
 			old.Name = "old-a"
@@ -291,20 +354,21 @@ func TestFindNextActionDrainUsesBaseline(t *testing.T) {
 				{Pool: desired[1], Count: 1, AutoScalingEnabled: true, ProvisioningState: "Succeeded"},
 			}
 			current[1].MaxCount = 5
-			baseline := compute.CapacityByRole{compute.PoolRoleSystem: {}, compute.PoolRoleInfra: {}, compute.PoolRoleWorker: test.baseline}
-			desiredCapacity, err := compute.PoolCapacities(desired)
+			baseline := compute.CapacityByRoleZone{{Role: compute.PoolRoleWorker}: test.baseline}
+			desiredCapacity, err := compute.PoolZoneCapacities(desired)
 			require.NoError(t, err)
 			require.NoError(t, desiredCapacity.EnsureMeetsBaseline(baseline))
 			// The new family's four unused slots consume all its available quota.
-			action := findNextAction(desired, current, map[compute.VMFamily]int64{"family-a": 0, "family-b": 16}, baseline, compute.NetworkConfig{})
+			action := findNextAction(desired, current, map[compute.VMFamily]int64{"family-a": 0, "family-b": 16}, transitionFloor{zones: baseline}, compute.NetworkConfig{})
 			if !test.wantDrain {
 				require.Nil(t, action)
 				return
 			}
 			requireAction(t, newReduceAction("old-a", "sku-a", "", "", 9), action)
-			capacity := requireStateCapacity(t, requireAppliedAction(t, current, action))
+			capacity, err := compute.PoolZoneCapacities(ceilingPools(requireAppliedAction(t, current, action)))
+			require.NoError(t, err)
 			require.NoError(t, capacity.EnsureMeetsBaseline(baseline))
-			require.Equal(t, compute.RoleCapacity{VCPUs: 56, MemoryBytes: memoryBytes("224Gi"), SwiftNICs: 28}, capacity[compute.PoolRoleWorker])
+			require.Equal(t, compute.RoleCapacity{VCPUs: 56, MemoryBytes: memoryBytes("224Gi"), SwiftNICs: 28}, capacity[compute.RoleZone{Role: compute.PoolRoleWorker}])
 		})
 	}
 }

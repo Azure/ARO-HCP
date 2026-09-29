@@ -46,10 +46,6 @@ const (
 // pools outside the controller's reconcile loop, so pools always look the
 // same regardless of which caller created them.
 func Build(pool compute.Pool, networkConfig compute.NetworkConfig) *armcontainerservice.ManagedClusterAgentPoolProfileProperties {
-	mode := armcontainerservice.AgentPoolModeUser
-	if pool.Role == compute.PoolRoleSystem {
-		mode = armcontainerservice.AgentPoolModeSystem
-	}
 
 	labels := make(map[string]*string, len(pool.Labels))
 	for k, v := range pool.Labels {
@@ -66,10 +62,8 @@ func Build(pool compute.Pool, networkConfig compute.NetworkConfig) *armcontainer
 		tags = map[string]*string{
 			SwiftMultiTenancyTag: ptr.To(SwiftMultiTenancyEnabledValue),
 		}
-		// Only worker pools carry a secondary-NIC count; system pools are Swift
-		// (multi-tenancy) but attach no secondary NICs (matches pool.bicep).
-		if pool.Role == compute.PoolRoleWorker && pool.Spec.SecondaryNICs > 0 {
-			tags[SwiftSecondaryNICCountTag] = ptr.To(strconv.FormatInt(pool.Spec.SecondaryNICs, 10))
+		if pool.SecondaryNICs > 0 {
+			tags[SwiftSecondaryNICCountTag] = ptr.To(strconv.FormatInt(pool.SecondaryNICs, 10))
 		}
 	}
 
@@ -86,7 +80,7 @@ func Build(pool compute.Pool, networkConfig compute.NetworkConfig) *armcontainer
 		EnableAutoScaling:      ptr.To(true),
 		MinCount:               ptr.To(pool.MinCount),
 		MaxCount:               ptr.To(pool.MaxCount),
-		Mode:                   ptr.To(mode),
+		Mode:                   ptr.To(pool.AgentPoolMode),
 		Type:                   ptr.To(armcontainerservice.AgentPoolTypeVirtualMachineScaleSets),
 		OSSKU:                  ptr.To(armcontainerservice.OSSKUAzureLinux),
 		OSType:                 ptr.To(armcontainerservice.OSTypeLinux),

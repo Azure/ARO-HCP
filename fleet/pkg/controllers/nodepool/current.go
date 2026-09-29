@@ -127,6 +127,7 @@ func currentPoolStates(pools []armcontainerservice.AgentPool, skuMetadata map[st
 		result = append(result, PoolState{
 			Pool: compute.Pool{
 				Role:              role,
+				AgentPoolMode:     ptr.Deref(pool.Properties.Mode, ""),
 				Name:              *pool.Name,
 				Spec:              spec,
 				AvailabilityZones: zones,
@@ -161,22 +162,29 @@ func unresolvedSKUSizes(current []PoolState) []string {
 	return sizes
 }
 
-// workerPoolZones returns the sorted zones of the cluster's worker pools. These
-// zones are fixed once worker pools exist: etcd runs on worker pools and its
-// zonal disks cannot move to another zone.
-func workerPoolZones(pools []armcontainerservice.AgentPool) []string {
-	zones := sets.New[string]()
+// poolZonesByRole returns the sorted actual zones of each managed role.
+// Existing zonal capacity cannot move to a different zone.
+func poolZonesByRole(pools []armcontainerservice.AgentPool) map[compute.PoolRole][]string {
+	zones := make(map[compute.PoolRole]sets.Set[string])
 	for _, pool := range pools {
-		if !agentpools.IsWorkerPool(pool) || pool.Properties == nil {
+		if !agentpools.IsManagedPool(pool) || pool.Properties == nil {
 			continue
 		}
+		role := compute.PoolRole(agentpools.RoleFromAgentPool(pool))
+		if zones[role] == nil {
+			zones[role] = sets.New[string]()
+		}
 		for _, zone := range pool.Properties.AvailabilityZones {
-			if zone != nil {
-				zones.Insert(*zone)
+			if zone != nil && len(*zone) > 0 {
+				zones[role].Insert(*zone)
 			}
 		}
 	}
-	return sets.List(zones)
+	result := make(map[compute.PoolRole][]string, len(zones))
+	for role, roleZones := range zones {
+		result[role] = sets.List(roleZones)
+	}
+	return result
 }
 
 func hasSwiftTags(pool armcontainerservice.AgentPool) bool {

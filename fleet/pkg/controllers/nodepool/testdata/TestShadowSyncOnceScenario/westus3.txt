@@ -10,17 +10,16 @@ initial:
   userswft3  worker  Standard_E16ds_v6  zone=3      max=14  count=6  autoscaled
 
 desired:
-  sys0fe1457    system  Standard_E8ds_v7   zone=   max=3
-  inf16a742c    infra   Standard_E32ds_v7  zone=1  max=1
-  inf17dc270    infra   Standard_E32ds_v6  zone=1  max=2
-  inf27dc270    infra   Standard_E32ds_v6  zone=2  max=3
-  wrk161690783  worker  Standard_E16ds_v6  zone=1  max=11
-  wrk162690783  worker  Standard_E16ds_v6  zone=2  max=11
-  wrk163690783  worker  Standard_E16ds_v6  zone=3  max=9
-  wrk1635a648b  worker  Standard_E16ds_v5  zone=3  max=2
-  wrk3216c3e65  worker  Standard_E32ds_v5  zone=1  max=1
-  wrk32275eaaf  worker  Standard_E32ds_v4  zone=2  max=1
-  wrk32375eaaf  worker  Standard_E32ds_v4  zone=3  max=1
+  sys07f2007    system  Standard_E4ds_v7   zone=   max=2
+  inf1ffd86f    infra   Standard_E4ds_v7   zone=1  max=2
+  inf2ffd86f    infra   Standard_E4ds_v7   zone=2  max=2
+  wrk1616be3e6  worker  Standard_E16ds_v7  zone=1  max=3
+  wrk16101f738  worker  Standard_E16ds_v6  zone=1  max=17
+  wrk16201f738  worker  Standard_E16ds_v6  zone=2  max=20
+  wrk16301f738  worker  Standard_E16ds_v6  zone=3  max=5
+  wrk163c0b180  worker  Standard_E16ds_v5  zone=3  max=5
+  wrk1634cff74  worker  Standard_E16ds_v4  zone=3  max=5
+  wrk1637435c4  worker  Standard_E16s_v3   zone=3  max=5
 
 budget (vCPUs):
   StandardEdsv6Family:  392
@@ -39,16 +38,19 @@ initial headroom (vCPUs):
 fully allocated: false
 
 initial capacity:
-  system:  cpu=32   memory=256GiB   swiftNICs=0
   infra:   cpu=24   memory=96GiB    swiftNICs=0
-  worker:  cpu=672  memory=5376GiB  swiftNICs=294
-
-role floor:
   system:  cpu=32   memory=256GiB   swiftNICs=0
-  infra:   cpu=24   memory=96GiB    swiftNICs=0
-  worker:  cpu=672  memory=5376GiB  swiftNICs=294
+  worker:  cpu=672  memory=5376GiB  swiftNICs=0
 
-rejected desired plan: system capacity {VCPUs:24 MemoryGiB:192 SwiftNICs:0} is below protected baseline {VCPUs:32 MemoryGiB:256 SwiftNICs:0}
+role-zone floor:
+  infra zone 1:   cpu=12   memory=48GiB    swiftNICs=0
+  infra zone 2:   cpu=12   memory=48GiB    swiftNICs=0
+  system:         cpu=32   memory=256GiB   swiftNICs=0
+  worker zone 1:  cpu=224  memory=1792GiB  swiftNICs=0
+  worker zone 2:  cpu=224  memory=1792GiB  swiftNICs=0
+  worker zone 3:  cpu=224  memory=1792GiB  swiftNICs=0
+
+rejected desired plan: infra capacity {VCPUs:8 MemoryGiB:64 SwiftNICs:0} in zone "1" is below protected baseline {VCPUs:12 MemoryGiB:48 SwiftNICs:0}
 
 actions:
   (none)
@@ -56,4 +58,4 @@ actions:
 steps:      0
 converged:  false
 outcome:    rejected
-reason:     system capacity {VCPUs:24 MemoryGiB:192 SwiftNICs:0} is below protected baseline {VCPUs:32 MemoryGiB:256 SwiftNICs:0}
+reason:     infra capacity {VCPUs:8 MemoryGiB:64 SwiftNICs:0} in zone "1" is below protected baseline {VCPUs:12 MemoryGiB:48 SwiftNICs:0}

@@ -21,10 +21,12 @@ package compute
 import (
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 )
 
-// PoolRole identifies the operational role of a node pool tier.
+// PoolRole is an opaque, nonempty grouping key and node label for a tier.
 type PoolRole string
 
 const (
@@ -59,10 +61,8 @@ const (
 // "StandardEdsv6Family"). It disambiguates map keys from raw VM size strings.
 type VMFamily string
 
-// VMSpec captures the hardware characteristics of a VM size. Bundling these
-// fields into a single struct makes it impossible to construct a Pool
-// without specifying family, vCPU count, and NIC count — preventing silent
-// zero-value bugs in tests and production code.
+// VMSpec captures a VM size's hardware capacity, including its maximum number
+// of secondary NICs. Pool.SecondaryNICs records the configured attachment count.
 type VMSpec struct {
 	Size          string   `json:"size"`
 	Family        VMFamily `json:"family"`
@@ -91,11 +91,12 @@ type NetworkConfig struct {
 // Pool describes a single AKS node pool spec. Used for both desired
 // state (from computation) and current state (projected from AKS).
 type Pool struct {
-	Role              PoolRole `json:"role"`
-	Name              string   `json:"name"`
-	Spec              VMSpec   `json:"spec"`
-	AvailabilityZones []string `json:"zones"`
-	MaxCount          int32    `json:"maxCount"`
+	Role              PoolRole                          `json:"role"`
+	AgentPoolMode     armcontainerservice.AgentPoolMode `json:"agentPoolMode"`
+	Name              string                            `json:"name"`
+	Spec              VMSpec                            `json:"spec"`
+	AvailabilityZones []string                          `json:"zones"`
+	MaxCount          int32                             `json:"maxCount"`
 	// MinCount is the configured autoscaler floor. Proposed creates seed it
 	// from TierConfig.InitialMinNodes; subsequent planner actions preserve the
 	// observed floor unless a lower ceiling requires clamping it.
@@ -105,6 +106,8 @@ type Pool struct {
 	Labels       map[string]string `json:"labels,omitempty"`
 	Taints       []string          `json:"taints,omitempty"`
 	EnableSwift  bool              `json:"enableSwift,omitempty"`
+	// SecondaryNICs is the number attached per node, not the SKU maximum.
+	SecondaryNICs int64 `json:"secondaryNICs"`
 }
 
 // ZoneString returns a comma-separated zone list for logging.
