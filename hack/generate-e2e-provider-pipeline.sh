@@ -38,6 +38,11 @@ YQ="${YQ:-yq}"
 CONFIG_FILE="$REPO_ROOT/config/config-dev-ci.yaml"
 OUTPUT_FILE="${1:-$REPO_ROOT/dev-infrastructure/dev-ci/e2e-subscription-providers/pipeline.yaml}"
 
+# Render to a temporary file and move it into place only on success, so a
+# generation error cannot leave a truncated pipeline.yaml behind.
+TMP_FILE="$(mktemp)"
+trap 'rm -f "$TMP_FILE"' EXIT
+
 BANNER_WIDTH=78
 
 # banner "DEV" -> "# ── DEV ────────...", padded to BANNER_WIDTH characters.
@@ -71,7 +76,29 @@ rolloutName: Dev CI E2E Subscription Provider Registration Rollout
 # are resolved from their display names via the Azure API using the invoking
 # OWNERS member's CLI credentials (AZURE_TOKEN_CREDENTIALS=dev). Run with:
 #   make dev-ci-privileged-local-run
+#
+# Registration itself is performed by templatize through the Azure SDK, but a
+# local run still requires a logged-in `az` CLI: before any step executes,
+# entrypoint run calls GetAllRequiredAzureClients, which shells out to
+# `az config get` and `az account set --subscription <id>` once per subscription
+# in the pipeline. The run therefore fails up front unless the invoking OWNERS
+# member is logged in and every target subscription below is visible to them.
 resourceGroups:
+# Looks up the existing global rollout MSI so the registration steps below have
+# an identityFrom target. The template declares only an `existing` resource plus
+# an output, so this deploys nothing. identityFrom is Ev2-only — templatize
+# never reads it at run time, where registration uses ambient credentials — but
+# the pipeline schema requires it, so it is wired up rather than omitted.
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ../../templates/output-opstool-global-identity.bicep
+    parameters: ../../configurations/output-opstool-global-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 EOF
 
   # Iterate ci.<env> sections in document order so a newly added environment is
@@ -86,6 +113,22 @@ EOF
 
   for env in $envs; do
     banner "$(echo "$env" | tr '[:lower:]' '[:upper:]')"
+
+    # Capture into a variable rather than feeding the loop from a process
+    # substitution: the exit status of a process substitution is not visible to
+    # the shell, so a failing yq would silently yield an empty loop and emit a
+    # pipeline with no targets. A plain assignment propagates the failure under
+    # `set -o errexit`.
+    subscriptions="$("$YQ" -r ".clouds.dev.defaults.ci.${env}.e2eSubscriptions[].name" "$CONFIG_FILE")"
+
+    # $envs only contains environments that have a non-empty e2eSubscriptions
+    # list, so an empty result here means the query broke, not that the
+    # inventory is legitimately empty.
+    if [[ -z "$subscriptions" ]]; then
+      echo "ERROR: no subscriptions returned for ci.${env}.e2eSubscriptions in $CONFIG_FILE" >&2
+      exit 1
+    fi
+
     index=0
     while IFS= read -r subscription; do
       [[ -z "$subscription" ]] && continue
@@ -95,18 +138,31 @@ EOF
         echo "ERROR: subscription name contains a single quote, which this generator cannot emit safely: $subscription" >&2
         exit 1
       fi
+      # The pipeline schema caps resourceGroups[].name at 12 characters
+      # (pattern [a-zA-Z0-9-]{1,12}), so keep this prefix short.
+      rg_name="prov-${env}-${index}"
+      if ((${#rg_name} > 12)); then
+        echo "ERROR: generated resource group name exceeds the 12-character schema limit: $rg_name" >&2
+        exit 1
+      fi
       cat <<EOF
-- name: e2e-providers-${env}-${index}
+- name: ${rg_name}
   resourceGroup: provider-registration
   subscription: '${subscription}'
   steps:
   - name: register-providers
     action: ProviderFeatureRegistration
     providerConfigRef: ci.e2eSubscriptionProviders
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
 EOF
       index=$((index + 1))
-    done < <("$YQ" -r ".clouds.dev.defaults.ci.${env}.e2eSubscriptions[].name" "$CONFIG_FILE")
+    done <<<"$subscriptions"
   done
-} >"$OUTPUT_FILE"
+} >"$TMP_FILE"
+
+mv "$TMP_FILE" "$OUTPUT_FILE"
 
 echo "wrote ${OUTPUT_FILE#"$REPO_ROOT"/}"
