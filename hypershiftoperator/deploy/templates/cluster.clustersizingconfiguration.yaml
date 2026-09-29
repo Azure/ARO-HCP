@@ -21,28 +21,28 @@ spec:
         resourceRequests:
           - containerName: kube-apiserver
             deploymentName: kube-apiserver
-            memory: 100Mi
-            cpu: 100m
+            memory: 1600Mi
+            cpu: 300m
           - containerName: openshift-controller-manager
             deploymentName: openshift-controller-manager
-            memory: 100Mi
-            cpu: 20m
+            memory: 180Mi
+            cpu: 80m
           - containerName: cluster-policy-controller
             deploymentName: cluster-policy-controller
-            memory: 100Mi
-            cpu: 10m
+            memory: 150Mi
+            cpu: 50m
           - containerName: kube-controller-manager
             deploymentName: kube-controller-manager
-            memory: 100Mi
-            cpu: 30m
+            memory: 250Mi
+            cpu: 50m
           - containerName: openshift-apiserver
             deploymentName: openshift-apiserver
-            memory: 100Mi
-            cpu: 30m
+            memory: 350Mi
+            cpu: 150m
           - containerName: etcd
             deploymentName: etcd
-            memory: 100Mi
-            cpu: 100m
+            memory: 360Mi
+            cpu: 230m
           - containerName: ovnkube-control-plane
             deploymentName: ovnkube-control-plane
             memory: 100Mi

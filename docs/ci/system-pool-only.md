@@ -24,17 +24,18 @@ This intentionally removes workload isolation for ephemeral CI service clusters.
 It does not establish node-loss or zone-loss capacity. Live CI must validate
 AKS-managed addon placement, storage attachment, and rollout capacity under load.
 
-CI management workers use five to twenty-eight `Standard_D8ds_v6` nodes per
+CI management workers use six to twenty-eight `Standard_D8ds_v6` nodes per
 zonal pool, with the 225-pod node limit unchanged. Two consecutive D8 runs grew
 every mgmt-1 worker pool from four to five on `Insufficient cpu` scheduling
-events; neither grew to six. The uniform five-node minimum pre-provisions that
-burst capacity. Mgmt-2 stayed at four in both runs, so the fifth node there is
-headroom rather than a demonstrated need.
+events; neither grew to six. Mgmt-2 stayed at four in both runs. The six-node
+minimum adds headroom for the [selected HCP request increases](hcp-request-increases.md),
+not a claim that the earlier runs demonstrated a six-node requirement.
 
-Each zone starts with 40 vCPUs, 160 GiB, 1,125 pod slots, and fifteen SWIFT
-secondary slots. Across two management clusters the worker baseline is 240
-vCPUs, half the older five-D16-per-zone baseline. More nodes repeat DaemonSet
-and node overhead. Two D8s
+Each zone starts with 48 vCPUs, 192 GiB, 1,350 pod slots, and eighteen SWIFT
+secondary NIC slots. Across two management clusters and three zones each, the
+worker baseline is 288 vCPUs, up from 240 with five D8s per zone and below the
+older 480-vCPU five-D16-per-zone baseline. These are gross capacities, before
+DaemonSet and node overhead. More nodes repeat that overhead. Two D8s
 cost the same as one D16 at the checked Central US Linux retail compute rate;
 the experiment targets avoiding pod-slot-driven scale-ups, not cheaper cores.
 Autoscaling remains enabled and responds to pending requests, not CPU usage alone.
