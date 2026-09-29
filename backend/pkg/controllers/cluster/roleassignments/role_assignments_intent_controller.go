@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -507,7 +508,7 @@ func managedIdentityMetadata(serviceProviderCluster *coreapi.ServiceProviderClus
 }
 
 func roleAssignmentTargetIdentityFromMetadataValue(value *coreapi.IdentityMetadataValue, identityResourceID string) (*coreapi.RoleAssignmentTargetIdentity, bool) {
-	if value == nil || !value.HasResolvedIdentityInformation() {
+	if value == nil || !coreapihelpers.IdentityMetadataValueHasResolvedIdentityInformation(value) {
 		return nil, false
 	}
 	return &coreapi.RoleAssignmentTargetIdentity{
