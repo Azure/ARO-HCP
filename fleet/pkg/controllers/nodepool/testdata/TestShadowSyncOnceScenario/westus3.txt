@@ -1,0 +1,52 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  infra1     infra   Standard_D4ds_v5   zone=1      max=3   count=2  autoscaled
+  infra2     infra   Standard_D4ds_v5   zone=2      max=3   count=2  autoscaled
+  system     system  Standard_E8ds_v6   zone=1,2,3  max=4   count=2  autoscaled
+  userswft1  worker  Standard_E16ds_v6  zone=1      max=14  count=6  autoscaled
+  userswft2  worker  Standard_E16ds_v6  zone=2      max=14  count=6  autoscaled
+  userswft3  worker  Standard_E16ds_v6  zone=3      max=14  count=6  autoscaled
+
+desired:
+  sys0fe1457    system  Standard_E8ds_v7   zone=   max=3
+  inf17dc270    infra   Standard_E32ds_v6  zone=1  max=3
+  inf27dc270    infra   Standard_E32ds_v6  zone=2  max=3
+  wrk161690783  worker  Standard_E16ds_v6  zone=1  max=9
+  wrk162690783  worker  Standard_E16ds_v6  zone=2  max=9
+  wrk163690783  worker  Standard_E16ds_v6  zone=3  max=9
+  wrk1615a648b  worker  Standard_E16ds_v5  zone=1  max=1
+  wrk1625a648b  worker  Standard_E16ds_v5  zone=2  max=1
+  wrk1635a648b  worker  Standard_E16ds_v5  zone=3  max=1
+
+budget (vCPUs):
+  StandardEdsv6Family:  392
+  StandardEdsv7Family:  100
+  standardEDSv4Family:  100
+  standardEDSv5Family:  100
+  standardESv3Family:   100
+
+initial headroom (vCPUs):
+  StandardEdsv6Family:  -8
+  StandardEdsv7Family:  100
+  standardEDSv4Family:  100
+  standardEDSv5Family:  100
+  standardESv3Family:   100
+
+fully allocated: false
+
+initial capacity:
+  system:  cpu=32   memory=256GiB   swiftNICs=0
+  infra:   cpu=24   memory=96GiB    swiftNICs=0
+  worker:  cpu=672  memory=5376GiB  swiftNICs=294
+
+rejected desired plan: system capacity {VCPUs:24 MemoryGiB:192 SwiftNICs:0} is below protected baseline {VCPUs:32 MemoryGiB:256 SwiftNICs:0}
+
+actions:
+  (none)
+
+steps:      0
+converged:  false
+outcome:    rejected
+reason:     system capacity {VCPUs:24 MemoryGiB:192 SwiftNICs:0} is below protected baseline {VCPUs:32 MemoryGiB:256 SwiftNICs:0}
