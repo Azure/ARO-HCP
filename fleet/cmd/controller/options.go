@@ -104,7 +104,7 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.MetricsListenAddress, "metrics-listen-address", opts.MetricsListenAddress, "listen address for metrics server")
 	cmd.Flags().StringArrayVar(&opts.AMWWorkspaceResourceIDs, "amw-workspace-resource-id", opts.AMWWorkspaceResourceIDs, "Azure Monitor Workspace resource ID to manage ingestion limits for. Can be specified multiple times.")
 	cmd.Flags().DurationVar(&opts.AMWScalingPollInterval, "amw-scaling-poll-interval", opts.AMWScalingPollInterval, "Interval at which the AMW ingestion limits scaling controller checks utilization and scales limits.")
-	cmd.Flags().StringVar(&opts.NodePoolProfile, "nodepool-profile", opts.NodePoolProfile, "Shadow-only node pool tier profile (ci, development, production); empty disables reporting. Never mutates pools.")
+	cmd.Flags().StringVar(&opts.NodePoolProfile, "nodepool-profile", opts.NodePoolProfile, "Shadow-only node pool tier profile (ci, development, integration, production); empty disables reporting. Never mutates pools.")
 	cmd.Flags().IntVar(&opts.AzureRegionAvailabilityZoneCount, "azure-region-availability-zone-count", opts.AzureRegionAvailabilityZoneCount, fmt.Sprintf("Number of availability zones the region offers. Node pool planning fails if this is below %d.", compute.RequiredAvailabilityZones))
 	for _, flag := range []string{
 		"cloud-environment",

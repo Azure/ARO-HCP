@@ -48,7 +48,7 @@ func TestShadowSyncOnceScenario(t *testing.T) {
 	}{
 		{region: "uksouth", profile: compute.ProfileProduction},
 		// Quota less the running vCPUs of the subscription's other clusters.
-		{region: "westus3", profile: compute.ProfileProduction},
+		{region: "westus3", profile: compute.ProfileIntegration},
 	}
 
 	for _, tt := range tests {
