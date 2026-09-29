@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"k8s.io/client-go/rest"
 )
 
 func TestPollUntilReady_ZeroTimeout(t *testing.T) {
@@ -135,9 +137,11 @@ func TestPollUntilReady_SucceedsWhenConditionLandsAfterLastPoll(t *testing.T) {
 	}
 }
 
-// TestPollUntilReady_OvershootIsBoundedByFinalCheckTimeout pins the budget contract documented on
-// pollUntilReady: a verifier may run for timeout plus at most finalCheckTimeout, and no longer. A
-// check that blocks forever must be cancelled by the final check's own deadline.
+// TestPollUntilReady_OvershootIsBoundedByFinalCheckTimeout pins the first half of the budget
+// contract documented on pollUntilReady: reaching a verdict takes timeout plus at most
+// finalCheckTimeout, and no longer. A check that blocks forever must be cancelled by the final
+// check's own deadline. Diagnostics are the second half and are covered separately by
+// TestPollUntilReady_DiagnosticsAreBoundedAndExcludedFromElapsed.
 func TestPollUntilReady_OvershootIsBoundedByFinalCheckTimeout(t *testing.T) {
 	const timeout = 250 * time.Millisecond
 
@@ -209,6 +213,73 @@ func TestPollUntilReady_ReportedElapsedIncludesFinalCheck(t *testing.T) {
 	if strings.Contains(err.Error(), "timed out after "+timeout.String()) {
 		t.Fatalf("reported elapsed excludes the final check, understating the real duration: %s", err.Error())
 	}
+}
+
+// TestPollUntilReady_DiagnosticsAreBoundedAndExcludedFromElapsed pins the second half of the
+// budget contract. Gathering diagnostics happens after the verdict, so it must be bounded by
+// diagnoseTimeout rather than running indefinitely, and it must not inflate the elapsed duration
+// the error reports -- that number says how long the condition was waited on, and a reader uses it
+// to size the timeout.
+func TestPollUntilReady_DiagnosticsAreBoundedAndExcludedFromElapsed(t *testing.T) {
+	const (
+		timeout         = 200 * time.Millisecond
+		diagnoseTimeout = 750 * time.Millisecond
+	)
+
+	startTime := time.Now()
+	err := pollUntilReady(
+		context.Background(),
+		"test-verifier",
+		timeout,
+		1*time.Second, // longer than the timeout, so the loop gets exactly one look
+		nil,
+		diagnoseTimeout,
+		func(ctx context.Context, _ *rest.Config) string {
+			// A diagnostic collector that never returns on its own: only diagnoseTimeout can
+			// stop it.
+			<-ctx.Done()
+			return "diagnostics gave up: " + ctx.Err().Error()
+		},
+		func(ctx context.Context) error { return fmt.Errorf("not ready") },
+	)
+	total := time.Since(startTime)
+
+	if err == nil {
+		t.Fatal("expected a timeout error when the condition never holds, got nil")
+	}
+	if !strings.Contains(err.Error(), "diagnostics gave up") {
+		t.Fatalf("expected the diagnostics to be appended to the error, got: %s", err.Error())
+	}
+	// Generous upper bound: the point is that diagnostics are governed by diagnoseTimeout rather
+	// than being unbounded, not that the scheduler is precise.
+	if maximum := timeout + finalCheckTimeout + diagnoseTimeout + 2*time.Second; total > maximum {
+		t.Fatalf("diagnostics overran their bound: ran for %s, expected at most %s", total, maximum)
+	}
+
+	reported := reportedElapsed(t, err)
+	if reported >= diagnoseTimeout {
+		t.Fatalf("reported elapsed %s includes the %s spent on diagnostics; it should measure the wait for the condition only",
+			reported, diagnoseTimeout)
+	}
+}
+
+// reportedElapsed extracts the duration pollUntilReady reports in a timeout error.
+func reportedElapsed(t *testing.T, err error) time.Duration {
+	t.Helper()
+	const marker = "timed out after "
+	message := err.Error()
+	index := strings.Index(message, marker)
+	if index < 0 {
+		t.Fatalf("error does not report an elapsed duration: %s", message)
+	}
+	remainder := message[index+len(marker):]
+	value, _, _ := strings.Cut(remainder, "\n")
+	value, _, _ = strings.Cut(value, ":")
+	parsed, parseErr := time.ParseDuration(strings.TrimSpace(value))
+	if parseErr != nil {
+		t.Fatalf("parse reported elapsed %q: %v", value, parseErr)
+	}
+	return parsed
 }
 
 // TestPollUntilReady_StillFailsWhenConditionNeverHolds guards against the post-deadline check
