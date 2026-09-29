@@ -1,0 +1,13 @@
+{
+  "fullyAllocated": false,
+  "pools": null,
+  "failures": [
+    {
+      "tierIndex": 0,
+      "cores": 8,
+      "reason": "NoEligibleSKU",
+      "message": "tier 0 (8 cores): no family has an eligible SKU with exactly 8 vCPUs (unrestricted in region, unconstrained vCPUs, ephemeral OS disk of at least 128 GB)",
+      "required": false
+    }
+  ]
+}
