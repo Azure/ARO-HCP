@@ -132,6 +132,31 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q at install version %s", clusterName, installVersionId)
 
+			// Workaround for OCPBUGS-121851: the ingress operator's DetermineReplicas()
+			// always returns 2 on zero-worker clusters. Those router pods are
+			// unschedulable, which cascades through console and openshift-samples to keep
+			// ClusterVersion in a Partial state — permanently blocking the y-stream
+			// upgrade from completing. Adding a minimal nodepool gives the router somewhere
+			// to schedule and unblocks the upgrade. This also matches real customer usage,
+			// where clusters always have worker nodes. Remove once the upstream ingress
+			// operator bug is fixed.
+			By("creating a minimal nodepool (workaround for OCPBUGS-121851) so router pods can schedule during upgrade")
+			nodepoolName := "np-upgrade-workaround"
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams.NodePoolName = nodepoolName
+			nodePoolParams.OpenshiftVersionId = installVersionId
+			nodePoolParams.ChannelGroup = channelGroup
+			err = tc.CreateNodePoolFromParam20240610(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams.ManagedResourceGroupName,
+				clusterName,
+				nodePoolParams,
+				framework.NodePoolCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create workaround nodepool %q for cluster %q (OCPBUGS-121851)", nodepoolName, clusterName)
+
 			By("getting admin credentials")
 			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
