@@ -63,6 +63,12 @@ This command creates a personal DEV environment with a unique name that is deriv
 > [!TIP] Make Options
 > [Make Options](./make-options.md) describes how to customize the make build e.g. by defining the container engine to be used or limiting parallel jobs. This can be of help when experiencing problems with the build.
 
+### Service Cluster Node Pools
+
+New personal DEV service clusters run all workloads on one autoscaling system pool of three to five `Standard_D4ds_v5` nodes (`svc.aks.systemPoolOnly`), as the CI service clusters do. See [Service Cluster Consolidation](ci/system-pool-only.md) for the placement details. The management cluster is unchanged.
+
+A service cluster created with dedicated user and infra pools keeps them: `make personal-dev-env` detects the existing pools and pins its system pool settings in the override config, because ARM does not delete omitted pools and AKS cannot resize an existing pool in place. Partial runs such as `make pipeline/Service.Infra` do not apply this, so use `make personal-dev-env` for such an environment. Recreate the environment to consolidate it. To keep dedicated pools on a new environment, set `svc.aks.systemPoolOnly` to `false` and remove the `systemAgentPool` override in the `pers` section of your local `config/config.yaml`.
+
 ### Local Cluster Service Development Setup
 
 If you plan to run the Cluster Service locally (not deployed to Kubernetes) for development, use the following command instead:

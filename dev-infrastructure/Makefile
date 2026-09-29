@@ -160,6 +160,21 @@ svc.aks.admin-access:
 	@scripts/aks-admin-access.sh $(SVC_RESOURCEGROUP) $(PRINCIPAL_ID)
 .PHONY: svc.aks.admin-access
 
+# ARM does not delete omitted pools, and AKS cannot resize an existing pool in
+# place. An existing service cluster with dedicated pools therefore keeps them,
+# and its live system pool settings, until the environment is recreated.
+svc.aks.preserve-pool-topology: $(YQ)
+	@set -euo pipefail; \
+	cluster="$$(az aks list --query "[?name=='$(SVC_AKS_NAME)'].id" --output tsv)"; \
+	if [ -z "$$cluster" ]; then exit 0; fi; \
+	POOLS="$$(az aks nodepool list --resource-group $(SVC_RESOURCEGROUP) --cluster-name $(SVC_AKS_NAME) --output json)"; \
+	export POOLS; \
+	if [ "$$($(YQ) --null-input 'env(POOLS) | map(select(.mode != "System")) | length')" = "0" ]; then exit 0; fi; \
+	touch "$(OVERRIDE_CONFIG_FILE)"; \
+	$(YQ) --inplace '(env(POOLS) | map(select(.mode == "System")) | .[0]) as $$system | with(.clouds.dev.environments.$(DEPLOY_ENV).defaults.svc.aks; .systemPoolOnly = false | .systemAgentPool.vmSize = $$system.vmSize | .systemAgentPool.osDiskSizeGB = $$system.osDiskSizeGb | .systemAgentPool.minCount = $$system.minCount | .systemAgentPool.maxCount = $$system.maxCount)' "$(OVERRIDE_CONFIG_FILE)"; \
+	echo "$(SVC_AKS_NAME) has dedicated node pools; keeping them until the environment is recreated."
+.PHONY: svc.aks.preserve-pool-topology
+
 svc.aks.kubeconfig:
 	@az aks get-credentials --overwrite-existing --only-show-errors -n ${SVC_AKS_NAME} -g $(SVC_RESOURCEGROUP) -f "${SVC_KUBECONFIG_FILE}"
 	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${SVC_KUBECONFIG_FILE}"

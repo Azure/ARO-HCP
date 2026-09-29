@@ -608,7 +608,7 @@
       "properties": {
         "systemPoolOnly": {
           "type": "boolean",
-          "description": "CI service clusters only: omit worker and infra pools and allow all workloads on the system pool. Does not delete existing pools."
+          "description": "CI and personal DEV service clusters only: omit worker and infra pools and allow all workloads on the system pool. Does not delete existing pools."
         },
         "name": {
           "type": "string",
@@ -4039,8 +4039,8 @@
   ],
   "x-cel-validations": [
     {
-      "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01']",
-      "message": "svc.aks.systemPoolOnly is supported only in ci00 and ci01"
+      "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01', 'pers']",
+      "message": "svc.aks.systemPoolOnly is supported only in ci00, ci01 and pers"
     },
     {
       "rule": "!has(self.mgmt.aks.systemPoolOnly) || !self.mgmt.aks.systemPoolOnly",

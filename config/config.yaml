@@ -1731,6 +1731,14 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+              # Existing clusters keep dedicated pools until recreated; see docs/personal-dev.md.
+              systemPoolOnly: true
+              systemAgentPool:
+                minCount: 3
+                maxCount: 5
+                # DDSv5 is cheaper than DDSv6 in westus3 and has quota headroom in the personal DEV subscription.
+                vmSize: 'Standard_D4ds_v5'
+                osDiskSizeGB: 64
               userAgentPool:
                 name: 'u64d8dsv5'
                 vmSize: 'Standard_D8ds_v5'
