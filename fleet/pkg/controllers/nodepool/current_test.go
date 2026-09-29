@@ -392,3 +392,42 @@ func TestUnfreezeObservedPoolMinimum(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkerPoolZones(t *testing.T) {
+	agentPool := func(role string, zones ...string) armcontainerservice.AgentPool {
+		properties := &armcontainerservice.ManagedClusterAgentPoolProfileProperties{}
+		if len(role) > 0 {
+			properties.NodeLabels = map[string]*string{compute.RoleLabel: ptr.To(role)}
+		}
+		for _, zone := range zones {
+			properties.AvailabilityZones = append(properties.AvailabilityZones, ptr.To(zone))
+		}
+		return armcontainerservice.AgentPool{Name: ptr.To("pool"), Properties: properties}
+	}
+	tests := []struct {
+		name  string
+		pools []armcontainerservice.AgentPool
+		want  []string
+	}{
+		{
+			name:  "zones of worker pools, deduplicated and sorted",
+			pools: []armcontainerservice.AgentPool{agentPool("worker", "3"), agentPool("worker", "1"), agentPool("worker", "3")},
+			want:  []string{"1", "3"},
+		},
+		{
+			name:  "other roles and unmanaged pools do not pin zones",
+			pools: []armcontainerservice.AgentPool{agentPool("infra", "2"), agentPool("system", "1", "2", "3"), agentPool("", "3")},
+			want:  []string{},
+		},
+		{
+			name:  "zoneless worker pools pin no zone",
+			pools: []armcontainerservice.AgentPool{agentPool("worker"), {Name: ptr.To("no-properties")}},
+			want:  []string{},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, workerPoolZones(test.pools))
+		})
+	}
+}
