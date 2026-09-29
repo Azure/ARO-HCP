@@ -259,6 +259,20 @@ func matchingGetResponseForAllTypes(cluster *coreapi.Cluster, spc *coreapi.Servi
 	}
 }
 
+func TestDenyAssignmentDefinitions(t *testing.T) {
+	for _, definition := range denyAssignmentDefinitions(newTestCluster()) {
+		t.Run(definition.denyAssignmentType, func(t *testing.T) {
+			assert.NotZero(t, len(definition.actions)+len(definition.dataActions), "deny assignment must deny at least one action or data action")
+			for _, action := range definition.actions {
+				assert.False(t, strings.HasSuffix(action, "/read"), "read action must not be denied: %s", action)
+			}
+			for _, dataAction := range definition.dataActions {
+				assert.False(t, strings.HasSuffix(dataAction, "/read"), "read data action must not be denied: %s", dataAction)
+			}
+		})
+	}
+}
+
 func TestGenerateDenyAssignmentUUIDMatchesClusterService(t *testing.T) {
 	// referenceClusterServiceUUID replicates Cluster Service's derivation exactly
 	// (pkg/utils/uuid/generators.go generateUuidV5WithSeparator): a v5 UUID over the shared
