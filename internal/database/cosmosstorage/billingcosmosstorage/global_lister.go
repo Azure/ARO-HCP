@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
@@ -43,7 +44,7 @@ func (l *cosmosBillingGlobalLister) List(ctx context.Context, options *cosmossto
 	}
 
 	partitionKey := azcosmos.NewPartitionKey()
-	pager := l.containerClient.NewQueryItemsPager(query, partitionKey, &queryOptions)
+	pager := cosmosmetrics.NewQueryItemsPager(ctx, l.containerClient, query, partitionKey, &queryOptions, "billing_all", "cross_partition")
 
 	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
 		return newQueryBillingSinglePageIterator(pager), nil

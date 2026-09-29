@@ -23,6 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosmetrics"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
@@ -70,7 +71,7 @@ var _ BillingDocCRUD = &billingDocCRUD{}
 func (b *billingDocCRUD) List(ctx context.Context) (cosmosstorageutils.DBClientIterator[BillingDocument], error) {
 	pk := cosmosstorageutils.NewPartitionKey(b.subscriptionID)
 	query := "SELECT * FROM c"
-	pager := b.containerClient.NewQueryItemsPager(query, pk, nil)
+	pager := cosmosmetrics.NewQueryItemsPager(ctx, b.containerClient, query, pk, nil, "billing_all", "single_partition")
 	return newQueryBillingIterator(pager), nil
 }
 
@@ -124,7 +125,7 @@ func (b *billingDocCRUD) ListActive(ctx context.Context) ([]*BillingDocument, er
 	query := "SELECT * FROM c WHERE NOT IS_DEFINED(c.deletionTime)"
 	opt := azcosmos.QueryOptions{}
 
-	queryPager := b.containerClient.NewQueryItemsPager(query, pk, &opt)
+	queryPager := cosmosmetrics.NewQueryItemsPager(ctx, b.containerClient, query, pk, &opt, "billing_active", "single_partition")
 
 	var billingDocs []*BillingDocument
 	for queryPager.More() {
@@ -161,7 +162,7 @@ func (b *billingDocCRUD) ListActiveForCluster(ctx context.Context, resourceID *a
 		QueryParameters: queryParams,
 	}
 
-	queryPager := b.containerClient.NewQueryItemsPager(query, pk, &opt)
+	queryPager := cosmosmetrics.NewQueryItemsPager(ctx, b.containerClient, query, pk, &opt, "billing_cluster_active", "single_partition")
 
 	var billingDocs []*BillingDocument
 	for queryPager.More() {
@@ -210,7 +211,7 @@ func (b *billingDocCRUD) PatchByClusterID(ctx context.Context, resourceID *azcor
 		},
 	}
 
-	queryPager := b.containerClient.NewQueryItemsPager(query, pk, &opt)
+	queryPager := cosmosmetrics.NewQueryItemsPager(ctx, b.containerClient, query, pk, &opt, "billing_cluster_active_ids", "single_partition")
 
 	var billingIDs []string
 	for queryPager.More() {

@@ -35,10 +35,10 @@ import (
 
 	"k8s.io/component-base/metrics/legacyregistry"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 
-	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -59,7 +59,7 @@ func testPipeline(p policy.Policy, transport testTransport, retries int32) runti
 
 func testCounter(t *testing.T) (*requestChargePolicy, *prometheus.Registry) {
 	t.Helper()
-	labelNames := []string{"source_kind", "source", "cosmosdb_container", "operation", "status_code"}
+	labelNames := []string{"source_kind", "source", "cosmosdb_container", "operation", "status_code", "call_site", "query_shape", "query_scope"}
 	requestUnits := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "cosmos_request_units_total",
 		Help: "Test request units.",
@@ -79,13 +79,30 @@ type chargeLabels struct {
 	Container  string
 	Operation  string
 	StatusCode string
+	CallSite   string
+	QueryShape string
+	QueryScope string
 }
 
 type requestCharges map[chargeLabels]float64
 
 func requireRequestCharges(t *testing.T, expected, actual requestCharges) {
 	t.Helper()
-	if diff := cmp.Diff(expected, actual); diff != "" {
+	// Omitted expectations assert the defaults; never normalize actual labels.
+	normalized := requestCharges{}
+	for labels, value := range expected {
+		if labels.CallSite == "" {
+			labels.CallSite = "unknown"
+		}
+		if labels.QueryShape == "" {
+			labels.QueryShape = "none"
+		}
+		if labels.QueryScope == "" {
+			labels.QueryScope = "none"
+		}
+		normalized[labels] = value
+	}
+	if diff := cmp.Diff(normalized, actual); diff != "" {
 		t.Fatalf("request charges mismatch (-expected +actual):\n%s", diff)
 	}
 }
@@ -111,13 +128,16 @@ func gatherMetricFamily(t *testing.T, gatherer prometheus.Gatherer, name string)
 			for _, label := range metric.GetLabel() {
 				labels[label.GetName()] = label.GetValue()
 			}
-			require.Len(t, labels, 5)
+			require.Len(t, labels, 8)
 			key := chargeLabels{
 				SourceKind: labels["source_kind"],
 				Source:     labels["source"],
 				Container:  labels["cosmosdb_container"],
 				Operation:  labels["operation"],
 				StatusCode: labels["status_code"],
+				CallSite:   labels["call_site"],
+				QueryShape: labels["query_shape"],
+				QueryScope: labels["query_scope"],
 			}
 			values[key] = metric.GetCounter().GetValue()
 		}
@@ -166,25 +186,25 @@ func TestRequestChargeAttribution(t *testing.T) {
 		},
 		{
 			name:               "informer",
-			ctx:                informerutils.ContextWithInformerName(context.Background(), "ClusterInformer"),
+			ctx:                ContextWithInformerName(context.Background(), "ClusterInformer"),
 			expectedSourceKind: "informer",
 			expectedSource:     "ClusterInformer",
 		},
 		{
 			name:               "informer precedes controller",
-			ctx:                informerutils.ContextWithInformerName(controller, "ClusterInformer"),
+			ctx:                ContextWithInformerName(controller, "ClusterInformer"),
 			expectedSourceKind: "informer",
 			expectedSource:     "ClusterInformer",
 		},
 		{
 			name:               "empty informer falls back",
-			ctx:                informerutils.ContextWithInformerName(controller, ""),
+			ctx:                ContextWithInformerName(controller, ""),
 			expectedSourceKind: "controller",
 			expectedSource:     "ReconcileClusters",
 		},
 		{
 			name:               "empty names are unattributed",
-			ctx:                informerutils.ContextWithInformerName(utils.ContextWithControllerName(context.Background(), ""), ""),
+			ctx:                ContextWithInformerName(utils.ContextWithControllerName(context.Background(), ""), ""),
 			expectedSourceKind: "unattributed",
 			expectedSource:     "unknown",
 		},
@@ -279,6 +299,70 @@ func TestRequestChargeCountsEveryRetryOnce(t *testing.T) {
 		}: 1,
 	}
 	requireRequestCharges(t, expectedCounts, gatheredRequestCounts(t, registry))
+}
+
+func TestRequestChargeQueryAttributionAcrossRetries(t *testing.T) {
+	t.Parallel()
+	p, registry := testCounter(t)
+	expectedCharges, expectedCounts := requestCharges{}, requestCounts{}
+	resourceID, err := azcorearm.ParseResourceID("/subscriptions/private-subscription/resourceGroups/private-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/private-cluster")
+	require.NoError(t, err)
+	parent := utils.ContextWithResourceID(context.Background(), resourceID)
+	parent = ContextWithInformerName(utils.ContextWithControllerName(parent, "ReconcileClusters"), "ClusterInformer")
+	for _, callSite := range []string{"list_clusters", "list_node_pools"} {
+		for _, shape := range []string{"by_type", "by_owner"} {
+			for _, scope := range []string{"partition", "cross_partition"} {
+				ctx := contextWithQuery(ContextWithCallSite(parent, callSite), shape, scope)
+				attempts := 0
+				pipeline := testPipeline(p, func(req *http.Request) (*http.Response, error) {
+					attempts++
+					require.Equal(t, callSite, CallSiteFromContext(req.Context()))
+					actualShape, actualScope := queryFromContext(req.Context())
+					require.Equal(t, shape, actualShape)
+					require.Equal(t, scope, actualScope)
+					// Telemetry must not propagate context values into wire headers.
+					for name, values := range req.Header {
+						for _, value := range append([]string{name}, values...) {
+							for _, private := range []string{"private-", "ReconcileClusters", "ClusterInformer", callSite, shape, scope} {
+								require.NotContains(t, value, private)
+							}
+						}
+					}
+					if attempts == 1 {
+						return chargedResponse(http.StatusTooManyRequests, "1.25"), nil
+					}
+					return chargedResponse(http.StatusOK, "2.5"), nil
+				}, 1)
+				req, err := runtime.NewRequest(ctx, http.MethodPost, "https://cosmos.test/dbs/private-db/colls/Resources/docs?customer=private-customer")
+				require.NoError(t, err)
+				req.Raw().Header.Set("x-ms-documentdb-query", "True")
+				response, err := pipeline.Do(req)
+				require.NoError(t, err)
+				require.NoError(t, response.Body.Close())
+				require.Equal(t, 2, attempts)
+				for status, charge := range map[string]float64{"429": 1.25, "200": 2.5} {
+					labels := chargeLabels{
+						SourceKind: "informer",
+						Source:     "ClusterInformer",
+						Container:  "Resources",
+						Operation:  "query",
+						StatusCode: status,
+						CallSite:   callSite,
+						QueryShape: shape,
+						QueryScope: scope,
+					}
+					expectedCharges[labels] = charge
+					expectedCounts[labels] = 1
+				}
+			}
+		}
+	}
+	requireRequestCharges(t, expectedCharges, gatheredCharges(t, registry))
+	requireRequestCharges(t, expectedCounts, gatheredRequestCounts(t, registry))
+	response := httptest.NewRecorder()
+	promhttp.HandlerFor(registry, promhttp.HandlerOpts{}).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	require.Equal(t, http.StatusOK, response.Code)
+	require.NotContains(t, response.Body.String(), "private-")
 }
 
 type failingBody struct{ err error }
@@ -814,6 +898,9 @@ func TestRegisterMetricsExposesSharedRequestCharges(t *testing.T) {
 		Container:  "Resources",
 		Operation:  "read",
 		StatusCode: "200",
+		CallSite:   "unknown",
+		QueryShape: "none",
+		QueryScope: "none",
 	}
 	chargesBefore := gatheredCharges(t, legacyregistry.DefaultGatherer)[key]
 	countsBefore := gatheredRequestCounts(t, legacyregistry.DefaultGatherer)[key]
@@ -832,11 +919,11 @@ func TestRegisterMetricsExposesSharedRequestCharges(t *testing.T) {
 	promhttp.HandlerFor(registry, promhttp.HandlerOpts{}).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.Contains(t, response.Body.String(), fmt.Sprintf(
-		"cosmos_request_units_total{cosmosdb_container=\"Resources\",operation=\"read\",source=%q,source_kind=\"controller\",status_code=\"200\"} %g\n",
+		"cosmos_request_units_total{call_site=\"unknown\",cosmosdb_container=\"Resources\",operation=\"read\",query_scope=\"none\",query_shape=\"none\",source=%q,source_kind=\"controller\",status_code=\"200\"} %g\n",
 		t.Name(), chargesBefore+3,
 	))
 	require.Contains(t, response.Body.String(), fmt.Sprintf(
-		"cosmos_requests_total{cosmosdb_container=\"Resources\",operation=\"read\",source=%q,source_kind=\"controller\",status_code=\"200\"} %g\n",
+		"cosmos_requests_total{call_site=\"unknown\",cosmosdb_container=\"Resources\",operation=\"read\",query_scope=\"none\",query_shape=\"none\",source=%q,source_kind=\"controller\",status_code=\"200\"} %g\n",
 		t.Name(), countsBefore+2,
 	))
 	requireRequestCharges(t, requestCharges{key: chargesBefore + 3}, requestCharges{key: gatheredCharges(t, legacyregistry.DefaultGatherer)[key]})

@@ -27,9 +27,6 @@ import (
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-
-	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 var requestUnits = promauto.With(legacyregistry.Registerer()).NewCounterVec(
@@ -37,7 +34,7 @@ var requestUnits = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		Name: "cosmos_request_units_total",
 		Help: "Total Cosmos DB request units charged across HTTP attempts.",
 	},
-	[]string{"source_kind", "source", "cosmosdb_container", "operation", "status_code"},
+	[]string{"source_kind", "source", "cosmosdb_container", "operation", "status_code", "call_site", "query_shape", "query_scope"},
 )
 
 var requestCount = promauto.With(legacyregistry.Registerer()).NewCounterVec(
@@ -45,17 +42,21 @@ var requestCount = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		Name: "cosmos_requests_total",
 		Help: "Total Cosmos DB HTTP attempts, by outcome, regardless of request charge.",
 	},
-	[]string{"source_kind", "source", "cosmosdb_container", "operation", "status_code"},
+	[]string{"source_kind", "source", "cosmosdb_container", "operation", "status_code", "call_site", "query_shape", "query_scope"},
 )
 
-// RegisterMetrics registers the shared request charge and request count
-// counters with an additional registerer. Both remain registered with the
-// legacy registry.
+// RegisterMetrics registers the shared request and query collectors with an
+// additional registerer. All remain registered with the legacy registry.
 func RegisterMetrics(registerer prometheus.Registerer) error {
-	if err := registerer.Register(requestUnits); err != nil {
-		return err
+	for _, collector := range []prometheus.Collector{
+		requestUnits, requestCount, queryExecutions, queryPages, queryItems,
+		queryItemBytes, queryEmptyPages, queryPageDuration,
+	} {
+		if err := registerer.Register(collector); err != nil {
+			return err
+		}
 	}
-	return registerer.Register(requestCount)
+	return nil
 }
 
 // NewRequestChargePolicy records the charge and outcome of each HTTP response.
@@ -78,15 +79,12 @@ func (p *requestChargePolicy) Do(req *policy.Request) (*http.Response, error) {
 
 	raw := req.Raw()
 	container, operation := classifyRequest(raw)
-	sourceKind, source := sourceKindUnattributed, "unknown"
-	if name, ok := informerutils.InformerNameFromContext(raw.Context()); ok && name != "" {
-		sourceKind, source = sourceKindInformer, name
-	} else if name, ok := utils.ControllerNameFromContext(raw.Context()); ok && name != "" {
-		sourceKind, source = sourceKindController, name
-	}
+	sourceKind, source := sourceFromContext(raw.Context())
+	callSite := CallSiteFromContext(raw.Context())
+	queryShape, queryScope := queryFromContext(raw.Context())
 	statusCode := strconv.Itoa(resp.StatusCode)
 
-	p.requestCount.WithLabelValues(sourceKind, source, container, operation, statusCode).Inc()
+	p.requestCount.WithLabelValues(sourceKind, source, container, operation, statusCode, callSite, queryShape, queryScope).Inc()
 
 	rawCharge := resp.Header.Get("x-ms-request-charge")
 	if rawCharge == "" {
@@ -97,7 +95,7 @@ func (p *requestChargePolicy) Do(req *policy.Request) (*http.Response, error) {
 		return resp, err
 	}
 
-	p.requestUnits.WithLabelValues(sourceKind, source, container, operation, statusCode).Add(charge)
+	p.requestUnits.WithLabelValues(sourceKind, source, container, operation, statusCode, callSite, queryShape, queryScope).Add(charge)
 	return resp, err
 }
 
