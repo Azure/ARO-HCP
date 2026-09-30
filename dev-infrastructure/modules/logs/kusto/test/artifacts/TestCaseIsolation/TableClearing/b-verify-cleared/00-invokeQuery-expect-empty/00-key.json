@@ -1,0 +1,4 @@
+{
+	"database": "HostedControlPlaneLogs",
+	"query": "containerLogs | count"
+}

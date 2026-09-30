@@ -1,0 +1,24 @@
+// @owner: sre-team
+// @domain: Triage/Resolvers
+// @depends: cosmosResourceSnapshots
+// @params: p_ClustersServiceId=internal Clusters Service ID, p_StartTime=window start, p_EndTime=window end
+// @returns: single row with arm_resource_id string column (ARM resource ID)
+.create-or-alter function
+with (
+  docstring = 'Gets the ARM resource ID for a Clusters Service internal ID. | Returns: single row with arm_resource_id (ARM format) | Example: let rid = toscalar(GetARMResourceIDForClustersServiceID("abc123", ago(7d), now()))',
+  folder = 'Triage\\Resolvers'
+)
+GetARMResourceIDForClustersServiceID(p_ClustersServiceId: string, p_StartTime: datetime, p_EndTime: datetime)
+{
+    cosmosResourceSnapshots
+    | where timestamp between (p_StartTime .. p_EndTime)
+    | where resourceType =~ "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+    | where cosmosContainer == "resources"
+    | extend confirmedCsid = tostring(content.properties.serviceProviderProperties.clusterServiceID),
+             pendingCsid = tostring(content.properties.serviceProviderProperties.pendingClusterServiceID)
+    | where (isnotempty(confirmedCsid) and confirmedCsid endswith strcat("clusters/", p_ClustersServiceId))
+         or (isnotempty(pendingCsid) and pendingCsid endswith strcat("clusters/", p_ClustersServiceId))
+    | summarize arg_max(timestamp, resourceID)
+    | project arm_resource_id = resourceID
+    | take 1
+}
