@@ -441,7 +441,7 @@ func TestWorkerSelectorPatternsRejectNonAllowlistedSKUs(t *testing.T) {
 		"Standard_D8as_v3", "Standard_D8as_v6",
 		"Standard_D4as_v3", "Standard_D4as_v6",
 		// Arm64 "p" variants are not allowlisted for these selectors.
-		"Standard_D8ps_v6", "Standard_D8plds_v6",
+		"Standard_D8ps_v6",
 	}
 	for _, sel := range productionWorkerSelectors() {
 		if sel.NamePattern == nil {
@@ -451,6 +451,13 @@ func TestWorkerSelectorPatternsRejectNonAllowlistedSKUs(t *testing.T) {
 			if sel.NamePattern.MatchString(name) {
 				t.Errorf("selector %q NamePattern must not match non-allowlisted SKU %q", sel.Name, name)
 			}
+		}
+	}
+
+	// Standard_D8plds_v6 is an ephemeral-only Arm64 fallback; the other worker selectors stay x86.
+	for _, sel := range []VMSizeSelector{DefaultWorkerVMSizeSelector(), SmallWorkerVMSizeSelector()} {
+		if sel.NamePattern.MatchString("Standard_D8plds_v6") {
+			t.Errorf("selector %q NamePattern must not match Arm64 SKU %q", sel.Name, "Standard_D8plds_v6")
 		}
 	}
 
@@ -475,7 +482,7 @@ func TestWorkerSelectorPatternsAcceptAllowlistedSKUs(t *testing.T) {
 	cases := map[string][]string{
 		"default-worker":          {"Standard_D8s_v3", "Standard_D8s_v4", "Standard_D8s_v5", "Standard_D8s_v6", "Standard_D8as_v4", "Standard_D8as_v5"},
 		"small-worker":            {"Standard_D4s_v3", "Standard_D4s_v4", "Standard_D4s_v5", "Standard_D4s_v6", "Standard_D4as_v4", "Standard_D4as_v5"},
-		"ephemeral-osdisk-worker": {"Standard_D8s_v3", "Standard_D8as_v4", "Standard_E8s_v3", "Standard_E8as_v4"},
+		"ephemeral-osdisk-worker": {"Standard_D8s_v3", "Standard_D8as_v4", "Standard_E8s_v3", "Standard_E8as_v4", "Standard_D8plds_v6"},
 	}
 	byName := map[string]VMSizeSelector{}
 	for _, sel := range productionWorkerSelectors() {

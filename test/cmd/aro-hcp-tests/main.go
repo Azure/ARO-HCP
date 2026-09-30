@@ -717,7 +717,8 @@ func setupCli() *cobra.Command {
 	// 	specs = specs.AddLabel("SLOW")
 
 	// Specs can be globally filtered...
-	// specs = specs.MustFilter([]string{`name.contains("filter")`})
+	// DO NOT MERGE: temporary filter for the AROSLSRE-2319 eastus2 validation run.
+	specs = specs.MustFilter([]string{`name.contains("Nodepool Ephemeral OS Disk")`})
 
 	// Or walked...
 	// specs = specs.Walk(func(spec *extensiontests.ExtensionTestSpec) {
