@@ -18,6 +18,9 @@ shared ownership, and cluster create/update and rollout diagrams, including the 
 Immediate z-stream update policy. Review fixes cover
 rollout membership, initial-assignment ownership, input-event queue metrics,
 field annotations, and the recency-only selection contract.
+External-auth operation update baseline: `51851bfabe`, rebased on main `08987b4eba`;
+scope: frontend create acceptance without a parent Cluster Service ID, empty
+create/update operation `InternalID`, and the corresponding lifecycle diagrams.
 
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
@@ -509,6 +512,12 @@ transitively deletes all clusters (and their children) via transactional batches
 **Handler:** `createExternalAuth` ([external_auth.go](../frontend/pkg/frontend/external_auth.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` x2)
 
+The frontend live-reads the parent cluster and checks provisioning-state conflicts,
+but does not require the parent's `ServiceProviderProperties.ClusterServiceID`.
+It can persist the external-auth resource and create operation before Cluster
+Service has created the parent. Backend creation still requires that parent ID
+and retries until it is available.
+
 | Object | Fields Written |
 |--------|---------------|
 | `ExternalAuth` | <ul><li>Writable `Properties.*` from request body (unmarshaled, read-only fields cleared before conversion to internal, `EnsureDefaults()` applied)</li><li>`ProxyResource.ID`, `ProxyResource.Name`, `ProxyResource.Type`</li><li>`SystemData`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
@@ -522,10 +531,15 @@ transitively deletes all clusters (and their children) via transactional batches
 **Handler:** `updateExternalAuthInCosmos` ([external_auth.go](../frontend/pkg/frontend/external_auth.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` + `AddReplaceToTransaction`)
 
+The operation always has an empty `InternalID`, including updates of legacy
+resources with a stored Cluster Service ID. The resource's
+`ServiceProviderProperties.ClusterServiceID` is preserved for backend dispatch
+and completion. The operation poller locates the resource by `Operation.ExternalID`.
+
 | Object | Fields Written |
 |--------|---------------|
 | `ExternalAuth` | <ul><li>`Properties.*` (from request)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyExternalAuthValues`: `ProxyResource`, `CosmosMetadata`, `Properties.ProvisioningState`, `ServiceProviderProperties`, `Status`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID`, `InternalID` = `*externalAuth.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = external auth ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li></ul> |
 
 ---
 
@@ -1104,7 +1118,7 @@ Aggregates service-provider validation conditions into the ARM RequirementsValid
 
 [Source](../backend/pkg/controllers/externalauth/creation/external_auth_cluster_service_create_controller.go) · **Trigger:** ExternalAuth; 1m.
 
-For a live resource without `ClusterServiceID`, live-reads the resource and requires the parent cluster ID. Adopts the deterministic Cluster Service resource or POSTs it, then persists its ID. External auth has no separate service-provider document; updates use the parent cluster's HostedCluster ReadDesire.
+For a live resource without `ClusterServiceID`, live-reads the resource and requires the cached parent cluster's nonempty `ServiceProviderProperties.ClusterServiceID`. A missing parent ID returns a retryable error; frontend acceptance does not satisfy this backend prerequisite. Adopts the deterministic Cluster Service resource or POSTs it, then persists its ID on the external-auth document. External auth has no separate service-provider document; updates use the parent cluster's HostedCluster ReadDesire.
 
 #### ExternalAuthClusterServiceUpdateDispatch
 
@@ -1140,13 +1154,13 @@ Once deletion prerequisites and child cleanup are satisfied, deletes the ARM res
 
 [Source](../backend/pkg/controllers/externalauth/operations/operation_external_auth_create.go) · **Trigger:** Active operation; 10s.
 
-A successful Cluster Service GET of external auth is the completion check; this does not wait for downstream authentication rollout readiness. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Uses `Operation.ExternalID` to find the cached external-auth resource and waits for its `ServiceProviderProperties.ClusterServiceID`; it does not use `Operation.InternalID`. A successful Cluster Service GET of external auth is the completion check; this does not wait for downstream authentication rollout readiness. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
 
 #### OperationExternalAuthUpdate
 
 [Source](../backend/pkg/controllers/externalauth/operations/operation_external_auth_update.go) · **Trigger:** Active operation; 10s.
 
-Combines desired-versus-observed Cluster Service configuration with the parent HostedCluster spec from its ReadDesire (issuer, clients, claims and validation rules). HostedCluster authentication status is not checked. Updates operation and ARM provisioning state, clears the terminal active-operation reference and sends the notification.
+Uses `Operation.ExternalID` to find the cached external-auth resource and waits for its `ServiceProviderProperties.ClusterServiceID`; it does not use `Operation.InternalID`. Combines desired-versus-observed Cluster Service configuration with the parent HostedCluster spec from its ReadDesire (issuer, clients, claims and validation rules). HostedCluster authentication status is not checked. Updates operation and ARM provisioning state, clears the terminal active-operation reference and sends the notification.
 
 #### OperationExternalAuthDelete
 
@@ -1765,6 +1779,15 @@ The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controll
 
 ![External auth create controller digraph](diagrams/controller-flows/externalauth-create.png)
 
+[Frontend create](../frontend/pkg/frontend/external_auth.go) requires an existing
+parent and passing validation/conflict checks, but no parent Cluster Service ID.
+It atomically stores the resource and an operation with the external-auth ARM ID
+in `ExternalID` and an empty `InternalID`.
+[Backend creation](../backend/pkg/controllers/externalauth/creation/external_auth_cluster_service_create_controller.go)
+retries until the parent's Cluster Service ID is available, then adopts or creates
+the external auth and stores its ID on the resource. The create poller reads that
+resource ID before checking Cluster Service.
+
 [Create completion](../backend/pkg/controllers/externalauth/operations/operation_external_auth_create.go) succeeds after a Cluster Service GET succeeds. There is no separate ServiceProviderExternalAuth document or external-auth-scoped read pipeline; this completion check does not establish downstream authentication readiness.
 
 ### External auth update
@@ -1772,6 +1795,12 @@ The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controll
 [Full PNG](diagrams/controller-flows/externalauth-update.png) · [Graphviz source](diagrams/controller-flows/externalauth-update.dot)
 
 ![External auth update controller digraph](diagrams/controller-flows/externalauth-update.png)
+
+[Frontend update](../frontend/pkg/frontend/external_auth.go) preserves any stored
+resource Cluster Service ID while writing an operation with an empty `InternalID`.
+The dispatcher and operation poller still require the resource's Cluster Service
+ID; the poller locates the resource using `Operation.ExternalID`. Frontend
+acceptance and backend completion therefore have different prerequisites.
 
 [Update completion checks](../backend/pkg/controllers/externalauth/operations/operation_external_auth_update_state_calculation.go) compare both Cluster Service configuration and the parent HostedCluster spec read through its existing ReadDesire. Authentication status is explicitly not checked. This is stricter than the create poller's existence check, but is still not end-to-end authentication validation.
 
@@ -1797,6 +1826,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Cluster `CustomerProperties`; node-pool/external-auth `Properties` | Frontend create/update writes customer intent. [ClusterBaseDomainPrefixSync](#clusterbasedomainprefixsync) fills the generated DNS prefix. Dispatch/version controllers react to relevant differences. |
 | Cluster `ServiceProviderProperties.ProvisioningState`; node-pool/external-auth `Properties.ProvisioningState` | Frontend marks Accepted/Deleting; the matching operation controller writes progress/terminal state. This is ARM request state, not a complete inventory of external resources. |
 | `ServiceProviderProperties.ActiveOperationID` | Frontend sets the new operation reference; terminal operation updates clear it. Pollers reject superseded operation IDs. |
+| External-auth create/update `Operation.ExternalID` / `InternalID` | Frontend writes the ARM resource ID / empty ID, even for a resource with an existing Cluster Service ID. Pollers use `ExternalID` to look up the resource and its backend-owned `ServiceProviderProperties.ClusterServiceID`. The operation does not copy or clear the resource's ID. |
 | `Operation.Status`, `Error`, `LastTransitionTime`, `NotificationURI` | Frontend initializes/cancels requests; operation controllers update status and send/clear async notifications through the shared helper. |
 | `ServiceProviderProperties.DeletionTimestamp` and deletion-approach flags | Frontend stamps deletion intent; dispatch, cleanup and final deletion controllers consume it. Deletion timestamp alone does not mean external resources are gone. |
 | Cluster `PendingClusterServiceID` / `ClusterServiceID` | [Pending ID assignment](#clusterpendingclusterserviceidassign) reserves the ID. [Cluster creation](#clusterclusterservicecreate) confirms the external ID and clears pending. The [ID clearer](#clusterdeletionclusterserviceidclearer) clears confirmed ID only after external absence. Node-pool/external-auth create and clear controllers similarly share their confirmed-ID fields. |
