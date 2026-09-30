@@ -67734,8 +67734,8 @@ data:
                 - metadata
                 - deletionTimestamp
             type: Info
-          help: HostedCluster is being deleted (has deletionTimestamp set). Only present
-            for clusters with an active deletion.
+          help: HostedCluster deletion info. The deletion_timestamp label is non-empty
+            only for clusters with an active deletion.
           name: deleting
       - groupVersionKind:
           group: velero.io
