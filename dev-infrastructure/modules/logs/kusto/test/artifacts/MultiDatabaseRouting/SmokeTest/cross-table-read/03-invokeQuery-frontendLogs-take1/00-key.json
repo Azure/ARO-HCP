@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "frontendLogs | take 1"
+}

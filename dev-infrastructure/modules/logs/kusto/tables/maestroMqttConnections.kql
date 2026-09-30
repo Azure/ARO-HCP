@@ -27,7 +27,7 @@ with (docstring = "Staging table for Event Grid MQTT connection diagnostics")
 with (docstring = "Event Grid MQTT connection outcomes for Maestro clients")
 
 .create-or-alter function
-with (docstring = 'Extract Event Grid MQTT connection diagnostics', skipvalidation = "true")
+with (docstring = 'Extract Event Grid MQTT connection diagnostics')
 rawMaestroMqttConnectionsTransform() {
     rawMaestroMqttConnections
     | mv-expand records

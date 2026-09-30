@@ -1,0 +1,8 @@
+# Consumer side of the Kusto function contract.
+# Log consumers own the integration test expectations. When
+# engineering (service-lifecycle-approvers) changes a function in
+# functions/, broken tests here require consumer approval to update.
+# Prow enforces approval from both groups when a PR touches both
+# directories.
+approvers:
+  - sre-approvers
