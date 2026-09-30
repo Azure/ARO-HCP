@@ -220,6 +220,16 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 			replacement.Status.AzureResources.DenyAssignments.AzureResources = removeDenyAssignmentRef(replacement.Status.AzureResources.DenyAssignments.AzureResources, existing.DenyAssignmentType)
 		}
 	}
+	for _, pending := range serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources {
+		if _, isRequired := requiredDenyAssignmentReferenceByType[pending.DenyAssignmentType]; !isRequired {
+			if err := c.deleteDenyAssignment(ctx, genericResourcesClient, pending.DenyAssignmentResourceID); err != nil {
+				staleDeletionErrs = append(staleDeletionErrs, utils.TrackError(fmt.Errorf("failed to delete stale pending deny assignment %s: %w", pending.DenyAssignmentType, err)))
+				continue
+			}
+			logger.Info("Deleted stale pending deny assignment from Azure", "denyAssignmentType", pending.DenyAssignmentType)
+			replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = removeDenyAssignmentRef(replacement.Status.AzureResources.DenyAssignments.PendingAzureResources, pending.DenyAssignmentType)
+		}
+	}
 	serviceProviderCluster, replacement, err = replaceServiceProviderClusterIfChanged(ctx, serviceProviderClusterCRUD, serviceProviderCluster, replacement, staleDeletionErrs)
 	if serviceProviderCluster == nil || err != nil {
 		return err
