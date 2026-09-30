@@ -227,6 +227,7 @@ func (c *SessionController) processNextSessionWorkItem(ctx context.Context) bool
 
 	logger.Info("start sync")
 	defer logger.Info("end sync")
+	logger.Info("session status", "conditions", session.Status.Conditions, "ready", session.IsReady(), "expiresAt", session.Status.ExpiresAt)
 
 	// requeue for the expiration time
 	if session.Status.ExpiresAt != nil {
@@ -239,7 +240,7 @@ func (c *SessionController) processNextSessionWorkItem(ctx context.Context) bool
 	// get the management cluster provider
 	mc, ok := c.getManagementClusterProvider(session.Spec.ManagementCluster.ResourceID)
 	if !ok {
-		logger.V(4).Info(
+		logger.Info(
 			"management cluster provider not yet registered, skipping session reconciliation as the registration process will requeue",
 		)
 		return true
