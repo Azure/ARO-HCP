@@ -57,13 +57,23 @@ A brand-new subscription typically has no Azure resource providers registered be
 `Microsoft.Compute` and `Microsoft.Network` in particular must be registered before the Standard DSv3 vCPU and public-IP quota requests can be filed. `Microsoft.Quota` backs the quota tooling and the `tenant-quota-collector` monitoring updated in step 6. Because quota requests (step 2) must come before `make dev-ci-privileged-local-run` (step 6), you may still need to register `Microsoft.Compute` and `Microsoft.Network` manually before filing quota:
 
 ```sh
+SUB=<subscription-id>
+
 for ns in Microsoft.Compute Microsoft.Network; do
-  az provider register --namespace "$ns" --subscription <subscription-id>
+  az provider register --namespace "$ns" --subscription "$SUB"
 done
-# Wait for Registered state before filing quota requests:
+
+# Registration is asynchronous. Poll until both report Registered before filing
+# quota. Bounded at ~10 min so a stuck registration or a wrong subscription id
+# fails visibly instead of hanging.
 for ns in Microsoft.Compute Microsoft.Network; do
-  echo "$ns: $(az provider show --namespace "$ns" \
-    --subscription <subscription-id> --query registrationState -o tsv)"
+  for _ in $(seq 60); do
+    state="$(az provider show --namespace "$ns" --subscription "$SUB" \
+      --query registrationState -o tsv 2>/dev/null || true)"
+    [ "$state" = "Registered" ] && break
+    sleep 10
+  done
+  echo "$ns: ${state:-unreadable}"
 done
 ```
 
