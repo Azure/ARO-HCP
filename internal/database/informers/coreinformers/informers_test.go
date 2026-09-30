@@ -16,6 +16,9 @@ package coreinformers
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -32,9 +35,128 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 )
+
+func TestClusterInformerSubscriptionIndex(t *testing.T) {
+	db := corecosmosstoragetesting.NewMockResourcesDBClient()
+	informer := NewClusterInformer(db.ResourcesGlobalListers().Clusters(), db)
+	indexer := informer.GetIndexer()
+	lister := corelisters.NewClusterLister(indexer)
+	ctx := t.Context()
+	list := func(subscription string, expected ...*coreapi.Cluster) {
+		t.Helper()
+		actual, err := lister.ListForSubscription(ctx, subscription)
+		require.NoError(t, err)
+		require.ElementsMatch(t, expected, actual)
+	}
+	list("Sub-A")
+	var clusters []*coreapi.Cluster
+	for _, path := range []string{"Sub-A/resourceGroups/RG-one", "sub-a/resourceGroups/RG-two", "Sub-B/resourceGroups/RG-one"} {
+		id := mustParseResourceID(t, "/subscriptions/"+path+"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster")
+		cluster := coreapi.NewDefaultCluster(id, "eastus")
+		cluster.ResourceID = id
+		require.NoError(t, indexer.Add(cluster))
+		clusters = append(clusters, cluster)
+	}
+	list("SUB-A", clusters[0], clusters[1])
+	list("sub-a", clusters[0], clusters[1])
+	list("sub-b", clusters[2])
+	list("missing")
+	group, err := lister.ListForResourceGroup(ctx, "SUB-A", "rg-ONE")
+	require.NoError(t, err)
+	require.Equal(t, []*coreapi.Cluster{clusters[0]}, group)
+
+	updated := clusters[0].DeepCopy()
+	updated.Location = "westus"
+	require.NoError(t, indexer.Update(updated))
+	list("sUb-A", updated, clusters[1])
+	require.NoError(t, indexer.Delete(updated))
+	list("sub-a", clusters[1])
+	require.NoError(t, indexer.Delete(clusters[1]))
+	list("sub-a")
+	list("SUB-B", clusters[2])
+}
+
+func TestFixtureLoadsReachSyncedInformers(t *testing.T) {
+	for _, loader := range []string{"content", "directory"} {
+		t.Run(loader, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
+			// Default relist intervals are much longer than this test, so only the feed can deliver these loads.
+			clusterInformer := NewClusterInformer(db.ResourcesGlobalListers().Clusters(), db)
+			nodePoolInformer := NewNodePoolInformer(db.ResourcesGlobalListers().NodePools(), db)
+			var workers sync.WaitGroup
+			for _, informer := range []cache.SharedIndexInformer{clusterInformer, nodePoolInformer} {
+				workers.Go(func() { informer.Run(ctx.Done()) })
+			}
+			defer workers.Wait()
+			defer cancel()
+			require.True(t, cache.WaitForCacheSync(ctx.Done(), clusterInformer.HasSynced, nodePoolInformer.HasSynced))
+			clusters := corelisters.NewClusterLister(clusterInformer.GetIndexer())
+			nodePools := corelisters.NewNodePoolLister(nodePoolInformer.GetIndexer())
+			initial, err := clusters.List(ctx)
+			require.NoError(t, err)
+			require.Empty(t, initial)
+			initialPools, err := nodePools.List(ctx)
+			require.NoError(t, err)
+			require.Empty(t, initialPools)
+
+			if loader == "content" {
+				for _, name := range []string{"cluster.json", "nodepool.json"} {
+					content, err := os.ReadFile(filepath.Join("testdata", "fixture-load", name))
+					require.NoError(t, err)
+					require.NoError(t, db.LoadContent(ctx, content))
+				}
+			} else {
+				require.NoError(t, db.LoadFromDirectory(filepath.Join("testdata", "fixture-load")))
+			}
+			require.Eventually(t, func() bool {
+				clusterList, err := clusters.ListForSubscription(ctx, "SUB-A")
+				if err != nil || len(clusterList) != 1 {
+					return false
+				}
+				poolList, err := nodePools.ListForCluster(ctx, "SUB-A", "RG-one", "CLUSTER")
+				return err == nil && len(poolList) == 1
+			}, 10*time.Second, 20*time.Millisecond, "fixtures loaded after sync must reach actual listers via the change feed")
+
+			for _, name := range []string{"cluster.json", "nodepool.json"} {
+				content, err := os.ReadFile(filepath.Join("testdata", "fixture-load", name))
+				require.NoError(t, err)
+				var doc cosmosstorageutils.TypedDocument
+				require.NoError(t, json.Unmarshal(content, &doc))
+				stored, ok := db.GetDocument(doc.ID)
+				require.True(t, ok)
+				require.Equal(t, content, []byte(stored), "loading must preserve the raw fixture, including unknown fields and metadata")
+			}
+			cluster, err := clusters.Get(ctx, "sub-a", "rg-one", "cluster")
+			require.NoError(t, err)
+			require.EqualValues(t, "fixture-cluster-etag", cluster.CosmosETag)
+			require.EqualValues(t, 7, cluster.InstanceVersion)
+			pool, err := nodePools.Get(ctx, "sub-a", "rg-one", "cluster", "pool")
+			require.NoError(t, err)
+			require.EqualValues(t, "fixture-nodepool-etag", pool.CosmosETag)
+			require.EqualValues(t, 9, pool.InstanceVersion)
+
+			updated := cluster.DeepCopy()
+			updated.Location = "westus"
+			_, err = db.HCPClusters("sub-a", "rg-one").Replace(ctx, updated, nil)
+			require.NoError(t, err)
+			require.Eventually(t, func() bool {
+				items, err := clusters.ListForSubscription(ctx, "SUB-A")
+				return err == nil && len(items) == 1 && items[0].Location == "westus"
+			}, 10*time.Second, 20*time.Millisecond)
+			require.NoError(t, db.HCPClusters("sub-a", "rg-one").Delete(ctx, "cluster"))
+			require.Eventually(t, func() bool {
+				items, err := clusters.ListForSubscription(ctx, "SUB-A")
+				return err == nil && len(items) == 0
+			}, 10*time.Second, 20*time.Millisecond)
+		})
+	}
+}
 
 func mustParseResourceID(t *testing.T, id string) *azcorearm.ResourceID {
 	t.Helper()

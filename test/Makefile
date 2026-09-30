@@ -5,6 +5,24 @@ SHELL = /bin/bash
 all: build
 
 BICEP ?= bicep
+BICEP_MAX_ATTEMPTS ?= 3
+BICEP_RETRY_DELAY ?= 10
+
+export AZURE_BICEP_CHECK_VERSION := False
+
+define bicep_build
+	for attempt in $$(seq 1 $(BICEP_MAX_ATTEMPTS)); do \
+		if $(BICEP) build $(1) --outfile $(2); then \
+			break; \
+		fi; \
+		if [ "$$attempt" -eq "$(BICEP_MAX_ATTEMPTS)" ]; then \
+			echo "ERROR: $(BICEP) build failed after $(BICEP_MAX_ATTEMPTS) attempts"; \
+			exit 1; \
+		fi; \
+		echo "WARNING: $(BICEP) build attempt $$attempt/$(BICEP_MAX_ATTEMPTS) failed, retrying in $(BICEP_RETRY_DELAY)s..."; \
+		sleep $(BICEP_RETRY_DELAY); \
+	done
+endef
 
 BICEP_OUTPUT_DIR=$(TEST_DIR)e2e/test-artifacts/generated-test-artifacts/
 
@@ -13,14 +31,14 @@ DEMO_BICEP_SOURCES = $(shell find $(DEMO_BICEP_DIR) -name '*.bicep')
 DEMO_BICEP_OUTPUTS = $(addprefix $(BICEP_OUTPUT_DIR)standard-cluster-create/,$(addsuffix .json,$(basename $(notdir $(DEMO_BICEP_SOURCES)))))
 $(BICEP_OUTPUT_DIR)standard-cluster-create/%.json: $(DEMO_BICEP_DIR)/%.bicep
 	@mkdir -p $(dir $@)
-	$(BICEP) build $< --outfile $@
+	$(call bicep_build,$<,$@)
 
 TEST_BICEP_DIR=$(TEST_DIR)e2e-setup/bicep
 TEST_BICEP_SOURCES = $(shell cd $(TEST_BICEP_DIR) && find * -name '*.bicep')
 TEST_BICEP_OUTPUTS = $(addprefix $(BICEP_OUTPUT_DIR),$(addsuffix .json,$(basename $(TEST_BICEP_SOURCES))))
 $(BICEP_OUTPUT_DIR)%.json: $(TEST_BICEP_DIR)/%.bicep
 	@mkdir -p $(dir $@)
-	$(BICEP) build $< --outfile $@
+	$(call bicep_build,$<,$@)
 
 bicep-fixtures: $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS)
 .PHONY: bicep-fixtures

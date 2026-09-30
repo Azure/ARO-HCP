@@ -61,11 +61,11 @@ func (v verifyNodesReady) Verify(ctx context.Context, adminRESTConfig *rest.Conf
 	var notReadyNodes []string
 	for _, node := range nodes.Items {
 		if !nodeReady(&node) {
-			notReadyNodes = append(notReadyNodes, node.Name)
+			notReadyNodes = append(notReadyNodes, nodeReadyConditionSummary(&node))
 		}
 	}
 	if len(notReadyNodes) > 0 {
-		return fmt.Errorf("there are not ready nodes: %s", notReadyNodes)
+		return fmt.Errorf("there are not ready nodes: %s", strings.Join(notReadyNodes, ", "))
 	}
 
 	return nil
@@ -216,6 +216,21 @@ func formatNodesByPool(nodes []corev1.Node) string {
 	return strings.Join(parts, ", ")
 }
 
+// formatMatchingNodesStatus returns a compact summary of each node's status:
+// name, ready, schedulable, and creation timestamp.
+func formatMatchingNodesStatus(nodes []corev1.Node) string {
+	parts := make([]string, 0, len(nodes))
+	for i := range nodes {
+		parts = append(parts, fmt.Sprintf("%s (ready=%t, unschedulable=%t, kubelet=%s, created=%s)",
+			nodes[i].Name,
+			nodeReady(&nodes[i]),
+			nodes[i].Spec.Unschedulable,
+			nodes[i].Status.NodeInfo.KubeletVersion,
+			nodes[i].CreationTimestamp.Format("2006-01-02T15:04:05Z")))
+	}
+	return strings.Join(parts, ", ")
+}
+
 type verifyNodePoolReadyAndSchedulableNodeCount struct {
 	nodePoolName string
 	expected     int
@@ -249,7 +264,10 @@ func (v verifyNodePoolReadyAndSchedulableNodeCount) Verify(ctx context.Context, 
 	}
 
 	if readyCount != v.expected {
-		return fmt.Errorf("expected %d ready (and schedulable) nodes in node pool %q, found %d", v.expected, v.nodePoolName, readyCount)
+		return fmt.Errorf("expected %d ready (and schedulable) nodes in node pool %q, found %d; matching nodes: %s; all nodes by pool (%d total): %s",
+			v.expected, v.nodePoolName, readyCount,
+			formatMatchingNodesStatus(matchingNodes),
+			len(nodes.Items), formatNodesByPool(nodes.Items))
 	}
 
 	return nil
@@ -361,6 +379,19 @@ func VerifyNodePoolUpgrade(expectedVersion string, nodePoolName string, previous
 		nodePoolName:          nodePoolName,
 		previousReleaseImages: previousReleaseImages,
 	}
+}
+
+// nodeReadyConditionSummary returns a compact description of a node's NodeReady condition
+// for use in error messages: name, reason, message, and last transition time.
+func nodeReadyConditionSummary(node *corev1.Node) string {
+	for _, c := range node.Status.Conditions {
+		if c.Type == corev1.NodeReady {
+			return fmt.Sprintf("%s (status=%s, reason=%s, message=%s, since=%s)",
+				node.Name, c.Status, c.Reason, c.Message,
+				c.LastTransitionTime.Format("2006-01-02T15:04:05Z"))
+		}
+	}
+	return fmt.Sprintf("%s (no NodeReady condition found)", node.Name)
 }
 
 // nodeReady returns true if the node has NodeReady condition status True.

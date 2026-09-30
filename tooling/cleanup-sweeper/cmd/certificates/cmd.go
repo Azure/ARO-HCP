@@ -59,7 +59,7 @@ before the first delete and at most every 30 seconds. Successful deletes wait up
 then revalidate and purge it immediately. A bounded worker pool limits concurrent Azure mutations.
 --max-purges is a shared bound across immediate purges and previously deleted tombstones;
 when both actions are enabled, capacity is reserved first for selected active certificates.
-The deletion and purge limits bound metadata inspected as well as mutations.
+Inventory paging continues past ineligible metadata until each enabled mutation budget is filled or inventory is exhausted.
 Azure has no atomic owner-check/delete:
 concurrent RG or certificate creation remains a race. Purging is irreversible and requires certificates/purge permission.
 The command never deletes keys or secrets directly.`,
@@ -99,8 +99,8 @@ The command never deletes keys or secrets directly.`,
 	cmd.Flags().BoolVar(&opts.DeleteActive, "delete-active", opts.DeleteActive, "Discover and soft-delete old, unowned active CI certificates.")
 	cmd.Flags().BoolVar(&opts.PurgeDeleted, "purge-deleted", opts.PurgeDeleted, "Discover and permanently purge eligible deleted CI certificate tombstones.")
 	cmd.Flags().DurationVar(&opts.MinAge, "min-age", opts.MinAge, "Minimum age of BOTH latest created and updated timestamps (minimum 24h).")
-	cmd.Flags().IntVar(&opts.MaxDeletions, "max-deletions", opts.MaxDeletions, "Maximum active certificate metadata entries inspected per run; also bounds selections and mutations (must be positive; also caps dry-run).")
-	cmd.Flags().IntVar(&opts.MaxPurges, "max-purges", opts.MaxPurges, "Maximum total purge operations selected per run; immediate purges reserve capacity before deleted-certificate metadata is inspected (must be positive; also caps dry-run).")
+	cmd.Flags().IntVar(&opts.MaxDeletions, "max-deletions", opts.MaxDeletions, "Maximum active certificate mutations selected per run; inventory continues until this budget is filled or exhausted (must be positive; also caps dry-run selections).")
+	cmd.Flags().IntVar(&opts.MaxPurges, "max-purges", opts.MaxPurges, "Maximum total purge mutations selected per run; immediate purges reserve capacity before deleted-certificate selection (must be positive; also caps dry-run selections).")
 	cmd.Flags().IntVar(&opts.Workers, "workers", opts.Workers, "Maximum concurrent certificate delete/purge chains (must be positive).")
 	cmd.Flags().DurationVar(&timeout, "timeout", 30*time.Minute, "Overall timeout, including discovery and all Azure requests (must be positive).")
 	return cmd

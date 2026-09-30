@@ -28,6 +28,9 @@ type OperationState struct {
 	ProvisioningState coreapi.ProvisioningState `json:"provisioningState"`
 	Message           string                    `json:"message"`
 
+	// CloudErrorCode defaults to InternalServerError for non-successful states.
+	CloudErrorCode string `json:"cloudErrorCode"`
+
 	// Error is the customer-safe error for a failed operation
 	Error *coreapi.CloudErrorBody `json:"error,omitempty"`
 }
@@ -38,21 +41,64 @@ func (s *OperationState) WithSource(source string) *OperationState {
 	return s
 }
 
+// WithCloudErrorCode sets the error code when a more specific classification is available.
+func (s *OperationState) WithCloudErrorCode(code string) *OperationState {
+	if code != "" {
+		s.CloudErrorCode = code
+	}
+	return s
+}
+
 // NewOperationState creates a new operation state with the given provisioning state and message, without a source.
 func NewOperationState(provisioningState coreapi.ProvisioningState, message string) *OperationState {
+	code := ""
+	if provisioningState != coreapi.ProvisioningStateSucceeded {
+		code = coreapi.CloudErrorCodeInternalServerError
+	}
 	return &OperationState{
 		ProvisioningState: provisioningState,
 		Message:           message,
+		CloudErrorCode:    code,
 	}
 }
 
-// NewFailedOperationState creates a failed operation state with a diagnostic
-// message and an optional customer-safe error.
-func NewFailedOperationState(message string, operationError *coreapi.CloudErrorBody) *OperationState {
-	return &OperationState{
-		ProvisioningState: coreapi.ProvisioningStateFailed,
-		Message:           message,
-		Error:             operationError,
+// NewFailedOperationState creates a failed operation state with an explicit code,
+// diagnostic message and optional customer-safe error. An empty code defaults to
+// InternalServerError.
+func NewFailedOperationState(code, message string, operationError *coreapi.CloudErrorBody) *OperationState {
+	state := NewOperationState(coreapi.ProvisioningStateFailed, message).WithCloudErrorCode(code)
+	state.Error = operationError
+	return state
+}
+
+// PickWorstCloudErrorCode selects a code from states matching provisioningState.
+// Invalid* codes rank worst, followed by other codes, then InternalServerError.
+// Successful states have no error code. Otherwise, missing codes default to
+// InternalServerError; equal priorities keep the first code.
+func PickWorstCloudErrorCode(states []*OperationState, provisioningState coreapi.ProvisioningState) string {
+	if provisioningState == coreapi.ProvisioningStateSucceeded {
+		return ""
+	}
+	code := coreapi.CloudErrorCodeInternalServerError
+	for _, state := range states {
+		if state.ProvisioningState != provisioningState || state.CloudErrorCode == "" {
+			continue
+		}
+		if cloudErrorCodePriority(state.CloudErrorCode) < cloudErrorCodePriority(code) {
+			code = state.CloudErrorCode
+		}
+	}
+	return code
+}
+
+func cloudErrorCodePriority(code string) int {
+	switch {
+	case strings.HasPrefix(code, "Invalid"):
+		return 0
+	case code == coreapi.CloudErrorCodeInternalServerError:
+		return 2
+	default:
+		return 1
 	}
 }
 
@@ -108,8 +154,9 @@ func DeadlineExceededMessage(deadlineSentence, remainingChecks string) string {
 // placeholder that reads like an error.
 //
 // Customer-safe errors from failed states are collected independently of their messages.
-// No errors yields nil; one is preserved directly; multiple are wrapped in
-// MultipleErrorsOccurred with the original errors in Details.
+// No errors yields nil; one retains its message and details; multiple are wrapped
+// in a combined error with the original errors in Details. The resulting error
+// uses the worst code from all states with the selected provisioning state.
 func PickWorstOperationState(states []*OperationState) (*OperationState, error) {
 	if len(states) == 0 {
 		return nil, errors.New("no operation states")
@@ -137,9 +184,13 @@ func PickWorstOperationState(states []*OperationState) (*OperationState, error) 
 		messageParts = append(messageParts, fmt.Sprintf("[%s] %s", currentSource, s.Message))
 	}
 	message := strings.Join(messageParts, "; ")
+	code := PickWorstCloudErrorCode(states, worstProvisioningState)
 	if worstProvisioningState == coreapi.ProvisioningStateFailed {
 		operationError := coreapi.NewCloudErrorBodyFromSlice(operationErrors, "Operation failed due to multiple errors")
-		return NewFailedOperationState(message, operationError), nil
+		if operationError != nil {
+			operationError.Code = code
+		}
+		return NewFailedOperationState(code, message, operationError), nil
 	}
-	return NewOperationState(worstProvisioningState, message), nil
+	return NewOperationState(worstProvisioningState, message).WithCloudErrorCode(code), nil
 }

@@ -1,0 +1,14 @@
+database: ServiceLogs
+kql: |
+  // Rollout documents live in the fleet partition, outside the customer's
+  // resource group. Keep their best-version, counts, conditions and assignment
+  // history alongside the HCP snapshots when investigating delayed upgrades.
+  cosmosResourceSnapshots
+  | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+  | where cluster in ('svc-cluster-1', 'mgmt-cluster-1')
+  | where resourceType =~ "Microsoft.RedHatOpenShift/controlPlaneVersionRollouts"
+  | project timestamp, observedTime = timestamp, infraCluster = cluster, cosmosContainer, resourceType, resourceName, resourceID, content
+  | order by timestamp asc
+  | limit 100
+name: versionRolloutSnapshots
+unlimited: false

@@ -42,6 +42,8 @@ type revocationCompletion struct {
 
 var _ controllerutils.SystemAdminCredentialRevocationSyncer = (*revocationCompletion)(nil)
 
+const SystemAdminCredentialRevocationCompletionControllerName = "SystemAdminCredentialRevocationCompletion"
+
 // NewRevocationCompletionController returns a RevocationWatchingController that
 // observes the mirrored CertificateRevocationRequest (created by the
 // revocation-desires controller) and drives a revocation to completion. It marks
@@ -66,7 +68,7 @@ func NewRevocationCompletionController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRevocationWatchingController(
-		"SystemAdminCredentialRevocationCompletion",
+		SystemAdminCredentialRevocationCompletionControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

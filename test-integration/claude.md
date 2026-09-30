@@ -206,6 +206,23 @@ go test ./test-integration/admin/...
 
 Tests run against mock infrastructure by default. Set `FRONTEND_SIMULATION_TESTING=true` to also run against real Cosmos DB.
 
+The frontend starts real cluster, node pool, ServiceProviderCluster (SPC), and
+ServiceProviderNodePool (SPNP) informers before fixtures are loaded.
+The artifact harness waits for visible DB membership, instance versions, and typed
+content to match these caches before HTTP create/replace/patch/delete steps. Go
+tests that mutate storage directly should call `IntegrationTestInfo.WaitForFrontendCaches`
+before cache-dependent requests. Integration informers use a test-only short relist
+interval for same-version fixture replacements and hard deletes; production defaults
+are unchanged. Readiness requires HTTP 200 from frontend `/healthz` and admin
+`/healthz/ready`, and servers must be cancelled and joined before storage cleanup.
+
+SPC and SPNP documents are backend-owned. Frontend admission reads them from the
+cache and never initializes missing documents. Explicitly seed SPC before cluster
+updates and node pool creation, and SPNP before node pool updates or cluster
+updates that inspect existing node pools, using `loadCosmos` steps or typed DB
+creates. Preserve expected Cosmos snapshots by loading the
+provider documents they expect rather than relying on frontend side effects.
+
 ## Key Source Files
 
 - `utils/databasemutationhelpers/resource_crud_test_util.go` -- test orchestration, step discovery

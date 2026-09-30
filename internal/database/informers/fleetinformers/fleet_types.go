@@ -34,6 +34,7 @@ type FleetInformers interface {
 	Stamps() (cache.SharedIndexInformer, fleetlisters.StampLister)
 	ManagementClusters() (cache.SharedIndexInformer, fleetlisters.ManagementClusterLister)
 	ManagementClusterSchedulings() (cache.SharedIndexInformer, fleetlisters.ManagementClusterSchedulingLister)
+	HasSynced() bool
 	RunWithContext(ctx context.Context)
 }
 
@@ -56,6 +57,12 @@ func (f *fleetInformers) ManagementClusters() (cache.SharedIndexInformer, fleetl
 
 func (f *fleetInformers) ManagementClusterSchedulings() (cache.SharedIndexInformer, fleetlisters.ManagementClusterSchedulingLister) {
 	return f.managementClusterSchedulingInformer, f.managementClusterSchedulingLister
+}
+
+func (f *fleetInformers) HasSynced() bool {
+	return f.stampInformer.HasSynced() &&
+		f.managementClusterInformer.HasSynced() &&
+		f.managementClusterSchedulingInformer.HasSynced()
 }
 
 // NewFleetInformers creates FleetInformers with default relist durations.

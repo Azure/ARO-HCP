@@ -289,6 +289,35 @@
       "resourceGroup": "[parameters('resourceGroupName')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
     },
+    "dpImageRegistryOperatorRoleResourceGroupAssignment": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resourceGroup')]",
+      "dependsOn": [
+        "dpImageRegistryMi"
+      ],
+      "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpImageRegistryMiName), variables('imageRegistryOperatorRoleId'))]",
+      "properties": {
+        "principalId": "[reference('dpImageRegistryMi').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('imageRegistryOperatorRoleId')]"
+      },
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "dpImageRegistryOperatorRoleVnetAssignment": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "dpImageRegistryMi"
+      ],
+      "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').dpImageRegistryMiName), variables('imageRegistryOperatorRoleId'), resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')))]",
+      "properties": {
+        "principalId": "[reference('dpImageRegistryMi').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('imageRegistryOperatorRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
     "fileCsiDriverMi": {
       "apiVersion": "2023-01-31",
       "existing": true,
@@ -404,6 +433,35 @@
       "name": "[parameters('identities').imageRegistryMiName]",
       "resourceGroup": "[parameters('resourceGroupName')]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+    },
+    "imageRegistryOperatorRoleResourceGroupAssignment": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resourceGroup')]",
+      "dependsOn": [
+        "imageRegistryMi"
+      ],
+      "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').imageRegistryMiName), variables('imageRegistryOperatorRoleId'))]",
+      "properties": {
+        "principalId": "[reference('imageRegistryMi').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('imageRegistryOperatorRoleId')]"
+      },
+      "type": "Microsoft.Authorization/roleAssignments"
+    },
+    "imageRegistryOperatorRoleVnetAssignment": {
+      "apiVersion": "2022-04-01",
+      "condition": "[equals(parameters('rbacScope'), 'resource')]",
+      "dependsOn": [
+        "imageRegistryMi"
+      ],
+      "name": "[guid(resourceGroup().id, extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identities').imageRegistryMiName), variables('imageRegistryOperatorRoleId'), resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')))]",
+      "properties": {
+        "principalId": "[reference('imageRegistryMi').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('imageRegistryOperatorRoleId')]"
+      },
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
+      "type": "Microsoft.Authorization/roleAssignments"
     },
     "ingressMi": {
       "apiVersion": "2023-01-31",
@@ -588,6 +646,7 @@
     "hcpClusterApiProviderRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '88366f10-ed47-4cc0-9fab-c8a06148393e')]",
     "hcpControlPlaneOperatorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'fc0c873f-45e9-4d0d-a7d1-585aab30c6ed')]",
     "hcpServiceManagedIdentityRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'c0ff367d-66d8-445e-917c-583feb0ef0d4')]",
+    "imageRegistryOperatorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8b32b316-c2f5-4ddf-b05b-83dacd2d08b5')]",
     "ingressOperatorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0336e1d3-7a87-462b-b6db-342b63f7802c')]",
     "keyVaultCryptoUserRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '12338af0-0e69-4776-bea7-57ae8d297424')]",
     "networkOperatorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'be7a6435-15ae-4171-8f30-4a343eff9e8f')]"

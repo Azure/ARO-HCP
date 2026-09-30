@@ -283,6 +283,36 @@ resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   scope: resourceGroup(resourceGroupName)
 }
 
+// Azure Red Hat OpenShift Image Registry Operator: Manage the OpenShift image registry's use of Azure Storage.
+// Shared by the control plane and data plane image-registry identities below.
+// https://www.azadvertizer.net/azrolesadvertizer/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5.html
+var imageRegistryOperatorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '8b32b316-c2f5-4ddf-b05b-83dacd2d08b5'
+)
+
+resource imageRegistryOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, imageRegistryMi.id, imageRegistryOperatorRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: imageRegistryMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: imageRegistryOperatorRoleId
+  }
+}
+
+resource imageRegistryOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
+  name: guid(resourceGroup().id, imageRegistryMi.id, imageRegistryOperatorRoleId, vnet.id)
+  scope: vnet
+  properties: {
+    principalId: imageRegistryMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: imageRegistryOperatorRoleId
+  }
+}
+
+// No subnet-scoped assignment: the VNet-scoped grant above already covers the subnet via RBAC scope inheritance.
+
 
 //
 // C L O U D   N E T W O R K   C O N F I G   M A N A G E D   I D E N T I T Y
@@ -379,6 +409,28 @@ resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@202
   name: identities.dpImageRegistryMiName
   scope: resourceGroup(resourceGroupName)
 }
+
+resource dpImageRegistryOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, dpImageRegistryMi.id, imageRegistryOperatorRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: dpImageRegistryMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: imageRegistryOperatorRoleId
+  }
+}
+
+resource dpImageRegistryOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
+  name: guid(resourceGroup().id, dpImageRegistryMi.id, imageRegistryOperatorRoleId, vnet.id)
+  scope: vnet
+  properties: {
+    principalId: dpImageRegistryMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: imageRegistryOperatorRoleId
+  }
+}
+
+// No subnet-scoped assignment: the VNet-scoped grant above already covers the subnet via RBAC scope inheritance.
 
 //
 // S E R V I C E   M A N A G E D   I D E N T I T Y

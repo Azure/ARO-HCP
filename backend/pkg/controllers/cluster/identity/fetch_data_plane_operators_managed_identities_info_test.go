@@ -234,7 +234,7 @@ func TestFetchDataPlaneOperatorsManagedIdentitiesInfoNeedsWork(t *testing.T) {
 			serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities = tc.serviceProviderClusterIdentities
 			if tc.earliestRecheckTime != nil {
 				serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
-					fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName: tc.earliestRecheckTime,
+					FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName: tc.earliestRecheckTime,
 				}
 			}
 
@@ -317,7 +317,7 @@ func newTestServiceProviderClusterWithIdentities(clusterName string, identities 
 	serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities = identities
 	if earliestRecheckTime != nil {
 		serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
-			fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName: earliestRecheckTime,
+			FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName: earliestRecheckTime,
 		}
 	}
 
@@ -433,7 +433,7 @@ func TestFetchDataPlaneOperatorsManagedIdentitiesInfoSyncOnceClearsEarliestReche
 	// ...and must clear this controller's recheck time so needsWork returns true on the workqueue retry.
 	updatedServiceProviderCluster, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	assert.Nil(t, updatedServiceProviderCluster.Spec.EarliestRecheckTimesByController[fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName])
+	assert.Nil(t, updatedServiceProviderCluster.Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName])
 
 	// The desired identity (B) should be persisted; the stale one (A) pruned.
 	assert.Contains(t, updatedServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities, strings.ToLower(identityB.String()))
@@ -519,7 +519,7 @@ func TestFetchDataPlaneOperatorsManagedIdentitiesInfoSyncOnceClearsResolvedValue
 	assert.Contains(t, *entry.RetrievalError, "simulated azure Get failure")
 
 	// A Get failure also clears this controller's recheck time so needsWork retries immediately.
-	assert.Nil(t, updatedServiceProviderCluster.Spec.EarliestRecheckTimesByController[fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName])
+	assert.Nil(t, updatedServiceProviderCluster.Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName])
 }
 
 // TestFetchDataPlaneOperatorsManagedIdentitiesInfoSyncOnceResourceNotFoundSetsRetrievalError
@@ -583,7 +583,7 @@ func TestFetchDataPlaneOperatorsManagedIdentitiesInfoSyncOnceResourceNotFoundSet
 	assert.Contains(t, *entry.RetrievalError, "ResourceNotFound")
 
 	// A non-failing sync sets a future recheck time for this controller.
-	recheck := updatedServiceProviderCluster.Spec.EarliestRecheckTimesByController[fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
+	recheck := updatedServiceProviderCluster.Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
 	require.NotNil(t, recheck)
 	assert.True(t, recheck.After(now))
 }

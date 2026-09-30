@@ -1,0 +1,38 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  a1  worker  Standard_E32ds_v6  zone=1  max=10  count=8  autoscaled
+  b1  worker  Standard_E32ds_v6  zone=2  max=1   count=1  autoscaled
+
+desired:
+  a1  worker  Standard_E32ds_v6  zone=1  max=3
+  b1  worker  Standard_E32ds_v6  zone=2  max=6
+
+budget (vCPUs):
+  standardEDSv6Family:  288
+
+initial headroom (vCPUs):
+  standardEDSv6Family:  224
+
+fully allocated: true
+
+initial capacity:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=352  memory=2816GiB  swiftNICs=77
+
+actions:
+    1.  Freeze            worker  Standard_E32ds_v6  a1  count=8        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=288  (+0)    memory=2304GiB  (+0GiB)     swiftNICs=63  (+0)   EDSv6:    288c remaining
+    2.  SetScalingBounds  worker  Standard_E32ds_v6  b1  min=1   max=6  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=448  (+160)  memory=3584GiB  (+1280GiB)  swiftNICs=98  (+35)  EDSv6:    128c remaining
+    3.  Reduce            worker  Standard_E32ds_v6  a1  count=7        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=416  (+128)  memory=3328GiB  (+1024GiB)  swiftNICs=91  (+28)  EDSv6:    160c remaining
+    4.  Reduce            worker  Standard_E32ds_v6  a1  count=6        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)   memory=3072GiB  (+768GiB)   swiftNICs=84  (+21)  EDSv6:    192c remaining
+    5.  Reduce            worker  Standard_E32ds_v6  a1  count=5        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=352  (+64)   memory=2816GiB  (+512GiB)   swiftNICs=77  (+14)  EDSv6:    224c remaining
+    6.  Reduce            worker  Standard_E32ds_v6  a1  count=4        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=320  (+32)   memory=2560GiB  (+256GiB)   swiftNICs=70  (+7)   EDSv6:    256c remaining
+    7.  Reduce            worker  Standard_E32ds_v6  a1  count=3        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=288  (+0)    memory=2304GiB  (+0GiB)     swiftNICs=63  (+0)   EDSv6:    288c remaining
+    8.  Unfreeze          worker  Standard_E32ds_v6  a1  min=1   max=3  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=288  (+0)    memory=2304GiB  (+0GiB)     swiftNICs=63  (+0)
+
+steps:      8
+converged:  true
+outcome:    converged
+reason:     pool configuration matches desired

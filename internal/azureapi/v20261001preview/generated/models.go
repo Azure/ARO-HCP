@@ -702,6 +702,8 @@ type NodePoolVersionProfile struct {
 	// ChannelGroup is the name of the set to which this version belongs.
 	// Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
+	// This property is intended to be updateable, but that support is not yet
+	// complete. Until then, changing this value after node pool creation is rejected.
 	ChannelGroup *string
 }
 
@@ -1003,5 +1005,7 @@ type VersionProfile struct {
 	// ChannelGroup is the name of the set to which this version belongs.
 	// Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
+	// This property is intended to be updateable, but that support is not yet
+	// complete. Until then, changing this value after cluster creation is rejected.
 	ChannelGroup *string
 }

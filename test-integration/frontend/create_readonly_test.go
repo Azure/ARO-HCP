@@ -20,12 +20,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
@@ -73,6 +70,7 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 				}
 				if !t.Run(name, func(t *testing.T) {
 					ctx, cancel := context.WithCancel(t.Context())
+					defer cancel()
 					ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
 					ti, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, true)
 					require.NoError(t, err)
@@ -82,25 +80,11 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					go func() { adminErr <- ti.AdminAPI.Run(ctx) }()
 					defer func() {
 						cancel()
-						require.NoError(t, <-frontendErr)
-						require.NoError(t, <-adminErr)
+						frontendResult, adminResult := <-frontendErr, <-adminErr
+						require.NoError(t, frontendResult)
+						require.NoError(t, adminResult)
 					}()
-					require.NoError(t, wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 30*time.Second, true, func(ctx context.Context) (bool, error) {
-						for _, url := range []string{ti.FrontendURL, ti.AdminURL} {
-							request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-							if err != nil {
-								return false, err
-							}
-							response, err := http.DefaultClient.Do(request)
-							if err != nil {
-								return false, nil
-							}
-							if err := response.Body.Close(); err != nil {
-								return false, err
-							}
-						}
-						return true, nil
-					}))
+					require.NoError(t, integrationutils.WaitForHTTPReady(ctx, ti.FrontendURL+"/healthz", ti.AdminURL+"/healthz/ready"))
 
 					accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(ti.FrontendURL, v20261001)
 					subscription, err := artifacts.ReadFile("artifacts/VersionCompliance/subscription.json")
@@ -116,15 +100,16 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					properties := payload["properties"].(map[string]any)
 					if tc.kind != "ExternalAuth" {
 						payload["tags"] = map[string]any{"purpose": "readonly-create"}
+					}
+					if tc.kind == "NodePool" {
+						// The node pool payload ships no identity, so synthesise one to keep
+						// clearReadOnlyIdentityFields covered on that path.
 						payload["identity"] = map[string]any{
 							"type": "UserAssigned", "userAssignedIdentities": map[string]any{identityID: map[string]any{}},
 						}
 					}
 					if tc.kind == "Cluster" {
 						properties["dns"] = map[string]any{"baseDomainPrefix": "readonly-create"}
-						properties["platform"].(map[string]any)["operatorsAuthentication"] = map[string]any{
-							"userAssignedIdentities": map[string]any{"serviceManagedIdentity": identityID},
-						}
 					}
 					if inject {
 						payload["id"] = clusterResourceID("spoofed-resource")
@@ -142,7 +127,10 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 							status["activeVersions"] = []any{map[string]any{"version": "99.99"}}
 							identity := payload["identity"].(map[string]any)
 							identity["principalId"], identity["tenantId"] = spoofedID, spoofedID
-							identity["userAssignedIdentities"].(map[string]any)[identityID] = map[string]any{"clientId": spoofedID, "principalId": spoofedID}
+							assigned := identity["userAssignedIdentities"].(map[string]any)
+							for id := range assigned {
+								assigned[id] = map[string]any{"clientId": spoofedID, "principalId": spoofedID}
+							}
 						}
 						if tc.kind == "Cluster" {
 							properties["api"].(map[string]any)["url"] = "https://spoofed-api.example.com"
@@ -172,7 +160,11 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					require.Equal(t, "Accepted", got["properties"].(map[string]any)["provisioningState"])
 					if tc.kind != "ExternalAuth" {
 						require.Equal(t, map[string]any{"purpose": "readonly-create"}, got["tags"])
-						assert.Equal(t, map[string]any{"type": "UserAssigned", "userAssignedIdentities": map[string]any{identityID: map[string]any{}}}, got["identity"], "keep identity type and map keys, not client-supplied IDs")
+						keysOnly := map[string]any{}
+						for id := range payload["identity"].(map[string]any)["userAssignedIdentities"].(map[string]any) {
+							keysOnly[id] = map[string]any{}
+						}
+						assert.Equal(t, map[string]any{"type": "UserAssigned", "userAssignedIdentities": keysOnly}, got["identity"], "keep identity type and map keys, not client-supplied IDs")
 					}
 
 					documents, err := ti.ListAllDocuments(ctx)
@@ -209,7 +201,9 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 						cluster.ServiceProviderProperties.Platform.IssuerURL = "https://issuer.server.example.com"
 						cluster.Status.ActiveVersions = []coreapi.HCPClusterActiveVersion{{Version: "4.20"}}
 						clientID, principalID := "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff"
-						cluster.Identity.UserAssignedIdentities[identityID] = &coreapi.UserAssignedIdentity{ClientID: &clientID, PrincipalID: &principalID}
+						for id := range cluster.Identity.UserAssignedIdentities {
+							cluster.Identity.UserAssignedIdentities[id] = &coreapi.UserAssignedIdentity{ClientID: &clientID, PrincipalID: &principalID}
+						}
 						_, err = clusters.Replace(ctx, cluster, nil)
 						require.NoError(t, err)
 						_, served := getResourceResponse(t, ctx, ti, v20261001, tc.resourceID)
@@ -220,7 +214,11 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 						require.Equal(t, "readonly-create", servedProperties["dns"].(map[string]any)["baseDomainPrefix"])
 						require.Equal(t, "https://issuer.server.example.com", servedProperties["platform"].(map[string]any)["issuerUrl"])
 						require.Equal(t, []any{map[string]any{"version": "4.20"}}, servedProperties["status"].(map[string]any)["activeVersions"])
-						require.Equal(t, map[string]any{"clientId": clientID, "principalId": principalID}, served["identity"].(map[string]any)["userAssignedIdentities"].(map[string]any)[identityID], "server-populated identity IDs must remain visible")
+						servedIdentities := served["identity"].(map[string]any)["userAssignedIdentities"].(map[string]any)
+						require.NotEmpty(t, servedIdentities, "cluster must serve the user-assigned identities it was created with")
+						for id, value := range servedIdentities {
+							require.Equal(t, map[string]any{"clientId": clientID, "principalId": principalID}, value, "server-populated identity IDs must remain visible for %s", id)
+						}
 					}
 				}) {
 					break

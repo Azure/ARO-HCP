@@ -42,11 +42,13 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments"
 	armdeploymentsfake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments/fake"
 
+	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
 // Decode the wire template, rather than relying on its Go representation.
 type deployedTestResource struct {
+	APIVersion string                     `json:"apiVersion"`
 	Type       string                     `json:"type"`
 	Name       string                     `json:"name"`
 	DependsOn  []string                   `json:"dependsOn"`
@@ -66,6 +68,7 @@ func deploymentResources(t *testing.T, deployment armdeployments.Deployment) map
 	require.NoError(t, json.Unmarshal(body, &template))
 	resources := make(map[string]deployedTestResource, len(template.Resources))
 	for _, resource := range template.Resources {
+		require.Equal(t, "2026-04-02-preview", resource.APIVersion)
 		require.NotContains(t, resources, resource.Name, "a pool cannot be deployed twice")
 		resources[resource.Name] = resource
 	}
@@ -92,7 +95,7 @@ func TestBuildDeploymentResourceOwnership(t *testing.T) {
 	cluster := createResources[o.clusterName]
 	require.Equal(t, "Microsoft.ContainerService/managedClusters", cluster.Type)
 	assert.JSONEq(t, `"1.31.1"`, string(cluster.Properties["kubernetesVersion"]))
-	assert.Equal(t, provisioningTagValue, cluster.Tags[provisioningTagKey])
+	assert.Equal(t, agentpools.ProvisioningTagValue, cluster.Tags[agentpools.ProvisioningTagKey])
 	var inline []map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(cluster.Properties["agentPoolProfiles"], &inline))
 	require.Len(t, inline, 1)
@@ -181,8 +184,8 @@ func deployedTestCluster() armcontainerservice.ManagedCluster {
 	return armcontainerservice.ManagedCluster{
 		ETag: ptr.To("fresh-etag"),
 		Tags: map[string]*string{
-			provisioningTagKey: ptr.To(provisioningTagValue),
-			"clusterType":      ptr.To("mgmt"), "persist": ptr.To("true"),
+			agentpools.ProvisioningTagKey: ptr.To(agentpools.ProvisioningTagValue),
+			"clusterType":                 ptr.To("mgmt"), "persist": ptr.To("true"),
 			"external-owner": ptr.To("keep"),
 		},
 		Properties: &armcontainerservice.ManagedClusterProperties{
@@ -373,7 +376,7 @@ func TestRunDeploymentFinalization(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, finalTags, 1)
 				tags := <-finalTags
-				assert.NotContains(t, tags, provisioningTagKey)
+				assert.NotContains(t, tags, agentpools.ProvisioningTagKey)
 				assert.Equal(t, ptr.To("keep"), tags["external-owner"], "fresh external tags must survive finalization")
 			})
 		})
@@ -395,7 +398,7 @@ func TestRunWaitsForActiveDeployment(t *testing.T) {
 				var observedName string
 				submissions := 0
 				live := deployedTestCluster()
-				delete(live.Tags, provisioningTagKey)
+				delete(live.Tags, agentpools.ProvisioningTagKey)
 				o := newDeploymentRunOptions(t, &armcontainerservicefake.ManagedClustersServer{
 					Get: func(context.Context, string, string, *armcontainerservice.ManagedClustersClientGetOptions) (resp azfake.Responder[armcontainerservice.ManagedClustersClientGetResponse], errResp azfake.ErrorResponder) {
 						require.True(t, previousFinished, "cluster reads must follow the active deployment, not provide stale input")

@@ -19,10 +19,12 @@
 package compute
 
 import (
+	"strings"
+
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 )
 
-// PoolRole identifies the operational role of a node pool.
+// PoolRole identifies the operational role of a node pool tier.
 type PoolRole string
 
 const (
@@ -38,14 +40,18 @@ const (
 	TaintInfra              = "infra=true:NoSchedule"
 )
 
-// PoolMode controls how a pool block maps to AKS agent pools.
+// PoolMode controls how a tier maps to AKS agent pools.
 type PoolMode string
 
 const (
-	// PoolModePerZone creates multiple pools, each pinned to a single zone.
+	// PoolModePerZone creates TierConfig.PoolCount pools, each pinned to a single
+	// availability zone.
 	PoolModePerZone PoolMode = "PerZone"
 
-	// PoolModeRegional creates a single pool spanning all configured zones.
+	// PoolModeRegional creates a single pool with no availability zones set, so
+	// AKS places its nodes anywhere in the region without zonal pinning. Because
+	// it never requests a specific zone, it is the only mode that can use
+	// zone-restricted SKUs.
 	PoolModeRegional PoolMode = "Regional"
 )
 
@@ -85,15 +91,23 @@ type NetworkConfig struct {
 // Pool describes a single AKS node pool spec. Used for both desired
 // state (from computation) and current state (projected from AKS).
 type Pool struct {
-	Role              PoolRole          `json:"role"`
-	Name              string            `json:"name"`
-	Spec              VMSpec            `json:"spec"`
-	AvailabilityZones []string          `json:"zones"`
-	MaxCount          int32             `json:"maxCount"`
-	MinCount          int32             `json:"minCount"`
-	OSDiskSizeGB      int32             `json:"osDiskSizeGB"`
-	MaxPods           int32             `json:"maxPods"`
-	Labels            map[string]string `json:"labels,omitempty"`
-	Taints            []string          `json:"taints,omitempty"`
-	EnableSwift       bool              `json:"enableSwift,omitempty"`
+	Role              PoolRole `json:"role"`
+	Name              string   `json:"name"`
+	Spec              VMSpec   `json:"spec"`
+	AvailabilityZones []string `json:"zones"`
+	MaxCount          int32    `json:"maxCount"`
+	// MinCount is the configured autoscaler floor. Proposed creates seed it
+	// from TierConfig.InitialMinNodes; subsequent planner actions preserve the
+	// observed floor unless a lower ceiling requires clamping it.
+	MinCount     int32             `json:"minCount"`
+	OSDiskSizeGB int32             `json:"osDiskSizeGB"`
+	MaxPods      int32             `json:"maxPods"`
+	Labels       map[string]string `json:"labels,omitempty"`
+	Taints       []string          `json:"taints,omitempty"`
+	EnableSwift  bool              `json:"enableSwift,omitempty"`
+}
+
+// ZoneString returns a comma-separated zone list for logging.
+func (p Pool) ZoneString() string {
+	return strings.Join(p.AvailabilityZones, ",")
 }

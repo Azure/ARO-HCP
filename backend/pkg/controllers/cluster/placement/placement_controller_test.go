@@ -595,6 +595,24 @@ func TestPlacementSyncer_SyncOnce_FreshSelection(t *testing.T) {
 	assert.Equal(t, strings.ToLower(key.GetResourceID().String()), strings.ToLower(scheduling.Status.PendingAssignedClusters[0].String()))
 }
 
+func TestPlacementSyncer_SyncOnce_PreservesRecordedPlacement(t *testing.T) {
+	spc := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		spc.Spec.ManagementClusterResourceID = testMgmtClusterResourceID()
+	})
+	cluster := newTestHCPCluster()
+	cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
+	before := spc.DeepCopy()
+	syncer := &placementSyncer{
+		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		// No fleet listers or database clients: an existing placement must skip
+		// evaluation and all writes, regardless of the new preference.
+	}
+	key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
+	require.NoError(t, syncer.SyncOnce(context.Background(), key))
+	assert.Equal(t, before, spc)
+}
+
 func TestPlacementSyncer_SyncOnce_NetworkingModeDemand(t *testing.T) {
 	for _, tc := range []struct {
 		name         string

@@ -36,6 +36,9 @@ import (
 )
 
 const (
+	NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidationControllerName = "NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidation"
+	NodePoolValidationAzureNodePoolVMQuotaValidationControllerName                      = "NodePoolValidationAzureNodePoolVMQuotaValidation"
+	NodePoolValidationAzureVMSizeSupportsEphemeralOSDiskValidationControllerName        = "NodePoolValidationAzureVMSizeSupportsEphemeralOSDiskValidation"
 	// consecutiveUnknownCountsCacheCapacity bounds the size of the consecutiveUnknownCounts LRU cache.
 	consecutiveUnknownCountsCacheCapacity = 50000
 
@@ -80,6 +83,17 @@ func NewNodePoolValidationController(
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
+	return NewNamedNodePoolValidationController(fmt.Sprintf("NodePoolValidation%s", validation.Name()), validation, resourcesDBClient, serviceProviderNodePoolLister, informers, kubeApplierInformers)
+}
+
+func NewNamedNodePoolValidationController(
+	name string,
+	validation validationutils.NodePoolValidation,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister,
+	informers coreinformers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
+) controllerutils.Controller {
 
 	syncer := &nodePoolValidationSyncer{
 		retryCooldownChecker:          controllerutil.NewSettableCooldownChecker(),
@@ -90,7 +104,7 @@ func NewNodePoolValidationController(
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
-		fmt.Sprintf("NodePoolValidation%s", validation.Name()),
+		name,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

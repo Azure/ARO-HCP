@@ -43,6 +43,8 @@ type csStateDump struct {
 	nextDumpChecker controllerutil.CooldownChecker
 }
 
+const CSStateDumpControllerName = "CSStateDump"
+
 // NewCSStateDumpController periodically fetches cluster-service state for each cluster and dumps it to logs.
 func NewCSStateDumpController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -58,7 +60,7 @@ func NewCSStateDumpController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"CSStateDump",
+		CSStateDumpControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

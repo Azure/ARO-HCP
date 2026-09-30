@@ -606,6 +606,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "systemPoolOnly": {
+          "type": "boolean",
+          "description": "CI service clusters only: omit worker and infra pools and allow all workloads on the system pool. Does not delete existing pools."
+        },
         "name": {
           "type": "string",
           "minLength": 3,
@@ -1676,6 +1680,25 @@
             "stampIdentifier",
             "autoApproveStamps"
           ]
+        },
+        "nodePoolPlanning": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Shadow-only nodepool planning. Reports projected pool changes without changing pools or transferring ownership from aks-cluster-create.",
+          "properties": {
+            "profile": {
+              "type": "string",
+              "enum": ["", "ci", "development", "production"],
+              "description": "Nodepool tier profile. Empty means disabled. Tier definitions (VM cores, disk sizes, nodes per zone, family priorities) are defined in code."
+            },
+            "zones": {
+              "$ref": "#/definitions/csv",
+              "description": "Availability zone override for nodepools: exactly three distinct zones, comma-separated, e.g. 1,3,4. Each zone must be within the region's availability zones (1..azureRegionAvailabilityZoneCount). If empty, zones 1,2,3 are used."
+            }
+          },
+          "required": [
+            "profile"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1683,7 +1706,8 @@
         "image",
         "managedIdentityName",
         "k8s",
-        "registration"
+        "registration",
+        "nodePoolPlanning"
       ]
     },
     "adminApi": {
@@ -1830,6 +1854,9 @@
           "type": "integer",
           "minimum": 0,
           "description": "Log verbosity level for the frontend, specified as a go-logr/logr log level. 0 is the default (INFO). Must be >= 0, where higher values produce more verbose output."
+        },
+        "clusterScopedIdentitiesConfig": {
+          "$ref": "#/definitions/clusterScopedIdentitiesConfig"
         }
       },
       "additionalProperties": false,
@@ -1840,7 +1867,8 @@
         "k8s",
         "managedIdentityName",
         "exitOnPanic",
-        "logVerbosity"
+        "logVerbosity",
+        "clusterScopedIdentitiesConfig"
       ]
     },
     "billing": {
@@ -2373,6 +2401,35 @@
         "name",
         "kustoConsumerGroupName",
         "kustoDataConnectionName"
+      ]
+    },
+    "maestroMqttEventHub": {
+      "type": "object",
+      "description": "Event Hub for Maestro Event Grid MQTT connection diagnostics",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the Event Hub for Maestro MQTT connection diagnostics"
+        },
+        "kustoConsumerGroupName": {
+          "type": "string",
+          "description": "Name of the consumer group for the Kusto data connection"
+        },
+        "kustoDataConnectionName": {
+          "type": "string",
+          "description": "Name of the Kusto data connection for Maestro MQTT diagnostics"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Maestro MQTT connection diagnostics resources"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kustoConsumerGroupName",
+        "kustoDataConnectionName",
+        "enabled"
       ]
     },
     "mise": {
@@ -3128,6 +3185,10 @@
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
         },
+        "monitoringApiGroup": {
+          "type": "string",
+          "description": "The Kubernetes API group used for ServiceMonitor and PodMonitor CRDs on management clusters"
+        },
         "prometheus": {
           "description": "Prometheus deployment configuration",
           "$ref": "#/definitions/prometheus"
@@ -3137,6 +3198,7 @@
       "required": [
         "aks",
         "applyKubeletFixes",
+        "monitoringApiGroup",
         "rg",
         "stamps",
         "subscription",
@@ -3981,6 +4043,14 @@
     "genevaHealthFunction"
   ],
   "x-cel-validations": [
+    {
+      "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01']",
+      "message": "svc.aks.systemPoolOnly is supported only in ci00 and ci01"
+    },
+    {
+      "rule": "!has(self.mgmt.aks.systemPoolOnly) || !self.mgmt.aks.systemPoolOnly",
+      "message": "systemPoolOnly is not supported for management clusters"
+    },
     {
       "rule": "!self.monitoring.adxIntegrationEnabled || self.monitoring.adxIntegrationGeographies != ''",
       "message": "monitoring.adxIntegrationGeographies must be non-empty when monitoring.adxIntegrationEnabled is true"

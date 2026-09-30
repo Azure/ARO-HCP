@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
@@ -251,6 +252,55 @@ func TestQueryClient_ConcurrentQueries_EmptyQueries(t *testing.T) {
 	assert.NoError(t, err)
 	mockClient.AssertExpectations(t)
 	mockFileWriter.AssertExpectations(t)
+}
+
+func TestQueryClient_TimeWindows(t *testing.T) {
+	for _, failSecond := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failSecond_%t", failSecond), func(t *testing.T) {
+			client := &MockKustoClient{}
+			writer := &MockFileWriter{}
+			first := &mockQuery{name: "backendControllerConditions", database: "first"}
+			second := &mockQuery{name: first.name, database: "second"}
+			sequence := &kusto.TimeWindowQuery{Query: first, Windows: []kusto.Query{first, second}}
+			columns := azkquery.Columns{&MockColumn{name: "condition", ctype: "string"}}
+			output := make(chan kusto.TaggedRow, 2)
+			defer close(output)
+			firstFinished := false
+			client.On("ExecutePreconfiguredQuery", mock.Anything, first, mock.Anything).Run(func(args mock.Arguments) {
+				firstFinished = true
+				args.Get(2).(chan<- kusto.TaggedRow) <- kusto.TaggedRow{QueryName: first.name}
+			}).Return(&kusto.QueryResult{Columns: columns, QueryStats: kusto.QueryStats{TotalRows: 1, DataSize: 10, ExecutionTime: time.Second}}, nil).Once()
+			secondResult := &kusto.QueryResult{Columns: columns, QueryStats: kusto.QueryStats{TotalRows: 1, DataSize: 20, ExecutionTime: 2 * time.Second}}
+			var secondError error
+			if failSecond {
+				secondResult = nil
+				secondError = errors.New("result exceeds size limit")
+			}
+			client.On("ExecutePreconfiguredQuery", mock.Anything, second, mock.Anything).Run(func(args mock.Arguments) {
+				assert.True(t, firstFinished, "windows must execute sequentially")
+				if !failSecond {
+					args.Get(2).(chan<- kusto.TaggedRow) <- kusto.TaggedRow{QueryName: first.name}
+				}
+			}).Return(secondResult, secondError).Once()
+			if !failSecond {
+				writer.On("WriteFile", "/test", first.name+".json", &kusto.QueryResult{
+					Columns: columns, QueryStats: kusto.QueryStats{TotalRows: 2, DataSize: 30, ExecutionTime: 3 * time.Second},
+				}).Return(nil).Once()
+			}
+			q := NewQueryClientWithFileWriter(client, time.Minute, "/test", writer)
+			err := q.ConcurrentQueries(t.Context(), []kusto.Query{sequence}, output)
+			if failSecond {
+				require.ErrorIs(t, err, secondError)
+				assert.Contains(t, err.Error(), "time window 2/2")
+				assert.Len(t, output, 1)
+			} else {
+				require.NoError(t, err)
+				assert.Len(t, output, 2, "both windows must reach the same output stream")
+			}
+			client.AssertExpectations(t)
+			writer.AssertExpectations(t)
+		})
+	}
 }
 
 func TestQueryClient_ConcurrentQueries_Concurrency(t *testing.T) {

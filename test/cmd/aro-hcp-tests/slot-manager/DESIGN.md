@@ -117,7 +117,7 @@ environments:
           allocation: dedicated
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard0
-          resource_group_count: 60
+          resource_group_count: 58
 
         infrastructure_identities:
           allocation: leased

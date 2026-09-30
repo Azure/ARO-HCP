@@ -1,3 +1,4 @@
+schedulingRole: "infra"
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
   crds:

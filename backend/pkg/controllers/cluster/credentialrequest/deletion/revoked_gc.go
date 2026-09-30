@@ -41,6 +41,8 @@ type revokedGC struct {
 
 var _ controllerutils.SystemAdminCredentialRequestSyncer = (*revokedGC)(nil)
 
+const SystemAdminCredentialRevokedGCControllerName = "SystemAdminCredentialRevokedGC"
+
 // NewRevokedGCController returns a CredentialRequestWatchingController that
 // deletes every SystemAdminCredentialRequest document 48 hours after it was
 // created, regardless of the request's status.
@@ -55,7 +57,7 @@ func NewRevokedGCController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
-		"SystemAdminCredentialRevokedGC",
+		SystemAdminCredentialRevokedGCControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,

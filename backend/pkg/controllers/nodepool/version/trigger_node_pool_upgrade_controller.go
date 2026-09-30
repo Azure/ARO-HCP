@@ -43,6 +43,8 @@ type triggerNodePoolUpgradeSyncer struct {
 
 var _ controllerutils.NodePoolSyncer = (*triggerNodePoolUpgradeSyncer)(nil)
 
+const TriggerNodePoolUpgradeControllerName = "TriggerNodePoolUpgrade"
+
 // NewTriggerNodePoolUpgradeController creates a new controller that triggers node pool upgrades.
 // It monitors node pools where the desired version differs from the actual version and creates
 // a NodePoolUpgradePolicy in Cluster Service to initiate the upgrade.
@@ -61,7 +63,7 @@ func NewTriggerNodePoolUpgradeController(
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
-		"TriggerNodePoolUpgrade",
+		TriggerNodePoolUpgradeControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

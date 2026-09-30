@@ -35,7 +35,7 @@ spec:
           - key: aro-hcp.azure.com/role
             operator: In
             values:
-            - infra
+            - {{ .Values.schedulingRole }}
   automountServiceAccountToken: true
   hostNetwork: false
   listenLocal: false

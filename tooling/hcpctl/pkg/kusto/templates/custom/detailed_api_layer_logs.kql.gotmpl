@@ -17,6 +17,9 @@ union
         database('ServiceLogs').table('frontendLogs')
         | where timestamp between (_startTime .. _endTime)
         | where resource_group == '{{.ResourceGroupName}}'
+{{- if .OperationIds }}
+            or resource_name in~ ({{.OperationIds}})
+{{- end }}
         | project timestamp, container_name, msg, log
     ),
     (

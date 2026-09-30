@@ -1,0 +1,24 @@
+// Channel-wide rollout decisions do not carry an HCP resource group or OCM ID,
+// so the per-HCP service log query excludes them. Collect all seven rollout
+// controllers on the discovered infrastructure clusters to explain both the
+// fleet gates and individual assignments that can delay an automatic upgrade.
+{{if .NoTruncation}}set notruncation;
+{{end -}}
+backendLogs
+| where timestamp between ({{.TimestampMin}} .. {{.TimestampMax}})
+| where cluster in ({{.ClusterNames}})
+| where tostring(log.controller_name) in~ (
+    "ControlPlaneVersionBestVersionSelection",
+    "ControlPlaneVersionStatusCollector",
+    "NormalClusterDesiredVersion",
+    "ForcedClusterDesiredVersion",
+    "ControlPlaneVersionRolloutSeeding",
+    "InitialNormalClusterDesiredVersion",
+    "MinorUpgradeNormalClusterDesiredVersion")
+// Preserve time and infrastructure cluster in custom JSONL, whose writer
+// consumes the standard timestamp and cluster columns.
+| project timestamp, observedTime = timestamp, infraCluster = cluster, log
+| order by timestamp {{.OrderBy}}
+{{- if gt .Limit 0}}
+| limit {{.Limit}}
+{{- end}}

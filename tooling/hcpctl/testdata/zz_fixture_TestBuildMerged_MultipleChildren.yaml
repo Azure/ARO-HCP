@@ -30,6 +30,7 @@ kql: |-
       )
   | order by timestamp asc
 
+
   let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
   let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
   // Cluster Management Logs - Clusters Service and HostedCluster status

@@ -48,6 +48,8 @@ type triggerControlPlaneUpgradeSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
 
+const TriggerControlPlaneUpgradeControllerName = "TriggerControlPlaneUpgrade"
+
 // NewTriggerControlPlaneUpgradeController creates a new controller that triggers control plane upgrades.
 // It monitors clusters where the desired version differs from the actual version and calls
 // the version service API to initiate the upgrade.
@@ -74,7 +76,7 @@ func NewTriggerControlPlaneUpgradeController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"TriggerControlPlaneUpgrade",
+		TriggerControlPlaneUpgradeControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

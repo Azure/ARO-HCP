@@ -69,6 +69,8 @@ type clusterDegradedAggregator struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterDegradedAggregator)(nil)
 
+const ClusterDegradedAggregatorControllerName = "ClusterDegradedAggregator"
+
 // clusterDegradedAggregatorInertia is the inertia config used by the
 // cluster aggregator. It is built here, not passed in, so all tuning
 // for cluster-scoped Degraded propagation lives next to the controller
@@ -112,7 +114,7 @@ func NewClusterDegradedAggregatorController(
 		readDesireLister:  readDesireLister,
 	}
 	return controllerutils.NewClusterWatchingController(
-		"ClusterDegradedAggregator",
+		ClusterDegradedAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

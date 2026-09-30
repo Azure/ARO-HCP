@@ -22,17 +22,12 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
-)
 
-// provisioningTagKey marks a ManagedCluster as mid-provisioning by this tool.
-// The value "true" marks active provisioning; removing it commits finalization.
-const (
-	provisioningTagKey   = "aro-hcp-provisioning"
-	provisioningTagValue = "true"
+	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
 )
 
 func hasProvisioningTag(tags map[string]*string) bool {
-	return ptr.Deref(tags[provisioningTagKey], "") == provisioningTagValue
+	return ptr.Deref(tags[agentpools.ProvisioningTagKey], "") == agentpools.ProvisioningTagValue
 }
 
 // initialClusterTags builds the creation-time tag set: the cluster tags plus
@@ -43,7 +38,7 @@ func initialClusterTags(clusterTags map[string]string) map[string]*string {
 	for key, value := range clusterTags {
 		tags[key] = ptr.To(value)
 	}
-	tags[provisioningTagKey] = ptr.To(provisioningTagValue)
+	tags[agentpools.ProvisioningTagKey] = ptr.To(agentpools.ProvisioningTagValue)
 	return tags
 }
 
@@ -79,7 +74,7 @@ func (o *completedOptions) reconcileClusterTags(ctx context.Context, cluster *ar
 		if err := requireProvisioned(cluster); err != nil {
 			return err
 		}
-		delete(tags, provisioningTagKey)
+		delete(tags, agentpools.ProvisioningTagKey)
 	}
 	if !changed && !needsFinalization {
 		return nil

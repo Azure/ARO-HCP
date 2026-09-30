@@ -33,9 +33,9 @@ import (
 )
 
 const (
-	// nodePoolRequirementsValidAggregatorControllerName is the controller name used for
+	// NodePoolRequirementsValidAggregatorControllerName is the controller name used for
 	// metrics labels, ctx values, log fields, and the Controller document name.
-	nodePoolRequirementsValidAggregatorControllerName = "NodePoolRequirementsValidAggregator"
+	NodePoolRequirementsValidAggregatorControllerName = "NodePoolRequirementsValidAggregator"
 )
 
 // nodePoolRequirementsValidAggregator surfaces ServiceProviderNodePool.Status.Validations
@@ -68,7 +68,7 @@ func NewNodePoolRequirementsValidAggregatorController(
 		resourcesDBClient:             resourcesDBClient,
 	}
 	return controllerutils.NewNodePoolWatchingController(
-		nodePoolRequirementsValidAggregatorControllerName,
+		NodePoolRequirementsValidAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		nil,

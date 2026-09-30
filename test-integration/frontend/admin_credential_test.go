@@ -21,14 +21,10 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"net/http"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -48,7 +44,7 @@ func TestRequestAdminCredentialStoresCSR(t *testing.T) {
 }
 
 func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 
 	testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, withMock)
@@ -64,14 +60,7 @@ func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
 		testInfo.Cleanup(context.Background())
 	}()
 
-	err = wait.PollUntilContextCancel(ctx, 100*time.Millisecond, true, func(ctx context.Context) (bool, error) {
-		resp, err := http.Get(testInfo.FrontendURL)
-		if err != nil {
-			return false, nil
-		}
-		resp.Body.Close()
-		return true, nil
-	})
+	err = integrationutils.WaitForHTTPReady(ctx, testInfo.FrontendURL+"/healthz")
 	require.NoError(t, err)
 
 	subscriptionID := coreapitesting.TestSubscriptionID

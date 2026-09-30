@@ -23,12 +23,13 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+
+	"github.com/Azure/ARO-Tools/config/types"
+
+	"github.com/Azure/ARO-HCP/test/util/config"
 )
 
 const (
-	kustoCluster = "hcp-dev-us-2"
-	kustoRegion  = "eastus2"
-
 	serviceDir            = "service"
 	hostedControlPlaneDir = "hosted-control-plane"
 	clusterDir            = "cluster"
@@ -62,7 +63,24 @@ func (v mustGatherCLIVerifier) Verify(ctx context.Context) error {
 		binary = path
 	}
 
-	svcCluster, mgmtCluster := infraClusterNames()
+	serviceConfig, err := config.GetServiceConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load service config: %w", err)
+	}
+
+	svcCluster, mgmtCluster, err := infraClusterNames(serviceConfig)
+	if err != nil {
+		return fmt.Errorf("failed to derive infra cluster names: %w", err)
+	}
+
+	kustoClusterStr, err := config.GetStringByPath(serviceConfig, "kusto.kustoName")
+	if err != nil {
+		return fmt.Errorf("failed to get kusto cluster name from config: %w", err)
+	}
+	kustoRegionStr, err := config.GetStringByPath(serviceConfig, "kusto.location")
+	if err != nil {
+		return fmt.Errorf("failed to get kusto region from config: %w", err)
+	}
 
 	testCases := []mustGatherCLITestCase{
 		// query command variations
@@ -98,36 +116,31 @@ func (v mustGatherCLIVerifier) Verify(ctx context.Context) error {
 		},
 	}
 
-	// query-infra variations only if BUILD_ID is set
-	if svcCluster != "" && mgmtCluster != "" {
-		testCases = append(testCases,
-			mustGatherCLITestCase{
-				name:       "query-infra-svc",
-				subcommand: "query-infra",
-				extraArgs:  []string{"--infra-cluster", svcCluster},
-				expectDirs: []string{serviceDir, clusterDir},
-			},
-			mustGatherCLITestCase{
-				name:       "query-infra-mgmt",
-				subcommand: "query-infra",
-				extraArgs:  []string{"--infra-cluster", mgmtCluster},
-				expectDirs: []string{serviceDir, clusterDir},
-			},
-			mustGatherCLITestCase{
-				name:       "query-infra-both",
-				subcommand: "query-infra",
-				extraArgs:  []string{"--infra-cluster", svcCluster, "--infra-cluster", mgmtCluster},
-				expectDirs: []string{serviceDir, clusterDir},
-			},
-		)
-	} else {
-		logger.Info("Skipping query-infra tests: BUILD_ID not set, cannot derive infra cluster names")
-	}
+	testCases = append(testCases,
+		mustGatherCLITestCase{
+			name:       "query-infra-svc",
+			subcommand: "query-infra",
+			extraArgs:  []string{"--infra-cluster", svcCluster},
+			expectDirs: []string{serviceDir, clusterDir},
+		},
+		mustGatherCLITestCase{
+			name:       "query-infra-mgmt",
+			subcommand: "query-infra",
+			extraArgs:  []string{"--infra-cluster", mgmtCluster},
+			expectDirs: []string{serviceDir, clusterDir},
+		},
+		mustGatherCLITestCase{
+			name:       "query-infra-both",
+			subcommand: "query-infra",
+			extraArgs:  []string{"--infra-cluster", svcCluster, "--infra-cluster", mgmtCluster},
+			expectDirs: []string{serviceDir, clusterDir},
+		},
+	)
 
 	var errors []string
 	for _, tc := range testCases {
 		logger.Info("Running must-gather CLI test case", "name", tc.name)
-		if err := runTestCase(ctx, binary, tc); err != nil {
+		if err := runTestCase(ctx, binary, tc, kustoClusterStr, kustoRegionStr); err != nil {
 			errors = append(errors, fmt.Sprintf("%s: %v", tc.name, err))
 			logger.Error(err, "Test case failed", "name", tc.name)
 		} else {
@@ -141,7 +154,7 @@ func (v mustGatherCLIVerifier) Verify(ctx context.Context) error {
 	return nil
 }
 
-func runTestCase(ctx context.Context, binary string, tc mustGatherCLITestCase) error {
+func runTestCase(ctx context.Context, binary string, tc mustGatherCLITestCase, kustoCluster, kustoRegion string) error {
 	outputDir, err := os.MkdirTemp("", "must-gather-cli-e2e-"+tc.name+"-")
 	if err != nil {
 		return fmt.Errorf("failed to create temp dir: %w", err)
@@ -189,28 +202,17 @@ func verifyDirHasLogFiles(dirPath string) error {
 	return fmt.Errorf("no .jsonl files found in %s", dirPath)
 }
 
-// infraClusterNames derives SVC and MGMT cluster names from the BUILD_ID env var.
-// Returns empty strings if BUILD_ID is not set.
-func infraClusterNames() (svcCluster, mgmtCluster string) {
-	buildID := os.Getenv("BUILD_ID")
-	if buildID == "" {
-		return "", ""
+// infraClusterNames derives SVC and MGMT cluster names from the config.
+func infraClusterNames(serviceConfig types.Configuration) (svcClusterStr, mgmtClusterStr string, err error) {
+	svcClusterStr, err = config.GetStringByPath(serviceConfig, "svc.aks.name")
+	if err != nil {
+		return "", "", err
 	}
-
-	deployEnv := os.Getenv("DEPLOY_ENV")
-	if deployEnv == "" {
-		deployEnv = "ci00"
+	mgmtClusterStr, err = config.GetStringByPath(serviceConfig, "mgmt.aks.name")
+	if err != nil {
+		return "", "", err
 	}
-
-	suffix := buildID
-	if len(suffix) > 7 {
-		suffix = suffix[len(suffix)-7:]
-	}
-	regionShort := "j" + suffix
-
-	svcCluster = fmt.Sprintf("%s-%s-svc", deployEnv, regionShort)
-	mgmtCluster = fmt.Sprintf("%s-%s-mgmt-1", deployEnv, regionShort)
-	return svcCluster, mgmtCluster
+	return svcClusterStr, mgmtClusterStr, nil
 }
 
 // VerifyMustGatherCLI creates a verifier that tests the hcpctl must-gather CLI

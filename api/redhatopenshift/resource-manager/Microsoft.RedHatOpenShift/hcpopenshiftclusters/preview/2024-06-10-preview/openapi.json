@@ -2975,7 +2975,7 @@
         },
         "channelGroup": {
           "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nThis property is intended to be updateable, but that support is not yet\ncomplete. Until then, changing this value after node pool creation is rejected.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -3680,7 +3680,7 @@
         },
         "channelGroup": {
           "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nThis property is intended to be updateable, but that support is not yet\ncomplete. Until then, changing this value after cluster creation is rejected.",
           "x-ms-mutability": [
             "read",
             "update",

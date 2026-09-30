@@ -147,22 +147,22 @@ Deletion requires all of the following:
   If certificate revalidation takes longer than that, the attempt fails without
   deleting and the certificate is retried by a later hourly run.
 
-Active and deleted certificate inventories stop requesting Key Vault pages when
-they exhaust their inspection budgets. `--max-deletions` bounds active metadata
-entries inspected. `--max-purges` is shared by immediate purges after active
-deletion and metadata inspected from previously deleted tombstones. When both
-actions are enabled, active inspection is bounded by the lower limit, purge
-capacity is reserved for each selected active certificate, and only the
-remainder is used to inspect deleted certificates. Ineligible and live-owned
-objects consume their applicable inspection limit, so the selected mutation
-count can be lower than the configured limit. This keeps each selected active
-certificate on the tested delete+purge path while ensuring that all irreversible
-purge operations honor one bound.
+Active and deleted certificate inventories continue requesting Key Vault pages
+until they fill their mutation budgets or exhaust the corresponding inventory.
+`--max-deletions` bounds selected active-certificate mutations, not metadata
+inspection. `--max-purges` is shared by immediate purges after active deletion
+and previously deleted tombstones. When both actions are enabled, purge capacity
+is reserved for each selected active certificate and only the remainder is
+available for deleted-certificate selection. Ineligible and live-owned objects
+do not consume either mutation budget. This prevents a stable prefix of recent
+or protected names from starving eligible certificates later in Key Vault's
+ordered inventory.
 The default 1,000-certificate budgets also comfortably exceed the normal daily
 creation rate of roughly 1,000 CI jobs per month.
 Every delete still uses a fresh owner revalidation through the shared 30-second
-guard. The limits bound reads as well as mutations, limiting Key Vault cost,
-runtime, and throttling risk.
+guard. Discovery can inspect the full active or deleted inventory when too few
+eligible objects exist, so the overall timeout remains the read-cost and runtime
+bound while the mutation flags independently cap destructive operations.
 `--delete-active` and `--purge-deleted` independently enable the two actions,
 allowing tombstones to be remediated without resuming active-certificate
 cleanup. The command emits JSON candidate and summary logs.

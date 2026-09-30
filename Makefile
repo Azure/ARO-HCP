@@ -411,6 +411,8 @@ update-helm-fixtures:
 test-helm-fixtures:
 	$(MAKE) -C tooling/helmtest test
 	$(MAKE) -C swift-recorder test-deploy
+	$(MAKE) -C observability/prometheus test
+	go test -C dev-infrastructure system_pool_only_test.go
 .PHONY: test-helmcharts
 
 verify-materialize:

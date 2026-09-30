@@ -38,5 +38,5 @@ digraph cluster_delete {
   final -> op [label="billing DeletionTime; cluster\ndoc deleted"];
   op -> done [label="document absence observed"];
   clear -> clear [label="external deletion pending", style=dashed, color="#857456", constraint=false];
-  group -> group [label="group still exists: observe\nagain", style=dashed, color="#857456", constraint=false];
+  group -> group [label="group still exists: observe again\n(or delete if orphaned)", style=dashed, color="#857456", constraint=false];
 }

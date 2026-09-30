@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
@@ -191,10 +192,10 @@ func estimateLegendHeight(labels []string, chartWidth int) int {
 }
 
 // buildChartData builds the chart HTML for a single PromQL query result.
-// Each PrometheusResult becomes a separate series, labeled by its metric
+// Each promutil.Result becomes a separate series, labeled by its metric
 // labels. warning carries a non-fatal notice (e.g. partial-failure details)
 // that is displayed alongside the chart when it still has data.
-func buildChartData(q QuerySpec, resourceID, queryErr, warning string, results []PrometheusResult, tw timing.TimeWindow) chartData {
+func buildChartData(q QuerySpec, resourceID, queryErr, warning string, results []promutil.Result, tw timing.TimeWindow) chartData {
 	lang, body := queryFooter(q, resourceID, tw)
 	series := parseResultsToSeries(results)
 	if len(series) == 0 {
@@ -495,7 +496,7 @@ func buildFacetedStackedAreaChartData(q QuerySpec, resourceID string, series []p
 	}
 }
 
-func parseResultsToSeries(results []PrometheusResult) []parsedSeries {
+func parseResultsToSeries(results []promutil.Result) []parsedSeries {
 	var series []parsedSeries
 	for _, result := range results {
 		if len(result.Values) == 0 {

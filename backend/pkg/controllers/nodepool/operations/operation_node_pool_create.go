@@ -48,6 +48,8 @@ type operationNodePoolCreate struct {
 	notificationClient     *http.Client
 }
 
+const OperationNodePoolCreateControllerName = "OperationNodePoolCreate"
+
 // NewOperationNodePoolCreateController returns a new Controller instance that
 // follows an asynchronous node pool creation operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -85,7 +87,7 @@ func NewOperationNodePoolCreateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationNodePoolCreate",
+		OperationNodePoolCreateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -151,10 +153,7 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 	var persistErr *coreapi.CloudErrorBody
 	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
 		persistErr = &coreapi.CloudErrorBody{
-			// TODO for now we always set the error code to InternalServerError, but we should improve to be able
-			// to be more specific than that when we calculate operationalState. When work is done to improve on this, we
-			// should design it in a way where no internal details are exposed to the operation's error.
-			Code:    coreapi.CloudErrorCodeInternalServerError,
+			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
 		}
 	}
@@ -241,5 +240,9 @@ func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx contex
 		return nil, utils.TrackError(err)
 	}
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", newOperationError)
-	return operationbase.NewOperationState(newOperationStatus, operationbase.NodePoolServiceOperationMessage(csNodePoolStatus, newOperationError)), nil
+	state := operationbase.NewOperationState(newOperationStatus, operationbase.NodePoolServiceOperationMessage(csNodePoolStatus, newOperationError))
+	if newOperationError != nil {
+		state.WithCloudErrorCode(newOperationError.Code)
+	}
+	return state, nil
 }

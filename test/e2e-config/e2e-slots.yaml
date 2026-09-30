@@ -7,7 +7,9 @@ environments:
     # Jobs select the runtime region from these weighted pools. Existing jobs
     # with an explicit location override remain pinned during rollout.
     # Identity containers remain provisioned in westus3.
-    # Each managed subscription keeps 300 containers split into five 60-container job slots.
+    # Each managed subscription keeps 290 containers split into five 58-container job slots.
+    # At the current role-assignment cost, five full runs consume 7,615 of the
+    # 8,000-assignment quota, leaving 385 assignments of gross headroom.
     - name: shard0
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters (EA Subscription)"
@@ -23,7 +25,7 @@ environments:
           allocation: dedicated
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard0
-          resource_group_count: 60
+          resource_group_count: 58
     - name: shard1
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
@@ -39,7 +41,7 @@ environments:
           allocation: dedicated
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard1
-          resource_group_count: 60
+          resource_group_count: 58
     - name: shard2
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters - Dev - 02"
@@ -55,7 +57,7 @@ environments:
           allocation: dedicated
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard2
-          resource_group_count: 60
+          resource_group_count: 58
     - name: shard3
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters - Dev - 03"
@@ -71,7 +73,7 @@ environments:
           allocation: dedicated
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard3
-          resource_group_count: 60
+          resource_group_count: 58
     - name: hypershift
       subscriptions:
         e2e: "Hypershift Managed Azure"

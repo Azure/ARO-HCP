@@ -145,6 +145,27 @@ resourceGroups:
         resourceGroup: auditLogs
         step: auditLogsEventHub
         name: alertEventsEventHubId
+  - name: maestroMqttDataConnection
+    action: ARM
+    template: templates/maestro-mqtt-data-connection.bicep
+    parameters: configurations/maestro-mqtt-data-connection.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: regional
+      step: rpRegistration
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      - "500 Internal Server Error"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+    variables:
+    - name: maestroMqttEventHubId
+      input:
+        resourceGroup: auditLogs
+        step: auditLogsEventHub
+        name: maestroMqttEventHubId
 - name: auditLogs
   # In most regions this will be the same as the regional RG,
   # but in dev, we want to deploy the event hub to the shared RG
@@ -219,6 +240,20 @@ resourceGroups:
     dependsOn:
     - resourceGroup: regional
       step: rpRegistration
+  - name: maestroMqttDiagnostics
+    action: ARM
+    template: templates/maestro-mqtt-diagnostics.bicep
+    parameters: configurations/maestro-mqtt-diagnostics.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: regional
+      step: infra
+    variables:
+    - name: eventHubAuthorizationRuleId
+      input:
+        resourceGroup: auditLogs
+        step: auditLogsEventHub
+        name: auditLogsEventHubAuthRuleId
   - name: housekeeping
     action: Shell
     command: ./regional-housekeeping.sh

@@ -225,7 +225,8 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
-				assert.NotNil(t, op.Error)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
 				assert.Contains(t, op.Error.Message, "temporary error occurred")
 			},
 		},
