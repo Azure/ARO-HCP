@@ -171,9 +171,17 @@ func TestAgentJSONFiles(t *testing.T) {
 	}
 }
 
-// TestReadableBlob pins which index modes may reach os.ReadFile. Widening this
-// set means the check will follow a symlink, so it should not be changed
-// without deciding what happens when the target is a fifo.
+// TestReadableBlob pins which index modes are treated as scannable agent
+// JSON. Everything else is refused unread by unreadableAgentJSON.
+//
+// Widening this set is no longer a hang risk — blobContent reads the object
+// store, which has no filesystem behaviour to trigger — but it is still a
+// correctness one. Admitting 120000 would scan a symlink's blob, and that
+// blob is the target path, not the target: the scan would read
+// "../../elsewhere.json", find no execution key, and pass the entry, while an
+// agent resolves the link and gets whatever the target holds. That is exactly
+// the bypass unreadableAgentJSON exists to close, so a mode added here needs
+// an answer for what its blob actually contains.
 func TestReadableBlob(t *testing.T) {
 	for _, tc := range []struct {
 		mode string
