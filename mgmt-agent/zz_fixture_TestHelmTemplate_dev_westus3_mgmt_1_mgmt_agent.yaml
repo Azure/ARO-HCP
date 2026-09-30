@@ -599,3 +599,4 @@ spec:
     matchLabels:
       app.kubernetes.io/name: mgmt-agent
       port: metrics
+
