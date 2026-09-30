@@ -1,0 +1,11 @@
+[
+	{
+		"cluster": "svc-01",
+		"container_name": "frontend",
+		"msg": "cross-db smoke test row",
+		"namespace_name": "aro-hcp",
+		"pod_name": "frontend-0",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:00:00Z"
+	}
+]

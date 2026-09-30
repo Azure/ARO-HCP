@@ -1,0 +1,22 @@
+{
+	"databases": {
+		"HostedControlPlaneLogs": {
+			"functions": [
+				"hcpComponentLogs"
+			],
+			"tables": [
+				"containerLogs"
+			]
+		},
+		"ServiceLogs": {
+			"functions": [
+				"resolveClusterId",
+				"resolveResourceId"
+			],
+			"tables": [
+				"cosmosResourceSnapshots",
+				"frontendLogs"
+			]
+		}
+	}
+}
