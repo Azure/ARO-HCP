@@ -1,0 +1,111 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package kustotest
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io/fs"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+// invokeQueryStep runs raw KQL and compares the result.
+//
+// Step directory contents:
+//   - 00-key.json: {"database": "DatabaseName", "query": "KQL expression"}
+//   - expected-result.json (optional): array of expected row objects
+//   - expected-error.txt (optional): expected error substring
+type invokeQueryStep struct {
+	id            stepID
+	database      string
+	query         string
+	expectedRows  []map[string]any
+	hasExpected   bool
+	expectedError string
+}
+
+type queryKey struct {
+	Database string `json:"database"`
+	Query    string `json:"query"`
+}
+
+func newInvokeQueryStep(id stepID, stepDir fs.FS) (*invokeQueryStep, error) {
+	keyContent, err := fs.ReadFile(stepDir, "00-key.json")
+	if err != nil {
+		return nil, fmt.Errorf("missing 00-key.json: %w", err)
+	}
+	var key queryKey
+	if err := json.Unmarshal(keyContent, &key); err != nil {
+		return nil, fmt.Errorf("failed to parse 00-key.json: %w", err)
+	}
+	if len(key.Database) == 0 {
+		return nil, fmt.Errorf("00-key.json must specify 'database'")
+	}
+	if len(key.Query) == 0 {
+		return nil, fmt.Errorf("00-key.json must specify 'query'")
+	}
+
+	step := &invokeQueryStep{
+		id:       id,
+		database: key.Database,
+		query:    key.Query,
+	}
+
+	if resultContent, err := fs.ReadFile(stepDir, "expected-result.json"); err == nil {
+		if err := json.Unmarshal(resultContent, &step.expectedRows); err != nil {
+			return nil, fmt.Errorf("failed to parse expected-result.json: %w", err)
+		}
+		step.hasExpected = true
+	}
+
+	if errContent, err := fs.ReadFile(stepDir, "expected-error.txt"); err == nil {
+		step.expectedError = strings.TrimSpace(string(errContent))
+	}
+
+	return step, nil
+}
+
+func (s *invokeQueryStep) StepID() stepID { return s.id }
+
+func (s *invokeQueryStep) Run(ctx context.Context, t *testing.T, clients map[string]*emulatorClient) {
+	t.Helper()
+	client, ok := clients[s.database]
+	require.True(t, ok, "%s: database %q not found in client map", s.id, s.database)
+
+	debugf(t, "%s: [%s] %s", s.id, s.database, s.query)
+
+	ds, err := client.query(ctx, s.query)
+	if len(s.expectedError) != 0 {
+		require.ErrorContains(t, err, s.expectedError,
+			"expected query to fail with %q", s.expectedError)
+		return
+	}
+	require.NoError(t, err, "query execution failed")
+
+	actualRows := datasetToRows(t, ds)
+
+	if !s.hasExpected {
+		debugf(t, "%s: returned %d rows (smoke test)", s.id, len(actualRows))
+		return
+	}
+
+	compareRows(t, "query", s.expectedRows, actualRows)
+
+	debugf(t, "%s: %d rows matched", s.id, len(actualRows))
+}

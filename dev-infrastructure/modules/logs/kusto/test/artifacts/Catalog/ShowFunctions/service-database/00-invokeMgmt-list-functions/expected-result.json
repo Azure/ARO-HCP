@@ -1,0 +1,18 @@
+[
+	{
+		"Description": "Resolves an ARM resource ID to an internal Clusters Service cluster_id.",
+		"Example": "let cid = toscalar(ResolveClusterId(\"/subscriptions/.../hcpOpenShiftClusters/foo\", ago(7d)))",
+		"Folder": "Triage\\Resolvers",
+		"Name": "ResolveClusterId",
+		"Parameters": "(resource_id:string, cutoff:datetime)",
+		"Returns": "single row with cluster_id (internal format)"
+	},
+	{
+		"Description": "Resolves an internal Clusters Service cluster_id back to its ARM resource ID.",
+		"Example": "let rid = toscalar(ResolveResourceId(\"abc123\", ago(7d)))",
+		"Folder": "Triage\\Resolvers",
+		"Name": "ResolveResourceId",
+		"Parameters": "(cid:string, cutoff:datetime)",
+		"Returns": "single row with resource_id (ARM format)"
+	}
+]

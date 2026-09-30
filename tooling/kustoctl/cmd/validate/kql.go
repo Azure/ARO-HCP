@@ -85,18 +85,47 @@ func runValidateKQL(cmd *cobra.Command, logger logr.Logger, client *azkustodata.
 	logQuery(logger, "", createCmd)
 	logDataset(logger, ds)
 
-	files, err := filepath.Glob(filepath.Join(kqlDir, "*.kql"))
+	var tableFiles, functionFiles []string
+	err = filepath.WalkDir(kqlDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".kql") {
+			rel, relErr := filepath.Rel(kqlDir, path)
+			if relErr != nil {
+				return fmt.Errorf("computing relative path for %q: %w", path, relErr)
+			}
+			if strings.HasPrefix(rel, "functions"+string(filepath.Separator)) {
+				functionFiles = append(functionFiles, path)
+			} else {
+				tableFiles = append(tableFiles, path)
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("finding .kql files: %w", err)
 	}
-	if len(files) == 0 {
+	totalFiles := len(tableFiles) + len(functionFiles)
+	if totalFiles == 0 {
 		return fmt.Errorf("no .kql files found in %s", kqlDir)
 	}
 
-	logger.Info("Found .kql files", "count", len(files))
+	logger.Info("Found .kql files", "count", totalFiles, "tables", len(tableFiles), "functions", len(functionFiles))
 
 	var failed []string
-	for _, file := range files {
+
+	// Tables must be loaded first so functions can resolve table references
+	for _, file := range tableFiles {
+		name := filepath.Base(file)
+		if err := validateFile(ctx, logger, client, database, file); err != nil {
+			logger.Error(err, "FAIL", "file", name)
+			failed = append(failed, name)
+		} else {
+			logger.Info("OK", "file", name)
+		}
+	}
+	for _, file := range functionFiles {
 		name := filepath.Base(file)
 		if err := validateFile(ctx, logger, client, database, file); err != nil {
 			logger.Error(err, "FAIL", "file", name)
@@ -116,7 +145,7 @@ func runValidateKQL(cmd *cobra.Command, logger logr.Logger, client *azkustodata.
 		return fmt.Errorf("validation failed for: %s", strings.Join(failed, ", "))
 	}
 
-	logger.Info("All .kql files validated successfully", "count", len(files))
+	logger.Info("All .kql files validated successfully", "count", totalFiles)
 	return nil
 }
 

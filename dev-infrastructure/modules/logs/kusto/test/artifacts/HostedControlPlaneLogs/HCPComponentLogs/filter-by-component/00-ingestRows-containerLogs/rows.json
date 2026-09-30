@@ -1,0 +1,84 @@
+[
+	{
+		"cluster": "mgmt-cluster-01",
+		"cluster_id": "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000001/RESOURCEGROUPS/MY-RG/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/MY-CLUSTER",
+		"container_image": "registry.k8s.io/kube-apiserver:v1.29.0",
+		"container_name": "kube-apiserver",
+		"container_status_image_id": "",
+		"environment": "prod",
+		"host": "node-1",
+		"labels": "",
+		"log": {
+			"msg": "serving request",
+			"resource": "pods",
+			"verb": "GET"
+		},
+		"namespace_name": "ocm-abc123",
+		"pod_name": "kube-apiserver-7f8b9c6d4-x2k9m",
+		"region": "uksouth",
+		"resource_group": "MY-RG",
+		"tag": "hcp",
+		"timestamp": "2026-09-30T12:00:00Z"
+	},
+	{
+		"cluster": "mgmt-cluster-01",
+		"cluster_id": "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000001/RESOURCEGROUPS/MY-RG/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/MY-CLUSTER",
+		"container_image": "registry.k8s.io/kube-apiserver:v1.29.0",
+		"container_name": "kube-apiserver",
+		"container_status_image_id": "",
+		"environment": "prod",
+		"host": "node-1",
+		"labels": "",
+		"log": {
+			"msg": "request completed",
+			"resource": "nodes",
+			"verb": "GET"
+		},
+		"namespace_name": "ocm-abc123",
+		"pod_name": "kube-apiserver-7f8b9c6d4-x2k9m",
+		"region": "uksouth",
+		"resource_group": "MY-RG",
+		"tag": "hcp",
+		"timestamp": "2026-09-30T12:01:00Z"
+	},
+	{
+		"cluster": "mgmt-cluster-01",
+		"cluster_id": "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000001/RESOURCEGROUPS/MY-RG/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/MY-CLUSTER",
+		"container_image": "registry.k8s.io/etcd:3.5.10",
+		"container_name": "etcd",
+		"container_status_image_id": "",
+		"environment": "prod",
+		"host": "node-1",
+		"labels": "",
+		"log": {
+			"msg": "compaction completed"
+		},
+		"namespace_name": "ocm-abc123",
+		"pod_name": "etcd-0",
+		"region": "uksouth",
+		"resource_group": "MY-RG",
+		"tag": "hcp",
+		"timestamp": "2026-09-30T12:02:00Z"
+	},
+	{
+		"cluster": "mgmt-cluster-02",
+		"cluster_id": "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000002/RESOURCEGROUPS/OTHER-RG/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/OTHER-CLUSTER",
+		"container_image": "registry.k8s.io/kube-apiserver:v1.29.0",
+		"container_name": "kube-apiserver",
+		"container_status_image_id": "",
+		"environment": "prod",
+		"host": "node-3",
+		"labels": "",
+		"log": {
+			"msg": "serving request",
+			"resource": "configmaps",
+			"verb": "LIST"
+		},
+		"namespace_name": "ocm-def456",
+		"pod_name": "kube-apiserver-5a4b3c2d1-q7w8e",
+		"region": "eastus",
+		"resource_group": "OTHER-RG",
+		"tag": "hcp",
+		"timestamp": "2026-09-30T12:03:00Z"
+	}
+]
