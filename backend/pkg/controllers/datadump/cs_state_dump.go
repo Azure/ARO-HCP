@@ -29,15 +29,16 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	corelisters "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type csStateDump struct {
-	resourcesDBClient corecosmosstorage.ResourcesDBClient
-	csClient          ocm.ClusterServiceClientSpec
+	clusterLister  corelisters.ClusterLister
+	nodePoolLister corelisters.NodePoolLister
+	csClient       ocm.ClusterServiceClientSpec
 
 	// nextDumpChecker ensures we don't hotloop from any source.
 	nextDumpChecker controllerutil.CooldownChecker
@@ -48,15 +49,18 @@ const CSStateDumpControllerName = "CSStateDump"
 // NewCSStateDumpController periodically fetches cluster-service state for each cluster and dumps it to logs.
 func NewCSStateDumpController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	clusterLister corelisters.ClusterLister,
+	nodePoolLister corelisters.NodePoolLister,
 	activeOperationLister corelisters.ActiveOperationLister,
 	backendInformers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	csClient ocm.ClusterServiceClientSpec,
 ) controllerutils.Controller {
 	syncer := &csStateDump{
-		resourcesDBClient: resourcesDBClient,
-		csClient:          csClient,
-		nextDumpChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		clusterLister:   clusterLister,
+		nodePoolLister:  nodePoolLister,
+		csClient:        csClient,
+		nextDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -76,10 +80,10 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 
 	logger := utils.LoggerFromContext(ctx)
 
-	// Get the cluster from cosmos to retrieve the ClusterServiceID
-	cluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	// Get the cluster from the informer cache to retrieve the ClusterServiceID
+	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		// Cluster doesn't exist in cosmos, nothing to dump
+		// Cluster doesn't exist in the informer cache, nothing to dump
 		return nil
 	}
 	if err != nil {
@@ -115,14 +119,14 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	)
 
 	// Fetch and dump node pools
-	allNodePools, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).List(ctx, nil)
+	allNodePools, err := c.nodePoolLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		logger.Error(err, "failed to list node pools from cosmos for CS state dump")
 		// best effort, don't fail
 		return nil
 	}
 
-	for _, nodePool := range allNodePools.Items(ctx) {
+	for _, nodePool := range allNodePools {
 		npCSID := nodePool.ServiceProviderProperties.ClusterServiceID
 		if npCSID == nil || len(npCSID.String()) == 0 {
 			// No ClusterServiceID yet, node pool hasn't been registered with CS
@@ -154,9 +158,6 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 			"hcp_nodepool_name", nodePool.ID,
 			"csNodePool", nodePoolData,
 		)
-	}
-	if err := allNodePools.GetError(); err != nil {
-		logger.Error(err, "failed to iterate node pools from cosmos for CS state dump")
 	}
 
 	return nil
