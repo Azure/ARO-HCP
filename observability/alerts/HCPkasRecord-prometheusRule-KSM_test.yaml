@@ -188,6 +188,12 @@ tests:
   - expr: hostedClusterAPI_kubeapiserver_available:sli_count_6h{name="deleting-cluster"}
     eval_time: 35m
     exp_samples: []
+  - expr: hostedClusterAPI_kubeapiserver_available:sli_sum_3d{name="deleting-cluster"}
+    eval_time: 35m
+    exp_samples: []
+  - expr: hostedClusterAPI_kubeapiserver_available:sli_count_3d{name="deleting-cluster"}
+    eval_time: 35m
+    exp_samples: []
   # Non-SLI recording rules should STILL produce output for the deleting cluster
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_1d{name="deleting-cluster"}
     eval_time: 35m
