@@ -30,11 +30,11 @@ panels:
     workspace: svc
     step: "60s"
   - title: "Frontend Median (p50) Request Latency"
-    description: "Median (p50) frontend request latency by method/route/cluster over a trailing 30-minute window (matches the FrontendPathMedianLatency alert, which fires at >250ms for series with >=10 requests/30m). The median is robust at low sample counts, so this catches regressions in normal-request handling that the p99 signal misses. No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alert)."
+    description: "Median (p50) frontend GET/HEAD request latency by method/route/cluster over a trailing 30-minute window (matches the FrontendPathMedianLatency alert, which fires at >250ms for GET/HEAD series with >=10 requests/30m). Mutating methods are excluded from this alert — 250ms is a read SLO; write paths use FrontendPathLatency. The median is robust at low sample counts, so this catches regressions in normal-request handling that the p99 signal misses. No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alert)."
     query: |
       histogram_quantile(0.5,
         sum by (le, route, method, cluster) (
-          rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+          rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(GET|HEAD)$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
         )
       )
     unit: seconds

@@ -26,10 +26,14 @@ spec:
     #   * FrontendPathLatency       — SYSTEMIC tail regressions: fraction of requests slower
     #                                 than 1s > 5%, gated on volume (≥50 req/30m) AND an
     #                                 absolute slow-call floor (≥3), so one outlier cannot fire.
-    #   * FrontendPathMedianLatency — NORMAL-request regressions: the median (p50) is robust
-    #                                 at low sample counts (an outlier sits far from rank
-    #                                 0.5·N), so it needs only a light volume floor (≥10 req/30m)
-    #                                 and a lower 250ms bound.
+    #   * FrontendPathMedianLatency — READ-path regressions only (GET/HEAD): the median (p50)
+    #                                 is robust at low sample counts (an outlier sits far from
+    #                                 rank 0.5·N), so it needs only a light volume floor
+    #                                 (≥10 req/30m) and a 250ms bound. Mutating methods are
+    #                                 excluded — 250ms is a read SLO, and cluster-create PUT
+    #                                 p50 routinely exceeds it in e2e (AROSLSRE-2232), failing
+    #                                 gather-observability after Ginkgo already passed. Write
+    #                                 paths stay gated by FrontendPathLatency (5% > 1s).
     #
     # HA Prometheus replica handling:
     #   * Ratio/quantile clauses use sum (not max): doubled per-bucket counts from two
@@ -86,19 +90,19 @@ spec:
       expr: |
         histogram_quantile(0.5,
           sum by (le, route, method, cluster) (
-            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)
+            rate(frontend_http_requests_duration_seconds_bucket{method=~"(?i)^(GET|HEAD)$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m)
           )
         ) > 0.25
         and on (route, method, cluster)
         (
           sum by (route, method, cluster) (
-            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))
+            max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{method=~"(?i)^(GET|HEAD)$", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m] offset 5m))
           )
         ) >= 10
       for: 1m
       labels:
         severity: warning
       annotations:
-        description: 'The median (p50) of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 250ms over the past 30 minutes (cluster {{ $labels.cluster }}).'
+        description: 'The median (p50) of frontend GET/HEAD request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 250ms over the past 30 minutes (cluster {{ $labels.cluster }}).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend median latency is high: p50 exceeds 250ms for {{ $labels.method }} {{ $labels.route }} on cluster {{ $labels.cluster }} over the past 30 minutes'
+        summary: 'Frontend GET/HEAD median latency is high: p50 exceeds 250ms for {{ $labels.method }} {{ $labels.route }} on cluster {{ $labels.cluster }} over the past 30 minutes'
