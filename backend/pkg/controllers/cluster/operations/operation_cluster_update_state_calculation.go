@@ -297,21 +297,6 @@ func (c *operationClusterUpdate) hypershiftHostedClusterAutoscalingSpecMatchesDe
 	return true, ""
 }
 
-// platformImageContentSources lists HostedCluster imageContentSources managed internally by the
-// service. These are ignored when comparing customer imageDigestMirrors propagation.
-var platformImageContentSources = map[string]struct{}{
-	"quay.io/openshift-release-dev/ocp-v4.0-art-dev":    {},
-	"quay.io/openshift-release-dev/ocp-v5.0-art-dev":    {},
-	"quay.io/openshift-release-dev/ocp-release":         {},
-	"quay.io/openshift-release-dev/ocp-release-nightly": {},
-}
-
-// isPlatformImageContentSource reports whether source is a service-managed platform image source.
-func isPlatformImageContentSource(source string) bool {
-	_, ok := platformImageContentSources[source]
-	return ok
-}
-
 // hypershiftHostedClusterImageContentSourcesSpecMatchesDesired reports whether HostedCluster
 // imageContentSources spec matches desired state's imageDigestMirrors. Platform-managed sources may be
 // present on the HostedCluster without matching a customer desired entry.
@@ -342,7 +327,7 @@ func (c *operationClusterUpdate) hypershiftHostedClusterImageContentSourcesSpecM
 		if _, ok := desiredBySource[source]; ok {
 			continue
 		}
-		if isPlatformImageContentSource(source) {
+		if apihelpers.IsPlatformImageContentSource(source) {
 			continue
 		}
 		return false, fmt.Sprintf("hypershift HostedCluster has unexpected imageContentSource %q", source)
