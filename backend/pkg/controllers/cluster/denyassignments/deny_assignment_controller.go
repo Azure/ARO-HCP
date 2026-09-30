@@ -276,24 +276,13 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 	// keeps its protection; the deletion is retried on the next reconcile.
 	if allRequiredDenyAssignmentsPresent(replacement.Status.AzureResources.DenyAssignments.AzureResources, requiredDenyAssignmentReferenceByType) {
 		var staleDeletionErrs []error
-		for _, stale := range staleExistingRefs {
+		for _, stale := range appendDenyAssignmentReference(staleExistingRefs, stalePendingRefs...) {
 			if err := c.deleteDenyAssignment(ctx, genericResourcesClient, stale.DenyAssignmentResourceID); err != nil {
 				staleDeletionErrs = append(staleDeletionErrs, utils.TrackError(fmt.Errorf("failed to delete stale deny assignment %s: %w", stale.DenyAssignmentType, err)))
 				continue
 			}
 			logger.Info("Deleted stale deny assignment from Azure", "denyAssignmentType", stale.DenyAssignmentType)
 			replacement.Status.AzureResources.DenyAssignments.AzureResources = removeDenyAssignmentRef(replacement.Status.AzureResources.DenyAssignments.AzureResources, stale.DenyAssignmentType)
-		}
-		// Prune obsolete refs left in PendingAzureResources as well. A legacy per-service ref stuck in
-		// pending has no matching definition after the migration, so ensureDenyAssignmentReferences
-		// would keep it in the failed list forever and block the cluster as permanently pending. Delete
-		// it from Azure (if present) and drop it from the pending list so both status lists converge.
-		for _, stale := range stalePendingRefs {
-			if err := c.deleteDenyAssignment(ctx, genericResourcesClient, stale.DenyAssignmentResourceID); err != nil {
-				staleDeletionErrs = append(staleDeletionErrs, utils.TrackError(fmt.Errorf("failed to delete stale pending deny assignment %s: %w", stale.DenyAssignmentType, err)))
-				continue
-			}
-			logger.Info("Deleted stale pending deny assignment from Azure", "denyAssignmentType", stale.DenyAssignmentType)
 			replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = removeDenyAssignmentRef(replacement.Status.AzureResources.DenyAssignments.PendingAzureResources, stale.DenyAssignmentType)
 		}
 		serviceProviderCluster, replacement, err = replaceServiceProviderClusterIfChanged(ctx, serviceProviderClusterCRUD, serviceProviderCluster, replacement, staleDeletionErrs)

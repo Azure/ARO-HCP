@@ -823,6 +823,7 @@ func TestSyncDenyAssignmentUpsertDeletesLegacyAfterCompleteEnsured(t *testing.T)
 	existingSPC := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 		// The legacy assignment is tracked alongside the already-present, up-to-date complete assignment.
 		spc.Status.AzureResources.DenyAssignments.AzureResources = append([]coreapi.DenyAssignmentReference{legacyRef}, requiredRefs...)
+		spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{legacyRef}
 	})
 
 	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
@@ -862,6 +863,7 @@ func TestSyncDenyAssignmentUpsertDeletesLegacyAfterCompleteEnsured(t *testing.T)
 	}
 	assert.True(t, hasComplete, "required complete assignment should remain in AzureResources")
 	assert.False(t, hasLegacy, "legacy deny assignment should have been removed from AzureResources")
+	assert.Empty(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources, "the same stale reference must be removed from both lists with one Azure delete")
 }
 
 // TestSyncDenyAssignmentUpsertRetainsLegacyWhenCompleteEnsureFails proves the protection guarantee:
@@ -876,8 +878,10 @@ func TestSyncDenyAssignmentUpsertRetainsLegacyWhenCompleteEnsureFails(t *testing
 	require.NoError(t, err)
 
 	legacyRef := legacyDenyAssignmentRef("compute-deny-assignment", "legacy-uuid")
+	legacyPendingRef := legacyDenyAssignmentRef("storage-deny-assignment", "legacy-pending-uuid")
 	existingSPC := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 		spc.Status.AzureResources.DenyAssignments.AzureResources = append([]coreapi.DenyAssignmentReference{legacyRef}, requiredRefs...)
+		spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{legacyPendingRef}
 	})
 
 	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
@@ -926,6 +930,7 @@ func TestSyncDenyAssignmentUpsertRetainsLegacyWhenCompleteEnsureFails(t *testing
 		}
 	}
 	assert.True(t, hasLegacy, "legacy deny assignment must remain in AzureResources so the resource group stays protected")
+	assert.Contains(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources, legacyPendingRef, "obsolete pending assignments must also remain when ensuring complete fails")
 }
 
 // TestSyncDenyAssignmentUpsertPrunesObsoletePending proves that an obsolete legacy type left in
