@@ -58,6 +58,8 @@ type operationClusterUpdate struct {
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
 
+const OperationClusterUpdateControllerName = "OperationClusterUpdate"
+
 // NewOperationClusterUpdateController returns a new Controller instance that
 // follows an asynchronous cluster update operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -98,7 +100,7 @@ func NewOperationClusterUpdateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationClusterUpdate",
+		OperationClusterUpdateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

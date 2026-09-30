@@ -71,7 +71,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceSeedsChannelTip(t *testing.T) 
 		"expected desired version 4.20.5 (tip of candidate-4.20), got %s", spc.Spec.ControlPlaneVersion.DesiredVersion)
 	assert.True(t, graphCalled, "expected the graph API round tripper to be invoked")
 
-	assertIntentFailedFalse(t, ctx, mockDB, controlPlaneDesiredVersionControllerName)
+	assertIntentFailedFalse(t, ctx, mockDB, ControlPlaneDesiredVersionControllerName)
 }
 
 // TestControlPlaneDesiredVersionSyncer_SyncOnceSeedRejectsNightly verifies that the controller returns

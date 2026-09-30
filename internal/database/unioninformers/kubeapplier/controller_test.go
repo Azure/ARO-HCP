@@ -108,12 +108,6 @@ func (f *fakeMCInformer) emitDelete(obj any) {
 	}
 }
 
-func (f *fakeMCInformer) emitUpdate(oldObj, newObj any) {
-	for _, h := range f.snapshotHandlers() {
-		h.OnUpdate(oldObj, newObj)
-	}
-}
-
 // --- stub factory ---------------------------------------------------------
 
 // stubFactory builds an kubeapplierinformers.KubeApplierInformers per call by wiring
@@ -345,9 +339,9 @@ func TestController_RemoveDropsSubInformer(t *testing.T) {
 //     factory returns nil even though the lister knows about mgmt-a).
 //  2. Run the controller.
 //  3. Emit an Add for mgmt-a; SyncOnce sees the MC, calls factory, gets
-//     nil — silently skips. Assert no union registration happened and the
+//     nil — retried by the queue. Assert no union registration happened and the
 //     factory recorded a miss.
-//  4. Register the factory entry and emit an Update for mgmt-a.
+//  4. Register the factory entry without emitting another MC event.
 //  5. Wait for the union to pick up the sub.
 //  6. Cancel and join.
 func TestController_FactoryNilSkipsRegistrationAndRetries(t *testing.T) {
@@ -369,11 +363,11 @@ func TestController_FactoryNilSkipsRegistrationAndRetries(t *testing.T) {
 	waitUntil(t, ctx, "factory miss recorded", func() bool {
 		return factory.misses() >= 1
 	})
-	if !ctl.Union().HasSynced() {
-		t.Errorf("empty union: HasSynced = false, want true (no sub registered)")
+	if ctl.Union().HasSynced() {
+		t.Errorf("union with an unavailable expected management cluster must not be synced")
 	}
 
-	// Wire up the factory and emit Update so the controller retries.
+	// Wire up the factory; the controller retries without another event.
 	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
 			kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
@@ -383,7 +377,6 @@ func TestController_FactoryNilSkipsRegistrationAndRetries(t *testing.T) {
 		t.Fatalf("mock A: %v", err)
 	}
 	factory.register(ctlMgmtAID, mockA)
-	mcInformer.emitUpdate(ctlMC(ctlMgmtAID), ctlMC(ctlMgmtAID))
 
 	_, applyLister := ctl.Union().ApplyDesires()
 	waitUntil(t, ctx, "lister sees mgmt-a after retry", func() bool {

@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -53,6 +54,7 @@ const (
 )
 
 type deleteOrphanedCosmosResources struct {
+	internalcontrollerutils.CacheSyncWaiter
 	name string
 
 	subscriptionLister      corelisters.SubscriptionLister
@@ -64,6 +66,8 @@ type deleteOrphanedCosmosResources struct {
 	// rate limited requeues on errors
 	queue workqueue.TypedRateLimitingInterface[string]
 }
+
+const DeleteOrphanedCosmosResourcesControllerName = "DeleteOrphanedCosmosResources"
 
 // NewDeleteOrphanedCosmosResourcesController periodically looks for cosmos objs that don't have an
 // owning cluster and deletes them. The sweep covers two storage layers:
@@ -81,7 +85,7 @@ func NewDeleteOrphanedCosmosResourcesController(
 	managementClusterLister fleetlisters.ManagementClusterLister,
 ) controllerutils.Controller {
 	c := &deleteOrphanedCosmosResources{
-		name:                    "DeleteOrphanedCosmosResources",
+		name:                    DeleteOrphanedCosmosResourcesControllerName,
 		subscriptionLister:      subscriptionLister,
 		managementClusterLister: managementClusterLister,
 		resourcesDBClient:       resourcesDBClient,
@@ -89,7 +93,7 @@ func NewDeleteOrphanedCosmosResourcesController(
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "DeleteOrphanedCosmosResources",
+				Name: DeleteOrphanedCosmosResourcesControllerName,
 			},
 		),
 	}
@@ -335,6 +339,10 @@ func (c *deleteOrphanedCosmosResources) Run(ctx context.Context, threadiness int
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
 	defer c.queue.ShutDown()
+
+	if !c.WaitForCacheSync(ctx) {
+		return
+	}
 
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx)

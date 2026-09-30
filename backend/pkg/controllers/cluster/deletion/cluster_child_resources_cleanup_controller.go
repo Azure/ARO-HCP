@@ -49,6 +49,8 @@ type clusterChildResourcesCleanupController struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterChildResourcesCleanupController)(nil)
 
+const ClusterChildResourcesCleanupControllerControllerName = "ClusterChildResourcesCleanupController"
+
 func NewClusterChildResourcesCleanupController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
@@ -62,7 +64,7 @@ func NewClusterChildResourcesCleanupController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterChildResourcesCleanupController",
+		ClusterChildResourcesCleanupControllerControllerName,
 		resourcesDBClient,
 		informers,
 		nil,

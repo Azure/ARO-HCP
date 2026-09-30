@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -35,6 +36,7 @@ import (
 const MissingResourceIDControllerName = "MissingResourceID"
 
 type missingResourceIDController struct {
+	internalcontrollerutils.CacheSyncWaiter
 	name string
 
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
@@ -148,6 +150,10 @@ func (c *missingResourceIDController) queueSweep(ctx context.Context) {
 func (c *missingResourceIDController) Run(ctx context.Context, threadiness int) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
+
+	if !c.WaitForCacheSync(ctx) {
+		return
+	}
 
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx)

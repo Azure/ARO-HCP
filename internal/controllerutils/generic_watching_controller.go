@@ -54,6 +54,7 @@ type Notifier interface {
 }
 
 type GenericWatchingController[T comparable] struct {
+	CacheSyncWaiter
 	name           string
 	resourceType   azcorearm.ResourceType
 	syncer         GenericSyncer[T]
@@ -105,6 +106,10 @@ func (c *GenericWatchingController[T]) Run(ctx context.Context, threadiness int)
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
 	defer c.queue.ShutDown()
+
+	if !c.WaitForCacheSync(ctx) {
+		return
+	}
 
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx)

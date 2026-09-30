@@ -54,6 +54,8 @@ type nodePoolDegradedAggregator struct {
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDegradedAggregator)(nil)
 
+const NodePoolDegradedAggregatorControllerName = "NodePoolDegradedAggregator"
+
 // nodePoolDegradedAggregatorInertia is the inertia config used by the
 // node-pool aggregator. Same shape as clusterDegradedAggregatorInertia
 // and kept independent so node-pool-specific controllers can be tuned
@@ -96,7 +98,7 @@ func NewNodePoolDegradedAggregatorController(
 		readDesireLister:  readDesireLister,
 	}
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolDegradedAggregator",
+		NodePoolDegradedAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

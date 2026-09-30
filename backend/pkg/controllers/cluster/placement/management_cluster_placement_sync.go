@@ -44,6 +44,8 @@ type managementClusterPlacementSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*managementClusterPlacementSyncer)(nil)
 
+const ManagementClusterPlacementSyncControllerName = "ManagementClusterPlacementSync"
+
 // NewManagementClusterPlacementSyncController creates a new controller that syncs the
 // management cluster placement from Cluster Service into the ServiceProviderCluster document.
 func NewManagementClusterPlacementSyncController(
@@ -65,7 +67,7 @@ func NewManagementClusterPlacementSyncController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"ManagementClusterPlacementSync",
+		ManagementClusterPlacementSyncControllerName,
 		cosmosClient,
 		informers,
 		kubeApplierInformers,
