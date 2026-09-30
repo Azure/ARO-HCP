@@ -26,6 +26,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -47,7 +48,11 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 	}
 	withAcceptedCSDeleteExternalAuthOptsFunc := func(ea *coreapi.ExternalAuth) {
 		withDeletionStampsExternalAuthOptsFunc(ea)
-		ea.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted = true
+		ea.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted = ptr.To(true)
+	}
+	withRejectedCSDeleteExternalAuthOptsFunc := func(ea *coreapi.ExternalAuth) {
+		withDeletionStampsExternalAuthOptsFunc(ea)
+		ea.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted = ptr.To(false)
 	}
 
 	verifyClusterServiceIDUnchanged := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
@@ -139,7 +144,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		{
 			name: "CS returns Ready after parent-cluster uninstall dispatch -- wait",
 			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.ExternalAuth) {
-				withDeletionStampsExternalAuthOptsFunc(ea)
+				withRejectedCSDeleteExternalAuthOptsFunc(ea)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
@@ -147,6 +152,24 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 					Return(newCSExternalAuthWithState(t, string(operationbase.ExternalAuthStateReady)), nil)
 			},
 			verifyDB: verifyClusterServiceIDUnchanged,
+		},
+		{
+			name: "CS returns Ready after pre-change dispatch (accepted flag unset) -- clear ClusterServiceID",
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.ExternalAuth) {
+				withDeletionStampsExternalAuthOptsFunc(ea)
+			}),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetExternalAuth(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testExternalAuthCSIDStr))).
+					Return(newCSExternalAuthWithState(t, string(operationbase.ExternalAuthStateReady)), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				t.Helper()
+				stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+					ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
+				require.NoError(t, err)
+				assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "expected ClusterServiceID to be cleared")
+			},
 		},
 		{
 			name: "CS returns 404 -- clear ClusterServiceID",

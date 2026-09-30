@@ -81,7 +81,9 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 			require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp, "expected ClusterServiceDeletionTimestamp to be stamped")
 			assert.True(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time.Equal(fixedClockTime),
 				"expected ClusterServiceDeletionTimestamp to equal fixedClockTime, got %v", stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time)
-			assert.Equal(t, wantAccepted, stored.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted,
+			require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted,
+				"expected ClusterServiceExternalAuthDeleteAccepted to be set")
+			assert.Equal(t, wantAccepted, *stored.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted,
 				"expected ClusterServiceExternalAuthDeleteAccepted=%v", wantAccepted)
 		}
 	}
@@ -396,7 +398,8 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeleti
 	require.NoError(t, err)
 	require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp)
 	assert.True(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time.Equal(fixedClockTime))
-	assert.True(t, stored.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted,
+	require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted)
+	assert.True(t, *stored.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted,
 		"expected ClusterServiceExternalAuthDeleteAccepted after accepted DELETE")
 }
 
