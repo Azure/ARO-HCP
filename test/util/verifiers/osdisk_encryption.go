@@ -52,7 +52,7 @@ func (v verifyVMOSDiskCustomerEncryption) Verify(ctx context.Context, _ *rest.Co
 
 	var workerVMs []*armcompute.VirtualMachine
 	for _, vm := range vms {
-		if vm.Name != nil && strings.Contains(*vm.Name, v.nodePoolName) {
+		if vm.Name != nil && strings.HasPrefix(*vm.Name, v.nodePoolName+"-") {
 			workerVMs = append(workerVMs, vm)
 		}
 	}

@@ -124,6 +124,12 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			keyVersion, keyVaultName, err := parseMHSMKeyIDComponents(keyID)
 			Expect(err).NotTo(HaveOccurred(), "failed to parse key version from key ID %q", keyID)
 
+			// Detect principal type so local User accounts and Prow's ServicePrincipal both work.
+			azAssigneePrincipalType := "ServicePrincipal"
+			if deployerIdentity.PrincipalType == framework.PrincipalTypeDSTSUser {
+				azAssigneePrincipalType = "User"
+			}
+
 			// grantMHSMCryptoUser grants a principal the "Managed HSM Crypto User" role at the given
 			// mHSM data-plane scope. mHSM has its own per-HSM data-plane RBAC, so a subscription-scope
 			// grant cannot cover this HSM.
@@ -131,7 +137,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 				assignRoleCmd := exec.CommandContext(ctx, "az", "keyvault", "role", "assignment", "create",
 					"--hsm-name", hsmName,
 					"--assignee-object-id", principalID,
-					"--assignee-principal-type", "ServicePrincipal",
+					"--assignee-principal-type", azAssigneePrincipalType,
 					"--role", "Managed HSM Crypto User",
 					"--scope", scope,
 					"--only-show-errors",

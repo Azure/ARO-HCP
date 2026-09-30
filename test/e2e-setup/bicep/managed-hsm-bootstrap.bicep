@@ -267,7 +267,7 @@ resource bootstrap 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
         )"
 
         if [ "$activation_exit_code" -eq 0 ] &&
-           [ "$activation_status" = 'Success' ] &&
+           { [ "$activation_status" = 'Success' ] || [ "$activation_status" = 'Succeeded' ]; } &&
            [ -s "$sd_file" ]; then
           activation_succeeded=true
           break
