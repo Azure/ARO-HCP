@@ -21,6 +21,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -53,39 +54,43 @@ var _ = Describe("Customer", func() {
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "cni-cilium", tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for cilium CNI test")
+			useOldAPI, err := tc.APIVersionAvailable(ctx, *resourceGroup.Name, metadataapi.APIVersionV20240610Preview)
+			Expect(err).NotTo(HaveOccurred(), "failed to check whether v20240610preview is available")
 
-			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20260901()
-			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-
-			By("setting no cni network configuration")
-			clusterParams.Network.NetworkType = "Other"
-			clusterParams.Network.PodCIDR = "10.128.0.0/14"
-			clusterParams.Network.ServiceCIDR = "172.30.0.0/16"
-			clusterParams.Network.MachineCIDR = "10.0.0.0/16"
-			clusterParams.Network.HostPrefix = 23
-
-			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]any{},
-				TestArtifactsFS,
-				framework.RBACScopeResourceGroup,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cilium CNI cluster")
-
-			By("creating HCP cluster without CNI")
-			err = tc.CreateHCPClusterFromParam20260901(
-				ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				clusterParams,
-				nil,
-				framework.ClusterCreationTimeout,
-			)
+			const podCIDR = "10.128.0.0/14"
+			const hostPrefix = 23
+			if useOldAPI {
+				By("creating cluster parameters using 20240610preview API")
+				clusterParams := framework.NewDefaultClusterParams20240610()
+				clusterParams.ClusterName = customerClusterName
+				clusterParams.ManagedResourceGroupName = managedResourceGroupName
+				clusterParams.Network.NetworkType = "Other"
+				clusterParams.Network.PodCIDR = podCIDR
+				clusterParams.Network.ServiceCIDR = "172.30.0.0/16"
+				clusterParams.Network.MachineCIDR = "10.0.0.0/16"
+				clusterParams.Network.HostPrefix = hostPrefix
+				By("creating customer resources with v20240610preview")
+				clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx, resourceGroup, clusterParams, map[string]any{}, TestArtifactsFS, framework.RBACScopeResourceGroup)
+				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for Cilium cluster")
+				By("creating HCP cluster without CNI using v20240610preview")
+				err = tc.CreateHCPClusterFromParam20240610(ctx, GinkgoLogr, *resourceGroup.Name, clusterParams, framework.ClusterCreationTimeout)
+			} else {
+				By("creating cluster parameters using 20260901preview API")
+				clusterParams := framework.NewDefaultClusterParams20260901()
+				clusterParams.ClusterName = customerClusterName
+				clusterParams.ManagedResourceGroupName = managedResourceGroupName
+				clusterParams.Network.NetworkType = "Other"
+				clusterParams.Network.PodCIDR = podCIDR
+				clusterParams.Network.ServiceCIDR = "172.30.0.0/16"
+				clusterParams.Network.MachineCIDR = "10.0.0.0/16"
+				clusterParams.Network.HostPrefix = hostPrefix
+				By("creating customer resources with v20260901preview")
+				clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx, resourceGroup, clusterParams, map[string]any{}, TestArtifactsFS, framework.RBACScopeResourceGroup)
+				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for Cilium cluster")
+				By("creating HCP cluster without CNI using v20260901preview")
+				err = tc.CreateHCPClusterFromParam20260901(ctx, GinkgoLogr, *resourceGroup.Name, clusterParams, nil, framework.ClusterCreationTimeout)
+			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q without CNI", customerClusterName)
 
 			By("getting credentials and verifying cluster is available")
@@ -131,8 +136,8 @@ var _ = Describe("Customer", func() {
 				"ipam": map[string]any{
 					"mode": "cluster-pool",
 					"operator": map[string]any{
-						"clusterPoolIPv4PodCIDRList": clusterParams.Network.PodCIDR,
-						"clusterPoolIPv4MaskSize":    clusterParams.Network.HostPrefix,
+						"clusterPoolIPv4PodCIDRList": podCIDR,
+						"clusterPoolIPv4MaskSize":    hostPrefix,
 					},
 				},
 				"endpointRoutes": map[string]any{
@@ -160,17 +165,16 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to install Cilium chart via Helm")
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
-			nodePoolParams.NodePoolName = customerNodePoolName
-			nodePoolErr := tc.CreateNodePoolFromParam20260901(
-				ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				clusterParams.ManagedResourceGroupName,
-				customerClusterName,
-				nodePoolParams,
-				framework.NodePoolCreationTimeout,
-			)
+			var nodePoolErr error
+			if useOldAPI {
+				nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+				nodePoolParams.NodePoolName = customerNodePoolName
+				nodePoolErr = tc.CreateNodePoolFromParam20240610(ctx, GinkgoLogr, *resourceGroup.Name, managedResourceGroupName, customerClusterName, nodePoolParams, framework.NodePoolCreationTimeout)
+			} else {
+				nodePoolParams := framework.NewDefaultNodePoolParams20260901()
+				nodePoolParams.NodePoolName = customerNodePoolName
+				nodePoolErr = tc.CreateNodePoolFromParam20260901(ctx, GinkgoLogr, *resourceGroup.Name, managedResourceGroupName, customerClusterName, nodePoolParams, framework.NodePoolCreationTimeout)
+			}
 			// We delay checking the error on purpose to get more details
 			// about the issue by running the verifiers.
 

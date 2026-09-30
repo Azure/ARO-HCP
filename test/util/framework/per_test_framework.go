@@ -54,6 +54,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20261001preview "github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/timing"
@@ -68,6 +71,9 @@ type perItOrDescribeTestContext struct {
 	knownAppRegistrations         []graphutil.ApplicationCleanupTarget
 	createdRoleAssignmentIDs      []string
 	subscriptionID                string
+	clientFactory20240610         *hcpsdk20240610preview.ClientFactory
+	clientFactory20251223         *hcpsdk20251223preview.ClientFactory
+	clientFactory20260630         *hcpsdk20260630preview.ClientFactory
 	clientFactory20260901         *hcpsdk20260901preview.ClientFactory
 	clientFactory20261001         *hcpsdk20261001preview.ClientFactory
 	armComputeClientFactory       *armcompute.ClientFactory

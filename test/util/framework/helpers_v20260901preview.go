@@ -814,6 +814,30 @@ func (tc *perItOrDescribeTestContext) get20260901ClientFactoryUnlocked(ctx conte
 	return tc.clientFactory20260901, nil
 }
 
+// fallbackAdminRESTConfigTo20260901 re-requests admin credentials via the
+// CSR-based 2026-09-01-preview API version. Used when the legacy 20240610
+// admin credential path fails, so tests keep working once break-glass
+// issuance is no longer served for the stable 20240610 API version. Both the
+// originating 20240610 error and any 2026-09-01-preview error are wrapped so a
+// failure on either path stays diagnosable.
+func (tc *perItOrDescribeTestContext) fallbackAdminRESTConfigTo20260901(
+	ctx context.Context,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+	causeErr error,
+) (*rest.Config, error) {
+	fallbackFactory, fallbackErr := tc.Get20260901ClientFactory(ctx)
+	if fallbackErr != nil {
+		return nil, fmt.Errorf("20240610 credential request failed: %w; fallback client factory error: %w", causeErr, fallbackErr)
+	}
+	restConfig, fallbackErr := tc.GetAdminRESTConfigForHCPCluster20260901(ctx, fallbackFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, hcpClusterName, timeout)
+	if fallbackErr != nil {
+		return nil, fmt.Errorf("20240610 credential request failed: %w; 2026-09-01-preview fallback failed: %w", causeErr, fallbackErr)
+	}
+	return restConfig, nil
+}
+
 func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(
 	ctx context.Context,
 	hcpClient *hcpsdk20260901preview.HcpOpenShiftClustersClient,
@@ -949,6 +973,32 @@ func resumeInFlightNodePoolCreate20260901(
 		})
 }
 
+// resumeInFlightExternalAuthCreate20260901 returns a poller for an external auth
+// create or update that is already in flight when the request was rejected
+// with 409 Conflict. See resumeInFlightCreate.
+func resumeInFlightExternalAuthCreate20260901(
+	ctx context.Context,
+	externalAuthClient *hcpsdk20260901preview.ExternalAuthsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	externalAuthName string,
+	attempts *requestAttemptTracker,
+	createErr error,
+) (*runtime.Poller[hcpsdk20260901preview.ExternalAuthsClientCreateOrUpdateResponse], error) {
+	return resumeInFlightCreate(ctx, createErr, attempts, fmt.Sprintf("external auth %q for cluster %q in resourcegroup=%q", externalAuthName, hcpClusterName, resourceGroupName),
+		func(ctx context.Context) (hcpsdk20260901preview.ExternalAuthsClientCreateOrUpdateResponse, string, error) {
+			resp, err := externalAuthClient.Get(ctx, resourceGroupName, hcpClusterName, externalAuthName, nil)
+			if err != nil {
+				return hcpsdk20260901preview.ExternalAuthsClientCreateOrUpdateResponse{}, "", err
+			}
+			var state string
+			if resp.Properties != nil {
+				state = provisioningStateString(resp.Properties.ProvisioningState)
+			}
+			return hcpsdk20260901preview.ExternalAuthsClientCreateOrUpdateResponse(resp), state, nil
+		})
+}
+
 // BuildIdentityParamsFromNames20260901 constructs the UserAssignedIdentitiesProfile and
 // ManagedServiceIdentity from identity names and resource group, without
 // requiring a Bicep deployment. This produces the same structure as the outputs
@@ -1021,8 +1071,12 @@ func BeginCreateHCPCluster20260901(
 		return nil, fmt.Errorf("failed to build HCP cluster %q from params: %w", hcpClusterName, err)
 	}
 
-	logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName)
-	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName, "version", cluster.Properties.Version.ID, "channelGroup", cluster.Properties.Version.ChannelGroup)
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
+	poller, err := hcpClient.BeginCreateOrUpdate(createCtx, resourceGroupName, hcpClusterName, cluster, nil)
+	if err != nil {
+		poller, err = resumeInFlightHCPClusterCreate20260901(ctx, hcpClient, resourceGroupName, hcpClusterName, createAttempts, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
 	}
@@ -1371,14 +1425,18 @@ func CreateOrUpdateExternalAuthAndWait20260901(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateOrUpdateExternalAuthAndWait for external auth %s in      cluster %s in resource group %s", timeout.Minutes(), externalAuthName, hcpClusterName, resourceGroupName))
 	defer cancel()
 
+	createCtx, createAttempts := withRequestAttemptTracker(ctx)
 	pollerResp, err := externalAuthClient.BeginCreateOrUpdate(
-		ctx,
+		createCtx,
 		resourceGroupName,
 		hcpClusterName,
 		externalAuthName,
 		externalAuth,
 		nil,
 	)
+	if err != nil {
+		pollerResp, err = resumeInFlightExternalAuthCreate20260901(ctx, externalAuthClient, resourceGroupName, hcpClusterName, externalAuthName, createAttempts, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed creating external auth %q in resourcegroup=%q for cluster=%q: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
 	}
