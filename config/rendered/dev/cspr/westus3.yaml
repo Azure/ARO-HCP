@@ -700,7 +700,7 @@ mgmt:
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
-  monitoringApiGroup: monitoring.coreos.com
+  monitoringApiGroup: azmonitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-usw3-mgmt-1
@@ -1077,7 +1077,7 @@ svc:
     tag: prod-stable
     targetVersion: asm-1-29
     versions: asm-1-29
-  monitoringApiGroup: monitoring.coreos.com
+  monitoringApiGroup: azmonitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-usw3-svc

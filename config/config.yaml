@@ -1454,6 +1454,7 @@ clouds:
         certificate:
           manage: false
       svc:
+        monitoringApiGroup: "azmonitoring.coreos.com"
         subscription:
           key: ARO Hosted Control Planes (EA Subscription 1)
           certificateDomains:
@@ -1470,6 +1471,7 @@ clouds:
           prometheusSpec:
             shards: 1
       mgmt:
+        monitoringApiGroup: "azmonitoring.coreos.com"
         stampIdentifier: '{{ .ctx.stamp }}'
         subscription:
           key: ARO Hosted Control Planes (EA Subscription 1)
@@ -1717,7 +1719,6 @@ clouds:
               zoneRedundantMode: 'Disabled'
           # MC
           mgmt:
-            monitoringApiGroup: "azmonitoring.coreos.com"
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
@@ -1736,7 +1737,6 @@ clouds:
             applyKubeletFixes: false
           # SVC
           svc:
-            monitoringApiGroup: "azmonitoring.coreos.com"
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
@@ -1869,7 +1869,6 @@ clouds:
             jaeger:
               deploy: false
             applyKubeletFixes: false
-            monitoringApiGroup: "azmonitoring.coreos.com"
             amaMetrics:
               kubestate: "true"
           # SVC
@@ -1891,7 +1890,6 @@ clouds:
                 vmSize: Standard_D4ds_v6
             jaeger:
               deploy: true
-            monitoringApiGroup: "azmonitoring.coreos.com"
             amaMetrics:
               kubestate: "true"
       ci01:
@@ -1983,7 +1981,6 @@ clouds:
             jaeger:
               deploy: false
             applyKubeletFixes: false
-            monitoringApiGroup: "azmonitoring.coreos.com"
             amaMetrics:
               kubestate: "true"
           # SVC
@@ -2007,6 +2004,5 @@ clouds:
                 vmSize: Standard_D4ds_v6
             jaeger:
               deploy: true
-            monitoringApiGroup: "azmonitoring.coreos.com"
             amaMetrics:
               kubestate: "true"
