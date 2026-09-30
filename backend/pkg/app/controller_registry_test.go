@@ -99,6 +99,9 @@ var expectedControllerLaunches = []struct {
 	{"nodepooldegradedaggregator", 20},
 	{"nodepoolrequirementsvalidaggregator", 20},
 	{"externalauthdegradedaggregator", 20},
+	{"createserviceproviderexternalauth", 20},
+	{"externalauthoidcclientsdegradedcontroller", 20},
+	{"externalauthuserfacingconditionsdegradedaggregator", 20},
 	{"desiredcontrolplanesize", 20},
 	{"serviceproviderclusterpropertiessync", 20},
 	{"clustervalidationazureresourceprovidersregistrationvalidation", 20},
@@ -156,7 +159,7 @@ var expectedControllerLaunches = []struct {
 
 func TestControllerRegistryManifest(t *testing.T) {
 	registry := newControllerRegistry()
-	require.Len(t, registry, 102)
+	require.Len(t, registry, 105)
 	expectedOrder := make([]string, 0, len(expectedControllerLaunches))
 	for _, expected := range expectedControllerLaunches {
 		expectedOrder = append(expectedOrder, expected.name)
@@ -311,7 +314,7 @@ func TestControllerRegistryNamedZoneRegistrations(t *testing.T) {
 	files := token.NewFileSet()
 	for zone, expectedCount := range map[string]int{
 		"billing": 2, "cluster": 56, "clusterresources": 1, "cosmosmigration": 1,
-		"datadump": 1, "externalauth": 10, "metrics": 6, "mismatch": 4, "nodepool": 19,
+		"datadump": 1, "externalauth": 13, "metrics": 6, "mismatch": 4, "nodepool": 19,
 	} {
 		source, err := parser.ParseFile(files, "../controllers/"+zone+"/registration.go", nil, 0)
 		require.NoError(t, err)
