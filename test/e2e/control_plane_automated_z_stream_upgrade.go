@@ -57,7 +57,7 @@ var _ = Describe("Service Provider", func() {
 			tc := framework.NewTestContext()
 
 			// Install one z-stream behind the channel tip (normalOffset+1) so the backend has a newer
-			// z-stream to automatically upgrade to once the customer pins the bare minor version. If the
+			// z-stream to automatically upgrade to once the exact-version pin is removed. If the
 			// channel has no release at that offset (err) or none is resolved (nil), there is no
 			// automated z-stream upgrade to exercise, so skip.
 			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
@@ -135,17 +135,19 @@ var _ = Describe("Service Provider", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
-			By(fmt.Sprintf("pinning the cluster to minor version %s to trigger an automated z-stream upgrade", minorVersion))
+			By(fmt.Sprintf("removing the exact-version pin to follow minor version %s and trigger an automated z-stream upgrade", minorVersion))
+			versionLine, upgradeTags := framework.ControlPlaneExactVersionPatchTags(minorVersion)
 			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+				Tags: upgradeTags,
 				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20240610preview.VersionProfile{
-						ID:           to.Ptr(minorVersion),
+						ID:           to.Ptr(versionLine),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
 			}
 			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to pin cluster %q to minor version %s", clusterName, minorVersion)
+			Expect(err).NotTo(HaveOccurred(), "failed to remove the exact-version pin from cluster %q to follow minor version %s", clusterName, minorVersion)
 
 			By("verifying that only a z-stream upgrade was performed")
 			Eventually(func() error {
