@@ -39,7 +39,7 @@ environments:
       resource_type: aro-hcp-dev-shard0-slot
       slot_count: 5
       identity_container_prefix: aro-hcp-msi-container-dev-shard0
-      identity_container_count: 60
+      identity_container_count: 58
 ```
 
 Each pool defines:

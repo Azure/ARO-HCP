@@ -173,7 +173,7 @@ Each HCP cluster created during E2E consumes role assignments in its identity co
 Most specs run in `resourceGroupScope` mode; the exceptions are the specs that pass `framework.RBACScopeResource`. Derive that count from the test source rather than trusting a number written here — this sentence has been stale before:
 
 ```bash
-git grep -o "framework.RBACScopeResource," -- test/e2e/ | wc -l   # 3 at the time of writing
+git grep -o "framework.RBACScopeResource," -- test/e2e/ | wc -l   # 1 at the time of writing
 ```
 
 A test path that deploys a pinned back-level copy of the setup bicep is also resource-scoped regardless of what it passes, because those copies have no `rbacScope` parameter and only ever grant resource-scoped RBAC. No such path exists today, but one has existed before and may again.
@@ -197,11 +197,11 @@ RG_SCOPE_COST   = 26   # unconditional + rbacScope=='resourceGroup' assignments
                        #   in test/e2e-setup/bicep/modules/{non-msi,msi}-scoped-assignments.bicep,
                        #   plus RP-managed assignments (see the per-HCP costs above)
 RES_SCOPE_COST  = 41   # same, for rbacScope=='resource'
-RES_SCOPED_HCPS = 3    # git grep -o "framework.RBACScopeResource," -- test/e2e/ | wc -l
+RES_SCOPED_HCPS = 1    # git grep -o "framework.RBACScopeResource," -- test/e2e/ | wc -l
 
-identity_container_count = 60   # the leasing pool's per-slot container count, from
+identity_container_count = 58   # the leasing pool's per-slot container count, from
                                 #   test/e2e-config/e2e-slots.yaml. Differs per pool
-                                #   (20, 25 and 60 today), so run-cost is per pool too.
+                                #   (20, 25 and 58 today), so run-cost is per pool too.
 
 # Concurrent HCPs is NOT the Ginkgo worker count. Some specs lease more than one
 # identity container each, so P workers can hold more than P clusters.
@@ -224,6 +224,11 @@ max-concurrency = floor((role-assignment-quota - 100) / run-cost)
 
 The 100 subtracted from quota is headroom reserved for other activity in the subscription and for any additional role assignments created by individual specs.
 
+For the current managed DEV pools, five 58-container slots have a configured
+worst-case cost of `5 * (((58 - 1) * 26) + (1 * 41)) = 7615` assignments.
+Against the requested 8000-assignment quota, that leaves 385 assignments total,
+including the 100-assignment reserve and the subscription's persistent baseline.
+
 `suite-parallelism` is declared per suite in `test/cmd/aro-hcp-tests/main.go` and can be overridden at runtime by `ARO_HCP_SUITE_PARALLELISM`, which the CI job configuration in `openshift/release` sets. That override is not visible from this repository, so check the job config rather than assuming the source literal applies.
 
 `run-cost` is the cost of a single run. To answer whether a change fits within a
@@ -237,7 +242,7 @@ added to the E2E bicep — scale it across the slots that subscription configure
 # environment is the case that matters.
 #
 # run-cost is per pool, not per subscription: it depends on
-# identity_container_count, which differs between pools (20, 25 and 60 today).
+# identity_container_count, which differs between pools (20, 25 and 58 today).
 # Compute it separately for each pool rather than reusing one value.
 subscription-cost = sum over that subscription's pools of (run-cost(pool) * slot_count(pool))
 
@@ -309,6 +314,10 @@ For the live DEV slot-managed path:
 
   Always apply through this Make target rather than `go run` or a hand-built binary. The target rebuilds `aro-hcp-tests` and, as part of that, regenerates the Bicep-derived ARM artifacts (e.g. `msi-pools.json`) from the source-of-truth Bicep in `test/e2e-setup/bicep/`. The generated artifacts under `test/e2e/test-artifacts/generated-test-artifacts/` are git-ignored build outputs, so bypassing the Make build can embed and apply a stale template — which manifests as resource groups being deleted and recreated instead of updated in place.
 - follow [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md) for the full operator runbook when adding another customer subscription
+
+For a pool reduction, merge the catalog change first, wait for jobs using the
+old count to drain, and verify the removed indices are unused. Only then apply
+and validate the reduced pool; the deployment stack deletes unmanaged resources.
 
 #### Reconcile And Validate An Identity Pool
 
