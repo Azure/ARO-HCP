@@ -1,0 +1,105 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: cluster-autoscaler-slo-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Cluster Autoscaler Recording Rules
+  # ========================================
+  # These distil the upstream HyperShift cluster-autoscaler metrics
+  # (cluster_autoscaler_*) into per-hosted-cluster signals. One autoscaler
+  # Deployment runs per hosted control plane in its ocm-* namespace on the
+  # management cluster; the PrometheusAgent remote-writes those series (identified
+  # by namespace=~"ocm-.*") to the HCP Azure Monitor Workspace, so grouping by
+  # (cluster, namespace) yields one series per hosted cluster: `cluster` is the
+  # management cluster, `namespace` identifies the hosted control plane.
+  #
+  # These are absolute counts and >0-threshold rates (not ratios), so — like
+  # frontend-slo-recordingRule.yaml — each raw selector is wrapped in
+  # `max without (prometheus_replica) (...)` to collapse the two PrometheusAgent
+  # replicas (which scrape the same autoscaler pods) into one before aggregation;
+  # otherwise sum()/rate() would double-count. (Ratio-only rule sets such as
+  # nodepool-slo can skip this because doubling cancels in numerator/denominator.)
+  #
+  # These metrics only exist for hosted clusters that have at least one NodePool
+  # with autoscaling enabled — HyperShift scales the autoscaler Deployment to zero
+  # otherwise, so absence of series is expected and must not be read as failure.
+  - name: arohcp_cluster_autoscaler_recording_rules
+    interval: 1m
+    rules:
+    # Ready worker nodes the autoscaler currently manages for the hosted cluster.
+    - record: nodes:cluster_autoscaler:ready_count
+      expr: |
+        sum by (cluster, namespace) (
+          max without (prometheus_replica) (
+            cluster_autoscaler_nodes_count{state="ready"}
+          )
+        )
+    # Ceiling the autoscaler may scale to (sum of NodePool maxima, bounded by
+    # the cluster-wide maxNodesTotal).
+    - record: nodes:cluster_autoscaler:max_count
+      expr: |
+        max by (cluster, namespace) (
+          max without (prometheus_replica) (
+            cluster_autoscaler_max_nodes_count
+          )
+        )
+    # Fraction of the ceiling currently in use. 1.0 means the autoscaler is at
+    # its limit and cannot add capacity for further pending pods.
+    - record: nodes:cluster_autoscaler:capacity_ratio
+      expr: |
+        nodes:cluster_autoscaler:ready_count
+        /
+        clamp_min(nodes:cluster_autoscaler:max_count, 1)
+    # Pods the scheduler could not place that the autoscaler is trying to make
+    # room for. Sustained non-zero means demand is unmet.
+    - record: pods:cluster_autoscaler:unschedulable_count
+      expr: |
+        sum by (cluster, namespace) (
+          max without (prometheus_replica) (
+            cluster_autoscaler_unschedulable_pods_count
+          )
+        )
+    # 1 while the autoscaler considers the cluster healthy enough to act; 0 when
+    # it has switched itself off (e.g. too many unready/unregistered nodes).
+    - record: health:cluster_autoscaler:safe_to_autoscale
+      expr: |
+        min by (cluster, namespace) (
+          max without (prometheus_replica) (
+            cluster_autoscaler_cluster_safe_to_autoscale
+          )
+        )
+    # Seconds since the autoscaler's main loop last ran. A growing value means the
+    # control loop is wedged or the pod is not running.
+    - record: health:cluster_autoscaler:seconds_since_last_activity
+      expr: |
+        time()
+        -
+        max by (cluster, namespace) (
+          max without (prometheus_replica) (
+            cluster_autoscaler_last_activity{activity="main"}
+          )
+        )
+    # Rate of failed scale-up attempts (quota, capacity, provider errors).
+    - record: errors:cluster_autoscaler:failed_scale_ups:rate15m
+      expr: |
+        sum by (cluster, namespace) (
+          max without (prometheus_replica) (
+            rate(cluster_autoscaler_failed_scale_ups_total[15m])
+          )
+        )
+    # Rate of internal autoscaler errors, by type.
+    - record: errors:cluster_autoscaler:errors:rate15m
+      expr: |
+        sum by (cluster, namespace) (
+          max without (prometheus_replica) (
+            rate(cluster_autoscaler_errors_total[15m])
+          )
+        )

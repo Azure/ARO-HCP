@@ -1,0 +1,253 @@
+rule_files:
+- cluster-autoscaler-slo-prometheusRule.yaml
+- cluster-autoscaler-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Test 1: Healthy autoscaler — no alerts
+# ========================================
+# safe=1, no unschedulable pods, ready(3) < max(6), main loop tracks wall clock
+# (last_activity == time() so seconds_since == 0), no scale-up failures, no errors.
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "6x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  alert_rule_test:
+  - eval_time: 22m
+    alertname: UJClusterAutoscalerStalled
+  - eval_time: 22m
+    alertname: UJClusterAutoscalerSafetyDisabled
+  - eval_time: 22m
+    alertname: UJClusterAutoscalerErrors
+  - eval_time: 22m
+    alertname: UJClusterAutoscalerScaleUpFailures
+  - eval_time: 22m
+    alertname: UJClusterAutoscalerScaleUpStuck
+# ========================================
+# Test 2: Unsafe to autoscale — UJClusterAutoscalerSafetyDisabled fires
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "6x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: UJClusterAutoscalerSafetyDisabled
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        namespace: "ocm-dev-abc-cluster21-01"
+        component: slo
+        severity: "4"
+        slo: cluster-autoscaler-health
+      exp_annotations:
+        summary: "mgmt-1/ocm-dev-abc-cluster21-01: cluster autoscaler is not safe to autoscale"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 (management cluster mgmt-1) has reported cluster_safe_to_autoscale=0 for over 15 minutes. While unsafe, the autoscaler makes no scaling decisions. This is usually caused by unready, unregistered, or long-unregistered nodes and requires SRE investigation of node health."
+        correlationId: 'UJClusterAutoscalerSafetyDisabled/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md"
+  - eval_time: 20m
+    alertname: UJClusterAutoscalerStalled
+  - eval_time: 20m
+    alertname: UJClusterAutoscalerScaleUpStuck
+# ========================================
+# Test 3: Main loop stalled — UJClusterAutoscalerStalled fires
+# ========================================
+# last_activity constant at 0 while time() advances -> seconds_since grows past
+# the 600s threshold; sustained 15m; evaluated at 27m with margin past the boundary.
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "6x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  alert_rule_test:
+  - eval_time: 27m
+    alertname: UJClusterAutoscalerStalled
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        namespace: "ocm-dev-abc-cluster21-01"
+        component: slo
+        severity: "4"
+        slo: cluster-autoscaler-health
+      exp_annotations:
+        summary: "mgmt-1/ocm-dev-abc-cluster21-01: cluster autoscaler main loop stalled"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 (management cluster mgmt-1) has not completed a main loop iteration in over 10 minutes, sustained for 15 minutes. The autoscaler is wedged or its pod is not running; no scaling is happening for this hosted cluster. This is an autoscaler malfunction, independent of the customer's autoscaling configuration."
+        correlationId: 'UJClusterAutoscalerStalled/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md"
+  - eval_time: 27m
+    alertname: UJClusterAutoscalerSafetyDisabled
+# ========================================
+# Test 4: Scale-up stuck — pending pods WITH headroom (ready < max)
+# UJClusterAutoscalerScaleUpStuck fires.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "6x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  alert_rule_test:
+  - eval_time: 22m
+    alertname: UJClusterAutoscalerScaleUpStuck
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        namespace: "ocm-dev-abc-cluster21-01"
+        component: slo
+        severity: "4"
+        slo: cluster-autoscaler-scaling
+      exp_annotations:
+        summary: "mgmt-1/ocm-dev-abc-cluster21-01: cluster autoscaler scale-up appears stuck (pending pods with headroom)"
+        description: "For over 20 minutes the cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 (management cluster mgmt-1) has had unschedulable pods while still below its maximum node count (headroom available). The autoscaler is allowed to add nodes and demand exists, but the pods are not being scheduled — the scale-up operation is blocked (e.g. nodes failing to join, provisioning stuck). This is distinct from a cluster at its configured max, which is not alerted. SRE investigation needed."
+        correlationId: 'UJClusterAutoscalerScaleUpStuck/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md"
+  - eval_time: 22m
+    alertname: UJClusterAutoscalerScaleUpFailures
+# ========================================
+# Test 5: Customer at configured max — pending pods but ready >= max.
+# UJClusterAutoscalerScaleUpStuck must NOT fire (customer's own ceiling).
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "2x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "5x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "5x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  alert_rule_test:
+  - eval_time: 22m
+    alertname: UJClusterAutoscalerScaleUpStuck
+  - eval_time: 22m
+    alertname: UJClusterAutoscalerScaleUpFailures
+# ========================================
+# Test 6: Scale-up failures — UJClusterAutoscalerScaleUpFailures fires
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "6x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+1x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  promql_expr_test:
+  - expr: errors:cluster_autoscaler:failed_scale_ups:rate15m > bool 0
+    eval_time: 20m
+    exp_samples:
+    - labels: '{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+      value: 1
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: UJClusterAutoscalerScaleUpFailures
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        namespace: "ocm-dev-abc-cluster21-01"
+        component: slo
+        severity: "4"
+        slo: cluster-autoscaler-scaling
+      exp_annotations:
+        summary: "mgmt-1/ocm-dev-abc-cluster21-01: cluster autoscaler scale-up attempts are failing"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 (management cluster mgmt-1) has been recording failed scale-up attempts for over 15 minutes. Common causes are Azure quota exhaustion, lack of capacity in the target zone/VM size, or provider errors — all SRE/infra concerns. Pending pods will not receive new nodes until this clears."
+        correlationId: 'UJClusterAutoscalerScaleUpFailures/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md"
+  - eval_time: 20m
+    alertname: UJClusterAutoscalerErrors
+# ========================================
+# Test 7: Autoscaler internal errors — UJClusterAutoscalerErrors fires
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "6x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+1x70"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: UJClusterAutoscalerErrors
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        namespace: "ocm-dev-abc-cluster21-01"
+        component: slo
+        severity: "4"
+        slo: cluster-autoscaler-health
+      exp_annotations:
+        summary: "mgmt-1/ocm-dev-abc-cluster21-01: cluster autoscaler is reporting internal errors"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 (management cluster mgmt-1) has been recording internal errors (cluster_autoscaler_errors_total) for over 15 minutes. This points at a malfunction in the scaling controller (cloud provider or API errors) that an SRE should investigate; it is independent of the customer's autoscaling configuration."
+        correlationId: 'UJClusterAutoscalerErrors/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md"
+  - eval_time: 20m
+    alertname: UJClusterAutoscalerScaleUpFailures
