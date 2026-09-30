@@ -329,6 +329,38 @@ resource arohcpIngressAvailabilitySloWindowedRecordingRules 'Microsoft.AlertsMan
     interval: 'PT1M'
     rules: [
       {
+        record: 'errors:ingress_canary:succeeded_5m'
+        expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[5m]))'
+      }
+      {
+        record: 'errors:ingress_canary:total_5m'
+        expression: 'sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[5m]))'
+      }
+      {
+        record: 'errors:ingress_canary:failed_5m'
+        expression: 'errors:ingress_canary:total_5m - errors:ingress_canary:succeeded_5m'
+      }
+      {
+        record: 'errors:ingress_canary:error_rate_5m'
+        expression: 'errors:ingress_canary:failed_5m / clamp_min(errors:ingress_canary:total_5m, 1)'
+      }
+      {
+        record: 'errors:ingress_canary:succeeded_30m'
+        expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[30m]))'
+      }
+      {
+        record: 'errors:ingress_canary:total_30m'
+        expression: 'sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[30m]))'
+      }
+      {
+        record: 'errors:ingress_canary:failed_30m'
+        expression: 'errors:ingress_canary:total_30m - errors:ingress_canary:succeeded_30m'
+      }
+      {
+        record: 'errors:ingress_canary:error_rate_30m'
+        expression: 'errors:ingress_canary:failed_30m / clamp_min(errors:ingress_canary:total_30m, 1)'
+      }
+      {
         record: 'errors:ingress_canary:succeeded_1h'
         expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[1h]))'
       }
@@ -412,6 +444,38 @@ resource arohcpIngressLatencySloWindowedRecordingRules 'Microsoft.AlertsManageme
     enabled: true
     interval: 'PT1M'
     rules: [
+      {
+        record: 'errors:ingress_canary_latency:total_5m'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[5m]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:fast_5m'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[5m]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:slow_5m'
+        expression: 'errors:ingress_canary_latency:total_5m - errors:ingress_canary_latency:fast_5m'
+      }
+      {
+        record: 'errors:ingress_canary_latency:error_rate_5m'
+        expression: 'errors:ingress_canary_latency:slow_5m / clamp_min(errors:ingress_canary_latency:total_5m, 1)'
+      }
+      {
+        record: 'errors:ingress_canary_latency:total_30m'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[30m]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:fast_30m'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[30m]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:slow_30m'
+        expression: 'errors:ingress_canary_latency:total_30m - errors:ingress_canary_latency:fast_30m'
+      }
+      {
+        record: 'errors:ingress_canary_latency:error_rate_30m'
+        expression: 'errors:ingress_canary_latency:slow_30m / clamp_min(errors:ingress_canary_latency:total_30m, 1)'
+      }
       {
         record: 'errors:ingress_canary_latency:total_1h'
         expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[1h]))'
