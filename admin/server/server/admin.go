@@ -32,7 +32,6 @@ import (
 
 	"github.com/Azure/azure-kusto-go/kusto"
 
-	"github.com/Azure/ARO-HCP/admin/server/handlers"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	breakglasshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp/breakglass"
@@ -102,14 +101,6 @@ func NewAdminAPI(
 		middleware.MiddlewareHCPResourceID,
 	)
 	middlewareMux.Handle(
-		middleware.V1HCPResourcePattern("GET", "/helloworld"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPHelloWorldHandler(resourcesDBClient, clustersServiceClient).ServeHTTP)),
-	)
-	middlewareMux.Handle(
-		middleware.V1HCPResourcePattern("GET", "/hellworld/lbs"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDemoListLoadbalancersHandler(resourcesDBClient, clustersServiceClient, fpaCredentialRetriever).ServeHTTP)),
-	)
-	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("POST", "/breakglass"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(breakglasshandlers.NewHCPBreakglassSessionCreationHandler(resourcesDBClient, clustersServiceClient, sessionClient, allowedBreakglassGroups, minSessionTTL, maxSessionTTL).ServeHTTP)),
 	)
@@ -145,9 +136,6 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("GET", "/backups"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPGetOnDemandBackupsHandler(resourcesDBClient, kubeApplierDBClients).ServeHTTP)),
 	)
-
-	// Non-HCP admin routes
-	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
 
 	// Stamp management routes
 	middlewareMux.Handle("GET /admin/v1/stamps",

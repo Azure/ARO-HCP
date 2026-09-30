@@ -16,18 +16,14 @@ package client
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
-
-	"github.com/go-logr/logr"
 )
 
-type Client interface {
-	HelloWorld(ctx context.Context) error
-}
+// Client currently exposes no operations; it is retained for future admin endpoints.
+type Client interface{}
 
 type httpClient interface {
 	Do(req *http.Request) (*http.Response, error)
@@ -98,40 +94,3 @@ func (d *debuggingRoundTripper) Do(request *http.Request) (*http.Response, error
 }
 
 var _ httpClient = (*debuggingRoundTripper)(nil)
-
-func (c *client) newGetRequest(ctx context.Context, resource string) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s%s", c.endpoint, resource), http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Host = c.hostHeader
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.token))
-
-	return req, nil
-}
-
-func (c *client) HelloWorld(ctx context.Context) error {
-	logger, err := logr.FromContext(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to create logger: %w", err)
-	}
-	req, err := c.newGetRequest(ctx, "/admin/helloworld")
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send request %s: %w", req.URL.String(), err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			logger.Error(err, "Failed to close body.")
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to get hello world: %d", resp.StatusCode)
-	}
-	return nil
-}
