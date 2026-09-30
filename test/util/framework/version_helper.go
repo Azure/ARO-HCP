@@ -123,6 +123,16 @@ func GetLatestNightlyInstallVersion(ctx context.Context, channelGroup string, ve
 	})
 }
 
+// SelectControlPlaneInstallVersionAtLeast returns the input version unchanged for
+// release channels. For nightly, it selects the latest accepted build from the
+// requested minimum release line.
+func SelectControlPlaneInstallVersionAtLeast(ctx context.Context, channelGroup, defaultVersion, minimumVersion string) (string, error) {
+	if channelGroup != "nightly" {
+		return defaultVersion, nil
+	}
+	return GetLatestNightlyInstallVersion(ctx, channelGroup, minimumVersion)
+}
+
 // getLatestInstallVersionForNightlyChannel returns the latest accepted nightly tag for the given minor version
 // (for example "4.19" -> "4.19.0-0.nightly-multi-YYYY-MM-DD-HHMMSS").
 func getLatestInstallVersionForNightlyChannel(ctx context.Context, version string) (string, error) {
@@ -167,9 +177,9 @@ func getLatestInstallVersionForNightlyChannel(ctx context.Context, version strin
 		foundValid    bool
 	)
 	for _, tag := range payload.Tags {
-		candidateVersion, err := semver.ParseTolerant(tag.Name)
+		candidateVersion, err := semver.Parse(tag.Name)
 		if err != nil {
-			// Ignore tags that cannot be parsed as a semantic version.
+			// Only full versions are valid inputs for nightly installation.
 			continue
 		}
 		if !foundValid || candidateVersion.GT(latestVersion) {

@@ -205,7 +205,12 @@ var _ = Describe("Customer", func() {
 			By("granting CAPZ 'Managed Identity Operator' on the ACR pull MI")
 			clusterParams := framework.NewDefaultClusterParams20261001()
 			clusterParams.ClusterName = customerClusterName
-			clusterParams.OpenshiftVersionId = "4.22"
+			installVersion, err := framework.SelectControlPlaneInstallVersionAtLeast(ctx, clusterParams.ChannelGroup, clusterParams.OpenshiftVersionId, "4.22")
+			if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+				Skip(fmt.Sprintf("no compatible install version >= 4.22 in %s channel: %v", clusterParams.ChannelGroup, err))
+			}
+			Expect(err).NotTo(HaveOccurred(), "failed to select OpenShift version >= 4.22 for container registry test")
+			clusterParams.OpenshiftVersionId = installVersion
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 
 			By("creating customer resources (infrastructure and managed identities)")

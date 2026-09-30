@@ -15,12 +15,76 @@
 package framework
 
 import (
+	"context"
 	"errors"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type nightlyVersionRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f nightlyVersionRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestSelectControlPlaneInstallVersionAtLeast(t *testing.T) {
+	const nightly421 = "4.21.0-0.nightly-multi-2026-09-17-004700"
+	const nightly422 = "4.22.0-0.nightly-multi-2026-09-18-004700"
+	for _, tc := range []struct {
+		name, channel, version, minimum, want, stream string
+		body                                          string
+		status                                        int
+		wantErr                                       error
+	}{
+		{name: "nightly resolves higher minimum", channel: "nightly", version: nightly421, minimum: "4.22", want: nightly422, stream: "4.22"},
+		{name: "nightly selects requested release line", channel: "nightly", version: "5.0", minimum: "4.22", want: nightly422, stream: "4.22"},
+		{name: "nightly resolves bare higher minimum", channel: "nightly", version: "4.21", minimum: "4.22", want: nightly422, stream: "4.22"},
+		{name: "exact nightly resolves latest accepted build", channel: "nightly", version: "4.22.0-0.nightly-multi-2026-09-16-004700", minimum: "4.22", want: nightly422, stream: "4.22"},
+		{name: "candidate input is unchanged even below minimum", channel: "candidate", version: "4.21", minimum: "4.22", want: "4.21"},
+		{name: "stable exact is preserved", channel: "stable", version: "4.22.8", minimum: "4.22", want: "4.22.8"},
+		{name: "missing stream is skippable", channel: "nightly", version: nightly421, minimum: "4.22", stream: "4.22", status: http.StatusNotFound, wantErr: ErrNightlyReleaseStreamNotFound},
+		{name: "empty stream is skippable", channel: "nightly", version: nightly421, minimum: "4.22", stream: "4.22", body: `{"tags":[]}`, wantErr: ErrNoAcceptedNightlyTags},
+		{name: "minor-only tag is not installable", channel: "nightly", version: nightly421, minimum: "4.22", stream: "4.22", body: `{"tags":[{"name":"4.22"}]}`, wantErr: ErrNoParseableNightlyTags},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			oldClient := http.DefaultClient
+			t.Cleanup(func() { http.DefaultClient = oldClient })
+			requests := 0
+			http.DefaultClient = &http.Client{Transport: nightlyVersionRoundTripper(func(req *http.Request) (*http.Response, error) {
+				requests++
+				require.NotEmpty(t, tc.stream, "non-nightly inputs must not query nightly streams")
+				require.Equal(t, "https://multi.ocp.releases.ci.openshift.org/api/v1/releasestream/"+tc.stream+".0-0.nightly-multi/tags?phase=Accepted", req.URL.String())
+				body := tc.body
+				if body == "" {
+					// The API response order must not determine the selected build.
+					body = `{"tags":[{"name":"` + nightly422 + `"},{"name":"4.22.0-0.nightly-multi-2026-09-16-004700"},{"name":"invalid"},{"name":"4.22"}]}`
+				}
+				status := tc.status
+				if status == 0 {
+					status = http.StatusOK
+				}
+				return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+			})}
+			got, err := SelectControlPlaneInstallVersionAtLeast(context.Background(), tc.channel, tc.version, tc.minimum)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.want, got)
+			}
+			if tc.stream == "" {
+				require.Zero(t, requests)
+			} else {
+				require.Equal(t, 1, requests)
+			}
+		})
+	}
+}
 
 func TestPickAtLeastOpenshiftVersionId(t *testing.T) {
 	t.Parallel()

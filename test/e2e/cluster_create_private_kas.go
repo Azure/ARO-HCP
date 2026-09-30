@@ -65,14 +65,9 @@ var _ = Describe("Customer", func() {
 			clusterParams.APIVisibility = "Private"
 
 			// Private KAS requires OCP >= 4.22 (CS validation rejects lower versions)
-			openshiftVersionID, err := framework.PickAtLeastOpenshiftVersionId(clusterParams.OpenshiftVersionId, "4.22")
-			// If the default is nightly which isn't >= 4.22, skip this test with an explanation.
-			// Log the reason before calling Skip: Skip() stores its message internally and the
-			// Ginkgo reporter only emits file:line in verbose mode, never the message text itself.
-			if framework.IsIncompatibleNightlyVersionError(err) {
-				skipMsg := fmt.Sprintf("private KAS requires OCP >= 4.22, but default version %q does not satisfy it: %v", clusterParams.OpenshiftVersionId, err)
-				GinkgoLogr.Info(skipMsg)
-				Skip(skipMsg)
+			openshiftVersionID, err := framework.SelectControlPlaneInstallVersionAtLeast(ctx, clusterParams.ChannelGroup, clusterParams.OpenshiftVersionId, "4.22")
+			if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+				Skip(fmt.Sprintf("no compatible install version >= 4.22 in %s channel: %v", clusterParams.ChannelGroup, err))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to select OpenShift version >= 4.22 for private KAS test (default version: %q)", clusterParams.OpenshiftVersionId)
 			// Otherwise, just use the selected version

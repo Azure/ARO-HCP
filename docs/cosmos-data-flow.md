@@ -1410,6 +1410,8 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 [Frontend update admission](../frontend/pkg/frontend/cluster.go) combines cached node-pool inventory and SPC/SPNP state with a live target-cluster read. Deleting cached pools remain version-skew validation inputs and require cached SPNP state until they leave the inventory. Missing required provider state produces a contextual internal error, with no GetOrCreate or live parent fallback. These [admission inputs remain best effort](#admission-caches-and-startup), not an atomic snapshot.
 
+Minimum-version comparisons are skipped for the `nightly` channel, including the comparison against the highest active control-plane version during update admission. Version syntax, channel eligibility, and the separate version-skew checks still apply.
+
 [Desired-version selection](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes and validation observations. Validation failures lasting at least five minutes also fail the operation with `InvalidResource` once the operation is at least five minutes old; sizing, identities and backup maintenance continue independently.
 
 ### Cluster delete

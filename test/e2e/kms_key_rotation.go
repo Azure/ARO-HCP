@@ -60,11 +60,9 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters with version 4.22 or higher")
 			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
-			openshiftVersionID, err := framework.PickAtLeastOpenshiftVersionId(clusterParams.OpenshiftVersionId, "4.22")
-			if framework.IsIncompatibleNightlyVersionError(err) {
-				skipMsg := fmt.Sprintf("this test needs OCP >= 4.22, but default version %q does not satisfy it: %v", clusterParams.OpenshiftVersionId, err)
-				GinkgoLogr.Info(skipMsg)
-				Skip(skipMsg)
+			openshiftVersionID, err := framework.SelectControlPlaneInstallVersionAtLeast(ctx, clusterParams.ChannelGroup, clusterParams.OpenshiftVersionId, "4.22")
+			if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+				Skip(fmt.Sprintf("no compatible install version >= 4.22 in %s channel: %v", clusterParams.ChannelGroup, err))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to select OpenShift version >= 4.22 (default version: %q)", clusterParams.OpenshiftVersionId)
 			clusterParams.OpenshiftVersionId = openshiftVersionID

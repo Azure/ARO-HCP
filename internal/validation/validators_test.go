@@ -26,7 +26,32 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
+
+func TestNightlyVersionMinimum(t *testing.T) {
+	for opName, opType := range map[string]operation.Type{"create": operation.Create, "update": operation.Update} {
+		for _, channel := range []string{"nightly", "candidate", "stable", "fast"} {
+			t.Run(opName+"/"+channel, func(t *testing.T) {
+				op := operation.Operation{Type: opType, Options: []string{metadataapi.FeatureExperimentalReleaseFeatures}}
+				// Both callers skip the nightly minimum while still checking syntax.
+				for _, version := range []string{"4.19.0-0.nightly-multi-2026-09-17-004700", "invalid"} {
+					cluster := &coreapi.VersionProfile{ID: version, ChannelGroup: channel}
+					nodePool := &coreapi.NodePoolVersionProfile{ID: version, ChannelGroup: channel}
+					for kind, errs := range map[string]field.ErrorList{
+						"cluster":  validateVersionProfile(context.Background(), op, field.NewPath("version"), cluster, cluster),
+						"nodePool": validateNodePoolVersionProfile(context.Background(), op, field.NewPath("version"), nodePool, nil),
+					} {
+						wantValid := channel == "nightly" && version != "invalid"
+						if (len(errs) == 0) != wantValid {
+							t.Errorf("%s channel %s version %s: want valid=%t, got %v", kind, channel, version, wantValid, errs)
+						}
+					}
+				}
+			})
+		}
+	}
+}
 
 func TestHostPort(t *testing.T) {
 	ctx := context.Background()

@@ -884,7 +884,9 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 					errs = append(errs, field.Invalid(versionPath, newObj.ID, skewErr.Error()))
 				}
 			}
-			errs = append(errs, validation.VersionMustBeAtLeast(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+			if newObj.ChannelGroup != metadataapi.ChannelGroupNightly {
+				errs = append(errs, validation.VersionMustBeAtLeast(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+			}
 		}
 	}
 

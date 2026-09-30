@@ -294,7 +294,9 @@ func validateNodePoolVersionID(ctx context.Context, op operation.Operation, fldP
 	errs := field.ErrorList{}
 
 	errs = append(errs, OpenShiftWithOptionalPrerelease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
-	errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20.8")...)
+	if newObj.ChannelGroup != metadataapi.ChannelGroupNightly {
+		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20.8")...)
+	}
 	return errs
 }
 
