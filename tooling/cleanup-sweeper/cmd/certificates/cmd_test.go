@@ -16,9 +16,10 @@ package certificates_test
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/certificates"
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/root"
@@ -33,25 +34,31 @@ func TestDefaultsAndRegistration(t *testing.T) {
 	if err != nil || child.Name() != "ci-certificates" {
 		t.Fatalf("subcommand not registered: %v", err)
 	}
-	for flag, expected := range map[string]string{"dry-run": "true", "delete-active": "true", "purge-deleted": "true", "min-age": "168h0m0s", "max-deletions": "1000", "max-purges": "1000", "workers": "2", "timeout": "30m0s"} {
+	for flag, expected := range map[string]string{"dry-run": "true", "delete-active": "true", "purge-deleted": "true", "max-deletions": "1000", "max-purges": "1000", "workers": "2", "timeout": "30m0s", "policy": ""} {
 		if actual := child.Flags().Lookup(flag).DefValue; actual != expected {
 			t.Errorf("--%s default = %s, want %s", flag, actual, expected)
 		}
 	}
-	for _, flag := range []string{"vault", "subscription-id", "infrastructure-subscriptions", "policy", "workflow"} {
+	for _, flag := range []string{"min-age", "vault", "subscription-id", "infrastructure-subscriptions", "workflow"} {
 		if child.Flags().Lookup(flag) != nil {
 			t.Errorf("unexpected scope override --%s", flag)
 		}
 	}
-	if err := child.ParseFlags([]string{"--dry-run=false", "--min-age=24h", "--max-deletions=1", "--max-purges=1", "--workers=1", "--timeout=1h"}); err != nil {
+	if err := child.ParseFlags([]string{"--dry-run=false", "--max-deletions=1", "--max-purges=1", "--workers=1", "--timeout=1h"}); err != nil {
 		t.Fatal(err)
 	}
 	if dryRun, _ := child.Flags().GetBool("dry-run"); dryRun {
 		t.Fatal("explicit apply flag did not disable dry-run")
 	}
-	if minAge, _ := child.Flags().GetDuration("min-age"); minAge != 24*time.Hour {
-		t.Fatalf("min-age = %s", minAge)
+}
+
+func writePolicy(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "policy.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
 	}
+	return path
 }
 
 func TestInvalidFlagsFailBeforeCredentials(t *testing.T) {
@@ -60,7 +67,7 @@ func TestInvalidFlagsFailBeforeCredentials(t *testing.T) {
 		args    []string
 		message string
 	}{
-		{[]string{"--min-age=23h"}, "--min-age must be at least 24h"},
+		{[]string{"--min-age=24h"}, "unknown flag"},
 		{[]string{"--max-deletions=0"}, "--max-deletions must be positive"},
 		{[]string{"--max-deletions=-1"}, "--max-deletions must be positive"},
 		{[]string{"--max-purges=0"}, "--max-purges must be positive"},
@@ -72,6 +79,10 @@ func TestInvalidFlagsFailBeforeCredentials(t *testing.T) {
 		{[]string{"--timeout=-1s"}, "--timeout must be positive"},
 		{[]string{"--vault=other.vault.azure.net"}, "unknown flag"},
 		{[]string{"--subscription-id=one-subscription"}, "unknown flag"},
+		{[]string{}, "--policy is required"},
+		{[]string{"--policy=/does/not/exist"}, "failed to read policy file"},
+		{[]string{"--policy=" + writePolicy(t, "certificates:\n  discovery:\n    rules:\n    - name: r\n      action: delete\n      match: {nameRegex: \"^x$\"}\n      olderThan: 168h\n")}, "delete rules must set conditions.ownerResourceGroupAbsent"},
+		{[]string{"--policy=" + writePolicy(t, "certificates:\n  discovery:\n    rules:\n    - name: r\n      action: delete\n      match: {nameRegex: \"^x-(?P<o>a)$\", ownerCaptureGroup: o}\n      conditions: {ownerResourceGroupAbsnt: true}\n      olderThan: 168h\n")}, "unknown field"},
 		{[]string{"unexpected"}, "unknown command"},
 	} {
 		t.Run(strings.Join(test.args, " "), func(t *testing.T) {
@@ -88,7 +99,7 @@ func TestInvalidFlagsFailBeforeCredentials(t *testing.T) {
 }
 
 func TestRootFlagIsolation(t *testing.T) {
-	// Invalid age is a sentinel proving accepted flag placement reaches child
+	// Invalid worker count is a sentinel proving accepted flag placement reaches child
 	// validation, without ever creating credentials or contacting Azure.
 	t.Setenv("AZURE_TOKEN_CREDENTIALS", "")
 	for _, test := range []struct {
@@ -105,15 +116,14 @@ func TestRootFlagIsolation(t *testing.T) {
 		{[]string{"--dry-run=false", "ci-certificates", "--dry-run=true"}, "rejects parent command flags --dry-run"},
 		{[]string{"--dry-run=true", "ci-certificates"}, "rejects parent command flags --dry-run"},
 		{[]string{"ci-certificates", "--subscription-id=OTHER", "--dry-run=false"}, "unknown flag: --subscription-id"},
-		{[]string{"ci-certificates", "--policy=unused.yaml"}, "unknown flag: --policy"},
 		{[]string{"ci-certificates", "--workflow=shared-leftovers"}, "unknown flag: --workflow"},
 		{[]string{"ci-certificates", "--resource-group=only-this-rg"}, "unknown flag: --resource-group"},
 		{[]string{"ci-certificates", "--parallelism=1"}, "unknown flag: --parallelism"},
 		{[]string{"ci-certificates", "--wait=true"}, "unknown flag: --wait"},
-		{[]string{"ci-certificates", "--dry-run=false"}, "--min-age must be at least 24h"},
-		{[]string{"ci-certificates", "--dry-run=true"}, "--min-age must be at least 24h"},
-		{[]string{"--verbosity=1", "ci-certificates"}, "--min-age must be at least 24h"},
-		{[]string{"ci-certificates", "--verbosity=1"}, "--min-age must be at least 24h"},
+		{[]string{"ci-certificates", "--dry-run=false"}, "--workers must be positive"},
+		{[]string{"ci-certificates", "--dry-run=true"}, "--workers must be positive"},
+		{[]string{"--verbosity=1", "ci-certificates"}, "--workers must be positive"},
+		{[]string{"ci-certificates", "--verbosity=1"}, "--workers must be positive"},
 	} {
 		t.Run(strings.Join(test.args, " "), func(t *testing.T) {
 			cmd, err := root.NewCommand()
@@ -125,7 +135,7 @@ func TestRootFlagIsolation(t *testing.T) {
 			cmd.PersistentFlags().IntP("verbosity", "v", 0, "set the verbosity level")
 			cmd.SetOut(io.Discard)
 			cmd.SetErr(io.Discard)
-			cmd.SetArgs(append(test.args, "--min-age=23h"))
+			cmd.SetArgs(append(test.args, "--workers=0"))
 			err = cmd.ExecuteContext(t.Context())
 			if err == nil || !strings.Contains(err.Error(), test.message) {
 				t.Fatalf("error = %v, want %q", err, test.message)

@@ -102,7 +102,7 @@ func (r RGDiscoveryRule) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON parses RGDiscoveryRule from wire format.
 func (r *RGDiscoveryRule) UnmarshalJSON(data []byte) error {
 	var wire rgDiscoveryRuleWireFormat
-	if err := json.Unmarshal(data, &wire); err != nil {
+	if err := unmarshalStrict(data, &wire); err != nil {
 		return err
 	}
 
@@ -139,7 +139,7 @@ func (m RGDiscoveryMatch) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON parses RGDiscoveryMatch from wire format.
 func (m *RGDiscoveryMatch) UnmarshalJSON(data []byte) error {
 	var wire rgDiscoveryMatchWireFormat
-	if err := json.Unmarshal(data, &wire); err != nil {
+	if err := unmarshalStrict(data, &wire); err != nil {
 		return err
 	}
 

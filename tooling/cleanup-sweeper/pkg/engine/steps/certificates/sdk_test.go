@@ -38,7 +38,7 @@ func TestSDKHTTP(t *testing.T) {
 			var calls []string
 			name := "maestro-server-j1234567"
 			deletedName := "maestro-server-j2345678"
-			client, err := azcertificates.NewClient(VaultURL, nil, &azcertificates.ClientOptions{ClientOptions: azcore.ClientOptions{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
+			client, err := azcertificates.NewClient(testVaultURL, nil, &azcertificates.ClientOptions{ClientOptions: azcore.ClientOptions{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
 				calls = append(calls, r.Method+" "+r.URL.Path)
 				if r.URL.Host != "aro-hcp-dev-svc-kv.vault.azure.net" {
 					t.Fatalf("unexpected host %s", r.URL.Host)
@@ -49,31 +49,31 @@ func TestSDKHTTP(t *testing.T) {
 					if r.URL.Query().Get("page") == "2" {
 						body = `{"value":[]}`
 					} else {
-						body = fmt.Sprintf(`{"value":[{"id":%q,"attributes":{"created":%d,"updated":%d}}],"nextLink":%q}`, VaultURL+"/certificates/"+name, referenceTime.Add(-30*24*time.Hour).Unix(), referenceTime.Add(-8*24*time.Hour).Unix(), VaultURL+"/certificates?page=2")
+						body = fmt.Sprintf(`{"value":[{"id":%q,"attributes":{"created":%d,"updated":%d}}],"nextLink":%q}`, testVaultURL+"/certificates/"+name, referenceTime.Add(-30*24*time.Hour).Unix(), referenceTime.Add(-8*24*time.Hour).Unix(), testVaultURL+"/certificates?page=2")
 					}
 				case r.Method == http.MethodGet && r.URL.Path == "/certificates/"+name+"/":
-					body = fmt.Sprintf(`{"id":%q,"attributes":{"created":%d,"updated":%d}}`, VaultURL+"/certificates/"+name+"/version1", referenceTime.Add(-30*24*time.Hour).Unix(), referenceTime.Add(-8*24*time.Hour).Unix())
+					body = fmt.Sprintf(`{"id":%q,"attributes":{"created":%d,"updated":%d}}`, testVaultURL+"/certificates/"+name+"/version1", referenceTime.Add(-30*24*time.Hour).Unix(), referenceTime.Add(-8*24*time.Hour).Unix())
 				case r.Method == http.MethodGet && r.URL.Path == "/deletedcertificates":
 					if r.URL.Query().Get("page") == "2" {
 						body = `{"value":[]}`
 					} else {
 						body = fmt.Sprintf(`{"value":[{"id":%q,"recoveryId":%q,"attributes":{"recoveryLevel":"Recoverable+Purgeable"},"deletedDate":%d,"scheduledPurgeDate":%d}],"nextLink":%q}`,
-							VaultURL+"/certificates/"+deletedName+"/version1",
-							VaultURL+"/deletedcertificates/"+deletedName,
+							testVaultURL+"/certificates/"+deletedName+"/version1",
+							testVaultURL+"/deletedcertificates/"+deletedName,
 							referenceTime.Add(-time.Hour).Unix(),
 							referenceTime.Add(89*24*time.Hour).Unix(),
-							VaultURL+"/deletedcertificates?page=2")
+							testVaultURL+"/deletedcertificates?page=2")
 					}
 				case r.Method == http.MethodGet && r.URL.Path == "/deletedcertificates/"+deletedName:
 					body = fmt.Sprintf(`{"id":%q,"recoveryId":%q,"attributes":{"recoveryLevel":"Recoverable+Purgeable"},"deletedDate":%d,"scheduledPurgeDate":%d}`,
-						VaultURL+"/certificates/"+deletedName+"/version1",
-						VaultURL+"/deletedcertificates/"+deletedName,
+						testVaultURL+"/certificates/"+deletedName+"/version1",
+						testVaultURL+"/deletedcertificates/"+deletedName,
 						referenceTime.Add(-time.Hour).Unix(),
 						referenceTime.Add(89*24*time.Hour).Unix())
 				case r.Method == http.MethodGet && r.URL.Path == "/deletedcertificates/"+name:
 					body = fmt.Sprintf(`{"id":%q,"recoveryId":%q,"attributes":{"recoveryLevel":"Recoverable+Purgeable"},"deletedDate":%d,"scheduledPurgeDate":%d}`,
-						VaultURL+"/certificates/"+name+"/version1",
-						VaultURL+"/deletedcertificates/"+name,
+						testVaultURL+"/certificates/"+name+"/version1",
+						testVaultURL+"/deletedcertificates/"+name,
 						referenceTime.Unix(),
 						referenceTime.Add(90*24*time.Hour).Unix())
 				case r.Method == http.MethodDelete && r.URL.Path == "/certificates/"+name:
@@ -89,21 +89,25 @@ func TestSDKHTTP(t *testing.T) {
 				t.Fatal(err)
 			}
 			s, _, _, _ := newTestSweeper()
-			s.certificates = client
+			s.client = client
 			if err := s.run(t.Context(), options(dryRun)); err != nil {
 				t.Fatal(err)
 			}
+			// Active certificates are discovered and cleaned first; tombstone
+			// discovery and purge follow so leftovers are handled in the same run.
 			want := []string{"GET /certificates", "GET /certificates", "GET /deletedcertificates", "GET /deletedcertificates"}
 			if !dryRun {
-				want = append(want,
-					"GET /deletedcertificates/"+deletedName,
-					"DELETE /deletedcertificates/"+deletedName,
-					"GET /certificates/"+name+"/",
-					"DELETE /certificates/"+name,
-					"GET /deletedcertificates/"+name,
-					"GET /deletedcertificates/"+name,
-					"DELETE /deletedcertificates/"+name,
-				)
+				want = []string{
+					"GET /certificates", "GET /certificates",
+					"GET /certificates/" + name + "/",
+					"DELETE /certificates/" + name,
+					"GET /deletedcertificates/" + name,
+					"GET /deletedcertificates/" + name,
+					"DELETE /deletedcertificates/" + name,
+					"GET /deletedcertificates", "GET /deletedcertificates",
+					"GET /deletedcertificates/" + deletedName,
+					"DELETE /deletedcertificates/" + deletedName,
+				}
 			}
 			if !reflect.DeepEqual(calls, want) {
 				t.Fatalf("calls = %v, want %v", calls, want)
