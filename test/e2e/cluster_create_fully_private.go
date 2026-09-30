@@ -67,6 +67,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.APIVisibility = "Private"
 			clusterParams.IngressType = "Private"
+			clusterParams.DisableSwift = false
 
 			// Fully-private cluster requires OCP >= 4.22 (CS validation rejects lower versions)
 			openshiftVersionID, err := framework.PickAtLeastOpenshiftVersionId(clusterParams.OpenshiftVersionId, "4.22")
