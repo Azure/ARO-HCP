@@ -1769,6 +1769,10 @@ clouds:
             assignNSP: false
           # Cluster Service
           clustersService:
+            image:
+              registry: arohcpsvcdev.azurecr.io
+              repository: aro-hcp/aro-hcp-clusters-service
+              digest: sha256:5223145a04969e489ea535a7d3d7395efe7df3696b101424a3b478d93bac1265 # DO NOT MERGE: MR-426 aro-28376 e2e validation image
             postgres:
               deploy: false
               password: 'TheBlurstOfTimes'
@@ -1869,6 +1873,10 @@ clouds:
             assignNSP: false
           # Cluster Service
           clustersService:
+            image:
+              registry: arohcpsvcdev.azurecr.io
+              repository: aro-hcp/aro-hcp-clusters-service
+              digest: sha256:5223145a04969e489ea535a7d3d7395efe7df3696b101424a3b478d93bac1265 # DO NOT MERGE: MR-426 aro-28376 e2e validation image
             postgres:
               deploy: false
               password: 'TheBlurstOfTimes'
@@ -1974,6 +1982,10 @@ clouds:
             assignNSP: false
           # Cluster Service
           clustersService:
+            image:
+              registry: arohcpsvcdev.azurecr.io
+              repository: aro-hcp/aro-hcp-clusters-service
+              digest: sha256:5223145a04969e489ea535a7d3d7395efe7df3696b101424a3b478d93bac1265 # DO NOT MERGE: MR-426 aro-28376 e2e validation image
             postgres:
               deploy: false
               password: 'TheBlurstOfTimes'
