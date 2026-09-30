@@ -412,11 +412,18 @@
             "$ref": "#/$defs/InfraSubscriptionReference"
           }
         },
+        "dashboardRegions": {
+          "type": "array",
+          "description": "Azure regions charted on this environment's DEV CI quota dashboard (see tooling/tenant-quota/dashboards.bicep); shared by every subscription in e2eSubscriptions/infrastructureSubscriptions for this environment",
+          "items": {
+            "type": "string"
+          }
+        },
         "mockIdentities": {
           "$ref": "#/$defs/MockIdentities"
         }
       },
-      "required": ["bot", "e2eSubscriptions"]
+      "required": ["bot", "e2eSubscriptions", "dashboardRegions"]
     },
     "CIBot": {
       "type": "object",
