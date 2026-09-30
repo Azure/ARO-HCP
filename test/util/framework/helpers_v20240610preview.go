@@ -689,6 +689,8 @@ func UpdateHCPCluster20240610(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
+	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagClusterMaxUpdateDuration, timeout)
+
 	var hcpOpenShiftCluster *hcpsdk20240610preview.HcpOpenShiftCluster
 	var lastTransientErr error
 	attempt := 0
@@ -918,6 +920,8 @@ func UpdateNodePoolAndWait20240610(
 ) (*hcpsdk20240610preview.NodePool, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateNodePoolAndWait for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
 	defer cancel()
+
+	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagNodePoolMaxUpdateDuration, timeout)
 
 	poller, err := nodePoolsClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, update, nil)
 	if err != nil {

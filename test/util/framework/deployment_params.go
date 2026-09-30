@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 
@@ -76,6 +77,22 @@ func buildClusterNetworking(disableSwift bool, tags map[string]*string, subnetID
 		return tags, nil
 	}
 	return tags, to.Ptr(subnetID)
+}
+
+// updateTimeoutTags leaves one minute for the test to receive the server's
+// timeout error before its own context expires, without changing caller tags.
+func updateTimeoutTags(tags map[string]*string, timeoutTag string, timeout time.Duration) map[string]*string {
+	tags = maps.Clone(tags)
+	if tags == nil {
+		tags = map[string]*string{}
+	}
+	for key := range tags {
+		if strings.EqualFold(key, timeoutTag) {
+			delete(tags, key)
+		}
+	}
+	tags[timeoutTag] = to.Ptr((timeout - time.Minute).String())
+	return tags
 }
 
 var (

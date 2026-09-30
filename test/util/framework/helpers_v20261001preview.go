@@ -604,6 +604,8 @@ func UpdateHCPCluster20261001(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster20261001 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
+	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagClusterMaxUpdateDuration, timeout)
+
 	var hcpOpenShiftCluster *hcpsdk20261001preview.HcpOpenShiftCluster
 	var lastTransientErr error
 	attempt := 0
