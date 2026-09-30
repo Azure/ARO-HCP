@@ -69,6 +69,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.APIVisibility = "Private"
 			clusterParams.IngressType = "Private"
 			clusterParams.KeyVaultVisibility = "Private"
+			clusterParams.DisableSwift = false
 
 			// Fully-private cluster requires OCP >= 4.22 (CS validation rejects lower versions)
 			openshiftVersionID, err := framework.PickAtLeastOpenshiftVersionId(clusterParams.OpenshiftVersionId, "4.22")
