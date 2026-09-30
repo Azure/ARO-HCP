@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:edf189350416b7e14d111af785f933fb0cb89b80ea7ebadeeb90fd295e2e8eae
+      digest: sha256:1fcbddc6e66fecd45251c7854cfe36f50a25c2200053081c78ec8bd1132377eb
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
   operator:
     bundle:
-      digest: sha256:8c70edf4ee6118feee297923721ee2f8b8c5b90c20ab2352b1ce003652c9dd04
+      digest: sha256:eb87b584efdd3951ec6a0669138d94868676c6695ea784ad936e53813385ea19
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
 acr:
@@ -98,7 +98,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:5c29681bb4b38d08ca21c31c4553bab72e8e9c260dc0ec875e1d014268a9e580
+      digest: sha256:762175a844350eb00c1bad406a6b49e09a2bccc15cf8e031624cf0a160d1929d
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -184,7 +184,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:2805913e030db646e4dd70224425e8c33d636201f162e5d25ec268f831b20b0e
+    digest: sha256:dbe29341b12b2ae8ba72ce702b4028f5c4ede9fb9dae30897f0dc02b7f0ceaf8
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -486,7 +486,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:33bb7bb4f8acbad2084e686b017a5d1279e39ce473bddf4fd48720e3ddd7eb49
+    digest: sha256:d1d8c22f6817817a2bc331a617ae06d1fdced4bb9ab011dd7c4411b7b2b15e1a
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -1191,6 +1191,6 @@ velero:
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:0b86088d34a583ec9134b3d08b17d5cd7e67c8a8c057cccee871921b3472665b
+    digest: sha256:e1f8555f18dd883769e954432463414c77b99661aec58cbc003d013eb25de75f
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9
