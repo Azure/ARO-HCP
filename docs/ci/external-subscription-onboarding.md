@@ -98,6 +98,10 @@ for ns in \
 done
 ```
 
+Registration is asynchronous, so this is a point-in-time check. If any provider
+still reports `Registering`, wait and re-run it until every provider reports
+`Registered` before continuing.
+
 ### Step 1: Grant the CI Bot (Test Runner)
 
 The CI bot (`OpenShift Release Bot`, appId `38335e22-716a-4a21-bf20-15ab141823f0`, objectId `c209f8df-52ae-48fb-98ea-380f58b04652`) is the identity that **executes the test code** — it provisions infrastructure, deploys the RP, runs assertions, and tears everything down. It needs the following roles at **subscription scope**:
