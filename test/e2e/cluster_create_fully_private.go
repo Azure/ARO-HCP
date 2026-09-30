@@ -67,7 +67,19 @@ var _ = Describe("Customer", func() {
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.APIVisibility = "Private"
 			clusterParams.IngressType = "Private"
-			clusterParams.OpenshiftVersionId = "4.22"
+
+			// Fully-private cluster requires OCP >= 4.22 (CS validation rejects lower versions)
+			openshiftVersionID, err := framework.PickAtLeastOpenshiftVersionId(clusterParams.OpenshiftVersionId, "4.22")
+			// If the default is nightly which isn't >= 4.22, skip this test with an explanation.
+			// Log the reason before calling Skip: Skip() stores its message internally and the
+			// Ginkgo reporter only emits file:line in verbose mode, never the message text itself.
+			if framework.IsIncompatibleNightlyVersionError(err) {
+				skipMsg := fmt.Sprintf("fully-private cluster requires OCP >= 4.22, but default version %q does not satisfy it: %v", clusterParams.OpenshiftVersionId, err)
+				GinkgoLogr.Info(skipMsg)
+				Skip(skipMsg)
+			}
+			Expect(err).NotTo(HaveOccurred(), "failed to select OpenShift version >= 4.22 for fully-private test (default version: %q)", clusterParams.OpenshiftVersionId)
+			clusterParams.OpenshiftVersionId = openshiftVersionID
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20260630(ctx,
@@ -91,7 +103,7 @@ var _ = Describe("Customer", func() {
 				nil,
 				framework.ClusterCreationTimeout,
 			)
-			if isAPINotDeployedError(err) {
+			if framework.IsAPINotDeployedError(err) {
 				if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
 					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
 				}
