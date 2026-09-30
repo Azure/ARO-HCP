@@ -8,7 +8,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.4.0
 	github.com/dusted-go/logging v1.3.0
-	github.com/go-logr/logr v1.4.3
+	github.com/go-logr/logr v1.4.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/spf13/cobra v1.10.2
 	sigs.k8s.io/yaml v1.6.0
@@ -28,7 +28,9 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/stretchr/testify v1.12.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
