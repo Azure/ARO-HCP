@@ -28,8 +28,10 @@ func registerCsStateDumpController() controllerconfig.ControllerRegistration {
 }
 
 func instantiateCsStateDumpController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, clusterLister := controllerContext.BackendInformers.Clusters()
+	_, nodePoolLister := controllerContext.BackendInformers.NodePools()
 	_, activeOperationLister := controllerContext.BackendInformers.ActiveOperations()
-	return NewCSStateDumpController(controllerContext.ResourcesDBClient, activeOperationLister, controllerContext.BackendInformers, controllerContext.UnionKubeApplierInformers, controllerContext.ClustersServiceClient), nil
+	return NewCSStateDumpController(controllerContext.ResourcesDBClient, clusterLister, nodePoolLister, activeOperationLister, controllerContext.BackendInformers, controllerContext.UnionKubeApplierInformers, controllerContext.ClustersServiceClient), nil
 }
 
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
