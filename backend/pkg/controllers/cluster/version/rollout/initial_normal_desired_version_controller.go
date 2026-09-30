@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package versionrollout
+package rollout
 
 import (
 	"context"
@@ -90,6 +90,7 @@ func (c *initialNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context,
 		replacement := serviceProviderCluster.DeepCopy()
 		setDesiredVersion(replacement, desired, metav1.Time{Time: c.clock.Now()})
 		if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
+			logger.Info("Write conflicted; waiting for informer to provide current resource")
 			return nil
 		} else if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to initialize desired version transition time: %w", err))
@@ -130,6 +131,7 @@ func (c *initialNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context,
 	best := *rollout.Spec.BestExactVersion
 	setDesiredVersion(replacement, &best, metav1.Time{Time: c.clock.Now()})
 	if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
+		logger.Info("Write conflicted; waiting for informer to provide current resource")
 		return nil
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to initialize desired version: %w", err))

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package versionrollout
+package rollout
 
 import (
 	"context"
@@ -358,6 +358,7 @@ func (c *zStreamProgressiveDesiredVersionRolloutSyncer) SyncOnce(ctx context.Con
 		rollout.Status.LastAssignmentTime = &now
 		rollout, err = c.fleetDBClient.ControlPlaneVersionRollouts().Replace(ctx, rollout, observedRollout, nil)
 		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			logger.Info("Rollout assignment batch was not reserved because write conflicted; waiting for informer to provide current resource")
 			return nil
 		}
 		if err != nil {
@@ -414,6 +415,7 @@ func (c *zStreamProgressiveDesiredVersionRolloutSyncer) assignDesiredVersion(ctx
 // decision, skipping the write when nothing changed. A non-nil syncErr forces
 // Degraded to true regardless of the decision.
 func (c *zStreamProgressiveDesiredVersionRolloutSyncer) recordCondition(ctx context.Context, rollout *fleetapi.ControlPlaneVersionRollout, decision rolloutDecisionResult, syncErr error) error {
+	logger := utils.LoggerFromContext(ctx)
 	replacement := rollout.DeepCopy()
 
 	progressing := metav1.ConditionFalse
@@ -447,18 +449,18 @@ func (c *zStreamProgressiveDesiredVersionRolloutSyncer) recordCondition(ctx cont
 		Message: degradedMessage,
 	})
 
-	utils.LoggerFromContext(ctx).Info("Evaluated rollout conditions", "previousConditions", rollout.Status.Conditions, "newConditions", replacement.Status.Conditions, "assignmentFailed", syncErr != nil)
+	logger.Info("Evaluated rollout conditions", "previousConditions", rollout.Status.Conditions, "newConditions", replacement.Status.Conditions, "assignmentFailed", syncErr != nil)
 	if equality.Semantic.DeepEqual(rollout.Status.Conditions, replacement.Status.Conditions) {
-		utils.LoggerFromContext(ctx).Info("Rollout conditions are unchanged")
+		logger.Info("Rollout conditions are unchanged")
 		return nil
 	}
 	if _, err := c.fleetDBClient.ControlPlaneVersionRollouts().Replace(ctx, replacement, rollout, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
-		utils.LoggerFromContext(ctx).Info("Write conflicted; waiting for informer to provide current resource")
+		logger.Info("Write conflicted; waiting for informer to provide current resource")
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("failed to replace ControlPlaneVersionRollout %q: %w", rollout.GetStampIdentifier(), err)
 	}
-	utils.LoggerFromContext(ctx).Info("Persisted rollout conditions", "progressing", progressing, "degraded", degraded, "reason", degradedReason)
+	logger.Info("Persisted rollout conditions", "progressing", progressing, "degraded", degraded, "reason", degradedReason)
 	return nil
 }
 

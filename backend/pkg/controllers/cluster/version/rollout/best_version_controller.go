@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package versionrollout
+package rollout
 
 import (
 	"context"
@@ -108,7 +108,7 @@ func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key controlle
 	bestCopy := *best
 	replacement.Spec.BestExactVersion = &bestCopy
 	if _, err := c.fleetDBClient.ControlPlaneVersionRollouts().Replace(ctx, replacement, rollout, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
-		utils.LoggerFromContext(ctx).Info("Write conflicted; waiting for informer to provide current resource")
+		logger.Info("Write conflicted; waiting for informer to provide current resource")
 		return nil
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package versionrollout
+package rollout
 
 import (
 	"context"
@@ -180,7 +180,7 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 	}
 
 	if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
-		utils.LoggerFromContext(ctx).Info("Write conflicted; waiting for informer to provide current resource")
+		logger.Info("Write conflicted; waiting for informer to provide current resource")
 		// Someone else won the race; the informer will re-enqueue with the fresh etag.
 		return nil
 	} else if err != nil {

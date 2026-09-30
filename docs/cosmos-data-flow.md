@@ -877,7 +877,8 @@ Observes encryption-key rotation and creates an on-demand Velero Backup ApplyDes
 
 ### Backend: fleet control-plane version rollout
 
-These seven controllers run in the [backend leader-election callback](../backend/pkg/app/backend.go),
+These seven controllers are registered in the [cluster registry](../backend/pkg/controllers/cluster/registration.go)
+and run under [backend leader election](../backend/pkg/app/backend.go),
 replacing the removed per-cluster `ControlPlaneDesiredVersion` controller. Fleet
 `ControlPlaneVersionRollout` documents are keyed by y-stream channel (for example,
 `stable-4.21`) in the provider-namespace partition. Cluster requested versions,
@@ -885,7 +886,10 @@ service-provider desired versions, and externally observed active versions remai
 separate. [Membership](../backend/pkg/controllers/cluster/version/rollout/membership.go)
 uses the cluster's channel group plus the desired minor, falling back to the oldest
 completed active minor; it does not fall back to customer-requested versions.
-All assignment writes use optimistic concurrency. Per-cluster wrappers can persist
+All assignment writes use optimistic concurrency. Conflicts are logged before
+waiting for an informer update, including conflicts reserving a rollout batch.
+Seeding skips existing rollout documents without logging that steady-state case.
+Per-cluster wrappers can persist
 child Controller bookkeeping; the [per-rollout wrapper](../backend/pkg/utils/controllerutils/control_plane_version_rollout_watching_controller.go)
 writes no child Controller document. These controllers select versions in Cosmos;
 Cluster Service and HyperShift perform the upgrades.

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package versionrollout implements the fleet control plane version rollout
+// Package rollout implements the fleet control plane version rollout
 // described in docs/controllers/fleet-control-plane-version-rollout-implementation-plan.md. It contains seven controllers:
 //
 //   - Best Version Selection (per rollout): computes Spec.BestExactVersion for a
@@ -34,7 +34,7 @@
 //
 // Rollout counting and selection use pure functions. Controller persistence and
 // forced assignment decisions are tested through the shared mock Cosmos database.
-package versionrollout
+package rollout
 
 import (
 	"context"

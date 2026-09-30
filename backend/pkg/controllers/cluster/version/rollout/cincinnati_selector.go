@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package versionrollout
+package rollout
 
 import (
 	"context"
@@ -50,6 +50,7 @@ func NewCincinnatiBestVersionSelector() BestVersionSelector {
 // Selection currently uses recency only.
 // TODO: filter platform/control-plane risks from Cincinnati conditional updates.
 func (s cincinnatiBestVersionSelector) BestExactVersionForChannel(ctx context.Context, yStreamChannel string) (*semver.Version, error) {
+	logger := utils.LoggerFromContext(ctx)
 	channelGroup, minor, ok := parseYStreamChannel(yStreamChannel)
 	if !ok {
 		return nil, fmt.Errorf("invalid y-stream channel %q", yStreamChannel)
@@ -63,7 +64,7 @@ func (s cincinnatiBestVersionSelector) BestExactVersionForChannel(ctx context.Co
 	if err != nil {
 		return nil, fmt.Errorf("invalid minor %q in channel %q: %w", minor, yStreamChannel, err)
 	}
-	utils.LoggerFromContext(ctx).Info("Querying upgrade graph for best version", "ystreamChannel", yStreamChannel, "channelGroup", channelGroup, "targetMinor", targetMinor.String(), "zStreamOffset", clusterversion.GetZStreamOffset(channelGroup))
+	logger.Info("Querying upgrade graph for best version", "ystreamChannel", yStreamChannel, "channelGroup", channelGroup, "targetMinor", targetMinor.String(), "zStreamOffset", clusterversion.GetZStreamOffset(channelGroup))
 	ctx, cancel := context.WithTimeout(ctx, cincinnatiRequestTimeout)
 	defer cancel()
 	best, err := clusterversion.SelectControlPlaneVersion(ctx, s.roundTrip, channelGroup, targetMinor, clusterversion.GetZStreamOffset(channelGroup))

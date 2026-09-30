@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package versionrollout
+package rollout
 
 import (
 	"context"
@@ -160,7 +160,6 @@ func (c *rolloutSeedingSyncer) ensureRollout(ctx context.Context, yStreamChannel
 	logger := utils.LoggerFromContext(ctx).WithValues("ystreamChannel", yStreamChannel)
 	_, err := c.rolloutLister.Get(ctx, yStreamChannel)
 	if err == nil {
-		logger.Info("Rollout already exists")
 		return nil // already exists
 	}
 	if !cosmosstorageutils.IsNotFoundError(err) {
@@ -172,7 +171,7 @@ func (c *rolloutSeedingSyncer) ensureRollout(ctx context.Context, yStreamChannel
 		return utils.TrackError(err)
 	}
 
-	utils.LoggerFromContext(ctx).Info("creating ControlPlaneVersionRollout", "ystreamChannel", yStreamChannel)
+	logger.Info("creating ControlPlaneVersionRollout")
 	if _, err := c.fleetDBClient.ControlPlaneVersionRollouts().Create(ctx, rollout, nil); cosmosstorageutils.IsConflictError(err) {
 		logger.Info("Rollout created concurrently by another sync")
 		return nil // another seeder won the race; the rollout now exists

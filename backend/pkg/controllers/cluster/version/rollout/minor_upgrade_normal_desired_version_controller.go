@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package versionrollout
+package rollout
 
 import (
 	"context"
@@ -133,6 +133,7 @@ func (c *minorUpgradeNormalClusterDesiredVersionSyncer) SyncOnce(ctx context.Con
 	replacement := serviceProviderCluster.DeepCopy()
 	setDesiredVersion(replacement, &best, metav1.Time{Time: c.clock.Now()})
 	if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
+		logger.Info("Write conflicted; waiting for informer to provide current resource")
 		return nil
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to update desired version for minor upgrade: %w", err))

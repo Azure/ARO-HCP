@@ -446,6 +446,7 @@ func instantiateControlPlaneActiveVersionsController(controllerContext controlle
 	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
 	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return clusterversion.NewControlPlaneActiveVersionController(
+		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		clusterLister,
 		serviceProviderClusterLister,
@@ -1038,12 +1039,11 @@ func registerBestVersionSelectionController() controllerconfig.ControllerRegistr
 }
 
 func instantiateBestVersionSelectionController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-
-	return versionrollout.NewBestVersionSelectionController(
+	return rollout.NewBestVersionSelectionController(
 		controllerContext.FleetDBClient,
 		controllerContext.FleetInformers,
-		versionrollout.NewCincinnatiBestVersionSelector(),
-		versionrollout.NewDefaultRolloutConfig(),
+		rollout.NewCincinnatiBestVersionSelector(),
+		rollout.NewDefaultRolloutConfig(),
 	), nil
 }
 
@@ -1055,13 +1055,12 @@ func registerStatusCollectorController() controllerconfig.ControllerRegistration
 }
 
 func instantiateStatusCollectorController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-
-	return versionrollout.NewStatusCollectorController(
+	return rollout.NewStatusCollectorController(
 		controllerContext.FleetDBClient,
 		controllerContext.FleetInformers,
 		controllerContext.BackendInformers,
 		controllerContext.Clock,
-		versionrollout.NewDefaultRolloutConfig(),
+		rollout.NewDefaultRolloutConfig(),
 	), nil
 }
 
@@ -1074,7 +1073,7 @@ func registerInitialNormalClusterDesiredVersionController() controllerconfig.Con
 
 func instantiateInitialNormalClusterDesiredVersionController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, controlPlaneVersionRolloutLister := controllerContext.FleetInformers.ControlPlaneVersionRollouts()
-	return versionrollout.NewInitialNormalClusterDesiredVersionController(
+	return rollout.NewInitialNormalClusterDesiredVersionController(
 		controllerContext.Clock, controllerContext.ResourcesDBClient, controllerContext.BackendInformers, controlPlaneVersionRolloutLister,
 	), nil
 }
@@ -1088,7 +1087,7 @@ func registerMinorUpgradeNormalClusterDesiredVersionController() controllerconfi
 
 func instantiateMinorUpgradeNormalClusterDesiredVersionController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, controlPlaneVersionRolloutLister := controllerContext.FleetInformers.ControlPlaneVersionRollouts()
-	return versionrollout.NewMinorUpgradeNormalClusterDesiredVersionController(
+	return rollout.NewMinorUpgradeNormalClusterDesiredVersionController(
 		controllerContext.Clock, controllerContext.ResourcesDBClient, controllerContext.BackendInformers, controlPlaneVersionRolloutLister,
 	), nil
 }
@@ -1101,15 +1100,14 @@ func registerZStreamProgressiveDesiredVersionRolloutController() controllerconfi
 }
 
 func instantiateZStreamProgressiveDesiredVersionRolloutController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-
-	return versionrollout.NewZStreamProgressiveDesiredVersionRolloutController(
+	return rollout.NewZStreamProgressiveDesiredVersionRolloutController(
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		controllerContext.FleetDBClient,
 		controllerContext.FleetInformers,
 		controllerContext.BackendInformers,
 		nil, // default random cluster selector
-		versionrollout.NewDefaultRolloutConfig(),
+		rollout.NewDefaultRolloutConfig(),
 	), nil
 }
 
@@ -1122,7 +1120,7 @@ func registerForcedClusterDesiredVersionController() controllerconfig.Controller
 
 func instantiateForcedClusterDesiredVersionController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, controlPlaneVersionRolloutLister := controllerContext.FleetInformers.ControlPlaneVersionRollouts()
-	return versionrollout.NewForcedClusterDesiredVersionController(
+	return rollout.NewForcedClusterDesiredVersionController(
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		controllerContext.BackendInformers,
@@ -1139,8 +1137,7 @@ func registerControlPlaneVersionRolloutSeedingController() controllerconfig.Cont
 }
 
 func instantiateControlPlaneVersionRolloutSeedingController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-
-	return versionrollout.NewControlPlaneVersionRolloutSeedingController(
+	return rollout.NewControlPlaneVersionRolloutSeedingController(
 		controllerContext.ResourcesDBClient,
 		controllerContext.FleetDBClient,
 		controllerContext.BackendInformers,
@@ -1149,13 +1146,13 @@ func instantiateControlPlaneVersionRolloutSeedingController(controllerContext co
 }
 
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
-	registry[strings.ToLower(versionrollout.BestVersionSelectionControllerName)] = registerBestVersionSelectionController()
-	registry[strings.ToLower(versionrollout.StatusCollectorControllerName)] = registerStatusCollectorController()
-	registry[strings.ToLower(versionrollout.InitialNormalClusterDesiredVersionControllerName)] = registerInitialNormalClusterDesiredVersionController()
-	registry[strings.ToLower(versionrollout.MinorUpgradeNormalClusterDesiredVersionControllerName)] = registerMinorUpgradeNormalClusterDesiredVersionController()
-	registry[strings.ToLower(versionrollout.ZStreamProgressiveDesiredVersionRolloutControllerName)] = registerZStreamProgressiveDesiredVersionRolloutController()
-	registry[strings.ToLower(versionrollout.ForcedClusterDesiredVersionControllerName)] = registerForcedClusterDesiredVersionController()
-	registry[strings.ToLower(versionrollout.RolloutSeedingControllerName)] = registerControlPlaneVersionRolloutSeedingController()
+	registry[strings.ToLower(rollout.BestVersionSelectionControllerName)] = registerBestVersionSelectionController()
+	registry[strings.ToLower(rollout.StatusCollectorControllerName)] = registerStatusCollectorController()
+	registry[strings.ToLower(rollout.InitialNormalClusterDesiredVersionControllerName)] = registerInitialNormalClusterDesiredVersionController()
+	registry[strings.ToLower(rollout.MinorUpgradeNormalClusterDesiredVersionControllerName)] = registerMinorUpgradeNormalClusterDesiredVersionController()
+	registry[strings.ToLower(rollout.ZStreamProgressiveDesiredVersionRolloutControllerName)] = registerZStreamProgressiveDesiredVersionRolloutController()
+	registry[strings.ToLower(rollout.ForcedClusterDesiredVersionControllerName)] = registerForcedClusterDesiredVersionController()
+	registry[strings.ToLower(rollout.RolloutSeedingControllerName)] = registerControlPlaneVersionRolloutSeedingController()
 	registry[strings.ToLower(legacycredentialrequest.DispatchRequestCredentialControllerName)] = registerDispatchRequestCredentialController()
 	registry[strings.ToLower(credentialrequestoperations.SystemAdminCredentialDispatchRequestCredentialControllerName)] = registerAdminCredentialsDispatchRequestCredentialController()
 	registry[strings.ToLower(credentialrevocationoperations.SystemAdminCredentialDispatchRevokeCredentialsControllerName)] = registerAdminCredentialsDispatchRevokeCredentialsController()
