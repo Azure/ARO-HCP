@@ -80,3 +80,44 @@ func TestWriteError_TransactionPreconditionFailedBecomes429(t *testing.T) {
 		t.Errorf("expected Retry-After header to be %q, got %q", "1", retryAfter)
 	}
 }
+
+func TestWriteError_TransactionConflictBecomes409(t *testing.T) {
+	innerErr := cosmosstorageutils.NewTransactionStepError(2, 2, http.StatusConflict, cosmosstorageutils.CosmosDBTransactionStepDetails{
+		ActionType: "Create",
+		CosmosID:   "cosmos-uid-def456",
+		ResourceID: "/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster1",
+		GoType:     "Cluster",
+	})
+	wrappedErr := utils.TrackError(innerErr)
+
+	var stepError *cosmosstorageutils.TransactionStepError
+	if !errors.As(wrappedErr, &stepError) {
+		t.Fatal("expected errors.As to find TransactionStepError through LineTrackingError wrapper")
+	}
+
+	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+	recorder := httptest.NewRecorder()
+
+	handler := ReportError(func(w http.ResponseWriter, r *http.Request) error {
+		return wrappedErr
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster1", nil)
+	req = req.WithContext(ctx)
+	handler.ServeHTTP(recorder, req)
+
+	resp := recorder.Result()
+
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("expected status %d (409 Conflict), got %d", http.StatusConflict, resp.StatusCode)
+	}
+
+	var cloudErr coreapi.CloudError
+	if err := json.NewDecoder(resp.Body).Decode(&cloudErr); err != nil {
+		t.Fatalf("failed to decode response body: %v", err)
+	}
+
+	if cloudErr.Code != coreapi.CloudErrorCodeConflict {
+		t.Errorf("expected error code %q, got %q", coreapi.CloudErrorCodeConflict, cloudErr.Code)
+	}
+}
