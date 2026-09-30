@@ -113,20 +113,8 @@ verify-tool-versions:
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-e2e-provider-pipeline
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions
 .PHONY: verify
-
-# The dev-ci E2E provider-registration pipeline is generated from the
-# ci.<env>.e2eSubscriptions inventory in config/config-dev-ci.yaml so the two
-# cannot drift. See hack/generate-e2e-provider-pipeline.sh for why this is
-# generated rather than templated in the pipeline itself.
-generate-e2e-provider-pipeline: $(YQ)
-	YQ=$(YQ) ./hack/generate-e2e-provider-pipeline.sh
-.PHONY: generate-e2e-provider-pipeline
-
-verify-e2e-provider-pipeline: $(YQ)
-	YQ=$(YQ) ./hack/verify-e2e-provider-pipeline.sh
-.PHONY: verify-e2e-provider-pipeline
 
 verify-schema:
 	go run ./hack/verify-schema-additional-properties config/config.schema.json

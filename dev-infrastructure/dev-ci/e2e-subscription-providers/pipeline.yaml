@@ -1,134 +1,102 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionProviders
 rolloutName: Dev CI E2E Subscription Provider Registration Rollout
-# Code generated from config/config-dev-ci.yaml. DO NOT EDIT.
-# Regenerate with: make generate-e2e-provider-pipeline
-#
 # PRIVILEGED pipeline: registers the required Azure resource providers on every
-# ARO-HCP-managed E2E subscription. The provider list lives in
-# config/config-dev-ci.yaml under ci.e2eSubscriptionProviders (the single
-# source of truth); add new provider dependencies there, not here.
-#
-# The targets below are derived from the ci.<env>.e2eSubscriptions inventories
-# in that same file, so onboarding a subscription there and regenerating is all
-# that is required. Each resource group entry targets one E2E subscription; the
-# resource group name is a placeholder, because ProviderFeatureRegistration
-# steps need only the subscription, not an existing resource group. Subscriptions
-# are resolved from their display names via the Azure API using the invoking
-# OWNERS member's CLI credentials (AZURE_TOKEN_CREDENTIALS=dev). Run with:
+# ARO-HCP-managed E2E subscription. Run with:
 #   make dev-ci-privileged-local-run
 #
-# Registration itself is performed by templatize through the Azure SDK, but a
-# local run still requires a logged-in `az` CLI: before any step executes,
-# entrypoint run calls GetAllRequiredAzureClients, which shells out to
-# `az config get` and `az account set --subscription <id>` once per subscription
-# in the pipeline. The run therefore fails up front unless the invoking OWNERS
-# member is logged in and every target subscription below is visible to them.
+# Both inputs live in config/config-dev-ci.yaml and are the single source of
+# truth: ci.e2eSubscriptionProviders for the provider list, and the
+# ci.<env>.e2eSubscriptions inventories for the targets. Onboarding a
+# subscription there needs no edit here — the ranges below pick it up. Only a
+# brand-new environment needs a new step.
+#
+# Targets are addressed by immutable subscription ID rather than by placing
+# each subscription in its own resourceGroups entry. A resourceGroups
+# subscription is a display-name key that templatize resolves by listing every
+# subscription the caller can see and taking the first name match, which is
+# neither unique nor stable; ids from the inventory are both.
 resourceGroups:
-# Looks up the existing global rollout MSI so the registration steps below have
-# an identityFrom target. The template declares only an `existing` resource plus
-# an output, so this deploys nothing. identityFrom is Ev2-only — templatize
-# never reads it at run time, where registration uses ambient credentials — but
-# the pipeline schema requires it, so it is wired up rather than omitted.
-- name: global
+# Single execution target: the registration script addresses each E2E
+# subscription explicitly, so this group only anchors the run to the global
+# subscription and supplies the shellIdentity below.
+- name: providers
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: output
+  # Looks up the existing global rollout MSI so the registration steps have a
+  # shellIdentity target. The template declares only an `existing` resource plus
+  # an output, so this deploys nothing. shellIdentity is Ev2-only — templatize
+  # never reads it at run time, where the script uses the invoking OWNERS
+  # member's ambient `az` credentials — but the schema requires it, and it also
+  # orders each step after this one.
+  - name: global-identity
     action: ARM
     template: ../../templates/output-opstool-global-identity.bicep
     parameters: ../../configurations/output-opstool-global-identity.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-# ── DEV ─────────────────────────────────────────────────────────────────────
-- name: prov-dev-0
-  resourceGroup: provider-registration
-  subscription: 'ARO HCP E2E Hosted Clusters (EA Subscription)'
-  steps:
-  - name: register-providers
-    action: ProviderFeatureRegistration
-    providerConfigRef: ci.e2eSubscriptionProviders
-    identityFrom:
-      resourceGroup: global
-      step: output
-      name: globalMSIId
-- name: prov-dev-1
-  resourceGroup: provider-registration
-  subscription: 'ARO HCP E2E Hosted Clusters 2 (EA Subscription)'
-  steps:
-  - name: register-providers
-    action: ProviderFeatureRegistration
-    providerConfigRef: ci.e2eSubscriptionProviders
-    identityFrom:
-      resourceGroup: global
-      step: output
-      name: globalMSIId
-- name: prov-dev-2
-  resourceGroup: provider-registration
-  subscription: 'ARO HCP E2E Hosted Clusters - Dev - 02'
-  steps:
-  - name: register-providers
-    action: ProviderFeatureRegistration
-    providerConfigRef: ci.e2eSubscriptionProviders
-    identityFrom:
-      resourceGroup: global
-      step: output
-      name: globalMSIId
-- name: prov-dev-3
-  resourceGroup: provider-registration
-  subscription: 'ARO HCP E2E Hosted Clusters - Dev - 03'
-  steps:
-  - name: register-providers
-    action: ProviderFeatureRegistration
-    providerConfigRef: ci.e2eSubscriptionProviders
-    identityFrom:
-      resourceGroup: global
-      step: output
-      name: globalMSIId
-# ── INT ─────────────────────────────────────────────────────────────────────
-- name: prov-int-0
-  resourceGroup: provider-registration
-  subscription: 'ARO SRE Team - INT (EA Subscription 3)'
-  steps:
-  - name: register-providers
-    action: ProviderFeatureRegistration
-    providerConfigRef: ci.e2eSubscriptionProviders
-    identityFrom:
-      resourceGroup: global
-      step: output
-      name: globalMSIId
-# ── STG ─────────────────────────────────────────────────────────────────────
-- name: prov-stg-0
-  resourceGroup: provider-registration
-  subscription: 'ARO HCP E2E Hosted Clusters - Stage - 00'
-  steps:
-  - name: register-providers
-    action: ProviderFeatureRegistration
-    providerConfigRef: ci.e2eSubscriptionProviders
-    identityFrom:
-      resourceGroup: global
-      step: output
-      name: globalMSIId
-# ── PROD ────────────────────────────────────────────────────────────────────
-- name: prov-prod-0
-  resourceGroup: provider-registration
-  subscription: 'ARO HCP E2E Hosted Clusters - Prod - 00'
-  steps:
-  - name: register-providers
-    action: ProviderFeatureRegistration
-    providerConfigRef: ci.e2eSubscriptionProviders
-    identityFrom:
-      resourceGroup: global
-      step: output
-      name: globalMSIId
-- name: prov-prod-1
-  resourceGroup: provider-registration
-  subscription: 'ARO HCP E2E Hosted Clusters - Prod - 01'
-  steps:
-  - name: register-providers
-    action: ProviderFeatureRegistration
-    providerConfigRef: ci.e2eSubscriptionProviders
-    identityFrom:
-      resourceGroup: global
-      step: output
-      name: globalMSIId
+  - name: register-providers-dev
+    action: Shell
+    command: ./e2e-register-providers.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: providers
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: ENV_NAME
+      value: dev
+    - name: SUBSCRIPTION_IDS
+      value: '{{ range .ci.dev.e2eSubscriptions }}{{ .id }} {{ end }}'
+    - name: PROVIDER_NAMESPACES
+      value: '{{ range .ci.e2eSubscriptionProviders }}{{ . }} {{ end }}'
+  - name: register-providers-int
+    action: Shell
+    command: ./e2e-register-providers.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: providers
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: ENV_NAME
+      value: int
+    - name: SUBSCRIPTION_IDS
+      value: '{{ range .ci.int.e2eSubscriptions }}{{ .id }} {{ end }}'
+    - name: PROVIDER_NAMESPACES
+      value: '{{ range .ci.e2eSubscriptionProviders }}{{ . }} {{ end }}'
+  - name: register-providers-stg
+    action: Shell
+    command: ./e2e-register-providers.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: providers
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: ENV_NAME
+      value: stg
+    - name: SUBSCRIPTION_IDS
+      value: '{{ range .ci.stg.e2eSubscriptions }}{{ .id }} {{ end }}'
+    - name: PROVIDER_NAMESPACES
+      value: '{{ range .ci.e2eSubscriptionProviders }}{{ . }} {{ end }}'
+  - name: register-providers-prod
+    action: Shell
+    command: ./e2e-register-providers.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: providers
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: ENV_NAME
+      value: prod
+    - name: SUBSCRIPTION_IDS
+      value: '{{ range .ci.prod.e2eSubscriptions }}{{ .id }} {{ end }}'
+    - name: PROVIDER_NAMESPACES
+      value: '{{ range .ci.e2eSubscriptionProviders }}{{ . }} {{ end }}'
