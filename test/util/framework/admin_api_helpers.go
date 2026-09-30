@@ -53,7 +53,9 @@ const (
 	// sessionReadyTimeout is the maximum time to wait for a breakglass session to become
 	// ready. Session creation involves creating a Session CR, reconciling RBAC bindings,
 	// and generating a kubeconfig with a short-lived token.
-	sessionReadyTimeout = 1 * time.Minute
+	// Allow for worst-case cold sessiongate management-cluster provider re-registration:
+	// cache sync, client/informer start, and requeue.
+	sessionReadyTimeout = 5 * time.Minute
 	// sessionReadyPollInterval is how frequently to poll the session status endpoint
 	// while waiting for readiness.
 	sessionReadyPollInterval = 5 * time.Second

@@ -242,7 +242,7 @@ var _ = Describe("SRE", func() {
 			// owner access restriction
 
 			By("trying to access a breakglass session of another user")
-			otherUserRestConfig, _, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre-pso", &framework.AzureIdentityDetails{
+			otherUserRestConfig, _, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 5*time.Minute, "aro-sre-pso", &framework.AzureIdentityDetails{
 				PrincipalName: "other-app-oid",
 				PrincipalType: framework.PrincipalTypeAADServicePrincipal,
 			})
