@@ -54,6 +54,7 @@ func TestNewBackend_MetricsRegistryPairing(t *testing.T) {
 				MetricsRegisterer: tc.registerer,
 				MetricsGatherer:   tc.gatherer,
 				BackupConfig:      &backups.BackupConfig{},
+				StorageFactory:    &cosmosStorageFactory{},
 				CloudEnvironment:  cloudEnvironment,
 			}).NewBackend()
 			if tc.wantErr {

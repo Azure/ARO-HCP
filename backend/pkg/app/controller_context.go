@@ -28,17 +28,21 @@ import (
 type ControllerContext = controllerconfig.ControllerContext
 
 func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
+	resources := b.options.StorageFactory.ResourcesStorageClient(BackendInformersStorageName)
+	billing := b.options.StorageFactory.BillingStorageClient(BackendInformersStorageName)
+	fleet := b.options.StorageFactory.FleetStorageClient(FleetInformersStorageName)
+	kubeApplier := b.options.StorageFactory.KubeApplierStorageClients(unionkubeapplierinformers.ControllerName)
 	backendInformers := coreinformers.NewBackendInformers(ctx,
-		b.options.ResourcesDBClient.ResourcesGlobalListers(),
-		b.options.ResourcesDBClient,
-		b.options.BillingDBClient.BillingGlobalListers(),
+		resources.ResourcesGlobalListers(),
+		resources,
+		billing.BillingGlobalListers(),
 	)
-	fleetInformers := fleetinformers.NewFleetInformers(ctx, b.options.FleetDBClient.GlobalListers(), b.options.FleetDBClient)
+	fleetInformers := fleetinformers.NewFleetInformers(ctx, fleet.GlobalListers(), fleet)
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 	unionKubeApplierInformersController := unionkubeapplierinformers.NewUnionKubeApplierInformersController(
 		managementClusterInformer,
 		managementClusterLister,
-		unionkubeapplierinformers.NewKubeApplierInformerFactory(b.options.KubeApplierDBClients, nil),
+		unionkubeapplierinformers.NewKubeApplierInformerFactory(kubeApplier, nil),
 	)
 	unionKubeApplierInformers := unionKubeApplierInformersController.Union()
 	virtualMachineResourceSKUsCachedReaderController := cachedreader.NewFPAVirtualMachineResourceSKUsCachedReaderController(
@@ -50,20 +54,16 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		AzureLocation:                     b.options.AzureLocation,
 		BackendIdentityAzureCachedReaders: b.options.BackendIdentityAzureCachedReaders,
 		BackupConfig:                      b.options.BackupConfig,
-		BillingDBClient:                   b.options.BillingDBClient,
 		CheckAccessV2ClientBuilder:        b.options.CheckAccessV2ClientBuilder,
 		CloudEnvironment:                  b.options.CloudEnvironment,
 		ClusterScopedIdentitiesConfig:     b.options.ClusterScopedIdentitiesConfig,
 		ClustersServiceClient:             b.options.ClustersServiceClient,
 		FPAClientBuilder:                  b.options.FPAClientBuilder,
 		FPAMIDataplaneClientBuilder:       b.options.FPAMIDataplaneClientBuilder,
-		FleetDBClient:                     b.options.FleetDBClient,
 		HasRealFPA:                        b.options.HasRealFPA,
-		KubeApplierDBClients:              b.options.KubeApplierDBClients,
 		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: b.options.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 		MaestroSourceEnvironmentIdentifier:                  b.options.MaestroSourceEnvironmentIdentifier,
 		MetricsRegisterer:                                   b.options.MetricsRegisterer,
-		ResourcesDBClient:                                   b.options.ResourcesDBClient,
 		SMIClientBuilder:                                    b.options.SMIClientBuilder,
 		Clock:                                               b.clock,
 		AsyncOperationNotificationClient:                    http.DefaultClient,

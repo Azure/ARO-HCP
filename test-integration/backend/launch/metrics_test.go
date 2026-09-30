@@ -46,6 +46,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -107,13 +111,15 @@ func TestBackendExposesMetrics(t *testing.T) {
 		metricsListener := newMetricsTestListener(t)
 		metricsAddress := metricsListener.Addr().String()
 		backendOptions := &app.BackendOptions{
-			AppShortDescriptionName:            "backend",
-			AppVersion:                         "test",
-			AzureLocation:                      "fake-location",
-			LeaderElectionLock:                 newFakeLeaderElectionLock("metrics-test"),
-			ResourcesDBClient:                  resourcesDBClient,
-			BillingDBClient:                    billingDBClient,
-			FleetDBClient:                      fleetcosmosstoragetesting.NewMockFleetDBClient(),
+			AppShortDescriptionName: "backend",
+			AppVersion:              "test",
+			AzureLocation:           "fake-location",
+			LeaderElectionLock:      newFakeLeaderElectionLock("metrics-test"),
+			StorageFactory: &metricsTestStorageFactory{
+				resources: resourcesDBClient,
+				billing:   billingDBClient,
+				fleet:     fleetcosmosstoragetesting.NewMockFleetDBClient(),
+			},
 			ClustersServiceClient:              clusterServiceMock.MockClusterServiceClient,
 			MetricsRegisterer:                  registry,
 			MetricsGatherer:                    registry,
@@ -301,5 +307,25 @@ func (l *fakeLeaderElectionLock) store(record resourcelock.LeaderElectionRecord)
 		PreferredHolder:      record.PreferredHolder,
 	}
 	l.rawRecord = rawRecord
+	return nil
+}
+
+// The metrics smoke test shares its in-memory fixtures between all controllers.
+type metricsTestStorageFactory struct {
+	resources corecosmosstorage.ResourcesDBClient
+	billing   billingcosmosstorage.BillingDBClient
+	fleet     fleetcosmosstorage.FleetDBClient
+}
+
+func (f *metricsTestStorageFactory) ResourcesStorageClient(string) corecosmosstorage.ResourcesDBClient {
+	return f.resources
+}
+func (f *metricsTestStorageFactory) BillingStorageClient(string) billingcosmosstorage.BillingDBClient {
+	return f.billing
+}
+func (f *metricsTestStorageFactory) FleetStorageClient(string) fleetcosmosstorage.FleetDBClient {
+	return f.fleet
+}
+func (f *metricsTestStorageFactory) KubeApplierStorageClients(string) kubeappliercosmosstorage.KubeApplierDBClients {
 	return nil
 }

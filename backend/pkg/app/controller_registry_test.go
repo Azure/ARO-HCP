@@ -177,35 +177,41 @@ func TestControllerRegistryManifest(t *testing.T) {
 	require.ElementsMatch(t, expectedOrder, slices.Collect(maps.Keys(registry)))
 }
 
-func testControllerContext(t *testing.T, hasRealFPA bool) ControllerContext {
+func testControllerContext(t *testing.T, hasRealFPA bool) (ControllerContext, StorageFactory) {
 	t.Helper()
 	cloudEnvironment, err := azureconfig.NewAzureCloudEnvironment(apisconfigv1.AzurePublicCloud, nil)
 	require.NoError(t, err)
+	factory := &cosmosStorageFactory{clients: map[string]*controllerStorageClients{}}
+	for _, name := range BackendStorageControllerNames(hasRealFPA) {
+		factory.clients[name] = &controllerStorageClients{
+			resources:   corecosmosstoragetesting.NewMockResourcesDBClient(),
+			billing:     billingcosmosstoragetesting.NewMockBillingDBClient(),
+			fleet:       fleetcosmosstoragetesting.NewMockFleetDBClient(),
+			kubeApplier: kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients(),
+		}
+	}
 	backend := &Backend{
 		clock: clocktesting.NewFakePassiveClock(time.Now()),
 		options: &BackendOptions{
-			ResourcesDBClient:    corecosmosstoragetesting.NewMockResourcesDBClient(),
-			BillingDBClient:      billingcosmosstoragetesting.NewMockBillingDBClient(),
-			FleetDBClient:        fleetcosmosstoragetesting.NewMockFleetDBClient(),
-			KubeApplierDBClients: kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients(),
-			MetricsRegisterer:    prometheus.NewRegistry(),
-			BackupConfig:         &clusterbackups.BackupConfig{},
-			CloudEnvironment:     cloudEnvironment,
-			HasRealFPA:           hasRealFPA,
+			StorageFactory:    factory,
+			MetricsRegisterer: prometheus.NewRegistry(),
+			BackupConfig:      &clusterbackups.BackupConfig{},
+			CloudEnvironment:  cloudEnvironment,
+			HasRealFPA:        hasRealFPA,
 		},
 	}
 	controllerContext := backend.newControllerContext(t.Context())
 	require.Same(t, backend.clock, controllerContext.Clock)
 	require.Same(t, http.DefaultClient, controllerContext.AsyncOperationNotificationClient)
-	require.Same(t, backend.options.ResourcesDBClient, controllerContext.ResourcesDBClient)
-	return controllerContext
+	require.Nil(t, controllerContext.ResourcesDBClient)
+	return controllerContext, factory
 }
 
 func TestControllerRegistryInstantiation(t *testing.T) {
 	for _, hasRealFPA := range []bool{false, true} {
 		t.Run(fmt.Sprintf("HasRealFPA=%t", hasRealFPA), func(t *testing.T) {
-			controllerContext := testControllerContext(t, hasRealFPA)
-			controllers, err := instantiateControllers(newControllerRegistry(), controllerContext)
+			controllerContext, storageFactory := testControllerContext(t, hasRealFPA)
+			controllers, err := instantiateControllers(newControllerRegistry(), controllerContext, storageFactory)
 			require.NoError(t, err)
 			expected := expectedControllerLaunches
 			if !hasRealFPA {
@@ -241,7 +247,11 @@ func TestControllerRegistryInstantiation(t *testing.T) {
 }
 
 func TestControllerRegistrySharedInstances(t *testing.T) {
-	controllerContext := testControllerContext(t, true)
+	controllerContext, storageFactory := testControllerContext(t, true)
+	controllerContext.ResourcesDBClient = storageFactory.ResourcesStorageClient("controlplaneactiveversions")
+	controllerContext.BillingDBClient = storageFactory.BillingStorageClient("controlplaneactiveversions")
+	controllerContext.FleetDBClient = storageFactory.FleetStorageClient("controlplaneactiveversions")
+	controllerContext.KubeApplierDBClients = storageFactory.KubeApplierStorageClients("controlplaneactiveversions")
 	registry := newControllerRegistry()
 	unionController, err := registry["union-kube-applier-informers-controller"].Instantiate(controllerContext)
 	require.NoError(t, err)
@@ -357,20 +367,27 @@ type registryTestRunnable struct{}
 func (*registryTestRunnable) Run(context.Context, int) {}
 
 func TestControllerRegistryUnorderedConstructionAndErrors(t *testing.T) {
+	_, storageFactory := testControllerContext(t, true)
 	registry := newControllerRegistry()
 	var constructed []string
 	for name, entry := range registry {
-		entry.Instantiate = func(ControllerContext) (Runnable, error) {
+		entry.Instantiate = func(instanceContext ControllerContext) (Runnable, error) {
+			if _, skip := controllersWithoutStorage()[name]; !skip {
+				require.Same(t, storageFactory.ResourcesStorageClient(name), instanceContext.ResourcesDBClient, name)
+				require.Same(t, storageFactory.BillingStorageClient(name), instanceContext.BillingDBClient, name)
+				require.Same(t, storageFactory.FleetStorageClient(name), instanceContext.FleetDBClient, name)
+				require.Same(t, storageFactory.KubeApplierStorageClients(name), instanceContext.KubeApplierDBClients, name)
+			}
 			constructed = append(constructed, name)
 			return &registryTestRunnable{}, nil
 		}
 		registry[name] = entry
 	}
-	_, err := instantiateControllers(registry, ControllerContext{HasRealFPA: true})
+	_, err := instantiateControllers(registry, ControllerContext{HasRealFPA: true}, storageFactory)
 	require.NoError(t, err)
 	require.ElementsMatch(t, slices.Collect(maps.Keys(registry)), constructed)
 	constructed = nil
-	_, err = instantiateControllers(registry, ControllerContext{})
+	_, err = instantiateControllers(registry, ControllerContext{}, storageFactory)
 	require.NoError(t, err)
 	require.Len(t, constructed, 101)
 	require.NotContains(t, constructed, "clusterdenyassignment")
@@ -379,7 +396,7 @@ func TestControllerRegistryUnorderedConstructionAndErrors(t *testing.T) {
 	entry := registry[name]
 	entry.Instantiate = func(ControllerContext) (Runnable, error) { return nil, expectedErr }
 	registry[name] = entry
-	controllers, err := instantiateControllers(registry, ControllerContext{})
+	controllers, err := instantiateControllers(registry, ControllerContext{}, storageFactory)
 	require.ErrorIs(t, err, expectedErr)
 	require.ErrorContains(t, err, name)
 	require.Nil(t, controllers)

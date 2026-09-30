@@ -28,6 +28,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 )
 
 // fakeManagementClusterLister is the minimal in-memory ManagementClusterLister
@@ -67,7 +69,9 @@ func newFakeMC(t *testing.T, stampIdentifier, containerName, consumerName string
 // TestKubeApplierDBClients_ForReturnsNilForUnknownMC documents the contract: an
 // unknown resourceID yields nil so callers can decide how to handle the gap.
 func TestKubeApplierDBClients_ForReturnsNilForUnknownMC(t *testing.T) {
-	clients := NewKubeApplierDBClients(nil, &fakeManagementClusterLister{})
+	clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{}, func(string) (*cosmosratelimit.TokenBucket, error) {
+		return cosmosratelimit.NewUnlimitedTokenBucket("test"), nil
+	}, &fakeManagementClusterLister{})
 	rid := mustParseResourceIDForKubeApplierTest(t, "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
 	assert.Nil(t, clients.For(context.Background(), rid), "unknown management cluster should return nil")
 }
@@ -80,7 +84,9 @@ func TestKubeApplierDBClients_ForUsesLister_ReturnsNilWhenMissing(t *testing.T) 
 	lister := &fakeManagementClusterLister{
 		mcs: []*fleetapi.ManagementCluster{newFakeMC(t, "present", "container-a", "mc-a")},
 	}
-	clients := NewKubeApplierDBClients(nil, lister)
+	clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{}, func(string) (*cosmosratelimit.TokenBucket, error) {
+		return cosmosratelimit.NewUnlimitedTokenBucket("test"), nil
+	}, lister)
 
 	missing := mustParseResourceIDForKubeApplierTest(t, "/providers/microsoft.redhatopenshift/stamps/missing/managementclusters/default")
 	assert.Nil(t, clients.For(context.Background(), missing))
@@ -92,7 +98,9 @@ func TestKubeApplierDBClients_ForUsesLister_ReturnsNilWhenMissing(t *testing.T) 
 // lister, and unknown-rid lookups consistently return nil. Run under -race to
 // verify the mutex actually protects the maps.
 func TestKubeApplierDBClients_ForIsThreadSafe_UnknownReturnsNilUnderRace(t *testing.T) {
-	clients := NewKubeApplierDBClients(nil, &fakeManagementClusterLister{})
+	clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{}, func(string) (*cosmosratelimit.TokenBucket, error) {
+		return cosmosratelimit.NewUnlimitedTokenBucket("test"), nil
+	}, &fakeManagementClusterLister{})
 	rid := mustParseResourceIDForKubeApplierTest(t, "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
 
 	const goroutines = 50
