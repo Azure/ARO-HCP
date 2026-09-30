@@ -113,13 +113,16 @@ func TestEmitExternalAuthStateTransition(t *testing.T) {
 			expectToState:   "accepted",
 		},
 		{
-			name:            "delete: Succeeded to Accepted",
-			oldState:        coreapi.ProvisioningStateSucceeded,
-			newState:        coreapi.ProvisioningStateAccepted,
+			// NewOperation forces OperationRequestDelete to ProvisioningStateDeleting
+			// (see addDeleteExternalAuthToTransaction), so this is the real delete
+			// transition, distinct from update's "accepted" target above.
+			name:            "delete: Failed to Deleting",
+			oldState:        coreapi.ProvisioningStateFailed,
+			newState:        coreapi.ProvisioningStateDeleting,
 			resourceType:    coreapi.ExternalAuthResourceType.String(),
 			expectIncrement: true,
-			expectFromState: "succeeded",
-			expectToState:   "accepted",
+			expectFromState: "failed",
+			expectToState:   "deleting",
 		},
 		{
 			name:         "same state does not increment",

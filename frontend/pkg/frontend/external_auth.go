@@ -570,8 +570,6 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 
 	logger.Info(fmt.Sprintf("deleting resource %s", externalAuth.ID))
 
-	oldProvisioningState := externalAuth.Properties.ProvisioningState
-
 	transaction := f.resourcesDBClient.NewTransaction(externalAuth.ID.SubscriptionID)
 	if err := f.addDeleteExternalAuthToTransaction(ctx, writer, request, transaction, externalAuth); err != nil {
 		return utils.TrackError(err)
@@ -581,13 +579,14 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
-	emitExternalAuthStateTransition(oldProvisioningState, externalAuth.Properties.ProvisioningState, externalAuth.ID.ResourceType.String())
-
 	writer.WriteHeader(http.StatusAccepted)
 	return nil
 }
 
 func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction cosmosstorageutils.DBTransaction, externalAuth *coreapi.ExternalAuth) error {
+	oldProvisioningState := externalAuth.Properties.ProvisioningState
+	resourceType := externalAuth.ID.ResourceType.String()
+
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
@@ -642,6 +641,11 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 	if err != nil {
 		return utils.TrackError(err)
 	}
+
+	newProvisioningState := externalAuth.Properties.ProvisioningState
+	transaction.OnSuccess(func(cosmosstorageutils.DBTransactionResult) {
+		emitExternalAuthStateTransition(oldProvisioningState, newProvisioningState, resourceType)
+	})
 
 	return nil
 }
