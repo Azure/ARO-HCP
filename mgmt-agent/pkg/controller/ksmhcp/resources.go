@@ -192,12 +192,15 @@ func buildService(namespace string, ownerRef metav1.OwnerReference) *coreac.Serv
 			WithSelector(map[string]string{labelApp: resourceName}))
 }
 
-// buildServiceMonitor returns an unstructured ServiceMonitor because
-// monitoring.coreos.com is a CRD without typed apply configurations.
-func buildServiceMonitor(namespace string, ownerRef metav1.OwnerReference) (*unstructured.Unstructured, error) {
+// buildServiceMonitor returns an unstructured ServiceMonitor because the
+// monitoring CRDs (monitoring.coreos.com and its AMA azmonitoring.coreos.com
+// mirror) have no typed apply configurations. The apiGroup is configurable so
+// that in AMA mode the monitor is emitted directly as the azmonitoring type AMA
+// discovers, rather than being created as monitoring.coreos.com and translated.
+func buildServiceMonitor(namespace, apiGroup string, ownerRef metav1.OwnerReference) (*unstructured.Unstructured, error) {
 	sm := &monitoringv1.ServiceMonitor{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "monitoring.coreos.com/v1",
+			APIVersion: apiGroup + "/v1",
 			Kind:       "ServiceMonitor",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -222,6 +225,11 @@ func buildServiceMonitor(namespace string, ownerRef metav1.OwnerReference) (*uns
 							TargetLabel:  "namespace",
 							Regex:        "(.+)",
 							Action:       "replace",
+						},
+						{
+							TargetLabel: "microsoft_metrics_include_label",
+							Replacement: ptr.To("hcp"),
+							Action:      "replace",
 						},
 					},
 				},
