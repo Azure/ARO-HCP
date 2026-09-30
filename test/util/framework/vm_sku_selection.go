@@ -541,11 +541,11 @@ func EphemeralOSDiskWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name: "ephemeral-osdisk-worker",
 		Preferred: []string{
+			"Standard_D8plds_v6", // DO NOT MERGE: first only so the uksouth validation run exercises it
 			DefaultWorkerVMSize,  // Standard_D8s_v3 - Intel D-series v3
 			"Standard_D8as_v4",   // AMD D-series v4
 			"Standard_E8s_v3",    // Intel E-series v3
 			"Standard_E8as_v4",   // AMD E-series v4
-			"Standard_D8plds_v6", // Arm64 D-series v6, not growth-controlled; ephemeral OS disk goes on NVMe
 		},
 		NamePattern:            regexp.MustCompile(`^Standard_([DE]8(s_v3|as_v4)|D8plds_v6)$`),
 		MinVCPUs:               8,
