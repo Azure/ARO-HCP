@@ -109,7 +109,7 @@ spec:
           count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
         )
         unless on (name, namespace, _id, resource_id, cluster)
-        hostedClusterAPI_deleting
+        (hostedClusterAPI_deleting{deletion_timestamp!=""})
     - record: hostedClusterAPI_kubeapiserver_available:sli_count_15m
       expr: |
         (
@@ -126,7 +126,7 @@ spec:
           count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
         )
         unless on (name, namespace, _id, resource_id, cluster)
-        hostedClusterAPI_deleting
+        (hostedClusterAPI_deleting{deletion_timestamp!=""})
     - record: hostedClusterAPI_kubeapiserver_available:sli_sum_6h
       expr: |
         (
@@ -143,7 +143,7 @@ spec:
           count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
         )
         unless on (name, namespace, _id, resource_id, cluster)
-        hostedClusterAPI_deleting
+        (hostedClusterAPI_deleting{deletion_timestamp!=""})
     - record: hostedClusterAPI_kubeapiserver_available:sli_count_6h
       expr: |
         (
@@ -160,7 +160,7 @@ spec:
           count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
         )
         unless on (name, namespace, _id, resource_id, cluster)
-        hostedClusterAPI_deleting
+        (hostedClusterAPI_deleting{deletion_timestamp!=""})
     - record: hostedClusterAPI_kubeapiserver_available:sli_sum_3d
       expr: |
         (
@@ -177,7 +177,7 @@ spec:
           count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
         )
         unless on (name, namespace, _id, resource_id, cluster)
-        hostedClusterAPI_deleting
+        (hostedClusterAPI_deleting{deletion_timestamp!=""})
     - record: hostedClusterAPI_kubeapiserver_available:sli_count_3d
       expr: |
         (
@@ -194,4 +194,4 @@ spec:
           count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
         )
         unless on (name, namespace, _id, resource_id, cluster)
-        hostedClusterAPI_deleting
+        (hostedClusterAPI_deleting{deletion_timestamp!=""})
