@@ -387,6 +387,13 @@
     "CI": {
       "type": "object",
       "description": "Per-environment CI bot identity and subscription inventory",
+      "properties": {
+        "e2eSubscriptionProviders": {
+          "type": "array",
+          "description": "Azure resource provider namespaces to register on every ARO-HCP-managed E2E subscription",
+          "items": { "type": "string" }
+        }
+      },
       "additionalProperties": {
         "$ref": "#/$defs/CIEnvironment"
       }
