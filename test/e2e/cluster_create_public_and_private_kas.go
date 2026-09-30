@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -61,7 +62,19 @@ var _ = Describe("Customer", func() {
 			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams.OpenshiftVersionId = "4.22"
+
+			// Swift networking (worker→KAS private path) requires OCP >= 4.22
+			openshiftVersionID, err := framework.PickAtLeastOpenshiftVersionId(clusterParams.OpenshiftVersionId, "4.22")
+			// If the default is nightly which isn't >= 4.22, skip this test with an explanation.
+			// Log the reason before calling Skip: Skip() stores its message internally and the
+			// Ginkgo reporter only emits file:line in verbose mode, never the message text itself.
+			if framework.IsIncompatibleNightlyVersionError(err) {
+				skipMsg := fmt.Sprintf("Swift networking requires OCP >= 4.22, but default version %q does not satisfy it: %v", clusterParams.OpenshiftVersionId, err)
+				GinkgoLogr.Info(skipMsg)
+				Skip(skipMsg)
+			}
+			Expect(err).NotTo(HaveOccurred(), "failed to select OpenShift version >= 4.22 for public-and-private KAS test (default version: %q)", clusterParams.OpenshiftVersionId)
+			clusterParams.OpenshiftVersionId = openshiftVersionID
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
