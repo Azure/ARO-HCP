@@ -14,6 +14,8 @@ tests:
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "1+0x600" # 10 hours of perfect availability
+  - series: 'hostedClusterAPI_deleting{name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
+    values: "1+0x600"
   alert_rule_test:
   - eval_time: 600m
     alertname: userJourneyKubeApiserverAvailability1h5m
@@ -34,6 +36,8 @@ tests:
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "0+0x200" # 100 minutes of complete failure (200 * 30s)
+  - series: 'hostedClusterAPI_deleting{name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
+    values: "1+0x200"
   alert_rule_test:
   - eval_time: 10m
     alertname: userJourneyKubeApiserverAvailability1h5m
@@ -73,6 +77,8 @@ tests:
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "0+0x900" # 450 minutes = 7.5 hours of complete failure (900 * 30s)
+  - series: 'hostedClusterAPI_deleting{name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
+    values: "1+0x900"
   alert_rule_test:
   - eval_time: 80m
     alertname: userJourneyKubeApiserverAvailability1h5m
@@ -165,6 +171,8 @@ tests:
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="new-cluster", namespace="clusters", _id="new-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/new-cluster"}'
     values: "0+0x10" # 10 minutes of complete failure (new cluster)
+  - series: 'hostedClusterAPI_deleting{name="new-cluster", namespace="clusters", _id="new-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/new-cluster"}'
+    values: "1+0x10"
   alert_rule_test:
   - eval_time: 10m
     alertname: userJourneyKubeApiserverAvailability1h5m
@@ -183,6 +191,8 @@ tests:
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "1+0x20 0 1+0x580" # One failure in ~603 samples
+  - series: 'hostedClusterAPI_deleting{name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
+    values: "1+0x602"
   alert_rule_test:
   - eval_time: 400m
     alertname: userJourneyKubeApiserverAvailability1h5m
@@ -208,6 +218,8 @@ tests:
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "1+0x19 0+0x21 1+0x800" # 20m healthy, 22m failure (t=20..t=41), then recovery
+  - series: 'hostedClusterAPI_deleting{name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
+    values: "1+0x841"
   alert_rule_test:
   - eval_time: 35m
     alertname: userJourneyKubeApiserverAvailability1h5m
@@ -237,6 +249,8 @@ tests:
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "1+0x79 0+0x6 1+0x100" # 80 successes (t=0..79m), 7 failures (t=80..86m), then success
+  - series: 'hostedClusterAPI_deleting{name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
+    values: "1+0x186"
   alert_rule_test:
   - eval_time: 89m
     alertname: userJourneyKubeApiserverAvailability1h5m
@@ -279,6 +293,8 @@ tests:
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "0+0x4110" # 4111 samples at 1m interval, t=0 to t=4110m, complete failure
+  - series: 'hostedClusterAPI_deleting{name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
+    values: "1+0x4110"
   alert_rule_test:
   - eval_time: 4080m
     alertname: userJourneyKubeApiserverAvailability3d6h
