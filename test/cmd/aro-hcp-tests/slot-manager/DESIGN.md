@@ -212,6 +212,7 @@ Acquire writes `${SHARED_DIR}/aro-hcp-slot.env` with:
 | Variable | Meaning |
 | --- | --- |
 | `CUSTOMER_SUBSCRIPTION` | Selected catalog subscription name, verified against the cluster profile. |
+| `CUSTOMER_SUBSCRIPTION_ID` | Subscription ID from the sibling `customer-*-subscription-id` field in the selected profile. |
 | `SELECTED_LOCATION` | Authoritative runtime region. |
 | `SELECTED_CLUSTER_PROFILE_DIR` | Profile containing the selected subscription's tenant and service-principal credentials. |
 | `LEASED_MSI_CONTAINERS` | Space-separated identity-container resource groups assigned to the slot. |

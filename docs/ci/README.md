@@ -51,6 +51,13 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [DEV E2E Subscription Onboarding](e2e-subscription-onboarding.md#dev-e2e-subscription-onboarding)
 - [INT/STG/PROD E2E Subscription Onboarding](e2e-subscription-onboarding.md#intstgprod-e2e-subscription-onboarding)
 
+### [Cluster Profile Secret Contract](cluster-profile-secret-contract.md)
+
+- [Profile Fields](cluster-profile-secret-contract.md#profile-fields)
+- [Consumer Rules](cluster-profile-secret-contract.md#consumer-rules)
+- [Slot-Manager Runtime Contract](cluster-profile-secret-contract.md#slot-manager-runtime-contract)
+- [Updating The Inventory](cluster-profile-secret-contract.md#updating-the-inventory)
+
 ### [DEV Mock Identities](dev-mock-identities.md)
 
 - [The Identities At A Glance](dev-mock-identities.md#the-identities-at-a-glance)
@@ -227,6 +234,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [EV2 Retry Catcher](ev2-retry-catcher.md) explains how a narrow, deliberately labeled set of known-issue test failures triggers an automatic single retry of an EV2 gating run instead of a manual retrigger.
 - [CI Cleanup](cleanup.md) explains why cleanup is intentionally split across strict per-test teardown, targeted environment teardown, and background hygiene.
 - [E2E Testing In CI](e2e-testing.md) explains how to trigger E2E jobs from PRs and how to narrow test selection safely.
+- [Test Tenant OpenShift Release Bot](test-tenant-release-bot.md) documents the Test Tenant-only identity, GSM rotation workflow, and validation procedure.
 - [Upgrade-Path Presubmit](upgrade-path-presubmit.md) explains the optional `upgrade-e2e-parallel` job that validates main-to-PR infrastructure upgrades, including how to trigger it, interpret failures, and understand its image resolution strategy.
 - [CI Operations](operations.md) explains how to trigger, inspect, troubleshoot, and change the CI system itself.
 
@@ -242,4 +250,4 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Pipelines](../pipelines.md)
 - [EV2 Deployment](../ev2-deployment.md)
 - [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md)
-- [Test Test Tenant Access](../sops/test-test-tenant-access.md)
+- [Test Tenant OpenShift Release Bot](test-tenant-release-bot.md)

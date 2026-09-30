@@ -545,7 +545,7 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, logger logr.
 		return err
 	}
 
-	customerSubscription, selectedClusterProfileDir, err := slots.VerifyCustomerSubscriptionName(o.ClusterProfileDirs, pool.SubscriptionName)
+	customerSubscription, err := slots.ResolveCustomerSubscription(o.ClusterProfileDirs, pool.SubscriptionName)
 	if err != nil {
 		return err
 	}
@@ -568,7 +568,13 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, logger logr.
 	// The release step can now clean up this lease from the persisted state
 	// file, so subsequent failures should not try to release it again here.
 	rollbackLease = false
-	if err := slots.WriteEnvFile(o.SharedDir, state, customerSubscription, selectedClusterProfileDir); err != nil {
+	if err := slots.WriteEnvFile(
+		o.SharedDir,
+		state,
+		customerSubscription.Name,
+		customerSubscription.ID,
+		customerSubscription.ClusterProfileDir,
+	); err != nil {
 		return err
 	}
 

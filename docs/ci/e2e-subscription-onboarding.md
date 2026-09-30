@@ -100,6 +100,9 @@ az provider show --namespace Microsoft.Compute \
      - `customer-shardN-subscription-id`
      - `customer-shardN-subscription-name`
    - `N` must match the intended shard number and should remain stable once jobs depend on that mapping.
+   - Preserve the identity and infrastructure fields documented in the
+     [cluster profile secret contract](cluster-profile-secret-contract.md);
+     do not add unqualified `subscription-*` fields.
 
 5. Provision the slot-backed identity containers in the new subscription.
    - Run:

@@ -80,6 +80,10 @@ If a periodic fails, that usually points to shared-environment drift, backlog in
 
 E2E jobs in CI can be summarized as follows: the job authenticates as a test identity, that shared identity creates one test resource group per test in a testing subscription, and each request is then sent to the environment's RP entrypoint. In higher environments that request flows through ARM; in DEV it is a direct RP call. The RP then creates the ARO HCP cluster resource back into that test's resource group.
 
+Cluster-profile identities, infrastructure subscriptions, customer shards, and
+the slot-manager variables that connect them are defined by the
+[cluster profile secret contract](cluster-profile-secret-contract.md).
+
 The charts below focus on that transaction path and the tenant and subscription boundaries it crosses:
 
 - **DEV** is a same-tenant, cross-subscription flow inside the Red Hat tenant.
@@ -348,7 +352,11 @@ Today ARO HCP uses two acquire paths for those containers:
 
 Operationally, the important distinction is:
 
-- the slot-manager path resolves a slot from the catalog, exports `SELECTED_LOCATION`, `CUSTOMER_SUBSCRIPTION`, and `LEASED_MSI_CONTAINERS`, and then hands the same leased identity-container set to the test framework
+- the slot-manager path resolves a slot from the catalog, exports
+  `CUSTOMER_SUBSCRIPTION`, `CUSTOMER_SUBSCRIPTION_ID`,
+  `SELECTED_CLUSTER_PROFILE_DIR`, `SELECTED_LOCATION`, and
+  `LEASED_MSI_CONTAINERS`, and then hands the same leased identity-container
+  set to the test framework
 - the legacy path still requests environment-specific identity-container resource types in job config and populates `LEASED_MSI_CONTAINERS` directly
 
 This document intentionally does not freeze current runtime weights or pinned

@@ -136,12 +136,15 @@ func (s *AcquiredSlotState) Validate() error {
 	return nil
 }
 
-func WriteEnvFile(sharedDir string, state *AcquiredSlotState, customerSubscription, selectedClusterProfileDir string) error {
+func WriteEnvFile(sharedDir string, state *AcquiredSlotState, customerSubscription, customerSubscriptionID, selectedClusterProfileDir string) error {
 	if err := state.Validate(); err != nil {
 		return err
 	}
 	if customerSubscription == "" {
 		return errors.New("customer subscription is empty")
+	}
+	if customerSubscriptionID == "" {
+		return errors.New("customer subscription ID is empty")
 	}
 	if selectedClusterProfileDir == "" {
 		return errors.New("selected cluster profile dir is empty")
@@ -159,6 +162,7 @@ func WriteEnvFile(sharedDir string, state *AcquiredSlotState, customerSubscripti
 		"ARO_HCP_E2E_SLOT_NAME":          state.Slot.ResourceName,
 		"ARO_HCP_E2E_SLOT_RESOURCE_TYPE": state.Slot.ResourceType,
 		"CUSTOMER_SUBSCRIPTION":          customerSubscription,
+		"CUSTOMER_SUBSCRIPTION_ID":       customerSubscriptionID,
 		"LEASED_MSI_CONTAINERS":          strings.Join(state.Slot.IdentityContainerNames(), " "),
 		"SELECTED_CLUSTER_PROFILE_DIR":   selectedClusterProfileDir,
 		"SELECTED_LOCATION":              state.RuntimeRegion,
