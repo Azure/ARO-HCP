@@ -87,7 +87,7 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 		return nil
 	}
 	if err != nil {
-		logger.Error(err, "failed to get cluster from cosmos for CS state dump")
+		logger.Error(err, "failed to get cluster from informer cache for CS state dump")
 		return nil // best effort, don't fail
 	}
 
@@ -121,7 +121,7 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	// Fetch and dump node pools
 	allNodePools, err := c.nodePoolLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		logger.Error(err, "failed to list node pools from cosmos for CS state dump")
+		logger.Error(err, "failed to list node pools from informer cache for CS state dump")
 		// best effort, don't fail
 		return nil
 	}
