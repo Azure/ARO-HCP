@@ -35,6 +35,17 @@ tests:
     exp_samples:
     - labels: 'errors:ingress_canary:total_1h{_id="aaa", cluster="mgmt-1", region="uksouth"}'
       value: 12
+  # Windowed (5m, the fast tier's short window): 2 series x 6 samples = 12.
+  - expr: errors:ingress_canary:error_rate_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate_5m{_id="aaa", cluster="mgmt-1", region="uksouth"}'
+      value: 0
+  - expr: errors:ingress_canary:total_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:total_5m{_id="aaa", cluster="mgmt-1", region="uksouth"}'
+      value: 10
 # ========================================
 # Test 2: Half of observations unreachable — availability ratio = 0.5, error rate = 0.5
 # ========================================
