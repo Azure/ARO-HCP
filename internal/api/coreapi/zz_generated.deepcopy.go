@@ -407,6 +407,10 @@ func (in *ClusterServiceProviderProperties) DeepCopyInto(out *ClusterServiceProv
 		in, out := &in.CreateOperationCompletionDeadline, &out.CreateOperationCompletionDeadline
 		*out = (*in).DeepCopy()
 	}
+	if in.UpdateOperationCompletionDeadline != nil {
+		in, out := &in.UpdateOperationCompletionDeadline, &out.UpdateOperationCompletionDeadline
+		*out = (*in).DeepCopy()
+	}
 	if in.DeleteOperationCompletionTimeout != nil {
 		in, out := &in.DeleteOperationCompletionTimeout, &out.DeleteOperationCompletionTimeout
 		*out = new(time.Duration)
@@ -1638,6 +1642,10 @@ func (in *NodePoolServiceProviderProperties) DeepCopyInto(out *NodePoolServicePr
 	}
 	if in.CreateOperationCompletionDeadline != nil {
 		in, out := &in.CreateOperationCompletionDeadline, &out.CreateOperationCompletionDeadline
+		*out = (*in).DeepCopy()
+	}
+	if in.UpdateOperationCompletionDeadline != nil {
+		in, out := &in.UpdateOperationCompletionDeadline, &out.UpdateOperationCompletionDeadline
 		*out = (*in).DeepCopy()
 	}
 	return

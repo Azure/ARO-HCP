@@ -92,6 +92,7 @@ func mutateNodePoolServiceProviderProperties(ctx context.Context, admissionConte
 
 	errs = append(errs, mutateNodePoolExperimentalTags(ctx, admissionContext, op)...)
 	errs = append(errs, mutateNodePoolCreateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("createOperationCompletionDeadline"), &newObj.CreateOperationCompletionDeadline)...)
+	errs = append(errs, mutateNodePoolUpdateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("updateOperationCompletionDeadline"), &newObj.UpdateOperationCompletionDeadline)...)
 
 	return errs
 }
@@ -111,7 +112,7 @@ func mutateNodePoolExperimentalTags(_ context.Context, admissionContext *NodePoo
 	tagsPath := field.NewPath("tags")
 	var errs field.ErrorList
 
-	knownTags := sets.New(metadataapi.TagNodePoolMaxCreationDuration)
+	knownTags := sets.New(metadataapi.TagNodePoolMaxCreationDuration, metadataapi.TagNodePoolMaxUpdateDuration)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalNodePoolTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -149,6 +150,43 @@ func mutateNodePoolCreateOperationCompletionDeadline(_ context.Context, admissio
 			if parsed < minCreateOperationCompletionDeadlineDuration {
 				tagsPath := field.NewPath("tags")
 				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagNodePoolMaxCreationDuration), tagValue, fmt.Sprintf("must be at least %s", minCreateOperationCompletionDeadlineDuration))}
+			}
+			duration = parsed
+		}
+	}
+
+	deadline := metav1.NewTime(admissionContext.Clock.Now().Add(duration))
+	*newObj = &deadline
+	return nil
+}
+
+// mutateNodePoolUpdateOperationCompletionDeadline sets the deadline by which a
+// node pool update operation must complete. On UPDATE it defaults to 60
+// minutes from now; when the subscription has the ExperimentalReleaseFeatures
+// AFEC registered, the caller may override the duration via the
+// TagNodePoolMaxUpdateDuration ARM resource tag.
+func mutateNodePoolUpdateOperationCompletionDeadline(_ context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, _ *field.Path, newObj **metav1.Time) field.ErrorList {
+	if op.Type != operation.Update {
+		return nil
+	}
+
+	duration := defaultUpdateOperationCompletionDeadlineDuration
+
+	subscription := admissionContext.Subscription
+	if subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		var tags map[string]string
+		if admissionContext.OriginalNodePool != nil {
+			tags = admissionContext.OriginalNodePool.Tags
+		}
+		if tagValue := lookupTag(tags, metadataapi.TagNodePoolMaxUpdateDuration); len(tagValue) > 0 {
+			parsed, err := time.ParseDuration(tagValue)
+			if err != nil {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagNodePoolMaxUpdateDuration), tagValue, "must be a valid Go duration string (e.g. \"19m\", \"30m\")")}
+			}
+			if parsed < minUpdateOperationCompletionDeadlineDuration {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagNodePoolMaxUpdateDuration), tagValue, fmt.Sprintf("must be at least %s", minUpdateOperationCompletionDeadlineDuration))}
 			}
 			duration = parsed
 		}

@@ -134,6 +134,8 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 	}
 
 	testCases := []struct {
+		checkDeadline    bool
+		timeoutReason    string
 		name             string
 		existingNodePool *coreapi.NodePool
 		// When not set, the controller uses a node pool lister that contains the existingNodePool.
@@ -154,6 +156,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 	}{
 		{
 			name:                            "cs node pool ready transitions operation to succeeded",
+			checkDeadline:                   true,
 			existingNodePool:                newNodePoolWithVersion("4.19.0"),
 			existingOperation:               newOperationAccepted(),
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
@@ -172,6 +175,8 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name:                            "cs node pool updating transitions operation to updating",
+			checkDeadline:                   true,
+			timeoutReason:                   "[clusterServiceNodePoolStatus] cluster service node pool is updating",
 			existingNodePool:                newNodePoolWithVersion("4.19.0"),
 			existingOperation:               newOperationAccepted(),
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
@@ -216,6 +221,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name:                            "cs node pool recoverable_error transitions operation to failed",
+			checkDeadline:                   true,
 			existingNodePool:                newNodePoolWithVersion("4.19.0"),
 			existingOperation:               newOperationAccepted(),
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
@@ -349,7 +355,9 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "cs node pool ready with hypershift node drain spec mismatch keeps operation updating",
+			name:          "cs node pool ready with hypershift node drain spec mismatch keeps operation updating",
+			checkDeadline: true,
+			timeoutReason: "nodeDrainTimeout",
 			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.NodePool) {
 				nodePool.Properties.NodeDrainTimeoutMinutes = ptr.To(int32(60))
 			}),
@@ -435,6 +443,39 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				assert.Equal(t, coreapi.ProvisioningStateAccepted, nodePool.Properties.ProvisioningState)
 			},
 		},
+	}
+
+	// Exercise the same observations before, at, and after the update deadline.
+	// Successful and failed observations must retain their original result even
+	// after the deadline; only pending operations become DeadlineExceeded.
+	for _, base := range testCases {
+		if !base.checkDeadline {
+			continue
+		}
+		for _, offset := range []time.Duration{time.Second, 0, -time.Second} {
+			tc := base
+			tc.name = fmt.Sprintf("%s/deadline-offset=%s", base.name, offset)
+			tc.existingNodePool = base.existingNodePool.DeepCopy()
+			tc.existingOperation = base.existingOperation.DeepCopy()
+			tc.existingServiceProviderNodePool = base.existingServiceProviderNodePool.DeepCopy()
+			tc.existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline = ptr.To(metav1.NewTime(testClockNow.Add(offset)))
+			if offset < 0 && base.timeoutReason != "" {
+				tc.verifyDB = func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+					op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+					require.NoError(t, err)
+					assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+					require.NotNil(t, op.Error)
+					assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, op.Error.Code)
+					assert.Contains(t, op.Error.Message, "node pool update did not complete before the deadline")
+					assert.Contains(t, op.Error.Message, base.timeoutReason)
+					resource, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
+					require.NoError(t, err)
+					assert.Equal(t, coreapi.ProvisioningStateFailed, resource.Properties.ProvisioningState)
+					assert.Empty(t, resource.ServiceProviderProperties.ActiveOperationID)
+				}
+			}
+			testCases = append(testCases, tc)
+		}
 	}
 
 	for _, tc := range testCases {
