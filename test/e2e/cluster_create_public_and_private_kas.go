@@ -62,6 +62,7 @@ var _ = Describe("Customer", func() {
 			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.DisableSwift = false
 
 			// Swift networking (worker→KAS private path) requires OCP >= 4.22
 			openshiftVersionID, err := framework.PickAtLeastOpenshiftVersionId(clusterParams.OpenshiftVersionId, "4.22")
@@ -154,8 +155,16 @@ var _ = Describe("Customer", func() {
 
 			By("verifying bidirectional Swift connectivity by fetching router-default pod logs")
 			logVerifier := verifiers.VerifyGetDeploymentLogs("openshift-ingress", "router-default", "router")
+			var previousLogErr string
 			Eventually(func() error {
-				return logVerifier.Verify(ctx, adminRESTConfig)
+				err := logVerifier.Verify(ctx, adminRESTConfig)
+				if err != nil {
+					if currentErr := err.Error(); currentErr != previousLogErr {
+						GinkgoLogr.Info("Verifier check", "name", logVerifier.Name(), "status", "failed", "error", currentErr)
+						previousLogErr = currentErr
+					}
+				}
+				return err
 			}, 10*time.Minute, 30*time.Second).Should(Succeed(),
 				"fetching router-default logs should succeed, proving KAS-to-kubelet Swift path")
 			GinkgoLogr.Info("Bidirectional Swift connectivity confirmed via pod log retrieval")
