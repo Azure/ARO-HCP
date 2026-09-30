@@ -202,27 +202,27 @@ resource hcpKasLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
       }
       {
         record: 'kas:apiserver_request_terminations:rate5m'
-        expression: 'sum by (namespace, cluster) (rate(apiserver_request_terminations_total{namespace=~"ocm-.*"}[5m]))'
+        expression: 'sum by (namespace, cluster, region) (rate(apiserver_request_terminations_total{namespace=~"ocm-.*"}[5m]))'
       }
       {
         record: 'kas:apiserver_inflight_requests:avg_5m'
-        expression: 'avg_over_time(sum by (namespace, cluster, request_kind) (apiserver_current_inflight_requests{namespace=~"ocm-.*"})[5m:1m])'
+        expression: 'avg_over_time(sum by (namespace, cluster, request_kind, region) (apiserver_current_inflight_requests{namespace=~"ocm-.*"})[5m:1m])'
       }
       {
         record: 'kas:apiserver_request_latency:sli_ratio_mutating:rate5m'
-        expression: 'sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_bucket{le="1.0",namespace=~"ocm-.*",scope=~"resource|namespace|cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"POST|PUT|PATCH|DELETE"}[5m])) / sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope=~"resource|namespace|cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"POST|PUT|PATCH|DELETE"}[5m]))'
+        expression: 'sum by (namespace, cluster, region) (rate(apiserver_request_sli_duration_seconds_bucket{le="1.0",namespace=~"ocm-.*",scope=~"resource|namespace|cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"POST|PUT|PATCH|DELETE"}[5m])) / sum by (namespace, cluster, region) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope=~"resource|namespace|cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"POST|PUT|PATCH|DELETE"}[5m]))'
       }
       {
         record: 'kas:apiserver_request_latency:sli_ratio_reads_resource:rate5m'
-        expression: 'sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_bucket{le="1.0",namespace=~"ocm-.*",scope="resource",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m])) / sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope="resource",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]))'
+        expression: 'sum by (namespace, cluster, region) (rate(apiserver_request_sli_duration_seconds_bucket{le="1.0",namespace=~"ocm-.*",scope="resource",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m])) / sum by (namespace, cluster, region) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope="resource",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]))'
       }
       {
         record: 'kas:apiserver_request_latency:sli_ratio_reads_namespace:rate5m'
-        expression: 'sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_bucket{le="5.0",namespace=~"ocm-.*",scope="namespace",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m])) / sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope="namespace",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]))'
+        expression: 'sum by (namespace, cluster, region) (rate(apiserver_request_sli_duration_seconds_bucket{le="5.0",namespace=~"ocm-.*",scope="namespace",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m])) / sum by (namespace, cluster, region) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope="namespace",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]))'
       }
       {
         record: 'kas:apiserver_request_latency:sli_ratio_reads_cluster:rate5m'
-        expression: 'sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_bucket{le="30.0",namespace=~"ocm-.*",scope="cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m])) / sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope="cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]))'
+        expression: 'sum by (namespace, cluster, region) (rate(apiserver_request_sli_duration_seconds_bucket{le="30.0",namespace=~"ocm-.*",scope="cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m])) / sum by (namespace, cluster, region) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope="cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]))'
       }
     ]
   }
@@ -318,6 +318,100 @@ resource arohcpIngressAvailabilitySloRecordingRules 'Microsoft.AlertsManagement/
   }
 }
 
+resource arohcpIngressAvailabilitySloWindowedRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_ingress_availability_slo_windowed_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:ingress_canary:succeeded_5m'
+        expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[5m]))'
+      }
+      {
+        record: 'errors:ingress_canary:total_5m'
+        expression: 'sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[5m]))'
+      }
+      {
+        record: 'errors:ingress_canary:failed_5m'
+        expression: 'errors:ingress_canary:total_5m - errors:ingress_canary:succeeded_5m'
+      }
+      {
+        record: 'errors:ingress_canary:error_rate_5m'
+        expression: 'errors:ingress_canary:failed_5m / clamp_min(errors:ingress_canary:total_5m, 1)'
+      }
+      {
+        record: 'errors:ingress_canary:succeeded_30m'
+        expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[30m]))'
+      }
+      {
+        record: 'errors:ingress_canary:total_30m'
+        expression: 'sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[30m]))'
+      }
+      {
+        record: 'errors:ingress_canary:failed_30m'
+        expression: 'errors:ingress_canary:total_30m - errors:ingress_canary:succeeded_30m'
+      }
+      {
+        record: 'errors:ingress_canary:error_rate_30m'
+        expression: 'errors:ingress_canary:failed_30m / clamp_min(errors:ingress_canary:total_30m, 1)'
+      }
+      {
+        record: 'errors:ingress_canary:succeeded_1h'
+        expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[1h]))'
+      }
+      {
+        record: 'errors:ingress_canary:total_1h'
+        expression: 'sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[1h]))'
+      }
+      {
+        record: 'errors:ingress_canary:failed_1h'
+        expression: 'errors:ingress_canary:total_1h - errors:ingress_canary:succeeded_1h'
+      }
+      {
+        record: 'errors:ingress_canary:error_rate_1h'
+        expression: 'errors:ingress_canary:failed_1h / clamp_min(errors:ingress_canary:total_1h, 1)'
+      }
+      {
+        record: 'errors:ingress_canary:succeeded_6h'
+        expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[6h]))'
+      }
+      {
+        record: 'errors:ingress_canary:total_6h'
+        expression: 'sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[6h]))'
+      }
+      {
+        record: 'errors:ingress_canary:failed_6h'
+        expression: 'errors:ingress_canary:total_6h - errors:ingress_canary:succeeded_6h'
+      }
+      {
+        record: 'errors:ingress_canary:error_rate_6h'
+        expression: 'errors:ingress_canary:failed_6h / clamp_min(errors:ingress_canary:total_6h, 1)'
+      }
+      {
+        record: 'errors:ingress_canary:succeeded_3d'
+        expression: 'sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[3d]))'
+      }
+      {
+        record: 'errors:ingress_canary:total_3d'
+        expression: 'sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[3d]))'
+      }
+      {
+        record: 'errors:ingress_canary:failed_3d'
+        expression: 'errors:ingress_canary:total_3d - errors:ingress_canary:succeeded_3d'
+      }
+      {
+        record: 'errors:ingress_canary:error_rate_3d'
+        expression: 'errors:ingress_canary:failed_3d / clamp_min(errors:ingress_canary:total_3d, 1)'
+      }
+    ]
+  }
+}
+
 resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_ingress_latency_slo_recording_rules'
   location: location
@@ -335,6 +429,100 @@ resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prome
       {
         record: 'errors:ingress_canary_latency:error_rate'
         expression: '1 - latency:ingress_canary:ratio'
+      }
+    ]
+  }
+}
+
+resource arohcpIngressLatencySloWindowedRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_ingress_latency_slo_windowed_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:ingress_canary_latency:total_5m'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[5m]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:fast_5m'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[5m]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:slow_5m'
+        expression: 'errors:ingress_canary_latency:total_5m - errors:ingress_canary_latency:fast_5m'
+      }
+      {
+        record: 'errors:ingress_canary_latency:error_rate_5m'
+        expression: 'errors:ingress_canary_latency:slow_5m / clamp_min(errors:ingress_canary_latency:total_5m, 1)'
+      }
+      {
+        record: 'errors:ingress_canary_latency:total_30m'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[30m]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:fast_30m'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[30m]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:slow_30m'
+        expression: 'errors:ingress_canary_latency:total_30m - errors:ingress_canary_latency:fast_30m'
+      }
+      {
+        record: 'errors:ingress_canary_latency:error_rate_30m'
+        expression: 'errors:ingress_canary_latency:slow_30m / clamp_min(errors:ingress_canary_latency:total_30m, 1)'
+      }
+      {
+        record: 'errors:ingress_canary_latency:total_1h'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[1h]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:fast_1h'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[1h]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:slow_1h'
+        expression: 'errors:ingress_canary_latency:total_1h - errors:ingress_canary_latency:fast_1h'
+      }
+      {
+        record: 'errors:ingress_canary_latency:error_rate_1h'
+        expression: 'errors:ingress_canary_latency:slow_1h / clamp_min(errors:ingress_canary_latency:total_1h, 1)'
+      }
+      {
+        record: 'errors:ingress_canary_latency:total_6h'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[6h]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:fast_6h'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[6h]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:slow_6h'
+        expression: 'errors:ingress_canary_latency:total_6h - errors:ingress_canary_latency:fast_6h'
+      }
+      {
+        record: 'errors:ingress_canary_latency:error_rate_6h'
+        expression: 'errors:ingress_canary_latency:slow_6h / clamp_min(errors:ingress_canary_latency:total_6h, 1)'
+      }
+      {
+        record: 'errors:ingress_canary_latency:total_3d'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[3d]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:fast_3d'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[3d]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:slow_3d'
+        expression: 'errors:ingress_canary_latency:total_3d - errors:ingress_canary_latency:fast_3d'
+      }
+      {
+        record: 'errors:ingress_canary_latency:error_rate_3d'
+        expression: 'errors:ingress_canary_latency:slow_3d / clamp_min(errors:ingress_canary_latency:total_3d, 1)'
       }
     ]
   }
