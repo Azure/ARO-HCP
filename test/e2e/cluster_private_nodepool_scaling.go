@@ -208,24 +208,25 @@ var _ = Describe("Customer", func() {
 			}, framework.NodePoolScalingTimeout, 30*time.Second).Should(Succeed(), "all %d initial nodes should be Ready", initialReplicas)
 			GinkgoLogr.Info("Initial node pool verified", "replicas", initialReplicas)
 
-			By("verifying KAS→kubelet path by fetching logs of a system pod")
+			By("verifying KAS→kubelet path by fetching logs of a DNS pod")
 			// kubectl logs proxies the request through KAS to the kubelet on the
 			// worker node — a separate Swift connection from the kubelet→KAS
-			// registration path. This proves the reverse path is also functional.
+			// registration path. openshift-dns DaemonSet pods run on every worker
+			// node, so fetching their logs proves the reverse (KAS→worker) path.
 			Eventually(func(g Gomega) {
 				podList, runErr := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
-					"get pods -n openshift-kube-apiserver -o name --field-selector=status.phase=Running", 2*time.Minute)
-				g.Expect(runErr).NotTo(HaveOccurred(), "failed to list running pods in openshift-kube-apiserver")
+					"get pods -n openshift-dns -o name --field-selector=status.phase=Running", 2*time.Minute)
+				g.Expect(runErr).NotTo(HaveOccurred(), "failed to list running pods in openshift-dns")
 				podNames := strings.Split(strings.TrimSpace(podList), "\n")
-				g.Expect(podNames[0]).NotTo(BeEmpty(), "no running pods found in openshift-kube-apiserver")
+				g.Expect(podNames[0]).NotTo(BeEmpty(), "no running pods found in openshift-dns")
 				pod := strings.TrimPrefix(podNames[0], "pod/")
 				_, logErr := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
-					fmt.Sprintf("logs -n openshift-kube-apiserver %s --tail=1", pod), 2*time.Minute)
+					fmt.Sprintf("logs -n openshift-dns %s --tail=1", pod), 2*time.Minute)
 				g.Expect(logErr).NotTo(HaveOccurred(),
 					"kubectl logs should succeed — KAS→kubelet path must be working for pod %q", pod)
 			}, 5*time.Minute, 15*time.Second).Should(Succeed(),
 				"KAS→kubelet log path never became reachable from VM inside the VNet")
-			GinkgoLogr.Info("KAS→kubelet path verified via kubectl logs on system pod")
+			GinkgoLogr.Info("KAS→kubelet path verified via kubectl logs on DNS pod")
 
 			By("scaling up the nodepool from 1 to 2 replicas")
 			scaledUpReplicas := int32(2)
