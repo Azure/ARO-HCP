@@ -35,7 +35,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 const rpCollectionSubscription = "00000000-0000-0000-0000-000000000001"
@@ -47,7 +47,7 @@ type rpCollectionTestResponse struct {
 	body   string
 }
 
-func newRPCollectionTestFactory(test *testing.T, responses map[string]rpCollectionTestResponse, requests *[]string) *hcpsdk20240610preview.ClientFactory {
+func newRPCollectionTestFactory(test *testing.T, responses map[string]rpCollectionTestResponse, requests *[]string) *hcpsdk20260901preview.ClientFactory {
 	test.Helper()
 	transport := &fakeTransport{do: func(request *http.Request) (*http.Response, error) {
 		require.Equal(test, "example.com", request.URL.Host)
@@ -72,7 +72,7 @@ func newRPCollectionTestFactory(test *testing.T, responses map[string]rpCollecti
 			Request:    request,
 		}, nil
 	}}
-	factory, err := hcpsdk20240610preview.NewClientFactory(rpCollectionSubscription, &fake.TokenCredential{}, &azcorearm.ClientOptions{
+	factory, err := hcpsdk20260901preview.NewClientFactory(rpCollectionSubscription, &fake.TokenCredential{}, &azcorearm.ClientOptions{
 		ClientOptions: policy.ClientOptions{
 			Transport: transport,
 			Retry:     policy.RetryOptions{MaxRetries: -1},
@@ -118,11 +118,11 @@ func TestCollectRPResourcesAtEndOfRunWithoutArtifacts(test *testing.T) {
 	require.NoError(test, CollectRPResourcesAtEndOfRun(context.Background()))
 }
 
-func TestCollectRPResources20240610Pagination(test *testing.T) {
+func TestCollectRPResources20260901Pagination(test *testing.T) {
 	resourceGroups := []string{"rg-a"}
 	clusterListPath := rpCollectionGroupPath
 	responses := map[string]rpCollectionTestResponse{
-		clusterListPath:                                    {body: fmt.Sprintf(`{"value":[{"id":%q,"name":"cluster-a","properties":{"provisioningState":"Updating"}}],"nextLink":%q}`, rpCollectionClusterPath, "https://example.com"+clusterListPath+"?page=2")},
+		clusterListPath:                                    {body: fmt.Sprintf(`{"value":[{"id":%q,"name":"cluster-a","properties":{"provisioningState":"Updating","cryptoRestrictions":"FIPS","imageDigestMirrors":[{"source":"registry.example.com/source","mirrors":["mirror.example.com/source"]}]}}],"nextLink":%q}`, rpCollectionClusterPath, "https://example.com"+clusterListPath+"?page=2")},
 		clusterListPath + "?page=2":                        {body: fmt.Sprintf(`{"value":[{"id":%q,"name":"cluster-b"}]}`, rpCollectionGroupPath+"/cluster-b")},
 		rpCollectionClusterPath + "/nodePools":             {body: fmt.Sprintf(`{"value":[{"name":"pool-1"}],"nextLink":%q}`, "https://example.com"+rpCollectionClusterPath+"/nodePools?page=2")},
 		rpCollectionClusterPath + "/nodePools?page=2":      {body: `{"value":[{"name":"pool-2"}]}`},
@@ -134,12 +134,16 @@ func TestCollectRPResources20240610Pagination(test *testing.T) {
 	var requests []string
 	factory := newRPCollectionTestFactory(test, responses, &requests)
 	outputDir := filepath.Join(test.TempDir(), "rp-resources")
-	require.NoError(test, collectRPResources20240610(context.Background(), factory, resourceGroups, outputDir))
+	require.NoError(test, collectRPResources20260901(context.Background(), factory, resourceGroups, outputDir))
 	require.Len(test, requests, 8)
-	var clusters []*hcpsdk20240610preview.HcpOpenShiftCluster
+	var clusters []*hcpsdk20260901preview.HcpOpenShiftCluster
 	readRPCollectionArtifact(test, outputDir, "clusters.json", &clusters)
 	require.Len(test, clusters, 2)
 	require.Equal(test, "Updating", string(ptr.Deref(clusters[0].Properties.ProvisioningState, "")))
+	require.Equal(test, hcpsdk20260901preview.CryptoRestrictionsFIPS, ptr.Deref(clusters[0].Properties.CryptoRestrictions, ""))
+	require.Len(test, clusters[0].Properties.ImageDigestMirrors, 1)
+	require.Equal(test, "registry.example.com/source", ptr.Deref(clusters[0].Properties.ImageDigestMirrors[0].Source, ""))
+	require.Equal(test, []*string{ptr.To("mirror.example.com/source")}, clusters[0].Properties.ImageDigestMirrors[0].Mirrors)
 	var nodePools []collectedNodePool
 	readRPCollectionArtifact(test, outputDir, "nodepools.json", &nodePools)
 	require.Len(test, nodePools, 2)
@@ -154,7 +158,7 @@ func TestCollectRPResources20240610Pagination(test *testing.T) {
 	require.Equal(test, "cluster-a", externalAuths[1].Cluster)
 }
 
-func TestCollectRPResources20240610PartialFailures(test *testing.T) {
+func TestCollectRPResources20260901PartialFailures(test *testing.T) {
 	otherGroupPath := strings.ReplaceAll(rpCollectionGroupPath, "rg-a", "rg-b")
 	responses := map[string]rpCollectionTestResponse{
 		strings.ReplaceAll(rpCollectionGroupPath, "rg-a", "denied"): {status: http.StatusForbidden, body: `{"error":{"code":"AuthorizationFailed","message":"denied"}}`},
@@ -170,12 +174,12 @@ func TestCollectRPResources20240610PartialFailures(test *testing.T) {
 	var requests []string
 	factory := newRPCollectionTestFactory(test, responses, &requests)
 	outputDir := test.TempDir()
-	err := collectRPResources20240610(context.Background(), factory, []string{"denied", "rg-a", "rg-b"}, outputDir)
+	err := collectRPResources20260901(context.Background(), factory, []string{"denied", "rg-a", "rg-b"}, outputDir)
 	require.ErrorContains(test, err, "list clusters in denied")
 	require.ErrorContains(test, err, "list clusters in rg-a")
 	require.ErrorContains(test, err, "list node pools for rg-a/cluster-a")
 	require.ErrorContains(test, err, "list external auths for rg-b/cluster-b")
-	var clusters []*hcpsdk20240610preview.HcpOpenShiftCluster
+	var clusters []*hcpsdk20260901preview.HcpOpenShiftCluster
 	readRPCollectionArtifact(test, outputDir, "clusters.json", &clusters)
 	require.Len(test, clusters, 2)
 	var nodePools []collectedNodePool
@@ -186,27 +190,27 @@ func TestCollectRPResources20240610PartialFailures(test *testing.T) {
 	require.Len(test, externalAuths, 1)
 }
 
-func TestCollectRPResources20240610InvalidClusters(test *testing.T) {
+func TestCollectRPResources20260901InvalidClusters(test *testing.T) {
 	responses := map[string]rpCollectionTestResponse{
 		rpCollectionGroupPath: {body: fmt.Sprintf(`{"value":[null,{"id":%q}]}`, rpCollectionClusterPath)},
 	}
 	var requests []string
 	factory := newRPCollectionTestFactory(test, responses, &requests)
 	outputDir := test.TempDir()
-	err := collectRPResources20240610(context.Background(), factory, []string{"rg-a"}, outputDir)
+	err := collectRPResources20260901(context.Background(), factory, []string{"rg-a"}, outputDir)
 	require.ErrorContains(test, err, "has no resource group or name")
-	var clusters []*hcpsdk20240610preview.HcpOpenShiftCluster
+	var clusters []*hcpsdk20260901preview.HcpOpenShiftCluster
 	readRPCollectionArtifact(test, outputDir, "clusters.json", &clusters)
 	require.Len(test, clusters, 1)
 }
 
-func TestCollectRPResources20240610Canceled(test *testing.T) {
+func TestCollectRPResources20260901Canceled(test *testing.T) {
 	var requests []string
 	factory := newRPCollectionTestFactory(test, nil, &requests)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	outputDir := test.TempDir()
-	require.ErrorIs(test, collectRPResources20240610(ctx, factory, []string{"rg-a"}, outputDir), context.Canceled)
+	require.ErrorIs(test, collectRPResources20260901(ctx, factory, []string{"rg-a"}, outputDir), context.Canceled)
 	for _, name := range []string{"clusters.json", "nodepools.json", "externalauths.json"} {
 		data, err := os.ReadFile(filepath.Join(outputDir, name))
 		require.NoError(test, err)
@@ -214,13 +218,13 @@ func TestCollectRPResources20240610Canceled(test *testing.T) {
 	}
 }
 
-func TestCollectRPResources20240610WriteFailure(test *testing.T) {
+func TestCollectRPResources20260901WriteFailure(test *testing.T) {
 	responses := map[string]rpCollectionTestResponse{rpCollectionGroupPath: {body: `{"value":[]}`}}
 	var requests []string
 	factory := newRPCollectionTestFactory(test, responses, &requests)
 	outputDir := test.TempDir()
 	require.NoError(test, os.Mkdir(filepath.Join(outputDir, "clusters.json"), 0755))
-	require.ErrorContains(test, collectRPResources20240610(context.Background(), factory, []string{"rg-a"}, outputDir), "write clusters.json")
+	require.ErrorContains(test, collectRPResources20260901(context.Background(), factory, []string{"rg-a"}, outputDir), "write clusters.json")
 	for _, name := range []string{"nodepools.json", "externalauths.json"} {
 		data, err := os.ReadFile(filepath.Join(outputDir, name))
 		require.NoError(test, err)
@@ -286,7 +290,7 @@ func TestIsRPResourceNotFound(test *testing.T) {
 	}
 }
 
-func TestCollectRPResources20240610DeletedResources(test *testing.T) {
+func TestCollectRPResources20260901DeletedResources(test *testing.T) {
 	otherGroupPath := strings.ReplaceAll(rpCollectionGroupPath, "rg-a", "rg-b")
 	lastGroupPath := strings.ReplaceAll(rpCollectionGroupPath, "rg-a", "rg-c")
 	notFound := rpCollectionTestResponse{status: http.StatusNotFound, body: `{"error":{"code":"ResourceNotFound","message":"deleted"}}`}
@@ -306,7 +310,7 @@ func TestCollectRPResources20240610DeletedResources(test *testing.T) {
 	factory := newRPCollectionTestFactory(test, responses, &requests)
 	outputDir := test.TempDir()
 	stderr := captureRPCollectionStderr(test, func() {
-		require.NoError(test, collectRPResources20240610(context.Background(), factory, []string{"gone", "rg-a", "rg-b", "rg-c"}, outputDir))
+		require.NoError(test, collectRPResources20260901(context.Background(), factory, []string{"gone", "rg-a", "rg-b", "rg-c"}, outputDir))
 	})
 	require.Empty(test, stderr)
 	require.Len(test, requests, len(responses))

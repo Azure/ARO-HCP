@@ -30,10 +30,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
-func NewRPClientFactory20240610(ctx context.Context) (*hcpsdk20240610preview.ClientFactory, error) {
+func NewRPClientFactory20260901(ctx context.Context) (*hcpsdk20260901preview.ClientFactory, error) {
 	inv := invocationContext()
 	creds, err := inv.getAzureCredentials()
 	if err != nil {
@@ -47,7 +47,7 @@ func NewRPClientFactory20240610(ctx context.Context) (*hcpsdk20240610preview.Cli
 	if err != nil {
 		return nil, fmt.Errorf("resolve RP collection subscription: %w", err)
 	}
-	return hcpsdk20240610preview.NewClientFactory(subscriptionID, creds, inv.getHCPClientFactoryOptions())
+	return hcpsdk20260901preview.NewClientFactory(subscriptionID, creds, inv.getHCPClientFactoryOptions())
 }
 
 func CollectRPResourcesAtEndOfRun(ctx context.Context) error {
@@ -67,11 +67,11 @@ func CollectRPResourcesAtEndOfRun(ctx context.Context) error {
 		fmt.Fprintln(os.Stderr, "WARNING: no tracked resource groups in SHARED_DIR, skipping RP resource collection")
 		return nil
 	}
-	clientFactory, err := NewRPClientFactory20240610(ctx)
+	clientFactory, err := NewRPClientFactory20260901(ctx)
 	if err != nil {
 		return err
 	}
-	return collectRPResources20240610(ctx, clientFactory, resourceGroups, filepath.Join(outputDir, "rp-resources"))
+	return collectRPResources20260901(ctx, clientFactory, resourceGroups, filepath.Join(outputDir, "rp-resources"))
 }
 
 func trackedRPResourceGroups(sharedDir string) ([]string, error) {
@@ -98,17 +98,17 @@ func trackedRPResourceGroups(sharedDir string) ([]string, error) {
 type collectedNodePool struct {
 	ResourceGroup string                          `json:"resourceGroup"`
 	Cluster       string                          `json:"cluster"`
-	NodePool      *hcpsdk20240610preview.NodePool `json:"nodePool"`
+	NodePool      *hcpsdk20260901preview.NodePool `json:"nodePool"`
 }
 
 type collectedExternalAuth struct {
 	ResourceGroup string                              `json:"resourceGroup"`
 	Cluster       string                              `json:"cluster"`
-	ExternalAuth  *hcpsdk20240610preview.ExternalAuth `json:"externalAuth"`
+	ExternalAuth  *hcpsdk20260901preview.ExternalAuth `json:"externalAuth"`
 }
 
-func collectRPResources20240610(ctx context.Context, clientFactory *hcpsdk20240610preview.ClientFactory, resourceGroups []string, outputDir string) error {
-	clusters := []*hcpsdk20240610preview.HcpOpenShiftCluster{}
+func collectRPResources20260901(ctx context.Context, clientFactory *hcpsdk20260901preview.ClientFactory, resourceGroups []string, outputDir string) error {
+	clusters := []*hcpsdk20260901preview.HcpOpenShiftCluster{}
 	nodePools := []collectedNodePool{}
 	externalAuths := []collectedExternalAuth{}
 	var collectionErrors []error
@@ -117,7 +117,7 @@ func collectRPResources20240610(ctx context.Context, clientFactory *hcpsdk202406
 		collectionErrors = append(collectionErrors, err)
 	}
 
-	collectCluster := func(cluster *hcpsdk20240610preview.HcpOpenShiftCluster, resourceGroup string) {
+	collectCluster := func(cluster *hcpsdk20260901preview.HcpOpenShiftCluster, resourceGroup string) {
 		if cluster == nil {
 			return
 		}
@@ -180,8 +180,6 @@ func collectRPResources20240610(ctx context.Context, clientFactory *hcpsdk202406
 		name string
 		data any
 	}{
-		// The 2024-06-10 preview SDK omits later fields such as imageDigestMirrors
-		// and cryptoRestrictions, so they are absent from clusters.json.
 		{name: "clusters.json", data: clusters},
 		{name: "nodepools.json", data: nodePools},
 		{name: "externalauths.json", data: externalAuths},
