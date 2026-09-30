@@ -11,6 +11,10 @@ tests:
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "1+0x30"
+  # Info metric emitted by KSM for ALL HostedClusters (no deletion_timestamp for healthy clusters).
+  # Verifies the {deletion_timestamp!=""} filter does not suppress healthy-cluster SLI.
+  - series: 'hostedClusterAPI_deleting{name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
+    values: "1+0x30" 
   promql_expr_test:
   - eval_time: 20m
     expr: hostedClusterAPI_kubeapiserver_available:sli_sum_5m{name="test-cluster"}
