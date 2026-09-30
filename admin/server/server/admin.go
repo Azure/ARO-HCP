@@ -85,10 +85,12 @@ func NewAdminAPI(
 	maxSessionTTL time.Duration,
 	allowedBreakglassGroups set.Set[string],
 	gatherer prometheus.Gatherer,
+	metricsRegisterer prometheus.Registerer,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 ) *AdminAPI {
 	// Pre-mux middleware (runs on all admin routes before pattern matching)
 	middlewareMux := middleware.NewMiddlewareMux(
+		middleware.NewMiddlewareMetrics(metricsRegisterer).HandleRequest,
 		middleware.MiddlewareLogger,
 		middleware.MiddlewareLowercase,
 		middleware.NewMiddlewareAudit(auditClient).HandleRequest,

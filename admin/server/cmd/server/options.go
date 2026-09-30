@@ -375,6 +375,7 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.MaxSessionTTL,
 		opts.AllowedBreakglassGroups,
 		opts.Registry,
+		opts.Registry,
 		opts.KubeApplierDBClients,
 	)
 
