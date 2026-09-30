@@ -23,7 +23,7 @@ import (
 func registerCsStateDumpController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateCsStateDumpController, true),
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateCsStateDumpController, false),
 	}
 }
 
@@ -31,7 +31,7 @@ func instantiateCsStateDumpController(controllerContext controllerconfig.Control
 	_, clusterLister := controllerContext.BackendInformers.Clusters()
 	_, nodePoolLister := controllerContext.BackendInformers.NodePools()
 	_, activeOperationLister := controllerContext.BackendInformers.ActiveOperations()
-	return NewCSStateDumpController(controllerContext.ResourcesDBClient, clusterLister, nodePoolLister, activeOperationLister, controllerContext.BackendInformers, controllerContext.UnionKubeApplierInformers, controllerContext.ClustersServiceClient), nil
+	return NewCSStateDumpController(controllerContext.ResourcesDBClient, clusterLister, nodePoolLister, activeOperationLister, controllerContext.BackendInformers, controllerContext.ClustersServiceClient), nil
 }
 
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
