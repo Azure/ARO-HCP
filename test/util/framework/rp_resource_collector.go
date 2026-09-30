@@ -30,10 +30,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
-	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	armhcp "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
-func NewRPClientFactory20260901(ctx context.Context) (*hcpsdk20260901preview.ClientFactory, error) {
+func NewRPClientFactory(ctx context.Context) (*armhcp.ClientFactory, error) {
 	inv := invocationContext()
 	creds, err := inv.getAzureCredentials()
 	if err != nil {
@@ -47,7 +47,7 @@ func NewRPClientFactory20260901(ctx context.Context) (*hcpsdk20260901preview.Cli
 	if err != nil {
 		return nil, fmt.Errorf("resolve RP collection subscription: %w", err)
 	}
-	return hcpsdk20260901preview.NewClientFactory(subscriptionID, creds, inv.getHCPClientFactoryOptions())
+	return armhcp.NewClientFactory(subscriptionID, creds, inv.getHCPClientFactoryOptions())
 }
 
 func CollectRPResourcesAtEndOfRun(ctx context.Context) error {
@@ -67,11 +67,11 @@ func CollectRPResourcesAtEndOfRun(ctx context.Context) error {
 		fmt.Fprintln(os.Stderr, "WARNING: no tracked resource groups in SHARED_DIR, skipping RP resource collection")
 		return nil
 	}
-	clientFactory, err := NewRPClientFactory20260901(ctx)
+	clientFactory, err := NewRPClientFactory(ctx)
 	if err != nil {
 		return err
 	}
-	return collectRPResources20260901(ctx, clientFactory, resourceGroups, filepath.Join(outputDir, "rp-resources"))
+	return collectRPResources(ctx, clientFactory, resourceGroups, filepath.Join(outputDir, "rp-resources"))
 }
 
 func trackedRPResourceGroups(sharedDir string) ([]string, error) {
@@ -96,19 +96,19 @@ func trackedRPResourceGroups(sharedDir string) ([]string, error) {
 }
 
 type collectedNodePool struct {
-	ResourceGroup string                          `json:"resourceGroup"`
-	Cluster       string                          `json:"cluster"`
-	NodePool      *hcpsdk20260901preview.NodePool `json:"nodePool"`
+	ResourceGroup string           `json:"resourceGroup"`
+	Cluster       string           `json:"cluster"`
+	NodePool      *armhcp.NodePool `json:"nodePool"`
 }
 
 type collectedExternalAuth struct {
-	ResourceGroup string                              `json:"resourceGroup"`
-	Cluster       string                              `json:"cluster"`
-	ExternalAuth  *hcpsdk20260901preview.ExternalAuth `json:"externalAuth"`
+	ResourceGroup string               `json:"resourceGroup"`
+	Cluster       string               `json:"cluster"`
+	ExternalAuth  *armhcp.ExternalAuth `json:"externalAuth"`
 }
 
-func collectRPResources20260901(ctx context.Context, clientFactory *hcpsdk20260901preview.ClientFactory, resourceGroups []string, outputDir string) error {
-	clusters := []*hcpsdk20260901preview.HcpOpenShiftCluster{}
+func collectRPResources(ctx context.Context, clientFactory *armhcp.ClientFactory, resourceGroups []string, outputDir string) error {
+	clusters := []*armhcp.HcpOpenShiftCluster{}
 	nodePools := []collectedNodePool{}
 	externalAuths := []collectedExternalAuth{}
 	var collectionErrors []error
@@ -117,7 +117,7 @@ func collectRPResources20260901(ctx context.Context, clientFactory *hcpsdk202609
 		collectionErrors = append(collectionErrors, err)
 	}
 
-	collectCluster := func(cluster *hcpsdk20260901preview.HcpOpenShiftCluster, resourceGroup string) {
+	collectCluster := func(cluster *armhcp.HcpOpenShiftCluster, resourceGroup string) {
 		if cluster == nil {
 			return
 		}
