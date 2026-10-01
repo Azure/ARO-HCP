@@ -39,6 +39,7 @@ func TestCheckNodePoolInstallVersion(t *testing.T) {
 		{version: "4.22.0-0.nightly-multi-2026-09-23-090319"},
 		{version: "5.0.0-0.nightly-multi-2026-09-23-090319"},
 		{version: "4.20", invalid: true},
+		{version: "4.21", invalid: true},
 		{version: "invalid", invalid: true},
 		{version: "", invalid: true},
 	} {

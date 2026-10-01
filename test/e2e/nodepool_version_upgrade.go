@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -47,6 +48,7 @@ import (
 // Skip. An empty string with a nil error likewise means "no version resolved at this offset".
 // Versions below the RP's node pool minimum return a skippable error before any
 // resources are created, including when the version is a downgrade target.
+// Invalid resolved versions fail the spec here so callers cannot skip parse errors.
 func resolveNodePoolTestVersion(ctx context.Context, channelGroup, minor string, offset uint) (string, error) {
 	var version string
 	if channelGroup == "nightly" {
@@ -68,10 +70,12 @@ func resolveNodePoolTestVersion(ctx context.Context, channelGroup, minor string,
 		}
 		version = release.Version
 	}
-	if err := framework.CheckNodePoolInstallVersion(version); err != nil {
+	err := framework.CheckNodePoolInstallVersion(version)
+	if errors.Is(err, framework.ErrNodePoolVersionTooOld) {
 		GinkgoLogr.Info(err.Error())
 		return "", err
 	}
+	Expect(err).NotTo(HaveOccurred(), "invalid resolved node pool version %q for %s-%s", version, channelGroup, minor)
 	return version, nil
 }
 

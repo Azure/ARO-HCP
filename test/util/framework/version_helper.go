@@ -48,11 +48,15 @@ const (
 )
 
 // CheckNodePoolInstallVersion checks a resolved install or upgrade/downgrade target
-// against the RP's minimum. Unlike feature checks in PickAtLeastOpenshiftVersionId,
-// this uses full semver ordering, including pre-release suffixes: a 4.20.0 nightly
-// is below 4.20.8 regardless of its build date. Callers can skip unsupported
+// against the RP's minimum using full semver ordering. PickAtLeastOpenshiftVersionId
+// compares only Major.Minor.Patch for prereleases, ignoring their suffix for feature
+// minimum checks. This check retains prerelease ordering: a 4.20.0 nightly is below
+// 4.20.8 regardless of its build date. Callers can skip unsupported
 // selections before provisioning resources without changing the requested version.
 func CheckNodePoolInstallVersion(version string) error {
+	// Node pool requests require a concrete MAJOR.MINOR.PATCH version. Match the
+	// RP's OpenShiftWithOptionalPrerelease syntax validator; its minimum validator
+	// alone accepts bare release lines that are invalid in a node pool request.
 	parsed, err := semver.Parse(version)
 	if err != nil {
 		return fmt.Errorf("parse node pool install version %q: %w", version, err)
