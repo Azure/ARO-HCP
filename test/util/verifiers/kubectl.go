@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -152,6 +153,33 @@ func VerifyGetDeploymentLogs(namespace, deploymentName, containerName string) Ho
 		deploymentName: deploymentName,
 		containerName:  containerName,
 	}
+}
+
+// VerifyDeploymentLogsReachable is like VerifyGetDeploymentLogs but polls internally
+// using the shared pollUntilReady helper until logs are reachable or timeout expires.
+// Use this when the caller should not need its own Eventually loop.
+func VerifyDeploymentLogsReachable(namespace, deploymentName, containerName string, timeout time.Duration) HostedClusterVerifier {
+	return verifyDeploymentLogsReachable{
+		inner:   verifyCanGetDeploymentLogs{namespace: namespace, deploymentName: deploymentName, containerName: containerName},
+		timeout: timeout,
+	}
+}
+
+type verifyDeploymentLogsReachable struct {
+	inner   verifyCanGetDeploymentLogs
+	timeout time.Duration
+}
+
+func (v verifyDeploymentLogsReachable) Name() string {
+	return v.inner.Name()
+}
+
+func (v verifyDeploymentLogsReachable) Verify(ctx context.Context, restConfig *rest.Config) error {
+	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, restConfig, DefaultDiagnoseTimeout, nil,
+		func(ctx context.Context) error {
+			return v.inner.Verify(ctx, restConfig)
+		},
+	)
 }
 
 func (v verifyCanGetDeploymentLogs) Name() string {

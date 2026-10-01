@@ -157,19 +157,8 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("All worker nodes are Ready, confirming Swift networking path to KAS is functional")
 
 			By("verifying bidirectional Swift connectivity by fetching router-default pod logs")
-			logVerifier := verifiers.VerifyGetDeploymentLogs("openshift-ingress", "router-default", "router")
-			var previousLogErr string
-			Eventually(func() error {
-				err := logVerifier.Verify(ctx, adminRESTConfig)
-				if err != nil {
-					if currentErr := err.Error(); currentErr != previousLogErr {
-						GinkgoLogr.Info("Verifier check", "name", logVerifier.Name(), "status", "failed", "error", currentErr)
-						previousLogErr = currentErr
-					}
-				}
-				return err
-			}, 10*time.Minute, 30*time.Second).Should(Succeed(),
-				"fetching router-default logs should succeed, proving KAS-to-kubelet Swift path")
+			err = verifiers.VerifyDeploymentLogsReachable("openshift-ingress", "router-default", "router", 10*time.Minute).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "fetching router-default logs should succeed, proving KAS-to-kubelet Swift path")
 			GinkgoLogr.Info("Bidirectional Swift connectivity confirmed via pod log retrieval")
 
 			By("verifying public ingress is reachable from outside the VNet (console URL)")
