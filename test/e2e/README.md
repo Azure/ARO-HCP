@@ -105,7 +105,9 @@ $ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.21.0
 The multiversion install and node-pool version upgrade/downgrade specs check every
 resolved install and target version against the RP's node-pool minimum before
 creating Azure resources. Unsupported selections are skipped with the selected
-version and required minimum in the reason. In particular, `4.20.0-0.nightly-*`
+version and required minimum in the reason. The multiversion spec submits the
+same prevalidated version for its node pool instead of selecting another build
+from cluster history after provisioning. In particular, `4.20.0-0.nightly-*`
 builds are below the `4.20.8` minimum regardless of their build date; selecting a
 newer 4.20 nightly cannot satisfy it. Supported release and nightly versions
 continue to run. Control-plane-only version selection is independent of this

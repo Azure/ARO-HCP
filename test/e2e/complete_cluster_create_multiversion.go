@@ -20,19 +20,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/blang/semver/v4"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
-
-	configv1 "github.com/openshift/api/config/v1"
-	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -88,7 +81,7 @@ var _ = Describe("ARO-HCP", func() {
 				resolvedInstallVersion = desiredVersion.Version
 			}
 
-			// This spec installs a node pool at the control plane's version. Check the
+			// Use this resolved version for the node pool request below. Check the
 			// concrete build before creating the cluster; 4.20 nightlies report 4.20.0
 			// and cannot meet the RP's 4.20.8 node pool minimum.
 			err := framework.CheckNodePoolInstallVersion(resolvedInstallVersion)
@@ -152,30 +145,10 @@ var _ = Describe("ARO-HCP", func() {
 			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.ClusterName = clusterName
 			nodePoolParams.NodePoolName = nodePoolName
-			// Calculate the node pool version
-			configClient, err := configv1client.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to create OpenShift config client for cluster %q", clusterName)
-			clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to get ClusterVersion for cluster %q", clusterName)
-			var parseableVersions []string
-			for _, h := range clusterVersion.Status.History {
-				if _, err := semver.ParseTolerant(h.Version); err != nil {
-					continue
-				}
-				parseableVersions = append(parseableVersions, h.Version)
-				if h.State == configv1.CompletedUpdate {
-					break
-				}
-			}
-			sort.Slice(parseableVersions, func(i, j int) bool {
-				vi, _ := semver.ParseTolerant(parseableVersions[i])
-				vj, _ := semver.ParseTolerant(parseableVersions[j])
-				return vi.LT(vj)
-			})
-			if len(parseableVersions) == 0 {
-				Skip(fmt.Sprintf("No node pool install version found for %s in %s channel", version, nodePoolParams.ChannelGroup))
-			}
-			nodePoolParams.OpenshiftVersionId = parseableVersions[0]
+			// Keep the prevalidated selection through request construction. Re-selecting
+			// from cluster history here could choose a build below the minimum after
+			// resources have already been provisioned.
+			nodePoolParams.OpenshiftVersionId = resolvedInstallVersion
 
 			By(fmt.Sprintf("creating node pool %q with version '%s' on %s channel", nodePoolName, nodePoolParams.OpenshiftVersionId, nodePoolParams.ChannelGroup))
 			err = tc.CreateNodePoolFromParam20240610(
