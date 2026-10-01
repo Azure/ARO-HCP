@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"strings"
 	"time"
 
@@ -228,7 +229,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 	// required set is confirmed present below.
 	ensureExistingSucceeded, ensureExistingFailed, ensureExistingErr := c.ensureDenyAssignmentReferences(ctx, cluster, replacement, denyAssignmentsClient, genericResourcesClient,
 		managedResourceGroupID, denyAssignmentDefinitionsByType, requiredExistingRefs)
-	replacement.Status.AzureResources.DenyAssignments.AzureResources = appendDenyAssignmentReference(staleExistingRefs, ensureExistingSucceeded...)
+	replacement.Status.AzureResources.DenyAssignments.AzureResources = appendDenyAssignmentReference(slices.Clone(staleExistingRefs), ensureExistingSucceeded...)
 	replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = appendDenyAssignmentReference(replacement.Status.AzureResources.DenyAssignments.PendingAzureResources, ensureExistingFailed...)
 	serviceProviderCluster, replacement, err = replaceServiceProviderClusterIfChanged(ctx, serviceProviderClusterCRUD, serviceProviderCluster, replacement, []error{ensureExistingErr})
 	if serviceProviderCluster == nil || err != nil {
@@ -276,7 +277,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 	// keeps its protection; the deletion is retried on the next reconcile.
 	if allRequiredDenyAssignmentsPresent(replacement.Status.AzureResources.DenyAssignments.AzureResources, requiredDenyAssignmentReferenceByType) {
 		var staleDeletionErrs []error
-		for _, stale := range appendDenyAssignmentReference(staleExistingRefs, stalePendingRefs...) {
+		for _, stale := range appendDenyAssignmentReference(slices.Clone(staleExistingRefs), stalePendingRefs...) {
 			if err := c.deleteDenyAssignment(ctx, genericResourcesClient, stale.DenyAssignmentResourceID); err != nil {
 				staleDeletionErrs = append(staleDeletionErrs, utils.TrackError(fmt.Errorf("failed to delete stale deny assignment %s: %w", stale.DenyAssignmentType, err)))
 				continue
