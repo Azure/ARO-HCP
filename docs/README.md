@@ -165,6 +165,8 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [Node Health](controllers/node-health.md)
   - Fault detectors, health metadata and readiness-history evidence
   - Observation only, with independent mitigation admission and rollout
+- [SWIFT Router Pod Mitigation](controllers/swift-pod-mitigation.md)
+  - Guarded router Pod eviction, opt-in configuration and durable accounting
 - [Node Mitigation](controllers/node-mitigation.md)
   - Design for SWIFT eviction and guarded never-ready mitigation with shared safety budgets
   - SWIFT pod eviction, gated never-ready AKS deletion, and durable budget/operation accounting
