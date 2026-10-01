@@ -54,6 +54,11 @@ jobs:
         # ci/prow/test-unit presubmit already runs the same `make test-unit`
         # target in a properly provisioned CI image.
         build-mode: ${{ matrix.language == 'go' && 'manual' || 'none' }}
+        # Limit CodeQL RAM to leave headroom for the Go build with tracing overhead.
+        # Standard ubuntu-latest has 16 GB total; CodeQL was allocated 14.5 GB by default, leaving
+        # only ~1.5 GB for the build, causing exit 143 (SIGTERM due to memory pressure).
+        # Applied to both languages; Python doesn't have the same memory pressure but keep consistent configuration.
+        ram: 8192
         # Use default CodeQL query packs
         # For custom queries, add: queries: security-and-quality
     - name: Build (go)
