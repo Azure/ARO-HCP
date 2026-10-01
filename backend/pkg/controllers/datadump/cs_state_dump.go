@@ -30,7 +30,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	corelisters "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
-	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -53,7 +52,6 @@ func NewCSStateDumpController(
 	nodePoolLister corelisters.NodePoolLister,
 	activeOperationLister corelisters.ActiveOperationLister,
 	backendInformers coreinformers.BackendInformers,
-	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	csClient ocm.ClusterServiceClientSpec,
 ) controllerutils.Controller {
 	syncer := &csStateDump{
@@ -63,11 +61,15 @@ func NewCSStateDumpController(
 		nextDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 	}
 
+	// kubeApplierInformers is intentionally omitted. SyncOnce only logs Cluster Service
+	// cluster and node pool state, so cluster-scoped ReadDesire and ApplyDesire updates
+	// must not requeue it. Those updates are management-cluster observations and apply
+	// status, not a change to the Cluster Service documents this controller dumps.
 	return controllerutils.NewClusterWatchingController(
 		CSStateDumpControllerName,
 		resourcesDBClient,
 		backendInformers,
-		kubeApplierInformers,
+		nil,
 		1*time.Minute,
 		syncer,
 	)
