@@ -102,21 +102,6 @@ $ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.21
 $ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.21.0
 ```
 
-Cluster parameters retain the full selected `OpenshiftVersionId` until the
-`BuildHCPClusterFromParams*` request boundary. For an exact control-plane build
-(including nightly), the builder sends its release line in `properties.version.id`
-and the full build in `aro-hcp.experimental.cluster.control-plane-exact-version`.
-This uses existing RP support to preserve the pin through GET and unrelated PATCH
-requests; it does not change customer `version.id` behavior. The subscription must
-have the `ExperimentalReleaseFeatures` AFEC registered.
-
-Use `PickAtLeastOpenshiftVersionId` on the raw parameters before building requests
-when a test requires a minimum version. Builders preserve explicit exact-version
-tags for bare version IDs and never mutate the input parameters. Version-changing
-PATCH requests must use `ControlPlaneExactVersionPatchTags` to replace an exact pin
-or explicitly send it as `null` when following a release line. Unrelated PATCHes
-should omit it. Node-pool version IDs remain concrete versions.
-
 When `ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION` is set, you can also set
 `ARO_HCP_OPENSHIFT_LATEST_Z_STREAM=true` to resolve that major.minor (or full
 semver) to the latest z-stream install version in the active channel group

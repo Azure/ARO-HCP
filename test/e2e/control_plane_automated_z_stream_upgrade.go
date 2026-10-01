@@ -29,8 +29,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -59,7 +57,7 @@ var _ = Describe("Service Provider", func() {
 			tc := framework.NewTestContext()
 
 			// Install one z-stream behind the channel tip (normalOffset+1) so the backend has a newer
-			// z-stream to automatically upgrade to once the exact-version pin is removed. If the
+			// z-stream to automatically upgrade to once the customer pins the bare minor version. If the
 			// channel has no release at that offset (err) or none is resolved (nil), there is no
 			// automated z-stream upgrade to exercise, so skip.
 			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
@@ -137,28 +135,22 @@ var _ = Describe("Service Provider", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
-			By(fmt.Sprintf("removing the exact version pin and enabling immediate z-stream updates for %s", minorVersion))
-			// This test also runs in production, where fleet canary readiness can
-			// outlast the test's upgrade timeout. Request Immediate when removing
-			// the exact pin so the upgrade does not depend on other clusters.
-			versionLine, upgradeTags := framework.ControlPlaneExactVersionPatchTags(minorVersion)
-			upgradeTags[metadataapi.TagClusterZStreamUpdatePolicy] = to.Ptr(string(coreapi.ImmediateZStreamUpdatePolicy))
+			By(fmt.Sprintf("pinning the cluster to minor version %s to trigger an automated z-stream upgrade", minorVersion))
 			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
-				Tags: upgradeTags,
 				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20240610preview.VersionProfile{
-						ID:           to.Ptr(versionLine),
+						ID:           to.Ptr(minorVersion),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
 			}
 			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to enable immediate z-stream updates for cluster %q on minor version %s", clusterName, minorVersion)
+			Expect(err).NotTo(HaveOccurred(), "failed to pin cluster %q to minor version %s", clusterName, minorVersion)
 
 			By("verifying that only a z-stream upgrade was performed")
 			Eventually(func() error {
 				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion))
-			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed(), "cluster %q did not automatically advance beyond %s with the Immediate policy", clusterName, installVersion)
+			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 			GinkgoLogr.Info("z-stream upgrade verification passed", "installVersion", installVersion)
 		},
 
