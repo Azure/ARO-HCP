@@ -3,5 +3,9 @@ approvers:
 - janboll
 - service-lifecycle-approvers
 - stevekuznetsov
+- mbarnes
+- deads2k
+- machi1990
+- miguelsorianod
 labels:
 - area/docs
