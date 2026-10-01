@@ -32,6 +32,8 @@ flowchart TD
     PA -->|"remote_write<br/>KEEP namespace=ocm-*"| AMW_HCP
 ```
 
+> The diagram above shows the **OSS collector** path (`mgmt.monitoringApiGroup = monitoring.coreos.com`), which is the default. When a management cluster runs in **AMA mode** (`mgmt.monitoringApiGroup = azmonitoring.coreos.com`) there is no `PrometheusAgent`: mgmt-agent's monitortranslator rewrites HyperShift's `monitoring.coreos.com` ServiceMonitors into the `azmonitoring.coreos.com` group, the AMA addon scrapes them, and HCP series reach the HCP workspace via the `microsoft_metrics_account=hcp` series label plus the HCP DCR's `microsoft_metrics_include_label=hcp` filter (instead of the namespace-regex remote-write routing shown above). See [Metrics collection modes](../monitoring.md#metrics-collection-modes).
+
 ### How it works
 
 1. **HyperShift's control-plane-operator** creates a ServiceMonitor per HCP namespace for each component (KAS, etcd, KCM). This happens unconditionally — `--platform-monitoring` does not affect it.
@@ -56,14 +58,25 @@ flowchart TD
 
 AMA's `controlplane-*` settings (`controlplane-apiserver`, `controlplane-etcd`, etc.) scrape the **AKS management cluster's own control plane** — the AKS apiserver that manages the management cluster itself. These have no overlap with HCP metrics.
 
+The AMA addon can also be the cluster's **primary** metrics collector. When `mgmt.monitoringApiGroup = azmonitoring.coreos.com`, the in-cluster OSS Prometheus collector is not deployed and the AMA addon scrapes all `azmonitoring.coreos.com` ServiceMonitors/PodMonitors directly, including the HyperShift monitors translated by mgmt-agent. In that mode:
+
+- **HCP routing** uses labels rather than remote-write namespace rules: translated HCP monitors (and the kube-state-metrics ServiceMonitor) stamp `microsoft_metrics_account=hcp`, and the HCP DCR ingests only series carrying `microsoft_metrics_include_label=hcp`. A `<aks>-hcp-dcra` association binds the AKS cluster to the HCP DCR.
+- **`region`/`environment`** are not supplied by agent `externalLabels` (there is no agent), so the relevant monitors set them with set-if-absent relabelings to preserve parity with OSS.
+- On management clusters, an `ama-metrics-configmap-reader` ClusterRole/CRB grants the AMA addon ServiceAccount read access to the ConfigMaps that translated HyperShift monitors reference.
+
+See [Metrics collection modes](../monitoring.md#metrics-collection-modes) for the full mode matrix and the switch/rollback runbooks.
+
 ## File Locations
 
 | What | Where |
 |------|-------|
+| Metrics collector toggle | `config/config.yaml` → `svc.monitoringApiGroup` / `mgmt.monitoringApiGroup` |
 | SRE metric allowlist | `hypershiftoperator/deploy/templates/sre-metrics-set.configmap.yaml` |
 | HyperShift install flags | `hypershiftoperator/deploy/templates/installer.job.yaml` |
-| PrometheusAgent spec | `observability/prometheus/deploy/templates/prometheus.yaml` |
+| PrometheusAgent spec (OSS mode) | `observability/prometheus/deploy/templates/prometheus.yaml` |
 | KSM custom resource state | `observability/prometheus/values-mgmt.yaml` |
+| KSM ServiceMonitor (AMA mode) | `observability/prometheus/deploy/templates/kube-state-metrics.azmonitoring.servicemonitor.yaml` |
+| AMA ConfigMap reader (AMA mode, mgmt) | `observability/prometheus/deploy/templates/ama-metrics-configmap-reader.yaml` |
 | AMA config | `observability/prometheus/deploy/templates/ama-metrics-settings-configmap.yaml` |
 | Grafana dashboards | `observability/grafana-dashboards/<folder>/` |
 | Dashboard registration | `observability/observability.yaml` → `grafana-dashboards.dashboardFolders` |
@@ -71,7 +84,7 @@ AMA's `controlplane-*` settings (`controlplane-apiserver`, `controlplane-etcd`, 
 | Alert registration | `observability/alerts-sl-services.yaml` → `prometheusRules.rulesFolders` |
 | Recording rules (HCP workspace) | `observability/recording-rules-hcps.yaml` |
 | Generated Bicep alerting rules | `dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep` |
-| DCR/DCE routing (Azure) | `dev-infrastructure/modules/metrics/datacollection.bicep` |
+| DCR/DCE routing + HCP label filter (Azure) | `dev-infrastructure/modules/metrics/datacollection.bicep` |
 
 ## SOPs
 

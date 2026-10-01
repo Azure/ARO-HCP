@@ -43,6 +43,65 @@ Self-managed Prometheus implements namespace-based routing to two Azure Monitor 
 **Deployment:**
 The Prometheus stack is deployed via `dev-infrastructure/mgmt-pipeline.yaml` and `dev-infrastructure/svc-pipeline.yaml` pipelines.
 
+## Metrics collection modes
+
+Each cluster type chooses **one** metrics collector. The choice is a pure per-cluster-type toggle in `config/config.yaml`:
+
+| Config key | Values | Meaning |
+|---|---|---|
+| `svc.monitoringApiGroup` | `monitoring.coreos.com` (default) / `azmonitoring.coreos.com` | Collector for service clusters |
+| `mgmt.monitoringApiGroup` | `monitoring.coreos.com` (default) / `azmonitoring.coreos.com` | Collector for management clusters |
+
+- **OSS mode** (`monitoring.coreos.com`): behaves exactly like the default described above — the kube-prometheus-stack (kps) operator and our `PrometheusAgent` scrape the `monitoring.coreos.com` ServiceMonitor/PodMonitor objects and remote-write to the DCRs. The Azure Monitor (AMA) addon also runs and scrapes its own default targets.
+- **AMA mode** (`azmonitoring.coreos.com`): runs **no** in-cluster OSS collector. The AMA addon scrapes every `azmonitoring.coreos.com` ServiceMonitor/PodMonitor directly. The `monitoring.coreos.com` CRDs stay installed because mgmt-agent's monitortranslator reads HyperShift's monitors in that group and translates them into the AMA group; the kps kube-state-metrics Deployment also stays and is scraped via a dedicated `azmonitoring.coreos.com` ServiceMonitor.
+
+There is no hybrid mode and no second mode knob. Switching a cluster type is a single config change.
+
+### What each mode runs
+
+| Component | OSS (`monitoring.coreos.com`) | AMA (`azmonitoring.coreos.com`) |
+|---|---|---|
+| kps prometheus-operator, admission webhooks/jobs | yes | no |
+| `PrometheusAgent` + its SA/ClusterRole/CRB/PodMonitor | yes | no |
+| kps default rules | yes | no |
+| `monitoring.coreos.com` CRDs | yes | yes (kept for translation) |
+| kps kube-state-metrics Deployment/Service | yes | yes |
+| kube-state-metrics scrape object | kps `monitoring.coreos.com` ServiceMonitor | `azmonitoring.coreos.com` ServiceMonitor (our chart) |
+| Service charts' monitors | `monitoring.coreos.com/v1` | `azmonitoring.coreos.com/v1` |
+| `ama-metrics-configmap-reader` ClusterRole/CRB | no | mgmt clusters only |
+| Services DCR filter | `{}` | `{}` |
+| HCP DCR filter (mgmt only) | `{}`, no DCRA | `{microsoft_metrics_include_label: 'hcp'}` + `<aks>-hcp-dcra` association |
+| HCP routing | agent remote-write by namespace regex | per-series relabel `microsoft_metrics_account=hcp` |
+| `region`/`environment` labels | agent `externalLabels` | set-if-absent relabels on the monitors |
+| `underlay_clusters` metric | `metrics_collector="oss"` | `metrics_collector="ama"` |
+| 4 `up`-based Prometheus self-alerts | fire as today | suppressed for AMA clusters |
+| mgmt-agent monitortranslator/amanetpolicy | off (translated objects pruned) | on |
+
+### HCP routing in AMA mode
+
+OSS mode routes HCP metrics to the HCP workspace by **namespace regex** in the agent's remote-write config. AMA has no such per-cluster remote-write stage, so routing is done with **two cooperating labels**:
+
+- **`microsoft_metrics_account`** is a per-series label. In AMA mode the kube-state-metrics ServiceMonitor (and the mgmt-agent translator, for HyperShift monitors) stamps `microsoft_metrics_account=hcp` on HCP series. This is the per-series routing decision.
+- **`microsoft_metrics_include_label`** is the HCP DCR's filter key. In AMA mode the HCP DCR sets `labelIncludeFilter: {microsoft_metrics_include_label: 'hcp'}`, so the DCR ingests only the series carrying that account label. A new data-collection-rule association (`<aks>-hcp-dcra`) binds the AKS cluster to the HCP DCR.
+
+The services DCR filter stays `{}` in both modes, so non-HCP series continue to flow to the services workspace unchanged.
+
+### Switching a cluster type
+
+Changing `svc.monitoringApiGroup` / `mgmt.monitoringApiGroup` and running a normal rollout converges in one pass: the OSS collector templates render (or stop rendering), the DCR filter and association appear (or are left in place), and mgmt-agent flips its translator/pruner. Two cases need a manual follow-up:
+
+- **AMA → OSS (DCRA left behind):** the deployment is Incremental, so the `<aks>-hcp-dcra` association is not removed automatically. With the HCP DCR filter back at `{}`, AMA would then duplicate its default-target series into the HCP workspace. After switching back, delete the association (verify the exact syntax first):
+  ```
+  az monitor data-collection rule association delete --name <aks>-hcp-dcra --resource <aks resource id>
+  ```
+- **OSS → AMA (PrometheusAgent PVC may survive):** the `PrometheusAgent` sets `persistentVolumeClaimRetentionPolicy: {whenDeleted: Delete}`, but if the live `prometheusagents.monitoring.coreos.com` CRD predates that field (the CRD upgrade job is disabled), the PVC survives. Delete the leftover PVC in the `prometheus` namespace by hand after the agent is gone.
+
+Both are human-run steps; they are the only out-of-band actions a switch can require.
+
+### Trying AMA in a personal dev environment
+
+AMA mode can be exercised in a personal dev environment without committing a config change. Override the key locally (uncommitted) — for example set `defaults.svc.monitoringApiGroup` and/or `defaults.mgmt.monitoringApiGroup` to `azmonitoring.coreos.com` in your working copy of `config/config.yaml`, run `cd config && make materialize`, and deploy with `DEPLOY_ENV=pers`. Revert the edit before committing; do not render the AMA default into `config/rendered/`.
+
 ## Application Metrics Collection
 
 Application metrics are collected through Kubernetes custom resources that define scraping targets for the self-managed Prometheus stack.
