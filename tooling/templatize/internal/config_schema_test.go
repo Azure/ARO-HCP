@@ -65,9 +65,13 @@ func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 			require.Equal(t, false, provenance.Default, "system-pool-only must be opt-in")
 			if wantEnabled {
 				for path, want := range map[string]string{
-					"svc.aks.systemAgentPool.minCount": "3",
-					"svc.aks.systemAgentPool.maxCount": "5",
-					"svc.aks.systemAgentPool.vmSize":   "Standard_D4ds_v6",
+					"svc.aks.systemAgentPool.minCount":         "2",
+					"svc.aks.systemAgentPool.maxCount":         "5",
+					"svc.aks.systemAgentPool.vmSize":           "Standard_D4ds_v6",
+					"mgmt.aks.userAgentPool.minCount":          "6",
+					"mgmt.aks.userAgentPool.maxCount":          "28",
+					"mgmt.aks.userAgentPool.vmSize":            "Standard_D8ds_v6",
+					"mgmt.aks.userAgentPool.secondaryNicCount": "3",
 				} {
 					value, err := baseline.GetByPath(path)
 					require.NoError(t, err)

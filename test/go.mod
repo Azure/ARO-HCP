@@ -12,6 +12,7 @@ require (
 	github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260730193700-1078d78685af
 	github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
+	github.com/Azure/ARO-HCP/tooling/rightsize-requests v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-Tools/config v0.0.0-20260917062117-27fb5fa3a294
@@ -412,6 +413,8 @@ replace github.com/Azure/ARO-HCP/tooling/templatize => ../tooling/templatize
 replace github.com/Azure/ARO-HCP/tooling/hcpctl => ../tooling/hcpctl
 
 replace github.com/Azure/ARO-HCP/tooling/utilitytypes => ../tooling/utilitytypes
+
+replace github.com/Azure/ARO-HCP/tooling/rightsize-requests => ../tooling/rightsize-requests
 
 replace github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 

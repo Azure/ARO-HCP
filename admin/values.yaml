@@ -1,4 +1,12 @@
 location: "{{ .region }}"
+certificateRefresher:
+  resources:
+    requests:
+      cpu: "{{ .adminApi.certificateRefresher.resources.requests.cpu }}"
+      memory: "{{ .adminApi.certificateRefresher.resources.requests.memory }}"
+    limits:
+      cpu: "{{ .adminApi.certificateRefresher.resources.limits.cpu }}"
+      memory: "{{ .adminApi.certificateRefresher.resources.limits.memory }}"
 audit:
   connectSocket: {{ .adminApi.audit.connectSocket }}
 deployment:

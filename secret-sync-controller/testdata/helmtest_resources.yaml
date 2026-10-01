@@ -1,0 +1,20 @@
+values: ../deploy/values-azure.yaml
+name: secret-sync-controller-resources
+namespace: secret-sync-controller
+testData:
+  secretSyncController:
+    k8s:
+      resources:
+        requests:
+          cpu: NONE
+          memory: 120Mi
+        limits:
+          cpu: 100m
+          memory: unlimited
+      controllerResources:
+        requests:
+          cpu: 20m
+          memory: 64Mi
+        limits:
+          cpu: NONE
+          memory: 128Mi

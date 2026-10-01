@@ -1,2 +1,9 @@
 unannotateJobImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
 skuName: "{{ .mgmt.defaultStorageClassSkuName }}"
+resources:
+  requests:
+    cpu: "{{ .mgmt.storageClassHooks.resources.requests.cpu }}"
+    memory: "{{ .mgmt.storageClassHooks.resources.requests.memory }}"
+  limits:
+    cpu: "{{ .mgmt.storageClassHooks.resources.limits.cpu }}"
+    memory: "{{ .mgmt.storageClassHooks.resources.limits.memory }}"

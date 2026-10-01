@@ -375,7 +375,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_hcp}"
+        "uid": "${datasource_svc}"
       },
       "description": "Memory requests per container from kube-state-metrics (pod spec resource requests). HCPs have NO limits, only requests. Tiers: small=8Gi, medium=16Gi, large=32Gi, xlarge=64Gi, xxlarge=96Gi",
       "fieldConfig": {
@@ -447,7 +447,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_hcp}"
+            "uid": "${datasource_svc}"
           },
           "expr": "sum by (container) (kube_pod_container_resource_requests{cluster=\"$cluster\", namespace=\"$namespace\", resource=\"memory\", container!=\"\", container!=\"POD\"})",
           "format": "table",
@@ -908,7 +908,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_hcp}"
+        "uid": "${datasource_svc}"
       },
       "description": "How many pods are in each state right now (Running, Pending, Failed, Succeeded).",
       "fieldConfig": {
@@ -1018,7 +1018,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_hcp}"
+            "uid": "${datasource_svc}"
           },
           "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Running\"})",
           "instant": true,
@@ -1029,7 +1029,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_hcp}"
+            "uid": "${datasource_svc}"
           },
           "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Pending\"})",
           "instant": true,
@@ -1040,7 +1040,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_hcp}"
+            "uid": "${datasource_svc}"
           },
           "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Failed\"})",
           "instant": true,
@@ -1051,7 +1051,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_hcp}"
+            "uid": "${datasource_svc}"
           },
           "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Succeeded\"})",
           "instant": true,

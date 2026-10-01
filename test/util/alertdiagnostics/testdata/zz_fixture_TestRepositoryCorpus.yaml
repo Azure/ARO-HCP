@@ -986,72 +986,21 @@
             value: 1
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevHcpsPrometheusAlertingRules.bicep
-  group: mgmt-capacity-rules
-  alert: MgmtAgentCapacityReportingSyncFailing
+  group: kube-container-oom-rules
+  alert: KubeContainerOOMKilled
   occurrence: 1
-  input: increase(capacity_reporting_sync_errors_total[5m]) >= 8
+  input: kube_pod_container_status_last_terminated_reason{job="kube-state-metrics",reason="OOMKilled"} == 1
   plan:
-    expression: increase(capacity_reporting_sync_errors_total[5m]) >= 8
+    expression: kube_pod_container_status_last_terminated_reason{job="kube-state-metrics",reason="OOMKilled"} == 1
     conditions:
-      - expression: increase(capacity_reporting_sync_errors_total[5m]) >= 8
+      - expression: kube_pod_container_status_last_terminated_reason{job="kube-state-metrics",reason="OOMKilled"} == 1
         path: root
         queries:
-          - expression: increase(capacity_reporting_sync_errors_total[5m])
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 8
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedDevHcpsPrometheusAlertingRules.bicep
-  group: mgmt-capacity-rules
-  alert: MgmtClusterHCPCapacityCritical
-  occurrence: 1
-  input: (count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.85
-  plan:
-    expression: (count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.85
-    conditions:
-      - expression: (count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.85
-        path: root
-        queries:
-          - expression: count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.85
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedDevHcpsPrometheusAlertingRules.bicep
-  group: mgmt-capacity-rules
-  alert: MgmtClusterHCPCapacityWarning
-  occurrence: 1
-  input: (count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.6
-  plan:
-    expression: (count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.6
-    conditions:
-      - expression: (count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.6
-        path: root
-        queries:
-          - expression: count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.6
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedDevHcpsPrometheusAlertingRules.bicep
-  group: mgmt-capacity-rules
-  alert: MgmtClusterNodeSwiftNICCapacityZero
-  occurrence: 1
-  input: kube_node_status_capacity{node=~"user.*",resource="aro_openshift_io_swift_nic"} == 0
-  plan:
-    expression: kube_node_status_capacity{node=~"user.*",resource="aro_openshift_io_swift_nic"} == 0
-    conditions:
-      - expression: kube_node_status_capacity{node=~"user.*",resource="aro_openshift_io_swift_nic"} == 0
-        path: root
-        queries:
-          - expression: kube_node_status_capacity{node=~"user.*",resource="aro_openshift_io_swift_nic"}
+          - expression: kube_pod_container_status_last_terminated_reason{job="kube-state-metrics",reason="OOMKilled"}
             role: signal
         thresholds:
           - operator: ==
-            value: 0
+            value: 1
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
   group: admin-api
@@ -2076,6 +2025,74 @@
           - expression: (group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"})) unless on (cluster) (group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1))
             role: signal
         thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
+  group: mgmt-capacity-rules
+  alert: MgmtAgentCapacityReportingSyncFailing
+  occurrence: 1
+  input: increase(capacity_reporting_sync_errors_total[5m]) >= 8
+  plan:
+    expression: increase(capacity_reporting_sync_errors_total[5m]) >= 8
+    conditions:
+      - expression: increase(capacity_reporting_sync_errors_total[5m]) >= 8
+        path: root
+        queries:
+          - expression: increase(capacity_reporting_sync_errors_total[5m])
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 8
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
+  group: mgmt-capacity-rules
+  alert: MgmtClusterHCPCapacityCritical
+  occurrence: 1
+  input: (count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.85
+  plan:
+    expression: (count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.85
+    conditions:
+      - expression: (count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.85
+        path: root
+        queries:
+          - expression: count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.85
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
+  group: mgmt-capacity-rules
+  alert: MgmtClusterHCPCapacityWarning
+  occurrence: 1
+  input: (count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.6
+  plan:
+    expression: (count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.6
+    conditions:
+      - expression: (count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.6
+        path: root
+        queries:
+          - expression: count by (cluster, region) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.6
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
+  group: mgmt-capacity-rules
+  alert: MgmtClusterNodeSwiftNICCapacityZero
+  occurrence: 1
+  input: kube_node_status_capacity{node=~"user.*",resource="aro_openshift_io_swift_nic"} == 0
+  plan:
+    expression: kube_node_status_capacity{node=~"user.*",resource="aro_openshift_io_swift_nic"} == 0
+    conditions:
+      - expression: kube_node_status_capacity{node=~"user.*",resource="aro_openshift_io_swift_nic"} == 0
+        path: root
+        queries:
+          - expression: kube_node_status_capacity{node=~"user.*",resource="aro_openshift_io_swift_nic"}
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
   group: prometheus-operator-rules

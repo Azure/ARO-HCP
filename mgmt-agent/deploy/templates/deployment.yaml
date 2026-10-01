@@ -25,6 +25,9 @@ spec:
         - controller
         - "--health-address=:{{ .Values.health.port }}"
         - "--ksm-image={{ .Values.ksmImage.registry }}/{{ .Values.ksmImage.repository }}@{{ .Values.ksmImage.digest }}"
+        - "--hcp-kube-state-metrics-cpu-request={{ .Values.guestKSMResources.requests.cpu }}"
+        - "--hcp-kube-state-metrics-memory-request={{ .Values.guestKSMResources.requests.memory }}"
+        - "--hcp-kube-state-metrics-memory-limit={{ .Values.guestKSMResources.limits.memory }}"
         - "--log-verbosity={{ .Values.logVerbosity }}"
         - "--node-health-configmap={{ .Values.nodeHealth.configMapName }}"
         - "--node-health-config-key={{ .Values.nodeHealth.configKey }}"

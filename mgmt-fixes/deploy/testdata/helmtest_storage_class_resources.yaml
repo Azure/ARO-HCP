@@ -1,0 +1,14 @@
+values: ../../default-sc.values.yaml
+name: storage-class-hooks-resources
+namespace: kube-system
+helmChartDir: ../../mgmt-fixes/deploy/default-sc
+testData:
+  mgmt:
+    storageClassHooks:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: NONE
+          memory: NONE

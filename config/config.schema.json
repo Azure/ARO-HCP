@@ -701,6 +701,28 @@
         "digest"
       ]
     },
+    "containerImageWithResources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "registry": {
+          "$ref": "#/definitions/containerImage/properties/registry"
+        },
+        "repository": {
+          "$ref": "#/definitions/containerImage/properties/repository"
+        },
+        "digest": {
+          "$ref": "#/definitions/containerImage/properties/digest"
+        },
+        "resources": {
+          "$ref": "#/definitions/containerResources"
+        }
+      },
+      "required": [
+        "repository",
+        "digest"
+      ]
+    },
     "containerImageTagDigest": {
       "type": "object",
       "additionalProperties": false,
@@ -751,11 +773,11 @@
       "properties": {
         "cpu": {
           "type": "string",
-          "pattern": "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)|(NONE)|(unlimited)$"
+          "pattern": "^((\\+?([0-9]+(\\.[0-9]*)?|\\.[0-9]+))([numkMGTPE]|[KMGTPE]i|[eE][+-]?[0-9]+)?|NONE|unlimited)$"
         },
         "memory": {
           "type": "string",
-          "pattern": "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)|(NONE)|(unlimited)$"
+          "pattern": "^((\\+?([0-9]+(\\.[0-9]*)?|\\.[0-9]+))([numkMGTPE]|[KMGTPE]i|[eE][+-]?[0-9]+)?|NONE|unlimited)$"
         }
       }
     },
@@ -768,6 +790,43 @@
         },
         "limits": {
           "$ref": "#/definitions/resources"
+        }
+      }
+    },
+    "positiveResourceQuantity": {
+      "type": "string",
+      "description": "A positive Kubernetes resource quantity, without omission sentinels.",
+      "allOf": [
+        {
+          "pattern": "^\\+?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([numkMGTPE]|[KMGTPE]i|[eE][+-]?[0-9]+)?$"
+        },
+        {
+          "pattern": "^\\+?[0-9.]*[1-9]"
+        }
+      ]
+    },
+    "positiveResourceRequests": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpu": {
+          "$ref": "#/definitions/positiveResourceQuantity"
+        },
+        "memory": {
+          "$ref": "#/definitions/positiveResourceQuantity"
+        }
+      },
+      "required": [
+        "cpu",
+        "memory"
+      ]
+    },
+    "resourceConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resources": {
+          "$ref": "#/definitions/containerResources"
         }
       }
     },
@@ -886,9 +945,12 @@
           "type": "string"
         },
         "prometheusOperator": {
-          "type:": "object",
+          "type": "object",
           "additionalProperties": false,
           "properties": {
+            "resources": {
+              "$ref": "#/definitions/containerResources"
+            },
             "image": {
               "$ref": "#/definitions/containerImageSha"
             },
@@ -930,6 +992,9 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "resources": {
+              "$ref": "#/definitions/containerResources"
+            },
             "image": {
               "$ref": "#/definitions/containerImageSha"
             }
@@ -939,10 +1004,16 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "resources": {
+              "$ref": "#/definitions/containerResources"
+            },
             "image": {
               "$ref": "#/definitions/containerImage"
             }
           }
+        },
+        "opstoolResources": {
+          "$ref": "#/definitions/containerResources"
         },
         "admissionWebhook": {
           "type": "object",
@@ -1024,6 +1095,9 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "resources": {
+              "$ref": "#/definitions/containerResources"
+            },
             "image": {
               "type": "string"
             },
@@ -1204,6 +1278,39 @@
     "acm": {
       "type": "object",
       "properties": {
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "backplaneOperator": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "policyAddonController": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "policyPropagator": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "klusterletAddonController": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "finalize": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "configPolicyController": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "governancePolicyFramework": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "workManager": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "hypershiftAddonAgent": {
+              "$ref": "#/definitions/containerResources"
+            }
+          }
+        },
         "operator": {
           "type": "object",
           "properties": {
@@ -1244,6 +1351,9 @@
     "clustersService": {
       "type": "object",
       "properties": {
+        "initResources": {
+          "$ref": "#/definitions/containerResources"
+        },
         "deployDebugJobs": {
           "type": "boolean",
           "description": "If true, debug jobs will be deployed to the cluster. The jobs will be used to debug the CS service."
@@ -1478,6 +1588,9 @@
     "sessiongate": {
       "type": "object",
       "properties": {
+        "certificateRefresher": {
+          "$ref": "#/definitions/resourceConfig"
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -1543,6 +1656,31 @@
     "mgmtAgent": {
       "type": "object",
       "properties": {
+        "guestKSMResources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "$ref": "#/definitions/positiveResourceRequests"
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "memory": {
+                  "$ref": "#/definitions/positiveResourceQuantity"
+                }
+              },
+              "required": [
+                "memory"
+              ]
+            }
+          },
+          "required": [
+            "requests",
+            "limits"
+          ]
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -1713,6 +1851,9 @@
     "adminApi": {
       "type": "object",
       "properties": {
+        "certificateRefresher": {
+          "$ref": "#/definitions/resourceConfig"
+        },
         "audit": {
           "$ref": "#/definitions/audit"
         },
@@ -1766,6 +1907,9 @@
     "frontend": {
       "type": "object",
       "properties": {
+        "certificateRefresher": {
+          "$ref": "#/definitions/resourceConfig"
+        },
         "audit": {
           "$ref": "#/definitions/audit"
         },
@@ -2727,6 +2871,48 @@
     "hypershift": {
       "type": "object",
       "properties": {
+        "operatorResources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "$ref": "#/definitions/positiveResourceRequests"
+            }
+          },
+          "required": [
+            "requests"
+          ]
+        },
+        "additionalMinimalResourceRequests": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^.+$": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "deploymentName": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "containerName": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "cpu": {
+                  "$ref": "#/definitions/positiveResourceQuantity"
+                },
+                "memory": {
+                  "$ref": "#/definitions/positiveResourceQuantity"
+                }
+              },
+              "required": [
+                "deploymentName",
+                "containerName"
+              ]
+            }
+          }
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -2831,9 +3017,6 @@
           "properties": {
             "image": {
               "$ref": "#/definitions/containerImage"
-            },
-            "resources": {
-              "$ref": "#/definitions/containerResources"
             }
           },
           "additionalProperties": false,
@@ -2956,6 +3139,9 @@
     "acrPull": {
       "type": "object",
       "properties": {
+        "k8s": {
+          "$ref": "#/definitions/resourceConfig"
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         }
@@ -2987,7 +3173,32 @@
           "$ref": "#/definitions/containerImage"
         },
         "k8s": {
-          "$ref": "#/definitions/k8sDeployment"
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "namespace": {
+              "$ref": "#/definitions/namespaceName"
+            },
+            "serviceAccountName": {
+              "$ref": "#/definitions/serviceAccountName"
+            },
+            "replicas": {
+              "$ref": "#/definitions/k8sDeployment/properties/replicas"
+            },
+            "deploymentStrategy": {
+              "$ref": "#/definitions/k8sDeploymentStrategy"
+            },
+            "resources": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "controllerResources": {
+              "$ref": "#/definitions/containerResources"
+            }
+          },
+          "required": [
+            "namespace",
+            "serviceAccountName"
+          ]
         }
       },
       "additionalProperties": false,
@@ -3005,6 +3216,12 @@
         "server": {
           "type": "object",
           "properties": {
+            "migrationResources": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "waitForDBResources": {
+              "$ref": "#/definitions/containerResources"
+            },
             "mqttClientName": {
               "type": "string"
             },
@@ -3039,6 +3256,12 @@
         "agent": {
           "type": "object",
           "properties": {
+            "metricsProxy": {
+              "$ref": "#/definitions/resourceConfig"
+            },
+            "init": {
+              "$ref": "#/definitions/resourceConfig"
+            },
             "consumerName": {
               "type": "string",
               "maxLength": 128
@@ -3142,11 +3365,35 @@
     "mgmt": {
       "type": "object",
       "properties": {
+        "arobit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "forwarder": {
+              "$ref": "#/definitions/resourceConfig"
+            }
+          }
+        },
         "aks": {
           "$ref": "#/definitions/aksConfig"
         },
         "applyKubeletFixes": {
           "type": "boolean"
+        },
+        "kubeletFixes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "resources": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "initResources": {
+              "$ref": "#/definitions/containerResources"
+            }
+          }
+        },
+        "storageClassHooks": {
+          "$ref": "#/definitions/resourceConfig"
         },
         "stampIdentifier": {
           "type": "string",
@@ -3509,13 +3756,28 @@
           "description": "Enable 60-minute instant access for Azure disk snapshots. Disabling this omits the parameter and requires normal snapshot copy completion before restore."
         },
         "server": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageWithResources"
         },
         "azurePlugin": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageWithResources"
         },
         "hypershiftPlugin": {
-          "$ref": "#/definitions/containerImage"
+          "$ref": "#/definitions/containerImageWithResources"
+        },
+        "nodeAgent": {
+          "$ref": "#/definitions/resourceConfig"
+        },
+        "installer": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "generate": {
+              "$ref": "#/definitions/resourceConfig"
+            },
+            "apply": {
+              "$ref": "#/definitions/resourceConfig"
+            }
+          }
         }
       },
       "additionalProperties": false,
@@ -3703,6 +3965,15 @@
     "svc": {
       "type": "object",
       "properties": {
+        "arobit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "forwarder": {
+              "$ref": "#/definitions/resourceConfig"
+            }
+          }
+        },
         "aks": {
           "$ref": "#/definitions/aksConfig"
         },
@@ -3777,6 +4048,9 @@
                 "ipAddressTags": {
                   "description": "IPTags to be set on the ops ingress gateway IP address",
                   "$ref": "#/definitions/keyColonValueCSV"
+                },
+                "resources": {
+                  "$ref": "#/definitions/containerResources"
                 }
               },
               "additionalProperties": false,

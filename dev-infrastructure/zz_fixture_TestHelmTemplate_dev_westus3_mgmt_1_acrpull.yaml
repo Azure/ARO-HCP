@@ -552,8 +552,8 @@ spec:
             cpu: 100m
             memory: 1Gi
           requests:
-            cpu: 100m
-            memory: 20Mi
+            cpu: 10m
+            memory: 50Mi
       serviceAccountName: acrpull
       terminationGracePeriodSeconds: 10
 ---

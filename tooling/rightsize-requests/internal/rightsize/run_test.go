@@ -201,8 +201,8 @@ func TestRunWritesOverlayWithLimits(t *testing.T) {
 	overlay := filepath.Join(dir, "overlay.yaml")
 
 	const baseCfg = `defaults:
-  arobit:
-    forwarder:
+  backend:
+    k8s:
       resources:
         requests:
           cpu: 100m
@@ -213,9 +213,8 @@ func TestRunWritesOverlayWithLimits(t *testing.T) {
 	const overlayCfg = `clouds:
   public:
     defaults:
-      arobit:
-        kusto:
-          enabled: true
+      backend:
+        exitOnPanic: true
 `
 	if err := os.WriteFile(base, []byte(baseCfg), 0o644); err != nil {
 		t.Fatal(err)
@@ -229,8 +228,8 @@ func TestRunWritesOverlayWithLimits(t *testing.T) {
 		datasources: []grafana.Datasource{{UID: "c1", Name: "prod", Type: "prometheus"}},
 		byDS: map[string]map[string][]grafana.Sample{
 			"c1": {
-				"cpu":    {{Labels: map[string]string{"namespace": "arobit", "container": "fluentbit", "pod": "arobit-forwarder-1"}, Value: 0.5}},
-				"memory": {{Labels: map[string]string{"namespace": "arobit", "container": "fluentbit", "pod": "arobit-forwarder-1"}, Value: 1.0 * gi}},
+				"cpu":    {{Labels: map[string]string{"namespace": "aro-hcp", "container": "aro-hcp-backend", "pod": "aro-hcp-backend-1"}, Value: 0.5}},
+				"memory": {{Labels: map[string]string{"namespace": "aro-hcp", "container": "aro-hcp-backend", "pod": "aro-hcp-backend-1"}, Value: 1.0 * gi}},
 			},
 		},
 	}
@@ -251,10 +250,9 @@ func TestRunWritesOverlayWithLimits(t *testing.T) {
 	want := `clouds:
   public:
     defaults:
-      arobit:
-        kusto:
-          enabled: true
-        forwarder:
+      backend:
+        exitOnPanic: true
+        k8s:
           resources:
             requests:
               cpu: 630m
@@ -277,9 +275,9 @@ func TestBuildCommitMessage(t *testing.T) {
 	changes := []change{
 		{service: "backend", resource: "cpu", oldValue: "100m", newValue: "1780m", explore: "https://g/explore?x=1"},
 		{service: "backend", resource: "memory", oldValue: "1Gi", newValue: "1888Mi", explore: "https://g/explore?x=1"},
-		{service: "arobit.forwarder", resource: "cpu", oldValue: "100m", newValue: "210m"},
-		{service: "arobit.forwarder", resource: "memory", oldValue: "256Mi", newValue: "1456Mi"},
-		{service: "arobit.forwarder", resource: "mem-limit", oldValue: "1248Mi", newValue: "2896Mi", reason: "2x request"},
+		{service: "svc.arobit.forwarder", resource: "cpu", oldValue: "100m", newValue: "210m"},
+		{service: "svc.arobit.forwarder", resource: "memory", oldValue: "256Mi", newValue: "1456Mi"},
+		{service: "svc.arobit.forwarder", resource: "mem-limit", oldValue: "1248Mi", newValue: "2896Mi", reason: "2x request"},
 	}
 	msg := buildCommitMessage(changes, Options{Window: "14d", Margin: 1.25, Percentile: 0.95, FleetPercentile: 0.95})
 
@@ -289,7 +287,7 @@ func TestBuildCommitMessage(t *testing.T) {
 		"p95-over-14d usage x1.25 margin",
 		"- backend: cpu 100m -> 1780m, memory 1Gi -> 1888Mi",
 		"  explore: https://g/explore?x=1",
-		"- arobit.forwarder: cpu 100m -> 210m, memory 256Mi -> 1456Mi, limit 1248Mi -> 2896Mi (2x request)",
+		"- svc.arobit.forwarder: cpu 100m -> 210m, memory 256Mi -> 1456Mi, limit 1248Mi -> 2896Mi (2x request)",
 	} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("commit message missing %q\n---\n%s", want, msg)

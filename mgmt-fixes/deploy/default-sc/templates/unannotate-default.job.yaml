@@ -52,5 +52,8 @@ spec:
           kubectl annotate storageclass default storageclass.kubernetes.io/is-default-class=false --overwrite
         image: "{{ .Values.unannotateJobImage }}"
         name: finalize
+        {{- with include "storage-class-hooks.resources" .Values.resources }}
+        {{- . | nindent 8 }}
+        {{- end }}
       restartPolicy: OnFailure
       serviceAccountName: annotator
