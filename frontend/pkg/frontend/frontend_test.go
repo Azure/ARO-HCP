@@ -1214,13 +1214,14 @@ func TestDeleteCluster(t *testing.T) {
 			expectDeadlineInFuture:         true,
 		},
 		{
-			name:                           "New approach cluster already deleting - conflict",
+			name:                           "New approach cluster already deleting - bypass conflict, refresh timestamp",
 			clusterExists:                  true,
 			clusterProvisioningState:       coreapi.ProvisioningStateDeleting,
 			usesNewClusterDeletionApproach: true,
-			hasDeletionTimestamp:           true, // New approach sets timestamp
-			expectedStatusCode:             http.StatusConflict,
-			expectedErrorMessage:           "Resource is already deleting",
+			hasDeletionTimestamp:           true, // Existing timestamp gets refreshed on retry
+			expectedStatusCode:             http.StatusAccepted,
+			expectDeletionTimestampSet:     true,
+			expectDeadlineInFuture:         true,
 		},
 		{
 			name:                           "Succeeded cluster - normal deletion",

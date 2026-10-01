@@ -733,13 +733,14 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
-	// TODO: TEMPORARY - Allow re-submitting DELETE for clusters stuck in legacy deletion.
-	// Remove once all legacy deletion clusters are cleaned up.
-	if cluster.ServiceProviderProperties.ProvisioningState == coreapi.ProvisioningStateDeleting && !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
-		logger.Info("allowing repeated DELETE for cluster stuck in legacy deletion approach",
+	// Allow re-submitting DELETE for clusters already in Deleting state.
+	// This handles stuck deletions by refreshing the DeletionTimestamp and
+	// DeleteOperationCompletionDeadline, preventing permanent 409 Conflict
+	// responses after the original deadline expires.
+	if cluster.ServiceProviderProperties.ProvisioningState == coreapi.ProvisioningStateDeleting {
+		logger.Info("allowing repeated DELETE for cluster already in deleting state",
 			"cluster", cluster.ID,
-			"provisioningState", cluster.ServiceProviderProperties.ProvisioningState,
-			"usesNewClusterDeletionApproach", cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach)
+			"provisioningState", cluster.ServiceProviderProperties.ProvisioningState)
 	} else {
 		if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 			return utils.TrackError(err)
@@ -808,9 +809,10 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
-	if cluster.ServiceProviderProperties.DeletionTimestamp == nil {
-		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: f.clock.Now().UTC()}
-	}
+	// Always refresh DeletionTimestamp on DELETE so that
+	// DeleteOperationCompletionDeadline is recomputed from now, preventing
+	// stuck clusters whose original deadline has expired.
+	cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: f.clock.Now().UTC()}
 	cluster.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	cluster.ServiceProviderProperties.ProvisioningState = operationDoc.Status
 	// TODO remove this once migration of the new cluster deletion from frontend to backend approach is fully completed in all ARO-HCP
