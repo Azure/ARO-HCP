@@ -1022,9 +1022,18 @@ func (tc *perItOrDescribeTestContext) runOCAdmInspect(ctx context.Context, clust
 	cmd := exec.CommandContext(inspectCtx, "oc", "adm", "inspect",
 		"--kubeconfig", kubeconfigFile.Name(),
 		"--dest-dir", inspectDir,
-		"ns/openshift-ingress",
-		"ns/openshift-ingress-operator",
+		// Cluster Operators (config.openshift.io). Specifying a cluster operator
+		// ensd up including not only the information of the clusteroperator resource itself, but also all the
+		// information of the resources that are specified in the clusteroperators's .status.relatedObjects.
+		"clusteroperator/console",
+		"clusteroperator/csi-snapshot-controller",
+		"clusteroperator/dns",
+		"clusteroperator/image-registry",
 		"clusteroperator/ingress",
+		"clusteroperator/monitoring",
+		"clusteroperator/network",
+		"clusteroperator/service-ca",
+		"clusteroperator/storage",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
