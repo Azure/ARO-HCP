@@ -286,8 +286,8 @@ var _ = Describe("Customer", func() {
 					"trap 'rm -f $KUBECONFIG' EXIT && "+
 					"echo '%s' | base64 -d > $KUBECONFIG && "+
 					"chmod 600 $KUBECONFIG && "+
-					"kubectl --kubeconfig=$KUBECONFIG create namespace e2e-sample-app --dry-run=client -o yaml | kubectl --kubeconfig=$KUBECONFIG apply -f - && "+
-					"echo '%s' | base64 -d | kubectl --kubeconfig=$KUBECONFIG apply -f - 2>&1",
+					"kubectl --kubeconfig=$KUBECONFIG create namespace e2e-sample-app --dry-run=client -o yaml 2>/dev/null | kubectl --kubeconfig=$KUBECONFIG apply -f - 2>/dev/null && "+
+					"echo '%s' | base64 -d | kubectl --kubeconfig=$KUBECONFIG apply -f - 2>/dev/null",
 				kubeconfigB64,
 				base64.StdEncoding.EncodeToString([]byte(sampleAppManifests)),
 			)
