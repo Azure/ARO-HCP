@@ -156,8 +156,11 @@ defaults:
     billingKustoName: "empty-sentinel"
     billingKustoSku: "empty-sentinel"
   # Image Registry Policy
+  # Temporary quay.io exceptions until upstream HyperShift fixes land:
+  #   - crt-redhat-acm-tenant: CPO override images (OCPBUGS-128660)
+  #   - ocp-release: CVO prepare-payload image (OCPBUGS-128661)
   imageRegistryPolicy:
-    extraAllowedRegistries: ""
+    extraAllowedRegistries: quay.io/redhat-user-workloads/crt-redhat-acm-tenant,quay.io/openshift-release-dev/ocp-release
     validationActions: Audit
   # ACR Pull
   acrPull:
@@ -1490,9 +1493,10 @@ clouds:
         prometheus:
           prometheusSpec:
             shards: 1
-      # Image Registry Policy — dev-only image prefixes for local dev tooling
+      # Image Registry Policy — dev-only extras on top of the base quay.io
+      # exceptions (which are inherited from defaults.imageRegistryPolicy).
       imageRegistryPolicy:
-        extraAllowedRegistries: docker.io/grafana,docker.io/library/postgres
+        extraAllowedRegistries: docker.io/grafana,docker.io/library/postgres,quay.io/redhat-user-workloads/crt-redhat-acm-tenant,quay.io/openshift-release-dev/ocp-release
         validationActions: Deny
       # ACRs
       acr:
