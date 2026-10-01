@@ -105,6 +105,10 @@ func (m *FirstPartyApplicationClientBuilderFunc) ResourceGroupsClient(tenantID s
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (m *FirstPartyApplicationClientBuilderFunc) ActivityLogsClient(tenantID string, subscriptionID string) (azureclient.ActivityLogsClient, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (m *FirstPartyApplicationClientBuilderFunc) ResourceProvidersClient(tenantID string, subscriptionID string) (azureclient.ResourceProvidersClient, error) {
 	return nil, fmt.Errorf("not implemented")
 }

@@ -21,11 +21,11 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
 	credentialrequestdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/deletion"
-	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version/rollout"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metrics"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 
@@ -44,14 +44,14 @@ func controllersWithoutStorage() map[string]ControllerRegistration {
 
 // BackendStorageControllerNames derives storage consumers from the launch registry,
 // including shared informers and excluding controllers that only use cached data.
-func BackendStorageControllerNames(hasRealFPA bool) []string {
+func BackendStorageControllerNames(controllerContext ControllerContext) []string {
 	names := []string{BackendInformersStorageName, FleetInformersStorageName}
 	withoutStorage := controllersWithoutStorage()
 	for name, entry := range newControllerRegistry() {
 		if _, skip := withoutStorage[name]; skip {
 			continue
 		}
-		if entry.Enabled != nil && !entry.Enabled(ControllerContext{HasRealFPA: hasRealFPA}) {
+		if entry.Enabled != nil && !entry.Enabled(controllerContext) {
 			continue
 		}
 		names = append(names, name)
@@ -67,7 +67,7 @@ func BackendCleanupControllerFractions(fraction float64) map[string]float64 {
 		strings.ToLower(mismatch.DeleteOrphanedCosmosResourcesControllerName):                   fraction,
 		strings.ToLower(billing.OrphanedBillingCleanupControllerName):                           fraction,
 		strings.ToLower(clusterplacement.PendingCleanupControllerName):                          fraction,
-		strings.ToLower(clusterdeletion.CleanOrphanedClusterManagedResourceGroupControllerName): fraction,
+		strings.ToLower(controllerutils.ManagedResourceGroupWatchingControllerName):             fraction,
 		strings.ToLower(credentialrequestdeletion.SystemAdminCredentialRevokedGCControllerName): fraction,
 		strings.ToLower(rollout.RolloutRetirementControllerName):                                fraction,
 	}
@@ -78,15 +78,23 @@ func BackendCleanupControllerFractions(fraction float64) map[string]float64 {
 // Each MC container reserves 30% for the backend and 50% for kube-applier, leaving
 // 20% headroom. Cleanup controllers get 10% of a normal controller's share.
 // Shared backend informers use unlimited clients outside these allocations.
-func BackendStorageFactoryOptions(hasRealFPA bool) StorageFactoryOptions {
+func BackendStorageFactoryOptions(controllerContext ControllerContext) StorageFactoryOptions {
+	controllerNames := BackendStorageControllerNames(controllerContext)
+	controllerFractions := BackendCleanupControllerFractions(0.1)
+	for name := range controllerFractions {
+		if !slices.Contains(controllerNames, name) {
+			delete(controllerFractions, name)
+		}
+	}
+
 	return StorageFactoryOptions{
 		ResourcesRUsPerSecond:   19000,
 		BillingRUsPerSecond:     4000,
 		FleetRUsPerSecond:       4000,
 		KubeApplierRUsPerSecond: 19000,
 		KubeApplierUtilization:  0.3,
-		ControllerNames:         BackendStorageControllerNames(hasRealFPA),
-		ControllerFractions:     BackendCleanupControllerFractions(0.1),
+		ControllerNames:         controllerNames,
+		ControllerFractions:     controllerFractions,
 		UnlimitedControllerNames: []string{
 			BackendInformersStorageName,
 			FleetInformersStorageName,
