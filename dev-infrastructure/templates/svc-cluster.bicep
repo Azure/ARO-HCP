@@ -347,6 +347,13 @@ param sreServiceTag string
 @description('The Azure Resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
 param azureMonitoringWorkspaceId string
 
+@description('The metrics collector this service cluster runs (OSS Prometheus or Azure Monitor managed Prometheus)')
+@allowed([
+  'monitoring.coreos.com'
+  'azmonitoring.coreos.com'
+])
+param monitoringApiGroup string
+
 @description('The name of the CS managed identity')
 param csMIName string
 
@@ -759,6 +766,7 @@ module underlayClusterMetric '../modules/metrics/underlay-clusters-metric.bicep'
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     clusterName: aksClusterName
+    monitoringApiGroup: monitoringApiGroup
   }
 }
 

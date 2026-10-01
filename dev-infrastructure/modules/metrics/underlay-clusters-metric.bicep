@@ -4,6 +4,13 @@ param azureMonitoringWorkspaceId string
 @description('Name of the underlay (service or management) cluster this series represents. Must match the `cluster` external label that this cluster\'s Prometheus stamps onto its metrics.')
 param clusterName string
 
+@description('The metrics collector this cluster runs. Stamped onto the inventory series as metrics_collector="oss"|"ama" so alerts can scope collector-specific rules to the right clusters.')
+@allowed([
+  'monitoring.coreos.com'
+  'azmonitoring.coreos.com'
+])
+param monitoringApiGroup string = 'monitoring.coreos.com'
+
 // Emits a static `underlay_clusters{cluster="<name>", source="bicep"} = 1` series for the
 // service or management cluster this deployment owns. Together, across every cluster deployment,
 // these series form the authoritative list -- declared at deploy time -- of which underlay
@@ -35,6 +42,7 @@ resource underlayClusterInventory 'Microsoft.AlertsManagement/prometheusRuleGrou
         expression: 'vector(1)'
         labels: {
           cluster: clusterName
+          metrics_collector: monitoringApiGroup == 'azmonitoring.coreos.com' ? 'ama' : 'oss'
           source: 'bicep'
         }
       }

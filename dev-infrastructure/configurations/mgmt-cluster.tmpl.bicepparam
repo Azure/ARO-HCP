@@ -47,6 +47,8 @@ param globalMSIId = '__globalMSIId__'
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 param hcpAzureMonitoringWorkspaceId = '__hcpAzureMonitoringWorkspaceId__'
 
+param monitoringApiGroup = '{{ .mgmt.monitoringApiGroup }}'
+
 // MDSD / Genevabits
 param logsNamespace = '{{ .logs.mdsd.namespace }}'
 param logsMSI = '{{ .logs.mdsd.msiName }}'
