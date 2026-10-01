@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -66,18 +65,17 @@ func NewAlertProcessingRuleGetHandler(client *armalertprocessingrules.Client, re
 type AlertProcessingRulePutHandler struct {
 	client         *armalertprocessingrules.Client
 	resourceGroup  string
-	amwResourceIds map[string]struct{}
+	amwResourceIds []string
 }
 
 func NewAlertProcessingRulePutHandler(client *armalertprocessingrules.Client, resourceGroup string, amwResourceIds []string) *AlertProcessingRulePutHandler {
 	h := &AlertProcessingRulePutHandler{
 		client:         client,
 		resourceGroup:  resourceGroup,
-		amwResourceIds: make(map[string]struct{}),
+		amwResourceIds: make([]string, len(amwResourceIds)),
 	}
-	for _, amwResourceId := range amwResourceIds {
-		h.amwResourceIds[amwResourceId] = struct{}{}
-	}
+	copy(h.amwResourceIds, amwResourceIds)
+	slices.Sort(h.amwResourceIds)
 	return h
 }
 
@@ -283,7 +281,7 @@ func (h *AlertProcessingRuleDeleteHandler) ServeHTTP(w http.ResponseWriter, requ
 }
 
 // mapAlertProcessingRuleError returns a CloudError with the same status code and
-// error code as the provided azcore.ResponesError.
+// error code as the provided azcore.ResponseError.
 func mapAlertProcessingRuleError(err error, name *string) error {
 	var azErr *azcore.ResponseError
 	if !errors.As(err, &azErr) || azErr == nil {
@@ -324,53 +322,50 @@ func summarizeRule(rule *armalertprocessingrules.AlertProcessingRule) AlertProce
 	return out
 }
 
-// validateAmwScopes returns true if the list of provided scopes contains at
-// least one element that matches the resource id of one of the pre-configured
-// Azure Monitor Workspaces (i.e. hcps-* or services-*).
+// validateAmwScopes validates that the provided scopes are parseable ARM resource
+// ids, and that at least one of the scopes matches a preconfigured AMW resource id.
 //
-// The vast majority of our alerts are Prmetheus rule groups. Any alert processing
+// The vast majority of our alerts are Prometheus rule groups. Any alert processing
 // rules for these alerts must be scoped to the AMW that contains the alerts to
 // be suppressed, so we ensure that at least one of these scopes is always supplied
-//
-// Client-supplied scopes are canonicalized through azcorearm.ParseResourceID (the
-// same way the configured AMW IDs are built) so that ARM-equivalent IDs differing
-// only in casing (e.g. "resourcegroups" vs "resourceGroups") still match.
 func (h *AlertProcessingRulePutHandler) validateAmwScopes(scopes []string) ([]string, error) {
-	parsedScopes := h.parseScopes(scopes)
-	var errs = make([]error, 0)
+	parsedScopes := make([]string, 0, len(scopes))
+	errs := make([]error, 0)
 	hasAtLeastOneAmwScope := false
-	for scope, err := range parsedScopes {
+	for _, scope := range scopes {
+		parsed, err := azcorearm.ParseResourceID(scope)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("invalid scope %q: %w", scope, err))
+			continue
 		}
-		if _, exists := h.amwResourceIds[scope]; exists {
+		canonical := parsed.String()
+		parsedScopes = append(parsedScopes, canonical)
+		if h.matchesConfiguredAmw(canonical) {
 			hasAtLeastOneAmwScope = true
 		}
 	}
 
 	if !hasAtLeastOneAmwScope {
-		amwResourceIds := slices.Collect(maps.Keys(h.amwResourceIds))
-		errs = append(errs, fmt.Errorf("at least one of these scopes is required: %s", strings.Join(amwResourceIds, ",")))
+		errs = append(errs, fmt.Errorf("at least one of these scopes is required: %s", strings.Join(h.amwResourceIds, ",")))
 	}
 
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
 	}
 
-	return slices.Collect(maps.Keys(parsedScopes)), nil
+	return parsedScopes, nil
 }
 
-func (h *AlertProcessingRulePutHandler) parseScopes(scopes []string) map[string]error {
-	var result = make(map[string]error)
-	for _, a := range scopes {
-		parsed, err := azcorearm.ParseResourceID(a)
-		if err != nil {
-			result[a] = err
-			continue
+// matchesConfiguredAmw reports whether scope refers to one of the pre-configured
+// AMW resource IDs. ARM resource IDs are case-insensitive, so the comparison uses
+// strings.EqualFold rather than an exact lookup.
+func (h *AlertProcessingRulePutHandler) matchesConfiguredAmw(scope string) bool {
+	for _, amw := range h.amwResourceIds {
+		if strings.EqualFold(amw, scope) {
+			return true
 		}
-		result[parsed.String()] = err
 	}
-	return result
+	return false
 }
 
 func derefString(s *string) string {

@@ -38,14 +38,12 @@ import (
 )
 
 const (
-	testResourceGroup          = "rg-region"
-	testSubscription           = "00000000-0000-0000-0000-000000000000"
-	testAmw                    = "amw-region"
-	testExtraUserSuppliedScope = "extra-scope"
-	scopeFormat                = "/subscriptions/%s/resourceGroups/%s/providers/microsoft.monitor/accounts/%s"
+	testResourceGroup = "rg-region"
+	testSubscription  = "00000000-0000-0000-0000-000000000000"
+	testAmw           = "amw-region"
+	scopeFormat       = "/subscriptions/%s/resourceGroups/%s/providers/microsoft.monitor/accounts/%s"
 )
 
-var extraUserSuppliedScope = fmt.Sprintf(scopeFormat, testSubscription, testResourceGroup, testExtraUserSuppliedScope)
 var testScopes = []string{
 	fmt.Sprintf(scopeFormat, testSubscription, testResourceGroup, testAmw),
 }
@@ -322,6 +320,41 @@ func TestAlertProcessingRulePutHandler(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 		// All scopes (known AMW plus extras) are forwarded to ARM unchanged.
 		require.Equal(t, scopes, derefStringSlice(captured.Properties.Scopes))
+	})
+
+	t.Run("accepts an AMW scope that differs only in casing", func(t *testing.T) {
+		t.Parallel()
+		var captured armalertprocessingrules.AlertProcessingRule
+		srv := armaprfake.Server{
+			CreateOrUpdate: func(_ context.Context, _, _ string, rule armalertprocessingrules.AlertProcessingRule, _ *armalertprocessingrules.ClientCreateOrUpdateOptions) (azfake.Responder[armalertprocessingrules.ClientCreateOrUpdateResponse], azfake.ErrorResponder) {
+				captured = rule
+				var resp azfake.Responder[armalertprocessingrules.ClientCreateOrUpdateResponse]
+				resp.SetResponse(http.StatusOK, armalertprocessingrules.ClientCreateOrUpdateResponse{AlertProcessingRule: rule}, nil)
+				return resp, azfake.ErrorResponder{}
+			},
+		}
+		configuredScope := "/subscriptions/" + testSubscription + "/resourceGroups/" + testResourceGroup + "/providers/Microsoft.Monitor/accounts/hcps-region"
+		requestScope := "/subscriptions/" + testSubscription + "/resourcegroups/" + testResourceGroup + "/providers/microsoft.monitor/accounts/HCPS-REGION"
+		handler := NewAlertProcessingRulePutHandler(newFakeClient(t, srv), testResourceGroup, []string{configuredScope})
+
+		body := AlertProcessingRulePutRequest{
+			AlertRuleName: "MyAlert",
+			StartTime:     "2026-09-22T00:00:00",
+			EndTime:       "2026-09-23T00:00:00",
+			Description:   "planned maintenance",
+			Scopes:        []string{requestScope},
+		}
+		rec := httptest.NewRecorder()
+		req := newJSONRequest(t, http.MethodPut, "/admin/v1/alertprocessingrules/rule-a", body)
+		req.SetPathValue("name", "rule-a")
+
+		require.NoError(t, handler.ServeHTTP(rec, req))
+		require.Equal(t, http.StatusOK, rec.Code)
+		// The client's parsed scope is forwarded to ARM with its provider-namespace
+		// and resource-name casing preserved (e.g. "HCPS-REGION", not lowercased).
+		wantParsed, err := azcorearm.ParseResourceID(requestScope)
+		require.NoError(t, err, "request scope should parse")
+		require.Equal(t, []string{wantParsed.String()}, derefStringSlice(captured.Properties.Scopes))
 	})
 
 	t.Run("validation failures return 400 and do not call ARM", func(t *testing.T) {
