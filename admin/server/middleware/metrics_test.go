@@ -30,7 +30,7 @@ func TestMuxPatternRoute(t *testing.T) {
 		want    string
 	}{
 		{name: "method and route", pattern: "GET /admin/v1/stamps/{id}", want: "/admin/v1/stamps/{id}"},
-		{name: "no method", pattern: "/admin/helloworld", want: "/admin/helloworld"},
+		{name: "no method", pattern: "/admin/v1/stamps", want: "/admin/v1/stamps"},
 		{name: "empty", pattern: "", want: ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
