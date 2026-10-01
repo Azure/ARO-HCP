@@ -71,30 +71,48 @@ func TestCheckPaths(t *testing.T) {
 		{name: "shell script in agent dir", path: ".claude/setup.sh"},
 		{name: "non-settings agent json", path: ".claude/skills/x/meta.json"},
 
-		// A symlinked configuration directory. Git records one entry for the
-		// link itself, with no extension and a basename on no denylist, and
-		// nothing at all for the paths it exposes -- "frontend/.claude ->
-		// config" means frontend/.claude/settings.json is never a tracked
-		// path, so no named-file rule can ever see it, while an agent
-		// resolves exactly that path and reads whatever config/ holds. The
-		// link is rejected without being followed.
-		{name: "symlinked agent directory", path: "frontend/.claude", mode: modeSymlink, rule: ruleConfigSymlink},
-		{name: "symlinked root agent directory", path: ".claude", mode: modeSymlink, rule: ruleConfigSymlink},
-		{name: "symlinked editor directory", path: "frontend/.vscode", mode: modeSymlink, rule: ruleConfigSymlink},
-		{name: "symlinked nested editor directory", path: "a/b/.vscode", mode: modeSymlink, rule: ruleConfigSymlink},
-		{name: "uppercased symlinked agent directory", path: "frontend/.Claude", mode: modeSymlink, rule: ruleConfigSymlink},
+		// A configuration directory that is not one. Git records a single
+		// entry for the link itself, with no extension and a basename on no
+		// denylist, and nothing at all for the paths it exposes --
+		// "frontend/.claude -> config" means frontend/.claude/settings.json
+		// is never a tracked path, so no named-file rule can ever see it,
+		// while an agent resolves exactly that path and reads whatever
+		// config/ holds. The link is rejected without being followed.
+		{name: "symlinked agent directory", path: "frontend/.claude", mode: modeSymlink, rule: ruleConfigNotFile},
+		{name: "symlinked root agent directory", path: ".claude", mode: modeSymlink, rule: ruleConfigNotFile},
+		{name: "symlinked editor directory", path: "frontend/.vscode", mode: modeSymlink, rule: ruleConfigNotFile},
+		{name: "symlinked nested editor directory", path: "a/b/.vscode", mode: modeSymlink, rule: ruleConfigNotFile},
+		{name: "uppercased symlinked agent directory", path: "frontend/.Claude", mode: modeSymlink, rule: ruleConfigNotFile},
 		// A symlink deeper inside an agent directory aliases just as well, so
 		// the rule keys off the segment rather than the final element.
-		{name: "symlinked skill subdirectory", path: ".claude/skills/x", mode: modeSymlink, rule: ruleConfigSymlink},
-		{name: "symlinked file in agent directory", path: ".claude/skills/x/meta.json", mode: modeSymlink, rule: ruleConfigSymlink},
+		{name: "symlinked skill subdirectory", path: ".claude/skills/x", mode: modeSymlink, rule: ruleConfigNotFile},
+		{name: "symlinked file in agent directory", path: ".claude/skills/x/meta.json", mode: modeSymlink, rule: ruleConfigNotFile},
 		// Named-file rules are more specific, so they keep their wording when
 		// both could apply.
 		{name: "symlinked agent settings", path: ".claude/settings.json", mode: modeSymlink, rule: ruleAgentSettings},
 		{name: "symlinked project-scoped mcp config", path: ".mcp.json", mode: modeSymlink, rule: ruleAgentSettings},
-		// Ordinary skill assets are regular files and stay unaffected; a
-		// symlink elsewhere in the tree is none of this check's business.
+
+		// A submodule aliases a configuration path just as effectively, and
+		// hides the content better: a symlink at least names its target in
+		// the diff, whereas a gitlink is a commit ID in some other
+		// repository that the parent's diff never shows. The rule therefore
+		// keys off "not a regular file" rather than off the symlink mode.
+		{name: "submodule at agent directory", path: "frontend/.claude", mode: modeSubmodule, rule: ruleConfigNotFile},
+		{name: "submodule at root agent directory", path: ".claude", mode: modeSubmodule, rule: ruleConfigNotFile},
+		{name: "submodule at editor directory", path: "frontend/.vscode", mode: modeSubmodule, rule: ruleConfigNotFile},
+		{name: "submodule inside agent directory", path: ".claude/skills/x", mode: modeSubmodule, rule: ruleConfigNotFile},
+		{name: "uppercased submodule at agent directory", path: "frontend/.Claude", mode: modeSubmodule, rule: ruleConfigNotFile},
+		// An unrecognised mode is refused for the same reason rather than
+		// falling through: the rule is "a real file", not "not one of these".
+		{name: "unknown mode at agent directory", path: "frontend/.claude", mode: "040000", rule: ruleConfigNotFile},
+
+		// Ordinary skill assets are regular files, executable or not, and
+		// stay unaffected; an aliased path elsewhere in the tree is none of
+		// this check's business.
+		{name: "executable skill helper", path: ".claude/skills/x/build.py", mode: modeExecutable},
 		{name: "symlink outside config directories", path: "docs/latest", mode: modeSymlink},
 		{name: "symlink in similarly named directory", path: "notclaude/link", mode: modeSymlink},
+		{name: "submodule outside config directories", path: "vendor/thirdparty", mode: modeSubmodule},
 
 		{name: "similarly named file", path: "config/mcp.json.tmpl"},
 		{name: "devcontainer config", path: ".devcontainer/devcontainer.json"},
@@ -173,9 +191,9 @@ func TestAgentJSONFiles(t *testing.T) {
 		// target path, but an agent resolves the link and reads the keys on
 		// the other end. Selecting it here is what lets the caller refuse it;
 		// dropping it at selection time is the bypass.
-		trackedFile{path: ".claude/skills/x/meta.json", mode: "120000"},
-		trackedFile{path: "frontend/.mcp.json", mode: "120000"},
-		trackedFile{path: ".claude/vendor.json", mode: "160000"},
+		trackedFile{path: ".claude/skills/x/meta.json", mode: modeSymlink},
+		trackedFile{path: "frontend/.mcp.json", mode: modeSymlink},
+		trackedFile{path: ".claude/vendor.json", mode: modeSubmodule},
 		// An executable regular file is still a plain blob and safe to read.
 		trackedFile{path: ".claude/exec.json", mode: modeExecutable},
 	))
@@ -219,9 +237,9 @@ func TestReadableBlob(t *testing.T) {
 	}{
 		{mode: modeRegular, want: true},
 		{mode: modeExecutable, want: true},
-		{mode: "120000"}, // symlink
-		{mode: "160000"}, // submodule
-		{mode: ""},       // an index entry that failed to parse
+		{mode: modeSymlink},
+		{mode: modeSubmodule},
+		{mode: ""}, // an index entry that failed to parse
 	} {
 		t.Run(tc.mode, func(t *testing.T) {
 			if got := readableBlob(trackedFile{path: ".claude/x.json", mode: tc.mode}); got != tc.want {
@@ -235,7 +253,7 @@ func TestReadableBlob(t *testing.T) {
 // entry produces. It must not claim malware: an unreadable file is one this
 // check declined to judge, not one it convicted.
 func TestUnreadableAgentJSON(t *testing.T) {
-	got := unreadableAgentJSON(trackedFile{path: ".claude/skills/x/meta.json", mode: "120000"})
+	got := unreadableAgentJSON(trackedFile{path: ".claude/skills/x/meta.json", mode: modeSymlink})
 
 	if got.rule != ruleUnreadable {
 		t.Errorf("expected rule %q, got %q", ruleUnreadable, got.rule)
@@ -426,28 +444,13 @@ func TestReportOmitsMalwareWarningWhenNotApplicable(t *testing.T) {
 func TestBlobContentIgnoresTheWorkingTree(t *testing.T) {
 	const staged = `{"hooks":[{"command":"node .claude/setup.mjs"}]}`
 
-	dir := t.TempDir()
-	for _, args := range [][]string{
-		{"init", "-q"},
-		{"config", "user.email", "test@example.invalid"},
-		{"config", "user.name", "test"},
-	} {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v: %s", args, err, out)
-		}
-	}
+	dir := initRepo(t)
 
 	name := filepath.Join(dir, "agent.json")
 	if err := os.WriteFile(name, []byte(staged), 0o644); err != nil {
 		t.Fatalf("writing fixture: %v", err)
 	}
-	add := exec.Command("git", "add", "agent.json")
-	add.Dir = dir
-	if out, err := add.CombinedOutput(); err != nil {
-		t.Fatalf("git add: %v: %s", err, out)
-	}
+	git(t, dir, "add", "agent.json")
 
 	// Replace the working-tree copy with a symlink to a fifo. The index still
 	// records a regular file, so readableBlob keeps saying "scan this"; a
@@ -509,18 +512,7 @@ func TestBlobContentIgnoresTheWorkingTree(t *testing.T) {
 // only the link, as asserted here, the segment rule is the only thing
 // standing between a PR and an aliased agent configuration.
 func TestSymlinkedConfigDirectoryIsRejected(t *testing.T) {
-	dir := t.TempDir()
-	for _, args := range [][]string{
-		{"init", "-q"},
-		{"config", "user.email", "test@example.invalid"},
-		{"config", "user.name", "test"},
-	} {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v: %s", args, err, out)
-		}
-	}
+	dir := initRepo(t)
 
 	if err := os.MkdirAll(filepath.Join(dir, "frontend", "config"), 0o755); err != nil {
 		t.Fatalf("creating fixture tree: %v", err)
@@ -532,11 +524,7 @@ func TestSymlinkedConfigDirectoryIsRejected(t *testing.T) {
 	if err := os.Symlink("config", filepath.Join(dir, "frontend", ".claude")); err != nil {
 		t.Fatalf("symlinking: %v", err)
 	}
-	add := exec.Command("git", "add", "frontend")
-	add.Dir = dir
-	if out, err := add.CombinedOutput(); err != nil {
-		t.Fatalf("git add: %v: %s", err, out)
-	}
+	git(t, dir, "add", "frontend")
 
 	files, err := trackedFiles(dir)
 	if err != nil {
@@ -567,8 +555,8 @@ func TestSymlinkedConfigDirectoryIsRejected(t *testing.T) {
 	if len(findings) != 1 {
 		t.Fatalf("expected exactly one finding, got %+v", findings)
 	}
-	if findings[0].rule != ruleConfigSymlink || findings[0].path != "frontend/.claude" {
-		t.Errorf("expected %s on frontend/.claude, got %+v", ruleConfigSymlink, findings[0])
+	if findings[0].rule != ruleConfigNotFile || findings[0].path != "frontend/.claude" {
+		t.Errorf("expected %s on frontend/.claude, got %+v", ruleConfigNotFile, findings[0])
 	}
 	if findings[0].malware {
 		t.Error("a rejected symlink is not a confirmed attack pattern")
@@ -578,6 +566,93 @@ func TestSymlinkedConfigDirectoryIsRejected(t *testing.T) {
 	// it: rejecting the alias is the entire remedy.
 	if findings[0].path == "frontend/config/settings.json" {
 		t.Error("the symlink target should not be flagged on its own path")
+	}
+}
+
+// TestSubmoduleAtConfigPathIsRejected is the gitlink counterpart. A submodule
+// mounted at frontend/.claude aliases the path exactly as a symlink does, and
+// conceals the configuration better: a symlink at least names its target in
+// the diff, whereas the index holds nothing but a commit ID in a repository
+// this one does not contain, so reviewing the parent's diff shows no agent
+// configuration at all. Once the submodule is populated the agent reads
+// frontend/.claude/settings.json regardless.
+//
+// The entry is staged with --cacheinfo rather than by adding a real
+// submodule, which would need a second repository and git's file-protocol
+// escape hatch to clone it. What matters is the index representation, and
+// that is genuinely git's here: the mode and object ID are read back out
+// through trackedFiles like any other entry.
+func TestSubmoduleAtConfigPathIsRejected(t *testing.T) {
+	dir := initRepo(t)
+
+	// An arbitrary commit ID. It deliberately does not resolve to anything in
+	// this repository -- that is the point of the case, and the rule must not
+	// need to resolve it to decide.
+	const gitlink = "0000000000000000000000000000000000000001"
+	git(t, dir, "update-index", "--add", "--cacheinfo", "160000,"+gitlink+",frontend/.claude")
+
+	files, err := trackedFiles(dir)
+	if err != nil {
+		t.Fatalf("listing tracked files: %v", err)
+	}
+
+	// The assumption the rule depends on: one entry, no extension, a basename
+	// on no denylist, and nothing tracked underneath it.
+	var found bool
+	for _, f := range files {
+		if f.path == "frontend/.claude" {
+			found = true
+			if f.mode != modeSubmodule {
+				t.Errorf("expected the gitlink to be tracked as %s, got %s", modeSubmodule, f.mode)
+			}
+			if f.oid != gitlink {
+				t.Errorf("expected object ID %s, got %s", gitlink, f.oid)
+			}
+		}
+		if strings.HasPrefix(f.path, "frontend/.claude/") {
+			t.Errorf("git tracked %q through the gitlink; the named-file rules would cover this case", f.path)
+		}
+	}
+	if !found {
+		t.Fatalf("expected frontend/.claude in the index, got %+v", files)
+	}
+
+	findings := checkPaths(files)
+	if len(findings) != 1 {
+		t.Fatalf("expected exactly one finding, got %+v", findings)
+	}
+	if findings[0].rule != ruleConfigNotFile || findings[0].path != "frontend/.claude" {
+		t.Errorf("expected %s on frontend/.claude, got %+v", ruleConfigNotFile, findings[0])
+	}
+	if !strings.Contains(findings[0].detail, modeSubmodule) {
+		t.Errorf("expected the detail to name the mode, got %q", findings[0].detail)
+	}
+	if findings[0].malware {
+		t.Error("a rejected gitlink is not a confirmed attack pattern")
+	}
+}
+
+// initRepo creates an empty repository for the rules that rest on how git
+// itself represents an index entry, rather than on synthetic trackedFile
+// values.
+func initRepo(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	git(t, dir, "init", "-q")
+	git(t, dir, "config", "user.email", "test@example.invalid")
+	git(t, dir, "config", "user.name", "test")
+	return dir
+}
+
+// git runs one git command in dir, failing the test if it does not succeed.
+func git(t *testing.T, dir string, args ...string) {
+	t.Helper()
+
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v: %s", args, err, out)
 	}
 }
 
