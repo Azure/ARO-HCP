@@ -18,9 +18,10 @@
 // Agent JSON carrying an execution key is reported as a known attack pattern.
 // Agent JSON that cannot be parsed, or that is not a regular file and so
 // cannot be read at all, is refused rather than given the benefit of the
-// doubt, as is a symlink standing in for an agent or editor configuration
-// path. Nothing is followed to decide any of this: a rule that resolved links
-// would be judging bytes the diff does not contain.
+// doubt, as is any entry standing in for an agent or editor configuration
+// path rather than being one. Nothing is resolved to decide any of this: a
+// rule that followed a link or fetched a submodule would be judging bytes the
+// diff does not contain.
 //
 // Only tracked files are inspected, and they are inspected as git has them:
 // paths and modes come from the index, contents from the object store, never
@@ -104,7 +105,7 @@ const (
 	ruleExecutionKey  = "execution-key"
 	ruleInvalidJSON   = "invalid-json"
 	ruleUnreadable    = "unreadable"
-	ruleConfigSymlink = "config-symlink"
+	ruleConfigNotFile = "config-not-a-file"
 )
 
 // finding is a single violation. malware marks the indicators that match a
@@ -170,11 +171,15 @@ func main() {
 }
 
 // Index modes git records for a tracked entry. Only a regular file — with or
-// without the executable bit — has contents worth opening; see readableBlob.
+// without the executable bit — carries its own bytes here; see readableBlob.
+// The other two name content that lives somewhere else: a symlink's blob is a
+// target path, and a gitlink is a commit in a different repository, which
+// this one need not contain and a diff of it never shows.
 const (
 	modeRegular    = "100644"
 	modeExecutable = "100755"
 	modeSymlink    = "120000"
+	modeSubmodule  = "160000"
 )
 
 // trackedFile is one entry of the git index: the path, plus the mode and
@@ -261,6 +266,10 @@ func blobContent(root, oid string) ([]byte, error) {
 // submodule the object is a commit that need not exist in this repository at
 // all. Neither can be judged here, so both are reported — see
 // unreadableAgentJSON — and left to a human.
+//
+// checkPaths asks the same question of a configuration path and refuses it
+// for the same reason, so the two rules cannot drift into disagreeing about
+// which entry types count as a file.
 func readableBlob(f trackedFile) bool {
 	return f.mode == modeRegular || f.mode == modeExecutable
 }
@@ -270,16 +279,21 @@ func readableBlob(f trackedFile) bool {
 // reviewer seeing it knows to look at what the entry stands for, which is the
 // judgement this check deliberately leaves to a human.
 //
-// In practice this now speaks mostly for submodules. A symlink under an agent
-// or editor directory is rejected earlier and more descriptively by
-// ruleConfigSymlink, and the duplicate is dropped in main. The mode test
-// stays general rather than narrowing to submodules, so that a mode neither
-// rule anticipated is refused instead of quietly scanned.
+// As the rules stand this never actually reaches a reader: everything
+// agentJSONFiles selects either has a .claude segment, which ruleConfigNotFile
+// rejects more descriptively, or an MCP basename, which ruleAgentSettings
+// rejects outright — and main drops the duplicate. It is kept anyway, and
+// deliberately not replaced with a skip. "Nothing can reach this" is a
+// property of the other rules, not of this one, and the bypass fixed in
+// 2003efa08 was exactly an unreachability argument that quietly stopped
+// holding when the rule it depended on was removed. A non-regular entry is
+// refused on its own terms here so that narrowing a path rule costs a
+// duplicate finding rather than a silent hole.
 func unreadableAgentJSON(f trackedFile) finding {
 	return finding{
 		path:   f.path,
 		rule:   ruleUnreadable,
-		detail: fmt.Sprintf("agent configuration must be a regular file; git records mode %s, which is not followed", f.mode),
+		detail: fmt.Sprintf("agent configuration must be a regular file; git records mode %s, which is not resolved here", f.mode),
 	}
 }
 
@@ -315,20 +329,26 @@ func checkPaths(files []trackedFile) []finding {
 				detail: "editor configuration files must not be committed",
 			})
 
-		// Last, so that a symlink the named-file rules already describe keeps
+		// Last, so that an entry the named-file rules already describe keeps
 		// their more specific wording. What is left for this case is what
-		// those rules structurally cannot see: a symlinked configuration
-		// directory. Git tracks "frontend/.claude -> config" as a single
-		// entry with no extension and a basename on no denylist, while the
-		// payload it exposes is tracked under its real path, where no rule
-		// has reason to object. Nothing is ever named
-		// frontend/.claude/settings.json, so nothing matches, yet that is the
-		// path an agent resolves and reads.
-		case f.mode == modeSymlink && (hasSegment(lower, agentConfigDir) || hasSegment(lower, editorConfigDir)):
+		// those rules structurally cannot see: a configuration directory that
+		// is not a directory in this repository at all. Git tracks
+		// "frontend/.claude -> config" as a single entry with no extension
+		// and a basename on no denylist, and tracks a submodule mounted at
+		// the same path the same way. Either records nothing for the paths
+		// underneath, so frontend/.claude/settings.json is never a tracked
+		// path and no amount of filename matching can match it — yet that is
+		// the path an agent resolves and reads, from a symlink target that
+		// keeps its own innocuous name or from a checkout the parent
+		// repository's diff does not show.
+		//
+		// The test is readableBlob rather than a list of the two modes, so
+		// that an entry type neither case anticipated is refused here too.
+		case !readableBlob(f) && (hasSegment(lower, agentConfigDir) || hasSegment(lower, editorConfigDir)):
 			findings = append(findings, finding{
 				path:   p,
-				rule:   ruleConfigSymlink,
-				detail: "agent and editor configuration paths must be real files, not symlinks; this one is not followed",
+				rule:   ruleConfigNotFile,
+				detail: fmt.Sprintf("agent and editor configuration paths must be real files; git records mode %s, which names content this repository does not carry and is not resolved here", f.mode),
 			})
 		}
 	}
