@@ -3,6 +3,7 @@ name: helmtest-svc-resources-unset
 namespace: prometheus
 testData:
   svc:
+    monitoringApiGroup: monitoring.coreos.com
     prometheus:
       prometheusOperator:
         image:

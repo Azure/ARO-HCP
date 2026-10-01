@@ -1,9 +1,9 @@
-values: ../values-mgmt.yaml
-name: helmtest-mgmt-resources
+values: ../values-svc.yaml
+name: helmtest-svc-ama
 namespace: prometheus
 testData:
-  mgmt:
-    monitoringApiGroup: monitoring.coreos.com
+  svc:
+    monitoringApiGroup: azmonitoring.coreos.com
     prometheus:
       prometheusOperator:
         image:
@@ -33,10 +33,10 @@ testData:
           sha: sha256:testabc
         resources:
           requests:
-            cpu: "1"
-            memory: 6Gi
+            cpu: "20"
+            memory: "1Gi"
           limits:
-            cpu: "2"
-            memory: 10Gi
+            cpu: "20"
+            memory: "100Gi"
         replicas: 2
         shards: 2

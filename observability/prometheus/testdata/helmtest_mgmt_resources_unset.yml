@@ -3,6 +3,7 @@ name: helmtest-mgmt-resources-unset
 namespace: prometheus
 testData:
   mgmt:
+    monitoringApiGroup: monitoring.coreos.com
     prometheus:
       prometheusOperator:
         image:

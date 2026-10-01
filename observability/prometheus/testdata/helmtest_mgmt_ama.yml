@@ -1,9 +1,9 @@
 values: ../values-mgmt.yaml
-name: helmtest-mgmt-resources
+name: helmtest-mgmt-ama
 namespace: prometheus
 testData:
   mgmt:
-    monitoringApiGroup: monitoring.coreos.com
+    monitoringApiGroup: azmonitoring.coreos.com
     prometheus:
       prometheusOperator:
         image:
