@@ -124,20 +124,20 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			keyVersion, keyVaultName, err := parseMHSMKeyIDComponents(keyID)
 			Expect(err).NotTo(HaveOccurred(), "failed to parse key version from key ID %q", keyID)
 
-			// Detect principal type so local User accounts and Prow's ServicePrincipal both work.
-			azAssigneePrincipalType := "ServicePrincipal"
+			// Detect the deployer's principal type so local User accounts and Prow's ServicePrincipal both work.
+			deployerPrincipalType := "ServicePrincipal"
 			if deployerIdentity.PrincipalType == framework.PrincipalTypeDSTSUser {
-				azAssigneePrincipalType = "User"
+				deployerPrincipalType = "User"
 			}
 
 			// grantMHSMCryptoUser grants a principal the "Managed HSM Crypto User" role at the given
 			// mHSM data-plane scope. mHSM has its own per-HSM data-plane RBAC, so a subscription-scope
 			// grant cannot cover this HSM.
-			grantMHSMCryptoUser := func(principalID, scope string) {
+			grantMHSMCryptoUser := func(principalID, principalType, scope string) {
 				assignRoleCmd := exec.CommandContext(ctx, "az", "keyvault", "role", "assignment", "create",
 					"--hsm-name", hsmName,
 					"--assignee-object-id", principalID,
-					"--assignee-principal-type", azAssigneePrincipalType,
+					"--assignee-principal-type", principalType,
 					"--role", "Managed HSM Crypto User",
 					"--scope", scope,
 					"--only-show-errors",
@@ -148,7 +148,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			}
 
 			By("granting the test principal Managed HSM Crypto User to create a second key version")
-			grantMHSMCryptoUser(deployerIdentity.ObjectID, "/keys")
+			grantMHSMCryptoUser(deployerIdentity.ObjectID, deployerPrincipalType, "/keys")
 
 			By("creating a second key version in the Managed HSM for the rotation")
 			mhsmURL := fmt.Sprintf("https://%s.managedhsm.azure.net/", hsmName)
@@ -207,9 +207,9 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			// live Managed Identities Data Plane (stage/prod). In dev/CI that dataplane is mocked, so every
 			// operator (including the KMS plugin) authenticates as the MSI mock service principal instead;
 			// there we must also grant that principal (MI_MOCK_PRINCIPAL_ID) or the encrypt call gets 403.
-			grantMHSMCryptoUser(kmsIdentityPrincipalID, fmt.Sprintf("/keys/%s", keyName))
+			grantMHSMCryptoUser(kmsIdentityPrincipalID, "ServicePrincipal", fmt.Sprintf("/keys/%s", keyName))
 			if miMockPrincipalID := framework.MIMockPrincipalID(); miMockPrincipalID != "" {
-				grantMHSMCryptoUser(miMockPrincipalID, fmt.Sprintf("/keys/%s", keyName))
+				grantMHSMCryptoUser(miMockPrincipalID, "ServicePrincipal", fmt.Sprintf("/keys/%s", keyName))
 			}
 
 			clusterParams.EtcdEncryptionKeyName = keyName

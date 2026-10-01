@@ -16,7 +16,9 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -44,6 +46,17 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			)
 
 			tc := framework.NewTestContext()
+
+			By("probing v20261001preview API availability before creating any Azure resources")
+			probePager := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListBySubscriptionPager(nil)
+			_, probeErr := probePager.NextPage(ctx)
+			if framework.IsAPINotDeployedError(probeErr) {
+				if time.Now().Before(framework.V20261001PreviewDeploymentDeadline) {
+					Skip(fmt.Sprintf("v20261001preview API not yet deployed; skipping until %s", framework.V20261001PreviewDeploymentDeadline.Format(time.RFC3339)))
+				}
+				Fail(fmt.Sprintf("v20261001preview API still not deployed as of %s deadline", framework.V20261001PreviewDeploymentDeadline.Format(time.RFC3339)))
+			}
+			Expect(probeErr).NotTo(HaveOccurred(), "failed to probe v20261001preview API availability")
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
