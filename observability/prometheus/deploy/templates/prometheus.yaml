@@ -1,4 +1,6 @@
 {{- $none := "NONE" -}}
+{{- $ossMonitoring := eq .Values.monitoringApiGroup "monitoring.coreos.com" -}}
+{{- if $ossMonitoring }}
 {{- $setRequests := or (ne (.Values.prometheusSpec.resources.requests.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.requests.memory | toString) $none) -}}
 {{- $setLimits := ne (.Values.prometheusSpec.resources.limits.memory | toString) $none -}}
 apiVersion: monitoring.coreos.com/v1alpha1
@@ -167,3 +169,4 @@ spec:
         action: keep
     {{- end }}
   {{- end }}
+{{- end }}
