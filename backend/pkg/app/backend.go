@@ -78,6 +78,9 @@ type BackendOptions struct {
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
+	OrphanedMRGCleanupTargetSubscriptionAFECFlags       string
+	OrphanedMRGCleanupExcludedSubscriptionAFECFlags     string
+	OrphanedMRGCleanupRunningMode                       string
 }
 
 const backendShutdownTimeout = 31 * time.Second
