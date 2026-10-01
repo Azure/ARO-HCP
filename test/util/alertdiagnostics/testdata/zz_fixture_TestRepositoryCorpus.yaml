@@ -584,18 +584,18 @@
   alert: OrphanedMRGDeletionFailing
   occurrence: 1
   input: |
-    sum by (location, cluster) (
+    max by (location, subscription_id, managed_resource_group_name, cluster) (
       max without(prometheus_replica) (
         increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m])
       )
     ) > 0
   plan:
-    expression: sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
+    expression: max by (location, subscription_id, managed_resource_group_name, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
     conditions:
-      - expression: sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
+      - expression: max by (location, subscription_id, managed_resource_group_name, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
         path: root
         queries:
-          - expression: sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m])))
+          - expression: max by (location, subscription_id, managed_resource_group_name, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m])))
             role: signal
         thresholds:
           - operator: '>'
@@ -606,18 +606,18 @@
   alert: OrphanedMRGDetected
   occurrence: 1
   input: |
-    sum by (location, cluster) (
+    max by (location, subscription_id, managed_resource_group_name, cluster) (
       max without(prometheus_replica) (
         increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m])
       )
     ) > 0
   plan:
-    expression: sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0
+    expression: max by (location, subscription_id, managed_resource_group_name, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0
     conditions:
-      - expression: sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0
+      - expression: max by (location, subscription_id, managed_resource_group_name, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0
         path: root
         queries:
-          - expression: sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m])))
+          - expression: max by (location, subscription_id, managed_resource_group_name, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m])))
             role: signal
         thresholds:
           - operator: '>'
@@ -1208,14 +1208,14 @@
   group: backend
   alert: OrphanedMRGDeletionFailing
   occurrence: 1
-  input: sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
+  input: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
   plan:
-    expression: sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
+    expression: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
     conditions:
-      - expression: sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
+      - expression: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
         path: root
         queries:
-          - expression: sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m])))
+          - expression: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m])))
             role: signal
         thresholds:
           - operator: '>'
@@ -1225,14 +1225,14 @@
   group: backend
   alert: OrphanedMRGDetected
   occurrence: 1
-  input: sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0
+  input: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0
   plan:
-    expression: sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0
+    expression: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0
     conditions:
-      - expression: sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0
+      - expression: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0
         path: root
         queries:
-          - expression: sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m])))
+          - expression: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m])))
             role: signal
         thresholds:
           - operator: '>'

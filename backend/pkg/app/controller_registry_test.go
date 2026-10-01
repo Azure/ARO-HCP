@@ -123,7 +123,7 @@ var expectedControllerLaunches = []struct {
 	{"createnodepoolscopedreaddesires", 20},
 	{"createserviceprovidercluster", 20},
 	{"createserviceprovidernodepool", 20},
-	{"cleanorphanedclustermanagedresourcegroup", 20},
+	{"managedresourcegroupwatching", 50},
 	{"ensuremanagedresourcegroup", 20},
 	{"triggernodepoolupgrade", 20},
 	{"nodepoolclusterservicedeletedispatch", 20},
@@ -173,11 +173,17 @@ func TestControllerRegistryManifest(t *testing.T) {
 		require.Equal(t, expected.workers, entry.Workers, expected.name)
 		require.NotNil(t, entry.Instantiate, expected.name)
 
-		if expected.name == "clusterdenyassignment" {
+		switch expected.name {
+		case "clusterdenyassignment":
 			require.NotNil(t, entry.Enabled)
 			require.False(t, entry.Enabled(ControllerContext{}))
 			require.True(t, entry.Enabled(ControllerContext{HasRealFPA: true}))
-		} else {
+		case "managedresourcegroupwatching":
+			require.NotNil(t, entry.Enabled)
+			require.False(t, entry.Enabled(ControllerContext{}))
+			require.True(t, entry.Enabled(ControllerContext{OrphanedMRGCleanupTargetSubscriptionAFECFlags: "target"}))
+			require.True(t, entry.Enabled(ControllerContext{OrphanedMRGCleanupExcludedSubscriptionAFECFlags: "excluded"}))
+		default:
 			require.Nil(t, entry.Enabled, expected.name)
 		}
 	}
@@ -208,6 +214,7 @@ func testControllerContext(t *testing.T, hasRealFPA bool) (ControllerContext, St
 		},
 	}
 	controllerContext := backend.newControllerContext(t.Context())
+	controllerContext.OrphanedMRGCleanupTargetSubscriptionAFECFlags = "target"
 	require.Same(t, backend.clock, controllerContext.Clock)
 	require.Same(t, http.DefaultClient, controllerContext.AsyncOperationNotificationClient)
 	require.Nil(t, controllerContext.ResourcesDBClient)
@@ -283,6 +290,14 @@ func TestControllerRegistrySharedInstances(t *testing.T) {
 	orphanCleanupController, err := registry["deleteorphanedcosmosresources"].Instantiate(controllerContext)
 	require.NoError(t, err)
 	requireControllerDependency(t, orphanCleanupController, managementLister, "managementClusterLister")
+	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
+	mrgWatcher, err := registry["managedresourcegroupwatching"].Instantiate(controllerContext)
+	require.NoError(t, err)
+	requireControllerDependency(t, mrgWatcher, subscriptionLister, "subscriptionLister")
+	requireControllerDependency(t, mrgWatcher, subscriptionLister, "syncer", "subscriptionLister")
+	requireControllerDependency(t, mrgWatcher, clusterLister, "syncer", "clusterLister")
+	waiter := reflect.ValueOf(mrgWatcher).Elem().FieldByName("CacheSyncWaiter")
+	require.GreaterOrEqual(t, waiter.FieldByName("cacheSyncs").Len(), 2, "MRG discovery and cleanup must wait for subscription and cluster caches")
 	skuController, err := registry["fpavirtualmachineresourceskuscachedreader"].Instantiate(controllerContext)
 	require.NoError(t, err)
 	require.Same(t, controllerContext.VirtualMachineResourceSKUsCachedReaderController, skuController)
@@ -390,14 +405,15 @@ func TestControllerRegistryUnorderedConstructionAndErrors(t *testing.T) {
 		}
 		registry[name] = entry
 	}
-	_, err := instantiateControllers(registry, ControllerContext{HasRealFPA: true}, storageFactory)
+	_, err := instantiateControllers(registry, ControllerContext{HasRealFPA: true, OrphanedMRGCleanupTargetSubscriptionAFECFlags: "target"}, storageFactory)
 	require.NoError(t, err)
 	require.ElementsMatch(t, slices.Collect(maps.Keys(registry)), constructed)
 	constructed = nil
 	_, err = instantiateControllers(registry, ControllerContext{}, storageFactory)
 	require.NoError(t, err)
-	require.Len(t, constructed, 108)
+	require.Len(t, constructed, 107)
 	require.NotContains(t, constructed, "clusterdenyassignment")
+	require.NotContains(t, constructed, "managedresourcegroupwatching")
 	expectedErr := errors.New("constructor failed")
 	name := "union-kube-applier-informers-controller"
 	entry := registry[name]

@@ -16,6 +16,7 @@ package cluster
 
 import (
 	"strings"
+	"time"
 
 	utilsclock "k8s.io/utils/clock"
 
@@ -44,6 +45,7 @@ import (
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version/rollout"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 )
 
@@ -774,21 +776,35 @@ func instantiateCreateServiceProviderClusterController(controllerContext control
 	), nil
 }
 
-func registerCleanOrphanedClusterManagedResourceGroupController() controllerconfig.ControllerRegistration {
+func registerOrphanedManagedResourceGroupWatchingController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
-		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateCleanOrphanedClusterManagedResourceGroupController, false),
+		Workers: 50,
+		Enabled: func(ctx controllerconfig.ControllerContext) bool {
+			return len(ctx.OrphanedMRGCleanupTargetSubscriptionAFECFlags) != 0 || len(ctx.OrphanedMRGCleanupExcludedSubscriptionAFECFlags) != 0
+		},
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateOrphanedManagedResourceGroupWatchingController, false),
 	}
 }
 
-func instantiateCleanOrphanedClusterManagedResourceGroupController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	_, activeOperationLister := controllerContext.BackendInformers.ActiveOperations()
-	return clusterdeletion.NewCleanOrphanedClusterManagedResourceGroupController(
+func instantiateOrphanedManagedResourceGroupWatchingController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
+	_, clusterLister := controllerContext.BackendInformers.Clusters()
+	orphanedMRGController := clusterdeletion.NewOrphanedManagedResourceGroupController(
 		controllerContext.AzureLocation,
-		activeOperationLister,
 		controllerContext.ResourcesDBClient,
+		subscriptionLister,
+		clusterLister,
+		controllerContext.FPAClientBuilder,
+		controllerContext.OrphanedMRGCleanupTargetSubscriptionAFECFlags,
+		controllerContext.OrphanedMRGCleanupExcludedSubscriptionAFECFlags,
+		controllerContext.OrphanedMRGCleanupRunningMode,
+	)
+	return controllerutils.NewManagedResourceGroupWatchingController(
+		controllerContext.AzureLocation,
+		orphanedMRGController,
 		controllerContext.FPAClientBuilder,
 		controllerContext.BackendInformers,
+		24*time.Hour,
 	), nil
 }
 
@@ -1214,7 +1230,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clustervalidation.ClusterValidationContainerRegistryPullCredentialsPermissionValidationControllerName)] = registerContainerRegistryPullCredentialsValidationController()
 	registry[strings.ToLower(clusterreaddesires.CreateClusterScopedReadDesiresControllerName)] = registerCreateClusterScopedReadDesiresController()
 	registry[strings.ToLower(clustercreation.CreateServiceProviderClusterControllerName)] = registerCreateServiceProviderClusterController()
-	registry[strings.ToLower(clusterdeletion.CleanOrphanedClusterManagedResourceGroupControllerName)] = registerCleanOrphanedClusterManagedResourceGroupController()
+	registry[strings.ToLower(controllerutils.ManagedResourceGroupWatchingControllerName)] = registerOrphanedManagedResourceGroupWatchingController()
 	registry[strings.ToLower(clusterazureresources.ManagedResourceGroupControllerName)] = registerEnsureManagedResourceGroupController()
 	registry[strings.ToLower(clusterdeletion.ClusterClusterServiceDeleteDispatchControllerName)] = registerClusterDeletionClusterServiceDeleteDispatchController()
 	registry[strings.ToLower(clusterdeletion.ClusterDeletionClusterServiceIDClearerControllerName)] = registerClusterClusterServiceIDClearerController()
