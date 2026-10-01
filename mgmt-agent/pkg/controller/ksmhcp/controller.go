@@ -103,6 +103,11 @@ type KSMHCPController struct {
 	// monitoringAPIGroup is the API group of the ServiceMonitor the controller
 	// creates (monitoring.coreos.com by default, azmonitoring.coreos.com in AMA mode).
 	monitoringAPIGroup string
+	// metricsRegion/metricsEnvironment are stamped onto the KSM monitor's series as
+	// set-if-absent relabelings in AMA mode only, preserving parity with OSS (which
+	// supplies them via the agent's externalLabels).
+	metricsRegion      string
+	metricsEnvironment string
 }
 
 // NewKSMHCPController creates a new KSMHCPController.
@@ -116,6 +121,8 @@ func NewKSMHCPController(
 	serviceMonitorInformer cache.SharedIndexInformer,
 	ksmImage string,
 	monitoringAPIGroup string,
+	metricsRegion string,
+	metricsEnvironment string,
 ) (*KSMHCPController, error) {
 	if monitoringAPIGroup == "" {
 		monitoringAPIGroup = DefaultMonitoringAPIGroup
@@ -125,6 +132,8 @@ func NewKSMHCPController(
 		dynamicClient:      dynamicClient,
 		hcpLister:          hcpInformer.Lister(),
 		monitoringAPIGroup: monitoringAPIGroup,
+		metricsRegion:      metricsRegion,
+		metricsEnvironment: metricsEnvironment,
 		hasSynced: []cache.InformerSynced{
 			hcpInformer.Informer().HasSynced,
 			deploymentInformer.HasSynced,
@@ -311,7 +320,7 @@ func (c *KSMHCPController) reconcile(ctx context.Context, hcp *hypershiftv1beta1
 		return fmt.Errorf("failed to apply service in %s: %w", ns, err)
 	}
 
-	serviceMonitor, err := buildServiceMonitor(ns, c.monitoringAPIGroup, ownerRef)
+	serviceMonitor, err := buildServiceMonitor(ns, c.monitoringAPIGroup, c.metricsRegion, c.metricsEnvironment, ownerRef)
 	if err != nil {
 		return fmt.Errorf("failed to build servicemonitor in %s: %w", ns, err)
 	}

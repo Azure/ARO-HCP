@@ -94,6 +94,12 @@ type MonitorTranslatorController struct {
 
 	smLister cache.GenericLister
 	pmLister cache.GenericLister
+
+	// metricsRegion/metricsEnvironment are stamped onto translated series as
+	// set-if-absent relabelings, preserving parity with OSS (which supplies them
+	// via the agent's externalLabels). Required in AMA mode; see cmd/options.go.
+	metricsRegion      string
+	metricsEnvironment string
 }
 
 // NewMonitorTranslatorController creates a new MonitorTranslatorController.
@@ -101,9 +107,13 @@ func NewMonitorTranslatorController(
 	dynamicClient dynamic.Interface,
 	serviceMonitorInformer cache.SharedIndexInformer,
 	podMonitorInformer cache.SharedIndexInformer,
+	metricsRegion string,
+	metricsEnvironment string,
 ) (*MonitorTranslatorController, error) {
 	c := &MonitorTranslatorController{
-		dynamicClient: dynamicClient,
+		dynamicClient:      dynamicClient,
+		metricsRegion:      metricsRegion,
+		metricsEnvironment: metricsEnvironment,
 		hasSynced: []cache.InformerSynced{
 			serviceMonitorInformer.HasSynced,
 			podMonitorInformer.HasSynced,
@@ -271,7 +281,7 @@ func (c *MonitorTranslatorController) syncHandler(ctx context.Context, key strin
 		return nil
 	}
 
-	translated := Translate(source, sourceGVR, targetGVR)
+	translated := Translate(source, sourceGVR, targetGVR, c.metricsRegion, c.metricsEnvironment)
 	if err := c.applyResource(ctx, targetGVR, translated); err != nil {
 		return fmt.Errorf("failed to apply translated %s %s/%s: %w", resource, namespace, name, err)
 	}
@@ -292,9 +302,31 @@ func (c *MonitorTranslatorController) applyResource(ctx context.Context, gvr sch
 	return err
 }
 
-const includeLabelTargetLabel = "microsoft_metrics_include_label"
+// accountTargetLabel is the per-series routing label that tells AMA which Azure
+// Monitor account (workspace) a series belongs to. HCP series are stamped with
+// value "hcp" so the HCP DCR's labelIncludeFilter (keyed on this same label)
+// ingests them. This must be microsoft_metrics_account, the per-series label;
+// microsoft_metrics_include_label is only the DCR filter key, not a series label.
+const accountTargetLabel = "microsoft_metrics_account"
 
-func injectIncludeLabel(spec map[string]any, key string) {
+const (
+	regionTargetLabel      = "region"
+	environmentTargetLabel = "environment"
+)
+
+// injectLabels appends the AMA routing and parity relabelings to every endpoint
+// under spec[key]. When absent, it adds:
+//   - the microsoft_metrics_account=hcp routing label, so the series reaches the
+//     HCP workspace via the HCP DCR's labelIncludeFilter;
+//   - set-if-absent region/environment labels, to preserve parity with OSS. In
+//     OSS mode the agent supplies these via externalLabels; AMA has no agent, so
+//     the translator stamps them here.
+//
+// Each relabel is only appended if an entry with the same targetLabel is not
+// already present, so re-translation is idempotent. Empty region/environment
+// values are skipped (they are required and validated in AMA mode, so this is
+// only defensive).
+func injectLabels(spec map[string]any, key, metricsRegion, metricsEnvironment string) {
 	endpoints, ok := spec[key].([]any)
 	if !ok {
 		return
@@ -305,26 +337,51 @@ func injectIncludeLabel(spec map[string]any, key string) {
 			continue
 		}
 		relabelConfigs, _ := endpointMap["metricRelabelings"].([]any)
-		if hasIncludeLabel(relabelConfigs) {
-			// The source already carries the marker (e.g. the KSM monitor sets
-			// it at creation time); avoid appending a duplicate relabel rule.
-			continue
-		}
-		endpointMap["metricRelabelings"] = append(relabelConfigs, map[string]any{
-			"targetLabel": includeLabelTargetLabel,
+		relabelConfigs = appendRelabelIfAbsent(relabelConfigs, accountTargetLabel, map[string]any{
+			"targetLabel": accountTargetLabel,
 			"replacement": "hcp",
 			"action":      "replace",
 		})
+		if metricsRegion != "" {
+			relabelConfigs = appendRelabelIfAbsent(relabelConfigs, regionTargetLabel, setIfAbsentRelabel(regionTargetLabel, metricsRegion))
+		}
+		if metricsEnvironment != "" {
+			relabelConfigs = appendRelabelIfAbsent(relabelConfigs, environmentTargetLabel, setIfAbsentRelabel(environmentTargetLabel, metricsEnvironment))
+		}
+		endpointMap["metricRelabelings"] = relabelConfigs
 	}
 }
 
-func hasIncludeLabel(relabelConfigs []any) bool {
+// setIfAbsentRelabel returns a relabeling that sets label to value only when the
+// series does not already carry it. The regex "^$" matches an empty label value,
+// so a series that already has the label is left untouched.
+func setIfAbsentRelabel(label, value string) map[string]any {
+	return map[string]any{
+		"sourceLabels": []any{label},
+		"regex":        "^$",
+		"targetLabel":  label,
+		"replacement":  value,
+		"action":       "replace",
+	}
+}
+
+// appendRelabelIfAbsent appends relabel to configs unless an entry already
+// targets targetLabel (e.g. the KSM monitor sets the routing label at creation
+// time), keeping translation idempotent.
+func appendRelabelIfAbsent(configs []any, targetLabel string, relabel map[string]any) []any {
+	if hasTargetLabel(configs, targetLabel) {
+		return configs
+	}
+	return append(configs, relabel)
+}
+
+func hasTargetLabel(relabelConfigs []any, targetLabel string) bool {
 	for _, rc := range relabelConfigs {
 		rcMap, ok := rc.(map[string]any)
 		if !ok {
 			continue
 		}
-		if target, _ := rcMap["targetLabel"].(string); target == includeLabelTargetLabel {
+		if target, _ := rcMap["targetLabel"].(string); target == targetLabel {
 			return true
 		}
 	}
@@ -332,8 +389,10 @@ func hasIncludeLabel(relabelConfigs []any) bool {
 }
 
 // Translate creates an azmonitoring.coreos.com/v1 resource from a monitoring.coreos.com/v1 source.
-// The spec is copied verbatim. An OwnerReference is set for garbage collection.
-func Translate(source *unstructured.Unstructured, sourceGVR, targetGVR schema.GroupVersionResource) *unstructured.Unstructured {
+// The spec is copied verbatim, then the AMA routing and region/environment parity
+// relabelings are injected (see injectLabels). An OwnerReference is set for
+// garbage collection.
+func Translate(source *unstructured.Unstructured, sourceGVR, targetGVR schema.GroupVersionResource, metricsRegion, metricsEnvironment string) *unstructured.Unstructured {
 	target := &unstructured.Unstructured{Object: make(map[string]any)}
 	target.SetAPIVersion(targetGVR.Group + "/v1")
 	target.SetKind(source.GetKind())
@@ -349,8 +408,8 @@ func Translate(source *unstructured.Unstructured, sourceGVR, targetGVR schema.Gr
 		klog.Warningf("failed to read spec from %s/%s %s/%s: %v", sourceGVR.Group, sourceGVR.Resource, source.GetNamespace(), source.GetName(), err)
 	}
 	if found {
-		injectIncludeLabel(spec, "endpoints")
-		injectIncludeLabel(spec, "podMetricsEndpoints")
+		injectLabels(spec, "endpoints", metricsRegion, metricsEnvironment)
+		injectLabels(spec, "podMetricsEndpoints", metricsRegion, metricsEnvironment)
 		_ = unstructured.SetNestedMap(target.Object, spec, "spec")
 	}
 

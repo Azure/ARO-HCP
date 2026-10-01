@@ -57,6 +57,7 @@ import (
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/amanetpolicy"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/amaprune"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/backupcleanup"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/capacityreporting"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
@@ -80,6 +81,13 @@ type RawControllerOptions struct {
 	NodeHealthConfigMapName string
 	NodeHealthConfigKey     string
 	MonitoringAPIGroup      string
+
+	// MetricsRegion/MetricsEnvironment are stamped onto HCP series as
+	// set-if-absent relabelings in AMA mode (where there is no Prometheus agent
+	// to supply them via externalLabels). They are required in AMA mode and
+	// ignored in OSS mode.
+	MetricsRegion      string
+	MetricsEnvironment string
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
@@ -106,6 +114,10 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 		"Key within the node-health ConfigMap that holds the YAML configuration.")
 	cmd.Flags().StringVar(&o.MonitoringAPIGroup, "monitoring-api-group", o.MonitoringAPIGroup,
 		"API group for monitoring CRDs (e.g. azmonitoring.coreos.com). Enables AMA NetworkPolicy controller when set to azmonitoring.coreos.com.")
+	cmd.Flags().StringVar(&o.MetricsRegion, "metrics-region", o.MetricsRegion,
+		"Azure region stamped onto HCP metric series in AMA mode (required when --monitoring-api-group is azmonitoring.coreos.com; ignored otherwise).")
+	cmd.Flags().StringVar(&o.MetricsEnvironment, "metrics-environment", o.MetricsEnvironment,
+		"Environment name stamped onto HCP metric series in AMA mode (required when --monitoring-api-group is azmonitoring.coreos.com; ignored otherwise).")
 
 	return nil
 }
@@ -123,6 +135,7 @@ type completedControllerOptions struct {
 	ksmCtrl                  *ksmhcp.KSMHCPController
 	monitorTranslatorCtrl    *monitortranslator.MonitorTranslatorController
 	amaNetPolicyCtrl         *amanetpolicy.AMANetworkPolicyController
+	amaPruneCtrl             *amaprune.Controller
 	nodeHealth               *nodehealth.Controller
 	capacityReport           *capacityreporting.CapacityReportController
 	backupCleanup            *backupcleanup.Controller
@@ -158,6 +171,17 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 	}
 	if o.LogVerbosity < 0 {
 		return nil, fmt.Errorf("--log-verbosity must be a value >= 0")
+	}
+	// In AMA mode the translator and KSM controllers stamp region/environment
+	// onto HCP series (no Prometheus agent supplies them), so both are required.
+	// Fail fast rather than silently emitting series without these labels.
+	if o.MonitoringAPIGroup == ksmhcp.AMAMonitoringAPIGroup {
+		if o.MetricsRegion == "" {
+			return nil, fmt.Errorf("--metrics-region is required when --monitoring-api-group is %s", ksmhcp.AMAMonitoringAPIGroup)
+		}
+		if o.MetricsEnvironment == "" {
+			return nil, fmt.Errorf("--metrics-environment is required when --monitoring-api-group is %s", ksmhcp.AMAMonitoringAPIGroup)
+		}
 	}
 	return &ValidatedControllerOptions{
 		validatedControllerOptions: &validatedControllerOptions{
@@ -347,6 +371,8 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			dynInformers.ForResource(ksmhcp.ServiceMonitorGVRForGroup(o.MonitoringAPIGroup)).Informer(),
 			o.KSMImage,
 			o.MonitoringAPIGroup,
+			o.MetricsRegion,
+			o.MetricsEnvironment,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
@@ -386,10 +412,20 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			dynamicClient,
 			translatorDynInformers.ForResource(monitortranslator.SourceServiceMonitorGVR).Informer(),
 			translatorDynInformers.ForResource(monitortranslator.SourcePodMonitorGVR).Informer(),
+			o.MetricsRegion,
+			o.MetricsEnvironment,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create monitor translator controller: %w", err)
 		}
+	}
+
+	// In OSS mode, prune the objects the AMA-only controllers create, so a switch
+	// from AMA back to OSS converges in a single rollout (T4). The AMA controllers
+	// above do not run in OSS mode, so nothing else cleans up their output.
+	var amaPruneCtrl *amaprune.Controller
+	if o.MonitoringAPIGroup != ksmhcp.AMAMonitoringAPIGroup {
+		amaPruneCtrl = amaprune.NewController(dynamicClient, kubeClientset)
 	}
 
 	hostname, err := os.Hostname()
@@ -425,6 +461,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			translatorDynInformers:   translatorDynInformers,
 			amaNetPolicyCtrl:         amaNetPolicyCtrl,
 			amaNetPolicyInformers:    amaNetPolicyInformers,
+			amaPruneCtrl:             amaPruneCtrl,
 			workers:                  o.Workers,
 			healthAddress:            o.HealthAddress,
 			leaderElectionLock:       leaderElectionLock,
@@ -599,6 +636,14 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 						defer utilruntime.HandleCrash()
 						if err := o.amaNetPolicyCtrl.Run(ctx, o.workers); err != nil {
 							logger.Error(err, "AMA NetworkPolicy controller failed")
+						}
+					}()
+				}
+				if o.amaPruneCtrl != nil {
+					go func() {
+						defer utilruntime.HandleCrash()
+						if err := o.amaPruneCtrl.Run(ctx); err != nil {
+							logger.Error(err, "AMA prune controller failed")
 						}
 					}()
 				}

@@ -197,7 +197,51 @@ func buildService(namespace string, ownerRef metav1.OwnerReference) *coreac.Serv
 // mirror) have no typed apply configurations. The apiGroup is configurable so
 // that in AMA mode the monitor is emitted directly as the azmonitoring type AMA
 // discovers, rather than being created as monitoring.coreos.com and translated.
-func buildServiceMonitor(namespace, apiGroup string, ownerRef metav1.OwnerReference) (*unstructured.Unstructured, error) {
+// metricsRegion/metricsEnvironment are only used in AMA mode (see below).
+func buildServiceMonitor(namespace, apiGroup, metricsRegion, metricsEnvironment string, ownerRef metav1.OwnerReference) (*unstructured.Unstructured, error) {
+	// Per-series routing label that marks these KSM series for the HCP workspace.
+	// In AMA mode it must be microsoft_metrics_account, the label the HCP DCR's
+	// labelIncludeFilter keys on. In OSS mode routing is done by namespace in the
+	// agent's remote-write config, so the label is a harmless no-op there; we keep
+	// emitting the historical microsoft_metrics_include_label value to stay
+	// byte-identical with main (OSS output must not change). Whether the OSS label
+	// can be dropped entirely is open question Q7.
+	accountTargetLabel := "microsoft_metrics_include_label"
+	if apiGroup == AMAMonitoringAPIGroup {
+		accountTargetLabel = "microsoft_metrics_account"
+	}
+
+	relabelings := []monitoringv1.RelabelConfig{
+		{
+			TargetLabel: "hostedcontrolplane",
+			Replacement: ptr.To(namespace),
+			Action:      "replace",
+		},
+		{
+			SourceLabels: []monitoringv1.LabelName{"exported_namespace"},
+			TargetLabel:  "namespace",
+			Regex:        "(.+)",
+			Action:       "replace",
+		},
+		{
+			TargetLabel: accountTargetLabel,
+			Replacement: ptr.To("hcp"),
+			Action:      "replace",
+		},
+	}
+
+	// In AMA mode there is no Prometheus agent to supply region/environment via
+	// externalLabels, so stamp them here (set-if-absent) to preserve parity with
+	// OSS. OSS output must not change, so these relabels are AMA-only.
+	if apiGroup == AMAMonitoringAPIGroup {
+		if metricsRegion != "" {
+			relabelings = append(relabelings, setIfAbsentRelabel("region", metricsRegion))
+		}
+		if metricsEnvironment != "" {
+			relabelings = append(relabelings, setIfAbsentRelabel("environment", metricsEnvironment))
+		}
+	}
+
 	sm := &monitoringv1.ServiceMonitor{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: apiGroup + "/v1",
@@ -212,26 +256,9 @@ func buildServiceMonitor(namespace, apiGroup string, ownerRef metav1.OwnerRefere
 		Spec: monitoringv1.ServiceMonitorSpec{
 			Endpoints: []monitoringv1.Endpoint{
 				{
-					Port:     "http-metrics",
-					Interval: "30s",
-					MetricRelabelConfigs: []monitoringv1.RelabelConfig{
-						{
-							TargetLabel: "hostedcontrolplane",
-							Replacement: ptr.To(namespace),
-							Action:      "replace",
-						},
-						{
-							SourceLabels: []monitoringv1.LabelName{"exported_namespace"},
-							TargetLabel:  "namespace",
-							Regex:        "(.+)",
-							Action:       "replace",
-						},
-						{
-							TargetLabel: "microsoft_metrics_include_label",
-							Replacement: ptr.To("hcp"),
-							Action:      "replace",
-						},
-					},
+					Port:                 "http-metrics",
+					Interval:             "30s",
+					MetricRelabelConfigs: relabelings,
 				},
 			},
 			Selector: metav1.LabelSelector{
@@ -248,4 +275,17 @@ func buildServiceMonitor(namespace, apiGroup string, ownerRef metav1.OwnerRefere
 		return nil, err
 	}
 	return &unstructured.Unstructured{Object: data}, nil
+}
+
+// setIfAbsentRelabel returns a relabeling that sets label to value only when the
+// series does not already carry it. The regex "^$" matches an empty label value,
+// so a series that already has the label is left untouched.
+func setIfAbsentRelabel(label, value string) monitoringv1.RelabelConfig {
+	return monitoringv1.RelabelConfig{
+		SourceLabels: []monitoringv1.LabelName{monitoringv1.LabelName(label)},
+		Regex:        "^$",
+		TargetLabel:  label,
+		Replacement:  ptr.To(value),
+		Action:       "replace",
+	}
 }

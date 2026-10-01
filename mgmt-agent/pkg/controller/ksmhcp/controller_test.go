@@ -120,7 +120,9 @@ func TestBuildService(t *testing.T) {
 }
 
 func TestBuildServiceMonitor(t *testing.T) {
-	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", DefaultMonitoringAPIGroup, metav1.OwnerReference{
+	// Pass non-empty region/environment to prove OSS mode ignores them (output
+	// must stay byte-identical with main).
+	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", DefaultMonitoringAPIGroup, "westus3", "dev", metav1.OwnerReference{
 		APIVersion: "hypershift.openshift.io/v1beta1",
 		Kind:       "HostedControlPlane",
 		Name:       "test-hcp",
@@ -135,11 +137,13 @@ func TestBuildServiceMonitor(t *testing.T) {
 
 // TestBuildServiceMonitorAMAGroup verifies that in AMA mode the KSM monitor is
 // emitted directly as the azmonitoring.coreos.com type AMA discovers, so it does
-// not have to be created as monitoring.coreos.com and translated (which would
-// duplicate the microsoft_metrics_include_label relabel rule).
+// not have to be created as monitoring.coreos.com and translated. It also
+// verifies the per-series routing label is microsoft_metrics_account (the label
+// the HCP DCR's labelIncludeFilter keys on), not the DCR filter key
+// microsoft_metrics_include_label.
 func TestBuildServiceMonitorAMAGroup(t *testing.T) {
 	const amaGroup = "azmonitoring.coreos.com"
-	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", amaGroup, metav1.OwnerReference{
+	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", amaGroup, "westus3", "dev", metav1.OwnerReference{
 		APIVersion: "hypershift.openshift.io/v1beta1",
 		Kind:       "HostedControlPlane",
 		Name:       "test-hcp",
@@ -155,6 +159,63 @@ func TestBuildServiceMonitorAMAGroup(t *testing.T) {
 	if got, want := ServiceMonitorGVRForGroup(amaGroup).Group, amaGroup; got != want {
 		t.Errorf("ServiceMonitorGVRForGroup group = %q, want %q", got, want)
 	}
+	if got := routingTargetLabels(t, sm); !got["microsoft_metrics_account"] {
+		t.Errorf("AMA monitor missing microsoft_metrics_account routing relabel; got labels %v", got)
+	} else if got["microsoft_metrics_include_label"] {
+		t.Errorf("AMA monitor must not use the DCR filter key microsoft_metrics_include_label as a series label; got labels %v", got)
+	}
+}
+
+// TestBuildServiceMonitorOSSRoutingLabel verifies that in OSS mode the KSM
+// monitor keeps emitting the historical microsoft_metrics_include_label relabel,
+// byte-identical with main. Routing is done by namespace in the agent's
+// remote-write config, so the label is a harmless no-op there (see Q7).
+func TestBuildServiceMonitorOSSRoutingLabel(t *testing.T) {
+	// Pass non-empty region/environment to prove OSS mode ignores them (output
+	// must stay byte-identical with main).
+	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", DefaultMonitoringAPIGroup, "westus3", "dev", metav1.OwnerReference{
+		APIVersion: "hypershift.openshift.io/v1beta1",
+		Kind:       "HostedControlPlane",
+		Name:       "test-hcp",
+		UID:        "uid-123",
+	})
+	if err != nil {
+		t.Fatalf("buildServiceMonitor() error: %v", err)
+	}
+
+	got := routingTargetLabels(t, sm)
+	if !got["microsoft_metrics_include_label"] {
+		t.Errorf("OSS monitor missing microsoft_metrics_include_label routing relabel; got labels %v", got)
+	}
+	if got["microsoft_metrics_account"] {
+		t.Errorf("OSS monitor must stay byte-identical with main and not emit microsoft_metrics_account; got labels %v", got)
+	}
+	// OSS mode must ignore region/environment entirely; the Prometheus agent
+	// supplies them via externalLabels, so the KSM monitor must not stamp them.
+	if got["region"] || got["environment"] {
+		t.Errorf("OSS monitor must not stamp region/environment relabels; got labels %v", got)
+	}
+}
+
+// routingTargetLabels returns the set of targetLabel values found in the first
+// endpoint's metricRelabelings of a KSM ServiceMonitor.
+func routingTargetLabels(t *testing.T, sm *unstructured.Unstructured) map[string]bool {
+	t.Helper()
+	endpoints, _, err := unstructured.NestedSlice(sm.Object, "spec", "endpoints")
+	if err != nil || len(endpoints) == 0 {
+		t.Fatalf("unexpected endpoints %v (err %v)", endpoints, err)
+	}
+	relabelings, _, err := unstructured.NestedSlice(endpoints[0].(map[string]any), "metricRelabelings")
+	if err != nil {
+		t.Fatalf("failed to read metricRelabelings: %v", err)
+	}
+	labels := map[string]bool{}
+	for _, rc := range relabelings {
+		if target, _ := rc.(map[string]any)["targetLabel"].(string); target != "" {
+			labels[target] = true
+		}
+	}
+	return labels
 }
 
 // TestDeleteStaleServiceMonitor verifies that when the controller runs in AMA

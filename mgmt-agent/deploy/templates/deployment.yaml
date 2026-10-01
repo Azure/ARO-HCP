@@ -29,6 +29,10 @@ spec:
         - "--node-health-configmap={{ .Values.nodeHealth.configMapName }}"
         - "--node-health-config-key={{ .Values.nodeHealth.configKey }}"
         - "--monitoring-api-group={{ .Values.monitoringApiGroup }}"
+        {{- if eq .Values.monitoringApiGroup "azmonitoring.coreos.com" }}
+        - "--metrics-region={{ .Values.metricsRegion }}"
+        - "--metrics-environment={{ .Values.metricsEnvironment }}"
+        {{- end }}
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         name: mgmt-agent-controller
         env:

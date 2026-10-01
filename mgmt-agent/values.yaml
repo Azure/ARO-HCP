@@ -1,4 +1,10 @@
 monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
+# Region and environment are stamped onto HCP metric series in AMA mode, where
+# there is no Prometheus agent to supply them via externalLabels. They are only
+# passed to the controller (and only required) when monitoringApiGroup selects
+# AMA (azmonitoring.coreos.com); see deploy/templates/deployment.yaml.
+metricsRegion: "{{ .region }}"
+metricsEnvironment: "{{ .environmentName }}"
 image:
   registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
   repository: "{{ .mgmtAgent.image.repository }}"

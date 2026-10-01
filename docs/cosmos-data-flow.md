@@ -1568,6 +1568,26 @@ Request and usage aggregation always includes CPU, memory and `aro.openshift.io/
 
 For eligible available control planes, reconciles a per-HCP kube-state-metrics Deployment, Service and ServiceMonitor using the service-network-admin-kubeconfig secret. Registration is conditional on the kube-state-metrics option.
 
+Runs in both metrics-collection modes selected by `--monitoring-api-group`. In OSS mode (`monitoring.coreos.com`) the ServiceMonitor is created in that group and the in-cluster Prometheus agent scrapes it, routing by namespace and supplying `region`/`environment` via external labels; the emitted series stay byte-identical with the historical output. In AMA mode (`azmonitoring.coreos.com`) the ServiceMonitor is created in the azmonitoring group that Azure Monitor discovers directly, and the controller stamps the per-series routing label `microsoft_metrics_account=hcp` plus set-if-absent `region`/`environment` relabels (from `--metrics-region` / `--metrics-environment`), since no agent supplies them. `deleteStaleServiceMonitor` removes the monitor in the other group so a mode switch converges in one rollout. No Cosmos domain write.
+
+#### MonitorTranslatorController
+
+[Source](../mgmt-agent/pkg/controller/monitortranslator/controller.go) · **Trigger:** ServiceMonitor/PodMonitor informers (AMA mode only).
+
+Registered only in AMA mode. Watches HCP-owned `monitoring.coreos.com/v1` ServiceMonitors and PodMonitors and server-side applies equivalent `azmonitoring.coreos.com/v1` copies so Azure Monitor discovers them. Each copy carries the `microsoft_metrics_account=hcp` routing label and set-if-absent `region`/`environment` relabels on every endpoint; injection is idempotent. The per-HCP kube-state-metrics monitor is skipped (it is emitted directly by the KSMHCPController) and copies are owned by their source monitor for garbage collection. No Cosmos domain write.
+
+#### AMANetworkPolicyController
+
+[Source](../mgmt-agent/pkg/controller/amanetpolicy/controller.go) · **Trigger:** HostedControlPlane and NetworkPolicy informers (AMA mode only).
+
+Registered only in AMA mode. Ensures a NetworkPolicy per HCP namespace allowing the Azure Monitor agent to reach control-plane metrics endpoints, labelled with the `mgmt-agent-ama-netpolicy` managed-by value. No Cosmos domain write.
+
+#### amaprune
+
+[Source](../mgmt-agent/pkg/controller/amaprune/controller.go) · **Trigger:** One-shot at startup under leader election (OSS mode only).
+
+Registered only in OSS mode. Deletes the objects the AMA-only controllers leave behind after a switch from AMA to OSS, so the switch converges in a single rollout: azmonitoring ServiceMonitors/PodMonitors owned by a `monitoring.coreos.com/v1` source (translator copies — the HCP-owned KSM monitor is excluded) and NetworkPolicies carrying the `mgmt-agent-ama-netpolicy` label. A missing azmonitoring CRD and NotFound are tolerated; the prune retries with backoff until it succeeds. No Cosmos domain write.
+
 #### ConfigMapWatcher
 
 [Source](../mgmt-agent/pkg/controller/cmwatcher.go) · **Trigger:** Router ConfigMap events.
