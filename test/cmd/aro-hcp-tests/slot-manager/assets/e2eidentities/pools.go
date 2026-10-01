@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package identitypool
+package e2eidentities
 
 import (
 	"context"
@@ -37,22 +37,12 @@ type identityPool struct {
 	Slots                   []slots.ExpandedSlot
 }
 
-// loadIdentityPools loads pools for the given environment. When
-// subscriptionFilter is non-empty, only pools whose subscription_name matches
-// one of the filter values are included (regardless of identity_provisioning).
-// When subscriptionFilter is empty, pools with identity_provisioning: unmanaged
-// are skipped.
-func loadIdentityPools(ctx context.Context, catalogPath, environment string, subscriptionFilter []string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
-	catalog, err := slots.LoadCatalog(catalogPath)
-	if err != nil {
-		return nil, err
-	}
-
-	environmentConfig, found := catalog.Environments[environment]
-	if !found {
-		return nil, fmt.Errorf("unknown environment %q", environment)
-	}
-
+// resolveIdentityPools resolves pools for the given environment. When
+// subscriptionFilter is non-empty, only pools whose E2E subscription matches
+// one of the filter values are included, regardless of provisioning policy.
+// Without a filter, pools with unmanaged E2E identity provisioning are skipped
+// (slot_assets.e2e_identities.provisioning).
+func resolveIdentityPools(ctx context.Context, environment string, catalogPools []slots.Pool, subscriptionFilter []string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
 	filterSet := make(map[string]struct{}, len(subscriptionFilter))
 	for _, name := range subscriptionFilter {
 		// Ignore empty/whitespace-only entries so that a wrapper passing an
@@ -66,32 +56,37 @@ func loadIdentityPools(ctx context.Context, catalogPath, environment string, sub
 	}
 
 	resolvedIDs := map[string]string{}
-	pools := make([]identityPool, 0, len(environmentConfig.Pools))
-	for _, pool := range environmentConfig.Pools {
+	pools := make([]identityPool, 0, len(catalogPools))
+	for _, pool := range catalogPools {
+		if pool.SlotAssets.E2EIdentities == nil {
+			continue
+		}
 		if len(filterSet) > 0 {
-			if _, match := filterSet[pool.SubscriptionName]; !match {
+			if _, match := filterSet[pool.Subscriptions.E2E]; !match {
 				continue
 			}
 		} else if pool.IsUnmanaged() {
 			continue
 		}
 
-		subscriptionID, found := resolvedIDs[pool.SubscriptionName]
+		subscriptionName := pool.Subscriptions.E2E
+		subscriptionID, found := resolvedIDs[subscriptionName]
 		if !found {
-			subscriptionID, err = resolveSubscriptionID(ctx, pool.SubscriptionName)
+			resolvedSubscriptionID, err := resolveSubscriptionID(ctx, subscriptionName)
 			if err != nil {
-				return nil, fmt.Errorf("failed getting subscription ID for %q: %w", pool.SubscriptionName, err)
+				return nil, fmt.Errorf("failed getting subscription ID for %q: %w", subscriptionName, err)
 			}
-			resolvedIDs[pool.SubscriptionName] = subscriptionID
+			subscriptionID = resolvedSubscriptionID
+			resolvedIDs[subscriptionName] = subscriptionID
 		}
 
 		pools = append(pools, identityPool{
 			Environment:             environment,
 			Region:                  pool.Region,
 			ProvisioningRegion:      pool.EffectiveIdentityProvisioningRegion(),
-			SubscriptionName:        pool.SubscriptionName,
+			SubscriptionName:        subscriptionName,
 			SubscriptionID:          subscriptionID,
-			IdentityContainerPrefix: pool.IdentityContainerPrefix,
+			IdentityContainerPrefix: pool.SlotAssets.E2EIdentities.ResourceGroupPrefix,
 			Slots:                   slots.ExpandSlotsForPool(environment, pool),
 		})
 	}

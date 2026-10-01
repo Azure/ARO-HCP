@@ -84,9 +84,21 @@ func (e *retryableLeaseProxyError) Unwrap() error {
 	return e.Cause
 }
 
+func ValidateLeasedResourceName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("empty resource name")
+	}
+	if strings.TrimSpace(name) != name {
+		return fmt.Errorf("resource name %q contains leading or trailing whitespace", name)
+	}
+	return nil
+}
+
 func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string, timeout time.Duration) (string, error) {
 	query := url.Values{}
 	query.Set("type", resourceType)
+	// The proxy acquires batches one resource at a time but omits partial results
+	// on failure. Request one so the journal can record each acquisition for rollback.
 	query.Set("count", "1")
 
 	response, err := doLeaseProxyRequestWithRetry(
@@ -128,10 +140,15 @@ func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string,
 	if len(acquireResponse.Names) != 1 {
 		return "", fmt.Errorf("expected exactly one leased resource name for type %q, got %d", resourceType, len(acquireResponse.Names))
 	}
+	if err := ValidateLeasedResourceName(acquireResponse.Names[0]); err != nil {
+		return "", fmt.Errorf("lease proxy returned an invalid name for type %q: %w", resourceType, err)
+	}
 	return acquireResponse.Names[0], nil
 }
 
 func ReleaseLease(ctx context.Context, leaseProxyServerURL, name string, timeout time.Duration) error {
+	// The proxy releases batches one resource at a time without structured partial
+	// results. Return one so the journal can track each outcome independently.
 	requestBody, err := json.Marshal(releaseLeaseRequest{Names: []string{name}})
 	if err != nil {
 		return fmt.Errorf("failed to marshal lease release request: %w", err)

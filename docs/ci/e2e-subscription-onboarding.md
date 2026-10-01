@@ -11,7 +11,7 @@ This document covers the procedure for onboarding new customer subscriptions for
 
 This section covers the procedure for adding another customer subscription to the DEV E2E slot fleet.
 
-Today the canonical DEV slot inventory lives in `test/e2e-config/e2e-slots.yaml`, where the `dev` slot environment is consumed by the `prow` and `ci01` deploy environments.
+The canonical DEV slot inventory lives in `test/e2e-config/e2e-slots.yaml`, where the `dev` slot environment is bound to the `ci01` deployment environment.
 
 ### What This Onboarding Touches
 
@@ -74,6 +74,7 @@ az provider show --namespace Microsoft.Compute \
 ## Procedure
 
 1. Add the new pool to `test/e2e-config/e2e-slots.yaml`.
+   - Follow the v2 [catalog contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog): name the pool, set `subscriptions.e2e`, and declare dedicated `slot_assets.e2e_identities`.
    - Pick the next shard number and a unique `resource_type`.
    - Set `slot_count` to the intended concurrency for the new subscription.
    - Keep the existing DEV identity-container pattern aligned unless there is a deliberate reason to diverge.
@@ -136,7 +137,7 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 - `test/e2e-config/e2e-slots.yaml`
 - `test/cmd/aro-hcp-tests/slot-manager/DESIGN.md`
 - `test/cmd/aro-hcp-tests/slot-manager/release_repo.go`
-- `test/cmd/aro-hcp-tests/slot-manager/identity-pool/`
+- `test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities/`
 - `config/config-dev-ci.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
@@ -146,7 +147,7 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 
 ### External (Unmanaged) Subscriptions
 
-For subscriptions owned by a different team where our pipeline identity does **not** have access, use the external onboarding model instead. External subscriptions are **not listed** in `config/config-dev-ci.yaml` and are marked with `identity_provisioning: unmanaged` in the slot catalog.
+For subscriptions owned by a different team where our pipeline identity does **not** have access, use the external onboarding model instead. External subscriptions are **not listed** in `config/config-dev-ci.yaml` and set `slot_assets.e2e_identities.provisioning: unmanaged` in the slot catalog.
 
 The external team runs the RBAC setup and identity-pool provisioning themselves using our Bicep modules. See [External Subscription Onboarding](external-subscription-onboarding.md) for the full procedure and grant contract.
 

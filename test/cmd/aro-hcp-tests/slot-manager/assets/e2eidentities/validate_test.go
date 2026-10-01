@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package identitypool
+package e2eidentities
 
 import (
 	"bytes"
@@ -33,6 +33,9 @@ func TestCompareIdentityPoolInventory(t *testing.T) {
 		Slots: []slots.ExpandedSlot{{
 			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
 			IdentityContainerCount:  2,
+			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+				ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00", "aro-hcp-msi-container-dev-00-01"},
+			}},
 		}},
 	}}
 
@@ -95,6 +98,9 @@ func TestValidateOptionsRun(t *testing.T) {
 		Slots: []slots.ExpandedSlot{{
 			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
 			IdentityContainerCount:  1,
+			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+				ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00"},
+			}},
 		}},
 	}
 	resourceGroup := pool.Slots[0].IdentityContainerNames()[0]
@@ -103,7 +109,7 @@ func TestValidateOptionsRun(t *testing.T) {
 		t.Parallel()
 
 		var output bytes.Buffer
-		opts := &ValidateOptions{completedValidateOptions: &completedValidateOptions{
+		opts := &ValidateOptions{
 			IdentityPools: []identityPool{pool},
 			LoadInventory: func(context.Context, string) (subscriptionInventory, error) {
 				identityNames := framework.NewDefaultIdentities().ToSlice()
@@ -118,7 +124,7 @@ func TestValidateOptionsRun(t *testing.T) {
 				}, nil
 			},
 			Out: &output,
-		}}
+		}
 
 		if err := opts.Run(context.Background()); err != nil {
 			t.Fatalf("expected validation to succeed: %v", err)
@@ -132,13 +138,13 @@ func TestValidateOptionsRun(t *testing.T) {
 		t.Parallel()
 
 		var output bytes.Buffer
-		opts := &ValidateOptions{completedValidateOptions: &completedValidateOptions{
+		opts := &ValidateOptions{
 			IdentityPools: []identityPool{pool},
 			LoadInventory: func(context.Context, string) (subscriptionInventory, error) {
 				return subscriptionInventory{}, nil
 			},
 			Out: &output,
-		}}
+		}
 
 		err := opts.Run(context.Background())
 		if err == nil {

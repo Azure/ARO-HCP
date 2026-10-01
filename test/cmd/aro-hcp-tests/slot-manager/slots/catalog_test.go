@@ -24,43 +24,49 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-const syntheticCatalogYAML = `version: 1
+const syntheticCatalogYAML = `version: 2
 environments:
   dev:
-    deploy_envs: [ci00, ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-shard-0
+      - name: aro-hcp-dev-shard0-westus3-slot
+        subscriptions: {e2e: dev-shard-0}
         region: westus3
         resource_type: aro-hcp-dev-shard0-westus3-slot
         slot_count: 2
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 20
-      - subscription_name: dev-shard-1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 20
+      - name: aro-hcp-dev-shard1-eastus2-slot
+        subscriptions: {e2e: dev-shard-1}
         region: eastus2
         resource_type: aro-hcp-dev-shard1-eastus2-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 10
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 10
   prod:
-    deploy_envs: [prod]
+    deployment_environment: {name: prod}
     pools:
-      - subscription_name: prod
+      - name: aro-hcp-prod-uksouth-slot
+        subscriptions: {e2e: prod}
         region: uksouth
         resource_type: aro-hcp-prod-uksouth-slot
         slot_count: 3
-        identity_container_prefix: aro-hcp-msi-container-prod
-        identity_container_count: 15
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-prod
+            resource_group_count: 15
 `
 
 func loadCatalogFromYAML(t *testing.T, catalogYAML string) *Catalog {
 	t.Helper()
-
-	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
-	if err := os.WriteFile(catalogPath, []byte(catalogYAML), 0o644); err != nil {
-		t.Fatalf("expected synthetic catalog write to succeed: %v", err)
-	}
-
-	catalog, err := LoadCatalog(catalogPath)
+	catalog, err := loadCatalogFromYAMLWithError(t, catalogYAML)
 	if err != nil {
 		t.Fatalf("expected synthetic catalog to load: %v", err)
 	}
@@ -87,7 +93,7 @@ func TestLoadCatalogAndExpandSlots(t *testing.T) {
 	}
 
 	firstDevSlot := devSlots[0]
-	expectedSubscriptionName := catalog.Environments["dev"].Pools[0].SubscriptionName
+	expectedSubscriptionName := catalog.Environments["dev"].Pools[0].Subscriptions.E2E
 	if firstDevSlot.ResourceType != "aro-hcp-dev-shard0-westus3-slot" {
 		t.Fatalf("unexpected resource type %q", firstDevSlot.ResourceType)
 	}
@@ -111,6 +117,125 @@ func TestLoadCatalogAndExpandSlots(t *testing.T) {
 	if identityContainers[19] != "aro-hcp-msi-container-dev-a-00-19" {
 		t.Fatalf("unexpected last identity container %q", identityContainers[19])
 	}
+}
+
+const dedicatedCatalog = `version: 2
+environments:
+  dev:
+    deployment_environment: {name: ci01, infrastructure_subscription: dev-infra}
+    pools:
+    - name: shard0
+      region_mode: weighted
+      regions: [westus3, centralus, canadacentral]
+      resource_type: aro-hcp-dev-shard0-slot
+      slot_count: 2
+      subscriptions:
+        e2e: dev-e2e
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard0
+          resource_group_count: 3
+`
+
+func TestDedicatedCatalogExpansion(t *testing.T) {
+	t.Parallel()
+	catalog := loadCatalogFromYAML(t, dedicatedCatalog)
+
+	environment, err := catalog.ResolveEnvironmentForDeployEnv("ci01")
+	if err != nil {
+		t.Fatalf("expected v2 deploy environment resolution to succeed: %v", err)
+	}
+	if environment != "dev" {
+		t.Fatalf("expected environment %q, got %q", "dev", environment)
+	}
+
+	expandedSlots, err := catalog.ExpandedSlotsForEnvironment("dev")
+	if err != nil {
+		t.Fatalf("expected v2 slots to expand: %v", err)
+	}
+	if len(expandedSlots) != 2 {
+		t.Fatalf("expected 2 v2 slots, got %d", len(expandedSlots))
+	}
+	slot := expandedSlots[1]
+	if slot.PoolName != "shard0" {
+		t.Fatalf("expected pool name %q, got %q", "shard0", slot.PoolName)
+	}
+	if slot.DeployEnvironment != "ci01" {
+		t.Fatalf("expected deploy environment %q, got %q", "ci01", slot.DeployEnvironment)
+	}
+	if slot.Subscriptions.E2E.Name != "dev-e2e" || slot.Subscriptions.Infrastructure != (ResolvedSubscription{}) {
+		t.Fatalf("unexpected resolved subscription names: %#v", slot.Subscriptions)
+	}
+	if got, want := slot.IdentityContainerNames(), []string{
+		"aro-hcp-msi-container-dev-shard0-01-00",
+		"aro-hcp-msi-container-dev-shard0-01-01",
+		"aro-hcp-msi-container-dev-shard0-01-02",
+	}; !slices.Equal(got, want) {
+		t.Fatalf("unexpected v2 identity resource groups: got %v want %v", got, want)
+	}
+}
+
+func TestCatalogRejectsDuplicatePoolNames(t *testing.T) {
+	t.Parallel()
+	catalog := loadCatalogFromYAML(t, dedicatedCatalog)
+	environment := catalog.Environments["dev"]
+	duplicate := environment.Pools[0]
+	duplicate.ResourceType = "second"
+	duplicate.Subscriptions.E2E = "other-customer"
+	environment.Pools = append(environment.Pools, duplicate)
+	catalog.Environments["dev"] = environment
+	err := catalog.Validate()
+	if err == nil || !strings.Contains(err.Error(), "duplicate pool name") {
+		t.Fatalf("expected duplicate v2 pool name error, got %v", err)
+	}
+}
+
+func TestDedicatedIdentityResourceGroupNames(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name              string
+		prefix            string
+		slots, containers int
+		valid             bool
+	}{
+		{"punctuation", "_prefix.()-", 2, 3, true},
+		{"unicode letters and digits", "\u00e9\u0661", 2, 3, true},
+		{"quote", "prefix'quote", 2, 3, false},
+		{"newline", "prefix\nnewline", 2, 3, false},
+		{"slash", "prefix/slash", 2, 3, false},
+		{"90 characters", strings.Repeat("a", 84), 100, 100, true},
+		{"91 characters", strings.Repeat("a", 85), 2, 3, false},
+		{"three digit slot suffix", strings.Repeat("a", 84), 101, 3, false},
+		{"three digit container suffix", strings.Repeat("a", 84), 2, 101, false},
+		{"long suffixes within limit", strings.Repeat("a", 82), 101, 101, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			catalog := loadCatalogFromYAML(t, dedicatedCatalog)
+			pool := &catalog.Environments["dev"].Pools[0]
+			pool.SlotCount = tc.slots
+			pool.SlotAssets.E2EIdentities.ResourceGroupPrefix = tc.prefix
+			pool.SlotAssets.E2EIdentities.ResourceGroupCount = tc.containers
+			err := catalog.Validate()
+			if tc.valid {
+				if err != nil {
+					t.Fatalf("valid generated resource-group names rejected: %v", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "invalid identity resource group name") {
+				t.Fatalf("expected generated resource-group name rejection, got %v", err)
+			}
+		})
+	}
+}
+
+func loadCatalogFromYAMLWithError(t *testing.T, catalogYAML string) (*Catalog, error) {
+	t.Helper()
+	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
+	if err := os.WriteFile(catalogPath, []byte(catalogYAML), 0o644); err != nil {
+		t.Fatalf("expected synthetic catalog write to succeed: %v", err)
+	}
+	return LoadCatalog(catalogPath)
 }
 
 func TestResolvePool(t *testing.T) {
@@ -288,25 +413,33 @@ func TestCatalogValidateRejectsInvalidProgrammaticRegionMode(t *testing.T) {
 func TestLoadCatalogRejectsMixedRegionModesWithinEnvironment(t *testing.T) {
 	t.Parallel()
 
-	invalidCatalog := `version: 1
+	invalidCatalog := `version: 2
 environments:
   prod:
-    deploy_envs: [prod]
+    deployment_environment: {name: prod}
     pools:
-      - subscription_name: prod-sub-1
+      - name: aro-hcp-prod-uksouth-slot
+        subscriptions: {e2e: prod-sub-1}
         region: uksouth
         region_mode: fixed
         resource_type: aro-hcp-prod-uksouth-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-prod-a
-        identity_container_count: 1
-      - subscription_name: prod-sub-2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-prod-a
+            resource_group_count: 1
+      - name: aro-hcp-prod-shard1-slot
+        subscriptions: {e2e: prod-sub-2}
         region: eastus2
         region_mode: runtime-selected
         resource_type: aro-hcp-prod-shard1-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-prod-b
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-prod-b
+            resource_group_count: 1
 `
 
 	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
@@ -322,19 +455,23 @@ environments:
 func TestLoadCatalogRejectsInvalidIdentityProvisioning(t *testing.T) {
 	t.Parallel()
 
-	invalidCatalog := `version: 1
+	invalidCatalog := `version: 2
 environments:
   dev:
-    deploy_envs: [ci00]
+    deployment_environment: {name: ci00}
     pools:
-      - subscription_name: dev-sub-1
+      - name: aro-hcp-dev-westus3-slot
+        subscriptions: {e2e: dev-sub-1}
         region: westus3
         region_mode: fixed
-        identity_provisioning: unmanged
         resource_type: aro-hcp-dev-westus3-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            provisioning: unmanged
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 1
 `
 
 	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
@@ -347,55 +484,25 @@ environments:
 	}
 }
 
-func TestLoadCatalogRejectsDuplicateRuntimeSelectedSubscriptionPools(t *testing.T) {
-	t.Parallel()
-
-	invalidCatalog := `version: 1
-environments:
-  prod:
-    deploy_envs: [prod]
-    pools:
-      - subscription_name: prod-sub
-        region: uksouth
-        region_mode: runtime-selected
-        resource_type: aro-hcp-prod-shard0-slot
-        slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-prod-a
-        identity_container_count: 1
-      - subscription_name: prod-sub
-        region: eastus2
-        region_mode: runtime-selected
-        resource_type: aro-hcp-prod-shard1-slot
-        slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-prod-b
-        identity_container_count: 1
-`
-
-	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
-	if err := os.WriteFile(catalogPath, []byte(invalidCatalog), 0o644); err != nil {
-		t.Fatalf("expected invalid catalog write to succeed: %v", err)
-	}
-
-	if _, err := LoadCatalog(catalogPath); err == nil {
-		t.Fatal("expected duplicate runtime-selected subscription pools to fail validation")
-	}
-}
-
 func TestResolvePoolRuntimeSelectedIgnoresRegion(t *testing.T) {
 	t.Parallel()
 
-	catalog := loadCatalogFromYAML(t, `version: 1
+	catalog := loadCatalogFromYAML(t, `version: 2
 environments:
   prod:
-    deploy_envs: [prod]
+    deployment_environment: {name: prod}
     pools:
-      - subscription_name: prod-sub
+      - name: aro-hcp-prod-shard0-slot
+        subscriptions: {e2e: prod-sub}
         region: uksouth
         region_mode: runtime-selected
         resource_type: aro-hcp-prod-shard0-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-prod
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-prod
+            resource_group_count: 1
 `)
 
 	pool, err := catalog.ResolvePool("prod", nil, sets.New("eastus2"), "")
@@ -410,25 +517,33 @@ environments:
 func TestCandidatePoolsRuntimeSelectedIgnoresRegion(t *testing.T) {
 	t.Parallel()
 
-	catalog := loadCatalogFromYAML(t, `version: 1
+	catalog := loadCatalogFromYAML(t, `version: 2
 environments:
   prod:
-    deploy_envs: [prod]
+    deployment_environment: {name: prod}
     pools:
-      - subscription_name: prod-sub-1
+      - name: aro-hcp-prod-shard0-slot
+        subscriptions: {e2e: prod-sub-1}
         region: uksouth
         region_mode: runtime-selected
         resource_type: aro-hcp-prod-shard0-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-prod-a
-        identity_container_count: 1
-      - subscription_name: prod-sub-2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-prod-a
+            resource_group_count: 1
+      - name: aro-hcp-prod-shard1-slot
+        subscriptions: {e2e: prod-sub-2}
         region: westus3
         region_mode: runtime-selected
         resource_type: aro-hcp-prod-shard1-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-prod-b
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-prod-b
+            resource_group_count: 1
 `)
 
 	pools, err := catalog.CandidatePools("prod", nil, sets.New("eastus2"), "")
@@ -446,28 +561,36 @@ environments:
 func TestLoadCatalogWeightedMode(t *testing.T) {
 	t.Parallel()
 
-	catalog := loadCatalogFromYAML(t, `version: 1
+	catalog := loadCatalogFromYAML(t, `version: 2
 environments:
   dev:
-    deploy_envs: [ci01]
+    deployment_environment: {name: ci01}
     pools:
-      - subscription_name: dev-sub-1
+      - name: aro-hcp-dev-shard0-slot
+        subscriptions: {e2e: dev-sub-1}
         region_mode: weighted
         regions: [westus3, centralus, canadacentral]
-        identity_provisioning_region: westus3
         resource_type: aro-hcp-dev-shard0-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 1
-      - subscription_name: dev-sub-2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            provisioning_region: westus3
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 1
+      - name: aro-hcp-dev-shard1-slot
+        subscriptions: {e2e: dev-sub-2}
         region_mode: weighted
         regions: [westus3, centralus, canadacentral]
-        identity_provisioning_region: westus3
-        identity_provisioning: unmanaged
         resource_type: aro-hcp-dev-shard1-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-b
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            provisioning_region: westus3
+            provisioning: unmanaged
+            resource_group_prefix: aro-hcp-msi-container-dev-b
+            resource_group_count: 1
 `)
 
 	if got, want := catalog.Environments["dev"].Pools[0].EffectiveRegionMode(), RegionModeWeighted; got != want {
@@ -493,14 +616,18 @@ environments:
 func TestLoadCatalogRejectsInvalidWeightedPools(t *testing.T) {
 	t.Parallel()
 
-	basePool := `      - subscription_name: dev-sub-1
+	basePool := `      - name: aro-hcp-dev-shard0-slot
+        subscriptions: {e2e: dev-sub-1}
         region_mode: weighted
         regions: [westus3, centralus, canadacentral]
-        identity_provisioning_region: westus3
         resource_type: aro-hcp-dev-shard0-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-dev-a
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            provisioning_region: westus3
+            resource_group_prefix: aro-hcp-msi-container-dev-a
+            resource_group_count: 1
 `
 	tests := []struct {
 		name      string
@@ -524,8 +651,8 @@ func TestLoadCatalogRejectsInvalidWeightedPools(t *testing.T) {
 		},
 		{
 			name:      "pool needs provisioning region",
-			pools:     strings.Replace(basePool, "        identity_provisioning_region: westus3\n", "        identity_provisioning: unmanaged\n", 1),
-			wantError: "must declare identity_provisioning_region",
+			pools:     strings.Replace(basePool, "            provisioning_region: westus3\n", "            provisioning: unmanaged\n", 1),
+			wantError: "must declare slot_assets.e2e_identities.provisioning_region",
 		},
 		{
 			name: "weighted pools use identical ordered regions",
@@ -542,7 +669,7 @@ func TestLoadCatalogRejectsInvalidWeightedPools(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
-			catalogYAML := "version: 1\nenvironments:\n  dev:\n    deploy_envs: [ci01]\n    pools:\n" + tc.pools
+			catalogYAML := "version: 2\nenvironments:\n  dev:\n    deployment_environment: {name: ci01}\n    pools:\n" + tc.pools
 			if err := os.WriteFile(catalogPath, []byte(catalogYAML), 0o644); err != nil {
 				t.Fatalf("expected invalid catalog write to succeed: %v", err)
 			}
@@ -560,25 +687,33 @@ func TestLoadCatalogRejectsInvalidWeightedPools(t *testing.T) {
 func TestResolvePoolRuntimeSelectedRequiresSubscriptionToDisambiguate(t *testing.T) {
 	t.Parallel()
 
-	catalog := loadCatalogFromYAML(t, `version: 1
+	catalog := loadCatalogFromYAML(t, `version: 2
 environments:
   prod:
-    deploy_envs: [prod]
+    deployment_environment: {name: prod}
     pools:
-      - subscription_name: prod-sub-1
+      - name: aro-hcp-prod-shard0-slot
+        subscriptions: {e2e: prod-sub-1}
         region: uksouth
         region_mode: runtime-selected
         resource_type: aro-hcp-prod-shard0-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-prod-a
-        identity_container_count: 1
-      - subscription_name: prod-sub-2
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-prod-a
+            resource_group_count: 1
+      - name: aro-hcp-prod-shard1-slot
+        subscriptions: {e2e: prod-sub-2}
         region: westus3
         region_mode: runtime-selected
         resource_type: aro-hcp-prod-shard1-slot
         slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-prod-b
-        identity_container_count: 1
+        slot_assets:
+          e2e_identities:
+            allocation: dedicated
+            resource_group_prefix: aro-hcp-msi-container-prod-b
+            resource_group_count: 1
 `)
 
 	_, err := catalog.ResolvePool("prod", nil, sets.New("eastus2"), "")
@@ -632,7 +767,7 @@ func TestResolveCatalogPath(t *testing.T) {
 	if err := os.MkdirAll(catalogDir, 0o755); err != nil {
 		t.Fatalf("expected catalog directory creation to succeed: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(catalogDir, "e2e-slots.yaml"), []byte("version: 1\nenvironments:\n  dev:\n    deploy_envs: [dev]\n    pools:\n      - subscription_name: dev\n        region: westus3\n        resource_type: type\n        slot_count: 1\n        identity_container_prefix: prefix\n        identity_container_count: 1\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(catalogDir, "e2e-slots.yaml"), []byte(syntheticCatalogYAML), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
 	}
 
@@ -643,6 +778,31 @@ func TestResolveCatalogPath(t *testing.T) {
 	expectedPath := filepath.Join(catalogDir, "e2e-slots.yaml")
 	if resolvedPath != expectedPath {
 		t.Fatalf("expected %q, got %q", expectedPath, resolvedPath)
+	}
+}
+
+func TestE2EOnlyCatalogIgnoresInfrastructureBinding(t *testing.T) {
+	t.Parallel()
+	for _, binding := range []string{"", ", infrastructure_subscription: inaccessible-infra"} {
+		input := strings.Replace(dedicatedCatalog, "name: ci01, infrastructure_subscription: dev-infra", "name: stg"+binding, 1)
+		catalog := loadCatalogFromYAML(t, input)
+		if err := catalog.Validate(); err != nil {
+			t.Fatalf("revalidating E2E-only catalog: %v", err)
+		}
+		pool := catalog.Environments["dev"].Pools[0]
+		if pool.DeployEnv != "stg" || pool.InfrastructureSubscriptionName() != "" || pool.Subscriptions.Infrastructure != "" {
+			t.Fatalf("E2E-only normalization retained infrastructure demand: %+v", pool)
+		}
+		slot := ExpandSlotsForPool("dev", pool)[0]
+		if slot.RequiresInfrastructureSubscription() || slot.Subscriptions.Infrastructure != (ResolvedSubscription{}) || slot.Assets.E2EIdentities == nil {
+			t.Fatalf("E2E-only expansion added infrastructure binding or lost identities: %+v", slot)
+		}
+		if resolved, err := catalog.ResolveEnvironmentForDeployEnv("stg"); err != nil || resolved != "dev" {
+			t.Fatalf("logical deployment environment lost: %q, %v", resolved, err)
+		}
+		if assetInventories, err := catalog.AssetInventories(); err != nil || len(assetInventories) != 0 {
+			t.Fatalf("E2E-only catalog created infrastructure inventory: %+v, %v", assetInventories, err)
+		}
 	}
 }
 
