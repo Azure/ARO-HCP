@@ -57,6 +57,7 @@ import (
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/amanetpolicy"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/amaprune"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/backupcleanup"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/capacityreporting"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
@@ -134,6 +135,7 @@ type completedControllerOptions struct {
 	ksmCtrl                  *ksmhcp.KSMHCPController
 	monitorTranslatorCtrl    *monitortranslator.MonitorTranslatorController
 	amaNetPolicyCtrl         *amanetpolicy.AMANetworkPolicyController
+	amaPruneCtrl             *amaprune.Controller
 	nodeHealth               *nodehealth.Controller
 	capacityReport           *capacityreporting.CapacityReportController
 	backupCleanup            *backupcleanup.Controller
@@ -418,6 +420,14 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		}
 	}
 
+	// In OSS mode, prune the objects the AMA-only controllers create, so a switch
+	// from AMA back to OSS converges in a single rollout (T4). The AMA controllers
+	// above do not run in OSS mode, so nothing else cleans up their output.
+	var amaPruneCtrl *amaprune.Controller
+	if o.MonitoringAPIGroup != ksmhcp.AMAMonitoringAPIGroup {
+		amaPruneCtrl = amaprune.NewController(dynamicClient, kubeClientset)
+	}
+
 	hostname, err := os.Hostname()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname for leader election: %w", err)
@@ -451,6 +461,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			translatorDynInformers:   translatorDynInformers,
 			amaNetPolicyCtrl:         amaNetPolicyCtrl,
 			amaNetPolicyInformers:    amaNetPolicyInformers,
+			amaPruneCtrl:             amaPruneCtrl,
 			workers:                  o.Workers,
 			healthAddress:            o.HealthAddress,
 			leaderElectionLock:       leaderElectionLock,
@@ -625,6 +636,14 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 						defer utilruntime.HandleCrash()
 						if err := o.amaNetPolicyCtrl.Run(ctx, o.workers); err != nil {
 							logger.Error(err, "AMA NetworkPolicy controller failed")
+						}
+					}()
+				}
+				if o.amaPruneCtrl != nil {
+					go func() {
+						defer utilruntime.HandleCrash()
+						if err := o.amaPruneCtrl.Run(ctx); err != nil {
+							logger.Error(err, "AMA prune controller failed")
 						}
 					}()
 				}
