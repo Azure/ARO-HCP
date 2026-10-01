@@ -1,3 +1,4 @@
+{{- if eq .Values.monitoringApiGroup "azmonitoring.coreos.com" }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -8,8 +9,14 @@ rules:
 - apiGroups: ["certificates.k8s.io"]
   resources: ["certificatesigningrequests"]
   verbs: ["list", "watch"]
+# Required by the Custom Resource State feature: KSM runs a CRD informer to
+# discover the CRDs backing the configured custom resources (e.g. HostedCluster).
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["list", "watch"]
 {{- range .Values.rbac.extraRules }}
 - apiGroups: {{ toYaml .apiGroups | nindent 4 }}
   resources: {{ toYaml .resources | nindent 4 }}
   verbs: {{ toYaml .verbs | nindent 4 }}
+{{- end }}
 {{- end }}

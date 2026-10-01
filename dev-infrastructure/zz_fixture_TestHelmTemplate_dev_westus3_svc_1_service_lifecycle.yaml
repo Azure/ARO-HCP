@@ -46,7 +46,7 @@ data:
     cadvisor = true
     kubeproxy = true
     apiserver = true
-    kubestate = false
+    kubestate = true
     nodeexporter = true
     windowsexporter = false
     windowskubeproxy = false

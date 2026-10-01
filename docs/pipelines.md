@@ -14,7 +14,7 @@ The tree of pipelines making up the ARO HCP service are documented here from the
         - Microsoft.Azure.ARO.HCP.SessionGate ([ref](https://github.com/Azure/ARO-HCP/tree/main/sessiongate/pipeline.yaml)): Deploy the Session Gate.
         - Microsoft.Azure.ARO.HCP.AdminAPI ([ref](https://github.com/Azure/ARO-HCP/tree/main/admin/pipeline.yaml)): Deploy the Admin API.
         - Microsoft.Azure.ARO.HCP.Fleet ([ref](https://github.com/Azure/ARO-HCP/tree/main/fleet/pipeline.yaml)): Deploy the Fleet controller.
-        - Microsoft.Azure.ARO.HCP.SVC.CleanupPrometheus ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup-prometheus.pipeline.yaml)): Remove Prometheus operator and CRDs from the SVC cluster after all services have migrated to AMA.
+        - Microsoft.Azure.ARO.HCP.SVC.CleanupPrometheus ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/svc-cleanup-prometheus.pipeline.yaml)): Remove Prometheus operator and CRDs from the SVC cluster after all services have migrated to AMA.
       - Microsoft.Azure.ARO.HCP.Management.Infra ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/mgmt-pipeline.yaml)): Deploy a management cluster and backing infrastructure.
         - Microsoft.Azure.ARO.HCP.Velero ([ref](https://github.com/Azure/ARO-HCP/tree/main/velero/pipeline.yaml)): Deploy Velero for HostedCluster backup and restore.
         - Microsoft.Azure.ARO.HCP.SecretSyncController ([ref](https://github.com/Azure/ARO-HCP/tree/main/secret-sync-controller/pipeline.yaml)): Deploy the Secret Sync Controller.
@@ -25,6 +25,7 @@ The tree of pipelines making up the ARO HCP service are documented here from the
         - Microsoft.Azure.ARO.HCP.MgmtAgent ([ref](https://github.com/Azure/ARO-HCP/tree/main/mgmt-agent/pipeline.yaml)): Deploy the Management Agent.
           - Microsoft.Azure.ARO.HCP.SwiftRecorder ([ref](https://github.com/Azure/ARO-HCP/tree/main/swift-recorder/pipeline.yaml)): Deploy the opt-in SWIFT-v2 node-local startup recorder.
         - Microsoft.Azure.ARO.HCP.Fleet.Registration ([ref](https://github.com/Azure/ARO-HCP/tree/main/fleet/registration/pipeline.yaml)): Register the stamp and management cluster in CosmosDB.
+        - Microsoft.Azure.ARO.HCP.MGMT.CleanupPrometheus ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/mgmt-cleanup-prometheus.pipeline.yaml)): Remove Prometheus operator and CRDs from the Management cluster after all services have migrated to AMA.
       - Microsoft.Azure.ARO.HCP.Monitoring ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/monitoring-pipeline.yaml)): Deploy the Monitoring resources (Monitoring)
       - Microsoft.Azure.ARO.HCP.E2E ([ref](https://github.com/Azure/ARO-HCP/tree/main/test/e2e-pipeline.yaml)): Run the E2E tests towards a region and gate SDP progression.
 - Microsoft.Azure.ARO.HCP.Global.StgGlobal ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/global-pipeline-stg.yaml)): Deploy global shared infrastructure (STG V2). (Global STG V2)

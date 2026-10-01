@@ -1,3 +1,4 @@
+{{- if eq .Values.monitoringApiGroup "azmonitoring.coreos.com" }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -86,3 +87,4 @@ spec:
       - name: crs-config
         configMap:
           name: kube-state-metrics-crs-config
+{{- end }}

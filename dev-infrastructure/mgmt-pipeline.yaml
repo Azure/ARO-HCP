@@ -787,7 +787,7 @@ resourceGroups:
     action: Helm
     timeout: 5m
     releaseName: 'kube-state-metrics-crs'
-    releaseNamespace: 'prometheus'
+    releaseNamespace: 'ksm-crs'
     chartDir: ../observability/kube-state-metrics/deploy
     valuesFile: ../observability/kube-state-metrics/values-mgmt.yaml
     kustoEndpoint:

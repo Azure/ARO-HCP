@@ -690,8 +690,6 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
-  amaMetrics:
-    kubestate: "true"
   applyKubeletFixes: false
   defaultStorageClassSkuName: PremiumV2_LRS
   hcpBackups:
@@ -700,8 +698,6 @@ mgmt:
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
-  jaeger:
-    deploy: false
   monitoringApiGroup: azmonitoring.coreos.com
   nsp:
     accessMode: Learning
@@ -1070,8 +1066,6 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
-  amaMetrics:
-    kubestate: "true"
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
@@ -1079,8 +1073,6 @@ svc:
     tag: prod-stable
     targetVersion: asm-1-29
     versions: asm-1-29
-  jaeger:
-    deploy: true
   monitoringApiGroup: azmonitoring.coreos.com
   nsp:
     accessMode: Learning

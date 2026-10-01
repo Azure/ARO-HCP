@@ -3185,10 +3185,6 @@
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
         },
-        "monitoringApiGroup": {
-          "type": "string",
-          "description": "The Kubernetes API group used for ServiceMonitor and PodMonitor CRDs on management clusters"
-        },
         "prometheus": {
           "description": "Prometheus deployment configuration",
           "$ref": "#/definitions/prometheus"
@@ -3196,28 +3192,6 @@
         "monitoringApiGroup": {
           "description": "The API group for ServiceMonitor and PodMonitor CRDs",
           "type": "string"
-        },
-        "amaMetrics": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "kubestate": {
-              "description": "Enable AMA kube-state-metrics scraping (true when Prometheus is not deployed)",
-              "type": "string"
-            }
-          },
-          "required": ["kubestate"]
-        },
-        "jaeger": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "deploy": {
-              "description": "Whether to deploy Jaeger tracing",
-              "type": "boolean"
-            }
-          },
-          "required": ["deploy"]
         }
       },
       "additionalProperties": false,
@@ -3824,28 +3798,6 @@
         "monitoringApiGroup": {
           "description": "The API group for ServiceMonitor and PodMonitor CRDs",
           "type": "string"
-        },
-        "amaMetrics": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "kubestate": {
-              "description": "Enable AMA kube-state-metrics scraping (true when Prometheus is not deployed)",
-              "type": "string"
-            }
-          },
-          "required": ["kubestate"]
-        },
-        "jaeger": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "deploy": {
-              "description": "Whether to deploy Jaeger tracing",
-              "type": "boolean"
-            }
-          },
-          "required": ["deploy"]
         }
       },
       "x-cel-validations": [

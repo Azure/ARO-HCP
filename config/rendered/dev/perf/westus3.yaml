@@ -690,8 +690,6 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
-  amaMetrics:
-    kubestate: "false"
   applyKubeletFixes: true
   defaultStorageClassSkuName: PremiumV2_LRS
   hcpBackups:
@@ -1068,8 +1066,6 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
-  amaMetrics:
-    kubestate: "false"
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress

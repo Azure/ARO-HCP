@@ -708,8 +708,6 @@ defaults:
           tag: v0.41.0
           sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6 # v0.42.2 (2026-07-16 20:22)
     monitoringApiGroup: "monitoring.coreos.com"
-    amaMetrics:
-      kubestate: "false"
   # MGMT cluster specifics
   mgmt:
     stamps:
@@ -842,9 +840,6 @@ defaults:
           repository: thanos/thanos
           tag: v0.41.0
           sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6 # v0.42.2 (2026-07-16 20:22)
-    monitoringApiGroup: "monitoring.coreos.com"
-    amaMetrics:
-      kubestate: "false"
   # Backend
   backend:
     image:
@@ -1866,11 +1861,7 @@ clouds:
               infraAgentPool:
                 vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
-            jaeger:
-              deploy: false
             applyKubeletFixes: false
-            amaMetrics:
-              kubestate: "true"
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
@@ -1888,10 +1879,6 @@ clouds:
                 osDiskSizeGB: 64
               infraAgentPool:
                 vmSize: Standard_D4ds_v6
-            jaeger:
-              deploy: true
-            amaMetrics:
-              kubestate: "true"
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
@@ -1978,11 +1965,7 @@ clouds:
               infraAgentPool:
                 vmSize: Standard_E4ds_v6
                 osDiskSizeGB: 64
-            jaeger:
-              deploy: false
             applyKubeletFixes: false
-            amaMetrics:
-              kubestate: "true"
           # SVC
           svc:
             subscription:
@@ -2002,7 +1985,3 @@ clouds:
                 osDiskSizeGB: 64
               infraAgentPool:
                 vmSize: Standard_D4ds_v6
-            jaeger:
-              deploy: true
-            amaMetrics:
-              kubestate: "true"

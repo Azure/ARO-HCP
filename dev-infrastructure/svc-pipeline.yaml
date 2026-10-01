@@ -694,6 +694,12 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      - "not ready. status: Unknown"
+      # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
+      - "client connection lost"
+      - "unexpected error when reading response body"
+      # ACI can fail before Helm runs with no execution log; retry its waiting-to-run signature.
+      - '"DetailStatus": "Waiting to run"'
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: cleanup-prometheus-pvc
@@ -709,6 +715,25 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+  - name: istio-upgrade
+    aksCluster:
+      configRef: svc.aks.name
+    action: IstioUpgrade
+    timeout: 60m
+    dependsOn:
+    - resourceGroup: service
+      step: prometheus
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "control plane unhealthy"
+      - "retiring revision would orphan workloads"
+      - "ingress gateway unhealthy"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
   - name: istio-config
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
@@ -726,7 +751,7 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
-      step: prometheus
+      step: istio-upgrade
     identityFrom:
       resourceGroup: global
       step: output

@@ -112,6 +112,7 @@ var _ = Describe("Engineering", func() {
 				{`maestro_build_info`, "maestro build info (MGMT)"},
 				{`hypershift_hostedclusters`, "hypershift hosted clusters gauge (MGMT)"},
 				{`capacity_reporting_sync_errors_total`, "mgmt-agent capacity reporting sync errors (MGMT)"},
+				{`hostedClusterAPI_valid_azure_kms_config`, "ksm-crs hostedClusterAPI valid azure kms config (MGMT)"},
 			}
 
 			By("Polling Azure Monitor for service metrics from both clusters")

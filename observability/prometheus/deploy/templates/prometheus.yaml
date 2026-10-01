@@ -156,16 +156,23 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
-    {{- if .Values.environment }}
-    # Combined into a single rule because sequential keep rules are AND
-    # (a metric must match all rules to survive), but we need OR — keep if
-    # either namespace or hostedcontrolplane matches ocm-*.
-    # See https://github.com/prometheus/prometheus/issues/3996
     writeRelabelConfigs:
+    {{- if .Values.environment }}
+      # Combined into a single rule because sequential keep rules are AND
+      # (a metric must match all rules to survive), but we need OR — keep if
+      # either namespace or hostedcontrolplane matches ocm-*.
+      # See https://github.com/prometheus/prometheus/issues/3996
       - sourceLabels: [namespace, hostedcontrolplane]
         separator: ;
         regex: '(ocm-{{ .Values.environment }}[^;]*;.*|.*;ocm-{{ .Values.environment }}.*)'
         action: keep
     {{- end }}
+      # Tag the surviving HCP samples so the HCP DCR's labelIncludeFilter
+      # (microsoft_metrics_include_label: hcp) forwards them to the HCP AMW.
+      # Mirrors the service producer in the AMA scrape config, which sets this
+      # label to "service" for the services DCR.
+      - targetLabel: microsoft_metrics_include_label
+        replacement: hcp
+        action: replace
   {{- end }}
 {{- end }}
