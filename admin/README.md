@@ -20,9 +20,68 @@ This prefix is abbreviated as `{resourceId}` below.
 | `GET` | `/admin/v1/hcp{resourceId}/breakglass/{sessionName}/kubeconfig` | Get kubeconfig for a breakglass session ([details](breakglass.md)) |
 | `GET` | `/admin/v1/hcp{resourceId}/serialconsole?vmName=...` | Retrieve serial console logs for a VM |
 | `GET` | `/admin/v1/hcp{resourceId}/cosmosdump` | Cosmos DB dump for a cluster |
+| `POST` | `/admin/v1/hcp{resourceId}/desiredcontrolplanesize` | Set or clear the SRE-selected control-plane sizing tier |
+| `GET` | `/admin/v1/hcp{resourceId}/backupschedules` | Get backup schedule state and per-schedule status |
+| `PATCH` | `/admin/v1/hcp{resourceId}/backupschedules` | Enable or disable scheduled backups |
+| `GET` | `/admin/v1/hcp{resourceId}/backups` | List on-demand backups |
+| `POST` | `/admin/v1/hcp{resourceId}/controlplaneversionpin` | Pin a cluster's control plane to a version in its release line, or clear the pin (omit `exactVersion`) |
 | `GET` | `/healthz/ready` | Readiness probe |
 | `GET` | `/healthz/live` | Liveness probe |
 | `GET` | `/metrics` | Prometheus metrics (served on the metrics port) |
+
+### Version pins
+
+`POST /controlplaneversionpin` accepts `exactVersion` and an optional `untilExactVersion`
+auto-release threshold. The pin affects the control plane, not worker node pool
+versions. Both version fields require a full `X.Y.Z` semantic version, optionally
+with a pre-release identifier but without build metadata. The pin must be in
+the cluster's requested major.minor release line. If the mirrored HostedCluster
+has a control-plane history, a target equal to or newer than its latest entry
+is accepted to hold or advance that version. A lower target is accepted only
+when it is the most recent distinct `Completed` version in the history, older
+than the latest entry. For a direct upgrade from `4.22.0` to `4.22.10`, a pin
+to the previously installed `4.22.0` is allowed; `4.22.5` is rejected as a
+rollback target because it was not installed. `4.22.10` can be held, and a
+newer version in the same release line can be pinned. A `Partial` entry is the
+latest attempted version, but does not qualify as an installed rollback target.
+
+| Request field | Meaning |
+|---------------|---------|
+| `exactVersion` | Control-plane version to pin. Omit it or send `null` to clear the pin. An empty string is rejected; a non-null version must match the cluster's requested release line. Rollbacks below the latest observed version require the immediately previous `Completed` version. |
+| `untilExactVersion` | Optional fleet best-version threshold that automatically clears the pin when reached. Omit it or send `null` to keep the pin until it is cleared explicitly. A non-null value requires `exactVersion` and must be in the same major.minor release line and greater than or equal to `exactVersion`. Nightly clusters cannot use this threshold. An empty string is rejected. |
+
+The response returns the pin's versions as canonical semantic-version strings.
+`exactVersion` is omitted after a clear; `untilExactVersion` is omitted when the
+pin has no auto-release threshold or has been cleared. Neither field is returned
+as an empty string or `null`, and `untilExactVersion` is present only with
+`exactVersion`.
+
+Rollback validation uses the mirrored HostedCluster's
+`status.controlPlaneVersion.history`. The field was backported to HyperShift
+[release-4.20](https://github.com/openshift/hypershift/pull/9055) and
+[release-4.21](https://github.com/openshift/hypershift/pull/9054), and
+[Azure CPO image overrides](https://github.com/openshift/hypershift/pull/9211)
+provide the backported code for earlier 4.20 and 4.21 patch releases. The
+backend may not have mirrored the history yet when the HostedCluster is first
+observed.
+
+If the control-plane history has not been mirrored yet, the pin is accepted;
+the API cannot classify it as a rollback without an observed version. A lower
+target is rejected with HTTP 400 when available history does not establish a
+valid previous version. Guest version history and the provider's distilled
+active versions are not used for rollback validation. Send `{}` or
+`{"exactVersion":null}` to clear the pin; clearing does not require version history.
+An observed latest version, or a `Completed` history entry examined for a
+rollback, returns HTTP 400 if it contains build metadata: semantic-version
+comparisons ignore `+build`, while pin requests do not accept it.
+Both setting and clearing require an existing ServiceProviderCluster document and
+reject clusters marked for deletion with HTTP 409; the endpoint never creates a
+provider document.
+
+Nightly clusters can be pinned to a previous or newer version, but their
+channels have no fleet rollout best version to trigger auto-release. Requests
+with `untilExactVersion` return HTTP 400 for nightly clusters; a nightly pin
+without a threshold remains until explicitly cleared.
 
 ## Authentication
 
