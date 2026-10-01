@@ -28,7 +28,7 @@ import (
 var (
 	_ applyDesireRemovalStep = cascadeCoveredRemovalStep{}
 	_ applyDesireRemovalStep = managedClusterRemovalStep{}
-	_ applyDesireRemovalStep = nodePoolRemovalStep{}
+	_ applyDesireRemovalStep = ingressManifestRemovalStep{}
 	_ applyDesireRemovalStep = hostedClusterRemovalStep{}
 	_ applyDesireRemovalStep = swiftPodNetworkInstanceRemovalStep{}
 	_ applyDesireRemovalStep = swiftPodNetworkRemovalStep{}
@@ -64,29 +64,10 @@ func (s desireNameSet) selects(desire *kubeapplierapi.ApplyDesire) bool {
 	return s.has(desire.ResourceID.Name)
 }
 
-// nodePoolDesireNames is deleted on its own terms rather than left to the
-// cascade. The NodePool CR carries a finalizer that deprovisions Azure machines
-// through CAPI, so nothing short of an actual delete retires it.
-//
-// It would be tempting to lean on the two actors that also remove it — the
-// HostedCluster finalizer deletes every NodePool it owns before it tears down
-// the control plane, and Cluster Service removes the node pool ManifestWork —
-// but neither is something this chain can depend on. The HostedCluster may
-// already be gone, or may never have been created for a cluster that failed
-// during provisioning, and Cluster Service's involvement disappears once the
-// backend owns node pool deletion. Both leave the CR behind for the namespace
-// delete to garbage collect, and a finalizer that needs CAPI to run wedges the
-// namespace in Terminating.
-//
-// Deleting it here costs nothing in the case where the HostedCluster would have
-// done it anyway: its finalizer waits out exactly the same NodePool deletion, so
-// issuing the delete first only moves the wait somewhere we can see it.
-var nodePoolDesireNames = newDesireNameSet(DesireNameNodePool)
-
 // managedClusterNames is the desire representing the ManagedCluster CR.
 var managedClusterNames = newDesireNameSet(DesireNameManagedCluster)
 
-// hostedClusterDesireNames is the other ordered, waited-on delete: the
+// hostedClusterDesireNames is an ordered, waited-on delete: the
 // HostedCluster finalizer deprovisions Azure infrastructure and tears down the
 // control plane, and it needs the rest of the namespace intact while it runs.
 var hostedClusterDesireNames = newDesireNameSet(DesireNameHostedCluster)
@@ -108,24 +89,31 @@ var (
 	swiftPodNetworkDesireNames         = newDesireNameSet(DesireNamePodNetwork)
 )
 
-// cascadeCoveredDesireNames are the desires whose Kubernetes objects the
-// namespace delete will garbage collect for us. They are inert — namespaced, and
-// with no finalizer reaching outside their own namespace — so deleting them
-// individually would be slower and would pull configuration out from under the
-// HostedCluster teardown that is still running. Dropping the document leaves the
-// object in place for that teardown to read; only the reconcile stops.
+// cascadeCoveredDesireNames are the desires whose Kubernetes objects are removed
+// by HostedCluster teardown or namespace deletion. Dropping the documents stops
+// reconciliation while leaving configuration available to the teardown.
 //
-// Nothing with a finalizer belongs here. NodePool in particular does not: see
-// nodePoolDesireNames.
+// NodePool is the exception to the otherwise inert configuration here:
+// HyperShift deletes matching NodePools during HostedCluster teardown and sets
+// their owner references during reconciliation. Stop applying them first so they
+// cannot be recreated during that cleanup. If the HostedCluster is already
+// absent, namespace deletion must reclaim any remaining NodePools and wait for
+// their finalizers; dropping an ApplyDesire alone does not confirm their removal.
 var cascadeCoveredDesireNames = newDesireNameSet(
-	DesireNameDefaultIngressConfigMap,
 	DesireNameOCPPullSecret,
 	DesireNameBoundServiceAccountSigningKeySecretSync,
-	DesireNameDefaultIngressWildcardCertSecretSync,
 	DesireNameKubeAPIServerServingCertSecretSync,
 	DesireNameBoundServiceAccountSigningKeySecretProviderClass,
-	DesireNameDefaultIngressWildcardCertSecretProviderClass,
 	DesireNameKubeAPIServerServingCertSecretProviderClass,
+	DesireNameNodePool,
+)
+
+// ingressManifestDesireNames live in open-cluster-management-policies, outside
+// the cluster's namespaces, so they need explicit deletion.
+var ingressManifestDesireNames = newDesireNameSet(
+	DesireNameDefaultIngressConfigMap,
+	DesireNameDefaultIngressWildcardCertSecretProviderClass,
+	DesireNameDefaultIngressWildcardCertSecretSync,
 )
 
 // namespaceDesireNames are the two namespaces, whose
@@ -135,26 +123,8 @@ var namespaceDesireNames = newDesireNameSet(
 	DesireNameControlPlaneNamespace,
 )
 
-// nodePoolRemovalStep deletes the cluster's NodePool CRs and waits for
-// HyperShift to finish deprovisioning the machines behind them. It runs ahead of
-// hostedClusterRemovalStep, which is the order the HostedCluster finalizer would
-// impose anyway, so the wait is made explicit and does not depend on the
-// HostedCluster — or Cluster Service — still being around to impose it.
-type nodePoolRemovalStep struct{}
-
-func (nodePoolRemovalStep) name() string { return "nodepools" }
-
-func (s nodePoolRemovalStep) remove(
-	ctx context.Context,
-	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
-	owned []*kubeapplierapi.ApplyDesire,
-) (bool, error) {
-	return ensureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, nodePoolDesireNames.selects)
-}
-
-// managedClusterRemovalStep deletes the cluster's ManagedCluster CRs and waits for
-// HyperShift to finish deprovisioning the machines behind them. It runs ahead of
-// hostedClusterRemovalStep.
+// managedClusterRemovalStep deletes the cluster-scoped ManagedCluster and waits
+// for its cleanup before removing ingress manifests and the HostedCluster.
 type managedClusterRemovalStep struct{}
 
 func (managedClusterRemovalStep) name() string { return "managed-cluster" }
@@ -211,9 +181,9 @@ func (s swiftPodNetworkRemovalStep) remove(
 	return ensureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, swiftPodNetworkDesireNames.selects)
 }
 
-// cascadeCoveredRemovalStep stops reconciling the desires the namespace delete
-// will clean up, by removing their Cosmos documents without deleting the
-// Kubernetes objects. It runs first: it waits on nothing, and every pass it
+// cascadeCoveredRemovalStep stops reconciling the desires HostedCluster teardown
+// or namespace deletion will clean up, by removing their Cosmos documents without
+// deleting the Kubernetes objects. It runs first: it waits on nothing, and every pass it
 // spends queued behind a waited-on step is a pass the kube-applier spends
 // re-applying objects — the NodePool CR above all — that Cluster Service is
 // concurrently trying to delete. See applyDesireRemovalChain.
@@ -231,6 +201,20 @@ func (s cascadeCoveredRemovalStep) remove(
 	owned []*kubeapplierapi.ApplyDesire,
 ) (bool, error) {
 	return deleteMatchingApplyDesiresDocuments(ctx, kubeApplierDBClient, s.name(), owned, cascadeCoveredDesireNames.selects)
+}
+
+// ingressManifestRemovalStep deletes ingress configuration in the shared policy
+// namespace and waits for removal before HostedCluster teardown proceeds.
+type ingressManifestRemovalStep struct{}
+
+func (ingressManifestRemovalStep) name() string { return "ingress-manifests" }
+
+func (s ingressManifestRemovalStep) remove(
+	ctx context.Context,
+	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
+	owned []*kubeapplierapi.ApplyDesire,
+) (bool, error) {
+	return ensureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, ingressManifestDesireNames.selects)
 }
 
 // namespacesRemovalStep tears down the cluster's namespaces. It only runs once
@@ -255,8 +239,8 @@ func claimedDesireNames() desireNameSet {
 	claimed := make(desireNameSet)
 	for _, set := range []desireNameSet{
 		cascadeCoveredDesireNames,
-		nodePoolDesireNames,
 		managedClusterNames,
+		ingressManifestDesireNames,
 		hostedClusterDesireNames,
 		swiftPodNetworkInstanceDesireNames,
 		swiftPodNetworkDesireNames,

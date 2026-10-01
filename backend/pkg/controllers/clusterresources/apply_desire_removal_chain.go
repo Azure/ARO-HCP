@@ -70,14 +70,13 @@ type applyDesireRemovalStep interface {
 // namespacesRemovalStep — a desire left live while its namespace is Terminating
 // makes the kube-applier retry an apply that can never succeed.
 //
-// The NodePools are deleted next. Their CRs hold Azure machines behind a CAPI
-// finalizer, so they are deleted deliberately and waited out rather than left to
-// the cascade — see nodePoolDesireNames for why neither the HostedCluster
-// finalizer nor Cluster Service is something to lean on here. Deleting them
-// before the HostedCluster is also what unblocks Cluster Service while it is
-// still in the picture: it removes the node pool ManifestWorks with foreground
-// propagation early in its own removal chain, and the work-agent cannot retire a
-// ManifestWork until the CR it applied stays deleted.
+// NodePool documents are also dropped in that first step. HyperShift deletes the
+// NodePools during HostedCluster teardown; stopping reconciliation prevents the
+// kube-applier from recreating them while that cleanup runs.
+//
+// The ManagedCluster is deleted next, followed by the ingress manifests in the
+// shared open-cluster-management-policies namespace. Neither is covered by
+// deleting the cluster's namespaces, so both steps explicitly delete and wait.
 //
 // Deleting the HostedCluster next gives HyperShift the chance to run its own
 // finalizer, which deprovisions Azure infrastructure and tears down the control
@@ -92,7 +91,7 @@ type applyDesireRemovalStep interface {
 // cluster-scoped besides, so neither can be left to the cascade.
 //
 // The namespaces go last, once every object that needed deleting on its own
-// terms is gone. Their deletion is what actually reclaims everything
+// terms is gone. Their deletion reclaims the remaining objects that
 // cascadeCoveredRemovalStep stopped reconciling.
 //
 // Steps claim desires by name, and the names come from classifyClusterResource,
@@ -102,7 +101,7 @@ type applyDesireRemovalStep interface {
 var applyDesireRemovalChain = []applyDesireRemovalStep{
 	cascadeCoveredRemovalStep{},
 	managedClusterRemovalStep{},
-	nodePoolRemovalStep{},
+	ingressManifestRemovalStep{},
 	hostedClusterRemovalStep{},
 	swiftPodNetworkInstanceRemovalStep{},
 	swiftPodNetworkRemovalStep{},
@@ -117,8 +116,8 @@ var applyDesireRemovalChain = []applyDesireRemovalStep{
 // finalizers before the Cosmos document is removed; dropping the document on its
 // own would strand the object, because the kube-applier reconciles desires and
 // does not garbage collect what a vanished desire once applied. A desire whose
-// object the namespace cascade will remove anyway only needs its document
-// dropped — see the two primitives below.
+// object HostedCluster teardown or namespace deletion will remove only needs
+// its document dropped — see the two primitives below.
 //
 // The call returns nil as soon as a step is still waiting on one of its
 // desires, leaving the remaining steps for the next resync. Progress is
@@ -256,11 +255,10 @@ func ensureMatchingApplyDesiresRemoved(
 // deleteMatchingApplyDesiresDocuments is the other teardown primitive: it removes the
 // Cosmos document for every desire in owned that matches selects, leaving
 // spec.targetItem alone. The kube-applier stops reconciling the object, and
-// deleting the namespace it lives in reclaims it.
+// HostedCluster teardown or namespace deletion reclaims it.
 //
-// Use this only for objects the namespace cascade genuinely covers. For anything
-// with a finalizer that reaches outside its own namespace, dropping the document
-// strands the object and whatever it holds — use deleteMatchingApplyDesires.
+// Use this only when another deletion path owns the object's cleanup, including
+// any finalizers. Otherwise use ensureMatchingApplyDesiresRemoved.
 //
 // There is nothing to wait for, so done is true unless a drop failed.
 func deleteMatchingApplyDesiresDocuments(
@@ -291,7 +289,7 @@ func deleteMatchingApplyDesiresDocuments(
 			errs = append(errs, utils.TrackError(fmt.Errorf("drop ApplyDesire %s: %w", desireName, err)))
 			continue
 		}
-		logger.Info("dropped ApplyDesire, leaving its object to the namespace cascade",
+		logger.Info("dropped ApplyDesire, leaving its object to HostedCluster or namespace cleanup",
 			"step", stepName, "desireName", desireName)
 	}
 

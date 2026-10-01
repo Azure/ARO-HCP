@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	fleetlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	kubeapplierlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -52,6 +53,7 @@ import (
 //
 // Add a fixture here whenever classifyClusterResource learns a new desire name.
 var classifiableResources = []string{
+	`{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"my-hc"}}`,
 	`{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"my-hc","namespace":"ocm-env-abc"}}`,
 	`{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"NodePool","metadata":{"name":"q2e1p3b8m8a3s6l-np-2dz967","namespace":"ocm-env-abc"},"spec":{"clusterName":"q2e1p3b8m8a3s6l"}}`,
 	`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"ocm-env-abc"}}`,
@@ -80,13 +82,21 @@ func TestApplyDesireDestructChainCoversEveryDesireName(t *testing.T) {
 	t.Parallel()
 
 	stepClaims := map[string]desireNameSet{
-		"nodepools":                nodePoolDesireNames,
+		"managed-cluster":          managedClusterNames,
+		"ingress-manifests":        ingressManifestDesireNames,
 		"hosted-cluster":           hostedClusterDesireNames,
 		"swift-podnetworkinstance": swiftPodNetworkInstanceDesireNames,
 		"swift-podnetwork":         swiftPodNetworkDesireNames,
 		"cascade-covered":          cascadeCoveredDesireNames,
 		"namespaces":               namespaceDesireNames,
 	}
+	stepNames := make(map[string]bool)
+	for _, step := range applyDesireRemovalChain {
+		require.False(t, stepNames[step.name()], "step name %q must be unique", step.name())
+		stepNames[step.name()] = true
+		require.Contains(t, stepClaims, step.name(), "every removal step must have claim coverage")
+	}
+	require.Len(t, stepNames, len(stepClaims), "every tested claim set must have a step in the chain")
 
 	// Keyed by the lower-cased name, since that is what a step matches on; the
 	// value keeps the original casing so failures name the constant.
@@ -98,6 +108,11 @@ func TestApplyDesireDestructChainCoversEveryDesireName(t *testing.T) {
 		result, err := classifyClusterResource(&obj)
 		require.NoError(t, err, "fixture should classify: %s", resource)
 		classified[strings.ToLower(result.desireName)] = result.desireName
+	}
+	claimed := claimedDesireNames()
+	require.Len(t, claimed, len(classified), "the runtime claim registry must cover exactly the classified names")
+	for name := range classified {
+		assert.True(t, claimed.has(name), "runtime registry must claim %s without logging an unclaimed desire", name)
 	}
 
 	t.Run("every classified name is claimed by exactly one step", func(t *testing.T) {
@@ -129,8 +144,8 @@ func TestApplyDesireDestructChainCoversEveryDesireName(t *testing.T) {
 // TestApplyDesireDestructChainOrdering pins the ordering rules the chain exists
 // to enforce. Most of them protect a finalizer that reaches outside the object
 // being deleted, so getting the order wrong leaks Azure state rather than just
-// being slow; the last one keeps the chain from stalling Cluster Service's own
-// teardown.
+// being slow. Document-only cleanup runs first to stop reconciliation before
+// any waited-on deletion begins.
 func TestApplyDesireDestructChainOrdering(t *testing.T) {
 	t.Parallel()
 
@@ -143,27 +158,25 @@ func TestApplyDesireDestructChainOrdering(t *testing.T) {
 		return -1
 	}
 
-	nodePools := indexOf(nodePoolRemovalStep{})
+	managedCluster := indexOf(managedClusterRemovalStep{})
+	ingress := indexOf(ingressManifestRemovalStep{})
 	hostedCluster := indexOf(hostedClusterRemovalStep{})
 	podNetworkInstance := indexOf(swiftPodNetworkInstanceRemovalStep{})
 	podNetwork := indexOf(swiftPodNetworkRemovalStep{})
 	cascadeCovered := indexOf(cascadeCoveredRemovalStep{})
 	namespaces := indexOf(namespacesRemovalStep{})
 
-	require.NotEqual(t, -1, nodePools, "nodepools step must be in the chain")
+	require.NotEqual(t, -1, managedCluster, "managed-cluster step must be in the chain")
+	require.NotEqual(t, -1, ingress, "ingress-manifests step must be in the chain")
 	require.NotEqual(t, -1, hostedCluster, "hosted-cluster step must be in the chain")
 	require.NotEqual(t, -1, podNetworkInstance, "swift-podnetworkinstance step must be in the chain")
 	require.NotEqual(t, -1, podNetwork, "swift-podnetwork step must be in the chain")
 	require.NotEqual(t, -1, cascadeCovered, "cascade-covered step must be in the chain")
 	require.NotEqual(t, -1, namespaces, "namespaces step must be in the chain")
 
-	assert.Less(t, nodePools, hostedCluster,
-		"NodePools must be deleted before the HostedCluster: that is the order the HostedCluster "+
-			"finalizer imposes anyway, and doing it ourselves means the machines are deprovisioned "+
-			"even when no HostedCluster is left to do it")
-	assert.Less(t, nodePools, namespaces,
-		"the NodePool CR holds Azure machines behind a CAPI finalizer, so leaving it to the namespace "+
-			"cascade would wedge the namespace in Terminating")
+	assert.Equal(t, 0, cascadeCovered, "document-only cleanup must run before any waited-on step")
+	assert.Less(t, managedCluster, ingress, "ManagedCluster cleanup must finish before ingress configuration is removed")
+	assert.Less(t, ingress, hostedCluster, "shared-namespace ingress manifests must be removed before HostedCluster teardown")
 	assert.Less(t, hostedCluster, namespaces,
 		"HostedCluster must be deleted before its namespaces: its finalizer deprovisions Azure "+
 			"infrastructure and needs the control plane namespace intact while it runs")
@@ -179,24 +192,6 @@ func TestApplyDesireDestructChainOrdering(t *testing.T) {
 	assert.Less(t, cascadeCovered, namespaces,
 		"cascade-covered desires must stop being reconciled before their namespace is deleted, "+
 			"otherwise kube-applier retries an apply into a Terminating namespace that can never succeed")
-	assert.Less(t, cascadeCovered, nodePools,
-		"cascade-covered waits for nothing, so it must not sit behind a waited-on step")
-}
-
-// TestNodePoolIsNeverLeftToTheCascade guards the regression the cascade-covered
-// set invites for NodePool specifically: its CR carries a CAPI finalizer that
-// deprovisions Azure machines, so dropping the document and hoping the
-// HostedCluster finalizer — or Cluster Service's ManifestWork — gets to it makes
-// the teardown depend on actors that may not be there.
-func TestNodePoolIsNeverLeftToTheCascade(t *testing.T) {
-	t.Parallel()
-
-	assert.False(t, cascadeCoveredDesireNames.has(DesireNameNodePool),
-		"NodePool must be deleted by nodePoolRemovalStep and waited out, not dropped and left to "+
-			"the namespace cascade")
-	assert.True(t, nodePoolDesireNames.has(DesireNameNodePool),
-		"nodePoolRemovalStep must claim the NodePool desire, or nothing tears the CR down during "+
-			"cluster deletion")
 }
 
 // TestPodNetworkIsNeverLeftToTheCascade guards the specific mistake that the
@@ -365,8 +360,8 @@ func newDestructFixtureWithReadDesires(t *testing.T, ctx context.Context, nodePo
 
 // TestDeleteAllOwnedApplyDesires walks the chain and pins the behaviours that
 // distinguish it from the old "delete every document" cleanup: each waited-on
-// step blocks everything behind it until its finalizer completes, and only the
-// genuinely inert desires have their documents dropped.
+// step blocks everything behind it until deletion completes. Desires covered by
+// HostedCluster or namespace cleanup have their documents dropped immediately.
 func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 	t.Parallel()
 
@@ -401,57 +396,119 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		}
 	}
 
-	downstreamOfNodePools := []string{
-		DesireNameHostedCluster,
-		DesireNamePodNetworkInstance, DesireNamePodNetwork,
-		DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace,
-	}
-
 	downstreamOfHostedCluster := []string{
 		DesireNamePodNetworkInstance, DesireNamePodNetwork,
 		DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace,
 	}
 
-	t.Run("drops the cascade-covered desires on the first pass, then blocks on the NodePools", func(t *testing.T) {
+	ingressNames := []string{
+		DesireNameDefaultIngressConfigMap,
+		DesireNameDefaultIngressWildcardCertSecretProviderClass,
+		DesireNameDefaultIngressWildcardCertSecretSync,
+	}
+	seedIngressDesires := func() []*kubeapplierapi.ApplyDesire {
+		desires := seedDesires()
+		for _, name := range ingressNames {
+			desire := newOwnedClusterDesire(name)
+			desire.Spec.TargetItem.Namespace = "open-cluster-management-policies"
+			desires = append(desires, desire)
+		}
+		return desires
+	}
+
+	t.Run("waits for ManagedCluster deletion before touching ingress or HostedCluster", func(t *testing.T) {
 		t.Parallel()
 		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-
-		fixture := newDestructFixture(t, ctx, testNodePoolName, seedDesires()...)
+		desires := append(seedIngressDesires(), newOwnedClusterDesire(DesireNameManagedCluster))
+		fixture := newDestructFixture(t, ctx, testNodePoolName, desires...)
 
 		err := fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
-		require.NoError(t, err, "deleteAllOwnedApplyDesires should succeed")
-
-		// cascade-covered waits for nothing, so its documents are gone before any
-		// delete is issued.
-		_, err = fixture.clusterCRUD.Get(ctx, DesireNameOCPPullSecret)
-		assert.Error(t, err, "OCPPullSecret document should be dropped on the first pass")
-
-		// The NodePool is deleted deliberately and waited out; dropping its
-		// document would leave the CR and its CAPI finalizer to the namespace
-		// cascade.
-		nodePool, err := fixture.nodePoolCRUD.Get(ctx, DesireNameNodePool)
-		require.NoError(t, err, "NodePool desire should still exist while its delete is pending")
-		assert.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, nodePool.Spec.Type,
-			"NodePool desire should be flipped to Delete, not dropped")
-		assert.Nil(t, nodePool.Spec.ServerSideApply, "NodePool ServerSideApply should be cleared")
-
-		// The chain stopped on the NodePools, so nothing downstream moved —
-		// including the HostedCluster, whose finalizer would otherwise wait out the
-		// same NodePool deletion.
-		for _, name := range downstreamOfNodePools {
+		require.NoError(t, err, "start ManagedCluster deletion")
+		managedCluster, err := fixture.clusterCRUD.Get(ctx, DesireNameManagedCluster)
+		require.NoError(t, err, "ManagedCluster desire should remain while deletion is pending")
+		assert.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, managedCluster.Spec.Type, "ManagedCluster must be explicitly deleted")
+		assert.Nil(t, managedCluster.Spec.ServerSideApply, "ManagedCluster apply configuration must be cleared")
+		_, err = fixture.nodePoolCRUD.Get(ctx, DesireNameNodePool)
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err), "NodePool reconciliation must stop before ManagedCluster deletion completes, got %v", err)
+		for _, name := range append([]string{DesireNameHostedCluster}, ingressNames...) {
 			desire, err := fixture.clusterCRUD.Get(ctx, name)
-			require.NoError(t, err, "%s should be untouched while the NodePools are still deleting", name)
-			assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, desire.Spec.Type,
-				"%s should not be marked for deletion yet", name)
+			require.NoError(t, err, "%s should remain while ManagedCluster deletion is pending", name)
+			assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, desire.Spec.Type, "%s should not start deleting yet", name)
 		}
 	})
 
-	t.Run("deletes the HostedCluster once the NodePools are gone", func(t *testing.T) {
+	for _, pendingName := range ingressNames {
+		t.Run("waits for ingress deletion of "+pendingName, func(t *testing.T) {
+			t.Parallel()
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			desires := append(seedIngressDesires(), newOwnedClusterDesire(DesireNameManagedCluster))
+			markDeleted(desires, DesireNameManagedCluster)
+			fixture := newDestructFixtureWithReadDesires(t, ctx, testNodePoolName, desires, ingressNames...)
+
+			err := fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
+			require.NoError(t, err, "start ingress deletion after ManagedCluster cleanup")
+			_, err = fixture.clusterCRUD.Get(ctx, DesireNameManagedCluster)
+			assert.True(t, cosmosstorageutils.IsNotFoundError(err), "completed ManagedCluster desire should be purged, got %v", err)
+			readCRUD, err := fixture.mockKubeApplierClient.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+			require.NoError(t, err, "get ingress ReadDesire CRUD")
+			applyCRUD, err := fixture.mockKubeApplierClient.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+			require.NoError(t, err, "get ingress ApplyDesire CRUD")
+			for _, name := range ingressNames {
+				desire, err := applyCRUD.Get(ctx, name)
+				require.NoError(t, err, "%s should remain until Kubernetes confirms deletion", name)
+				assert.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, desire.Spec.Type, "%s must be explicitly deleted from the shared namespace", name)
+				assert.Nil(t, desire.Spec.ServerSideApply, "%s apply configuration must be cleared", name)
+				_, err = readCRUD.Get(ctx, name)
+				require.NoError(t, err, "%s observation must remain while deletion is pending", name)
+				if name != pendingName {
+					markDeleted([]*kubeapplierapi.ApplyDesire{desire}, name)
+					_, err = applyCRUD.Replace(ctx, desire, nil)
+					require.NoError(t, err, "report ingress %s deleted", name)
+				}
+			}
+
+			// Even a single remaining ingress object must block the entire tail.
+			err = fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
+			require.NoError(t, err, "reconcile partial ingress deletion")
+			for _, name := range ingressNames {
+				_, applyErr := applyCRUD.Get(ctx, name)
+				_, readErr := readCRUD.Get(ctx, name)
+				if name == pendingName {
+					require.NoError(t, applyErr, "pending ingress %s must retain its ApplyDesire", name)
+					require.NoError(t, readErr, "pending ingress %s must retain its ReadDesire", name)
+				} else {
+					assert.True(t, cosmosstorageutils.IsNotFoundError(applyErr), "deleted ingress %s ApplyDesire should be purged, got %v", name, applyErr)
+					assert.True(t, cosmosstorageutils.IsNotFoundError(readErr), "deleted ingress %s ReadDesire should be purged, got %v", name, readErr)
+				}
+			}
+			for _, name := range append([]string{DesireNameHostedCluster}, downstreamOfHostedCluster...) {
+				desire, err := applyCRUD.Get(ctx, name)
+				require.NoError(t, err, "%s should remain while ingress %s is pending", name, pendingName)
+				assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, desire.Spec.Type, "%s must wait for every ingress deletion", name)
+			}
+
+			pending, err := applyCRUD.Get(ctx, pendingName)
+			require.NoError(t, err, "get final pending ingress desire")
+			markDeleted([]*kubeapplierapi.ApplyDesire{pending}, pendingName)
+			_, err = applyCRUD.Replace(ctx, pending, nil)
+			require.NoError(t, err, "report final ingress deletion")
+			err = fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
+			require.NoError(t, err, "continue after all ingress objects are deleted")
+			_, err = applyCRUD.Get(ctx, pendingName)
+			assert.True(t, cosmosstorageutils.IsNotFoundError(err), "final ingress ApplyDesire should be purged, got %v", err)
+			_, err = readCRUD.Get(ctx, pendingName)
+			assert.True(t, cosmosstorageutils.IsNotFoundError(err), "final ingress ReadDesire should be purged, got %v", err)
+			hostedCluster, err := applyCRUD.Get(ctx, DesireNameHostedCluster)
+			require.NoError(t, err, "HostedCluster desire should remain until deletion completes")
+			assert.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, hostedCluster.Spec.Type, "HostedCluster deletion should start after ingress cleanup")
+		})
+	}
+
+	t.Run("drops NodePool and configuration desires and starts HostedCluster deletion on the first pass", func(t *testing.T) {
 		t.Parallel()
 		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 		desires := seedDesires()
-		markDeleted(desires, DesireNameNodePool)
 
 		fixture := newDestructFixture(t, ctx, testNodePoolName, desires...)
 
@@ -459,7 +516,9 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		require.NoError(t, err, "deleteAllOwnedApplyDesires should succeed")
 
 		_, err = fixture.nodePoolCRUD.Get(ctx, DesireNameNodePool)
-		assert.Error(t, err, "NodePool should be purged once its delete succeeded")
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err), "NodePool ApplyDesire should be dropped without waiting for deletion status, got %v", err)
+		_, err = fixture.clusterCRUD.Get(ctx, DesireNameOCPPullSecret)
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err), "configuration ApplyDesire should be dropped on the first pass, got %v", err)
 
 		hostedCluster, err := fixture.clusterCRUD.Get(ctx, DesireNameHostedCluster)
 		require.NoError(t, err, "HostedCluster desire should still exist while its delete is pending")
@@ -474,6 +533,35 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		}
 	})
 
+	t.Run("waits for namespace cleanup of an orphan NodePool when HostedCluster is absent", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		fixture := newDestructFixtureWithReadDesires(t, ctx, testNodePoolName, []*kubeapplierapi.ApplyDesire{
+			newOwnedNodePoolDesire(testNodePoolName, DesireNameNodePool),
+			newOwnedClusterDesire(DesireNameHostedClusterNamespace),
+			newOwnedClusterDesire(DesireNameControlPlaneNamespace),
+		}, DesireNameNodePool)
+
+		// The controller can request namespace cleanup, but cannot declare it
+		// complete until kube-applier observes the namespaces gone. This does
+		// not simulate Kubernetes GC or HyperShift's NodePool finalizer.
+		for range 2 {
+			err := fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
+			require.NoError(t, err, "reconcile orphan NodePool cleanup without HostedCluster")
+			_, err = fixture.nodePoolCRUD.Get(ctx, DesireNameNodePool)
+			assert.True(t, cosmosstorageutils.IsNotFoundError(err), "orphan NodePool must stop being applied, got %v", err)
+			for _, name := range []string{DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace} {
+				desire, err := fixture.clusterCRUD.Get(ctx, name)
+				require.NoError(t, err, "%s must remain pending until namespace cleanup completes", name)
+				assert.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, desire.Spec.Type, "%s must request deletion", name)
+			}
+			readCRUD, err := fixture.mockKubeApplierClient.ReadDesiresForNodePool(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+			require.NoError(t, err, "get orphan NodePool ReadDesire CRUD")
+			_, err = readCRUD.Get(ctx, DesireNameNodePool)
+			require.NoError(t, err, "orphan NodePool observation must remain until namespace cleanup completes")
+		}
+	})
+
 	// The SWIFT resources hold Azure networking state behind finalizers, so the
 	// chain has to wait them out rather than drop their documents and let the
 	// namespace cascade run. PodNetwork in particular is cluster-scoped, so no
@@ -483,7 +571,7 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 		desires := seedDesires()
-		markDeleted(desires, DesireNameNodePool, DesireNameHostedCluster)
+		markDeleted(desires, DesireNameHostedCluster)
 
 		fixture := newDestructFixture(t, ctx, testNodePoolName, desires...)
 
@@ -513,7 +601,7 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 		desires := seedDesires()
-		markDeleted(desires, DesireNameNodePool, DesireNameHostedCluster, DesireNamePodNetworkInstance)
+		markDeleted(desires, DesireNameHostedCluster, DesireNamePodNetworkInstance)
 
 		fixture := newDestructFixture(t, ctx, testNodePoolName, desires...)
 
@@ -536,7 +624,7 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 
 		desires := seedDesires()
 		markDeleted(desires,
-			DesireNameNodePool, DesireNameHostedCluster, DesireNamePodNetworkInstance, DesireNamePodNetwork)
+			DesireNameHostedCluster, DesireNamePodNetworkInstance, DesireNamePodNetwork)
 
 		fixture := newDestructFixture(t, ctx, testNodePoolName, desires...)
 
@@ -548,7 +636,7 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 			assert.Error(t, err, "%s should be purged once its delete succeeded", name)
 		}
 		_, err = fixture.nodePoolCRUD.Get(ctx, DesireNameNodePool)
-		assert.Error(t, err, "nodepool-scoped NodePool should be purged once its delete succeeded")
+		assert.Error(t, err, "nodepool-scoped NodePool ApplyDesire should be dropped without waiting for deletion status")
 
 		// Cascade-covered desires are dropped outright, never flipped to Delete,
 		// so the kube-applier issues no delete of its own and the namespace
@@ -585,12 +673,12 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 			"untagged desire should be untouched")
 	})
 
-	t.Run("deletes paired ReadDesires when ApplyDesires are removed", func(t *testing.T) {
+	t.Run("deletes paired ReadDesires and retains NodePool observations until namespaces are gone", func(t *testing.T) {
 		t.Parallel()
 		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 		desires := seedDesires()
-		markDeleted(desires, DesireNameNodePool, DesireNameHostedCluster,
+		markDeleted(desires, DesireNameHostedCluster,
 			DesireNamePodNetworkInstance, DesireNamePodNetwork)
 
 		fixture := newDestructFixtureWithReadDesires(t, ctx, testNodePoolName, desires,
@@ -613,7 +701,23 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		require.NoError(t, err, "get NodePool ReadDesire CRUD")
 
 		_, err = nodePoolReadDesireCRUD.Get(ctx, DesireNameNodePool)
-		assert.Error(t, err, "NodePool ReadDesire should be deleted with its ApplyDesire")
+		require.NoError(t, err, "NodePool ReadDesire must remain while namespace deletion is pending")
+
+		// Simulate kube-applier completing namespace deletion, then reconcile
+		// the same fixture again to exercise the orphan sweep.
+		clusterCRUD, err := fixture.mockKubeApplierClient.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+		require.NoError(t, err, "get writable cluster ApplyDesire CRUD")
+		for _, name := range []string{DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace} {
+			desire, err := clusterCRUD.Get(ctx, name)
+			require.NoError(t, err, "namespace desire %s must exist until deletion succeeds", name)
+			markDeleted([]*kubeapplierapi.ApplyDesire{desire}, name)
+			_, err = clusterCRUD.Replace(ctx, desire, nil)
+			require.NoError(t, err, "report namespace %s deleted", name)
+		}
+		err = fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
+		require.NoError(t, err, "cleanup should finish after namespace deletion")
+		_, err = nodePoolReadDesireCRUD.Get(ctx, DesireNameNodePool)
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err), "orphaned NodePool ReadDesire should be swept, got %v", err)
 	})
 
 	t.Run("sweeps orphaned ReadDesires after ApplyDesires are gone", func(t *testing.T) {
