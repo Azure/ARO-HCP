@@ -20,12 +20,6 @@ import (
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
 
-// OcpV5ArtDevMirrorSource is the platform-managed image source that OpenShift
-// 5.y data-plane releases are published under. A cluster whose HostedCluster
-// spec.imageContentSources lacks this entry cannot pull 5.y data-plane images,
-// so an upgrade into 5.y would strand its nodes.
-const OcpV5ArtDevMirrorSource = "quay.io/openshift-release-dev/ocp-v5.0-art-dev"
-
 // HostedClusterHasImageContentSource reports whether the HostedCluster's
 // spec.imageContentSources contains an entry for source. A nil HostedCluster
 // reports false; callers that need to distinguish "not observed yet" from

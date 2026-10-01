@@ -14,10 +14,16 @@
 
 package apihelpers
 
+// OcpV5ArtDevMirrorSource is the platform-managed image source that OpenShift
+// 5.y data-plane releases are published under. A cluster whose HostedCluster
+// spec.imageContentSources lacks this entry cannot pull 5.y data-plane images,
+// so an upgrade into 5.y would strand its nodes.
+const OcpV5ArtDevMirrorSource = "quay.io/openshift-release-dev/ocp-v5.0-art-dev"
+
 // platformImageContentSources lists HostedCluster imageContentSources managed internally by the service.
 var platformImageContentSources = map[string]struct{}{
 	"quay.io/openshift-release-dev/ocp-v4.0-art-dev":    {},
-	"quay.io/openshift-release-dev/ocp-v5.0-art-dev":    {},
+	OcpV5ArtDevMirrorSource:                             {},
 	"quay.io/openshift-release-dev/ocp-release":         {},
 	"quay.io/openshift-release-dev/ocp-release-nightly": {},
 }
