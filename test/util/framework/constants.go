@@ -27,7 +27,7 @@ const (
 	// their historical p50/p90). Revisit and re-tune once the CS-side latency
 	// work lands; see test/e2e/README.md#updating-e2e-timeouts.
 	ClusterCreationTimeout      = 30 * time.Minute
-	NodePoolCreationTimeout     = 20 * time.Minute
+	NodePoolCreationTimeout     = 30 * time.Minute
 	ExternalAuthCreationTimeout = 15 * time.Minute
 	GetAdminRESTConfigTimeout   = 10 * time.Minute
 )
