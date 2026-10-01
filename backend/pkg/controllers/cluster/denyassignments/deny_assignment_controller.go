@@ -673,15 +673,16 @@ func removeDenyAssignmentRef(slice []coreapi.DenyAssignmentReference, denyAssign
 	return result
 }
 
-// partitionDenyAssignmentReferences splits refs by whether their type is still required. Obsolete
-// refs (those whose type is no longer required) must never be passed to
+// partitionDenyAssignmentReferences returns the refs whose types are still required, followed by
+// the obsolete refs whose types are no longer required. Obsolete refs must never be passed to
 // ensureDenyAssignmentReferences — they have no definition, so ensuring them only produces a
 // "no definition" error. Callers hold them aside and delete them from Azure and the status lists
 // only after the required assignments are confirmed in place.
 func partitionDenyAssignmentReferences(
 	refs []coreapi.DenyAssignmentReference,
 	requiredByType map[string]coreapi.DenyAssignmentReference,
-) (required, obsolete []coreapi.DenyAssignmentReference) {
+) ([]coreapi.DenyAssignmentReference, []coreapi.DenyAssignmentReference) {
+	var required, obsolete []coreapi.DenyAssignmentReference
 	for _, ref := range refs {
 		if _, isRequired := requiredByType[ref.DenyAssignmentType]; isRequired {
 			required = append(required, ref)
