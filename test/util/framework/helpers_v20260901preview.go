@@ -493,14 +493,13 @@ func BuildHCPClusterFromParams20260901(
 	}
 
 	tags, vnetIntegrationSubnetID := buildClusterNetworking(parameters.DisableSwift, parameters.Tags, parameters.VnetIntegrationSubnetID)
-	versionID, tags := buildControlPlaneVersion(parameters.OpenshiftVersionId, tags)
 	return hcpsdk20260901preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: identity,
 		Tags:     tags,
 		Properties: &hcpsdk20260901preview.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20260901preview.VersionProfile{
-				ID:           to.Ptr(versionID),
+				ID:           to.Ptr(parameters.OpenshiftVersionId),
 				ChannelGroup: to.Ptr(parameters.ChannelGroup),
 			},
 			Platform: &hcpsdk20260901preview.PlatformProfile{
