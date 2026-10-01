@@ -1408,8 +1408,8 @@ not an additional controller in the census.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **150 concrete controller entries**: 121 backend instances, 11 fleet controllers,
-three kube-applier controller types, 12 management-agent controllers/watchers,
+The catalog contains **151 concrete controller entries**: 121 backend instances, 11 fleet controllers,
+three kube-applier controller types, 13 management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
 Kubernetes read controllers are described once. Optional, legacy and example
@@ -1417,7 +1417,7 @@ controllers remain in the inventory. External operators are boundaries, not coun
 as in-repo controllers. Generic watching/operation wrappers, HTTP servers, informer
 factories, leader election and Prometheus collectors are infrastructure rather than
 additional business controllers.
-This is an inventory count, not a claim that 150 goroutines run in each deployment:
+This is an inventory count, not a claim that 151 goroutines run in each deployment:
 feature gates can suppress launches, the shared union type runs in two services,
 and the kube-applier read-controller type can have multiple runtime instances.
 The four [frontend admission informers](#admission-caches-and-startup) are likewise
@@ -3697,6 +3697,12 @@ does not recompute the cached detector verdict. Successful patch emits an Event
 and action metrics; label-record repairs can increment detection counts too.
 Gauges are rebuilt from cached labels each sweep, not a proof of mitigation.
 
+#### swift-pod-mitigation
+
+[Source](../../mgmt-agent/pkg/controller/swiftpod/controller.go) · [Startup](../../mgmt-agent/cmd/options.go). **Trigger:** Pod-keyed Node/Pod/Event informer notifications and configured per-Pod retry interval.
+
+Disabled by default. The deployment flag gates controller construction, event-handler registration and the configuration informer; runtime mode controls mitigation in enabled deployments. For explicitly selected router Deployments, checks initial SWIFT sandbox failures, live ownership and per-Pod availability including `minReadySeconds`, bounded replacement placement, and durable ConfigMap eviction accounting. Audit performs no writes. Enforce labels the admitted Pod, refreshes admission, records the attempt, and requests UID/resourceVersion-guarded eviction. No Node disruption, Azure calls or Cosmos domain writes. See [operations](../controllers/swift-pod-mitigation.md).
+
 #### capacity-reporting
 
 [Source](../../mgmt-agent/pkg/controller/capacityreporting/controller.go) · [Startup](../../mgmt-agent/cmd/options.go). **Trigger:** Immediate pass after startup, then 30s between passes; no event workqueue. The 25s timeout covers collection, not the report GET or status apply.
@@ -3945,6 +3951,7 @@ metadata only, not an Azure throughput mutation.
 | Shared-ingress router Service | No Service/load-balancer mutator in these observation controllers; the provisioning owner is outside their source contract | [EnsureSharedIngressReadDesireController](#ensuresharedingressreaddesirecontroller) creates observation intent; [SharedIngressReportingController](#sharedingressreportingcontroller) mirrors IPs and availability into Fleet. Admin management-cluster responses expose those IPs; these controllers do not create ingress resources. |
 | Kubernetes observation | [ReadDesireKubernetesController](#readdesirekubernetescontroller) reads targets | Writes mirrored Cosmos status; never provisions the observed target. The manager and union controller maintain the watches. |
 | Kubernetes CapacityReport, Node labels/capacity, monitoring objects | Management-agent controllers | Direct Kubernetes writes; fleet consumes mirrored capacity. [node-health](#node-health) labels/annotates detected SWIFTv2 failures and emits events; mitigation is outside this controller. [capacity-reporting](#capacity-reporting) preserves zero resource quantities and atomically replaces the HCP readiness grouping. |
+| Selected SWIFT router Pods and eviction accounting | Management-agent [swift-pod-mitigation](#swift-pod-mitigation) | Opt-in, identity-guarded eviction with availability and placement checks. Attempts persist in a separately initialized ConfigMap before submission. No Cosmos writes or Node disruption. |
 | Kubernetes Session/CSR/approval/credential secrets | [Admin breakglass creation](../../admin/server/handlers/hcp/breakglass/create.go) creates the Session; [SessionControlPlaneController](#sessioncontrolplanecontroller) reconciles status and credentials | Direct Kubernetes writes, not Cosmos desires; external signing issues certificates. Expiry deletes the Session and owner-reference GC covers its local Secret, not cross-cluster CSRs/approvals. The dataplane removes proxy state on observed Session absence/deletion/NotReady, not an independent TTL timer. |
 | Azure alert-processing rules | [Admin PUT/DELETE](../../admin/server/handlers/alertmanagement/alertprocessingrules.go) directly creates/replaces or deletes rules; GET/list only observe | Configured subscription/resource group and at least one configured AMW constrain PUT. No Cosmos intent, local ETag coordination or handler-owned expiry cleanup; Azure owns alert suppression execution. |
 | Azure VM boot diagnostics and serial-console blob | [Admin serial-console GET](../../admin/server/handlers/hcp/serialconsole.go) requests a short-lived SAS URI and reads the blob | Resources supplies the cluster, managed resource group and subscription tenant. The action does not mutate VM diagnostics settings or persist logs/URI in Cosmos. |
