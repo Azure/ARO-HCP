@@ -62,6 +62,7 @@ import (
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/monitortranslator"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/swiftpod"
 	capacityreportclient "github.com/Azure/ARO-HCP/mgmt-agent/pkg/generated/clientset/versioned"
 )
 
@@ -77,9 +78,10 @@ type RawControllerOptions struct {
 	LogVerbosity  int
 	KSMImage      string
 
-	NodeHealthConfigMapName string
-	NodeHealthConfigKey     string
-	MonitoringAPIGroup      string
+	NodeHealthConfigMapName   string
+	NodeHealthConfigKey       string
+	SwiftPodMitigationEnabled bool
+	MonitoringAPIGroup        string
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
@@ -104,6 +106,8 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 		"Name of the ConfigMap (in --namespace) holding the node-health configuration. The controller is disabled until this ConfigMap enables it.")
 	cmd.Flags().StringVar(&o.NodeHealthConfigKey, "node-health-config-key", o.NodeHealthConfigKey,
 		"Key within the node-health ConfigMap that holds the YAML configuration.")
+	cmd.Flags().BoolVar(&o.SwiftPodMitigationEnabled, "swift-pod-mitigation-enabled", false,
+		"Start the SWIFT router Pod mitigation controller. Runtime configuration starts disabled.")
 	cmd.Flags().StringVar(&o.MonitoringAPIGroup, "monitoring-api-group", o.MonitoringAPIGroup,
 		"API group for monitoring CRDs (e.g. azmonitoring.coreos.com). Enables AMA NetworkPolicy controller when set to azmonitoring.coreos.com.")
 
@@ -124,6 +128,8 @@ type completedControllerOptions struct {
 	monitorTranslatorCtrl    *monitortranslator.MonitorTranslatorController
 	amaNetPolicyCtrl         *amanetpolicy.AMANetworkPolicyController
 	nodeHealth               *nodehealth.Controller
+	swiftPod                 *swiftpod.Controller
+	swiftPodCMInformers      kubeinformers.SharedInformerFactory
 	capacityReport           *capacityreporting.CapacityReportController
 	backupCleanup            *backupcleanup.Controller
 	veleroInformers          dynamicinformer.DynamicSharedInformerFactory
@@ -286,6 +292,38 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to add node-health ConfigMap handler: %w", err)
 	}
 
+	var swiftPod *swiftpod.Controller
+	var swiftPodCMInformers kubeinformers.SharedInformerFactory
+	if o.SwiftPodMitigationEnabled {
+		swiftPod, err = swiftpod.NewController(kubeClientset, dynamicClient, o.Namespace,
+			kubeInformers.Core().V1().Nodes(), clusterWideKubeInformers.Core().V1().Pods(),
+			nodeHealthInformers.Core().V1().Events(), nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create SWIFT router mitigation controller: %w", err)
+		}
+		swiftPod.AllowConfiguration(true)
+		swiftPodCMInformers = kubeinformers.NewSharedInformerFactoryWithOptions(kubeClientset, 0,
+			kubeinformers.WithNamespace(o.Namespace),
+			kubeinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+				opts.FieldSelector = "metadata.name=" + swiftpod.ConfigMapName
+			}))
+		if _, err := swiftPodCMInformers.Core().V1().ConfigMaps().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj any) {
+				if cm, ok := obj.(*corev1.ConfigMap); ok {
+					swiftPod.OnConfigMap(cm, swiftpod.ConfigKey)
+				}
+			},
+			UpdateFunc: func(_, obj any) {
+				if cm, ok := obj.(*corev1.ConfigMap); ok {
+					swiftPod.OnConfigMap(cm, swiftpod.ConfigKey)
+				}
+			},
+			DeleteFunc: func(any) { swiftPod.OnConfigMapDeleted() },
+		}); err != nil {
+			return nil, fmt.Errorf("failed to add SWIFT configuration handler: %w", err)
+		}
+	}
+
 	hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
@@ -408,6 +446,8 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			ksmCtrl:                  ksmCtrl,
 			monitorTranslatorCtrl:    monitorTranslatorCtrl,
 			nodeHealth:               nodeHealth,
+			swiftPod:                 swiftPod,
+			swiftPodCMInformers:      swiftPodCMInformers,
 			capacityReport:           capacityReportCtrl,
 			backupCleanup:            backupCleanup,
 			veleroInformers:          veleroInformers,
@@ -548,6 +588,17 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 				}
 				if o.nodeHealthCMInformers != nil {
 					o.nodeHealthCMInformers.Start(ctx.Done())
+				}
+				if o.swiftPodCMInformers != nil {
+					o.swiftPodCMInformers.Start(ctx.Done())
+				}
+				if o.swiftPod != nil {
+					go func() {
+						defer utilruntime.HandleCrash()
+						if err := o.swiftPod.Run(ctx); err != nil {
+							logger.Error(err, "SWIFT router mitigation controller failed")
+						}
+					}()
 				}
 
 				go func() {

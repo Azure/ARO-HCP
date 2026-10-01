@@ -1553,6 +1553,22 @@
           "type": "string",
           "description": "The name of the MSI that will be used by the mgmt-agent to interact with Azure"
         },
+        "swiftPodMitigation": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Permit SWIFT router Pod mitigation configuration and grant its Kubernetes permissions. Disabled by default."
+            },
+            "configuration": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Strict controller YAML configuration, including mode, explicit workload selectors and eviction limits."
+            }
+          },
+          "additionalProperties": false,
+          "required": ["enabled", "configuration"]
+        },
         "nodeHealth": {
           "type": "object",
           "properties": {
@@ -1570,7 +1586,8 @@
         "image",
         "k8s",
         "managedIdentityName",
-        "nodeHealth"
+        "nodeHealth",
+        "swiftPodMitigation"
       ]
     },
     "swiftRecorder": {
