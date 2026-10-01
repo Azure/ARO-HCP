@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
@@ -29,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -41,7 +43,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	fleetlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	kubeapplierlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -417,6 +421,7 @@ func TestSyncOnce(t *testing.T) {
 				clustersServiceClient:        tt.setupCSMock(ctrl),
 				kubeApplierDBClients:         mockKubeApplierDBClients,
 				applyDesireLister:            &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
+				resourcesFetchCooldown:       controllerutil.NewLastSuccessCooldownChecker(resourcesFetchInterval),
 			}
 
 			err := syncer.SyncOnce(ctx, testKey())
@@ -430,6 +435,180 @@ func TestSyncOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSyncOnce_ResourcesFetchInterval(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	ctrl := gomock.NewController(t)
+	clk := clocktesting.NewFakePassiveClock(fixedNow)
+
+	cooldown := controllerutil.NewLastSuccessCooldownChecker(resourcesFetchInterval)
+	cooldown.SetClock(clk)
+
+	mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+	gomock.InOrder(
+		mock.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(nil, nil),
+		mock.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(nil, nil),
+	)
+
+	syncer := &clusterResourcesController{
+		clusterLister: &corelistertesting.SliceClusterLister{
+			Clusters: []*coreapi.Cluster{newCluster()},
+		},
+		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{newSPC(testManagementClusterResourceID)},
+		},
+		clustersServiceClient:  mock,
+		resourcesFetchCooldown: cooldown,
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()), "first sync should fetch cluster resources")
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()), "sync inside the interval should skip Cluster Service")
+
+	// The next fetch is allowed only once now is strictly after last success plus the interval.
+	clk.SetTime(fixedNow.Add(resourcesFetchInterval + time.Nanosecond))
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()), "sync after the interval should fetch cluster resources again")
+}
+
+func TestSyncOnce_NoWorkDoesNotStartResourcesFetchInterval(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	ctrl := gomock.NewController(t)
+	clk := clocktesting.NewFakePassiveClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	cooldown := controllerutil.NewLastSuccessCooldownChecker(resourcesFetchInterval)
+	cooldown.SetClock(clk)
+
+	cluster := newCluster(func(c *coreapi.Cluster) {
+		c.ServiceProviderProperties.ClusterServiceID = nil
+	})
+	mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+	mock.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(nil, nil)
+
+	syncer := &clusterResourcesController{
+		clusterLister: &corelistertesting.SliceClusterLister{
+			Clusters: []*coreapi.Cluster{cluster},
+		},
+		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{newSPC(testManagementClusterResourceID)},
+		},
+		clustersServiceClient:  mock,
+		resourcesFetchCooldown: cooldown,
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()), "cluster without a Cluster Service ID should be skipped")
+
+	cluster.ServiceProviderProperties.ClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceID)))
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()), "a following sync should still fetch once the cluster has a Cluster Service ID")
+}
+
+func TestSyncOnce_FailedFetchDoesNotStartResourcesFetchInterval(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	ctrl := gomock.NewController(t)
+	clk := clocktesting.NewFakePassiveClock(fixedNow)
+
+	cooldown := controllerutil.NewLastSuccessCooldownChecker(resourcesFetchInterval)
+	cooldown.SetClock(clk)
+
+	mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+	gomock.InOrder(
+		mock.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("connection refused")),
+		mock.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(nil, nil),
+		mock.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(nil, nil),
+	)
+
+	syncer := newIntervalSyncer(mock, cooldown)
+
+	require.Error(t, syncer.SyncOnce(ctx, testKey()), "failed fetch should be returned")
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()), "retry after a failed fetch should call Cluster Service again")
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()), "sync inside the interval after success should skip Cluster Service")
+
+	clk.SetTime(fixedNow.Add(resourcesFetchInterval + time.Nanosecond))
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()), "sync after the interval should fetch cluster resources again")
+}
+
+func TestSyncOnce_FailedApplyDesireUpdateDoesNotStartResourcesFetchInterval(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	ctrl := gomock.NewController(t)
+	clk := clocktesting.NewFakePassiveClock(fixedNow)
+
+	cooldown := controllerutil.NewLastSuccessCooldownChecker(resourcesFetchInterval)
+	cooldown.SetClock(clk)
+
+	configMap := `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"},"data":{"key":"value"}}`
+	resources := buildClusterResources(map[string]string{"default-ingress-configmap": configMap})
+
+	mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+	gomock.InOrder(
+		mock.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(resources, nil),
+		mock.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(resources, nil),
+		mock.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(resources, nil),
+	)
+
+	mockKubeApplierDBClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+	mockKubeApplierClient := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+	mockKubeApplierDBClients.Register(testManagementClusterResourceID, mockKubeApplierClient)
+	mcLister := &fleetlistertesting.SliceManagementClusterLister{
+		ManagementClusters: []*fleetapi.ManagementCluster{
+			{
+				CosmosMetadata: coreapi.CosmosMetadata{
+					ResourceID: testManagementClusterResourceID,
+				},
+			},
+		},
+	}
+
+	syncer := newIntervalSyncer(mock, cooldown)
+	syncer.kubeApplierDBClients = mockKubeApplierDBClients
+	syncer.applyDesireLister = &failNApplyDesireLister{
+		ApplyDesireLister: &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
+		failsRemaining:    1,
+	}
+
+	require.Error(t, syncer.SyncOnce(ctx, testKey()), "failed ApplyDesire update should be returned")
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()), "retry after a failed ApplyDesire update should call Cluster Service again")
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()), "sync inside the interval after success should skip Cluster Service")
+
+	clk.SetTime(fixedNow.Add(resourcesFetchInterval + time.Nanosecond))
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()), "sync after the interval should fetch cluster resources again")
+}
+
+func newIntervalSyncer(csClient ocm.ClusterServiceClientSpec, cooldown *controllerutil.LastSuccessCooldownChecker) *clusterResourcesController {
+	return &clusterResourcesController{
+		clusterLister: &corelistertesting.SliceClusterLister{
+			Clusters: []*coreapi.Cluster{newCluster()},
+		},
+		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{newSPC(testManagementClusterResourceID)},
+		},
+		clustersServiceClient:  csClient,
+		resourcesFetchCooldown: cooldown,
+	}
+}
+
+// failNApplyDesireLister fails GetByResourceID the first failsRemaining times,
+// which is the lookup EnsureApplyDesire uses before creating or replacing.
+type failNApplyDesireLister struct {
+	kubeapplierlisters.ApplyDesireLister
+	failsRemaining int
+}
+
+func (l *failNApplyDesireLister) GetByResourceID(ctx context.Context, resourceID string) (*kubeapplierapi.ApplyDesire, error) {
+	if l.failsRemaining > 0 {
+		l.failsRemaining--
+		return nil, fmt.Errorf("apply desire lister unavailable")
+	}
+	return l.ApplyDesireLister.GetByResourceID(ctx, resourceID)
 }
 
 func TestDeleteStaleApplyDesires(t *testing.T) {

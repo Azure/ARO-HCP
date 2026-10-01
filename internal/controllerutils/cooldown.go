@@ -89,6 +89,55 @@ func (c *TimeBasedCooldownChecker) CanSync(_ context.Context, key any) bool {
 	return false
 }
 
+// LastSuccessCooldownChecker gates a key on the time of its last successful
+// sync. CanSync only reads that time: a true return does not record an
+// attempt, so a failed sync stays eligible to retry immediately. RecordSuccess
+// stamps the success time that later CanSync calls measure against.
+//
+// The success map is an LRU rather than an unbounded map so that a
+// long-running process whose keys come and go does not leak memory. 1M
+// entries is far above any realistic management cluster's resource count.
+type LastSuccessCooldownChecker struct {
+	clock            utilsclock.PassiveClock
+	cooldownDuration time.Duration
+	lastSuccessTime  *lru.Cache
+}
+
+// NewLastSuccessCooldownChecker constructs a checker bound to the real
+// wall-clock and a 1M-entry LRU. Tests should call SetClock to inject a
+// fake clock.
+func NewLastSuccessCooldownChecker(cooldownDuration time.Duration) *LastSuccessCooldownChecker {
+	return &LastSuccessCooldownChecker{
+		clock:            utilsclock.RealClock{},
+		cooldownDuration: cooldownDuration,
+		lastSuccessTime:  lru.New(1000000),
+	}
+}
+
+// SetClock substitutes the time source used to evaluate the cooldown.
+// Intended for tests; production code should use the real clock from the
+// constructor.
+func (c *LastSuccessCooldownChecker) SetClock(clock utilsclock.PassiveClock) {
+	c.clock = clock
+}
+
+// CanSync reports whether cooldownDuration has elapsed since the key's last
+// RecordSuccess. A key with no success recorded is always allowed. ctx is
+// part of the CooldownChecker interface but unused here.
+func (c *LastSuccessCooldownChecker) CanSync(_ context.Context, key any) bool {
+	lastSuccess, ok := c.lastSuccessTime.Get(key)
+	if !ok {
+		return true
+	}
+	return c.clock.Now().After(lastSuccess.(time.Time).Add(c.cooldownDuration))
+}
+
+// RecordSuccess stamps the key's last success time to now. Later CanSync
+// calls return false until cooldownDuration has elapsed after this time.
+func (c *LastSuccessCooldownChecker) RecordSuccess(key any) {
+	c.lastSuccessTime.Add(key, c.clock.Now())
+}
+
 // SettableCooldownChecker is a cooldown gate where the per-key cooldown
 // duration is set explicitly by the caller via SetCooldown, rather than
 // being fixed at construction time. A key with no cooldown set is always
