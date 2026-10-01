@@ -43,12 +43,15 @@ Use `get_pull_request_files` (or equivalent) to get the **complete** list of cha
 
 Check the full file list and diffs for the following. If any are found, flag them as blocking issues:
 
-The `ci/prow/verify` presubmit runs `make verify-supply-chain` (implemented in `hack/verify-supply-chain/`). It blocks exactly four things, by path or by parsed content:
+The `ci/prow/verify` presubmit runs `make verify-supply-chain` (implemented in `hack/verify-supply-chain/`). It blocks exactly five things, by path or by parsed content:
 
 1. `settings.json`, `settings.local.json`, or `mcp.json` under a `.claude/` segment, at any depth.
 2. `settings.json`, `extensions.json`, `tasks.json`, or `launch.json` under a `.vscode/` segment, at any depth.
 3. An `mcp.json` or `.mcp.json` anywhere, including the project-scoped file at the repository root.
-4. Agent JSON carrying a `command` or `hooks` key, reported as a known attack pattern. Such files must parse as strict JSON, and must be regular files: unparseable ones are rejected rather than guessed at, and symlinks are rejected rather than followed. A symlinked `.claude/**/*.json` is blocked without the check reading its target — **if you see that finding, look at what the link resolves to yourself**, because an agent will resolve it and read whatever is there.
+4. Agent JSON carrying a `command` or `hooks` key, reported as a known attack pattern. Such files must parse as strict JSON, and must be regular files: unparseable ones are rejected rather than guessed at, and symlinks are rejected rather than followed.
+5. Any tracked symlink on a `.claude/` or `.vscode/` path, including the directory itself. `frontend/.claude -> config` makes `frontend/.claude/settings.json` resolve to `frontend/config/settings.json`, which is tracked under an ordinary name no rule objects to — git records only the link, so no amount of filename matching can see the exposed config.
+
+**Whenever you see a symlink finding, resolve the link yourself.** The check deliberately does not follow it, so it is telling you it declined to judge, not that the target is harmless — and an agent will follow it.
 
 **It checks nothing else, and that is deliberate.** It does not judge what kinds of file may live under `.claude/` — no extension rules, no executable-bit or shebang detection. `CONTRIBUTING.md` tells contributors to commit shared tooling to `.claude/skills/`, so a script, an image, or an `OWNERS` file there is ordinary and passes silently. Deciding whether one of them belongs is your job, not the gate's.
 
