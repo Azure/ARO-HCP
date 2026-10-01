@@ -59,7 +59,7 @@ var _ = Describe("Service Provider", func() {
 			tc := framework.NewTestContext()
 
 			// Install one z-stream behind the channel tip (normalOffset+1) so the backend has a newer
-			// z-stream to automatically upgrade to once the exact-version pin is removed. If the
+			// z-stream to automatically upgrade to once the customer pins the bare minor version. If the
 			// channel has no release at that offset (err) or none is resolved (nil), there is no
 			// automated z-stream upgrade to exercise, so skip.
 			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
@@ -138,16 +138,17 @@ var _ = Describe("Service Provider", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
 			By(fmt.Sprintf("removing the exact version pin and enabling immediate z-stream updates for %s", minorVersion))
-			// This test also runs in production, where fleet canary readiness can
-			// outlast the test's upgrade timeout. Request Immediate when removing
-			// the exact pin so the upgrade does not depend on other clusters.
-			versionLine, upgradeTags := framework.ControlPlaneExactVersionPatchTags(minorVersion)
-			upgradeTags[metadataapi.TagClusterZStreamUpdatePolicy] = to.Ptr(string(coreapi.ImmediateZStreamUpdatePolicy))
+			// The install version was pinned through version.id, so sending a bare
+			// minor clears that internal pin without an exact-version tag to remove.
+			// Retain Immediate from the progressive rollout test: production fleet
+			// canary readiness can outlast this test's upgrade timeout.
 			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
-				Tags: upgradeTags,
+				Tags: map[string]*string{
+					metadataapi.TagClusterZStreamUpdatePolicy: to.Ptr(string(coreapi.ImmediateZStreamUpdatePolicy)),
+				},
 				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20240610preview.VersionProfile{
-						ID:           to.Ptr(versionLine),
+						ID:           to.Ptr(minorVersion),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
