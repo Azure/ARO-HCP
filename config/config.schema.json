@@ -3187,6 +3187,7 @@
         },
         "monitoringApiGroup": {
           "type": "string",
+          "enum": ["monitoring.coreos.com", "azmonitoring.coreos.com"],
           "description": "The Kubernetes API group used for ServiceMonitor and PodMonitor CRDs on management clusters"
         },
         "prometheus": {
@@ -3791,6 +3792,11 @@
             "gateway"
           ]
         },
+        "monitoringApiGroup": {
+          "type": "string",
+          "enum": ["monitoring.coreos.com", "azmonitoring.coreos.com"],
+          "description": "The Kubernetes API group used for ServiceMonitor and PodMonitor CRDs on service clusters"
+        },
         "prometheus": {
           "description": "Prometheus deployment configuration",
           "$ref": "#/definitions/prometheus"
@@ -3824,7 +3830,8 @@
         "subscription",
         "aks",
         "istio",
-        "opsIngress"
+        "opsIngress",
+        "monitoringApiGroup"
       ]
     },
     "acr": {

@@ -1073,6 +1073,7 @@ svc:
     tag: prod-stable
     targetVersion: asm-1-29
     versions: asm-1-29
+  monitoringApiGroup: monitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-usw3test-svc

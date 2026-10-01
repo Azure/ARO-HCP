@@ -665,6 +665,7 @@ defaults:
         tagKey: aroHCPPurpose
         tagValue: etcd-encryption
       clusterOutboundIPAddressIPTags: ""
+    monitoringApiGroup: monitoring.coreos.com
     prometheus:
       namespace: prometheus
       namespaceNetworkPolicyGroup: ""
