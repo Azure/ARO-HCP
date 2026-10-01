@@ -225,9 +225,6 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		return nil, fmt.Errorf("max-session-ttl must be greater than min-session-ttl")
 	}
 	if o.AprSubscriptionID != "" {
-		if o.AprSubscriptionID == "" {
-			return nil, fmt.Errorf("apr-subscription-id is required when alert processing rules are configured")
-		}
 		if o.AprResourceGroup == "" {
 			return nil, fmt.Errorf("apr-resource-group is required when alert processing rules are configured")
 		}

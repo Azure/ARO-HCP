@@ -541,7 +541,7 @@ func (tc *perItOrDescribeTestContext) GetHCPResourceRequirements(ctx context.Con
 
 // DoAdminAPIRequest sends an HTTP request to the admin API, checks the status code, and
 // JSON-decodes the response body into T.
-func DoAdminAPIRequest[T interface{}](ctx context.Context, httpClient *http.Client, method, url string, expectedStatus int, body io.Reader) (T, error) {
+func DoAdminAPIRequest[T any](ctx context.Context, httpClient *http.Client, method, url string, expectedStatus int, body io.Reader) (T, error) {
 	var zero T
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
@@ -739,7 +739,7 @@ func listAlertProcessingRulesWithClient(ctx context.Context, httpClient *http.Cl
 }
 
 func deleteAlertProcessingRuleWithClient(ctx context.Context, httpClient *http.Client, adminAPIAddr, ruleName string, expectedStatus int) error {
-	_, err := DoAdminAPIRequest[interface{}](
+	_, err := DoAdminAPIRequest[any](
 		ctx,
 		httpClient,
 		http.MethodDelete,

@@ -473,15 +473,21 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get services AMW resource ID")
 
 			By("creating an alert processing rule")
+			startTime := time.Now().Add(-time.Hour).Format("2006-01-02T15:04:05")
+			endTime := time.Now().Add(time.Hour).Format("2006-01-02T15:04:05")
+
 			createReq := framework.AlertProcessingRuleRequest{
 				AlertRuleName: "TestAlertRule",
-				StartTime:     "2025-01-01T00:00:00",
-				EndTime:       "2025-01-02T00:00:00",
+				StartTime:     startTime,
+				EndTime:       endTime,
 				Description:   "Test alert processing rule",
 				Scopes:        []string{servicesAMW},
 			}
 			ruleName := fmt.Sprintf("test-apr-%s", rand.String(4))
 			createdRule, err := tc.CreateAlertProcessingRule(ctx, ruleName, createReq, http.StatusOK)
+			DeferCleanup(func(ctx context.Context) {
+				_ = tc.DeleteAlertProcessingRule(ctx, ruleName, http.StatusNoContent)
+			})
 			Expect(err).NotTo(HaveOccurred(), "failed to create alert processing rule")
 			Expect(createdRule.Name).To(Equal(ruleName), "created rule name should match request")
 
@@ -493,8 +499,8 @@ var _ = Describe("SRE", func() {
 			By("updating the alert processing rule")
 			updateReq := framework.AlertProcessingRuleRequest{
 				AlertRuleName: "TestAlertRuleUpdated",
-				StartTime:     "2025-01-01T00:00:00",
-				EndTime:       "2025-01-03T00:00:00",
+				StartTime:     startTime,
+				EndTime:       endTime,
 				Description:   "Updated test alert processing rule",
 				Scopes:        []string{servicesAMW},
 			}
@@ -506,6 +512,7 @@ var _ = Describe("SRE", func() {
 			listResp, err := tc.ListAlertProcessingRules(ctx, http.StatusOK)
 			Expect(err).NotTo(HaveOccurred(), "failed to list alert processing rules")
 			Expect(len(listResp.Value)).To(BeNumerically(">", 0), "list should contain at least one rule")
+			Expect(listResp.Value).To(ContainElement(HaveField("Name", Equal(ruleName))), "list should contain the created rule %q", ruleName)
 
 			By("deleting the alert processing rule")
 			err = tc.DeleteAlertProcessingRule(ctx, ruleName, http.StatusNoContent)

@@ -1575,10 +1575,6 @@ clouds:
           dns:
             regionalSubdomain: '{{ .ctx.region }}'
           # Admin API
-          # Admin API
-          adminApi:
-            alertProcessingRules:
-              deploy: true
           adminApi:
             alertProcessingRules:
               deploy: true
@@ -1606,10 +1602,6 @@ clouds:
       cspr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
-          # Admin API
-          adminApi:
-            alertProcessingRules:
-              deploy: true
           kusto:
             manageInstance: false
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
