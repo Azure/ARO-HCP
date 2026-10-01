@@ -3,6 +3,8 @@ digraph control_plane_version_rollout {
   node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
   request [label="Cluster requested channel + minor\nSRE pin / experimental exact override / Immediate", fillcolor="#eee7fb", color="#7b59a4"];
+  pin [label="Admin POST /controlplaneversionpin\nonly previous distinct Completed z-stream\nolder than latest control-plane history entry\nmissing history: reject; clear needs no history", fillcolor="#eee7fb", color="#7b59a4"];
+  actual [label="ActualHostedCluster controller\n→ provider Status.ActualHostedCluster\nfull observed control-plane history"];
   seed [label="ControlPlaneVersionRolloutSeeding\nnon-deleting, non-nightly clusters"];
   rollout [label="Fleet rollout: channel name + Spec.Version\nabsent legacy profile filled on Cosmos reads\nconsumers still parse channel names", fillcolor="#e4f2e5", color="#4c8053"];
   migration [label="CosmosRolloutVersionMigration\nfive workers; 5m resync/cooldown\nonce per key/process after success\nno subscription dependency"];
@@ -20,6 +22,7 @@ digraph control_plane_version_rollout {
   status [label="ControlPlaneVersionStatusCollector\nexclude missing / deleting clusters\naggregate counts; no assignments"];
   counts [label="Fleet status: desired / mismatched / failed\nachieved / successful\nsuccess age > 1h; mismatch timeout > 2h default", fillcolor="#e4f2e5", color="#4c8053"];
   request -> seed [label="requested / pinned channels"];
+  pin -> request [label="write / clear Spec.PinnedVersion"];
   seed -> rollout [label="create with Spec.Version"];
   rollout -> best [label="rollout informer; independent of migration"];
   rollout -> migration [label="rollout watch / resync", style=dashed];
@@ -36,6 +39,8 @@ digraph control_plane_version_rollout {
   desired -> dispatch [label="plus creation / dispatch prerequisites"];
   dispatch -> external [label="POST cluster or submit upgrade policy"];
   external -> observe [label="mirrored HostedCluster history"];
+  external -> actual [label="ReadDesire HostedCluster mirror", style=dashed];
+  actual -> pin [label="validate rollback target", style=dashed, constraint=false];
   observe -> history [label="record observed state"];
   history -> status [label="completed version + age"];
   desired -> status [label="membership + target + age", style=dashed, constraint=false];

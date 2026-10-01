@@ -5,9 +5,10 @@ This plan maps the fleet rollout design originally authored on the
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: the seven rollout controllers, Cosmos storage, informers, and backend wiring
-> are implemented. They run unconditionally. Production policy is hardcoded;
-> risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
+> Status: the seven rollout controllers, Cosmos storage, informers, backend wiring,
+> and Admin API pin setter (PR #7162) are implemented. The rollout controllers
+> run unconditionally. Production policy is hardcoded; risk filtering and
+> environment configuration remain follow-ups.
 
 ## 1. Background: the pipeline before this change
 
@@ -128,11 +129,8 @@ type ServiceProviderClusterPinnedVersion struct {
 ```
 
 An unset pin is a value with nil `ExactVersion` and serializes as `{}`. This is
-intentional. Consuming and clearing pins is implemented; the Admin API setter is
-not yet available and remains a follow-up.
-
-Update the `// Written by:` field annotations (see CLAUDE.md cosmos-data-flow
-rule) and run `make deepcopy`.
+intentional. Consuming and clearing pins is implemented; the Admin API setter
+is implemented via `POST /controlplaneversionpin` (see `admin/server/handlers/hcp/versionpin.go`).
 
 ## 4. Rollout policy
 
@@ -322,17 +320,24 @@ Implemented:
 - Persisted transition ages and assignment cooldown reservations.
 - Forced-version precedence, pinned-channel seeding, and completed-only progress.
 - Cosmos field ownership and data-flow documentation.
+- Admin API `POST /controlplaneversionpin` setter/clearer. Setting a pin validates the target
+  against `ServiceProviderCluster.Status.ActualHostedCluster.Status.ControlPlaneVersion.History`:
+  only the immediately previous distinct successfully installed z-stream older
+  than the newest entry is accepted. Missing history fails closed; clearing a pin
+  needs no observed history. Partial attempts are not rollback targets.
+  Rollback requires mirrored control-plane history from HyperShift. The field
+  is present in 4.22 and was backported to
+  [release-4.20](https://github.com/openshift/hypershift/pull/9055) and
+  [release-4.21](https://github.com/openshift/hypershift/pull/9054); older
+  deployed operator builds may lack it. Guest version history is not a
+  substitute. The handler checks observed history rather than enforcing a
+  minimum hosted-cluster version.
 
 Follow-ups:
 
 - Filter platform/control-plane risks from Cincinnati conditional updates. The
   current graph helper selects by recency, so selected versions are not
   guaranteed to be free of conditional-update risks.
-- Validate rollback targets against previously installed versions in the admin
-  API. This protection is deferred; SRE pins remain immediate and bypass
-  progressive rollout gates.
-- Admin API contract for setting and releasing SRE pins. The consumer exists,
-  but this change does not provide an operational pin-setting endpoint.
 - Environment-specific configuration for rollout policy and per-channel minimum
   versions. Production values currently come from `NewDefaultRolloutConfig`.
   Experimental exact-version installs intentionally remain allowed below the
