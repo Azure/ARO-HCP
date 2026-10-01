@@ -79,8 +79,7 @@ jobs:
         sample_resources &
         monitor_pid=$!
         trap 'kill "$monitor_pid" 2>/dev/null || true; wait "$monitor_pid" 2>/dev/null || true' EXIT
-        # Limit concurrent package builds; previous attempts exhausted RAM and swap.
-        go list -f '{{.Dir}}/...' -m | xargs go build -p 2 -v
+        go list -f '{{.Dir}}/...' -m | xargs go build -v
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
       with:
