@@ -79,7 +79,10 @@ func NewManagementClusterProviderFactory(azureCredentials azcore.TokenCredential
 }
 
 func (f *ManagementClusterProviderFactory) BuildManagementClusterProvider(ctx context.Context, resourceId string) (*ManagementClusterProvider, error) {
+	configStart := time.Now()
+	klog.InfoS("retrieving management cluster AKS REST config", "resourceID", resourceId)
 	kubeConfig, err := mc.GetAKSRESTConfig(ctx, resourceId, f.azureCredentials)
+	klog.InfoS("management cluster AKS REST config retrieval attempt completed", "resourceID", resourceId, "duration", time.Since(configStart), "err", err)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AKS REST config: %w", err)
 	}
@@ -290,7 +293,10 @@ func (c *SessionController) registerMCProvider(ctx context.Context, resourceId s
 		hcpInformer.HasSynced,
 	}
 
-	if !cache.WaitForCacheSync(timeoutCtx.Done(), cachesToSync...) {
+	cacheSyncStart := time.Now()
+	cachesSynced := cache.WaitForCacheSync(timeoutCtx.Done(), cachesToSync...)
+	klog.InfoS("management cluster provider cache sync attempt completed", "resourceID", resourceId, "duration", time.Since(cacheSyncStart), "cachesSynced", cachesSynced)
+	if !cachesSynced {
 		// close stopCh first: Shutdown() calls wg.Wait() which blocks until
 		// all informer goroutines exit, and they only exit when stopCh is closed.
 		close(provider.stopCh)

@@ -51,9 +51,22 @@ const (
 	// adminAPIRequestTimeout is the timeout for individual HTTP requests to the admin API.
 	adminAPIRequestTimeout = 30 * time.Second
 	// sessionReadyTimeout is the maximum time to wait for a breakglass session to become
-	// ready. Session creation involves creating a Session CR, reconciling RBAC bindings,
-	// and generating a kubeconfig with a short-lived token.
-	sessionReadyTimeout = 1 * time.Minute
+	// ready. Sessiongate deregisters a management-cluster (MC) provider when the MC has
+	// zero sessions. A Session created immediately afterward takes the cold registration
+	// path, rebuilding the remote AKS client and informers and waiting for informer cache
+	// sync before requeuing the Session. See registerMCProvider and
+	// MCProviderCacheSyncTimeout (about 30s) in sessiongate/pkg/controller. Together with
+	// Session reconciliation, this needs headroom beyond the observed roughly 2.5-minute
+	// cold MC-provider build, so allow three minutes.
+	sessionReadyTimeout = 3 * time.Minute
+	// sessionReadyTTLBuffer accounts for the TTL clock starting at CR creation,
+	// while readiness polling starts only after the create POST returns. Without
+	// this safety margin, the session could be deleted before the poll budget elapses.
+	// The TTL must exceed the readiness budget and leave time for verification.
+	sessionReadyTTLBuffer = 30 * time.Second
+	// SessionReadyTTL is the TTL for sessions created and awaited for readiness,
+	// with a safety margin beyond the readiness timeout.
+	SessionReadyTTL = sessionReadyTimeout + sessionReadyTTLBuffer
 	// sessionReadyPollInterval is how frequently to poll the session status endpoint
 	// while waiting for readiness.
 	sessionReadyPollInterval = 5 * time.Second

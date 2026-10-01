@@ -182,6 +182,7 @@ var _ = Describe("SRE", func() {
 			By("creating SRE breakglass credentials with aro-sre-pso permissions")
 			aroSrePsoRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre-pso", currentIdentity)
 			Expect(err).NotTo(HaveOccurred(), "failed to create SRE breakglass credentials with aro-sre-pso permissions")
+			Expect(expiresAt).To(BeTemporally(">", time.Now()), "breakglass credentials already expired on obtain")
 			err = runCreateSREBreakglassCredentialsVerifier(ctx, "system:cluster-readers", aroSrePsoRestConfig, append(commonVerifiers,
 				// Negative: secrets read is forbidden (actual access test)
 				verifiers.ExpectForbidden(verifiers.VerifyListNamespaced("kube-system", "secrets")),
@@ -242,11 +243,12 @@ var _ = Describe("SRE", func() {
 			// owner access restriction
 
 			By("trying to access a breakglass session of another user")
-			otherUserRestConfig, _, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre-pso", &framework.AzureIdentityDetails{
+			otherUserRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, framework.SessionReadyTTL, "aro-sre-pso", &framework.AzureIdentityDetails{
 				PrincipalName: "other-app-oid",
 				PrincipalType: framework.PrincipalTypeAADServicePrincipal,
 			})
 			Expect(err).NotTo(HaveOccurred(), "failed to create breakglass credentials for another user")
+			Expect(expiresAt).To(BeTemporally(">", time.Now()), "breakglass credentials already expired on obtain")
 			By("and expecting cluster access to be denied")
 			Expect(verifiers.VerifyWhoAmI("aro-sre").Verify(ctx, otherUserRestConfig)).To(HaveOccurred(), "expected cluster access to be denied for a different user's breakglass session")
 		})
