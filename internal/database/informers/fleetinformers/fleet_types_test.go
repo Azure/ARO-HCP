@@ -37,6 +37,7 @@ func newFleetInformersWithSyncState(synced bool) *fleetInformers {
 		stampInformer:                       informer,
 		managementClusterInformer:           informer,
 		managementClusterSchedulingInformer: informer,
+		controlPlaneVersionRolloutInformer:  informer,
 	}
 }
 
@@ -50,6 +51,9 @@ func TestFleetInformersHasSynced(t *testing.T) {
 		{"ManagementClusters", func(informers *fleetInformers) { informers.managementClusterInformer = unsyncedInformer }},
 		{"ManagementClusterSchedulings", func(informers *fleetInformers) {
 			informers.managementClusterSchedulingInformer = unsyncedInformer
+		}},
+		{"ControlPlaneVersionRollouts", func(informers *fleetInformers) {
+			informers.controlPlaneVersionRolloutInformer = unsyncedInformer
 		}},
 	}
 

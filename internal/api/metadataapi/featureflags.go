@@ -75,6 +75,13 @@ const (
 	// "<major>.<minor>" release line.
 	TagClusterControlPlaneExactVersion = ExperimentalClusterTagPrefix + "control-plane-exact-version"
 
+	// TagClusterZStreamUpdatePolicy controls automatic z-stream rollout when the
+	// ExperimentalReleaseFeatures AFEC is registered. The only valid value is
+	// "Immediate", which follows the channel's best version without waiting for
+	// canary progress. Production e2e tests need this to exercise automatic
+	// z-stream upgrades reliably, independently of the rest of the fleet.
+	TagClusterZStreamUpdatePolicy = ExperimentalClusterTagPrefix + "z-stream-update-policy"
+
 	// TagClusterMaxCreationDuration is the ARM resource tag that overrides
 	// the default cluster creation deadline (60 minutes) when the
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.

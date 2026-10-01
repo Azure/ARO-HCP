@@ -163,3 +163,9 @@ func (informers *trackingFleetInformers) ManagementClusterSchedulings() (cache.S
 	informers.tracking.add(informer.HasSynced)
 	return informer, lister
 }
+
+func (informers *trackingFleetInformers) ControlPlaneVersionRollouts() (cache.SharedIndexInformer, fleetlisters.ControlPlaneVersionRolloutLister) {
+	informer, lister := informers.FleetInformers.ControlPlaneVersionRollouts()
+	informers.tracking.add(informer.HasSynced)
+	return informer, lister
+}
