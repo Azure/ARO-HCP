@@ -72,7 +72,9 @@ Emitted failure reasons are:
 - `subscription_open_failed`: the notification socket could not be opened.
 - `dump_deadline_exceeded`, `dump_interrupted`, `selected_state_truncated`, or
   `dump_failed`: the baseline could not be established.
-- `kernel_notification_overflow`: the kernel reported notification loss.
+- `kernel_notification_overflow`: notifications may have been lost: the kernel
+  reported loss, or more than 4096 notifications queued while the baseline was
+  being established.
 - `malformed_notification`: a relevant event could not be applied safely.
 - `subscription_lost` or `subscription_closed`: the notification source failed.
 

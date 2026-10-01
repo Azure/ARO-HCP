@@ -139,9 +139,15 @@ func (m *Monitor) Recv() ([]Event, error) {
 	return events, err
 }
 
+// maxDrainEvents bounds one Drain. Drain runs once per baseline, right after
+// the dump, and must terminate even if notifications keep arriving as fast as
+// they are read: exceeding the bound is reported as ErrOverflow so the caller
+// discards the generation and rebuilds, exactly as for a kernel overflow.
+const maxDrainEvents = 4096
+
 // Drain returns every notification already queued on the socket without
 // blocking, in arrival order, stopping once the queue is empty. Errors match
-// Recv.
+// Recv, plus ErrOverflow after more than maxDrainEvents events.
 func (m *Monitor) Drain() ([]Event, error) {
 	var all []Event
 	for {
@@ -150,6 +156,9 @@ func (m *Monitor) Drain() ([]Event, error) {
 			return all, err
 		}
 		all = append(all, events...)
+		if len(all) > maxDrainEvents {
+			return nil, ErrOverflow
+		}
 	}
 }
 
@@ -192,12 +201,30 @@ func (m *Monitor) recv(recvFlags int) (events []Event, received bool, err error)
 	if flags&unix.MSG_TRUNC != 0 {
 		return nil, false, ErrOverflow
 	}
-	messages, err := syscall.ParseNetlinkMessage(m.buf[:n])
+	events, err = parseNotifications(m.buf[:n], observedAt)
 	if err != nil {
 		return nil, false, err
 	}
-	events = make([]Event, 0, len(messages))
+	return events, true, nil
+}
+
+// parseNotifications decodes the netlink messages of one received datagram.
+func parseNotifications(datagram []byte, observedAt time.Time) ([]Event, error) {
+	messages, err := syscall.ParseNetlinkMessage(datagram)
+	if err != nil {
+		return nil, err
+	}
+	events := make([]Event, 0, len(messages))
 	for _, msg := range messages {
+		// Linux reports multicast loss through ENOBUFS (handled in recv) and,
+		// as far as known, never sends NLMSG_OVERRUN on rtnetlink sockets.
+		// The type is nonetheless defined by the netlink protocol to mean
+		// "data was lost", so it is treated as an overflow rather than
+		// skipped as an unrelated message: skipping it would leave the
+		// caller's state marked available while possibly stale.
+		if msg.Header.Type == unix.NLMSG_OVERRUN {
+			return nil, ErrOverflow
+		}
 		kind, size, ok := decodeSchemaFor(msg.Header.Type)
 		if !ok {
 			continue
@@ -212,5 +239,5 @@ func (m *Monitor) recv(recvFlags int) (events []Event, received bool, err error)
 		}
 		events = append(events, Event{Type: msg.Header.Type, Body: body, ObservedAt: observedAt})
 	}
-	return events, true, nil
+	return events, nil
 }
