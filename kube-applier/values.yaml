@@ -22,3 +22,4 @@ serviceAccount:
   name: "{{ .kubeApplier.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__kubeApplierMsiClientId__"
   workloadIdentityTenantId: "__kubeApplierMsiTenantId__"
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"

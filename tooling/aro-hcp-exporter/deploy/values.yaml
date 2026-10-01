@@ -31,3 +31,4 @@ certificateNames:
 - "{{ .frontend.cert.name }}"
 - "{{ .adminApi.cert.name }}"
 - "{{ .sessiongate.cert.name }}"
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"

@@ -323,3 +323,4 @@ csDeploymentStrategy:
     maxUnavailable: {{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}
 deployment:
   zoneCount: "{{ .azureRegionAvailabilityZoneCount }}"
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"

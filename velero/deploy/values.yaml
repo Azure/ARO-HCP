@@ -35,3 +35,4 @@ tolerations:
 installer:
   activeDeadlineSeconds: 1800
   backoffLimit: 3
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"

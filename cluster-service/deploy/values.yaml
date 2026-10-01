@@ -161,3 +161,4 @@ azureOperatorsMI:
       roleDefinitions:
       - id: c0ff367d-66d8-445e-917c-583feb0ef0d4
         name: Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity
+monitoringApiGroup: monitoring.coreos.com

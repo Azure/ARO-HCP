@@ -19,3 +19,4 @@ resources:
     memory: "{{ .swiftRecorder.k8s.resources.requests.memory }}"
   limits:
     memory: "{{ .swiftRecorder.k8s.resources.limits.memory }}"
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"

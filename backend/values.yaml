@@ -93,3 +93,4 @@ exitOnPanic: {{ .backend.exitOnPanic }}
 logVerbosity: {{ .backend.logVerbosity }}
 clusterScopedIdentitiesConfig:
   roleSetName: "{{ .backend.clusterScopedIdentitiesConfig.roleSetName }}"
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"

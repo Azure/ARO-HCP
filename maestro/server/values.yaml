@@ -58,3 +58,4 @@ pullBinding:
   scope: "repository:{{ .maestro.image.repository }}:pull"
   workloadIdentityClientId: "__imagePullerMsiClientId__"
   workloadIdentityTenantId: "__tenantId__"
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"

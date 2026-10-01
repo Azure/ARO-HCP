@@ -24,3 +24,4 @@ sideCar:
     digest: "{{ .maestro.agent.sidecar.image.digest }}"
 deployment:
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"

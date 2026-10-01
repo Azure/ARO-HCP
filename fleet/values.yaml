@@ -36,3 +36,4 @@ azureRegionAvailabilityZoneCount: {{ .azureRegionAvailabilityZoneCount }}
 nodePoolPlanning:
   profile: '{{ .fleet.nodePoolPlanning.profile }}'
   zones: '{{ .fleet.nodePoolPlanning.zones }}'
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"

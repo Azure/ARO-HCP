@@ -91,3 +91,4 @@ forwarder:
   tenantId: "__tenantId__"
   secretProvider:
     keyVault: "{{ .mgmtKeyVault.name }}"
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
