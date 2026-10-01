@@ -45,21 +45,34 @@ import (
 // builds are not served by the update-service graph API, so only offset 0 (the latest accepted
 // nightly) is available there; a non-zero nightly offset returns an empty string so the caller can
 // Skip. An empty string with a nil error likewise means "no version resolved at this offset".
+// Versions below the RP's node pool minimum return a skippable error before any
+// resources are created, including when the version is a downgrade target.
 func resolveNodePoolTestVersion(ctx context.Context, channelGroup, minor string, offset uint) (string, error) {
+	var version string
 	if channelGroup == "nightly" {
 		if offset != 0 {
 			return "", nil
 		}
-		return framework.GetLatestNightlyInstallVersion(ctx, channelGroup, minor)
+		resolved, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, minor)
+		if err != nil {
+			return "", err
+		}
+		version = resolved
+	} else {
+		release, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minor), offset)
+		if err != nil {
+			return "", err
+		}
+		if release == nil {
+			return "", nil
+		}
+		version = release.Version
 	}
-	release, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minor), offset)
-	if err != nil {
+	if err := framework.CheckNodePoolInstallVersion(version); err != nil {
+		GinkgoLogr.Info(err.Error())
 		return "", err
 	}
-	if release == nil {
-		return "", nil
-	}
-	return release.Version, nil
+	return version, nil
 }
 
 var _ = Describe("Customer", func() {

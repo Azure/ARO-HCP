@@ -29,6 +29,9 @@ import (
 )
 
 const (
+	// MinimumNodePoolVersion is the oldest version supported for node pool installs and version changes.
+	MinimumNodePoolVersion = "4.20.8"
+
 	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-virtual-machines-limits---azure-resource-manager
 	MaxNodePoolNodes = 200
 
@@ -294,7 +297,7 @@ func validateNodePoolVersionID(ctx context.Context, op operation.Operation, fldP
 	errs := field.ErrorList{}
 
 	errs = append(errs, OpenShiftWithOptionalPrerelease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
-	errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20.8")...)
+	errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), MinimumNodePoolVersion)...)
 	return errs
 }
 

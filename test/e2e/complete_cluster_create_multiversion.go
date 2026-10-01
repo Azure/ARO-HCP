@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -67,6 +68,7 @@ var _ = Describe("ARO-HCP", func() {
 			// OpenShift update service at the channel's z-stream offset.
 			channelGroup := clusterParams.ChannelGroup
 			clusterParams.OpenshiftVersionId = version
+			var resolvedInstallVersion string
 			if channelGroup == "nightly" {
 				resolved, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, version)
 				if framework.IsVersionNotFoundError(err) {
@@ -74,6 +76,7 @@ var _ = Describe("ARO-HCP", func() {
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version for %s", version)
 				clusterParams.OpenshiftVersionId = resolved
+				resolvedInstallVersion = resolved
 			} else {
 				desiredVersion, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, version), clusterversion.GetZStreamOffset(channelGroup))
 				if err != nil {
@@ -82,7 +85,18 @@ var _ = Describe("ARO-HCP", func() {
 				if desiredVersion == nil {
 					Skip(fmt.Sprintf("no version resolved for channel %s-%s", channelGroup, version))
 				}
+				resolvedInstallVersion = desiredVersion.Version
 			}
+
+			// This spec installs a node pool at the control plane's version. Check the
+			// concrete build before creating the cluster; 4.20 nightlies report 4.20.0
+			// and cannot meet the RP's 4.20.8 node pool minimum.
+			err := framework.CheckNodePoolInstallVersion(resolvedInstallVersion)
+			if errors.Is(err, framework.ErrNodePoolVersionTooOld) {
+				GinkgoLogr.Info(err.Error())
+				Skip(err.Error())
+			}
+			Expect(err).NotTo(HaveOccurred(), "failed to check node pool install version %q", resolvedInstallVersion)
 
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {

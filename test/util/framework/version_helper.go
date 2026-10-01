@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
+	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
 var (
@@ -38,12 +39,30 @@ var (
 	ErrNoAcceptedNightlyTags        = errors.New("no accepted nightly tags found")
 	ErrNoParseableNightlyTags       = errors.New("no parseable nightly tags found")
 	ErrNightlyVersionTooOld         = errors.New("nightly version is too old")
+	ErrNodePoolVersionTooOld        = errors.New("node pool version is below the supported minimum")
 )
 
 const (
 	versionFetchMaxRetries     = 3
 	versionFetchRetryBaseDelay = 1 * time.Second
 )
+
+// CheckNodePoolInstallVersion checks a resolved install or upgrade/downgrade target
+// against the RP's minimum. Unlike feature checks in PickAtLeastOpenshiftVersionId,
+// this uses full semver ordering, including pre-release suffixes: a 4.20.0 nightly
+// is below 4.20.8 regardless of its build date. Callers can skip unsupported
+// selections before provisioning resources without changing the requested version.
+func CheckNodePoolInstallVersion(version string) error {
+	parsed, err := semver.Parse(version)
+	if err != nil {
+		return fmt.Errorf("parse node pool install version %q: %w", version, err)
+	}
+	minimum := semver.MustParse(validation.MinimumNodePoolVersion)
+	if parsed.LT(minimum) {
+		return fmt.Errorf("%w: %s must be at least %s", ErrNodePoolVersionTooOld, version, minimum)
+	}
+	return nil
+}
 
 func retryOnTransientError[T any](ctx context.Context, f func() (T, error)) (T, error) {
 	var zero T

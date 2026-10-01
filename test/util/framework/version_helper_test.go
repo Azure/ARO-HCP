@@ -22,6 +22,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCheckNodePoolInstallVersion(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		version string
+		tooOld  bool
+		invalid bool
+	}{
+		{version: "4.20.0-0.nightly-multi-2026-09-13-024541", tooOld: true},
+		{version: "4.20.0-0.nightly-multi-2026-09-23-090319", tooOld: true},
+		{version: "4.20.7", tooOld: true},
+		{version: "4.20.8-rc.1", tooOld: true},
+		{version: "4.20.8"},
+		{version: "4.20.32"},
+		{version: "4.21.0-0.nightly-multi-2026-09-23-090319"},
+		{version: "4.22.0-0.nightly-multi-2026-09-23-090319"},
+		{version: "5.0.0-0.nightly-multi-2026-09-23-090319"},
+		{version: "4.20", invalid: true},
+		{version: "invalid", invalid: true},
+		{version: "", invalid: true},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
+			t.Parallel()
+			err := CheckNodePoolInstallVersion(tc.version)
+			switch {
+			case tc.tooOld:
+				require.ErrorIs(t, err, ErrNodePoolVersionTooOld)
+				assert.Contains(t, err.Error(), tc.version, "skip reason must identify the rejected selection")
+				assert.Contains(t, err.Error(), "must be at least 4.20.8", "skip reason must identify the required minimum")
+			case tc.invalid:
+				require.Error(t, err)
+				assert.NotErrorIs(t, err, ErrNodePoolVersionTooOld, "invalid selections must not be classified as unsupported versions")
+			default:
+				require.NoError(t, err, "supported selections must remain runnable")
+			}
+		})
+	}
+}
+
 func TestPickAtLeastOpenshiftVersionId(t *testing.T) {
 	t.Parallel()
 
