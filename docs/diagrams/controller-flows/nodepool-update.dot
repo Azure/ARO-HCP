@@ -10,7 +10,7 @@ digraph nodepool_update {
   kube [label="ClusterResources / ApplyDesireController\nKubernetes NodePool convergence", fillcolor="#fff0da", color="#b27624"];
   mirror [label="ReadDesireKubernetesController", fillcolor="#e6f0fa", color="#35648a"];
   active [label="NodePoolActiveVersions", fillcolor="#e6f0fa", color="#35648a"];
-  op [label="OperationNodePoolUpdate", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationNodePoolUpdate\nnamed status calculators + shared union", fillcolor="#e6f0fa", color="#35648a"];
   done [label="ARM operation terminal state", fillcolor="#e4f2e5", color="#4c8053"];
   api -> dispatch [label="changed dispatchable\nconfiguration"];
   api -> version [label="requested version"];

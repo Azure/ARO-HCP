@@ -182,9 +182,9 @@ func TestClusterValidationRecovery(t *testing.T) {
 
 func TestOperationClusterCreate_ClusterValidationNotCached(t *testing.T) {
 	t.Parallel()
-	c := &operationClusterCreate{serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{}}
+	c := &clusterCreateValidationCheck{serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{}}
 	operation := operationtesting.NewClusterTestFixture().NewOperation(coreapi.OperationRequestCreate)
-	got, err := c.clusterValidation(context.Background(), operation)
+	got, err := c.CalculateOperationStatus(context.Background(), operation, struct{}{})
 	require.NoError(t, err)
 	assert.Equal(t, coreapi.ProvisioningStateAccepted, got.ProvisioningState)
 	assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, got.CloudErrorCode)
