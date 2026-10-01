@@ -16,9 +16,10 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: ubuntu-latest
-    # Bound the job so a stuck/reclaimed runner fails fast and predictably
-    # instead of running until GitHub-side infra kills it.
+    # CODEQL_GO_RUNNER can target an org-provisioned larger runner for Go;
+    # leave Python on the standard runner. Unset uses the existing runner.
+    runs-on: ${{ matrix.language == 'go' && vars.CODEQL_GO_RUNNER || 'ubuntu-latest' }}
+    # Bound stuck jobs; runner shutdowns have occurred well before this limit.
     timeout-minutes: 30
     permissions:
       actions: read
@@ -47,18 +48,38 @@ jobs:
         # root Makefile and runs it as a build heuristic, which triggers
         # `make test` (the full repo test suite). That always fails on this
         # runner because `promtool` isn't installed, and it adds several
-        # minutes of wasted, always-failing work to every run before falling
-        # back to a build - the main contributor to the job running long
-        # enough to hit runner preemption. Building manually below skips the
-        # Makefile entirely. Unit test coverage is unaffected: the required
-        # ci/prow/test-unit presubmit already runs the same `make test-unit`
-        # target in a properly provisioned CI image.
+        # minutes of wasted work before falling back to a build. Building
+        # manually below skips the Makefile entirely. Unit test coverage is
+        # unaffected: the required ci/prow/test-unit presubmit already runs
+        # the same make test-unit target in a properly provisioned CI image.
         build-mode: ${{ matrix.language == 'go' && 'manual' || 'none' }}
         # Use default CodeQL query packs
         # For custom queries, add: queries: security-and-quality
     - name: Build (go)
       if: matrix.language == 'go'
-      run: go list -f '{{.Dir}}/...' -m | xargs go build
+      run: |
+        set -o pipefail
+        build_cache=$(go env GOCACHE)
+        sample_resources() {
+          IFS=: read -r _ _ cgroup_path < /proc/self/cgroup
+          cgroup_dir="/sys/fs/cgroup${cgroup_path}"
+          while true; do
+            echo "=== $(date -u +'%Y-%m-%dT%H:%M:%SZ') Go build resources ==="
+            free -h
+            df -h . /tmp "$build_cache"
+            for file in "$cgroup_dir"/memory.current "$cgroup_dir"/memory.max "$cgroup_dir"/memory.events "$cgroup_dir"/cpu.stat; do
+              if [ -r "$file" ]; then
+                printf '%s: ' "$file"
+                cat "$file"
+              fi
+            done
+            sleep 30 >/dev/null 2>&1
+          done
+        }
+        sample_resources &
+        monitor_pid=$!
+        trap 'kill "$monitor_pid" 2>/dev/null || true; wait "$monitor_pid" 2>/dev/null || true' EXIT
+        go list -f '{{.Dir}}/...' -m | xargs go build -v
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
       with:
