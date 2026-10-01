@@ -70,6 +70,8 @@ spec:
   serviceMonitorNamespaceSelector: {}
   serviceMonitorSelector: {}
   shards: {{ .Values.prometheusSpec.shards }}
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Delete
   storage:
     volumeClaimTemplate:
       spec:

@@ -68672,6 +68672,8 @@ spec:
   serviceMonitorNamespaceSelector: {}
   serviceMonitorSelector: {}
   shards: 2
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Delete
   storage:
     volumeClaimTemplate:
       spec:
