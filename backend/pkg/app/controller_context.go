@@ -70,6 +70,7 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		SMIClientBuilder:                                    b.options.SMIClientBuilder,
 		Clock:                                               b.clock,
 		AsyncOperationNotificationClient:                    http.DefaultClient,
+		OrphanedMRGCleanupConfig:                            b.options.OrphanedMRGCleanupConfig,
 		BackendInformers:                                    backendInformers,
 		FleetInformers:                                      fleetInformers,
 		UnionKubeApplierInformers:                           unionKubeApplierInformers,

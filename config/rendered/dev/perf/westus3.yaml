@@ -155,6 +155,8 @@ backend:
   maestro:
     sourceEnvironmentIdentifier: arohcpperf
   managedIdentityName: backend
+  orphanedMRGCleanupExcludedSubscriptionAFECFlags: ""
+  orphanedMRGCleanupTargetSubscriptionAFECFlags: ""
 billing:
   aub:
     accountName: ""

@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
@@ -71,6 +72,9 @@ type BackendRootCmdFlags struct {
 	AzureClusterScopedIdentitiesRoleSetName                                                       string
 	BackupScheduleCadence                                                                         string
 	BackupScheduleState                                                                           string
+	OrphanedMRGCleanupTargetSubscriptionAFECFlags                                                 string
+	OrphanedMRGCleanupExcludedSubscriptionAFECFlags                                               []string
+	OrphanedMRGCleanupRunningMode                                                                 string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -236,6 +240,14 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.BackupScheduleState, "backup-schedule-state", f.BackupScheduleState,
 		fmt.Sprintf("Backup schedule state. Accepted values: %s, %s", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
 
+	cmd.Flags().StringVar(&f.OrphanedMRGCleanupTargetSubscriptionAFECFlags, "orphaned-mrg-cleanup-target-subscription-afec-flags", f.OrphanedMRGCleanupTargetSubscriptionAFECFlags,
+		"AFEC flag identifying subscriptions owned by this environment for orphaned MRG cleanup (e.g. Microsoft.RedHatOpenShift/STAGING-APPROVED)")
+	cmd.Flags().StringSliceVar(&f.OrphanedMRGCleanupExcludedSubscriptionAFECFlags, "orphaned-mrg-cleanup-excluded-subscription-afec-flags", f.OrphanedMRGCleanupExcludedSubscriptionAFECFlags,
+		"AFEC flags identifying subscriptions owned by OTHER environments for orphaned MRG cleanup (comma-separated or repeated)")
+	cmd.Flags().StringVar(&f.OrphanedMRGCleanupRunningMode, "orphaned-mrg-cleanup-running-mode", f.OrphanedMRGCleanupRunningMode,
+		"Running mode for orphaned MRG cleanup: 'delete' to actually delete, 'dry-run' for read-only mode.")
+	cmd.MarkFlagsMutuallyExclusive("orphaned-mrg-cleanup-target-subscription-afec-flags", "orphaned-mrg-cleanup-excluded-subscription-afec-flags")
+
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
 
@@ -343,6 +355,14 @@ func (f *BackendRootCmdFlags) validate() error {
 
 	if f.BackupScheduleState != string(coreapi.BackupScheduleStateEnabled) && f.BackupScheduleState != string(coreapi.BackupScheduleStateDisabled) {
 		return utils.TrackError(fmt.Errorf("--backup-schedule-state must be '%s' or '%s'", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
+	}
+
+	if len(f.OrphanedMRGCleanupTargetSubscriptionAFECFlags) != 0 && len(f.OrphanedMRGCleanupExcludedSubscriptionAFECFlags) != 0 {
+		return utils.TrackError(fmt.Errorf("--orphaned-mrg-cleanup-target-subscription-afec-flags and --orphaned-mrg-cleanup-excluded-subscription-afec-flags are mutually exclusive"))
+	}
+
+	if f.OrphanedMRGCleanupRunningMode != "delete" && f.OrphanedMRGCleanupRunningMode != "dry-run" {
+		return utils.TrackError(fmt.Errorf("--orphaned-mrg-cleanup-running-mode must be 'delete' or 'dry-run', got %q", f.OrphanedMRGCleanupRunningMode))
 	}
 
 	return nil
@@ -514,8 +534,17 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		azCoreClientOptions,
 	)
 
+	orphanedMRGCleanupConfig := &controllerconfig.OrphanedMRGCleanupConfig{
+		TargetSubscriptionAFECFlags:   f.OrphanedMRGCleanupTargetSubscriptionAFECFlags,
+		ExcludedSubscriptionAFECFlags: f.OrphanedMRGCleanupExcludedSubscriptionAFECFlags,
+		RunningMode:                   f.OrphanedMRGCleanupRunningMode,
+	}
+	storageControllerContext := app.ControllerContext{
+		HasRealFPA:               !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock,
+		OrphanedMRGCleanupConfig: orphanedMRGCleanupConfig,
+	}
 	storageFactory, err := app.NewStorageFactory(f.AzureCosmosDBURL, f.AzureCosmosDBName, cosmosclient.Options{ClientOptions: azCoreClientOptions},
-		app.BackendStorageFactoryOptions(!f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock))
+		app.BackendStorageFactoryOptions(storageControllerContext))
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend storage factory: %w", err))
 	}
@@ -563,6 +592,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		CloudEnvironment:              azureConfig.CloudEnvironment,
 		MetricsRegisterer:             legacyregistry.Registerer(),
 		MetricsGatherer:               legacyregistry.DefaultGatherer,
+		OrphanedMRGCleanupConfig:      orphanedMRGCleanupConfig,
 	}
 
 	return backendOptions, nil
@@ -586,6 +616,7 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		ExitOnPanic:                                     true,
 		BackupScheduleCadence:                           string(backups.BackupCadenceProduction),
 		BackupScheduleState:                             string(coreapi.BackupScheduleStateEnabled),
+		OrphanedMRGCleanupRunningMode:                   "dry-run",
 	}
 
 	return flags
