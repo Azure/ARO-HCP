@@ -156,11 +156,8 @@ defaults:
     billingKustoName: "empty-sentinel"
     billingKustoSku: "empty-sentinel"
   # Image Registry Policy
-  # Temporary quay.io exceptions until upstream HyperShift fixes land:
-  #   - crt-redhat-acm-tenant: CPO override images (OCPBUGS-128660)
-  #   - ocp-release: CVO prepare-payload image (OCPBUGS-128661)
   imageRegistryPolicy:
-    extraAllowedRegistries: quay.io/redhat-user-workloads/crt-redhat-acm-tenant,quay.io/openshift-release-dev/ocp-release
+    extraAllowedRegistries: ""
     validationActions: Audit
   # ACR Pull
   acrPull:
@@ -196,14 +193,14 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:762175a844350eb00c1bad406a6b49e09a2bccc15cf8e031624cf0a160d1929d # 1.44.2-20260930-1 (2026-09-30 19:13)
+        digest: sha256:7af6cb650e29c367219bebbce4020e6d53088d22e07ab5040d4b4a03685e7176 # 1.44.1-20260918-1 (2026-09-18 21:13)
   # Kube Events
   kubeEvents:
     enabled: true
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:54b14654077ec8c910ff0eeeda191bb45421c6496b2211751fbfd13b38779a46 # 20260927.1 (2026-09-27 03:25)
+      digest: sha256:7246ca0f71c274f1fff5c944a8dc4c4663fe7a8ee4cdff206fdab7b5f836da2e # 20260920.1 (2026-09-20 03:25)
     k8s:
       namespace: monitoring
       serviceAccountName: ke-serviceaccount
@@ -421,7 +418,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:d1d8c22f6817817a2bc331a617ae06d1fdced4bb9ab011dd7c4411b7b2b15e1a # 59c83359d77681a6113961bf1935b7675d37afc4 (2026-09-30 20:43)
+      digest: sha256:60eff695e3facbaffd0096f6cd69b97745eb64230f27350abf2cb23bf516081a # e2c566a4d792fd81fd85265e8ab858a5fc3e4044 (2026-09-25 01:52)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -555,15 +552,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:e1f8555f18dd883769e954432463414c77b99661aec58cbc003d013eb25de75f # 1.6.2 (2026-09-29 23:26)
+      digest: sha256:4b9b7f351820a5a9d8f816776666a335f422614d6702cd6b81daab4676f72ac5 # 1.6.2 (2026-09-23 02:55)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:07feb11122e6aafd28c0b184cbd5d67d458b89af77118ace22e03d5345ed4104 # 1.6.2 (2026-09-29 19:27)
+      digest: sha256:f19163881e825b8798d06a6f9ab264b807d44b60a8a4ff17653f8ac56d164e7b # 1.6.2 (2026-09-23 02:53)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:31aaaf1a306854e32df8241ddd345e1840bb15ab44671916d91ab752a0ae00eb # 1.6.2 (2026-09-29 19:27)
+      digest: sha256:b3534a22585edc1d1b801c0572f41e82a033f376354ae1217922cc328456f358 # 1.6.2 (2026-09-23 15:25)
   # SVC cluster specifics
   svc:
     subscription:
@@ -678,7 +675,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 7ef9c1d80e4e8e1eec1a207166af22930c8f11200f25001d1a3285b30b4f13f9 # v3.15.0 (2026-09-25 11:05)
+          sha: e0c41cc740435528659ad3a8a65ca89d325bb8cf285c2bcd99f8bf7c7d5b80c3 # v3.14.0 (2026-09-23 04:32)
         version: ""
         resources:
           requests:
@@ -797,7 +794,6 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       clusterOutboundIPAddressIPTags: ""
-    monitoringApiGroup: monitoring.coreos.com
     prometheus:
       namespace: prometheus
       namespaceNetworkPolicyGroup: monitoring
@@ -811,7 +807,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 7ef9c1d80e4e8e1eec1a207166af22930c8f11200f25001d1a3285b30b4f13f9 # v3.15.0 (2026-09-25 11:05)
+          sha: e0c41cc740435528659ad3a8a65ca89d325bb8cf285c2bcd99f8bf7c7d5b80c3 # v3.14.0 (2026-09-23 04:32)
         resources:
           requests:
             cpu: NONE
@@ -867,6 +863,9 @@ defaults:
     backupScheduleState: Enabled
     exitOnPanic: true
     logVerbosity: 4
+    orphanedMRGCleanupTargetSubscriptionAFECFlags: ""
+    orphanedMRGCleanupExcludedSubscriptionAFECFlags: ""
+    orphanedMRGCleanupRunningMode: "dry-run"
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
   # Fleet
@@ -979,8 +978,6 @@ defaults:
       contentType: x-pkcs12
     exitOnPanic: true
     logVerbosity: 0
-    clusterScopedIdentitiesConfig:
-      roleSetName: "public"
   # Billing
   billing:
     rg: "placeholder"
@@ -1123,18 +1120,18 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:eb87b584efdd3951ec6a0669138d94868676c6695ea784ad936e53813385ea19 # v2.17.3-472 (2026-09-30 21:29)
+        digest: sha256:4d334e98a881ce5545d9ca84e63d6de6f92b089d421f59ee80dacdc26b5f6854 # v2.17.3-466 (2026-09-25 01:54)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:1fcbddc6e66fecd45251c7854cfe36f50a25c2200053081c78ec8bd1132377eb # v2.17.3-511 (2026-09-30 21:30)
+        digest: sha256:42ffbc7ae53cd6e340086d334bc8c05f35f7b9c6cafe033e96492cf6e5d88a3c # v2.17.3-502 (2026-09-25 02:27)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:dbe29341b12b2ae8ba72ce702b4028f5c4ede9fb9dae30897f0dc02b7f0ceaf8 # 0ea604aefbce3d139b3e8df5ace1b2a9c1b98a98 (2026-09-30 12:00)
+      digest: sha256:39b62d34c0ae6caad264fcc2a086fe84c7a97da3f7baab017f01c28e10c3ba6f # 68ecbc6bed9fda594f7f845285176c245c20d4c7 (2026-09-24 19:28)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1408,8 +1405,6 @@ clouds:
         cert:
           san: 'rp.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
-        clusterScopedIdentitiesConfig:
-          roleSetName: dev
       # Backend
       backend:
         k8s:
@@ -1425,14 +1420,14 @@ clouds:
         k8s:
           resources:
             requests:
-              cpu: 260m
+              cpu: 231m
               memory: 224Mi
       # Management Agent
       mgmtAgent:
         k8s:
           resources:
             requests:
-              cpu: 350m
+              cpu: 313m
       # Image Sync
       imageSync:
         ocMirror:
@@ -1485,7 +1480,7 @@ clouds:
             secondaryNicCount: 1
           infraAgentPool:
             poolCount: 2
-            vmSize: 'Standard_D4s_v3'
+            vmSize: 'Standard_D2s_v3'
           etcd:
             softDelete: false
         nsp:
@@ -1493,10 +1488,9 @@ clouds:
         prometheus:
           prometheusSpec:
             shards: 1
-      # Image Registry Policy — dev-only extras on top of the base quay.io
-      # exceptions (which are inherited from defaults.imageRegistryPolicy).
+      # Image Registry Policy — dev-only image prefixes for local dev tooling
       imageRegistryPolicy:
-        extraAllowedRegistries: docker.io/grafana,docker.io/library/postgres,quay.io/redhat-user-workloads/crt-redhat-acm-tenant,quay.io/openshift-release-dev/ocp-release
+        extraAllowedRegistries: docker.io/grafana,docker.io/library/postgres
         validationActions: Deny
       # ACRs
       acr:
