@@ -147,7 +147,7 @@
             "uid": "${services_datasource}"
           },
           "editorMode": "code",
-          "expr": "((max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds{region=\"${region:text}\"}) - time()) / 86400) and on (cluster, region, key_vault) (max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"}) > time() - 3600)",
+          "expr": "((max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds{region=\"${region:text}\"}) - time()) / 86400) and on (cluster, region, key_vault, certificate_name) (max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_enabled{region=\"${region:text}\"}) == 1) and on (cluster, region, key_vault) (max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"}) > time() - 3600)",
           "legendFormat": "{{cluster}} / {{key_vault}} / {{certificate_name}}",
           "instant": true,
           "range": false
