@@ -198,6 +198,18 @@ func buildService(namespace string, ownerRef metav1.OwnerReference) *coreac.Serv
 // that in AMA mode the monitor is emitted directly as the azmonitoring type AMA
 // discovers, rather than being created as monitoring.coreos.com and translated.
 func buildServiceMonitor(namespace, apiGroup string, ownerRef metav1.OwnerReference) (*unstructured.Unstructured, error) {
+	// Per-series routing label that marks these KSM series for the HCP workspace.
+	// In AMA mode it must be microsoft_metrics_account, the label the HCP DCR's
+	// labelIncludeFilter keys on. In OSS mode routing is done by namespace in the
+	// agent's remote-write config, so the label is a harmless no-op there; we keep
+	// emitting the historical microsoft_metrics_include_label value to stay
+	// byte-identical with main (OSS output must not change). Whether the OSS label
+	// can be dropped entirely is open question Q7.
+	accountTargetLabel := "microsoft_metrics_include_label"
+	if apiGroup == AMAMonitoringAPIGroup {
+		accountTargetLabel = "microsoft_metrics_account"
+	}
+
 	sm := &monitoringv1.ServiceMonitor{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: apiGroup + "/v1",
@@ -227,7 +239,7 @@ func buildServiceMonitor(namespace, apiGroup string, ownerRef metav1.OwnerRefere
 							Action:       "replace",
 						},
 						{
-							TargetLabel: "microsoft_metrics_include_label",
+							TargetLabel: accountTargetLabel,
 							Replacement: ptr.To("hcp"),
 							Action:      "replace",
 						},

@@ -163,10 +163,10 @@ func TestTranslateNoLabels(t *testing.T) {
 	}
 }
 
-// TestTranslateIncludeLabelIdempotent verifies that translating a source that
-// already carries the microsoft_metrics_include_label marker (e.g. one created
+// TestTranslateAccountLabelIdempotent verifies that translating a source that
+// already carries the microsoft_metrics_account marker (e.g. one created
 // directly with it) does not append a duplicate relabel rule.
-func TestTranslateIncludeLabelIdempotent(t *testing.T) {
+func TestTranslateAccountLabelIdempotent(t *testing.T) {
 	source := &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "monitoring.coreos.com/v1",
@@ -182,7 +182,7 @@ func TestTranslateIncludeLabelIdempotent(t *testing.T) {
 						"port": "metrics",
 						"metricRelabelings": []any{
 							map[string]any{
-								"targetLabel": "microsoft_metrics_include_label",
+								"targetLabel": "microsoft_metrics_account",
 								"replacement": "hcp",
 								"action":      "replace",
 							},
@@ -205,12 +205,12 @@ func TestTranslateIncludeLabelIdempotent(t *testing.T) {
 	}
 	count := 0
 	for _, rc := range relabelings {
-		if target, _ := rc.(map[string]any)["targetLabel"].(string); target == "microsoft_metrics_include_label" {
+		if target, _ := rc.(map[string]any)["targetLabel"].(string); target == "microsoft_metrics_account" {
 			count++
 		}
 	}
 	if count != 1 {
-		t.Errorf("expected exactly 1 microsoft_metrics_include_label relabel rule, got %d", count)
+		t.Errorf("expected exactly 1 microsoft_metrics_account relabel rule, got %d", count)
 	}
 }
 

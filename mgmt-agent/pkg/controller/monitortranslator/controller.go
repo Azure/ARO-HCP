@@ -292,9 +292,14 @@ func (c *MonitorTranslatorController) applyResource(ctx context.Context, gvr sch
 	return err
 }
 
-const includeLabelTargetLabel = "microsoft_metrics_include_label"
+// accountTargetLabel is the per-series routing label that tells AMA which Azure
+// Monitor account (workspace) a series belongs to. HCP series are stamped with
+// value "hcp" so the HCP DCR's labelIncludeFilter (keyed on this same label)
+// ingests them. This must be microsoft_metrics_account, the per-series label;
+// microsoft_metrics_include_label is only the DCR filter key, not a series label.
+const accountTargetLabel = "microsoft_metrics_account"
 
-func injectIncludeLabel(spec map[string]any, key string) {
+func injectAccountLabel(spec map[string]any, key string) {
 	endpoints, ok := spec[key].([]any)
 	if !ok {
 		return
@@ -305,26 +310,26 @@ func injectIncludeLabel(spec map[string]any, key string) {
 			continue
 		}
 		relabelConfigs, _ := endpointMap["metricRelabelings"].([]any)
-		if hasIncludeLabel(relabelConfigs) {
+		if hasAccountLabel(relabelConfigs) {
 			// The source already carries the marker (e.g. the KSM monitor sets
 			// it at creation time); avoid appending a duplicate relabel rule.
 			continue
 		}
 		endpointMap["metricRelabelings"] = append(relabelConfigs, map[string]any{
-			"targetLabel": includeLabelTargetLabel,
+			"targetLabel": accountTargetLabel,
 			"replacement": "hcp",
 			"action":      "replace",
 		})
 	}
 }
 
-func hasIncludeLabel(relabelConfigs []any) bool {
+func hasAccountLabel(relabelConfigs []any) bool {
 	for _, rc := range relabelConfigs {
 		rcMap, ok := rc.(map[string]any)
 		if !ok {
 			continue
 		}
-		if target, _ := rcMap["targetLabel"].(string); target == includeLabelTargetLabel {
+		if target, _ := rcMap["targetLabel"].(string); target == accountTargetLabel {
 			return true
 		}
 	}
@@ -349,8 +354,8 @@ func Translate(source *unstructured.Unstructured, sourceGVR, targetGVR schema.Gr
 		klog.Warningf("failed to read spec from %s/%s %s/%s: %v", sourceGVR.Group, sourceGVR.Resource, source.GetNamespace(), source.GetName(), err)
 	}
 	if found {
-		injectIncludeLabel(spec, "endpoints")
-		injectIncludeLabel(spec, "podMetricsEndpoints")
+		injectAccountLabel(spec, "endpoints")
+		injectAccountLabel(spec, "podMetricsEndpoints")
 		_ = unstructured.SetNestedMap(target.Object, spec, "spec")
 	}
 
