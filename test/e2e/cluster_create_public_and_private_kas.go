@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -139,9 +140,11 @@ var _ = Describe("Customer", func() {
 
 			By("verifying KAS is reachable from outside the VNet via shared ingress (public path)")
 			Eventually(func(g Gomega) {
-				err := framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second, true)
+				statusCode, err := framework.TestHTTPSConnectivityWithStatus(ctx, apiURL+"/healthz", 10*time.Second, true)
 				g.Expect(err).NotTo(HaveOccurred(),
 					"KAS should be reachable from outside the VNet via shared ingress, but got error: %v", err)
+				g.Expect(statusCode).To(Equal(http.StatusOK),
+					"KAS /healthz should return 200 OK, got %d", statusCode)
 			}, 5*time.Minute, 15*time.Second).Should(Succeed(),
 				"KAS public endpoint should be reachable from outside the VNet via shared ingress")
 			GinkgoLogr.Info("Confirmed KAS is reachable from outside the VNet via shared ingress (public path)")
@@ -182,9 +185,11 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("Console URL available", "url", consoleURL)
 
 			Eventually(func(g Gomega) {
-				err := framework.TestHTTPSConnectivity(ctx, consoleURL, 10*time.Second, true)
+				statusCode, err := framework.TestHTTPSConnectivityWithStatus(ctx, consoleURL, 10*time.Second, true)
 				g.Expect(err).NotTo(HaveOccurred(),
 					"public ingress (console) should be reachable from outside the VNet, but got error: %v", err)
+				g.Expect(statusCode).To(BeNumerically("<", http.StatusInternalServerError),
+					"console should not return a server error, got %d", statusCode)
 			}, 10*time.Minute, 15*time.Second).Should(Succeed(),
 				"public ingress should be reachable from outside the VNet")
 			GinkgoLogr.Info("Public ingress reachable from outside the VNet, confirming shared ingress is operational")
