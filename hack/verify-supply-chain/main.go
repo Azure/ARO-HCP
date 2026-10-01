@@ -18,7 +18,9 @@
 // Agent JSON carrying an execution key is reported as a known attack pattern.
 // Agent JSON that cannot be parsed, or that is not a regular file and so
 // cannot be read at all, is refused rather than given the benefit of the
-// doubt.
+// doubt, as is a symlink standing in for an agent or editor configuration
+// path. Nothing is followed to decide any of this: a rule that resolved links
+// would be judging bytes the diff does not contain.
 //
 // Only tracked files are inspected, and they are inspected as git has them:
 // paths and modes come from the index, contents from the object store, never
@@ -102,6 +104,7 @@ const (
 	ruleExecutionKey  = "execution-key"
 	ruleInvalidJSON   = "invalid-json"
 	ruleUnreadable    = "unreadable"
+	ruleConfigSymlink = "config-symlink"
 )
 
 // finding is a single violation. malware marks the indicators that match a
@@ -171,6 +174,7 @@ func main() {
 const (
 	modeRegular    = "100644"
 	modeExecutable = "100755"
+	modeSymlink    = "120000"
 )
 
 // trackedFile is one entry of the git index: the path, plus the mode and
@@ -263,8 +267,14 @@ func readableBlob(f trackedFile) bool {
 
 // unreadableAgentJSON reports agent JSON whose contents the execution-key rule
 // could not examine. The mode is quoted because it is the whole reason: a
-// reviewer seeing 120000 knows to look at what the link resolves to, which is
-// the judgement this check deliberately leaves to a human.
+// reviewer seeing it knows to look at what the entry stands for, which is the
+// judgement this check deliberately leaves to a human.
+//
+// In practice this now speaks mostly for submodules. A symlink under an agent
+// or editor directory is rejected earlier and more descriptively by
+// ruleConfigSymlink, and the duplicate is dropped in main. The mode test
+// stays general rather than narrowing to submodules, so that a mode neither
+// rule anticipated is refused instead of quietly scanned.
 func unreadableAgentJSON(f trackedFile) finding {
 	return finding{
 		path:   f.path,
@@ -303,6 +313,22 @@ func checkPaths(files []trackedFile) []finding {
 				path:   p,
 				rule:   ruleEditorConfig,
 				detail: "editor configuration files must not be committed",
+			})
+
+		// Last, so that a symlink the named-file rules already describe keeps
+		// their more specific wording. What is left for this case is what
+		// those rules structurally cannot see: a symlinked configuration
+		// directory. Git tracks "frontend/.claude -> config" as a single
+		// entry with no extension and a basename on no denylist, while the
+		// payload it exposes is tracked under its real path, where no rule
+		// has reason to object. Nothing is ever named
+		// frontend/.claude/settings.json, so nothing matches, yet that is the
+		// path an agent resolves and reads.
+		case f.mode == modeSymlink && (hasSegment(lower, agentConfigDir) || hasSegment(lower, editorConfigDir)):
+			findings = append(findings, finding{
+				path:   p,
+				rule:   ruleConfigSymlink,
+				detail: "agent and editor configuration paths must be real files, not symlinks; this one is not followed",
 			})
 		}
 	}

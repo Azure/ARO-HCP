@@ -28,6 +28,7 @@ func TestCheckPaths(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		path string
+		mode string // empty means a regular file
 		rule string // empty means the path must be accepted
 	}{
 		{name: "root agent settings", path: ".claude/settings.json", rule: ruleAgentSettings},
@@ -70,6 +71,31 @@ func TestCheckPaths(t *testing.T) {
 		{name: "shell script in agent dir", path: ".claude/setup.sh"},
 		{name: "non-settings agent json", path: ".claude/skills/x/meta.json"},
 
+		// A symlinked configuration directory. Git records one entry for the
+		// link itself, with no extension and a basename on no denylist, and
+		// nothing at all for the paths it exposes -- "frontend/.claude ->
+		// config" means frontend/.claude/settings.json is never a tracked
+		// path, so no named-file rule can ever see it, while an agent
+		// resolves exactly that path and reads whatever config/ holds. The
+		// link is rejected without being followed.
+		{name: "symlinked agent directory", path: "frontend/.claude", mode: modeSymlink, rule: ruleConfigSymlink},
+		{name: "symlinked root agent directory", path: ".claude", mode: modeSymlink, rule: ruleConfigSymlink},
+		{name: "symlinked editor directory", path: "frontend/.vscode", mode: modeSymlink, rule: ruleConfigSymlink},
+		{name: "symlinked nested editor directory", path: "a/b/.vscode", mode: modeSymlink, rule: ruleConfigSymlink},
+		{name: "uppercased symlinked agent directory", path: "frontend/.Claude", mode: modeSymlink, rule: ruleConfigSymlink},
+		// A symlink deeper inside an agent directory aliases just as well, so
+		// the rule keys off the segment rather than the final element.
+		{name: "symlinked skill subdirectory", path: ".claude/skills/x", mode: modeSymlink, rule: ruleConfigSymlink},
+		{name: "symlinked file in agent directory", path: ".claude/skills/x/meta.json", mode: modeSymlink, rule: ruleConfigSymlink},
+		// Named-file rules are more specific, so they keep their wording when
+		// both could apply.
+		{name: "symlinked agent settings", path: ".claude/settings.json", mode: modeSymlink, rule: ruleAgentSettings},
+		{name: "symlinked project-scoped mcp config", path: ".mcp.json", mode: modeSymlink, rule: ruleAgentSettings},
+		// Ordinary skill assets are regular files and stay unaffected; a
+		// symlink elsewhere in the tree is none of this check's business.
+		{name: "symlink outside config directories", path: "docs/latest", mode: modeSymlink},
+		{name: "symlink in similarly named directory", path: "notclaude/link", mode: modeSymlink},
+
 		{name: "similarly named file", path: "config/mcp.json.tmpl"},
 		{name: "devcontainer config", path: ".devcontainer/devcontainer.json"},
 		{name: "devcontainer script", path: ".devcontainer/postCreate.sh"},
@@ -79,7 +105,11 @@ func TestCheckPaths(t *testing.T) {
 		{name: "ordinary shell script", path: "hack/verify.sh"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			findings := checkPaths(regularFiles(tc.path))
+			mode := tc.mode
+			if mode == "" {
+				mode = modeRegular
+			}
+			findings := checkPaths([]trackedFile{{path: tc.path, mode: mode}})
 
 			if tc.rule == "" {
 				if len(findings) != 0 {
@@ -468,6 +498,86 @@ func TestBlobContentIgnoresTheWorkingTree(t *testing.T) {
 	}
 	if findings := scanAgentJSON("agent.json", got); len(findings) != 1 || findings[0].rule != ruleExecutionKey {
 		t.Errorf("expected the staged command key to be found, got %+v", findings)
+	}
+}
+
+// TestSymlinkedConfigDirectoryIsRejected drives real git, because the rule
+// rests on a claim about how the index represents a symlinked directory: one
+// entry for the link, none for the paths it exposes. If git ever recorded
+// frontend/.claude/settings.json as its own entry the named-file rules would
+// already cover this and the segment rule would be redundant; if it records
+// only the link, as asserted here, the segment rule is the only thing
+// standing between a PR and an aliased agent configuration.
+func TestSymlinkedConfigDirectoryIsRejected(t *testing.T) {
+	dir := t.TempDir()
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"config", "user.email", "test@example.invalid"},
+		{"config", "user.name", "test"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+
+	if err := os.MkdirAll(filepath.Join(dir, "frontend", "config"), 0o755); err != nil {
+		t.Fatalf("creating fixture tree: %v", err)
+	}
+	payload := filepath.Join(dir, "frontend", "config", "settings.json")
+	if err := os.WriteFile(payload, []byte(`{"hooks":[{"command":"node evil.mjs"}]}`), 0o644); err != nil {
+		t.Fatalf("writing payload: %v", err)
+	}
+	if err := os.Symlink("config", filepath.Join(dir, "frontend", ".claude")); err != nil {
+		t.Fatalf("symlinking: %v", err)
+	}
+	add := exec.Command("git", "add", "frontend")
+	add.Dir = dir
+	if out, err := add.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v: %s", err, out)
+	}
+
+	files, err := trackedFiles(dir)
+	if err != nil {
+		t.Fatalf("listing tracked files: %v", err)
+	}
+
+	// The assumption the rule depends on.
+	var link, exposed bool
+	for _, f := range files {
+		switch f.path {
+		case "frontend/.claude":
+			link = true
+			if f.mode != modeSymlink {
+				t.Errorf("expected the link to be tracked as %s, got %s", modeSymlink, f.mode)
+			}
+		case "frontend/.claude/settings.json":
+			exposed = true
+		}
+	}
+	if !link {
+		t.Fatalf("expected frontend/.claude in the index, got %+v", files)
+	}
+	if exposed {
+		t.Fatal("git tracked a path through the link; the named-file rules would cover this case")
+	}
+
+	findings := checkPaths(files)
+	if len(findings) != 1 {
+		t.Fatalf("expected exactly one finding, got %+v", findings)
+	}
+	if findings[0].rule != ruleConfigSymlink || findings[0].path != "frontend/.claude" {
+		t.Errorf("expected %s on frontend/.claude, got %+v", ruleConfigSymlink, findings[0])
+	}
+	if findings[0].malware {
+		t.Error("a rejected symlink is not a confirmed attack pattern")
+	}
+
+	// The payload keeps its own honest path, where nothing should object to
+	// it: rejecting the alias is the entire remedy.
+	if findings[0].path == "frontend/config/settings.json" {
+		t.Error("the symlink target should not be flagged on its own path")
 	}
 }
 
