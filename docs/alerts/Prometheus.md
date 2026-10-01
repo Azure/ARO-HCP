@@ -40,6 +40,22 @@ This table assumes the worst useful "Prometheus is down" shape for each alert: P
 | `PrometheusOperatorNotReady` | 5m | warning | Never | Detects operator readiness, not Prometheus self-metric silence. |
 | `PrometheusOperatorRejectedResources` | 20m | warning | Never | Detects rejected operator resources, not Prometheus self-metric silence. |
 
+## Clusters collected by Azure Monitor (AMA)
+
+These four alerts monitor the **in-cluster OSS Prometheus agent** (the `monitoring.coreos.com` collector): `PrometheusJobUp`, `PrometheusUptime`, `PrometheusUptimeSampleCount`, and `PrometheusMetricsAbsentPerCluster`.
+
+Clusters whose metrics are collected by Azure Monitor managed Prometheus (AMA, the `azmonitoring.coreos.com` collector) run **no** in-cluster Prometheus agent, so they emit no `up{job="prometheus/prometheus", namespace="prometheus"}` self-metrics. Without suppression these four alerts would fire permanently for every AMA cluster.
+
+Each of the four expressions therefore ends with:
+
+```
+unless on(cluster) underlay_clusters{metrics_collector="ama"}
+```
+
+`underlay_clusters` is the per-cluster source-of-truth series; its `metrics_collector` label is `ama` or `oss` depending on the collector the cluster runs. The `unless on(cluster)` clause drops any result whose `cluster` matches an AMA underlay, so these alerts evaluate only on OSS clusters. AMA clusters are expected to be monitored through Azure Monitor's own alerting instead.
+
+**Rollback window (AMA → OSS):** when a cluster is switched back from AMA to OSS, the `metrics_collector` label flips to `oss` in the infrastructure (bicep) step, while the in-cluster Prometheus agent only comes back in the later prometheus deployment step. If more than ~10m elapse between the two, `PrometheusJobUp` may fire transiently for that cluster until the agent is running and reporting `up == 1`.
+
 ## Failure modes captured
 
 ### Prometheus is completely dead or remote-write has stopped

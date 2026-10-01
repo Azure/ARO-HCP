@@ -2209,14 +2209,14 @@
   group: prometheus-wip-rules
   alert: PrometheusJobUp
   occurrence: 1
-  input: group by (cluster, region) (up{job="kubelet"}) unless on (cluster) group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
+  input: (group by (cluster, region) (up{job="kubelet"}) unless on (cluster) group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) underlay_clusters{metrics_collector="ama"}
   plan:
-    expression: group by (cluster, region) (up{job="kubelet"}) unless on (cluster) group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
+    expression: (group by (cluster, region) (up{job="kubelet"}) unless on (cluster) group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) underlay_clusters{metrics_collector="ama"}
     conditions:
-      - expression: (group by (cluster, region) (up{job="kubelet"})) unless on (cluster) (group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1))
-        path: root/unless:left
+      - expression: ((group by (cluster, region) (up{job="kubelet"})) unless on (cluster) (group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
+        path: root/unless:left/unless:left
         queries:
-          - expression: (group by (cluster, region) (up{job="kubelet"})) unless on (cluster) (group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1))
+          - expression: ((group by (cluster, region) (up{job="kubelet"})) unless on (cluster) (group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
             role: signal
         thresholds: []
         unsupported: ""
@@ -2224,14 +2224,14 @@
   group: prometheus-wip-rules
   alert: PrometheusMetricsAbsentPerCluster
   occurrence: 1
-  input: count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))
+  input: (count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))) unless on (cluster) underlay_clusters{metrics_collector="ama"}
   plan:
-    expression: count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))
+    expression: (count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))) unless on (cluster) underlay_clusters{metrics_collector="ama"}
     conditions:
-      - expression: (count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w]))) unless (count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m])))
-        path: root/unless:left
+      - expression: ((count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w]))) unless (count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m])))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
+        path: root/unless:left/unless:left
         queries:
-          - expression: (count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w]))) unless (count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m])))
+          - expression: ((count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w]))) unless (count by (cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m])))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
             role: signal
         thresholds: []
         unsupported: ""
@@ -2256,14 +2256,14 @@
   group: prometheus-wip-rules
   alert: PrometheusUptime
   occurrence: 1
-  input: (sum by (job, namespace, cluster, region) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95
+  input: ((sum by (job, namespace, cluster, region) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95) unless on (cluster) underlay_clusters{metrics_collector="ama"}
   plan:
-    expression: (sum by (job, namespace, cluster, region) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95
+    expression: ((sum by (job, namespace, cluster, region) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95) unless on (cluster) underlay_clusters{metrics_collector="ama"}
     conditions:
-      - expression: (sum by (job, namespace, cluster, region) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95
-        path: root
+      - expression: ((sum by (job, namespace, cluster, region) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
+        path: root/unless:left
         queries:
-          - expression: sum by (job, namespace, cluster, region) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+          - expression: (sum by (job, namespace, cluster, region) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
             role: signal
         thresholds:
           - operator: <
@@ -2273,23 +2273,23 @@
   group: prometheus-wip-rules
   alert: PrometheusUptimeSampleCount
   occurrence: 1
-  input: (sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0
+  input: ((sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0) unless on (cluster) underlay_clusters{metrics_collector="ama"}
   plan:
-    expression: (sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0
+    expression: ((sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0) unless on (cluster) underlay_clusters{metrics_collector="ama"}
     conditions:
-      - expression: sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)
-        path: root/and:left
+      - expression: (sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
+        path: root/unless:left/and:left
         queries:
-          - expression: sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+          - expression: (sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
             role: signal
         thresholds:
           - operator: <
             value: 2736
         unsupported: ""
-      - expression: sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0
-        path: root/and:right
+      - expression: (sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
+        path: root/unless:left/and:right
         queries:
-          - expression: sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d))
+          - expression: (sum by (job, namespace, cluster, region) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
             role: signal
         thresholds:
           - operator: '>'
@@ -10088,14 +10088,14 @@
   group: prometheus-wip-rules
   alert: PrometheusJobUp
   occurrence: 1
-  input: group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
+  input: (group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on(cluster) underlay_clusters{metrics_collector="ama"}
   plan:
-    expression: group by (cluster) (up{job="kubelet"}) unless on (cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
+    expression: (group by (cluster) (up{job="kubelet"}) unless on (cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) underlay_clusters{metrics_collector="ama"}
     conditions:
-      - expression: (group by (cluster) (up{job="kubelet"})) unless on (cluster) (group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1))
-        path: root/unless:left
+      - expression: ((group by (cluster) (up{job="kubelet"})) unless on (cluster) (group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
+        path: root/unless:left/unless:left
         queries:
-          - expression: (group by (cluster) (up{job="kubelet"})) unless on (cluster) (group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1))
+          - expression: ((group by (cluster) (up{job="kubelet"})) unless on (cluster) (group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
             role: signal
         thresholds: []
         unsupported: ""
@@ -10103,14 +10103,14 @@
   group: prometheus-wip-rules
   alert: PrometheusMetricsAbsentPerCluster
   occurrence: 1
-  input: count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[7d])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))
+  input: (count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[7d])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))) unless on(cluster) underlay_clusters{metrics_collector="ama"}
   plan:
-    expression: count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))
+    expression: (count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))) unless on (cluster) underlay_clusters{metrics_collector="ama"}
     conditions:
-      - expression: (count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w]))) unless (count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m])))
-        path: root/unless:left
+      - expression: ((count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w]))) unless (count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m])))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
+        path: root/unless:left/unless:left
         queries:
-          - expression: (count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w]))) unless (count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m])))
+          - expression: ((count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w]))) unless (count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m])))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
             role: signal
         thresholds: []
         unsupported: ""
@@ -10142,17 +10142,19 @@
   occurrence: 1
   input: |
     (
-      sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
-      /
-      sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
-    ) < 0.95
+      (
+        sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+        /
+        sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+      ) < 0.95
+    ) unless on(cluster) underlay_clusters{metrics_collector="ama"}
   plan:
-    expression: (sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95
+    expression: ((sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95) unless on (cluster) underlay_clusters{metrics_collector="ama"}
     conditions:
-      - expression: (sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95
-        path: root
+      - expression: ((sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
+        path: root/unless:left
         queries:
-          - expression: sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+          - expression: (sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
             role: signal
         thresholds:
           - operator: <
@@ -10164,27 +10166,29 @@
   occurrence: 1
   input: |
     (
-      sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
-      < 0.95 * (24 * 3600 / 30)
-    )
-    and
-    sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0
+      (
+        sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+        < 0.95 * (24 * 3600 / 30)
+      )
+      and
+      sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0
+    ) unless on(cluster) underlay_clusters{metrics_collector="ama"}
   plan:
-    expression: (sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0
+    expression: ((sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0) unless on (cluster) underlay_clusters{metrics_collector="ama"}
     conditions:
-      - expression: sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)
-        path: root/and:left
+      - expression: (sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
+        path: root/unless:left/and:left
         queries:
-          - expression: sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+          - expression: (sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
             role: signal
         thresholds:
           - operator: <
             value: 2736
         unsupported: ""
-      - expression: sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0
-        path: root/and:right
+      - expression: (sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
+        path: root/unless:left/and:right
         queries:
-          - expression: sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d))
+          - expression: (sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d))) unless on (cluster) (underlay_clusters{metrics_collector="ama"})
             role: signal
         thresholds:
           - operator: '>'

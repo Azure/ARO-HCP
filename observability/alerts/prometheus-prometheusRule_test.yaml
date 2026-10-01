@@ -1059,3 +1059,95 @@ tests:
         summary: Prometheus prometheus/ failing to send to storage1:https://storage1.company.com/api/v1/write
         description: Prometheus prometheus/ failed to send 2.9% of the samples to storage1:https://storage1.company.com/api/v1/write
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
+# =========================================================================
+# AMA suppression (B5): clusters whose metrics are collected by Azure Monitor
+# (underlay_clusters{metrics_collector="ama"}) run no in-cluster Prometheus agent,
+# so the four self-monitoring alerts must not fire for them. OSS clusters in the
+# same evaluation must still fire. Existing OSS tests above carry no
+# underlay_clusters series, so the `unless` clause is a no-op there (fire as before).
+# =========================================================================
+# PrometheusJobUp: AMA svc and AMA mgmt clusters have kubelet up but no in-cluster
+# Prometheus agent; they are suppressed, while an OSS cluster still fires.
+- interval: 1m
+  input_series:
+  - series: 'up{job="kubelet",cluster="ama-svc"}'
+    values: "1+0x15"
+  - series: 'up{job="kubelet",cluster="ama-mgmt"}'
+    values: "1+0x15"
+  - series: 'up{job="kubelet",cluster="oss-ctl"}'
+    values: "1+0x15"
+  - series: 'underlay_clusters{metrics_collector="ama",cluster="ama-svc"}'
+    values: "1+0x15"
+  - series: 'underlay_clusters{metrics_collector="ama",cluster="ama-mgmt"}'
+    values: "1+0x15"
+  - series: 'underlay_clusters{metrics_collector="oss",cluster="oss-ctl"}'
+    values: "1+0x15"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="oss-ctl"}'
+    values: "0+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: PrometheusJobUp
+    exp_alerts:
+    - exp_labels:
+        cluster: oss-ctl
+        component: monitoring-infrastructure
+        severity: critical
+      exp_annotations:
+        summary: Prometheus is unreachable for 10 minutes.
+        description: |
+          Prometheus has not been reachable for the past 10 minutes.
+          This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
+          Check the status of the Prometheus pods, service endpoints, and network connectivity.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
+# PrometheusUptime: an AMA cluster with degraded self-up is suppressed.
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="ama-up"}'
+    values: "0.9+0x1440" # 90% uptime would fire on OSS
+  - series: 'underlay_clusters{metrics_collector="ama",cluster="ama-up"}'
+    values: "1+0x1440"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: PrometheusUptime
+    exp_alerts: []
+# PrometheusUptimeSampleCount: a cluster that switched to AMA shows a sample-count
+# shortfall (its in-cluster agent stopped), which would fire, but the AMA label suppresses it.
+# Mirrors the gap-cluster OSS test above (which fires) but with an AMA underlay series.
+- interval: 30s
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="switched-ama"}'
+    values: "1+0x2160" # 18h of samples then gap → would fire on OSS
+  - series: 'underlay_clusters{metrics_collector="ama",cluster="switched-ama"}'
+    values: "1+0x2900" # present through eval_time 1450m
+  alert_rule_test:
+  - eval_time: 1450m
+    alertname: PrometheusUptimeSampleCount
+    exp_alerts: []
+# PrometheusMetricsAbsentPerCluster: a just-switched AMA cluster stops emitting the
+# in-cluster `up` series (looks "absent") but is suppressed; an OSS cluster that
+# genuinely went dead in the same evaluation still fires.
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="switched-ama"}'
+    values: "1+0x20"
+  - series: 'underlay_clusters{metrics_collector="ama",cluster="switched-ama"}'
+    values: "1+0x50"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="oss-dead"}'
+    values: "1+0x20"
+  - series: 'underlay_clusters{metrics_collector="oss",cluster="oss-dead"}'
+    values: "1+0x50"
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: PrometheusMetricsAbsentPerCluster
+    exp_alerts:
+    - exp_labels:
+        cluster: oss-dead
+        component: monitoring-infrastructure
+        severity: critical
+      exp_annotations:
+        summary: Prometheus metrics absent for cluster oss-dead.
+        description: |
+          Prometheus on cluster oss-dead has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
+          Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md

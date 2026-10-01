@@ -17,7 +17,9 @@ spec:
     - alert: PrometheusJobUp
       # TODO: once PR #5732 (underlay_clusters source-of-truth metric) is merged and confirmed
       # working in production, replace up{job="kubelet"} with underlay_clusters.
-      expr: group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
+      # The trailing `unless ... underlay_clusters{metrics_collector="ama"}` suppresses this
+      # alert on AMA clusters, which run no in-cluster Prometheus agent to self-monitor.
+      expr: (group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on(cluster) underlay_clusters{metrics_collector="ama"}
       for: 10m
       labels:
         severity: critical
@@ -29,12 +31,16 @@ spec:
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus is unreachable for 10 minutes.
     - alert: PrometheusUptime
+      # AMA clusters run no in-cluster Prometheus agent to self-monitor, so suppress
+      # this alert for them via `unless ... underlay_clusters{metrics_collector="ama"}`.
       expr: |
         (
-          sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
-          /
-          sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
-        ) < 0.95
+          (
+            sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+            /
+            sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+          ) < 0.95
+        ) unless on(cluster) underlay_clusters{metrics_collector="ama"}
       for: 10m
       labels:
         severity: critical
@@ -51,13 +57,17 @@ spec:
       # sum (not min) so pod restarts don't false-fire: old + new instance samples cover the full day.
       # The offset 1d gate excludes clusters younger than 24h — without it, new clusters always fire
       # because count_over_time([1d]) can never reach the full-day threshold until 24h of data exists.
+      # AMA clusters run no in-cluster Prometheus agent to self-monitor, so suppress
+      # this alert for them via `unless ... underlay_clusters{metrics_collector="ama"}`.
       expr: |
         (
-          sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
-          < 0.95 * (24 * 3600 / 30)
-        )
-        and
-        sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0
+          (
+            sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+            < 0.95 * (24 * 3600 / 30)
+          )
+          and
+          sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0
+        ) unless on(cluster) underlay_clusters{metrics_collector="ama"}
       for: 10m
       labels:
         severity: warning
@@ -70,7 +80,9 @@ spec:
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus sample count below 95% SLO threshold for 24 hours.
     - alert: PrometheusMetricsAbsentPerCluster
-      expr: count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[7d])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))
+      # AMA clusters run no in-cluster Prometheus agent to self-monitor, so suppress
+      # this alert for them via `unless ... underlay_clusters{metrics_collector="ama"}`.
+      expr: (count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[7d])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))) unless on(cluster) underlay_clusters{metrics_collector="ama"}
       for: 10m
       labels:
         severity: critical
