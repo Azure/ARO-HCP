@@ -132,9 +132,8 @@ type ServiceProviderClusterSpec struct {
 	// Assignment controller holds this cluster at PinnedVersion.ExactVersion until
 	// the fleet's bestExactVersion reaches PinnedVersion.UntilExactVersion, after
 	// which the pin is cleared and normal rollout selection resumes. An empty
-	// PinnedVersion (nil ExactVersion) means no pin and serializes as {}. The
-	// Admin API setter is a follow-up; this change only implements consuming pins.
-	// Written by: Forced Cluster Desired Version Assignment (clear)
+	// PinnedVersion (nil ExactVersion) means no pin and serializes as {}.
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear)
 	PinnedVersion ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
 }
 
@@ -161,12 +160,12 @@ type ServiceProviderClusterSpecVersion struct {
 type ServiceProviderClusterPinnedVersion struct {
 	// ExactVersion is the exact z-stream this cluster is pinned to regardless of
 	// its previous version.
-	// Written by: Forced Cluster Desired Version Assignment (clear); Admin API setter planned
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear)
 	ExactVersion *semver.Version `json:"exactVersion,omitempty"`
 
 	// UntilExactVersion is the fleet bestExactVersion at or above which the pin is
 	// released and normal upgrade selection may continue.
-	// Written by: Forced Cluster Desired Version Assignment (clear); Admin API setter planned
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear)
 	UntilExactVersion *semver.Version `json:"untilExactVersion,omitempty"`
 }
 

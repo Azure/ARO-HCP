@@ -7,7 +7,7 @@ types, config, wiring, and tests required.
 
 > Status: the seven controllers, Cosmos storage, informers, and backend wiring
 > are implemented. They run unconditionally. Production policy is hardcoded;
-> risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
+> risk filtering and environment configuration remain follow-ups. The Admin API pin setter is implemented (PR #7162).
 
 ## 1. Background: the pipeline before this change
 
@@ -115,8 +115,8 @@ type ServiceProviderClusterPinnedVersion struct {
 ```
 
 An unset pin is a value with nil `ExactVersion` and serializes as `{}`. This is
-intentional. Consuming and clearing pins is implemented; the Admin API setter is
-not yet available and remains a follow-up.
+intentional. Consuming and clearing pins is implemented; the Admin API setter
+is implemented via `POST /versionpin` (see `admin/server/handlers/hcp/versionpin.go`).
 
 Update the `// Written by:` field annotations (see CLAUDE.md cosmos-data-flow
 rule) and run `make deepcopy`.
