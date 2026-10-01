@@ -94,3 +94,10 @@ logVerbosity: {{ .backend.logVerbosity }}
 clusterScopedIdentitiesConfig:
   roleSetName: "{{ .backend.clusterScopedIdentitiesConfig.roleSetName }}"
 monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
+# Labels the OSS agent stamps via externalLabels but AMA does not; the backend
+# ServiceMonitor sets them if absent in AMA mode so backend_* series keep their
+# region/environment parity (consumed by cluster-provision-slo and
+# hcp-test-clusters rules).
+metricsLabels:
+  region: "{{ .region }}"
+  environment: "{{ .environmentName }}"

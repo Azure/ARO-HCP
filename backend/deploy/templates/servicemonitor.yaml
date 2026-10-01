@@ -9,6 +9,23 @@ spec:
     path: /metrics
     port: metrics
     scheme: http
+{{- if eq .Values.monitoringApiGroup "azmonitoring.coreos.com" }}
+    # AMA stamps only `cluster`; the OSS agent also stamps region/environment via
+    # externalLabels. Set them if absent so backend_* series keep parity for the
+    # cluster-provision-slo and hcp-test-clusters rules. regex '^$' (not '') so the
+    # operator keeps the relabeling instead of defaulting to (.*) (Appendix D2).
+    metricRelabelings:
+    - sourceLabels: [region]
+      regex: '^$'
+      targetLabel: region
+      replacement: '{{ .Values.metricsLabels.region }}'
+      action: replace
+    - sourceLabels: [environment]
+      regex: '^$'
+      targetLabel: environment
+      replacement: '{{ .Values.metricsLabels.environment }}'
+      action: replace
+{{- end }}
   namespaceSelector:
     matchNames:
     - '{{ .Release.Namespace }}'
