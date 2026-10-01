@@ -68139,28 +68139,57 @@ spec:
           configMap:
             name: helmtest-mgmt-ama-kube-state-metrics-customresourcestate-config
 ---
-# Source: hcp-prometheus/charts/kube-prometheus-stack/charts/kube-state-metrics/templates/servicemonitor.yaml
-apiVersion: monitoring.coreos.com/v1
+# Source: hcp-prometheus/templates/kube-state-metrics.azmonitoring.servicemonitor.yaml
+# AMA-mode scrape of kube-state-metrics.
+#
+# In OSS mode the kps subchart renders a monitoring.coreos.com ServiceMonitor for
+# kube-state-metrics (kube-state-metrics.prometheus.monitor.enabled). In AMA mode
+# that one is disabled and this azmonitoring.coreos.com ServiceMonitor takes over,
+# so the AMA addon scrapes the same KSM Service. The scrape selector/port/interval
+# mirror the OSS ServiceMonitor; the metricRelabelings add the parity labels AMA
+# does not set itself (region/environment) and route per-HCP series to the HCP
+# workspace, mirroring the OSS remote-write keep rule.
+apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: helmtest-mgmt-ama-kube-state-metrics
-  namespace: prometheus
-  labels:    
-    helm.sh/chart: kube-state-metrics-5.31.0
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: metrics
-    app.kubernetes.io/part-of: kube-state-metrics
+  labels:
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-mgmt-ama
-    app.kubernetes.io/version: "2.15.0"
-    release: helmtest-mgmt-ama
+  name: kube-state-metrics
+  namespace: 'prometheus'
 spec:
-  jobLabel: app.kubernetes.io/name  
+  jobLabel: app.kubernetes.io/name
   selector:
-    matchLabels:      
+    matchLabels:
       app.kubernetes.io/name: kube-state-metrics
       app.kubernetes.io/instance: helmtest-mgmt-ama
+  namespaceSelector:
+    matchNames:
+    - 'prometheus'
   endpoints:
-    - port: http
-      honorLabels: true
+  - port: http
+    interval: 30s
+    honorLabels: true
+    metricRelabelings:
+    # Set region/environment if absent. AMA stamps only `cluster`; OSS stamps all
+    # three via the agent's externalLabels. regex '^$' (not '') so the operator
+    # keeps the relabeling instead of defaulting to (.*) and overwriting existing
+    # values (Appendix D2).
+    - sourceLabels: [region]
+      regex: '^$'
+      targetLabel: region
+      replacement: 'westus3'
+      action: replace
+    - sourceLabels: [environment]
+      regex: '^$'
+      targetLabel: environment
+      replacement: 'dev'
+      action: replace
+    # Route per-HCP KSM series to the HCP workspace via the microsoft_metrics_account
+    # label (Appendix D1); mirrors the OSS HCP remote-write keep rule.
+    - sourceLabels: [namespace, hostedcontrolplane]
+      separator: ';'
+      regex: '(ocm-arohcpdev[^;]*;.*|.*;ocm-arohcpdev.*)'
+      targetLabel: microsoft_metrics_account
+      replacement: hcp
+      action: replace
 

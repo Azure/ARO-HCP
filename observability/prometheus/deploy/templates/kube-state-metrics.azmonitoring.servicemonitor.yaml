@@ -1,0 +1,56 @@
+{{- if eq .Values.monitoringApiGroup "azmonitoring.coreos.com" }}
+# AMA-mode scrape of kube-state-metrics.
+#
+# In OSS mode the kps subchart renders a monitoring.coreos.com ServiceMonitor for
+# kube-state-metrics (kube-state-metrics.prometheus.monitor.enabled). In AMA mode
+# that one is disabled and this azmonitoring.coreos.com ServiceMonitor takes over,
+# so the AMA addon scrapes the same KSM Service. The scrape selector/port/interval
+# mirror the OSS ServiceMonitor; the metricRelabelings add the parity labels AMA
+# does not set itself (region/environment) and route per-HCP series to the HCP
+# workspace, mirroring the OSS remote-write keep rule.
+apiVersion: azmonitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+  name: kube-state-metrics
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  jobLabel: app.kubernetes.io/name
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  namespaceSelector:
+    matchNames:
+    - '{{ .Release.Namespace }}'
+  endpoints:
+  - port: http
+    interval: 30s
+    honorLabels: true
+    metricRelabelings:
+    # Set region/environment if absent. AMA stamps only `cluster`; OSS stamps all
+    # three via the agent's externalLabels. regex '^$' (not '') so the operator
+    # keeps the relabeling instead of defaulting to (.*) and overwriting existing
+    # values (Appendix D2).
+    - sourceLabels: [region]
+      regex: '^$'
+      targetLabel: region
+      replacement: '{{ .Values.prometheusSpec.externalLabels.region }}'
+      action: replace
+    - sourceLabels: [environment]
+      regex: '^$'
+      targetLabel: environment
+      replacement: '{{ .Values.prometheusSpec.externalLabels.environment }}'
+      action: replace
+{{- if and .Values.environment (ne .Values.prometheusSpec.hcpRemoteWriteUrl "NONE") }}
+    # Route per-HCP KSM series to the HCP workspace via the microsoft_metrics_account
+    # label (Appendix D1); mirrors the OSS HCP remote-write keep rule.
+    - sourceLabels: [namespace, hostedcontrolplane]
+      separator: ';'
+      regex: '(ocm-{{ .Values.environment }}[^;]*;.*|.*;ocm-{{ .Values.environment }}.*)'
+      targetLabel: microsoft_metrics_account
+      replacement: hcp
+      action: replace
+{{- end }}
+{{- end }}

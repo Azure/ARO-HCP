@@ -28,6 +28,9 @@ ignore:
 - 'observability/prometheus/deploy/templates/prometheus.clusterrole.yaml'
 - 'observability/prometheus/deploy/templates/prometheus.clusterrolebinding.yaml'
 - 'observability/prometheus/deploy/templates/prometheus.podmonitor.yaml'
+# AMA-mode templates gated on monitoringApiGroup; the leading {{- if }} makes them
+# unparseable as plain YAML.
+- 'observability/prometheus/deploy/templates/kube-state-metrics.azmonitoring.servicemonitor.yaml'
 - 'secret-sync-controller/deploy/templates/*.yaml'
 - 'observability/arobit/deploy/templates/forwarder-clusterrolebinding.yaml'
 - 'observability/arobit/deploy/templates/forwarder-clusterrole.yaml'

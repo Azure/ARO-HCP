@@ -84,6 +84,13 @@ kube-prometheus-stack:
       registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
       sha: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
+    prometheus:
+      monitor:
+        # In OSS mode kps generates this ServiceMonitor (monitoring.coreos.com).
+        # In AMA mode we disable it and ship our own azmonitoring.coreos.com
+        # ServiceMonitor (kube-state-metrics.azmonitoring.servicemonitor.yaml) so
+        # the HCP KSM series can be relabeled and routed to the HCP workspace.
+        enabled: {{ eq .mgmt.monitoringApiGroup "monitoring.coreos.com" }}
     rbac:
       extraRules:
       - apiGroups: ["hypershift.openshift.io"]
