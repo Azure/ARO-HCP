@@ -1,374 +1,988 @@
-  {
-    "uid": "arohcp-certificate-health",
-    "title": "SVC Cluster Certificate Health check",
-    "tags": ["certificates", "svc"],
-    "timezone": "browser",
-    "schemaVersion": 39,
-    "version": 1,
-    "refresh": "5m",
-    "time": { "from": "now-7d", "to": "now" },
-    "templating": {
-      "list": [
-        {
-          "name": "region",
-          "label": "Region",
-          "type": "custom",
-          "query": "australiaeast : australiaeast,brazilsouth : brazilsouth,canadacentral : canadacentral,centralindia : centralindia,eastus2 : eastus2,eastus2euap : eastus2euap,switzerlandnorth : switzerlandnorth,uksouth : uksouth,westeurope : westeurope,westus3 : (?:westus3|cspr-usw3|usw3)",
-          "current": { "text": "westus3", "value": "(?:westus3|cspr-usw3|usw3)" },
-          "options": [],
-          "hide": 0
+{
+  "uid": "arohcp-certificate-health",
+  "title": "SVC Cluster Certificate Health check",
+  "tags": [
+    "certificates",
+    "svc"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "region",
+        "label": "Region",
+        "type": "custom",
+        "query": "australiaeast : australiaeast,brazilsouth : brazilsouth,canadacentral : canadacentral,centralindia : centralindia,eastus2 : eastus2,eastus2euap : eastus2euap,switzerlandnorth : switzerlandnorth,uksouth : uksouth,westeurope : westeurope,westus3 : (?:westus3|cspr-usw3|usw3)",
+        "current": {
+          "text": "westus3",
+          "value": "(?:westus3|cspr-usw3|usw3)"
         },
-        {
-          "name": "services_datasource",
-          "label": "Prometheus datasource",
-          "type": "datasource",
-          "query": "prometheus",
-          "regex": "^Managed_Prometheus_services-${region:raw}$",
-          "refresh": 1,
-          "options": [],
-          "current": {},
-          "hide": 2
-        }
-      ]
-    },
-    "panels": [
-      {
-        "id": 11,
-        "title": "Certificate validity and expiry",
-        "type": "row",
-        "collapsed": false,
-        "panels": [],
-        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+        "options": [],
+        "hide": 0
       },
       {
-        "id": 5,
-        "title": "Certificate lifetime used",
-        "type": "gauge",
-        "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-        "gridPos": { "h": 10, "w": 24, "x": 0, "y": 1 },
-        "targets": [
-          {
-            "refId": "A",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "(100 * (time() - max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds{region=\"${region:text}\"})) / (max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds{region=\"${region:text}\"}) - max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds{region=\"${region:text}\"}))) and on (cluster, region, key_vault, certificate_name) (max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_enabled{region=\"${region:text}\"}) == 1) and on (cluster, region, key_vault, certificate_name) (max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds{region=\"${region:text}\"}) > max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds{region=\"${region:text}\"})) and on (cluster, region, key_vault) (max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"}) > time() - 3600)",
-            "legendFormat": "{{cluster}} / {{key_vault}} / {{certificate_name}}",
-            "instant": true,
-            "range": false
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "percent",
-            "noValue": "Unknown",
-            "min": 0,
-            "max": 100,
-            "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "orange", "value": 65 }, { "color": "red", "value": 80 }] }
-          },
-          "overrides": []
-        },
-        "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "showThresholdLabels": true, "showThresholdMarkers": true }
-      },
-      {
-        "id": 6,
-        "title": "Time until expiry by certificate",
-        "type": "bargauge",
-        "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-        "gridPos": { "h": 9, "w": 24, "x": 0, "y": 11 },
-        "targets": [
-          {
-            "refId": "A",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "((max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds{region=\"${region:text}\"}) - time()) / 86400) and on (cluster, region, key_vault) (max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"}) > time() - 3600)",
-            "legendFormat": "{{cluster}} / {{key_vault}} / {{certificate_name}}",
-            "instant": true,
-            "range": false
-          }
-        ],
-        "fieldConfig": { "defaults": { "unit": "d", "noValue": "Unknown", "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 0 }, { "color": "yellow", "value": 30 }, { "color": "green", "value": 60 }] } }, "overrides": [] },
-        "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true }
-      },
-      {
-        "id": 7,
-        "title": "Certificate validity start",
-        "description": "The certificate not-before timestamp is its validity start, not an audited renewal event.",
-        "type": "table",
-        "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-        "gridPos": { "h": 7, "w": 24, "x": 0, "y": 20 },
-        "targets": [
-          {
-            "refId": "A",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds{region=\"${region:text}\"}) * 1000",
-            "format": "table",
-            "instant": true,
-            "range": false
-          }
-        ],
-        "transformations": [{ "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "cluster": true, "region": true, "key_vault": true }, "renameByName": { "certificate_name": "Certificate", "Value": "Valid From" } } }],
-        "fieldConfig": { "defaults": { "noValue": "Unknown" }, "overrides": [{ "matcher": { "id": "byName", "options": "Valid From" }, "properties": [{ "id": "unit", "value": "dateTimeAsIso" }] }] },
-        "options": { "showHeader": true, "cellHeight": "sm", "sortBy": [{ "displayName": "Certificate", "desc": false }] }
-      },
-      {
-        "id": 10,
-        "title": "Exporter health and collection",
-        "type": "row",
-        "collapsed": false,
-        "panels": [],
-        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 }
-      },
-      {
-        "id": 1,
-        "title": "Certificate collection age by Key Vault",
-        "type": "stat",
-        "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-        "gridPos": { "h": 7, "w": 24, "x": 0, "y": 28 },
-        "targets": [
-          {
-            "refId": "A",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "time() - max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"} > 0)",
-            "legendFormat": "{{cluster}} / {{key_vault}}",
-            "instant": true,
-            "range": false
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "s",
-            "noValue": "Unknown",
-            "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 3600 }] }
-          },
-          "overrides": []
-        },
-        "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "none", "justifyMode": "auto" }
-      },
-      {
-        "id": 2,
-        "title": "Exporter scrape availability",
-        "type": "stat",
-        "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-        "gridPos": { "h": 6, "w": 12, "x": 0, "y": 35 },
-        "targets": [
-          {
-            "refId": "A",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "max by (cluster, region) (up{region=\"${region:text}\", namespace=\"aro-hcp-exporter\"}) or on (cluster, region) (0 * max by (cluster, region) (kube_deployment_spec_replicas{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", deployment=\"aro-hcp-exporter\"}))",
-            "legendFormat": "{{cluster}}",
-            "instant": true,
-            "range": false
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "none",
-            "noValue": "Unknown",
-            "mappings": [{ "type": "value", "options": { "0": { "text": "Unavailable", "color": "red" }, "1": { "text": "Scraping", "color": "green" } } }],
-            "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
-          },
-          "overrides": []
-        },
-        "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "none", "justifyMode": "auto" }
-      },
-      {
-        "id": 3,
-        "title": "Exporter replicas available / desired",
-        "type": "stat",
-        "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-        "gridPos": { "h": 6, "w": 12, "x": 12, "y": 35 },
-        "targets": [
-          {
-            "refId": "A",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "max by (cluster, region) (kube_deployment_status_replicas_available{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", deployment=\"aro-hcp-exporter\"})",
-            "legendFormat": "{{cluster}} available",
-            "instant": true,
-            "range": false
-          },
-          {
-            "refId": "B",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "max by (cluster, region) (kube_deployment_spec_replicas{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", deployment=\"aro-hcp-exporter\"})",
-            "legendFormat": "{{cluster}} desired",
-            "instant": true,
-            "range": false
-          }
-        ],
-        "fieldConfig": { "defaults": { "unit": "short", "noValue": "Unknown" }, "overrides": [] },
-        "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "textMode": "auto", "colorMode": "none", "graphMode": "none", "justifyMode": "auto" }
-      },
-      {
-        "id": 4,
-        "title": "Exporter scrape and collection history",
-        "type": "timeseries",
-        "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 41 },
-        "targets": [
-          {
-            "refId": "A",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "max by (cluster, region) (up{region=\"${region:text}\", namespace=\"aro-hcp-exporter\"}) or on (cluster, region) (0 * max by (cluster, region) (kube_deployment_spec_replicas{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", deployment=\"aro-hcp-exporter\"}))",
-            "legendFormat": "{{cluster}} scrape",
-            "range": true
-          },
-          {
-            "refId": "B",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "((time() - max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"})) <= bool 3600) * on (cluster, region, key_vault) (max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"}) > bool 0)",
-            "legendFormat": "{{cluster}} / {{key_vault}} collection",
-            "range": true
-          }
-        ],
-        "fieldConfig": { "defaults": { "unit": "none", "min": 0, "max": 1 }, "overrides": [] }
-      },
-      {
-        "id": 9,
-        "title": "ARO HCP exporter pods",
-        "description": "Pod phase, exporter container readiness, restart count, and age from Kubernetes metrics. STATUS reflects pod phase, not container waiting reasons; an absent row does not establish health.",
-        "type": "table",
-        "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 49 },
-        "targets": [
-          {
-            "refId": "A",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "max by (cluster, region, namespace, pod) (kube_pod_container_status_ready{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", container=\"aro-hcp-exporter\", pod=~\"aro-hcp-exporter-.*\"}) * on (cluster, region, namespace, pod) group_left(phase) (max by (cluster, region, namespace, pod, phase) (kube_pod_status_phase{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", pod=~\"aro-hcp-exporter-.*\"}) == 1)",
-            "format": "table",
-            "instant": true,
-            "range": false
-          },
-          {
-            "refId": "B",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "max by (cluster, region, namespace, pod) (kube_pod_container_status_restarts_total{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", container=\"aro-hcp-exporter\", pod=~\"aro-hcp-exporter-.*\"})",
-            "format": "table",
-            "instant": true,
-            "range": false
-          },
-          {
-            "refId": "C",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "time() - max by (cluster, region, namespace, pod) (kube_pod_created{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", pod=~\"aro-hcp-exporter-.*\"})",
-            "format": "table",
-            "instant": true,
-            "range": false
-          }
-        ],
-        "transformations": [
-          { "id": "merge", "options": {} },
-          { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "cluster": true, "region": true, "namespace": true }, "renameByName": { "pod": "NAME", "phase": "STATUS", "Value #A": "READY", "Value #B": "RESTARTS", "Value #C": "AGE" }, "indexByName": { "pod": 0, "Value #A": 1, "phase": 2, "Value #B": 3, "Value #C": 4 } } }
-        ],
-        "fieldConfig": { "defaults": { "noValue": "Unknown" }, "overrides": [{ "matcher": { "id": "byName", "options": "READY" }, "properties": [{ "id": "mappings", "value": [{ "type": "value", "options": { "0": { "text": "0/1", "color": "red" }, "1": { "text": "1/1", "color": "green" } } }] }, { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } }] }, { "matcher": { "id": "byName", "options": "AGE" }, "properties": [{ "id": "unit", "value": "s" }, { "id": "decimals", "value": 0 }] }] },
-        "options": { "showHeader": true, "cellHeight": "sm", "sortBy": [{ "displayName": "NAME", "desc": false }] }
-      },
-      {
-        "id": 12,
-        "title": "Certificate rotation flow",
-        "type": "row",
-        "collapsed": false,
-        "panels": [],
-        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 57 }
-      },
-      {
-        "id": 15,
-        "title": "Key Vault certificate collection",
-        "description": "Last time the exporter successfully read all configured certificates in each vault. A zero timestamp means no successful collection yet; this does not prove OneCert renewed a version.",
-        "type": "table",
-        "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-        "gridPos": { "h": 7, "w": 24, "x": 0, "y": 58 },
-        "targets": [
-          {
-            "refId": "A",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"}) * 1000",
-            "format": "table",
-            "instant": true,
-            "range": false
-          }
-        ],
-        "transformations": [{ "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "region": true }, "renameByName": { "cluster": "CLUSTER", "key_vault": "VAULT", "Value": "LAST SUCCESS" }, "indexByName": { "cluster": 0, "key_vault": 1, "Value": 2 } } }],
-        "fieldConfig": { "defaults": { "noValue": "Unknown" }, "overrides": [{ "matcher": { "id": "byName", "options": "LAST SUCCESS" }, "properties": [{ "id": "unit", "value": "dateTimeAsIso" }, { "id": "mappings", "value": [{ "type": "value", "options": { "0": { "text": "Never" } } }] }] }] },
-        "options": { "showHeader": true, "cellHeight": "sm", "sortBy": [{ "displayName": "VAULT", "desc": false }] }
-      },
-      {
-        "id": 13,
-        "title": "CSI certificate refresher deployments",
-        "description": "Ready and desired replicas of the three CSI volume-mount deployments. Replica counts do not prove the CSI provider fetched a new certificate version.",
-        "type": "table",
-        "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-        "gridPos": { "h": 7, "w": 24, "x": 0, "y": 65 },
-        "targets": [
-          {
-            "refId": "A",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "max by (cluster, region, namespace, deployment) (kube_deployment_status_replicas_available{region=\"${region:text}\", namespace=\"aks-istio-ingress\", deployment=~\"(frontend|admin-api|sessiongate)-certificate-refresher\"})",
-            "format": "table",
-            "instant": true,
-            "range": false
-          },
-          {
-            "refId": "B",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "max by (cluster, region, namespace, deployment) (kube_deployment_spec_replicas{region=\"${region:text}\", namespace=\"aks-istio-ingress\", deployment=~\"(frontend|admin-api|sessiongate)-certificate-refresher\"})",
-            "format": "table",
-            "instant": true,
-            "range": false
-          }
-        ],
-        "transformations": [
-          { "id": "merge", "options": {} },
-          { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "region": true, "namespace": true }, "renameByName": { "cluster": "CLUSTER", "deployment": "NAME", "Value #A": "AVAILABLE", "Value #B": "DESIRED" }, "indexByName": { "cluster": 0, "deployment": 1, "Value #A": 2, "Value #B": 3 } } }
-        ],
-        "fieldConfig": { "defaults": { "noValue": "Unknown", "unit": "short" }, "overrides": [] },
-        "options": { "showHeader": true, "cellHeight": "sm", "sortBy": [{ "displayName": "NAME", "desc": false }] }
-      },
-      {
-        "id": 14,
-        "title": "Istio TLS secrets",
-        "description": "Kubernetes secret objects synchronized by CSI. AGE is the secret object's creation age, not the age of its certificate or last rotation. Missing objects produce no row; neither presence nor age verifies the version Istio serves.",
-        "type": "table",
-        "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-        "gridPos": { "h": 7, "w": 24, "x": 0, "y": 72 },
-        "targets": [
-          {
-            "refId": "A",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "max by (cluster, region, namespace, secret) (kube_secret_info{region=\"${region:text}\", namespace=\"aks-istio-ingress\", secret=~\"(frontend|admin-api|sessiongate)-credential\"})",
-            "format": "table",
-            "instant": true,
-            "range": false
-          },
-          {
-            "refId": "B",
-            "datasource": { "type": "prometheus", "uid": "${services_datasource}" },
-            "editorMode": "code",
-            "expr": "time() - max by (cluster, region, namespace, secret) (kube_secret_created{region=\"${region:text}\", namespace=\"aks-istio-ingress\", secret=~\"(frontend|admin-api|sessiongate)-credential\"})",
-            "format": "table",
-            "instant": true,
-            "range": false
-          }
-        ],
-        "transformations": [
-          { "id": "merge", "options": {} },
-          { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "region": true, "namespace": true, "Value #A": true }, "renameByName": { "cluster": "CLUSTER", "secret": "NAME", "Value #B": "AGE" }, "indexByName": { "cluster": 0, "secret": 1, "Value #B": 2 } } }
-        ],
-        "fieldConfig": { "defaults": { "noValue": "Unknown" }, "overrides": [{ "matcher": { "id": "byName", "options": "AGE" }, "properties": [{ "id": "unit", "value": "s" }, { "id": "decimals", "value": 0 }] }] },
-        "options": { "showHeader": true, "cellHeight": "sm", "sortBy": [{ "displayName": "NAME", "desc": false }] }
+        "name": "services_datasource",
+        "label": "Prometheus datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "regex": "^Managed_Prometheus_services-${region:raw}$",
+        "refresh": 1,
+        "options": [],
+        "current": {},
+        "hide": 2
       }
     ]
-  }
+  },
+  "panels": [
+    {
+      "id": 11,
+      "title": "Certificate validity and expiry",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 5,
+      "title": "Certificate lifetime used",
+      "type": "gauge",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${services_datasource}"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "(100 * (time() - max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds{region=\"${region:text}\"})) / (max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds{region=\"${region:text}\"}) - max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds{region=\"${region:text}\"}))) and on (cluster, region, key_vault, certificate_name) (max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_enabled{region=\"${region:text}\"}) == 1) and on (cluster, region, key_vault, certificate_name) (max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds{region=\"${region:text}\"}) > max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds{region=\"${region:text}\"})) and on (cluster, region, key_vault) (max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"}) > time() - 3600)",
+          "legendFormat": "{{cluster}} / {{key_vault}} / {{certificate_name}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "Unknown",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "orange",
+                "value": 65
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true
+      }
+    },
+    {
+      "id": 6,
+      "title": "Time until expiry by certificate",
+      "type": "bargauge",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${services_datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "((max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_after_timestamp_seconds{region=\"${region:text}\"}) - time()) / 86400) and on (cluster, region, key_vault) (max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"}) > time() - 3600)",
+          "legendFormat": "{{cluster}} / {{key_vault}} / {{certificate_name}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "green",
+                "value": 60
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      }
+    },
+    {
+      "id": 7,
+      "title": "Certificate validity start",
+      "description": "The certificate not-before timestamp is its validity start, not an audited renewal event.",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${services_datasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, region, key_vault, certificate_name) (keyvault_certificate_not_before_timestamp_seconds{region=\"${region:text}\"}) * 1000",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "cluster": true,
+              "region": true,
+              "key_vault": true
+            },
+            "renameByName": {
+              "certificate_name": "Certificate",
+              "Value": "Valid From"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Valid From"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Certificate",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "title": "Exporter health and collection",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      }
+    },
+    {
+      "id": 1,
+      "title": "Certificate collection age by Key Vault",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${services_datasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "time() - max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"} > 0)",
+          "legendFormat": "{{cluster}} / {{key_vault}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 3600
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Exporter scrape availability",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${services_datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, region) (up{region=\"${region:text}\", namespace=\"aro-hcp-exporter\"}) or on (cluster, region) (0 * max by (cluster, region) (kube_deployment_spec_replicas{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", deployment=\"aro-hcp-exporter\"}))",
+          "legendFormat": "{{cluster}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "Unknown",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Unavailable",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Scraping",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Exporter replicas available / desired",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${services_datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, region) (kube_deployment_status_replicas_available{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", deployment=\"aro-hcp-exporter\"})",
+          "legendFormat": "{{cluster}} available",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, region) (kube_deployment_spec_replicas{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", deployment=\"aro-hcp-exporter\"})",
+          "legendFormat": "{{cluster}} desired",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Exporter scrape and collection history",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${services_datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, region) (up{region=\"${region:text}\", namespace=\"aro-hcp-exporter\"}) or on (cluster, region) (0 * max by (cluster, region) (kube_deployment_spec_replicas{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", deployment=\"aro-hcp-exporter\"}))",
+          "legendFormat": "{{cluster}} scrape",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "((time() - max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"})) <= bool 3600) * on (cluster, region, key_vault) (max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"}) > bool 0)",
+          "legendFormat": "{{cluster}} / {{key_vault}} collection",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "ARO HCP exporter pods",
+      "description": "Pod phase, exporter container readiness, restart count, and age from Kubernetes metrics. STATUS reflects pod phase, not container waiting reasons; an absent row does not establish health.",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${services_datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, region, namespace, pod) (kube_pod_container_status_ready{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", container=\"aro-hcp-exporter\", pod=~\"aro-hcp-exporter-.*\"}) * on (cluster, region, namespace, pod) group_left(phase) (max by (cluster, region, namespace, pod, phase) (kube_pod_status_phase{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", pod=~\"aro-hcp-exporter-.*\"}) == 1)",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, region, namespace, pod) (kube_pod_container_status_restarts_total{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", container=\"aro-hcp-exporter\", pod=~\"aro-hcp-exporter-.*\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "time() - max by (cluster, region, namespace, pod) (kube_pod_created{region=\"${region:text}\", namespace=\"aro-hcp-exporter\", pod=~\"aro-hcp-exporter-.*\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "cluster": true,
+              "region": true,
+              "namespace": true
+            },
+            "renameByName": {
+              "pod": "NAME",
+              "phase": "STATUS",
+              "Value #A": "READY",
+              "Value #B": "RESTARTS",
+              "Value #C": "AGE"
+            },
+            "indexByName": {
+              "pod": 0,
+              "Value #A": 1,
+              "phase": 2,
+              "Value #B": 3,
+              "Value #C": 4
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "READY"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "0/1",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "1/1",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "AGE"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "NAME",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "title": "Certificate rotation flow",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      }
+    },
+    {
+      "id": 15,
+      "title": "Key Vault certificate collection",
+      "description": "Last time the exporter successfully read all configured certificates in each vault. A zero timestamp means no successful collection yet; this does not prove OneCert renewed a version.",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${services_datasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 58
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, region, key_vault) (keyvault_certificate_collector_last_success_timestamp_seconds{region=\"${region:text}\"}) * 1000",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "region": true
+            },
+            "renameByName": {
+              "cluster": "CLUSTER",
+              "key_vault": "VAULT",
+              "Value": "LAST SUCCESS"
+            },
+            "indexByName": {
+              "cluster": 0,
+              "key_vault": 1,
+              "Value": 2
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "LAST SUCCESS"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Never"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "VAULT",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 13,
+      "title": "CSI certificate refresher deployments",
+      "description": "Ready and desired replicas of the three CSI volume-mount deployments. Replica counts do not prove the CSI provider fetched a new certificate version.",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${services_datasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 65
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, region, namespace, deployment) (kube_deployment_status_replicas_available{region=\"${region:text}\", namespace=\"aks-istio-ingress\", deployment=~\"(frontend|admin-api|sessiongate)-certificate-refresher\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, region, namespace, deployment) (kube_deployment_spec_replicas{region=\"${region:text}\", namespace=\"aks-istio-ingress\", deployment=~\"(frontend|admin-api|sessiongate)-certificate-refresher\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "region": true,
+              "namespace": true
+            },
+            "renameByName": {
+              "cluster": "CLUSTER",
+              "deployment": "NAME",
+              "Value #A": "AVAILABLE",
+              "Value #B": "DESIRED"
+            },
+            "indexByName": {
+              "cluster": 0,
+              "deployment": 1,
+              "Value #A": 2,
+              "Value #B": 3
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown",
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "NAME",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "title": "Istio TLS secrets",
+      "description": "Kubernetes secret objects synchronized by CSI. AGE is the secret object's creation age, not the age of its certificate or last rotation. Missing objects produce no row; neither presence nor age verifies the version Istio serves.",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${services_datasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 72
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, region, namespace, secret) (kube_secret_info{region=\"${region:text}\", namespace=\"aks-istio-ingress\", secret=~\"(frontend|admin-api|sessiongate)-credential\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${services_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "time() - max by (cluster, region, namespace, secret) (kube_secret_created{region=\"${region:text}\", namespace=\"aks-istio-ingress\", secret=~\"(frontend|admin-api|sessiongate)-credential\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "region": true,
+              "namespace": true,
+              "Value #A": true
+            },
+            "renameByName": {
+              "cluster": "CLUSTER",
+              "secret": "NAME",
+              "Value #B": "AGE"
+            },
+            "indexByName": {
+              "cluster": 0,
+              "secret": 1,
+              "Value #B": 2
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "AGE"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "NAME",
+            "desc": false
+          }
+        ]
+      }
+    }
+  ]
+}
