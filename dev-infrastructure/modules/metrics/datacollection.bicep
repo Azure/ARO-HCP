@@ -6,6 +6,11 @@ param azureMonitorWorkspaceLocation string
 param aksClusterName string
 param prometheusPrincipalId string
 
+@allowed(['monitoring.coreos.com', 'azmonitoring.coreos.com'])
+param monitoringApiGroup string = 'monitoring.coreos.com'
+
+var isAma = monitoringApiGroup == 'azmonitoring.coreos.com'
+
 var dceName = safeTake('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
 var dcrName = safeTake('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
 var hcpDcrName = safeTake('HCP-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
@@ -88,7 +93,10 @@ resource hcpDcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = if (hcpAzu
           streams: [
             'Microsoft-PrometheusMetrics'
           ]
-          labelIncludeFilter: {}
+          // In AMA mode only series carrying microsoft_metrics_account=hcp are
+          // forwarded here; the services DCR stays unfiltered. In OSS mode this
+          // DCR is fed by remote-write and the filter stays empty (T1) — see X.
+          labelIncludeFilter: isAma ? { microsoft_metrics_include_label: 'hcp' } : {}
         }
       ]
     }
@@ -114,6 +122,21 @@ resource aksClusterDcra 'Microsoft.Insights/dataCollectionRuleAssociations@2022-
   properties: {
     description: 'Association of data collection rule. Deleting this association will break the data collection for this AKS Cluster.'
     dataCollectionRuleId: dcr.id
+  }
+}
+
+// AMA mode only: associate the HCP DCR (filtered to microsoft_metrics_account=hcp)
+// so AMA-scraped per-HCP series are forwarded to the HCP workspace. In OSS mode the
+// HCP DCR is fed by remote-write and needs no association, so this stays absent (T1).
+// X1: going AMA->OSS leaves this association behind (Incremental deployment); a
+// runbook step deletes it, otherwise AMA would duplicate its default-target series
+// into the HCP workspace once the filter is back at {}.
+resource aksClusterHcpDcra 'Microsoft.Insights/dataCollectionRuleAssociations@2022-06-01' = if (isAma && hcpAzureMonitoringWorkspaceId != '') {
+  name: '${aksClusterName}-hcp-dcra'
+  scope: aksCluster
+  properties: {
+    description: 'Association of the HCP data collection rule for AMA-mode HCP metrics routing. Deleting this association will break HCP metrics collection for this AKS Cluster.'
+    dataCollectionRuleId: hcpDcr.id
   }
 }
 

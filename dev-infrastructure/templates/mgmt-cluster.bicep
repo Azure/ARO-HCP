@@ -202,6 +202,7 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
     hcpAzureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     aksClusterName: aksClusterName
     prometheusPrincipalId: prometheusUAMI.properties.principalId
+    monitoringApiGroup: monitoringApiGroup
   }
 }
 
