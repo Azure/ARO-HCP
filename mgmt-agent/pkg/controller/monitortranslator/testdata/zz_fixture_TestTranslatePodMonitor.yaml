@@ -16,6 +16,18 @@ spec:
     - action: replace
       replacement: hcp
       targetLabel: microsoft_metrics_account
+    - action: replace
+      regex: ^$
+      replacement: westus3
+      sourceLabels:
+      - region
+      targetLabel: region
+    - action: replace
+      regex: ^$
+      replacement: dev
+      sourceLabels:
+      - environment
+      targetLabel: environment
     path: /metrics
     port: metrics
   selector:

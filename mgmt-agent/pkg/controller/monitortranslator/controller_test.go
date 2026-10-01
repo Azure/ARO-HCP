@@ -64,7 +64,7 @@ func TestTranslateServiceMonitor(t *testing.T) {
 		},
 	}
 
-	result := Translate(source, SourceServiceMonitorGVR, TargetServiceMonitorGVR)
+	result := Translate(source, SourceServiceMonitorGVR, TargetServiceMonitorGVR, "westus3", "dev")
 	testutil.CompareWithFixture(t, result)
 }
 
@@ -97,7 +97,7 @@ func TestTranslatePodMonitor(t *testing.T) {
 		},
 	}
 
-	result := Translate(source, SourcePodMonitorGVR, TargetPodMonitorGVR)
+	result := Translate(source, SourcePodMonitorGVR, TargetPodMonitorGVR, "westus3", "dev")
 	testutil.CompareWithFixture(t, result)
 }
 
@@ -115,7 +115,7 @@ func TestTranslatePreservesOwnerReference(t *testing.T) {
 		},
 	}
 
-	result := Translate(source, SourceServiceMonitorGVR, TargetServiceMonitorGVR)
+	result := Translate(source, SourceServiceMonitorGVR, TargetServiceMonitorGVR, "", "")
 
 	ownerRefs := result.GetOwnerReferences()
 	if len(ownerRefs) != 1 {
@@ -153,7 +153,7 @@ func TestTranslateNoLabels(t *testing.T) {
 		},
 	}
 
-	result := Translate(source, SourceServiceMonitorGVR, TargetServiceMonitorGVR)
+	result := Translate(source, SourceServiceMonitorGVR, TargetServiceMonitorGVR, "", "")
 
 	if labels := result.GetLabels(); len(labels) != 0 {
 		t.Errorf("expected no labels, got %v", labels)
@@ -193,7 +193,7 @@ func TestTranslateAccountLabelIdempotent(t *testing.T) {
 		},
 	}
 
-	result := Translate(source, SourceServiceMonitorGVR, TargetServiceMonitorGVR)
+	result := Translate(source, SourceServiceMonitorGVR, TargetServiceMonitorGVR, "", "")
 
 	endpoints, _, err := unstructured.NestedSlice(result.Object, "spec", "endpoints")
 	if err != nil || len(endpoints) != 1 {
@@ -211,6 +211,75 @@ func TestTranslateAccountLabelIdempotent(t *testing.T) {
 	}
 	if count != 1 {
 		t.Errorf("expected exactly 1 microsoft_metrics_account relabel rule, got %d", count)
+	}
+}
+
+// TestTranslateSetsRegionEnvironment verifies that a non-empty region/environment
+// is injected as a set-if-absent relabel (regex "^$"), and that a label the source
+// already carries is not overwritten (no duplicate relabel appended).
+func TestTranslateSetsRegionEnvironment(t *testing.T) {
+	source := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "monitoring.coreos.com/v1",
+			"kind":       "ServiceMonitor",
+			"metadata": map[string]any{
+				"name":      "test-service",
+				"namespace": "ocm-test",
+				"uid":       "uid-region",
+			},
+			"spec": map[string]any{
+				"endpoints": []any{
+					map[string]any{
+						"port": "metrics",
+						// Source already carries a region relabel; translation must
+						// not append a second one.
+						"metricRelabelings": []any{
+							map[string]any{
+								"targetLabel": "region",
+								"replacement": "preset",
+								"action":      "replace",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result := Translate(source, SourceServiceMonitorGVR, TargetServiceMonitorGVR, "westus3", "dev")
+
+	endpoints, _, err := unstructured.NestedSlice(result.Object, "spec", "endpoints")
+	if err != nil || len(endpoints) != 1 {
+		t.Fatalf("unexpected endpoints %v (err %v)", endpoints, err)
+	}
+	relabelings, _, err := unstructured.NestedSlice(endpoints[0].(map[string]any), "metricRelabelings")
+	if err != nil {
+		t.Fatalf("failed to read metricRelabelings: %v", err)
+	}
+
+	regionCount, envCount := 0, 0
+	var envRelabel map[string]any
+	for _, rc := range relabelings {
+		rcMap, _ := rc.(map[string]any)
+		switch target, _ := rcMap["targetLabel"].(string); target {
+		case "region":
+			regionCount++
+		case "environment":
+			envCount++
+			envRelabel = rcMap
+		}
+	}
+	if regionCount != 1 {
+		t.Errorf("expected region relabel not to be duplicated, got %d", regionCount)
+	}
+	if envCount != 1 {
+		t.Fatalf("expected exactly 1 environment relabel, got %d", envCount)
+	}
+	if got, _ := envRelabel["regex"].(string); got != "^$" {
+		t.Errorf("environment relabel regex = %q, want set-if-absent regex %q", got, "^$")
+	}
+	if got, _ := envRelabel["replacement"].(string); got != "dev" {
+		t.Errorf("environment relabel replacement = %q, want %q", got, "dev")
 	}
 }
 

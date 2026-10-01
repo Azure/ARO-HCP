@@ -120,7 +120,9 @@ func TestBuildService(t *testing.T) {
 }
 
 func TestBuildServiceMonitor(t *testing.T) {
-	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", DefaultMonitoringAPIGroup, metav1.OwnerReference{
+	// Pass non-empty region/environment to prove OSS mode ignores them (output
+	// must stay byte-identical with main).
+	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", DefaultMonitoringAPIGroup, "westus3", "dev", metav1.OwnerReference{
 		APIVersion: "hypershift.openshift.io/v1beta1",
 		Kind:       "HostedControlPlane",
 		Name:       "test-hcp",
@@ -141,7 +143,7 @@ func TestBuildServiceMonitor(t *testing.T) {
 // microsoft_metrics_include_label.
 func TestBuildServiceMonitorAMAGroup(t *testing.T) {
 	const amaGroup = "azmonitoring.coreos.com"
-	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", amaGroup, metav1.OwnerReference{
+	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", amaGroup, "westus3", "dev", metav1.OwnerReference{
 		APIVersion: "hypershift.openshift.io/v1beta1",
 		Kind:       "HostedControlPlane",
 		Name:       "test-hcp",
@@ -169,7 +171,9 @@ func TestBuildServiceMonitorAMAGroup(t *testing.T) {
 // byte-identical with main. Routing is done by namespace in the agent's
 // remote-write config, so the label is a harmless no-op there (see Q7).
 func TestBuildServiceMonitorOSSRoutingLabel(t *testing.T) {
-	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", DefaultMonitoringAPIGroup, metav1.OwnerReference{
+	// Pass non-empty region/environment to prove OSS mode ignores them (output
+	// must stay byte-identical with main).
+	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", DefaultMonitoringAPIGroup, "westus3", "dev", metav1.OwnerReference{
 		APIVersion: "hypershift.openshift.io/v1beta1",
 		Kind:       "HostedControlPlane",
 		Name:       "test-hcp",
@@ -179,10 +183,17 @@ func TestBuildServiceMonitorOSSRoutingLabel(t *testing.T) {
 		t.Fatalf("buildServiceMonitor() error: %v", err)
 	}
 
-	if got := routingTargetLabels(t, sm); !got["microsoft_metrics_include_label"] {
+	got := routingTargetLabels(t, sm)
+	if !got["microsoft_metrics_include_label"] {
 		t.Errorf("OSS monitor missing microsoft_metrics_include_label routing relabel; got labels %v", got)
-	} else if got["microsoft_metrics_account"] {
+	}
+	if got["microsoft_metrics_account"] {
 		t.Errorf("OSS monitor must stay byte-identical with main and not emit microsoft_metrics_account; got labels %v", got)
+	}
+	// OSS mode must ignore region/environment entirely; the Prometheus agent
+	// supplies them via externalLabels, so the KSM monitor must not stamp them.
+	if got["region"] || got["environment"] {
+		t.Errorf("OSS monitor must not stamp region/environment relabels; got labels %v", got)
 	}
 }
 
