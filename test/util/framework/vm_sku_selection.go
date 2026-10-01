@@ -93,8 +93,8 @@ type VMSizeSelector struct {
 	// non-restricted availability zone in the target location.
 	RequireZones bool
 	// RequireEphemeralOSDisk, when true, requires the SKU to advertise the
-	// EphemeralOSDiskSupported capability ("True"). SKUs without local/cache
-	// storage (e.g. Dsv5) do not support ephemeral OS disks and are excluded.
+	// EphemeralOSDiskSupported capability ("True"). SKUs without a cache, temp or
+	// NVMe disk (e.g. Dsv5) do not support ephemeral OS disks and are excluded.
 	RequireEphemeralOSDisk bool
 	// IgnoreRPAllowlist, when true, skips filtering candidates against the
 	// ARO-HCP RP's node pool VM size allowlist. Use for selectors that create
@@ -525,8 +525,8 @@ func JumpboxVMSizeSelector() VMSizeSelector {
 }
 
 // EphemeralOSDiskWorkerVMSizeSelector selects a general-purpose worker SKU that
-// supports ephemeral OS disks (requires local/cache storage) and is enabled in
-// the ARO-HCP RP instance-type allowlist.
+// supports ephemeral OS disks (placed on the VM's cache, temp or NVMe disk) and
+// is enabled in the ARO-HCP RP instance-type allowlist.
 //
 // Ephemeral OS disk support depends on the SKU generation, not just the family:
 // among the RP-allowlisted x86 families, only a subset of 8-vCPU SKUs advertise
@@ -535,18 +535,19 @@ func JumpboxVMSizeSelector() VMSizeSelector {
 // SKU restrictions typically apply to an entire family in a region, so a
 // larger size of an already-restricted family is no more likely to be usable.
 // All candidates are capped at 8 vCPUs to keep provisioning fast and quota use
-// low. SKUs without local storage are additionally excluded via the
-// RequireEphemeralOSDisk constraint.
+// low. SKUs that do not advertise EphemeralOSDiskSupported=True are excluded
+// via the RequireEphemeralOSDisk constraint.
 func EphemeralOSDiskWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name: "ephemeral-osdisk-worker",
 		Preferred: []string{
-			DefaultWorkerVMSize, // Standard_D8s_v3 - Intel D-series v3
-			"Standard_D8as_v4",  // AMD D-series v4
-			"Standard_E8s_v3",   // Intel E-series v3
-			"Standard_E8as_v4",  // AMD E-series v4
+			DefaultWorkerVMSize,  // Standard_D8s_v3 - Intel D-series v3
+			"Standard_D8as_v4",   // AMD D-series v4
+			"Standard_E8s_v3",    // Intel E-series v3
+			"Standard_E8as_v4",   // AMD E-series v4
+			"Standard_D8plds_v6", // Arm64 D-series v6, for when all x86 families are restricted
 		},
-		NamePattern:            regexp.MustCompile(`^Standard_[DE]8(s_v3|as_v4)$`),
+		NamePattern:            regexp.MustCompile(`^Standard_([DE]8(s_v3|as_v4)|D8plds_v6)$`),
 		MinVCPUs:               8,
 		RequireEphemeralOSDisk: true,
 	}
