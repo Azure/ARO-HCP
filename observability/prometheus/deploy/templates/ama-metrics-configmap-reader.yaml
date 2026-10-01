@@ -1,0 +1,38 @@
+{{- if and (eq .Values.monitoringApiGroup "azmonitoring.coreos.com") .Values.amaConfigMapReader.enabled }}
+# Grants the AMA addon ServiceAccount (kube-system/ama-metrics-serviceaccount)
+# cluster-wide read access to ConfigMaps on management clusters. The AMA target
+# allocator is believed to read ConfigMaps that translated HyperShift monitors
+# reference (e.g. tlsConfig.ca.configMap) in per-HCP namespaces; without this it
+# cannot resolve those scrape targets. Mgmt-only and AMA-only (amaConfigMapReader
+# is enabled only in values-mgmt.yaml). Pending confirmation by Gate R8.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: ama-metrics-configmap-reader
+  name: ama-metrics-configmap-reader
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: ama-metrics-configmap-reader
+  name: ama-metrics-configmap-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ama-metrics-configmap-reader
+subjects:
+- kind: ServiceAccount
+  name: ama-metrics-serviceaccount
+  namespace: kube-system
+{{- end }}

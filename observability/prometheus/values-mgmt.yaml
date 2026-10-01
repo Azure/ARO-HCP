@@ -1,5 +1,10 @@
 schedulingRole: "infra"
 monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
+# Management clusters run the AMA addon, whose target allocator needs to read the
+# ConfigMaps referenced by translated HyperShift monitors. Enable the reader here;
+# it is still AMA-only (the template is gated on monitoringApiGroup).
+amaConfigMapReader:
+  enabled: true
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
   crds:

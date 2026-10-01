@@ -1,6 +1,10 @@
 # ARO-HCP kube-prometheus-stack overrides, review upstream values.yaml for more options.
 schedulingRole: infra
 monitoringApiGroup: monitoring.coreos.com
+# Static per-cluster-type flag (not a mode knob): the AMA ConfigMap reader is only
+# needed on management clusters, so it defaults off and is enabled in values-mgmt.yaml.
+amaConfigMapReader:
+  enabled: false
 kube-prometheus-stack:
   ## Provide a name to substitute for the full names of resources
   ##

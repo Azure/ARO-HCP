@@ -31,6 +31,7 @@ ignore:
 # AMA-mode templates gated on monitoringApiGroup; the leading {{- if }} makes them
 # unparseable as plain YAML.
 - 'observability/prometheus/deploy/templates/kube-state-metrics.azmonitoring.servicemonitor.yaml'
+- 'observability/prometheus/deploy/templates/ama-metrics-configmap-reader.yaml'
 - 'secret-sync-controller/deploy/templates/*.yaml'
 - 'observability/arobit/deploy/templates/forwarder-clusterrolebinding.yaml'
 - 'observability/arobit/deploy/templates/forwarder-clusterrole.yaml'
