@@ -177,7 +177,7 @@ func (v verifyDeploymentLogsReachable) Name() string {
 func (v verifyDeploymentLogsReachable) Verify(ctx context.Context, restConfig *rest.Config) error {
 	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, restConfig, DefaultDiagnoseTimeout, nil,
 		func(ctx context.Context) error {
-			return v.inner.Verify(ctx, restConfig)
+			return v.inner.checkOnce(ctx, restConfig)
 		},
 	)
 }
@@ -190,6 +190,10 @@ func (v verifyCanGetDeploymentLogs) Name() string {
 }
 
 func (v verifyCanGetDeploymentLogs) Verify(ctx context.Context, restConfig *rest.Config) error {
+	return v.checkOnce(ctx, restConfig)
+}
+
+func (v verifyCanGetDeploymentLogs) checkOnce(ctx context.Context, restConfig *rest.Config) error {
 	client, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
