@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   analyze:
-    name: Analyze (${{ matrix.language }})
+    name: Analyze (${{ matrix.label }})
     runs-on: ubuntu-latest
     # Bound the job so a stuck/reclaimed runner fails fast and predictably
     # instead of running until GitHub-side infra kills it.
@@ -27,7 +27,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ['go', 'python']
+        include:
+        - {language: go, shard: 0, label: "go shard 0", category: "/language:go/shard:0"}
+        - {language: go, shard: 1, label: "go shard 1", category: "/language:go/shard:1"}
+        - {language: go, shard: 2, label: "go shard 2", category: "/language:go/shard:2"}
+        - {language: go, shard: 3, label: "go shard 3", category: "/language:go/shard:3"}
+        - {language: go, shard: 4, label: "go shard 4", category: "/language:go/shard:4"}
+        - {language: go, shard: 5, label: "go shard 5", category: "/language:go/shard:5"}
+        - {language: python, shard: -1, label: python, category: "/language:python"}
     steps:
     - name: Checkout repository
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -58,8 +65,35 @@ jobs:
         # For custom queries, add: queries: security-and-quality
     - name: Build (go)
       if: matrix.language == 'go'
-      run: go list -f '{{.Dir}}/...' -m | xargs go build
+      run: |
+        # Keep large modules apart. Distribute every other workspace module
+        # deterministically, including modules added to go.work later.
+        module_dirs=$(go list -f '{{.Dir}}/...' -m)
+        mapfile -t modules <<< "$module_dirs"
+        selected=()
+        other=0
+        for module in "${modules[@]}"; do
+          case "$module" in
+            */internal/...) target=0 ;;
+            */backend/...) target=1 ;;
+            */test/...) target=2 ;;
+            */tooling/hcpctl/...) target=3 ;;
+            */mgmt-agent/...|*/test-integration/...) target=4 ;;
+            */fleet/...) target=5 ;;
+            *) target=$((other % 6)); other=$((other + 1)) ;;
+          esac
+          if (( target == ${{ matrix.shard }} )); then
+            selected+=("$module")
+          fi
+        done
+        if (( ${#selected[@]} == 0 )); then
+          echo "No Go modules assigned to shard ${{ matrix.shard }}" >&2
+          exit 1
+        fi
+        printf 'Shard %s builds %s modules:\n' '${{ matrix.shard }}' "${#selected[@]}"
+        printf '  %s\n' "${selected[@]}"
+        go build "${selected[@]}"
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
       with:
-        category: "/language:${{matrix.language}}"
+        category: ${{ matrix.category }}
