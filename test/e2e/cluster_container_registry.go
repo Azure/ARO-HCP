@@ -65,6 +65,9 @@ const (
 	acrPullNodePoolScalingTimeout = 5 * time.Minute  // observed <1m, 5x safety
 	day2ConfigPatchTimeout        = 5 * time.Minute  // observed ~20-71s (3 runs), 4x safety
 	day2RolloutTimeout            = 15 * time.Minute // observed ~8.5-10m (3 runs), 1.5x safety
+	removalConfigPatchTimeout     = 5 * time.Minute  // mirrors day2ConfigPatchTimeout; same ARM PATCH wait shape
+	removalRolloutTimeout         = 15 * time.Minute // mirrors day2RolloutTimeout; same CAPZ detach-driven rollout
+	pullFailureTimeout            = 2 * time.Minute  // kubelet surfaces auth failures without backoff, so no long poll needed
 )
 
 var nonAlphanumeric = regexp.MustCompile(`[^a-zA-Z0-9]`)
@@ -169,7 +172,9 @@ func vmUserAssignedIdentityIDs(vm *armcompute.VirtualMachine) ([]string, error) 
 		return nil, errors.New("virtual machine was nil")
 	}
 	if vm.Identity == nil {
-		return nil, errors.New("virtual machine Identity block was nil")
+		// ARM omits the Identity block entirely once the last user-assigned identity is removed,
+		// rather than returning an empty map — a valid state once identity removal clears the last identity.
+		return []string{}, nil
 	}
 	ids := make([]string, 0, len(vm.Identity.UserAssignedIdentities))
 	for id := range vm.Identity.UserAssignedIdentities {
@@ -178,10 +183,11 @@ func vmUserAssignedIdentityIDs(vm *armcompute.VirtualMachine) ([]string, error) 
 	return ids, nil
 }
 
-// verifyACRPullFromNodes uses no imagePullSecrets: a successful pull proves the node's CAPZ-attached
-// identity authenticated via the kubelet credential provider. Each call needs a fresh namespace since
-// VerifyImagePulled succeeds on *any* pod in it, and reuse would let day 1's cached image satisfy day 2.
-func verifyACRPullFromNodes(ctx context.Context, adminRESTConfig *rest.Config, namespace, acrLoginServer, phase string) {
+// deployACRPullTestPod creates a namespace, service account, and pod that attempts to pull
+// acrPullTestImageTag from acrLoginServer with no imagePullSecrets, relying solely on the node's
+// kubelet credential provider. Each call needs a fresh namespace since VerifyImagePulled matches
+// *any* pod in it, and reuse would let an earlier phase's cached image satisfy a later check.
+func deployACRPullTestPod(ctx context.Context, adminRESTConfig *rest.Config, namespace, acrLoginServer, phase string) {
 	By(fmt.Sprintf("[%s] creating namespace %s for the ACR image pull check", phase, namespace))
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client for the %s ACR pull check", phase)
@@ -250,21 +256,100 @@ func verifyACRPullFromNodes(ctx context.Context, adminRESTConfig *rest.Config, n
 		},
 	}, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred(), "failed to create ACR pull test pod in %s", namespace)
+}
+
+// verifyACRPullFromNodes confirms a pod picks up the node's kubelet-credential-provider identity
+// and successfully pulls from the private ACR.
+func verifyACRPullFromNodes(ctx context.Context, adminRESTConfig *rest.Config, namespace, acrLoginServer, phase string) {
+	deployACRPullTestPod(ctx, adminRESTConfig, namespace, acrLoginServer, phase)
 
 	By(fmt.Sprintf("[%s] verifying the image was pulled from the private ACR", phase))
-	err = verifiers.VerifyImagePulled(namespace, acrLoginServer, acrPullTestImageName, acrPullImagePullTimeout).
+	err := verifiers.VerifyImagePulled(namespace, acrLoginServer, acrPullTestImageName, acrPullImagePullTimeout).
 		Verify(ctx, adminRESTConfig)
 	Expect(err).NotTo(HaveOccurred(), "[%s] pod in namespace %s never pulled image %s from private ACR %s",
 		phase, namespace, acrPullTestImageName, acrLoginServer)
 }
 
+// acrPullDenialReasons are the kubelet container-waiting reasons consistent with the registry
+// having rejected the pull, as opposed to the pod still starting up.
+var acrPullDenialReasons = []string{"ImagePullBackOff", "ErrImagePull"}
+
+// acrPullDenialMessageMarkers are substrings of the waiting message that distinguish an actual
+// ACR authorization rejection from an unrelated pull failure (missing image, network timeout)
+// that would otherwise also match acrPullDenialReasons.
+var acrPullDenialMessageMarkers = []string{"unauthorized", "authentication required"}
+
+// verifyACRPullDenied is the mirror of verifyACRPullFromNodes for use once containerRegistry.managedIdentity
+// has been cleared: waits for the pod to reach a *confirmed* ACR authorization denial, not just any
+// failure to pull. A bare pull-error reason isn't enough on its own — ImagePullBackOff also covers
+// unrelated failures — and neither is treating every VerifyImagePulled error as proof of denial, since
+// that verifier also errors on pod-list failures or a pod that simply hasn't been scheduled yet.
+func verifyACRPullDenied(ctx context.Context, adminRESTConfig *rest.Config, namespace, acrLoginServer, phase string) {
+	deployACRPullTestPod(ctx, adminRESTConfig, namespace, acrLoginServer, phase)
+
+	By(fmt.Sprintf("[%s] verifying the pull is denied for lack of ACR authorization", phase))
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client for the %s ACR pull denial check", phase)
+
+	Eventually(func() error {
+		pod, err := kubeClient.CoreV1().Pods(namespace).Get(ctx, "acr-pull-test", metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get pod %s/acr-pull-test: %w", namespace, err)
+		}
+		for _, cs := range pod.Status.ContainerStatuses {
+			// Skip containers not pulling from the ACR under test.
+			if !strings.Contains(cs.Image, acrLoginServer) {
+				continue
+			}
+
+			// Fail fast if the container reached any success state. Kubelet may report these
+			// states before ImageID appears in status, or if credential provider caching allowed
+			// a pull during the token validity window after identity removal.
+			if cs.Ready {
+				return StopTrying(fmt.Sprintf("[%s] pod %s container %s unexpectedly became Ready after containerRegistry.managedIdentity was cleared", phase, pod.Name, cs.Name))
+			}
+			if cs.State.Running != nil {
+				return StopTrying(fmt.Sprintf("[%s] pod %s container %s unexpectedly reached Running state after containerRegistry.managedIdentity was cleared", phase, pod.Name, cs.Name))
+			}
+			if cs.State.Terminated != nil && cs.State.Terminated.ExitCode == 0 {
+				return StopTrying(fmt.Sprintf("[%s] pod %s container %s unexpectedly terminated successfully after containerRegistry.managedIdentity was cleared", phase, pod.Name, cs.Name))
+			}
+			if cs.ImageID != "" {
+				return StopTrying(fmt.Sprintf("[%s] pod %s unexpectedly pulled the image after containerRegistry.managedIdentity was cleared", phase, pod.Name))
+			}
+
+			// Check for confirmed ACR authorization denial in Waiting state.
+			if cs.State.Waiting == nil {
+				continue
+			}
+			reason, message := cs.State.Waiting.Reason, cs.State.Waiting.Message
+			if !slices.Contains(acrPullDenialReasons, reason) {
+				continue
+			}
+			lowerMsg := strings.ToLower(message)
+			for _, marker := range acrPullDenialMessageMarkers {
+				if strings.Contains(lowerMsg, marker) {
+					return nil
+				}
+			}
+			return StopTrying(fmt.Sprintf("[%s] pod %s container %s failed to pull for a reason unrelated to ACR authorization: %s - %s",
+				phase, pod.Name, cs.Name, reason, message))
+		}
+		return fmt.Errorf("[%s] pod %s has not yet reached a confirmed pull-denial state", phase, pod.Name)
+	}).WithContext(ctx).WithTimeout(pullFailureTimeout).WithPolling(10*time.Second).Should(Succeed(),
+		"[%s] pod in namespace %s never reached a confirmed ACR authorization denial after containerRegistry.managedIdentity was cleared",
+		phase, namespace)
+}
+
 // Full lifecycle of ACR pull via managed identity (ARO-24037): day 1 cluster creation and pull,
-// day 2 MI swap and pull. Self-contained per test/AGENTS.md (sharing a cluster would duplicate
-// expensive infrastructure setup). Observed wall-clock time ~28-34m across 3 runs, well under the
-// 150m suite TestTimeout — but the per-phase timeouts below are stuck-operation backstops, not an
-// additive budget, and their worst-case sum exceeds 150m (dominated by shared framework defaults
-// in test/util/framework/constants.go and CreateClusterCustomerResources20261001, which this test
-// does not control).
+// day 2 MI swap and pull, then identity removal and pull denial. Self-contained per test/AGENTS.md
+// (sharing a cluster would duplicate expensive infrastructure setup); removal runs after day 2, not
+// between day 1 and day 2, so it doesn't consume the active identity day 2's swap needs. Day 1+2
+// observed wall-clock time ~28-34m across 3 runs (removal has no observed runs yet, so its timeouts
+// below are estimates mirroring day 2's, not data-derived). The per-phase timeouts below are
+// stuck-operation backstops, not an additive budget, and their worst-case sum exceeds the 150m
+// suite TestTimeout (dominated by shared framework defaults in test/util/framework/constants.go
+// and CreateClusterCustomerResources20261001, which this test does not control).
 var _ = Describe("Customer", func() {
 	It("should be able to create a cluster with ACR pull via managed identity and pull from a private ACR",
 		labels.RequireNothing,
@@ -273,7 +358,7 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
 		labels.Slow,
-		labels.MIContainers(2),
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName = "acr-pull"
@@ -288,8 +373,9 @@ var _ = Describe("Customer", func() {
 				roleAssignmentTimeout   = 2 * time.Minute // observed <20s, 6x safety
 				vmIdentityAttachTimeout = 3 * time.Minute // observed <30s, 6x safety; brief because a miss here is a real error, not rollout lag
 
-				day1PullNamespace = "acr-pull-test-day1"
-				day2PullNamespace = "acr-pull-test-day2"
+				day1PullNamespace    = "acr-pull-test-day1"
+				day2PullNamespace    = "acr-pull-test-day2"
+				removalPullNamespace = "acr-pull-test-removal"
 			)
 
 			// Setup: infrastructure, ACR, and managed identities for day 1 and day 2.
@@ -309,7 +395,7 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 2, framework.IdentityContainerAssignmentRetryInterval)
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
@@ -552,13 +638,10 @@ var _ = Describe("Customer", func() {
 			// Gated on readiness first so a slow join surfaces as "node not ready" rather than a
 			// confusing image-pull timeout.
 			By("[day 1] verifying the node pool's node joined and is ready")
-			Eventually(func(g Gomega) {
-				g.Expect(verifiers.VerifyNodeCount(customerClusterName, expectedWorkerCount).Verify(ctx, adminRESTConfig)).
-					To(Succeed(), "node count should reach %d replicas after node pool creation", expectedWorkerCount)
-				g.Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).
-					To(Succeed(), "all nodes should be ready after node pool creation")
+			Eventually(func() error {
+				return verifiers.VerifyNodePoolReadyAndSchedulableNodeCount(nodePoolName, expectedWorkerCount).Verify(ctx, adminRESTConfig)
 			}).WithContext(ctx).WithTimeout(acrPullNodePoolScalingTimeout).WithPolling(30*time.Second).Should(Succeed(),
-				"node pool %s never reached %d ready node(s) after creation", nodePoolName, expectedWorkerCount)
+				"node pool %s never reached %d ready (and schedulable) node(s) after creation", nodePoolName, expectedWorkerCount)
 
 			verifyACRPullFromNodes(ctx, adminRESTConfig, day1PullNamespace, acrLoginServer, "day 1")
 
@@ -628,14 +711,70 @@ var _ = Describe("Customer", func() {
 			// Retried because guest node objects lag Azure VMs in both directions: the replacement
 			// can exist before its kubelet registers, and the old node survives until reaped.
 			By("[day 2] verifying the replacement node joined and is ready")
-			Eventually(func(g Gomega) {
-				g.Expect(verifiers.VerifyNodeCount(customerClusterName, expectedWorkerCount).Verify(ctx, adminRESTConfig)).
-					To(Succeed(), "node count should settle back to %d replicas after the rollout", expectedWorkerCount)
-				g.Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).
-					To(Succeed(), "all nodes should be ready after the rollout")
+			Eventually(func() error {
+				return verifiers.VerifyNodePoolReadyAndSchedulableNodeCount(nodePoolName, expectedWorkerCount).Verify(ctx, adminRESTConfig)
 			}).WithContext(ctx).WithTimeout(acrPullNodePoolScalingTimeout).WithPolling(30*time.Second).Should(Succeed(),
-				"node pool %s never settled back to %d ready node(s) after the day 2 rollout", nodePoolName, expectedWorkerCount)
+				"node pool %s never settled back to %d ready (and schedulable) node(s) after the day 2 rollout", nodePoolName, expectedWorkerCount)
 
 			verifyACRPullFromNodes(ctx, adminRESTConfig, day2PullNamespace, acrLoginServer, "day 2")
+
+			// Identity removal: clear the managed identity and verify the node pool loses pull access.
+			// Run after day 2, not between day 1 and day 2, so it doesn't consume the active identity
+			// day 2's swap needs to be a real swap rather than an attach-from-none.
+			By("[removal] clearing containerRegistry.managedIdentity via PATCH")
+			removalResp, err := framework.UpdateHCPCluster20261001(ctx, hcpClient,
+				*resourceGroup.Name, customerClusterName,
+				hcpsdk20261001preview.HcpOpenShiftCluster{
+					Properties: &hcpsdk20261001preview.HcpOpenShiftClusterProperties{
+						Platform: &hcpsdk20261001preview.PlatformProfile{
+							ContainerRegistry: azcore.NullValue[*hcpsdk20261001preview.ContainerRegistryProfile](),
+						},
+					},
+				},
+				removalConfigPatchTimeout)
+			Expect(err).NotTo(HaveOccurred(), "failed to clear containerRegistry.managedIdentity via PATCH")
+			Expect(removalResp).NotTo(BeNil(), "containerRegistry removal response was nil")
+			Expect(removalResp.Properties).NotTo(BeNil(), "containerRegistry removal response Properties was nil")
+			Expect(removalResp.Properties.ProvisioningState).NotTo(BeNil(), "containerRegistry removal response ProvisioningState was nil")
+			Expect(*removalResp.Properties.ProvisioningState).To(Equal(hcpsdk20261001preview.ProvisioningStateSucceeded),
+				"cluster provisioning state should be Succeeded after the containerRegistry removal")
+
+			By("[removal] verifying the cluster reports containerRegistry cleared via GET")
+			clusterAfterRemoval, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to GET cluster after the containerRegistry removal")
+			Expect(clusterAfterRemoval.Properties).NotTo(BeNil(), "cluster properties was nil after the removal")
+			Expect(clusterAfterRemoval.Properties.Platform).NotTo(BeNil(), "cluster platform was nil after the removal")
+			Expect(clusterAfterRemoval.Properties.Platform.ContainerRegistry).To(BeNil(),
+				"containerRegistry should be cleared after the removal")
+
+			// Mirrors the day 2 rollout wait, but for detachment only — there's no replacement
+			// identity to attach, so only the day 2 MI's absence is checked.
+			By("[removal] waiting for node rollout to detach the day 2 MI")
+			var removalIdentities map[string][]string
+			Eventually(func() error {
+				identities, err := workerVMIdentities(ctx)
+				if err != nil {
+					return err
+				}
+				for vmName, attached := range identities {
+					if slices.Contains(attached, strings.ToLower(day2MIResourceID)) {
+						return fmt.Errorf("worker VM %s still has the day 2 MI %s attached, has %v", vmName, day2MIResourceID, attached)
+					}
+				}
+				removalIdentities = identities
+				return nil
+			}).WithContext(ctx).WithTimeout(removalRolloutTimeout).WithPolling(30*time.Second).Should(Succeed(),
+				"node pool %s never detached the day 2 MI %s after removal", nodePoolName, day2MIResourceID)
+			for vmName, attached := range removalIdentities {
+				GinkgoLogr.Info("worker VM identities after removal", "vm", vmName, "userAssignedIdentities", attached)
+			}
+
+			By("[removal] verifying the replacement node joined and is ready")
+			Eventually(func() error {
+				return verifiers.VerifyNodePoolReadyAndSchedulableNodeCount(nodePoolName, expectedWorkerCount).Verify(ctx, adminRESTConfig)
+			}).WithContext(ctx).WithTimeout(acrPullNodePoolScalingTimeout).WithPolling(30*time.Second).Should(Succeed(),
+				"node pool %s never settled back to %d ready (and schedulable) node(s) after the removal rollout", nodePoolName, expectedWorkerCount)
+
+			verifyACRPullDenied(ctx, adminRESTConfig, removalPullNamespace, acrLoginServer, "removal")
 		})
 })
