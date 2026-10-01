@@ -62,6 +62,8 @@ import (
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/monitortranslator"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection/detectors"
 	capacityreportclient "github.com/Azure/ARO-HCP/mgmt-agent/pkg/generated/clientset/versioned"
 )
 
@@ -247,6 +249,15 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		}),
 	)
 
+	detectorRegistry, err := detection.NewRegistry(
+		detectors.NewSwiftVFTeardown(),
+		detectors.NewCNIPluginNotInitialized(),
+		detectors.NewNeverReady(),
+		detectors.NewSwiftPodSandboxStalled(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create detector registry: %w", err)
+	}
 	nodeHealth, err := nodehealth.NewController(
 		kubeClientset,
 		kubeInformers.Core().V1().Nodes(),
@@ -255,6 +266,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		nodeHealthRecorder,
 		nil, // real clock
 		nodehealth.Default(),
+		detectorRegistry,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create node-health controller: %w", err)

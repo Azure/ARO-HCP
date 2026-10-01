@@ -28,7 +28,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 
-	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection"
 )
 
 // labeler applies and removes the node-health wedged label (plus explanatory
@@ -66,7 +66,7 @@ func newLabeler(client kubernetes.Interface, recorder record.EventRecorder, cloc
 // The record is a snapshot of the detection, not a live readout. Completeness is
 // therefore judged on the presence of the record's keys, never on their values,
 // which is what keeps the self-heal from becoming steady-state churn.
-func (l *labeler) label(ctx context.Context, node *corev1.Node, detector string, snap detectors.Snapshot) (bool, error) {
+func (l *labeler) label(ctx context.Context, node *corev1.Node, detector string, snap detection.Snapshot) (bool, error) {
 	logger := klog.FromContext(ctx).WithValues("node", node.Name)
 
 	// Steady state, off the informer cache: correct label and a complete,
@@ -148,7 +148,7 @@ func (l *labeler) label(ctx context.Context, node *corev1.Node, detector string,
 // partially stripped by hand and one written by an earlier build that did not
 // record the full set of annotations yet, both of which would otherwise stay
 // incomplete for the rest of the wedge episode.
-func hasCompleteRecord(node *corev1.Node, detector string, snap detectors.Snapshot) bool {
+func hasCompleteRecord(node *corev1.Node, detector string, snap detection.Snapshot) bool {
 	if node.Labels[labelKey] != labelValue {
 		return false
 	}

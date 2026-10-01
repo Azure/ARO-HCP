@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package detectors
+package detection
 
 import (
 	"regexp"
@@ -22,61 +22,62 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// signatureDetector is the shared Detector base for fault families whose signal
+// Signature is the shared Detector base for fault families whose signal
 // is an Event-reason storm matched by regex signatures, gated by a sustained
 // floor, a dwell, and the load-bearing zero-successful-start check. A concrete
-// family (see swift_vf.go) is a signatureDetector value with its own constants;
+// family (see detectors/swift_vf_teardown.go) is a Signature value with its own constants;
 // it reuses every method below rather than duplicating the evaluation logic.
-type signatureDetector struct {
-	// name is a stable identifier used in logs, events, metrics, and the
+type Signature struct {
+	// DetectorName is a stable identifier used in logs, events, metrics, and the
 	// detector annotation.
-	name string
-	// reason is a short human-readable explanation recorded on the node when the
+	DetectorName string
+	// ReasonText is a short human-readable explanation recorded on the node when the
 	// detector fires.
-	reason string
-	// appliesTo limits the detector to nodes that can physically exhibit the
+	ReasonText string
+	// AppliesTo limits the detector to nodes that can physically exhibit the
 	// fault. A node it does not apply to is never a candidate. A nil predicate
 	// means the detector applies to every node.
-	appliesTo func(*corev1.Node) bool
-	// eventReason is the kubelet Event reason that carries the failure signal.
-	eventReason string
-	// signatures match the failure Event message; any match is a hit.
-	signatures []*regexp.Regexp
-	// failuresFloor is the minimum number of distinct stuck failing pods on the
+	AppliesTo func(*corev1.Node) bool
+	// EventReason is the kubelet Event reason that carries the failure signal.
+	EventReason string
+	// Signatures match the failure Event message; any match is a hit.
+	Signatures []*regexp.Regexp
+	// FailuresFloor is the minimum number of distinct stuck failing pods on the
 	// node required to fire. It is a floor to require the storm to be sustained,
 	// not the trigger; the wedge/flap call is made by the zero-success rule.
-	failuresFloor int
-	// window is the rolling window over which failures and successes are counted.
-	window time.Duration
-	// dwell is how long the failure must have been sustained before the detector
+	FailuresFloor int
+	// EvaluationWindow is the rolling window over which failures and successes are counted.
+	EvaluationWindow time.Duration
+	// Dwell is how long the failure must have been sustained before the detector
 	// fires, filtering transient bursts.
-	dwell time.Duration
-	// requireZeroSuccess makes firing require zero fresh pod-sandbox successes in
+	Dwell time.Duration
+	// RequireZeroSuccess makes firing require zero fresh pod-sandbox successes in
 	// the window (no PodReadyToStartContainers=True transition). This is the
 	// load-bearing discriminator between a hard-wedge (zero successes, VF gone)
 	// and a flap (some successes, VF present).
-	requireZeroSuccess bool
-	// successScope narrows which pods may serve as success evidence. A nil scope
+	RequireZeroSuccess bool
+	// SuccessScope narrows which pods may serve as success evidence. A nil scope
 	// counts every pod, which is right for a fault that breaks a node's only pod
 	// network. A fault that breaks one of several networking paths needs the
 	// scope, because pods that never travel the broken path keep starting
-	// normally and would otherwise mask it forever. See swiftVFTeardown.
-	successScope func(*corev1.Pod) bool
+	// normally and would otherwise mask it forever. See detectors.NewSwiftVFTeardown.
+	SuccessScope func(*corev1.Pod) bool
 }
 
 // Name returns the detector's stable identifier.
-func (d signatureDetector) Name() string { return d.name }
+func (d Signature) Name() string { return d.DetectorName }
 
 // Reason returns the detector's human-readable explanation.
-func (d signatureDetector) Reason() string { return d.reason }
+func (d Signature) Reason() string { return d.ReasonText }
 
 // Window is the detector's fixed evaluation window.
-func (d signatureDetector) Window() time.Duration { return d.window }
+func (d Signature) Window() time.Duration { return d.EvaluationWindow }
+func (d Signature) Scope() Scope          { return NodeScope }
 
 // Applies reports whether the detector is a candidate for the node. A nil
 // predicate applies everywhere.
-func (d signatureDetector) Applies(node *corev1.Node) bool {
-	return d.appliesTo == nil || d.appliesTo(node)
+func (d Signature) Applies(node *corev1.Node) bool {
+	return d.AppliesTo == nil || d.AppliesTo(node)
 }
 
 // Evaluate reads both the failure and the success signal for this detector from
@@ -84,9 +85,9 @@ func (d signatureDetector) Applies(node *corev1.Node) bool {
 // comes from live Pod state; Events only classify which pods are failing. Both
 // signals are derived from the Pods passed in, so the whole evaluation is a pure
 // function of what a LIST returns and nothing has to be remembered between calls.
-func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, now time.Time) Snapshot {
-	windowStart := now.Add(-d.window)
-	snap := Snapshot{DetectorName: d.name, Window: d.window, Pods: &PodEvidence{}}
+func (d Signature) Evaluate(events []*corev1.Event, pods []*corev1.Pod, now time.Time) Snapshot {
+	windowStart := now.Add(-d.EvaluationWindow)
+	snap := Snapshot{DetectorName: d.DetectorName, Window: d.EvaluationWindow, Pods: &PodEvidence{}}
 
 	// A pod is "failing" for this detector when it is the subject of a matching
 	// failure Event seen within the window. Correlation is by the Event's
@@ -104,14 +105,14 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 		if ev == nil || ev.InvolvedObject.Kind != "Pod" || ev.InvolvedObject.UID == "" {
 			continue
 		}
-		if ev.Reason != d.eventReason {
+		if ev.Reason != d.EventReason {
 			continue
 		}
-		idx, ok := d.matchSignature(ev.Message)
+		idx, ok := d.MatchSignature(ev.Message)
 		if !ok {
 			continue
 		}
-		if eventLastTime(ev).Before(windowStart) {
+		if EventLastTime(ev).Before(windowStart) {
 			continue
 		}
 		if prev, seen := failing[ev.InvolvedObject.UID]; !seen || idx < prev {
@@ -122,7 +123,7 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 	// Tally the classifications of exactly the pods counted in FailureCount, so
 	// the reported signature describes this snapshot and not Events for pods that
 	// are no longer stuck.
-	sigCounts := make([]int, len(d.signatures))
+	sigCounts := make([]int, len(d.Signatures))
 
 	for _, p := range pods {
 		if p == nil {
@@ -137,7 +138,7 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 		// needed, and nothing more, so a pod that never exercises the broken
 		// path is not evidence the path works.
 		if d.inSuccessScope(p) {
-			if at, ok := SuccessAt(p); ok && now.Sub(at).Abs() < d.window {
+			if at, ok := SuccessAt(p); ok && now.Sub(at).Abs() < d.EvaluationWindow {
 				snap.Pods.RecentSuccess = true
 			}
 		}
@@ -152,13 +153,13 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 		// single old failure alongside brand-new ones from firing, and what stops
 		// one long-stuck pod from firing alone.
 		if idx, ok := failing[p.UID]; ok {
-			if since, stuck := stuckSince(p); stuck {
+			if since, stuck := StuckSince(p); stuck {
 				snap.Pods.FailureCount++
 				sigCounts[idx]++
 				if snap.StuckSince.IsZero() || since.Before(snap.StuckSince) {
 					snap.StuckSince = since
 				}
-				if now.Sub(since) >= d.dwell {
+				if now.Sub(since) >= d.Dwell {
 					snap.Pods.SustainedCount++
 				}
 			}
@@ -174,7 +175,7 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 		}
 	}
 	if best >= 0 {
-		snap.MatchedSignature = d.signatures[best].String()
+		snap.MatchedSignature = d.Signatures[best].String()
 	}
 
 	return snap
@@ -185,17 +186,17 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 // the window (when required). It is a pure predicate over the snapshot, which is
 // itself a pure function of the Pods and Events a LIST returns, so a restarted
 // controller reaches the same verdict as one that has been running for hours.
-func (d signatureDetector) MeetsThreshold(snap Snapshot, now time.Time) bool {
+func (d Signature) MeetsThreshold(snap Snapshot, now time.Time) bool {
 	// The floor counts pods each sustained past the dwell (computed in Evaluate),
 	// so meeting it already proves the storm held continuously; there is no
 	// separate oldest-pod dwell check.
 	if snap.Pods == nil {
 		return false
 	}
-	if snap.Pods.SustainedCount < d.failuresFloor {
+	if snap.Pods.SustainedCount < d.FailuresFloor {
 		return false
 	}
-	if d.requireZeroSuccess && snap.Pods.RecentSuccess {
+	if d.RequireZeroSuccess && snap.Pods.RecentSuccess {
 		return false
 	}
 	return true
@@ -203,14 +204,14 @@ func (d signatureDetector) MeetsThreshold(snap Snapshot, now time.Time) bool {
 
 // inSuccessScope reports whether a pod may serve as success evidence for this
 // detector. A detector with no scope accepts every pod.
-func (d signatureDetector) inSuccessScope(p *corev1.Pod) bool {
-	return d.successScope == nil || d.successScope(p)
+func (d Signature) inSuccessScope(p *corev1.Pod) bool {
+	return d.SuccessScope == nil || d.SuccessScope(p)
 }
 
-// matchSignature returns the index of the first of the detector's signature
+// MatchSignature returns the index of the first of the detector's signature
 // regexes that matches the Event message.
-func (d signatureDetector) matchSignature(message string) (int, bool) {
-	for i, re := range d.signatures {
+func (d Signature) MatchSignature(message string) (int, bool) {
+	for i, re := range d.Signatures {
 		if re.MatchString(message) {
 			return i, true
 		}
@@ -218,7 +219,7 @@ func (d signatureDetector) matchSignature(message string) (int, bool) {
 	return 0, false
 }
 
-func isNodeReady(node *corev1.Node) bool {
+func NodeReady(node *corev1.Node) bool {
 	for _, c := range node.Status.Conditions {
 		if c.Type == corev1.NodeReady {
 			return c.Status == corev1.ConditionTrue
@@ -238,12 +239,12 @@ func podReadyToStartCondition(p *corev1.Pod) *corev1.PodCondition {
 	return nil
 }
 
-// stuckSince reports whether a pod is currently stuck without a sandbox
+// StuckSince reports whether a pod is currently stuck without a sandbox
 // (PodReadyToStartContainers=False) and, if so, when it entered that state. The
 // timestamp is the condition's lastTransitionTime, durable across Event GC and a
 // controller restart. A pod whose condition is absent is not counted as stuck, so
 // when the feature gate is off the detector reads Unknown rather than wedging.
-func stuckSince(p *corev1.Pod) (time.Time, bool) {
+func StuckSince(p *corev1.Pod) (time.Time, bool) {
 	// A pod that reached a terminal phase already ran, so its sandbox was torn
 	// down on completion and PodReadyToStartContainers goes False as a matter of
 	// course. That is a finished pod, not a pod that cannot start, and counting
@@ -327,9 +328,9 @@ func firstRunStart(p *corev1.Pod) (time.Time, bool) {
 	return latest, !latest.IsZero()
 }
 
-// eventLastTime returns the latest activity time of a (possibly aggregated)
+// EventLastTime returns the latest activity time of a (possibly aggregated)
 // Event: its lastTimestamp, falling back to eventTime then firstTimestamp.
-func eventLastTime(ev *corev1.Event) time.Time {
+func EventLastTime(ev *corev1.Event) time.Time {
 	if !ev.LastTimestamp.IsZero() {
 		return ev.LastTimestamp.Time
 	}
@@ -339,7 +340,7 @@ func eventLastTime(ev *corev1.Event) time.Time {
 	return ev.FirstTimestamp.Time
 }
 
-func mustCompileSignatures(patterns ...string) []*regexp.Regexp {
+func MustCompileSignatures(patterns ...string) []*regexp.Regexp {
 	out := make([]*regexp.Regexp, 0, len(patterns))
 	for _, p := range patterns {
 		out = append(out, regexp.MustCompile(p))

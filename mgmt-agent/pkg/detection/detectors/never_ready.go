@@ -19,6 +19,8 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection"
 )
 
 const (
@@ -59,12 +61,14 @@ const (
 // annotation for triage instead. That also keeps the evidence to the Node object
 // alone: a cause-specific detector would have to read azure-cns container logs,
 // which this controller never does.
-var neverReady = neverReadyDetector{}
+func NewNeverReady() detection.NodeDetector { return neverReadyDetector{} }
 
 type neverReadyDetector struct{}
 
 // Name returns the detector's stable identifier.
 func (neverReadyDetector) Name() string { return "never-ready" }
+
+func (neverReadyDetector) Scope() detection.Scope { return detection.NodeScope }
 
 // Reason returns the human-readable explanation recorded on a labeled node.
 func (neverReadyDetector) Reason() string {
@@ -76,7 +80,7 @@ func (neverReadyDetector) Reason() string {
 // The fault itself is not SWIFT-specific, so this is narrower than the fault.
 // It is deliberate. AnyApplies runs ahead of the Ready gate and is what decides
 // which nodes the controller holds labels on at all: a detector that applied to
-// every node would make DecisionNotApplicable unreachable, and that is the only
+// every node would make detection.DecisionNotApplicable unreachable, and that is the only
 // thing that retires a label left on a node that stopped being a detector's
 // concern. Widening ownership is a separate decision with its own consequences,
 // and the INT node this was built for was in a userswft pool anyway.
@@ -93,31 +97,31 @@ func (neverReadyDetector) Window() time.Duration { return neverReadyDwell }
 // at any point has a strictly later transition, so a transition that coincides
 // with creation is the born-broken shape. Anything later is left to node
 // lifecycle.
-func (d neverReadyDetector) EvaluateNode(node *corev1.Node, now time.Time) (Decision, Snapshot) {
-	snap := Snapshot{DetectorName: d.Name(), Window: neverReadyDwell}
+func (d neverReadyDetector) EvaluateNode(node *corev1.Node, now time.Time) (detection.Decision, detection.Snapshot) {
+	snap := detection.Snapshot{DetectorName: d.Name(), Window: neverReadyDwell}
 	if node == nil {
-		return DecisionUnknown, snap
+		return detection.DecisionUnknown, snap
 	}
 	cond := nodeReadyCondition(node)
 	if cond == nil || cond.Status == corev1.ConditionTrue {
-		return DecisionUnknown, snap
+		return detection.DecisionUnknown, snap
 	}
 
 	created := node.CreationTimestamp.Time
 	transitioned := cond.LastTransitionTime.Time
 	if created.IsZero() || transitioned.IsZero() {
 		// Both timestamps are the discriminator, nothing to compare without them.
-		return DecisionUnknown, snap
+		return detection.DecisionUnknown, snap
 	}
 	if transitioned.Before(created) {
 		// A Ready transition predating the object cannot happen; treat it as bad
 		// data rather than evidence.
-		return DecisionUnknown, snap
+		return detection.DecisionUnknown, snap
 	}
 	if transitioned.After(created.Add(neverReadyTolerance)) {
 		// The Ready condition changed well after creation, so this is not the
 		// born-broken shape. Node lifecycle owns whatever it is.
-		return DecisionUnknown, snap
+		return detection.DecisionUnknown, snap
 	}
 
 	snap.StuckSince = created
@@ -131,13 +135,13 @@ func (d neverReadyDetector) EvaluateNode(node *corev1.Node, now time.Time) (Deci
 	snap.Detail = fmt.Sprintf("node never reached Ready in %s since creation (%s)",
 		now.Sub(created).Round(time.Minute), readyReasonOrUnknown(cond.Reason))
 	if now.Sub(created) < neverReadyDwell {
-		return DecisionUnknown, snap
+		return detection.DecisionUnknown, snap
 	}
-	return DecisionWedged, snap
+	return detection.DecisionWedged, snap
 }
 
 // nodeReadyCondition returns the node's Ready condition, or nil when it is
-// absent. It is kept here rather than folded into isNodeReady so this detector
+// absent. It is kept here rather than folded into detection.NodeReady so this detector
 // adds no edits to the shared helpers.
 func nodeReadyCondition(node *corev1.Node) *corev1.NodeCondition {
 	for i := range node.Status.Conditions {

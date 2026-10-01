@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,18 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package detectors holds the pure detection core of the node-health controller.
-// It decides, from a node plus the Events and Pods currently held for it,
-// whether the node is wedged, and is free of any Kubernetes I/O so it can be
-// exhaustively table-tested. The controller package consumes Decide and acts on
-// the returned Decision by labeling or unlabeling the node.
-package detectors
+package detection
 
 import (
 	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // Decision is the desired health state a reconcile derives for a node. It is the
@@ -64,14 +60,14 @@ func (d Decision) String() string {
 }
 
 // Detector is what every fault family has in common: an identity and a scope.
-// It carries no evaluation method, because the two kinds of detector do not read
-// the same evidence and cannot share one. A concrete detector implements this
-// plus exactly one of PodDetector or NodeDetector, which is what puts it on the
-// matching path in Decide.
+// Evaluation interfaces distinguish the evidence and result scope. A detector implements this
+// plus exactly one of PodDetector, NodeDetector or PodScopedDetector.
 type Detector interface {
 	// Name is a stable identifier used in logs, events, metrics, and the
 	// detector annotation.
 	Name() string
+	// Scope identifies whether the result describes a node or an individual Pod.
+	Scope() Scope
 	// Reason is a short human-readable explanation recorded on the node when the
 	// detector fires.
 	Reason() string
@@ -113,36 +109,6 @@ type NodeDetector interface {
 	// I/O and depends on nothing a LIST cannot return, exactly as Evaluate.
 	// It returns DecisionWedged with the supporting evidence, or DecisionUnknown.
 	EvaluateNode(node *corev1.Node, now time.Time) (Decision, Snapshot)
-}
-
-// podRegistry and nodeRegistry are the hard-coded sets of detectors, split by
-// the evidence they read. A new fault family is added to whichever one matches
-// its evidence, shipped and tested as code. The split is what keeps a detector
-// off the path it has nothing to say on, instead of a runtime check.
-var (
-	podRegistry  = []PodDetector{swiftVFTeardown, cniPluginNotInitialized}
-	nodeRegistry = []NodeDetector{neverReady}
-)
-
-// AnyApplies reports whether any detector owns this node. It reads only the
-// node, so a caller can answer the ownership question before doing the work of
-// gathering the node's Pods and Events. Decide applies the same gate, so a node
-// this rejects can only ever produce DecisionNotApplicable.
-func AnyApplies(node *corev1.Node) bool {
-	if node == nil {
-		return false
-	}
-	for _, d := range podRegistry {
-		if d.Applies(node) {
-			return true
-		}
-	}
-	for _, d := range nodeRegistry {
-		if d.Applies(node) {
-			return true
-		}
-	}
-	return false
 }
 
 // PodEvidence is the pod-derived evidence a PodDetector gathered. It is a
@@ -211,62 +177,25 @@ func (s Snapshot) ReasonString() string {
 		s.Pods.SustainedCount, s.Pods.FailureCount, success, s.Window)
 }
 
-// Decide is the pure core of the controller: given a node, the Events and Pods
-// currently held for it, and a clock, it returns the desired health state. It
-// performs no I/O, keeps no state between calls, and is exhaustively
-// table-tested. Every input is something a LIST can hand back, so a controller
-// that has just restarted decides exactly what a long-running one would.
-func Decide(node *corev1.Node, events []*corev1.Event, pods []*corev1.Pod, now time.Time) (Decision, Snapshot) {
-	if node == nil {
-		return DecisionUnknown, Snapshot{}
-	}
-	// Ownership precondition, checked before readiness: if no detector applies,
-	// none can ever fire for this node, so any label we left on it is stale and
-	// must be retired. This is deliberately evaluated ahead of the Ready gate,
-	// because a node that is not a detector's concern is not ours to hold a label
-	// on whether it is Ready or not.
-	if !AnyApplies(node) {
-		return DecisionNotApplicable, Snapshot{}
-	}
-	// Node-Ready precondition. A node that was Ready and dropped out (reboot,
-	// upgrade, drain) is left to node lifecycle, which rescues it. A node that
-	// never reached Ready is not rescued by anything, so it is ours.
-	if !isNodeReady(node) {
-		for _, d := range nodeRegistry {
-			if !d.Applies(node) {
-				continue
-			}
-			if decision, snap := d.EvaluateNode(node, now); decision == DecisionWedged {
-				snap.Reason = d.Reason()
-				return DecisionWedged, snap
-			}
-		}
-		// Nothing fired. Stay Unknown rather than Healthy: a NotReady node is not
-		// evidence of recovery, so an existing wedged label is retained.
-		return DecisionUnknown, Snapshot{}
-	}
-
-	sawSuccess := false
-	for _, d := range podRegistry {
-		if !d.Applies(node) {
-			continue
-		}
-		snap := d.Evaluate(events, pods, now)
-		if snap.Pods != nil && snap.Pods.RecentSuccess {
-			sawSuccess = true
-		}
-		if d.MeetsThreshold(snap, now) {
-			snap.Reason = d.Reason()
-			return DecisionWedged, snap
-		}
-	}
-
-	// No detector fired. Only declare recovery on positive evidence (a success in
-	// the window). An empty view stays Unknown so an existing wedged label is
-	// retained until recovery is actually observed, rather than being dropped
-	// because the node happens to be quiet.
-	if sawSuccess {
-		return DecisionHealthy, Snapshot{}
-	}
-	return DecisionUnknown, Snapshot{}
+// Detection is scoped fault evidence, not authorization to mutate a resource.
+type Detection struct {
+	Detector     string
+	Scope        Scope
+	NodeUID      types.UID
+	PodUIDs      []types.UID
+	Since        time.Time
+	LastEvidence time.Time
 }
+
+// PodScopedDetector evaluates an individual Pod, not its node's health.
+type PodScopedDetector interface {
+	Detector
+	EvaluatePod(pod *corev1.Pod, events []*corev1.Event, now time.Time) (since, latest time.Time, matches bool)
+}
+
+type Scope string
+
+const (
+	NodeScope Scope = "node"
+	PodScope  Scope = "pod"
+)

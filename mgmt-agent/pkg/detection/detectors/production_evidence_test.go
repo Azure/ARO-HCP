@@ -21,6 +21,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection"
 )
 
 // This file pins the detector against evidence captured from a real wedged
@@ -66,11 +68,11 @@ var productionSandboxMessages = []struct {
 func TestProductionSandboxMessagesMatchSignatures(t *testing.T) {
 	for _, tc := range productionSandboxMessages {
 		t.Run(tc.family, func(t *testing.T) {
-			idx, ok := swiftVFTeardown.matchSignature(tc.message)
+			idx, ok := swiftVFTeardown.MatchSignature(tc.message)
 			if !ok {
 				t.Fatalf("captured production message was not matched by any signature:\n%s", tc.message)
 			}
-			if got := swiftVFTeardown.signatures[idx].String(); got != tc.wantSignature {
+			if got := swiftVFTeardown.Signatures[idx].String(); got != tc.wantSignature {
 				t.Errorf("classified as %q, want %q:\n%s", got, tc.wantSignature, tc.message)
 			}
 		})
@@ -110,15 +112,15 @@ func TestCNIPluginNotInitializedEvidence(t *testing.T) {
 		})
 	}
 
-	got, snap := Decide(productionWedgedNode(), events, pods, now)
-	if got != DecisionWedged {
-		t.Fatalf("Decide() = %v, want Wedged", got)
+	got, snap := testRegistry(t).Decide(productionWedgedNode(), events, pods, now)
+	if got != detection.DecisionWedged {
+		t.Fatalf("testRegistry(t).Decide() = %v, want Wedged", got)
 	}
-	if snap.DetectorName != cniPluginNotInitialized.name {
-		t.Errorf("snapshot detector = %q, want %q", snap.DetectorName, cniPluginNotInitialized.name)
+	if snap.DetectorName != cniPluginNotInitialized.DetectorName {
+		t.Errorf("snapshot detector = %q, want %q", snap.DetectorName, cniPluginNotInitialized.DetectorName)
 	}
-	if snap.MatchedSignature != cniPluginNotInitialized.signatures[0].String() {
-		t.Errorf("matched signature = %q, want %q", snap.MatchedSignature, cniPluginNotInitialized.signatures[0].String())
+	if snap.MatchedSignature != cniPluginNotInitialized.Signatures[0].String() {
+		t.Errorf("matched signature = %q, want %q", snap.MatchedSignature, cniPluginNotInitialized.Signatures[0].String())
 	}
 }
 
@@ -147,7 +149,7 @@ func TestProductionNodeIsADetectionCandidate(t *testing.T) {
 	if !swiftVFTeardown.Applies(node) {
 		t.Fatal("the captured wedged production node must be a detection candidate")
 	}
-	if !isNodeReady(node) {
+	if !detection.NodeReady(node) {
 		t.Fatal("the captured node was Ready while wedged; the Ready premise must hold")
 	}
 }
@@ -212,7 +214,7 @@ func TestProductionCompletedPodsDoNotCount(t *testing.T) {
 	}
 
 	// The node must not be declared wedged on completed-pod turnover alone.
-	if got, _ := Decide(productionWedgedNode(), events, pods, now); got == DecisionWedged {
+	if got, _ := testRegistry(t).Decide(productionWedgedNode(), events, pods, now); got == detection.DecisionWedged {
 		t.Error("completed Job and CronJob turnover must not produce a wedge")
 	}
 }
@@ -272,8 +274,8 @@ func TestProductionStaleSuccessesDoNotSuppressDetection(t *testing.T) {
 	// far outside the 10 minute window. It is still sitting in the LIST, exactly
 	// as it was on the real node, because the pod is still running.
 	staleSuccess := now.Add(-500*time.Minute - 36*time.Second)
-	got, snap := Decide(node, events, append(pods, withSwiftNIC(startedPod("long-running", staleSuccess, false))), now)
-	if got != DecisionWedged {
+	got, snap := testRegistry(t).Decide(node, events, append(pods, withSwiftNIC(startedPod("long-running", staleSuccess, false))), now)
+	if got != detection.DecisionWedged {
 		t.Fatalf("stale success suppressed detection of the real wedge: Decide = %v (%s)", got, snap.ReasonString())
 	}
 	if snap.Pods.RecentSuccess {
@@ -285,8 +287,8 @@ func TestProductionStaleSuccessesDoNotSuppressDetection(t *testing.T) {
 	// as Healthy and returns an empty snapshot on that path, so the decision is
 	// the assertion here.
 	freshSuccess := now.Add(-2 * time.Minute)
-	if got, _ = Decide(node, events, append(pods, withSwiftNIC(startedPod("just-started", freshSuccess, false))), now); got != DecisionHealthy {
-		t.Errorf("a success inside the window must rule out a hard wedge: Decide = %v, want %v", got, DecisionHealthy)
+	if got, _ = testRegistry(t).Decide(node, events, append(pods, withSwiftNIC(startedPod("just-started", freshSuccess, false))), now); got != detection.DecisionHealthy {
+		t.Errorf("a success inside the window must rule out a hard wedge: Decide = %v, want %v", got, detection.DecisionHealthy)
 	}
 }
 
@@ -309,8 +311,8 @@ func TestFutureDatedSuccessDoesNotSuppressDetection(t *testing.T) {
 	// A success stamped an hour into the future by a skewed kubelet clock. It is
 	// not evidence the node can attach a NIC now, so it must not rule out a wedge.
 	future := now.Add(1 * time.Hour)
-	if got, _ := Decide(node, events, append(pods, withSwiftNIC(startedPod("skewed", future, false))), now); got != DecisionWedged {
-		t.Errorf("a future-dated success suppressed detection of a real wedge: Decide = %v, want %v", got, DecisionWedged)
+	if got, _ := testRegistry(t).Decide(node, events, append(pods, withSwiftNIC(startedPod("skewed", future, false))), now); got != detection.DecisionWedged {
+		t.Errorf("a future-dated success suppressed detection of a real wedge: Decide = %v, want %v", got, detection.DecisionWedged)
 	}
 }
 
@@ -375,7 +377,7 @@ func TestProductionHardWedgeShapeFires(t *testing.T) {
 	if snap.Pods.RecentSuccess {
 		t.Fatal("captured wedge shape must have no fresh sandbox success")
 	}
-	if got, _ := Decide(productionWedgedNode(), events, pods, now); got != DecisionWedged {
-		t.Errorf("the captured hard wedge did not fire: Decide = %v, want %v; the failure floor is above the pod count a real wedge produces", got, DecisionWedged)
+	if got, _ := testRegistry(t).Decide(productionWedgedNode(), events, pods, now); got != detection.DecisionWedged {
+		t.Errorf("the captured hard wedge did not fire: Decide = %v, want %v; the failure floor is above the pod count a real wedge produces", got, detection.DecisionWedged)
 	}
 }
