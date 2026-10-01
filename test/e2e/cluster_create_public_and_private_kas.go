@@ -177,8 +177,8 @@ var _ = Describe("Customer", func() {
 				statusCode, err := framework.TestHTTPSConnectivityWithStatus(ctx, consoleURL, 10*time.Second, true)
 				g.Expect(err).NotTo(HaveOccurred(),
 					"public ingress (console) should be reachable from outside the VNet, but got error: %v", err)
-				g.Expect(statusCode).To(BeNumerically("<", http.StatusInternalServerError),
-					"console should not return a server error, got %d", statusCode)
+				g.Expect(statusCode).To(BeNumerically("<", http.StatusBadRequest),
+					"console should return a successful response or redirect, got %d", statusCode)
 			}, 10*time.Minute, 15*time.Second).Should(Succeed(),
 				"public ingress should be reachable from outside the VNet")
 			GinkgoLogr.Info("Public ingress reachable from outside the VNet, confirming shared ingress is operational")
