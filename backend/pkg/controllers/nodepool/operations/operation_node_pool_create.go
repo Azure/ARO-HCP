@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -37,6 +38,7 @@ import (
 )
 
 type operationNodePoolCreate struct {
+	statusCalculators      operationbase.OperationStatusCalculators[struct{}]
 	clock                  utilsclock.PassiveClock
 	resourcesDBClient      corecosmosstorage.ResourcesDBClient
 	activeOperationsLister corelisters.ActiveOperationLister
@@ -83,6 +85,12 @@ func NewOperationNodePoolCreateController(
 		clusterServiceClient:   clusterServiceClient,
 		notificationClient:     notificationClient,
 	}
+
+	// The registry is fixed in code; invalid source registrations are startup errors.
+	syncer.statusCalculators = metadataapi.Must(operationbase.NewOperationStatusCalculators[struct{}](
+		&nodePoolCreateClusterServiceCheck{nodePoolLister: nodePoolLister, clusterServiceClient: clusterServiceClient},
+		&nodePoolCreateHypershiftCheck{nodePoolLister: nodePoolLister, readDesireLister: readDesireLister},
+	))
 
 	controller := controllerutils.NewGenericOperationController(
 		OperationNodePoolCreateControllerName,
@@ -143,7 +151,7 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		return nil
 	}
 
-	operationalState, observationErr := c.determineOperationState(ctx, operation, nodePool)
+	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, struct{}{})
 	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline, c.clock.Now(), "node pool creation did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
@@ -172,59 +180,4 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 
 func (c *operationNodePoolCreate) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.NodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil
-}
-
-func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	var errs []error
-	var operationStates []*operationbase.OperationState
-
-	if state, err := c.nodePoolServiceCreateOperationState(ctx, operation, nodePool); err != nil {
-		errs = append(errs, utils.TrackError(err))
-	} else {
-		operationStates = append(operationStates, state.WithSource("clusterServiceNodePoolStatus"))
-	}
-	if state, err := c.hypershiftNodePoolOperationState(ctx, nodePool); err != nil {
-		errs = append(errs, utils.TrackError(err))
-	} else {
-		operationStates = append(operationStates, state.WithSource("hypershiftNodePool"))
-	}
-
-	logger.Info("determined node pool create operation status", "operationStates", operationStates)
-	state, err := operationbase.SummarizeOperationStates(operationStates, errs...)
-	var logValues []any
-	if state != nil {
-		logValues = append(logValues, "provisioningState", state.ProvisioningState, "message", state.Message)
-	}
-	if err != nil {
-		logValues = append(logValues, "error", err)
-	}
-	logger.Info("summarized operation state", logValues...)
-	return state, err
-}
-
-func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
-	if id := nodePool.ServiceProviderProperties.ClusterServiceID; id == nil || id.String() == "" {
-		return operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "Waiting for Cluster Service node pool creation"), nil
-	}
-	logger := utils.LoggerFromContext(ctx)
-	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
-	defer cancel()
-
-	csNodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(csCtx, *nodePool.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	newOperationStatus, newOperationError, err := operationbase.ConvertNodePoolStatus(operation, csNodePoolStatus)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", newOperationError)
-	state := operationbase.NewOperationState(newOperationStatus, operationbase.NodePoolServiceOperationMessage(csNodePoolStatus, newOperationError))
-	if newOperationError != nil {
-		state.WithCloudErrorCode(newOperationError.Code)
-	}
-	return state, nil
 }

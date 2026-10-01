@@ -415,6 +415,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				clusterServiceClient:   mockCSClient,
 				notificationClient:     nil,
 			}
+			controller.statusCalculators, err = operationbase.NewOperationStatusCalculators[struct{}](
+				&nodePoolCreateClusterServiceCheck{nodePoolLister: controller.nodePoolLister, clusterServiceClient: controller.clusterServiceClient},
+				&nodePoolCreateHypershiftCheck{nodePoolLister: controller.nodePoolLister, readDesireLister: controller.readDesireLister},
+			)
+			require.NoError(t, err)
 
 			err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 			if tt.expectError {

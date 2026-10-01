@@ -15,36 +15,49 @@
 package operations
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/component-base/metrics/legacyregistry"
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const clusterValidationFailureTimeout = 10 * time.Minute
 
-func (c *operationClusterCreate) clusterValidation(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
-	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		return operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "ServiceProviderCluster not cached yet"), nil
-	}
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err))
-	}
-	return clusterValidationOperationState(serviceProviderCluster, operation.StartTime, c.clock.Now()), nil
-}
+var (
+	// validationStaleProbeDeferrals counts operation evaluations in which a
+	// failed validation was old enough to fail the operation terminally but was
+	// not, because its last conclusive run was outside the freshness window. A
+	// sustained non-zero rate points at a validation controller that has
+	// stopped producing fresh results.
+	validationStaleProbeDeferrals = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "backend_cluster_validation_stale_probe_deferrals_total",
+			Help: "Total number of cluster operation evaluations where a failed validation did not fail the operation because its last probe was stale.",
+		},
+		[]string{"validation"},
+	)
 
-func (c *operationClusterUpdate) clusterValidation(operation *coreapi.Operation, serviceProviderCluster *coreapi.ServiceProviderCluster) *operationbase.OperationState {
-	return clusterValidationOperationState(serviceProviderCluster, operation.StartTime, c.clock.Now())
-}
+	// validationTerminalFailures counts operation evaluations in which a failed
+	// validation decided that the operation fails terminally. It counts
+	// decisions, not persisted operation transitions: it is incremented before
+	// the operation is written, so an evaluation whose write fails and is
+	// retried is counted again.
+	validationTerminalFailures = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "backend_cluster_validation_terminal_failures_total",
+			Help: "Total number of cluster operation evaluations where a failed validation decided a terminal operation failure. Counts decisions, which may exceed persisted failures when the operation write is retried.",
+		},
+		[]string{"validation"},
+	)
+)
 
 // clusterValidationOperationState waits for validations to pass, allowing each
 // non-passing validation (failed or unknown) and the operation itself at least ten

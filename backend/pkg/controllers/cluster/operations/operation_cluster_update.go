@@ -21,8 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blang/semver/v4"
-
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
@@ -43,6 +41,7 @@ import (
 )
 
 type operationClusterUpdate struct {
+	statusCalculators               operationbase.OperationStatusCalculators[clusterUpdateOperationStatusInput]
 	clock                           utilsclock.PassiveClock
 	resourcesDBClient               corecosmosstorage.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
@@ -83,6 +82,8 @@ func NewOperationClusterUpdateController(
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, activeOperationsLister := backendInformers.ActiveOperations()
 
+	desiredVersionMismatchFirstSeen := lru.New(100000)
+
 	syncer := &operationClusterUpdate{
 		clock:                           clock,
 		resourcesDBClient:               resourcesDBClient,
@@ -92,8 +93,18 @@ func NewOperationClusterUpdateController(
 		readDesireLister:                readDesireLister,
 		activeOperationsLister:          activeOperationsLister,
 		notificationClient:              notificationClient,
-		desiredVersionMismatchFirstSeen: lru.New(100000),
+		desiredVersionMismatchFirstSeen: desiredVersionMismatchFirstSeen,
 	}
+
+	// The registry is fixed in code; invalid source registrations are startup errors.
+	syncer.statusCalculators = metadataapi.Must(operationbase.NewOperationStatusCalculators[clusterUpdateOperationStatusInput](
+		&clusterUpdateValidationCheck{clock: clock},
+		&clusterUpdateDesiredVersionCheck{clusterLister: clusterLister, clock: clock, desiredVersionMismatchFirstSeen: desiredVersionMismatchFirstSeen},
+		&clusterUpdateClusterServiceStatusCheck{clusterLister: clusterLister, clusterServiceClient: clusterServiceClient},
+		&clusterUpdateClusterServiceSpecCheck{clusterLister: clusterLister},
+		&clusterUpdateHostedClusterCheck{clusterLister: clusterLister, readDesireLister: readDesireLister},
+		&clusterUpdateAutoscalerCheck{readDesireLister: readDesireLister},
+	))
 
 	controller := controllerutils.NewGenericOperationController(
 		OperationClusterUpdateControllerName,
@@ -156,7 +167,24 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 		return nil // no work to do
 	}
 
-	operationalState, observationErr := c.determineOperationState(ctx, operation, existingCluster)
+	// TODO what about this dependency on status input?
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csResource, err := c.clusterServiceClient.GetCluster(csCtx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get cluster from cluster service: %w", err))
+	}
+	serviceProviderResource, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err))
+	}
+	input := clusterUpdateOperationStatusInput{
+		ServiceProviderCluster: serviceProviderResource,
+		ClusterServiceCluster:  csResource,
+	}
+
+	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, input)
 	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "cluster update did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
@@ -182,147 +210,9 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 	return nil
 }
 
-func (c *operationClusterUpdate) determineOperationState(ctx context.Context, operation *coreapi.Operation, existingCluster *coreapi.Cluster) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	clusterCSID := existingCluster.ServiceProviderProperties.ClusterServiceID
-	errs := []error{}
-	operationStates := []*operationbase.OperationState{}
-	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
-	defer cancel()
-
-	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if err != nil {
-		errs = append(errs, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err)))
-	} else {
-		operationStates = append(operationStates, c.clusterValidation(operation, existingServiceProviderCluster).WithSource("clusterValidation"))
-		if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation, existingCluster, existingServiceProviderCluster); err != nil {
-			errs = append(errs, utils.TrackError(err))
-		} else {
-			operationStates = append(operationStates, operationState.WithSource("controlPlaneDesiredVersionResolution"))
-		}
-		if operationState, hsErr := c.hypershiftHostedClusterOperationState(ctx, existingCluster, existingServiceProviderCluster); hsErr != nil {
-			errs = append(errs, utils.TrackError(hsErr))
-		} else {
-			operationStates = append(operationStates, operationState.WithSource("hypershiftHostedCluster"))
-		}
-		if operationState, autoscalerErr := c.hypershiftControlPlaneClusterAutoscalerState(ctx, existingCluster, existingServiceProviderCluster); autoscalerErr != nil {
-			errs = append(errs, utils.TrackError(autoscalerErr))
-		} else {
-			operationStates = append(operationStates, operationState.WithSource("hypershiftControlPlaneClusterAutoscaler"))
-		}
-	}
-	if clusterCSID == nil || clusterCSID.String() == "" {
-		operationStates = append(operationStates, operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "Waiting for Cluster Service cluster creation").WithSource("clusterService"))
-	} else if existingCSCluster, err := c.clusterServiceClient.GetCluster(csCtx, *clusterCSID); err != nil {
-		errs = append(errs, utils.TrackError(fmt.Errorf("failed to get cluster from cluster service: %w", err)))
-	} else {
-		if state, err := c.clusterServiceClusterStatusOperationState(csCtx, operation, existingCSCluster.Status(), *clusterCSID); err != nil {
-			errs = append(errs, utils.TrackError(err))
-		} else {
-			operationStates = append(operationStates, state.WithSource("clusterServiceClusterStatus"))
-		}
-		if state, err := c.clusterServiceClusterSpecOperationState(existingCluster, existingCSCluster); err != nil {
-			errs = append(errs, utils.TrackError(err))
-		} else {
-			operationStates = append(operationStates, state.WithSource("clusterServiceClusterSpec"))
-		}
-	}
-	logger.Info("determined cluster update operation status", "operationStates", operationStates)
-	state, err := operationbase.SummarizeOperationStates(operationStates, errs...)
-	var logValues []any
-	if state != nil {
-		logValues = append(logValues, "provisioningState", state.ProvisioningState, "message", state.Message)
-	}
-	if err != nil {
-		logValues = append(logValues, "error", err)
-	}
-	logger.Info("summarized operation state", logValues...)
-	return state, err
-}
-
-func (c *operationClusterUpdate) desiredVersionResolutionOperationState(_ context.Context, operation *coreapi.Operation, existingCluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
-	customerDesiredVersion, err := semver.ParseTolerant(existingCluster.CustomerProperties.Version.ID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	// Forced assignment takes precedence over initial, minor, and normal rollout
-	// assignment. Report an incompatible override directly instead of waiting
-	// for a resolution that the normal controllers intentionally will not make.
-	forced := spc.Spec.PinnedVersion.ExactVersion
-	if forced == nil {
-		forced = existingCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
-	}
-	if forced != nil && (customerDesiredVersion.Major != forced.Major || customerDesiredVersion.Minor != forced.Minor) {
-		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-		return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInvalidRequestContent,
-			fmt.Sprintf("requested cluster version %s conflicts with forced control plane version %s", existingCluster.CustomerProperties.Version.ID, forced), nil), nil
-	}
-
-	resultingDesiredVersion := spc.Spec.ControlPlaneVersion.DesiredVersion
-
-	// What the resolved desired version has to match depends on how the customer expressed intent.
-	// mismatchDetail names that target in the customer-facing messages below.
-	var matched bool
-	mismatchDetail := fmt.Sprintf("'%s' cluster version", existingCluster.CustomerProperties.Version.ID)
-	if forced != nil {
-		// A pinned cluster must converge on the pin itself, not merely on its release line.
-		// version.id carries a bare MAJOR.MINOR, so the Major/Minor compare below would report
-		// Succeeded the moment the pin was edited within a minor, while DesiredVersion still held
-		// the previous z-stream. Comparing with EQ is safe: the forced-version precedence check
-		// above already rejects a pin whose release line differs from version.id. forced follows
-		// the same precedence ForcedClusterDesiredVersion applies, so an SRE PinnedVersion
-		// is the target even when an experimental exact override is also set.
-		matched = resultingDesiredVersion != nil && resultingDesiredVersion.EQ(*forced)
-		mismatchDetail = fmt.Sprintf("pinned exact version %s", forced)
-	} else {
-		// version.id is only ever a release line, so a Major/Minor compare is all that is available.
-		matched = resultingDesiredVersion != nil &&
-			customerDesiredVersion.Major == resultingDesiredVersion.Major &&
-			customerDesiredVersion.Minor == resultingDesiredVersion.Minor
-	}
-
-	if matched {
-		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
-	}
-
-	// Initial and minor rollout assignment resolve the version on the SPC.
-	// The removed ControlPlaneDesiredVersion controller no longer produces
-	// IntentFailed; reading or creating its status document cannot report
-	// progress. Bound the wait for the current assignment controllers instead.
-	pending := operationbase.NewOperationState(coreapi.ProvisioningStateAccepted,
-		fmt.Sprintf("resolved desired version does not match %s", mismatchDetail))
-	firstSeen, ok := c.desiredVersionMismatchFirstSeen.Get(operation.ResourceID.String())
-	if !ok {
-		c.desiredVersionMismatchFirstSeen.Add(operation.ResourceID.String(), c.clock.Now())
-		return pending, nil
-	}
-	if c.clock.Since(firstSeen.(time.Time)) <= 129*time.Second {
-		return pending, nil
-	}
-	msg := fmt.Sprintf(
-		"timed out after 129s waiting for resolution of desired version from %s",
-		mismatchDetail,
-	)
-	c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-	return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInternalServerError, msg, nil), nil
-}
-
-func (c *operationClusterUpdate) clusterServiceClusterStatusOperationState(ctx context.Context, operation *coreapi.Operation, existingCSClusterStatus *arohcpv1alpha1.ClusterStatus, clusterServiceID metadataapi.InternalID) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	newOperationStatus, opError, err := operationbase.ConvertClusterStatus(ctx, c.clusterServiceClient, operation, existingCSClusterStatus, clusterServiceID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
-	state := operationbase.NewOperationState(newOperationStatus, operationbase.ClusterServiceOperationMessage(existingCSClusterStatus, opError))
-	if opError != nil {
-		state.Message = opError.Message
-		state.WithCloudErrorCode(opError.Code)
-	}
-
-	return state, nil
+// clusterUpdateOperationStatusInput shares one Cluster Service and provider-state
+// observation across all update checks in a reconciliation.
+type clusterUpdateOperationStatusInput struct {
+	ServiceProviderCluster *coreapi.ServiceProviderCluster
+	ClusterServiceCluster  *arohcpv1alpha1.Cluster
 }
