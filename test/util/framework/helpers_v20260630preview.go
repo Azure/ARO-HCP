@@ -631,6 +631,14 @@ func UpdateHCPCluster20260630(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster20260630 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
+	// A nil tag map means preserve existing tags, even when adding our deadline.
+	if update.Tags == nil {
+		current, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed reading tags before updating cluster %q in resource group %q: %w", hcpClusterName, resourceGroupName, err)
+		}
+		update.Tags = current.Tags
+	}
 	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagClusterMaxUpdateDuration, timeout)
 
 	var hcpOpenShiftCluster *hcpsdk20260630preview.HcpOpenShiftCluster

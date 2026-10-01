@@ -279,7 +279,7 @@ Shared timeout constants live in [`test/util/framework/constants.go`](../util/fr
 
 Set each shared constant to the **99th percentile** of observed operation duration across environments (int, stage, prod as applicable). When tuning, change only the constant in `constants.go`—do not copy the value into individual tests.
 
-Cluster and node pool update helpers set the experimental `max-update-duration` tag to the supplied timeout minus one minute. This gives the server time to return pending reasons before the test context expires. The tag requires `ExperimentalReleaseFeatures`; update timeouts must be at least two minutes to allow the minimum one-minute server deadline.
+Cluster and node pool update helpers set the experimental `max-update-duration` tag to the supplied timeout minus one minute. When update tags are omitted, the helpers first read the resource's current tags and preserve them while adding the timeout tag. Explicit tag maps keep their replacement semantics. This gives the server time to return pending reasons before the test context expires. The tag requires `ExperimentalReleaseFeatures`; update timeouts must be at least two minutes to allow the minimum one-minute server deadline.
 
 Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENTS.md) for naming conventions.
 

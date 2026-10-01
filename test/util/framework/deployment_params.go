@@ -81,6 +81,7 @@ func buildClusterNetworking(disableSwift bool, tags map[string]*string, subnetID
 
 // updateTimeoutTags leaves one minute for the test to receive the server's
 // timeout error before its own context expires, without changing caller tags.
+// Callers must resolve omitted tags from the current resource before calling.
 func updateTimeoutTags(tags map[string]*string, timeoutTag string, timeout time.Duration) map[string]*string {
 	tags = maps.Clone(tags)
 	if tags == nil {
