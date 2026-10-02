@@ -15,7 +15,7 @@ The `Dockerfile` in this directory defines the base image used in our release co
 
 ### Version Management
 
-- **Go / builder image**: Defined in `.ci-operator.yaml` at the repo root. The `build_root_image.tag` field specifies the OCP builder image tag (e.g., `rhel-9-golang-1.25-openshift-4.21`). This is the single source of truth for both CI (ci-operator reads it directly) and local builds (`versions.mk` extracts it via `yq`).
+- **Go / builder image**: Defined in `.ci-operator.yaml` at the repo root. The `build_root_image.tag` field specifies the OCP builder image tag (e.g., `rhel-9-golang-1.26-openshift-4.22`). This is the single source of truth for both CI (ci-operator reads it directly) and local builds (`versions.mk` extracts it via `yq`).
 - **Promtool**: Pinned in `versions.mk` and as an `ARG` default in the `Dockerfile`.
 - **kubectl, kubelogin, oc**: Always download the latest stable version — no pinning required.
 
