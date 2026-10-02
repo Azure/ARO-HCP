@@ -1,7 +1,7 @@
 acm:
   mce:
     bundle:
-      digest: sha256:d88f1b5db1d00985843e95b2f000f043b5b42ef5784739f6b03c21628faccaa8
+      digest: sha256:04b807e26b87945d47520774792605755da89748e9b93708bf0f832f2a10c567
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
   operator:
@@ -486,7 +486,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:c94fd6357b05fd18ba1a0a39628488eb2f2246610b7c230640077eb92ca92b07
+    digest: sha256:7dd3b3a576672393eb5f53d0bdfda285e897d5ae0e893bee54c0ae5c22d28292
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
