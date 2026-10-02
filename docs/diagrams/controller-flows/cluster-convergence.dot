@@ -5,6 +5,7 @@ digraph cluster_convergence {
   cs [label="Cluster Service\nconfirmed cluster ID", fillcolor="#fff0da", color="#b27624"];
   place [label="ManagementClusterPlacementSync", fillcolor="#e6f0fa", color="#35648a"];
   resources [label="ClusterResources", fillcolor="#e6f0fa", color="#35648a"];
+  ingress [label="IngressCertificate\nservice tenant + fleet vault/identity\nHostedCluster namespace", fillcolor="#e6f0fa", color="#35648a"];
   read [label="CreateClusterScopedReadDesires", fillcolor="#e6f0fa", color="#35648a"];
   apply [label="ApplyDesireController", fillcolor="#e6f0fa", color="#35648a"];
   kube [label="Management-cluster Kubernetes\nHyperShift / supporting controllers", fillcolor="#fff0da", color="#b27624"];
@@ -23,6 +24,11 @@ digraph cluster_convergence {
   cs -> resources [label="GET resource manifests"];
   place -> read [label="actual placement + cluster ID"];
   resources -> apply [label="ApplyDesires"];
+  cs -> ingress [label="confirmed cluster ID"];
+  place -> ingress [label="observed management cluster"];
+  props -> ingress [label="HostedCluster namespace"];
+  ingress -> apply [label="SPC + SecretSync ApplyDesires"];
+  ingress -> mirror [label="paired ReadDesires"];
   apply -> kube [label="apply objects"];
   read -> mirror [label="ReadDesires"];
   kube -> mirror [label="observed content / absence"];

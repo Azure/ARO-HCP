@@ -154,6 +154,7 @@ var expectedControllerLaunches = []struct {
 	{"cosmosmigration", 5},
 	{"fpavirtualmachineresourceskuscachedreader", 20},
 	{"backupschedule", 20},
+	{"ingresscertificate", 20},
 	{"fetchmsiidentitiesinfo", 20},
 	{"fetchdataplaneoperatorsmanagedidentitiesinfo", 20},
 	{"identityroleassignments", 20},
@@ -205,9 +206,11 @@ func testControllerContext(t *testing.T, hasRealFPA bool) (ControllerContext, St
 			BackupConfig:      &clusterbackups.BackupConfig{},
 			CloudEnvironment:  cloudEnvironment,
 			HasRealFPA:        hasRealFPA,
+			ServiceTenantID:   "test-service-tenant",
 		},
 	}
 	controllerContext := backend.newControllerContext(t.Context())
+	require.Equal(t, "test-service-tenant", controllerContext.ServiceTenantID)
 	require.Same(t, backend.clock, controllerContext.Clock)
 	require.Same(t, http.DefaultClient, controllerContext.AsyncOperationNotificationClient)
 	require.Nil(t, controllerContext.ResourcesDBClient)
