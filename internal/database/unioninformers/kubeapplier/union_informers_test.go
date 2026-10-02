@@ -82,6 +82,54 @@ func waitForSync(t *testing.T, ctx context.Context, fns ...cache.InformerSynced)
 // UnionDesireInformer (primitive)
 // ============================================================================
 
+func TestUnionDesireInformer_HasSyncedChecker(test *testing.T) {
+	union := unionkubeapplier.NewUnionDesireInformer()
+	informer := newFakeInformer()
+	informer.synced = false
+	if err := union.Add(mgmtAID, informer); err != nil {
+		test.Fatal(err)
+	}
+	registration, err := union.AddEventHandler(cache.ResourceEventHandlerFuncs{})
+	if err != nil {
+		test.Fatal(err)
+	}
+	defer union.RemoveEventHandler(registration)
+	checker := registration.HasSyncedChecker()
+	if checker.Name() == "" {
+		test.Fatal("checker has no name")
+	}
+	if cache.IsDone(checker) {
+		test.Fatal("unsynced registration reported completion")
+	}
+	union.Remove(mgmtAID)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if !cache.WaitFor(ctx, "union registration", checker) {
+		test.Fatal("checker did not complete after removing the unsynced informer")
+	}
+	if checker.Done() != registration.HasSyncedChecker().Done() {
+		test.Fatal("checker does not return a stable completion channel")
+	}
+}
+
+func TestUnionDesireInformer_RemovedHandlerDoesNotSync(test *testing.T) {
+	union := unionkubeapplier.NewUnionDesireInformer()
+	registration, err := union.AddEventHandler(cache.ResourceEventHandlerFuncs{})
+	if err != nil {
+		test.Fatal(err)
+	}
+	if err := union.RemoveEventHandler(registration); err != nil {
+		test.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	select {
+	case <-registration.HasSyncedChecker().Done():
+		test.Fatal("removed registration reported completion")
+	case <-ctx.Done():
+	}
+}
+
 // 1. create empty union
 // 2. assert HasSynced == true (vacuously, no subs)
 func TestUnionDesireInformer_EmptyHasSynced(t *testing.T) {
@@ -537,6 +585,7 @@ type fakeSharedIndexInformer struct {
 }
 
 type fakeRegistration struct {
+	cache.ResourceEventHandlerRegistration
 	synced bool
 }
 

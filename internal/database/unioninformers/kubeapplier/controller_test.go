@@ -51,7 +51,10 @@ type fakeMCInformer struct {
 	handlers map[*fakeMCRegistration]cache.ResourceEventHandler
 }
 
-type fakeMCRegistration struct{ owner *fakeMCInformer }
+type fakeMCRegistration struct {
+	cache.ResourceEventHandlerRegistration
+	owner *fakeMCInformer
+}
 
 func (r *fakeMCRegistration) HasSynced() bool { return true }
 
