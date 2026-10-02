@@ -22,12 +22,16 @@ param useAzureDB bool
 @description('The name of the Postgres server')
 param postgresName string
 
+param useLeasedInfrastructureIdentities bool = false
+param infrastructureIdentityResourceGroup string = ''
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? infrastructureIdentityResourceGroup : resourceGroup().name)
+
 //
 //   I M A G E   P U L L E R   L O O K U P
 //
 
 resource imagePullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: imagePullerMsiName
 }
 
@@ -38,7 +42,7 @@ output imagePullerMsiClientId string = imagePullerIdentity.properties.clientId
 //
 
 resource csIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: csMsiName
 }
 

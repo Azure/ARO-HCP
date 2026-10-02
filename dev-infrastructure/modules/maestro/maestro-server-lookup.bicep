@@ -13,12 +13,16 @@ param postgresName string
 @description('The regional resource group where postgres is deployed')
 param regionalResourceGroup string
 
+param useLeasedInfrastructureIdentities bool = false
+param infrastructureIdentityResourceGroup string = ''
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? infrastructureIdentityResourceGroup : resourceGroup().name)
+
 //
 //   M A E S T R O   S E R V E R   L O O K U P
 //
 
 resource maestroIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: maestroMsiName
 }
 
@@ -26,7 +30,7 @@ output tenantId string = tenant().tenantId
 output maestroMsiClientId string = maestroIdentity.properties.clientId
 
 resource imagePullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: imagePullerMsiName
 }
 

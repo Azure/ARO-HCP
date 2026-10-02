@@ -9,6 +9,13 @@ param aksClusterName string
 @description('The managed identity name of the logs')
 param logsMSI string
 
+param useLeasedInfrastructureIdentities bool = false
+param managementIdentityResourceGroups string = ''
+param stampIdentifier string
+import * as mi from '../modules/managed-identities.bicep'
+var identityResourceGroup = mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier)
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? identityResourceGroup : resourceGroup().name)
+
 // These must match the same vars in modules/metrics/datacollection.bicep
 var dceName = safeTake('MSProm-${location}-${aksClusterName}', 44)
 var dcrName = safeTake('MSProm-${location}-${aksClusterName}', 44)
@@ -28,10 +35,12 @@ resource hcpDcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' existing = {
 
 resource prometheusUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
   name: 'prometheus'
+  scope: identityScope
 }
 
 resource logsUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
   name: logsMSI
+  scope: identityScope
 }
 
 output dcrRemoteWriteUrl string = '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${dcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'

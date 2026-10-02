@@ -35,6 +35,14 @@ defaults:
     readerGroupId: ""
     releaseManagementGroupId: ""
     sreServiceTag: "CorpNetSaw"
+  infrastructureIdentities:
+    # Persistent infrastructure identity reuse is opt-in. The future slot-manager
+    # handler will populate these resource-group names through a CI config override.
+    # Each deployment resolves identities in its own subscription.
+    useLeased: false
+    serviceResourceGroup: ""
+    # Explicit stamp mapping: "1=resource-group-a,2=resource-group-b".
+    managementResourceGroups: ""
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
