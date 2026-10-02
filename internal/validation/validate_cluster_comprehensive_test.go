@@ -1311,6 +1311,19 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "nightly version with minimum major.minor version is accepted",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				// This version sorts lower than minimum (4.20) in semver, but should be accepted
+				// because nightly versions skip the minimum version check
+				c.CustomerProperties.Version.ID = "4.20.0-0.nightly-2026-10-01-125400"
+				c.CustomerProperties.Version.ChannelGroup = metadataapi.ChannelGroupNightly
+				return c
+			}(),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
 			name: "unsupported ingress type Disabled - create",
 			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
@@ -1542,6 +1555,25 @@ func TestValidateClusterUpdate(t *testing.T) {
 			oldCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.20"
+				return c
+			}(),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "nightly version with minimum major.minor version is accepted on update",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				// This version sorts lower than minimum (4.20) in semver, but should be accepted
+				// because nightly versions skip the minimum version check
+				c.CustomerProperties.Version.ID = "4.20.0-0.nightly-2026-10-01-125400"
+				c.CustomerProperties.Version.ChannelGroup = metadataapi.ChannelGroupNightly
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.20.0-0.nightly-2026-09-30-125400"
+				c.CustomerProperties.Version.ChannelGroup = metadataapi.ChannelGroupNightly
 				return c
 			}(),
 			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),

@@ -294,7 +294,16 @@ func validateNodePoolVersionID(ctx context.Context, op operation.Operation, fldP
 	errs := field.ErrorList{}
 
 	errs = append(errs, OpenShiftWithOptionalPrerelease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
-	errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20.8")...)
+
+	// Nightly versions include prerelease identifiers (e.g., X.Y.0-0.nightly-...) that may sort
+	// lower than stable versions in semver comparison, even if the nightly was built after
+	// the minimum supported stable release. Only compare the major.minor of the version.
+	if newObj.ChannelGroup == metadataapi.ChannelGroupNightly {
+		errs = append(errs, VersionMustBeAtLeastMajorMinor(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20")...)
+	} else {
+		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20.8")...)
+	}
+
 	return errs
 }
 

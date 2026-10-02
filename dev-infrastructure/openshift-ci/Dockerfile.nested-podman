@@ -1,0 +1,31 @@
+ARG NESTED_PODMAN_IMAGE=quay-proxy.ci.openshift.org/ci/nested-podman:latest
+FROM ${NESTED_PODMAN_IMAGE}
+
+USER root
+
+RUN printf '%s\n' \
+        '[epel]' \
+        'name=Extra Packages for Enterprise Linux 9 - $basearch' \
+        'metalink=https://mirrors.fedoraproject.org/metalink?repo=epel-9&arch=$basearch' \
+        'enabled=1' \
+        'gpgcheck=1' \
+        'gpgkey=https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-9' \
+        > /etc/yum.repos.d/epel.repo
+
+# pass requires tree, which is not available in the UBI repositories.
+RUN printf '%s\n' \
+        '[centos-stream-tree]' \
+        'name=CentOS Stream 9 - tree' \
+        'baseurl=https://mirror.stream.centos.org/9-stream/BaseOS/$basearch/os/' \
+        'enabled=1' \
+        'includepkgs=tree' \
+        'gpgcheck=1' \
+        'gpgkey=https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official-SHA256' \
+        > /etc/yum.repos.d/centos-stream-tree.repo
+
+RUN dnf install -y git go make pass qrencode net-tools tree && dnf clean all
+
+# Integration jobs install Go tools into this GOPATH at runtime.
+RUN mkdir -p /opt/app-root && chmod 777 /opt/app-root
+
+USER 1000

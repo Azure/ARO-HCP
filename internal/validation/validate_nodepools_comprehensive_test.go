@@ -1869,6 +1869,30 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
+			name: "nightly version with minimum major.minor is accepted",
+			nodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.20.0-0.nightly-2026-10-01-125400"
+				np.Properties.Version.ChannelGroup = "nightly"
+				return np
+			}(),
+			opOptions:    testNodePoolFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "nightly version lower than the minimum major.minor is rejected",
+			nodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.19.0-0.nightly-2026-10-01-125400"
+				np.Properties.Version.ChannelGroup = "nightly"
+				return np
+			}(),
+			opOptions: testNodePoolFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be at least 4.20", FieldPath: "properties.version.id"},
+			},
+		},
+		{
 			name: "invalid channel group rejected even with experimental flag",
 			nodePool: func() *coreapi.NodePool {
 				np := createValidNodePool()

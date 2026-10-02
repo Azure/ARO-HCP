@@ -407,6 +407,10 @@ func (in *ClusterServiceProviderProperties) DeepCopyInto(out *ClusterServiceProv
 		in, out := &in.CreateOperationCompletionDeadline, &out.CreateOperationCompletionDeadline
 		*out = (*in).DeepCopy()
 	}
+	if in.UpdateOperationCompletionDeadline != nil {
+		in, out := &in.UpdateOperationCompletionDeadline, &out.UpdateOperationCompletionDeadline
+		*out = (*in).DeepCopy()
+	}
 	if in.DeleteOperationCompletionTimeout != nil {
 		in, out := &in.DeleteOperationCompletionTimeout, &out.DeleteOperationCompletionTimeout
 		*out = new(time.Duration)
@@ -1640,6 +1644,10 @@ func (in *NodePoolServiceProviderProperties) DeepCopyInto(out *NodePoolServicePr
 		in, out := &in.CreateOperationCompletionDeadline, &out.CreateOperationCompletionDeadline
 		*out = (*in).DeepCopy()
 	}
+	if in.UpdateOperationCompletionDeadline != nil {
+		in, out := &in.UpdateOperationCompletionDeadline, &out.UpdateOperationCompletionDeadline
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 
@@ -2420,6 +2428,11 @@ func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderCluster
 		in, out := &in.DesiredVersionChannels, &out.DesiredVersionChannels
 		*out = make([]string, len(*in))
 		copy(*out, *in)
+	}
+	if in.ActualHostedCluster != nil {
+		in, out := &in.ActualHostedCluster, &out.ActualHostedCluster
+		*out = new(v1beta1.HostedCluster)
+		(*in).DeepCopyInto(*out)
 	}
 	if in.Validations != nil {
 		in, out := &in.Validations, &out.Validations

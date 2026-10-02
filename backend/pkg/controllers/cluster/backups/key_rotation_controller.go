@@ -153,7 +153,7 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 	)
 	if err != nil {

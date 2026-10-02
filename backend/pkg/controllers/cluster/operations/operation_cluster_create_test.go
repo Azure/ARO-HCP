@@ -182,6 +182,47 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				assert.Equal(t, operationtesting.TestOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
+		{
+			name:  "deadline exceeded preserves pending validation error code",
+			clock: clocktesting.NewFakePassiveClock(createdAt),
+			existingCluster: func() *coreapi.Cluster {
+				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
+				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
+				deadline := metav1.NewTime(createdAt.Add(-time.Second))
+				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
+				return cluster
+			}(),
+			existingOperation: func() *coreapi.Operation {
+				operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+				operation.StartTime = createdAt.Add(-4 * time.Minute)
+				return operation
+			}(),
+			validations: []metav1.Condition{{
+				Type: "SubnetValidation", Status: metav1.ConditionFalse,
+				Reason: "InvalidSubnet", Message: "subnet is unavailable",
+				LastTransitionTime: metav1.NewTime(createdAt.Add(-time.Hour)),
+			}},
+			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().State(arohcpv1alpha1.ClusterStateReady).Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidResource, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "cluster creation did not complete before the deadline")
+				assert.Contains(t, op.Error.Message, "SubnetValidation: InvalidSubnet: subnet is unavailable")
+				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
 
 		{
 			name:  "persistent validation failure fails create",
