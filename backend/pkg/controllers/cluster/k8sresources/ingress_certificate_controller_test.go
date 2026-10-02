@@ -266,7 +266,7 @@ func TestIngressCertificateInvalidConfiguration(test *testing.T) {
 			require.Empty(test, fixture.applies(test))
 		})
 	}
-	for _, vaultURL := range []string{"not-a-url", "http://vault.example/", "https://", "https://%", "https://.vault.azure.net", "https://aa.vault.azure.net", "https://1vault.vault.azure.net", "https://vault-.vault.azure.net", "https://vault--name.vault.azure.net", "https://" + strings.Repeat("a", 25) + ".vault.azure.net"} {
+	for _, vaultURL := range []string{"not-a-url", "http://vault.example/", "https://", "https://%", "https://.vault.azure.net", "https://aa.vault.azure.net", "https://1vault.vault.azure.net", "https://vault-.vault.azure.net", "https://vault--name.vault.azure.net", "https://Vault.vault.azure.net", "https://vaUlt.vault.azure.net", "https://vaulT.vault.azure.net", "https://" + strings.Repeat("a", 25) + ".vault.azure.net"} {
 		test.Run(vaultURL, func(test *testing.T) {
 			fixture := newCertificateFixture(test)
 			fixture.serviceProvider.Status.AzureResources.IngressCertificate.AzureReference.KeyVaultURL = vaultURL

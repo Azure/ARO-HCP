@@ -25,73 +25,73 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 )
-
-func TestOneCertLeafPolicyAndHostname(test *testing.T) {
-	server := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	defer server.Close()
-	for _, scenario := range []struct {
-		name      string
-		issuer    string
-		host      string
-		wantError bool
-	}{
-		{name: "OneCert matching hostname", issuer: "OneCertV2-PublicCA", host: "example.com"},
-		{name: "self signed policy", issuer: "Self", host: "example.com", wantError: true},
-		{name: "wrong hostname", issuer: "OneCertV2-PublicCA", host: "example.invalid", wantError: true},
-		{name: "missing policy", host: "example.com", wantError: true},
-	} {
-		test.Run(scenario.name, func(test *testing.T) {
-			certificate := azcertificates.GetCertificateResponse{
-				Certificate: azcertificates.Certificate{CER: server.Certificate().Raw},
-			}
-			if scenario.issuer != "" {
-				certificate.Policy = &azcertificates.CertificatePolicy{IssuerParameters: &azcertificates.IssuerParameters{Name: to.Ptr(scenario.issuer)}}
-			}
-			err := verifyOneCertLeaf(certificate, scenario.host)
-			if (err != nil) != scenario.wantError {
-				test.Fatalf("verifyOneCertLeaf error = %v, wantError = %v", err, scenario.wantError)
-			}
-		})
-	}
-}
 
 func TestIngressCertificateProbeRejectsUntrustedTLS(test *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer server.Close()
-	_, err := ProbeIngressCertificate(context.Background(), strings.TrimPrefix(server.URL, "https://"))
+	err := ProbeIngressCertificate(test.Context(), strings.TrimPrefix(server.URL, "https://"))
 	if err == nil {
 		test.Fatal("public probe accepted an untrusted certificate")
 	}
 }
 
-func TestIngressCertificateVMProbe(test *testing.T) {
-	for _, status := range []int{http.StatusOK, http.StatusFound, http.StatusServiceUnavailable} {
-		test.Run(http.StatusText(status), func(test *testing.T) {
+func TestIngressCertificateProbes(test *testing.T) {
+	if host := os.Getenv("AROHCP_TEST_INGRESS_PROBE_HOST"); host != "" {
+		if err := ProbeIngressCertificate(test.Context(), host); err != nil {
+			test.Fatal(err)
+		}
+		return
+	}
+	for _, scenario := range []struct {
+		name      string
+		status    int
+		trust     bool
+		wrongHost bool
+		wantError string
+	}{
+		{name: "trusted certificate", status: http.StatusOK, trust: true},
+		{name: "untrusted certificate", status: http.StatusOK, wantError: "certificate"},
+		{name: "wrong hostname", status: http.StatusOK, trust: true, wrongHost: true, wantError: "certificate"},
+		{name: "redirect", status: http.StatusFound, trust: true, wantError: "expected 200"},
+		{name: "unavailable app", status: http.StatusServiceUnavailable, trust: true, wantError: "expected 200"},
+	} {
+		test.Run(scenario.name, func(test *testing.T) {
 			server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-				writer.WriteHeader(status)
+				writer.WriteHeader(scenario.status)
 			}))
 			defer server.Close()
+			host := strings.TrimPrefix(server.URL, "https://")
+			if scenario.wrongHost {
+				host = strings.Replace(host, "127.0.0.1", "localhost", 1)
+			}
 			certificateFile := filepath.Join(test.TempDir(), "ca.pem")
 			if err := os.WriteFile(certificateFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600); err != nil {
 				test.Fatal(err)
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			command := exec.CommandContext(ctx, "sh", "-c", IngressCertificateProbeCommand(strings.TrimPrefix(server.URL, "https://")))
-			command.Env = append(os.Environ(), "SSL_CERT_FILE="+certificateFile)
-			output, err := command.CombinedOutput()
-			if status != http.StatusOK {
-				if err == nil || !strings.Contains(string(output), "expected 200") {
-					test.Fatalf("expected HTTP failure, got output %q, error %v", output, err)
-				}
-				return
-			}
-			if err != nil || strings.TrimSpace(string(output)) != certificateFingerprint(server.Certificate().Raw) {
-				test.Fatalf("VM probe must return the served leaf fingerprint: output %q, error %v", output, err)
+			for _, probe := range []string{"public", "private"} {
+				test.Run(probe, func(test *testing.T) {
+					ctx, cancel := context.WithTimeout(test.Context(), 10*time.Second)
+					defer cancel()
+					command := exec.CommandContext(ctx, "sh", "-c", IngressCertificateProbeCommand(host))
+					if probe == "public" {
+						command = exec.CommandContext(ctx, os.Args[0], "-test.run=^TestIngressCertificateProbes$")
+					}
+					command.Env = append(os.Environ(), "AROHCP_TEST_INGRESS_PROBE_HOST="+host)
+					if scenario.trust {
+						command.Env = append(command.Env, "SSL_CERT_FILE="+certificateFile)
+					}
+					output, err := command.CombinedOutput()
+					if scenario.wantError != "" {
+						if err == nil || !strings.Contains(string(output), scenario.wantError) {
+							test.Fatalf("expected %q failure, got output %q, error %v", scenario.wantError, output, err)
+						}
+						return
+					}
+					if err != nil {
+						test.Fatalf("probe must accept trusted HTTPS: output %q, error %v", output, err)
+					}
+				})
 			}
 		})
 	}

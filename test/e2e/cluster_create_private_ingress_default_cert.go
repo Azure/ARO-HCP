@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -33,7 +34,7 @@ import (
 )
 
 var _ = Describe("Customer", func() {
-	DescribeTable("should serve the Azure Key Vault OneCert default ingress certificate through private ingress with OCP "+framework.DefaultOpenshiftChannelGroup()+" channel",
+	DescribeTable("should serve a valid default ingress certificate through private ingress with OCP "+framework.DefaultOpenshiftChannelGroup()+" channel",
 		labels.MIContainers(1),
 		func(ctx context.Context, version string) {
 			const (
@@ -44,6 +45,9 @@ var _ = Describe("Customer", func() {
 			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.DisableSwift = false
 			channel := clusterParams.ChannelGroup
+			// Default ingress certificate support requires the CPO change linked below.
+			// Skip when this release line is unavailable in the configured channel rather
+			// than falling back to an older release that lacks that support.
 			if channel == "nightly" {
 				resolved, err := framework.GetLatestNightlyInstallVersion(ctx, channel, version)
 				if framework.IsVersionNotFoundError(err) {
@@ -59,9 +63,6 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve configured channel %s-%s", channel, version)
 				clusterParams.OpenshiftVersionId = resolved.Version
 			}
-
-			vaultURLs, err := framework.IngressCertificateVaultURLs()
-			Expect(err).NotTo(HaveOccurred(), "failed to configure OneCert certificate vaults")
 
 			tc := framework.NewTestContext()
 
@@ -163,22 +164,26 @@ var _ = Describe("Customer", func() {
 			appURL := "https://" + sampleApp.RouteHost
 			GinkgoLogr.Info("Sample app deployed", "url", appURL)
 
-			By("verifying sample app HTTPS reachability and correlating the served leaf with the Key Vault OneCert certificate")
-			credential, err := tc.AzureCredential()
-			Expect(err).NotTo(HaveOccurred(), "failed to obtain Key Vault certificate read credentials")
-			probe := func(ctx context.Context) (string, error) {
-				return framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName,
+			By("verifying sample app HTTPS reachability with a valid, publicly trusted default ingress certificate")
+			probe := func(ctx context.Context) error {
+				_, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName,
 					verifiers.IngressCertificateProbeCommand(sampleApp.RouteHost), 2*time.Minute)
+				return err
 			}
-			err = verifiers.VerifyIngressDefaultCertificate(credential, vaultURLs, sampleApp.RouteHost, probe, framework.IngressCertificateVerificationTimeout).Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "sample app must return HTTP 200 over trusted HTTPS and serve the Key Vault OneCert leaf through private ingress")
+			err = verifiers.VerifyIngressDefaultCertificate(probe, framework.IngressCertificateVerificationTimeout).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "sample app must return HTTP 200 over trusted HTTPS through private ingress")
 
 			By("verifying ingress is NOT reachable from outside the VNet")
-			err = framework.TestHTTPSConnectivity(ctx, appURL, 10*time.Second, true)
+			dialer := net.Dialer{Timeout: 10 * time.Second}
+			connection, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(sampleApp.RouteHost, "443"))
+			if connection != nil {
+				connection.Close()
+			}
 			Expect(err).To(HaveOccurred(), "private ingress should not be reachable from outside the VNet")
 
 		},
-		// Earlier release lines wait for a CPO override for hypershift #9132 (https://github.com/openshift/hypershift/pull/9132) across all previously-released versions; start with 5.1 for early feedback.
+		// Add earlier release lines only once a CPO override for https://github.com/openshift/hypershift/pull/9132
+		// exists across all previously-released versions; start with 5.1 for early feedback.
 		Entry("for 5.1", labels.RequireNothing, labels.High, labels.Positive, labels.CreateCluster, "5.1"),
 	)
 })

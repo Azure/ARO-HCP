@@ -1131,6 +1131,7 @@ defaults:
         digest: sha256:d88f1b5db1d00985843e95b2f000f043b5b42ef5784739f6b03c21628faccaa8 # v2.17.4-513 (2026-10-01 20:07)
   # Cluster Service
   clustersService:
+    # Ingress default certificate support: https://github.com/openshift-online/aro-hcp-clusters-service/pull/5
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: mchitimb/cs
