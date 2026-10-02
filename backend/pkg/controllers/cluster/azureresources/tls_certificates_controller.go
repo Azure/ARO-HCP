@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -149,9 +150,12 @@ func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controlle
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	vaultURL := managementCluster.Status.HostedClustersSecretsKeyVaultURL
-	if vaultURL == "" {
+	if managementCluster.Status.HostedClustersSecretsKeyVaultURL == "" {
 		return utils.TrackError(fmt.Errorf("management cluster has no hosted clusters secrets Key Vault URL"))
+	}
+	vaultURL, err := url.Parse(managementCluster.Status.HostedClustersSecretsKeyVaultURL)
+	if err != nil || vaultURL.Scheme != "https" || vaultURL.Hostname() == "" {
+		return utils.TrackError(fmt.Errorf("management cluster has invalid hosted clusters secrets Key Vault URL"))
 	}
 	if replacement.Status.AzureResources.KubeAPIServerCertificate == nil {
 		replacement.Status.AzureResources.KubeAPIServerCertificate = &coreapi.TLSCertificate{}
@@ -181,7 +185,7 @@ func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controlle
 			continue
 		}
 		reference := certificate.state.PendingReference
-		ready, err := syncer.observe(ctx, reference.KeyVaultURL, reference.CertificateName)
+		ready, err := syncer.observe(ctx, reference.KeyVaultURL.String(), reference.CertificateName)
 		if err != nil {
 			observationErrors = append(observationErrors, fmt.Errorf("observe certificate %q: %w", certificate.name, err))
 			continue
