@@ -40,7 +40,7 @@ import (
 )
 
 func expectedTLSCertificate(name string, confirmed bool) coreapi.TLSCertificate {
-	reference := coreapi.AzureTLSCertificateReference{KVURL: "https://certificates.vault.azure.net/", CertificateName: name}
+	reference := coreapi.AzureTLSCertificateReference{KeyVaultURL: "https://certificates.vault.azure.net/", CertificateName: name}
 	if confirmed {
 		return coreapi.TLSCertificate{AzureReference: reference}
 	}
@@ -79,8 +79,8 @@ func TestTLSCertificatesDeletionClearsReferences(test *testing.T) {
 	require.NoError(test, syncer.SyncOnce(test.Context(), key))
 	status, err := syncer.serviceProviderClusterLister.Get(test.Context(), key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	require.NoError(test, err)
-	require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", false), status.Status.KubeAPIServerCertificate)
-	require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", true), status.Status.IngressCertificate)
+	require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", false), status.Status.AzureResources.KubeAPIServerCertificate)
+	require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", true), status.Status.AzureResources.IngressCertificate)
 	status.Status.HostedClusterNamespace = "preserve-unrelated-status"
 	_, err = syncer.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(test.Context(), status, nil)
 	require.NoError(test, err)
@@ -92,8 +92,8 @@ func TestTLSCertificatesDeletionClearsReferences(test *testing.T) {
 	require.NoError(test, syncer.SyncOnce(test.Context(), key))
 	status, err = syncer.serviceProviderClusterLister.Get(test.Context(), key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	require.NoError(test, err)
-	require.Equal(test, coreapi.TLSCertificate{}, status.Status.KubeAPIServerCertificate)
-	require.Equal(test, coreapi.TLSCertificate{}, status.Status.IngressCertificate)
+	require.Equal(test, coreapi.TLSCertificate{}, status.Status.AzureResources.KubeAPIServerCertificate)
+	require.Equal(test, coreapi.TLSCertificate{}, status.Status.AzureResources.IngressCertificate)
 	require.Equal(test, "preserve-unrelated-status", status.Status.HostedClusterNamespace)
 	require.False(test, syncer.NeedsWork(cluster, status))
 	require.NoError(test, syncer.SyncOnce(test.Context(), key))
@@ -163,16 +163,26 @@ func TestTLSCertificatesOperationReadiness(test *testing.T) {
 
 func TestTLSCertificateReferenceJSON(test *testing.T) {
 	status := coreapi.ServiceProviderClusterStatus{
-		KubeAPIServerCertificate: expectedTLSCertificate("kube-apiserver-tls-cert-abc123", false),
-		IngressCertificate:       expectedTLSCertificate("ingress-tls-cert-abc123", true),
+		AzureResources: coreapi.AzureResources{
+			KubeAPIServerCertificate: expectedTLSCertificate("kube-apiserver-tls-cert-abc123", false),
+			IngressCertificate:       expectedTLSCertificate("ingress-tls-cert-abc123", true),
+		},
 	}
 	data, err := json.Marshal(status)
 	require.NoError(test, err)
-	require.Contains(test, string(data), `"kvURL":"https://certificates.vault.azure.net/"`)
+	require.Contains(test, string(data), `"keyVaultURL":"https://certificates.vault.azure.net/"`)
 	require.Contains(test, string(data), `"certificateName":"ingress-tls-cert-abc123"`)
 	var restored coreapi.ServiceProviderClusterStatus
 	require.NoError(test, json.Unmarshal(data, &restored))
 	require.Equal(test, status, restored)
+	var document map[string]json.RawMessage
+	require.NoError(test, json.Unmarshal(data, &document))
+	require.NotContains(test, document, "kubeAPIServerCertificate")
+	require.NotContains(test, document, "ingressCertificate")
+	var azureResources map[string]json.RawMessage
+	require.NoError(test, json.Unmarshal(document["azureResources"], &azureResources))
+	require.JSONEq(test, `{"pendingReference":{"keyVaultURL":"https://certificates.vault.azure.net/","certificateName":"kube-apiserver-tls-cert-abc123"},"azureReference":{"keyVaultURL":"","certificateName":""}}`, string(azureResources["kubeAPIServerCertificate"]))
+	require.JSONEq(test, `{"pendingReference":{"keyVaultURL":"","certificateName":""},"azureReference":{"keyVaultURL":"https://certificates.vault.azure.net/","certificateName":"ingress-tls-cert-abc123"}}`, string(azureResources["ingressCertificate"]))
 }
 
 func TestTLSCertificatesPendingToDone(test *testing.T) {
@@ -186,8 +196,8 @@ func TestTLSCertificatesPendingToDone(test *testing.T) {
 			}
 			require.NoError(test, syncer.SyncOnce(test.Context(), key))
 			pending := readStatus()
-			require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", false), pending.Status.KubeAPIServerCertificate)
-			require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", false), pending.Status.IngressCertificate)
+			require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", false), pending.Status.AzureResources.KubeAPIServerCertificate)
+			require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", false), pending.Status.AzureResources.IngressCertificate)
 			var names []string
 			syncer.observe = func(_ context.Context, vault, name string) (bool, error) {
 				require.Equal(test, "https://certificates.vault.azure.net/", vault)
@@ -198,11 +208,11 @@ func TestTLSCertificatesPendingToDone(test *testing.T) {
 			require.ElementsMatch(test, []string{"kube-apiserver-tls-cert-abc123", "ingress-tls-cert-abc123"}, names)
 			partial := readStatus()
 			if first == "kube-apiserver-tls-cert-abc123" {
-				require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", true), partial.Status.KubeAPIServerCertificate)
-				require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", false), partial.Status.IngressCertificate)
+				require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", true), partial.Status.AzureResources.KubeAPIServerCertificate)
+				require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", false), partial.Status.AzureResources.IngressCertificate)
 			} else {
-				require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", false), partial.Status.KubeAPIServerCertificate)
-				require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", true), partial.Status.IngressCertificate)
+				require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", false), partial.Status.AzureResources.KubeAPIServerCertificate)
+				require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", true), partial.Status.AzureResources.IngressCertificate)
 			}
 			names = nil
 			syncer.observe = func(_ context.Context, _, name string) (bool, error) { names = append(names, name); return true, nil }
@@ -210,8 +220,8 @@ func TestTLSCertificatesPendingToDone(test *testing.T) {
 			require.Len(test, names, 1)
 			require.NotEqual(test, first, names[0])
 			done := readStatus()
-			require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", true), done.Status.KubeAPIServerCertificate)
-			require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", true), done.Status.IngressCertificate)
+			require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", true), done.Status.AzureResources.KubeAPIServerCertificate)
+			require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", true), done.Status.AzureResources.IngressCertificate)
 			require.False(test, syncer.NeedsWork(cluster, done))
 			require.NoError(test, syncer.SyncOnce(test.Context(), key))
 			require.Len(test, names, 1)
@@ -231,19 +241,19 @@ func TestTLSCertificatesReadErrorPreservesIndependentProgress(test *testing.T) {
 	require.ErrorContains(test, syncer.SyncOnce(test.Context(), key), "forbidden")
 	status, err := syncer.serviceProviderClusterLister.Get(test.Context(), key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	require.NoError(test, err)
-	require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", false), status.Status.KubeAPIServerCertificate)
-	require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", true), status.Status.IngressCertificate)
+	require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", false), status.Status.AzureResources.KubeAPIServerCertificate)
+	require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", true), status.Status.AzureResources.IngressCertificate)
 }
 
 func TestTLSCertificatesNeedsWork(test *testing.T) {
 	syncer, _, cluster := newObservationFixture(test)
 	status := &coreapi.ServiceProviderCluster{}
 	require.True(test, syncer.NeedsWork(cluster, status))
-	status.Status.IngressCertificate = expectedTLSCertificate("ingress-tls-cert-abc123", true)
+	status.Status.AzureResources.IngressCertificate = expectedTLSCertificate("ingress-tls-cert-abc123", true)
 	require.True(test, syncer.NeedsWork(cluster, status))
-	status.Status.KubeAPIServerCertificate = expectedTLSCertificate("kube-apiserver-tls-cert-abc123", true)
+	status.Status.AzureResources.KubeAPIServerCertificate = expectedTLSCertificate("kube-apiserver-tls-cert-abc123", true)
 	require.False(test, syncer.NeedsWork(cluster, status))
-	status.Status.KubeAPIServerCertificate = expectedTLSCertificate("kube-apiserver-tls-cert-abc123", false)
+	status.Status.AzureResources.KubeAPIServerCertificate = expectedTLSCertificate("kube-apiserver-tls-cert-abc123", false)
 	require.True(test, syncer.NeedsWork(cluster, status))
 	now := metav1.Now()
 	cluster.ServiceProviderProperties.DeletionTimestamp = &now
@@ -269,12 +279,12 @@ func TestTLSCertificatesConflict(test *testing.T) {
 	actual, err := syncer.serviceProviderClusterLister.Get(test.Context(), key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	require.NoError(test, err)
 	require.Equal(test, "concurrent-update", actual.Status.HostedClusterNamespace)
-	require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", false), actual.Status.IngressCertificate)
+	require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", false), actual.Status.AzureResources.IngressCertificate)
 	require.NoError(test, syncer.SyncOnce(test.Context(), key))
 	actual, err = syncer.serviceProviderClusterLister.Get(test.Context(), key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	require.NoError(test, err)
-	require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", true), actual.Status.IngressCertificate)
-	require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", true), actual.Status.KubeAPIServerCertificate)
+	require.Equal(test, expectedTLSCertificate("ingress-tls-cert-abc123", true), actual.Status.AzureResources.IngressCertificate)
+	require.Equal(test, expectedTLSCertificate("kube-apiserver-tls-cert-abc123", true), actual.Status.AzureResources.KubeAPIServerCertificate)
 	require.Equal(test, "concurrent-update", actual.Status.HostedClusterNamespace)
 }
 

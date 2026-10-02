@@ -35,7 +35,7 @@ import (
 )
 
 func TestTLSCertificateDeletionGates(test *testing.T) {
-	reference := coreapi.AzureTLSCertificateReference{KVURL: "https://vault.vault.azure.net/", CertificateName: "certificate"}
+	reference := coreapi.AzureTLSCertificateReference{KeyVaultURL: "https://vault.vault.azure.net/", CertificateName: "certificate"}
 	for _, scenario := range []struct {
 		name         string
 		kas, ingress coreapi.TLSCertificate
@@ -57,7 +57,7 @@ func TestTLSCertificateDeletionGates(test *testing.T) {
 			providerID := metadataapi.Must(azcorearm.ParseResourceID(cluster.ResourceID.String() + "/serviceProviderClusters/" + coreapi.ServiceProviderClusterResourceName))
 			provider := &coreapi.ServiceProviderCluster{
 				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: providerID, PartitionKey: cluster.PartitionKey},
-				Status:         coreapi.ServiceProviderClusterStatus{KubeAPIServerCertificate: scenario.kas, IngressCertificate: scenario.ingress},
+				Status:         coreapi.ServiceProviderClusterStatus{AzureResources: coreapi.AzureResources{KubeAPIServerCertificate: scenario.kas, IngressCertificate: scenario.ingress}},
 			}
 			database, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(test.Context(), []any{cluster, provider})
 			require.NoError(test, err)
@@ -82,8 +82,8 @@ func TestTLSCertificateDeletionGates(test *testing.T) {
 			providerCRUD := database.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 			provider, err = providerCRUD.Get(test.Context(), coreapi.ServiceProviderClusterResourceName)
 			require.NoError(test, err)
-			provider.Status.KubeAPIServerCertificate = coreapi.TLSCertificate{}
-			provider.Status.IngressCertificate = coreapi.TLSCertificate{}
+			provider.Status.AzureResources.KubeAPIServerCertificate = coreapi.TLSCertificate{}
+			provider.Status.AzureResources.IngressCertificate = coreapi.TLSCertificate{}
 			_, err = providerCRUD.Replace(test.Context(), provider, nil)
 			require.NoError(test, err)
 			allowed, err = deleter.deletePreconditionTLSCertificatesCleared(test.Context(), key)

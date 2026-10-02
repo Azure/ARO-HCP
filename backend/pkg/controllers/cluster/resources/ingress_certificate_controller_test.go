@@ -48,7 +48,7 @@ type certificateFixture struct {
 }
 
 func ingressTestReference() coreapi.AzureTLSCertificateReference {
-	return coreapi.AzureTLSCertificateReference{KVURL: "https://cluster-secrets.vault.azure.net/", CertificateName: "ingress-tls-cert-abc123"}
+	return coreapi.AzureTLSCertificateReference{KeyVaultURL: "https://cluster-secrets.vault.azure.net/", CertificateName: "ingress-tls-cert-abc123"}
 }
 
 func newCertificateFixture(test *testing.T) *certificateFixture {
@@ -68,7 +68,7 @@ func newCertificateFixture(test *testing.T) *certificateFixture {
 	serviceProvider := &coreapi.ServiceProviderCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: serviceProviderID},
 		Status: coreapi.ServiceProviderClusterStatus{
-			IngressCertificate:          coreapi.TLSCertificate{AzureReference: ingressTestReference()},
+			AzureResources:              coreapi.AzureResources{IngressCertificate: coreapi.TLSCertificate{AzureReference: ingressTestReference()}},
 			ManagementClusterResourceID: managementClusterID,
 			HostedClusterNamespace:      "hosted-cluster-namespace",
 			ControlPlaneNamespace:       "not-the-hosted-cluster-namespace",
@@ -190,7 +190,7 @@ func TestIngressCertificateTeardown(test *testing.T) {
 	now := metav1.Now()
 	fixture.cluster.ServiceProviderProperties.DeletionTimestamp = &now
 	fixture.cluster.ServiceProviderProperties.ClusterServiceID = nil
-	fixture.serviceProvider.Status.IngressCertificate = coreapi.TLSCertificate{PendingReference: ingressTestReference()}
+	fixture.serviceProvider.Status.AzureResources.IngressCertificate = coreapi.TLSCertificate{PendingReference: ingressTestReference()}
 	fixture.serviceProvider.Status.HostedClusterNamespace = ""
 	fixture.syncer.managementClusterLister = &fleetlistertesting.SliceManagementClusterLister{}
 	fixture.syncer.serviceTenantID = ""
@@ -212,10 +212,10 @@ func TestIngressCertificateTeardown(test *testing.T) {
 func TestIngressCertificatePrerequisites(test *testing.T) {
 	for name, mutate := range map[string]func(*certificateFixture){
 		"certificate unobserved": func(fixture *certificateFixture) {
-			fixture.serviceProvider.Status.IngressCertificate = coreapi.TLSCertificate{}
+			fixture.serviceProvider.Status.AzureResources.IngressCertificate = coreapi.TLSCertificate{}
 		},
 		"certificate pending": func(fixture *certificateFixture) {
-			fixture.serviceProvider.Status.IngressCertificate = coreapi.TLSCertificate{PendingReference: ingressTestReference()}
+			fixture.serviceProvider.Status.AzureResources.IngressCertificate = coreapi.TLSCertificate{PendingReference: ingressTestReference()}
 		},
 		"cluster absent": func(fixture *certificateFixture) {
 			fixture.syncer.clusterLister = &corelistertesting.SliceClusterLister{}
@@ -252,7 +252,7 @@ func TestIngressCertificateInvalidConfiguration(test *testing.T) {
 			fixture.managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID = ""
 		},
 		"observed vault absent": func(fixture *certificateFixture) {
-			fixture.serviceProvider.Status.IngressCertificate.AzureReference.KVURL = ""
+			fixture.serviceProvider.Status.AzureResources.IngressCertificate.AzureReference.KeyVaultURL = ""
 		},
 	} {
 		test.Run(name, func(test *testing.T) {
@@ -266,7 +266,7 @@ func TestIngressCertificateInvalidConfiguration(test *testing.T) {
 		test.Run(vaultURL, func(test *testing.T) {
 			fixture := newCertificateFixture(test)
 			fixture.managementCluster.Status.HostedClustersSecretsKeyVaultURL = vaultURL
-			fixture.serviceProvider.Status.IngressCertificate.AzureReference.KVURL = vaultURL
+			fixture.serviceProvider.Status.AzureResources.IngressCertificate.AzureReference.KeyVaultURL = vaultURL
 			require.ErrorContains(test, fixture.syncer.SyncOnce(test.Context(), fixture.key), "Key Vault URL")
 			require.Empty(test, fixture.applies(test))
 			require.Empty(test, fixture.reads(test))
@@ -282,7 +282,7 @@ func TestIngressCertificateNeedsWork(test *testing.T) {
 		for _, certificate := range []coreapi.TLSCertificate{{}, {PendingReference: ingressTestReference()}, {AzureReference: ingressTestReference()}} {
 			fixture := newCertificateFixture(test)
 			fixture.serviceProvider.Status.HostedClusterNamespace = namespace
-			fixture.serviceProvider.Status.IngressCertificate = certificate
+			fixture.serviceProvider.Status.AzureResources.IngressCertificate = certificate
 			require.Equal(test, namespace != "" && certificate.AzureReference != (coreapi.AzureTLSCertificateReference{}), fixture.syncer.NeedsWork(fixture.serviceProvider))
 		}
 	}
@@ -290,7 +290,7 @@ func TestIngressCertificateNeedsWork(test *testing.T) {
 
 func TestIngressCertificateUsesObservedReference(test *testing.T) {
 	fixture := newCertificateFixture(test)
-	fixture.serviceProvider.Status.IngressCertificate.AzureReference = coreapi.AzureTLSCertificateReference{KVURL: "https://observed-vault.vault.azure.net/", CertificateName: "observed-certificate"}
+	fixture.serviceProvider.Status.AzureResources.IngressCertificate.AzureReference = coreapi.AzureTLSCertificateReference{KeyVaultURL: "https://observed-vault.vault.azure.net/", CertificateName: "observed-certificate"}
 	require.NoError(test, fixture.syncer.SyncOnce(test.Context(), fixture.key))
 	for _, desire := range fixture.applies(test) {
 		require.Contains(test, string(desire.Spec.ServerSideApply.KubeContent.Raw), "observed-certificate")
