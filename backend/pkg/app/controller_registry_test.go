@@ -155,7 +155,7 @@ var expectedControllerLaunches = []struct {
 	{"fpavirtualmachineresourceskuscachedreader", 20},
 	{"backupschedule", 20},
 	{"ingresscertificate", 20},
-	{"observecertificates", 20},
+	{"tlscertificates", 20},
 	{"fetchmsiidentitiesinfo", 20},
 	{"fetchdataplaneoperatorsmanagedidentitiesinfo", 20},
 	{"identityroleassignments", 20},

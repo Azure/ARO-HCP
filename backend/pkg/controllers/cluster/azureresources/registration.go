@@ -20,19 +20,19 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 )
 
-func registerCertificateObservationController() controllerconfig.ControllerRegistration {
+func registerTLSCertificatesController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateCertificateObservationController, true),
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateTLSCertificatesController, true),
 	}
 }
 
-func instantiateCertificateObservationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+func instantiateTLSCertificatesController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
-	return NewCertificateObservationController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
+	return NewTLSCertificatesController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers, managementClusterLister, controllerContext.BackendIdentityAzureClients), nil
 }
 
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
-	registry[strings.ToLower(CertificateObservationControllerName)] = registerCertificateObservationController()
+	registry[strings.ToLower(TLSCertificatesControllerName)] = registerTLSCertificatesController()
 }

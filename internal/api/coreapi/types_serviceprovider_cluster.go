@@ -172,10 +172,10 @@ type ServiceProviderClusterPinnedVersion struct {
 
 // ServiceProviderClusterStatus contains the observed state of the cluster.
 type ServiceProviderClusterStatus struct {
-	// Written by: ObserveCertificates
-	KubeAPIServerCertificate CertificateObservationState `json:"kubeAPIServerCertificate,omitempty"`
-	// Written by: ObserveCertificates
-	IngressCertificate CertificateObservationState `json:"ingressCertificate,omitempty"`
+	// Written by: TLSCertificates
+	KubeAPIServerCertificate TLSCertificate `json:"kubeAPIServerCertificate,omitempty"`
+	// Written by: TLSCertificates
+	IngressCertificate TLSCertificate `json:"ingressCertificate,omitempty"`
 	// Conditions are the top-level ServiceProviderCluster status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
 	// +optional
@@ -366,12 +366,19 @@ type ServiceProviderClusterStatus struct {
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
 }
 
-type CertificateObservationState string
+type AzureTLSCertificateReference struct {
+	// Written by: TLSCertificates
+	KVURL string `json:"kvURL,omitempty"`
+	// Written by: TLSCertificates
+	CertificateName string `json:"certificateName,omitempty"`
+}
 
-const (
-	CertificateObservationPending CertificateObservationState = "Pending"
-	CertificateObservationDone    CertificateObservationState = "Done"
-)
+type TLSCertificate struct {
+	// Written by: TLSCertificates
+	PendingReference AzureTLSCertificateReference `json:"pendingReference,omitempty"`
+	// Written by: TLSCertificates
+	AzureReference AzureTLSCertificateReference `json:"azureReference,omitempty"`
+}
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
 // ServiceProviderCluster. It is kept off the top-level Status.Conditions per the

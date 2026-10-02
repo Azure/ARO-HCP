@@ -18,9 +18,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
+	ocmv1 "open-cluster-management.io/api/work/v1"
+
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -31,27 +35,42 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 )
 
+const (
+	ingressSecretProviderClassDesireName = IngressCertificateControllerName + "SecretProviderClass"
+	ingressSecretSyncDesireName          = IngressCertificateControllerName + "SecretSync"
+)
+
+var keyVaultNamePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]{1,22}[a-zA-Z0-9]$`)
+
 func buildIngressCertificateDesires(
 	key controllerutils.HCPClusterKey,
 	managementCluster *fleetapi.ManagementCluster,
 	namespace, clusterServiceID, serviceTenantID string,
+	certificate coreapi.AzureTLSCertificateReference,
 ) ([]*kubeapplierapi.ApplyDesire, []*kubeapplierapi.ReadDesire, error) {
 	if serviceTenantID == "" {
 		return nil, nil, fmt.Errorf("service tenant ID is required for ingress certificates")
 	}
-	vaultURL, err := url.Parse(managementCluster.Status.HostedClustersSecretsKeyVaultURL)
+	vaultURL, err := url.Parse(certificate.KVURL)
 	if err != nil || vaultURL.Scheme != "https" || vaultURL.Hostname() == "" {
 		return nil, nil, fmt.Errorf("invalid hosted clusters secrets Key Vault URL")
 	}
 	vaultName, _, _ := strings.Cut(vaultURL.Hostname(), ".")
+	if !keyVaultNamePattern.MatchString(vaultName) || strings.Contains(vaultName, "--") {
+		return nil, nil, fmt.Errorf("invalid hosted clusters secrets Key Vault URL: invalid vault name %q", vaultName)
+	}
+	if certificate.CertificateName == "" {
+		return nil, nil, fmt.Errorf("observed ingress certificate has no certificate name")
+	}
 	secretName := "default-ingress-tls-cert-" + clusterServiceID
-	certificateName := "ingress-tls-cert-" + clusterServiceID
+	certificateName := certificate.CertificateName
 	manifests := []struct {
-		kind, group, version, resource string
-		spec                           map[string]any
+		kind, group, version, resource, desireName string
+		spec                                       map[string]any
 	}{
 		{
 			kind: "SecretProviderClass", group: "secrets-store.csi.x-k8s.io", version: "v1", resource: "secretproviderclasses",
+			desireName: ingressSecretProviderClassDesireName,
 			spec: map[string]any{
 				"provider": "azure",
 				"parameters": map[string]string{
@@ -66,6 +85,7 @@ func buildIngressCertificateDesires(
 		},
 		{
 			kind: "SecretSync", group: "secret-sync.x-k8s.io", version: "v1alpha1", resource: "secretsyncs",
+			desireName: ingressSecretSyncDesireName,
 			spec: map[string]any{
 				"serviceAccountName":      "default",
 				"secretProviderClassName": secretName,
@@ -91,7 +111,7 @@ func buildIngressCertificateDesires(
 		if err != nil {
 			return nil, nil, err
 		}
-		desireName := IngressCertificateControllerName + manifest.kind
+		desireName := manifest.desireName
 		applyID, err := azcorearm.ParseResourceID(kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desireName))
 		if err != nil {
 			return nil, nil, err
@@ -111,7 +131,7 @@ func buildIngressCertificateDesires(
 				ManagementCluster: managementCluster.ResourceID,
 				Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
 				TargetItem:        target,
-				ServerSideApply:   &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: content}},
+				ServerSideApply:   &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: content}, FieldManager: ptr.To(ocmv1.DefaultFieldManager)},
 			},
 			Tags: map[string]string{kubeapplierapi.TagControllerName: IngressCertificateControllerName},
 		})

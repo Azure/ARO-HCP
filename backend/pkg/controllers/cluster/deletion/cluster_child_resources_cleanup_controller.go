@@ -282,6 +282,10 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 			"managedResourceGroupID", mrgID.String())
 		return false, nil
 	}
+	if spc.Status.KubeAPIServerCertificate != (coreapi.TLSCertificate{}) || spc.Status.IngressCertificate != (coreapi.TLSCertificate{}) {
+		logger.Info("waiting for TLS certificate references to be cleared before removing the ServiceProviderCluster document")
+		return false, nil
+	}
 
 	// We intentionally do not gate ServiceProviderCluster cleanup on the tracked deny assignments.
 	// Deny assignments are scoped to the managed resource group, so Azure deletes them in cascade
