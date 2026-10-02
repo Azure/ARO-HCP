@@ -31,7 +31,8 @@ import (
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
-	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection/detectors"
 )
 
 const (
@@ -60,6 +61,7 @@ func newTestController(t *testing.T, enabled bool, nodes ...*corev1.Node) (*Cont
 		record.NewFakeRecorder(64),
 		func() time.Time { return testNow },
 		Config{Enabled: enabled},
+		testDetectionRegistry(t),
 	)
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
@@ -725,4 +727,14 @@ func TestResyncAllDisabledClearsPerNodeWedgedSeries(t *testing.T) {
 	if got := nodeWedgedSeries(t); len(got) != 0 {
 		t.Errorf("series set while disabled = %v, want empty", got)
 	}
+}
+
+func testDetectionRegistry(t testing.TB) *detection.Registry {
+	t.Helper()
+	registry, err := detection.NewRegistry(detectors.NewSwiftVFTeardown(),
+		detectors.NewCNIPluginNotInitialized(), detectors.NewNeverReady(), detectors.NewSwiftPodSandboxStalled())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return registry
 }

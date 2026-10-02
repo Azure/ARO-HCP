@@ -28,6 +28,36 @@ most one guarded action per pass. Waiting requeues work rather than blocking a
 worker. Mitigators return an eligible action or hold reason, not an execution
 plan. Budgets prevent overlapping admissions across detectors.
 
+### Named mitigators
+
+Startup constructs a `mitigation.Registry` separately from the
+[detector registry](node-health.md#detector-model). Each mitigator has its own
+implementation and implements `Name`, `DetectorNames` and `Plan`. Its name
+identifies the policy selected by configuration; detector names identify the
+fault evidence it consumes.
+
+Contracts and routing live in `pkg/mitigation`; concrete policies live in
+`pkg/mitigation/mitigators`. The controller owns serialized execution, live
+admission, placement, accounting and the configuration write fence.
+Eviction policies supply pure evidence and resolved-fault predicates through
+`PodEvictor`; they do not perform Kubernetes writes.
+
+| Mitigator | Consumed detector | Action |
+| --- | --- | --- |
+| `swift` | `swift-pod-sandbox-stalled` (Pod scope) | Guarded Pod eviction. |
+| `never-ready` | `never-ready` (node scope) | Guarded AKS machine deletion. |
+
+The two policies have independent implementation and rollout. The SWIFT-only
+controller registers `swift`; it has no never-ready action. Duplicate mitigator
+names and conflicting detector routes fail registry construction. Unknown or
+unselected routes cannot authorize an action.
+
+The SWIFT plan requires `PodScope`, the exact detector name and a nonempty Pod
+UID list. Node-wide SWIFT wedge signals do not route to Pod eviction. The SWIFT
+executor uses the registered pod-scoped detector again for live admission, so recovery
+or lost detector applicability blocks eviction. Shared executors still own
+ownership, capacity and budget checks; detectors do not perform those writes.
+
 ## Modes and configuration
 
 | Mode | Contract |
@@ -75,7 +105,8 @@ flowchart TD
     M -- disabled --> X["No writes"]
     M -- audit --> L["Log candidate eligibility"]
     M -- enforce --> C["Claim Pod with UID/version guards"]
-    C --> R{"Live fault, identity, ownership and gates still valid?"}
+    C --> F["Refresh cluster snapshot and live Pod"]
+    F --> R{"Fault, identity, ownership, placement and gates still valid?"}
     R -- no --> X
     R -- yes --> B["Atomically account eviction attempt"]
     B --> E["Submit guarded Eviction"]
@@ -88,6 +119,15 @@ recreation/restart, and account for unknown results. Admission does not require
 every replica to be Ready, which would prevent rescue of multiple stuck replicas.
 Unreleased MTPNC allocations count against NIC capacity; Pod deletion or a fixed
 sleep does not prove release.
+Final placement uses the admitted Pod's current spec requests and a fresh
+cluster snapshot. Resident charges account for allocated and actuated resources;
+replacement and pending Pod demand uses spec requests even when an in-place
+resize is infeasible. Pods being replaced are excluded from resident charges,
+but their outstanding MTPNC allocations still consume NIC capacity alongside
+the replacement's demand. Same-node placement excludes only the candidate's own scoped
+SWIFT detection; node-wide and other Pods' faults still block that destination.
+Failed or stale reads hold the attempt. Cross-resource reads
+are not atomic and do not reserve scheduler capacity.
 
 ### Pod protection
 
@@ -201,6 +241,12 @@ restoration. Deletion history remains for its full rolling window.
 | Eviction | Independent per-workload/node rates and cooldowns. SWIFT does not reserve a node or consume a deletion slot. |
 | Placement | Check CPU/memory, Pod slots, extended resources, init/overhead semantics, affinity, taints, topology and storage. Account for external cordons, maintenance and NotReady nodes. SKU totals alone are insufficient. |
 
+SWIFT placement uses deterministic backtracking over an ordered Pod set, including
+pending demand, to reconsider simulated assignments. Each check is capped at
+4,096 Pod/node attempts; exhaustion reports unknown feasibility and holds.
+This is not scheduler-equivalent, a capacity reservation or an exhaustive proof
+that every schedulable arrangement will be found.
+
 The persisted pool baseline is keyed by full AKS agent-pool resource ID and comes
 from fresh `properties.count`, not Node/VMSS counts or autoscaler bounds:
 
@@ -228,7 +274,18 @@ platform operations are outside this controller's deletion budget.
 
 Leader election and atomic resourceVersion updates coordinate admission. Reserve
 before action; uncertain outcomes keep the reservation. A nonempty eviction
-ledger requires a valid positive accounting window before any pruning.
+ledger requires a valid positive accounting window before any pruning. Every
+eviction record requires nonempty attempt/workload/Node/Pod identities and a
+nonzero attempt timestamp no later than the controller's current time. Node owner
+references or malformed records block pruning and admission in every mode;
+the ledger remains unchanged for operator reconciliation.
+
+Increasing an established eviction window requires explicit accounting migration,
+including when the ledger is empty. Shorter-window pruning cannot prove complete
+longer-window history. Audit and enforce hold before pruning or admission;
+there is no automatic warm-up. Decreases wait for expiry under the stored window
+or explicit migration. Migration requires complete target-window history or a
+verified full target window without attempts, not merely an empty ledger.
 
 | Identity | Permissions |
 | --- | --- |

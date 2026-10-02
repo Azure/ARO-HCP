@@ -23,6 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection"
 )
 
 var testNow = time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
@@ -105,7 +107,7 @@ func withSwiftNIC(p *corev1.Pod) *corev1.Pod {
 }
 
 // startedPod is a pod whose PodReadyToStartContainers condition transitioned to
-// True at ts: a fresh sandbox, the success signal SuccessAt records. hostNet
+// True at ts: a fresh sandbox, the success signal detection.SuccessAt records. hostNet
 // marks it host-network, which must be excluded since it reaches the condition
 // without a delegated NIC.
 func startedPod(pod string, ts time.Time, hostNet bool) *corev1.Pod {
@@ -142,7 +144,7 @@ func TestDecide(t *testing.T) {
 		node   *corev1.Node
 		events []*corev1.Event
 		pods   []*corev1.Pod
-		want   Decision
+		want   detection.Decision
 	}{
 		{
 			name: "wedged: floor of stuck failing pods, zero success, dwell met",
@@ -155,7 +157,7 @@ func TestDecide(t *testing.T) {
 				_, p := stuckFailing(3, ago(15*time.Minute))
 				return p
 			}(),
-			want: DecisionWedged,
+			want: detection.DecisionWedged,
 		},
 		{
 			name: "flap: a started pod in the window is not a wedge",
@@ -168,7 +170,7 @@ func TestDecide(t *testing.T) {
 				_, p := stuckFailing(3, ago(15*time.Minute))
 				return append(p, withSwiftNIC(startedPod("ok", ago(2*time.Minute), false)))
 			}(),
-			want: DecisionHealthy,
+			want: detection.DecisionHealthy,
 		},
 		{
 			name: "below the stuck-pod floor is not wedged",
@@ -181,7 +183,7 @@ func TestDecide(t *testing.T) {
 				_, p := stuckFailing(1, ago(15*time.Minute))
 				return p
 			}(),
-			want: DecisionUnknown,
+			want: detection.DecisionUnknown,
 		},
 		{
 			name: "non-SWIFT node is never a candidate, so any label on it is stale",
@@ -194,12 +196,12 @@ func TestDecide(t *testing.T) {
 				_, p := stuckFailing(5, ago(30*time.Minute))
 				return p
 			}(),
-			want: DecisionNotApplicable,
+			want: detection.DecisionNotApplicable,
 		},
 		{
 			name: "non-SWIFT NotReady node is still not a candidate",
 			node: testNode(false, false),
-			want: DecisionNotApplicable,
+			want: detection.DecisionNotApplicable,
 		},
 		{
 			name: "NotReady node defers to node lifecycle",
@@ -212,7 +214,7 @@ func TestDecide(t *testing.T) {
 				_, p := stuckFailing(5, ago(30*time.Minute))
 				return p
 			}(),
-			want: DecisionUnknown,
+			want: detection.DecisionUnknown,
 		},
 		{
 			name: "dwell not yet met: pods stuck too recently",
@@ -225,7 +227,7 @@ func TestDecide(t *testing.T) {
 				_, p := stuckFailing(3, ago(2*time.Minute))
 				return p
 			}(),
-			want: DecisionUnknown,
+			want: detection.DecisionUnknown,
 		},
 		{
 			name: "floor is per-pod dwell: one old plus two brand-new stuck pods does not fire",
@@ -240,18 +242,18 @@ func TestDecide(t *testing.T) {
 				stuckPod("new1", ago(20*time.Second)),
 				stuckPod("new2", ago(20*time.Second)),
 			},
-			want: DecisionUnknown,
+			want: detection.DecisionUnknown,
 		},
 		{
 			name: "recovery: a started pod, no stuck pods",
 			node: testNode(true, true),
 			pods: []*corev1.Pod{withSwiftNIC(startedPod("ok", ago(1*time.Minute), false))},
-			want: DecisionHealthy,
+			want: detection.DecisionHealthy,
 		},
 		{
 			name: "cold view: no signals leaves the label unchanged",
 			node: testNode(true, true),
-			want: DecisionUnknown,
+			want: detection.DecisionUnknown,
 		},
 		{
 			name: "non-matching signature is not a failing pod",
@@ -266,7 +268,7 @@ func TestDecide(t *testing.T) {
 				stuckPod("p1", ago(15*time.Minute)),
 				stuckPod("p2", ago(15*time.Minute)),
 			},
-			want: DecisionUnknown,
+			want: detection.DecisionUnknown,
 		},
 		{
 			name: "stuck pod without a matching Event is not counted",
@@ -276,7 +278,7 @@ func TestDecide(t *testing.T) {
 				stuckPod("p1", ago(15*time.Minute)),
 				stuckPod("p2", ago(15*time.Minute)),
 			},
-			want: DecisionUnknown,
+			want: detection.DecisionUnknown,
 		},
 		{
 			name: "stale storm: failure Events aged out of the window",
@@ -291,7 +293,7 @@ func TestDecide(t *testing.T) {
 				stuckPod("p1", ago(20*time.Minute)),
 				stuckPod("p2", ago(20*time.Minute)),
 			},
-			want: DecisionUnknown,
+			want: detection.DecisionUnknown,
 		},
 		{
 			name: "a started pod outside the window does not suppress the wedge",
@@ -304,7 +306,7 @@ func TestDecide(t *testing.T) {
 				_, p := stuckFailing(3, ago(15*time.Minute))
 				return append(p, withSwiftNIC(startedPod("stale", ago(30*time.Minute), false)))
 			}(),
-			want: DecisionWedged,
+			want: detection.DecisionWedged,
 		},
 		{
 			name: "success not set: a host-network pod in the slice is ignored, node stays wedged",
@@ -317,7 +319,7 @@ func TestDecide(t *testing.T) {
 				_, p := stuckFailing(3, ago(15*time.Minute))
 				return append(p, startedPod("hostnet", ago(2*time.Minute), true))
 			}(),
-			want: DecisionWedged,
+			want: detection.DecisionWedged,
 		},
 		{
 			name: "gate off: PodReadyToStartContainers absent yields Unknown",
@@ -332,15 +334,15 @@ func TestDecide(t *testing.T) {
 				{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "p1"}, Spec: corev1.PodSpec{NodeName: nodeName}, Status: corev1.PodStatus{Phase: corev1.PodPending}},
 				{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "p2"}, Spec: corev1.PodSpec{NodeName: nodeName}, Status: corev1.PodStatus{Phase: corev1.PodPending}},
 			},
-			want: DecisionUnknown,
+			want: detection.DecisionUnknown,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, _ := Decide(tc.node, tc.events, tc.pods, testNow)
+			got, _ := testRegistry(t).Decide(tc.node, tc.events, tc.pods, testNow)
 			if got != tc.want {
-				t.Errorf("Decide() = %v, want %v", got, tc.want)
+				t.Errorf("testRegistry(t).Decide() = %v, want %v", got, tc.want)
 			}
 		})
 	}
@@ -361,12 +363,12 @@ func TestAnyApplies(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := AnyApplies(tc.node); got != tc.want {
-				t.Errorf("AnyApplies() = %v, want %v", got, tc.want)
+			if got := testRegistry(t).AnyApplies(tc.node); got != tc.want {
+				t.Errorf("testRegistry(t).AnyApplies() = %v, want %v", got, tc.want)
 			}
 			if !tc.want && tc.node != nil {
-				if got, _ := Decide(tc.node, nil, nil, testNow); got != DecisionNotApplicable {
-					t.Errorf("Decide() = %v, want NotApplicable to match AnyApplies", got)
+				if got, _ := testRegistry(t).Decide(tc.node, nil, nil, testNow); got != detection.DecisionNotApplicable {
+					t.Errorf("testRegistry(t).Decide() = %v, want NotApplicable to match AnyApplies", got)
 				}
 			}
 		})
@@ -374,8 +376,8 @@ func TestAnyApplies(t *testing.T) {
 }
 
 func TestDecideNilNode(t *testing.T) {
-	if got, _ := Decide(nil, nil, nil, testNow); got != DecisionUnknown {
-		t.Errorf("Decide(nil) = %v, want Unknown", got)
+	if got, _ := testRegistry(t).Decide(nil, nil, nil, testNow); got != detection.DecisionUnknown {
+		t.Errorf("testRegistry(t).Decide(nil) = %v, want Unknown", got)
 	}
 }
 
@@ -383,12 +385,12 @@ func TestDecideSnapshotOnWedge(t *testing.T) {
 	node := testNode(true, true)
 	events, pods := stuckFailing(3, ago(15*time.Minute))
 
-	got, snap := Decide(node, events, pods, testNow)
-	if got != DecisionWedged {
-		t.Fatalf("Decide() = %v, want Wedged", got)
+	got, snap := testRegistry(t).Decide(node, events, pods, testNow)
+	if got != detection.DecisionWedged {
+		t.Fatalf("testRegistry(t).Decide() = %v, want Wedged", got)
 	}
-	if snap.DetectorName != swiftVFTeardown.name {
-		t.Errorf("snapshot detector = %q, want %q", snap.DetectorName, swiftVFTeardown.name)
+	if snap.DetectorName != swiftVFTeardown.DetectorName {
+		t.Errorf("snapshot detector = %q, want %q", snap.DetectorName, swiftVFTeardown.DetectorName)
 	}
 	if snap.Pods.FailureCount != 3 {
 		t.Errorf("snapshot FailureCount = %d, want 3", snap.Pods.FailureCount)
@@ -412,9 +414,9 @@ func TestDwellReadFromOldestStuckPod(t *testing.T) {
 	// dwell, so the wedge fires on the durable Pod timestamp, not the Event age.
 	node := testNode(true, true)
 	events, pods := stuckFailing(3, ago(20*time.Minute))
-	got, _ := Decide(node, events, pods, testNow)
-	if got != DecisionWedged {
-		t.Errorf("Decide() = %v, want Wedged", got)
+	got, _ := testRegistry(t).Decide(node, events, pods, testNow)
+	if got != detection.DecisionWedged {
+		t.Errorf("testRegistry(t).Decide() = %v, want Wedged", got)
 	}
 }
 
@@ -428,9 +430,9 @@ func TestEventsCorrelateByUIDNotName(t *testing.T) {
 	for _, p := range pods {
 		p.UID = types.UID(string(p.UID) + "-reused")
 	}
-	got, _ := Decide(node, events, pods, testNow)
-	if got != DecisionUnknown {
-		t.Errorf("Decide() = %v, want Unknown (name reuse must not inherit old Events)", got)
+	got, _ := testRegistry(t).Decide(node, events, pods, testNow)
+	if got != detection.DecisionUnknown {
+		t.Errorf("testRegistry(t).Decide() = %v, want Unknown (name reuse must not inherit old Events)", got)
 	}
 }
 
@@ -443,16 +445,16 @@ func TestSignatureVariantsMatch(t *testing.T) {
 		"mtpnc is not ready for pod",
 		"dhcp discover for eth0 timed out after 15s",
 	} {
-		gotIdx, ok := swiftVFTeardown.matchSignature(m)
+		gotIdx, ok := swiftVFTeardown.MatchSignature(m)
 		if !ok {
 			t.Errorf("expected signature match for %q", m)
 			continue
 		}
 		if gotIdx != wantIdx {
-			t.Errorf("matchSignature(%q) index = %d, want %d", m, gotIdx, wantIdx)
+			t.Errorf("detection.MatchSignature(%q) index = %d, want %d", m, gotIdx, wantIdx)
 		}
 	}
-	if _, ok := swiftVFTeardown.matchSignature("image pull backoff"); ok {
+	if _, ok := swiftVFTeardown.MatchSignature("image pull backoff"); ok {
 		t.Error("unrelated message should not match")
 	}
 }
@@ -472,28 +474,28 @@ func TestCNIPluginNotInitialized(t *testing.T) {
 	}
 
 	t.Run("persistent failure wedges a Ready SWIFT node", func(t *testing.T) {
-		got, snap := Decide(testNode(true, true), events, pods, testNow)
-		if got != DecisionWedged {
-			t.Fatalf("Decide() = %v, want Wedged", got)
+		got, snap := testRegistry(t).Decide(testNode(true, true), events, pods, testNow)
+		if got != detection.DecisionWedged {
+			t.Fatalf("testRegistry(t).Decide() = %v, want Wedged", got)
 		}
-		if snap.DetectorName != cniPluginNotInitialized.name {
-			t.Errorf("snapshot detector = %q, want %q", snap.DetectorName, cniPluginNotInitialized.name)
+		if snap.DetectorName != cniPluginNotInitialized.DetectorName {
+			t.Errorf("snapshot detector = %q, want %q", snap.DetectorName, cniPluginNotInitialized.DetectorName)
 		}
-		if snap.MatchedSignature != cniPluginNotInitialized.signatures[0].String() {
-			t.Errorf("matched signature = %q, want %q", snap.MatchedSignature, cniPluginNotInitialized.signatures[0].String())
+		if snap.MatchedSignature != cniPluginNotInitialized.Signatures[0].String() {
+			t.Errorf("matched signature = %q, want %q", snap.MatchedSignature, cniPluginNotInitialized.Signatures[0].String())
 		}
 	})
 
 	t.Run("recent sandbox success suppresses the wedge", func(t *testing.T) {
 		withSuccess := append(append([]*corev1.Pod{}, pods...), startedPod("ok", ago(2*time.Minute), false))
-		if got, _ := Decide(testNode(true, true), events, withSuccess, testNow); got != DecisionHealthy {
-			t.Errorf("Decide() = %v, want Healthy", got)
+		if got, _ := testRegistry(t).Decide(testNode(true, true), events, withSuccess, testNow); got != detection.DecisionHealthy {
+			t.Errorf("testRegistry(t).Decide() = %v, want Healthy", got)
 		}
 	})
 
 	t.Run("non-SWIFT node is outside the observed failure scope", func(t *testing.T) {
-		if got, _ := Decide(testNode(false, true), events, pods, testNow); got != DecisionNotApplicable {
-			t.Errorf("Decide() = %v, want NotApplicable", got)
+		if got, _ := testRegistry(t).Decide(testNode(false, true), events, pods, testNow); got != detection.DecisionNotApplicable {
+			t.Errorf("testRegistry(t).Decide() = %v, want NotApplicable", got)
 		}
 	})
 }
@@ -516,9 +518,9 @@ func TestMatchedSignatureReportsDominantFailureMode(t *testing.T) {
 			failEventFor("p1", ago(20*time.Second), msgMtpnc),
 			failEventFor("p2", ago(20*time.Second), msgMtpnc),
 		}
-		got, snap := Decide(testNode(true, true), events, pods, testNow)
-		if got != DecisionWedged {
-			t.Fatalf("Decide() = %v, want Wedged", got)
+		got, snap := testRegistry(t).Decide(testNode(true, true), events, pods, testNow)
+		if got != detection.DecisionWedged {
+			t.Fatalf("testRegistry(t).Decide() = %v, want Wedged", got)
 		}
 		if snap.MatchedSignature != sigMtpnc {
 			t.Errorf("MatchedSignature = %q, want %q", snap.MatchedSignature, sigMtpnc)
@@ -527,7 +529,7 @@ func TestMatchedSignatureReportsDominantFailureMode(t *testing.T) {
 
 	// The remaining cases exercise the classification itself, which is Evaluate's
 	// job. They go through Evaluate directly rather than inflating the fixtures to
-	// clear the floor, since Decide only returns a populated Snapshot on a wedge.
+	// clear the floor, since Decide only returns a populated detection.Snapshot on a wedge.
 	t.Run("tie broken by declaration order", func(t *testing.T) {
 		// One pod each. Both signatures are equally represented, so the earlier
 		// declared signature wins and the annotation does not flap between
@@ -600,30 +602,30 @@ func TestSuccessAt(t *testing.T) {
 	// A non-host-network pod with PodReadyToStartContainers=True yields its
 	// transition time: the durable per-node success timestamp the controller
 	// records.
-	if at, ok := SuccessAt(startedPod("ok", ts, false)); !ok || !at.Equal(ts) {
-		t.Errorf("SuccessAt(started) = (%v, %v), want (%v, true)", at, ok, ts)
+	if at, ok := detection.SuccessAt(startedPod("ok", ts, false)); !ok || !at.Equal(ts) {
+		t.Errorf("detection.SuccessAt(started) = (%v, %v), want (%v, true)", at, ok, ts)
 	}
 
 	// A host-network pod reaches the condition without a delegated NIC, so it is
 	// never a SWIFT success.
-	if _, ok := SuccessAt(startedPod("hostnet", ts, true)); ok {
-		t.Error("SuccessAt(host-network) = true, want false")
+	if _, ok := detection.SuccessAt(startedPod("hostnet", ts, true)); ok {
+		t.Error("detection.SuccessAt(host-network) = true, want false")
 	}
 
 	// A stuck pod (condition False) is not a success.
-	if _, ok := SuccessAt(stuckPod("p0", ts)); ok {
-		t.Error("SuccessAt(stuck) = true, want false")
+	if _, ok := detection.SuccessAt(stuckPod("p0", ts)); ok {
+		t.Error("detection.SuccessAt(stuck) = true, want false")
 	}
 
 	// A pod without the condition (feature gate off) is not a success.
 	bare := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "bare"}, Spec: corev1.PodSpec{NodeName: nodeName}}
-	if _, ok := SuccessAt(bare); ok {
-		t.Error("SuccessAt(no condition) = true, want false")
+	if _, ok := detection.SuccessAt(bare); ok {
+		t.Error("detection.SuccessAt(no condition) = true, want false")
 	}
 
 	// A nil pod is safe.
-	if _, ok := SuccessAt(nil); ok {
-		t.Error("SuccessAt(nil) = true, want false")
+	if _, ok := detection.SuccessAt(nil); ok {
+		t.Error("detection.SuccessAt(nil) = true, want false")
 	}
 }
 
@@ -661,13 +663,13 @@ func completedPod(name string, startedAt time.Time, hostNet bool) *corev1.Pod {
 func TestSuccessAtCountsFinishedPods(t *testing.T) {
 	started := ago(3 * time.Minute)
 
-	if at, ok := SuccessAt(completedPod("job", started, false)); !ok || !at.Equal(started) {
-		t.Errorf("SuccessAt(completed) = (%v, %v), want (%v, true)", at, ok, started)
+	if at, ok := detection.SuccessAt(completedPod("job", started, false)); !ok || !at.Equal(started) {
+		t.Errorf("detection.SuccessAt(completed) = (%v, %v), want (%v, true)", at, ok, started)
 	}
 
 	// Host-network is excluded here too: it never needed a delegated NIC.
-	if _, ok := SuccessAt(completedPod("hostnet-job", started, true)); ok {
-		t.Error("SuccessAt(completed host-network) = true, want false")
+	if _, ok := detection.SuccessAt(completedPod("hostnet-job", started, true)); ok {
+		t.Error("detection.SuccessAt(completed host-network) = true, want false")
 	}
 
 	// A pod that failed before any container ran proves nothing: no container
@@ -683,8 +685,8 @@ func TestSuccessAtCountsFinishedPods(t *testing.T) {
 			}},
 		},
 	}
-	if _, ok := SuccessAt(neverRan); ok {
-		t.Error("SuccessAt(terminal pod whose containers never ran) = true, want false")
+	if _, ok := detection.SuccessAt(neverRan); ok {
+		t.Error("detection.SuccessAt(terminal pod whose containers never ran) = true, want false")
 	}
 }
 
@@ -700,8 +702,8 @@ func TestSuccessAtIgnoresRestartedContainers(t *testing.T) {
 
 	restarted := completedPod("restarted", started, false)
 	restarted.Status.ContainerStatuses[0].RestartCount = 2
-	if at, ok := SuccessAt(restarted); ok {
-		t.Errorf("SuccessAt(restarted container) = (%v, true), want false", at)
+	if at, ok := detection.SuccessAt(restarted); ok {
+		t.Errorf("detection.SuccessAt(restarted container) = (%v, true), want false", at)
 	}
 
 	// A sidecar that never restarted still carries proof, even when another
@@ -715,8 +717,8 @@ func TestSuccessAtIgnoresRestartedContainers(t *testing.T) {
 			FinishedAt: metav1.NewTime(started.Add(1 * time.Minute)),
 		}},
 	})
-	if at, ok := SuccessAt(mixed); !ok || !at.Equal(started) {
-		t.Errorf("SuccessAt(mixed) = (%v, %v), want (%v, true)", at, ok, started)
+	if at, ok := detection.SuccessAt(mixed); !ok || !at.Equal(started) {
+		t.Errorf("detection.SuccessAt(mixed) = (%v, %v), want (%v, true)", at, ok, started)
 	}
 }
 
@@ -729,14 +731,14 @@ func TestRestartedContainerDoesNotSuppressAWedge(t *testing.T) {
 	looping := completedPod("looping", ago(1*time.Minute), false)
 	looping.Status.ContainerStatuses[0].RestartCount = 7
 
-	got, snap := Decide(testNode(true, true), events, pods, testNow)
-	if got != DecisionWedged {
-		t.Fatalf("precondition: Decide() = %v, want Wedged", got)
+	got, snap := testRegistry(t).Decide(testNode(true, true), events, pods, testNow)
+	if got != detection.DecisionWedged {
+		t.Fatalf("precondition: testRegistry(t).Decide() = %v, want Wedged", got)
 	}
 
-	got, snap = Decide(testNode(true, true), events, append(pods, looping), testNow)
-	if got != DecisionWedged {
-		t.Errorf("Decide(with a restarting container) = %v, want Wedged", got)
+	got, snap = testRegistry(t).Decide(testNode(true, true), events, append(pods, looping), testNow)
+	if got != detection.DecisionWedged {
+		t.Errorf("testRegistry(t).Decide(with a restarting container) = %v, want Wedged", got)
 	}
 	if snap.Pods.RecentSuccess {
 		t.Error("RecentSuccess = true for a container restarting in an existing sandbox, want false")
@@ -754,19 +756,19 @@ func TestRestartedContainerDoesNotSuppressAWedge(t *testing.T) {
 func TestFinishedPodInWindowPreventsAFalseWedge(t *testing.T) {
 	events, pods := stuckFailing(3, ago(15*time.Minute))
 
-	if got, _ := Decide(testNode(true, true), events, pods, testNow); got != DecisionWedged {
-		t.Fatalf("precondition: Decide() = %v, want Wedged", got)
+	if got, _ := testRegistry(t).Decide(testNode(true, true), events, pods, testNow); got != detection.DecisionWedged {
+		t.Fatalf("precondition: testRegistry(t).Decide() = %v, want Wedged", got)
 	}
 
 	withJob := append(pods, withSwiftNIC(completedPod("router-job", ago(3*time.Minute), false)))
-	if got, _ := Decide(testNode(true, true), events, withJob, testNow); got != DecisionHealthy {
-		t.Errorf("a finished pod inside the window must rule out a wedge: Decide() = %v, want Healthy", got)
+	if got, _ := testRegistry(t).Decide(testNode(true, true), events, withJob, testNow); got != detection.DecisionHealthy {
+		t.Errorf("a finished pod inside the window must rule out a wedge: testRegistry(t).Decide() = %v, want Healthy", got)
 	}
 
 	// The same pod outside the window is not current evidence.
 	withOldJob := append(pods, completedPod("old-cronjob", ago(45*time.Minute), false))
-	if got, _ := Decide(testNode(true, true), events, withOldJob, testNow); got != DecisionWedged {
-		t.Errorf("a finished pod outside the window must not rule out a wedge: Decide() = %v, want Wedged", got)
+	if got, _ := testRegistry(t).Decide(testNode(true, true), events, withOldJob, testNow); got != detection.DecisionWedged {
+		t.Errorf("a finished pod outside the window must not rule out a wedge: testRegistry(t).Decide() = %v, want Wedged", got)
 	}
 }
 
@@ -839,8 +841,8 @@ func TestPodRequestsSwiftNIC(t *testing.T) {
 func TestOverlaySuccessDoesNotSuppressASwiftWedge(t *testing.T) {
 	events, pods := stuckFailing(3, ago(15*time.Minute))
 
-	if got, _ := Decide(testNode(true, true), events, pods, testNow); got != DecisionWedged {
-		t.Fatalf("precondition: Decide() = %v, want Wedged", got)
+	if got, _ := testRegistry(t).Decide(testNode(true, true), events, pods, testNow); got != detection.DecisionWedged {
+		t.Fatalf("precondition: testRegistry(t).Decide() = %v, want Wedged", got)
 	}
 
 	// The overlay is healthy throughout: a steady stream of ordinary pods reaches
@@ -852,9 +854,9 @@ func TestOverlaySuccessDoesNotSuppressASwiftWedge(t *testing.T) {
 	// A completed overlay pod is the same story on a low-churn node.
 	overlay = append(overlay, completedPod("cronjob", ago(3*time.Minute), false))
 
-	got, snap := Decide(testNode(true, true), events, overlay, testNow)
-	if got != DecisionWedged {
-		t.Errorf("overlay-only successes suppressed a real delegated-NIC wedge: Decide() = %v, want Wedged", got)
+	got, snap := testRegistry(t).Decide(testNode(true, true), events, overlay, testNow)
+	if got != detection.DecisionWedged {
+		t.Errorf("overlay-only successes suppressed a real delegated-NIC wedge: testRegistry(t).Decide() = %v, want Wedged", got)
 	}
 	if snap.Pods.RecentSuccess {
 		t.Error("RecentSuccess = true from pods that never asked for a NIC, want false")
@@ -863,8 +865,8 @@ func TestOverlaySuccessDoesNotSuppressASwiftWedge(t *testing.T) {
 	// One pod that did ask for a NIC and got one is real proof the path works, and
 	// must still rule the wedge out.
 	recovered := append(overlay, withSwiftNIC(startedPod("router", ago(1*time.Minute), false)))
-	if got, _ := Decide(testNode(true, true), events, recovered, testNow); got != DecisionHealthy {
-		t.Errorf("a delegated-NIC success must rule out the wedge: Decide() = %v, want Healthy", got)
+	if got, _ := testRegistry(t).Decide(testNode(true, true), events, recovered, testNow); got != detection.DecisionHealthy {
+		t.Errorf("a delegated-NIC success must rule out the wedge: testRegistry(t).Decide() = %v, want Healthy", got)
 	}
 }
 
@@ -873,7 +875,7 @@ func TestOverlaySuccessDoesNotSuppressASwiftWedge(t *testing.T) {
 // change a detector that did not opt in.
 func TestSuccessScopeDefaultsToEveryPod(t *testing.T) {
 	unscoped := swiftVFTeardown
-	unscoped.successScope = nil
+	unscoped.SuccessScope = nil
 
 	_, pods := stuckFailing(3, ago(15*time.Minute))
 	pods = append(pods, startedPod("plain", ago(1*time.Minute), false))

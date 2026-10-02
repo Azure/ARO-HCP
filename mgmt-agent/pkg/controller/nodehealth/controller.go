@@ -33,7 +33,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
-	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection/detectors"
 )
 
 const (
@@ -57,6 +58,7 @@ const (
 // reconcile of wedged nodes. Its two operational switches are hot-reloadable
 // via SetConfig.
 type Controller struct {
+	detectors    *detection.Registry
 	nodeLister   corelisters.NodeLister
 	podIndexer   cache.Indexer
 	eventIndexer cache.Indexer
@@ -80,7 +82,11 @@ func NewController(
 	recorder record.EventRecorder,
 	clock func() time.Time,
 	initial Config,
+	detectorRegistry *detection.Registry,
 ) (*Controller, error) {
+	if detectorRegistry == nil {
+		return nil, fmt.Errorf("detector registry is required")
+	}
 	if clock == nil {
 		clock = time.Now
 	}
@@ -96,6 +102,7 @@ func NewController(
 	}
 
 	c := &Controller{
+		detectors:    detectorRegistry,
 		nodeLister:   nodeInformer.Lister(),
 		podIndexer:   podInformer.Informer().GetIndexer(),
 		eventIndexer: eventInformer.Informer().GetIndexer(),
@@ -371,7 +378,7 @@ func (c *Controller) syncHandler(ctx context.Context, name string) error {
 	// Every Pod and kubelet Event enqueues the node it belongs to, so on a
 	// management cluster most reconciles are for nodes no detector owns. Decide
 	// applies the same gate, so this reaches the same verdict without the scan.
-	if !detectors.AnyApplies(node) {
+	if !c.detectors.AnyApplies(node) {
 		return c.retireStaleLabel(ctx, node, logger)
 	}
 
@@ -380,9 +387,9 @@ func (c *Controller) syncHandler(ctx context.Context, name string) error {
 		return err
 	}
 
-	decision, snap := detectors.Decide(node, events, pods, c.clock())
+	decision, snap := c.detectors.Decide(node, events, pods, c.clock())
 	switch decision {
-	case detectors.DecisionWedged:
+	case detection.DecisionWedged:
 		changed, err := c.labeler.label(ctx, node, snap.DetectorName, snap)
 		if err != nil {
 			return err
@@ -401,16 +408,16 @@ func (c *Controller) syncHandler(ctx context.Context, name string) error {
 		}
 		// Mitigation of a labeled node (cordon, taint, evict, delete) is owned
 		// by a separate controller; this controller stops at labeling.
-	case detectors.DecisionHealthy:
+	case detection.DecisionHealthy:
 		if _, err := c.labeler.unlabel(ctx, node); err != nil {
 			return err
 		}
-	case detectors.DecisionNotApplicable:
+	case detection.DecisionNotApplicable:
 		// Reached only if Decide's ownership gate disagrees with the AnyApplies
 		// short-circuit above, which it cannot for the same node. Kept so the
 		// switch covers Decide's full contract rather than relying on the caller.
 		return c.retireStaleLabel(ctx, node, logger)
-	case detectors.DecisionUnknown:
+	case detection.DecisionUnknown:
 		logger.V(5).Info("insufficient evidence; leaving label unchanged")
 	}
 	return nil

@@ -28,7 +28,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/component-base/metrics/legacyregistry"
 
-	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection/detectors"
 )
 
 // testNow is a fixed clock for labeler tests.
@@ -53,11 +54,11 @@ func getNode(t *testing.T, client *fake.Clientset, name string) *corev1.Node {
 	return n
 }
 
-func snap() detectors.Snapshot {
-	return detectors.Snapshot{
+func snap() detection.Snapshot {
+	return detection.Snapshot{
 		DetectorName:     "swift-vf-teardown",
 		Window:           10 * time.Minute,
-		Pods:             &detectors.PodEvidence{FailureCount: 30},
+		Pods:             &detection.PodEvidence{FailureCount: 30},
 		MatchedSignature: `no such network interface`,
 	}
 }

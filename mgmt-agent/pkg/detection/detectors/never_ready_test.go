@@ -21,6 +21,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/detection"
 )
 
 // nodeAt builds a SWIFT node with explicit creation and Ready-transition times,
@@ -59,9 +61,9 @@ func bornBroken(d time.Duration, reason string) *corev1.Node {
 func TestNeverReadyFiresPastDwell(t *testing.T) {
 	node := bornBroken(22*time.Hour, "KubeletNotReady")
 
-	got, snap := Decide(node, nil, nil, testNow)
-	if got != DecisionWedged {
-		t.Fatalf("Decide() = %v, want Wedged", got)
+	got, snap := testRegistry(t).Decide(node, nil, nil, testNow)
+	if got != detection.DecisionWedged {
+		t.Fatalf("testRegistry(t).Decide() = %v, want Wedged", got)
 	}
 	if snap.DetectorName != "never-ready" {
 		t.Errorf("DetectorName = %q, want never-ready", snap.DetectorName)
@@ -85,17 +87,17 @@ func TestNeverReadyDwell(t *testing.T) {
 	tests := []struct {
 		name  string
 		stuck time.Duration
-		want  Decision
+		want  detection.Decision
 	}{
-		{name: "far inside the dwell, a node still bootstrapping", stuck: 2 * time.Minute, want: DecisionUnknown},
-		{name: "just inside the dwell", stuck: neverReadyDwell - time.Second, want: DecisionUnknown},
-		{name: "exactly at the dwell", stuck: neverReadyDwell, want: DecisionWedged},
-		{name: "past the dwell", stuck: neverReadyDwell + time.Minute, want: DecisionWedged},
+		{name: "far inside the dwell, a node still bootstrapping", stuck: 2 * time.Minute, want: detection.DecisionUnknown},
+		{name: "just inside the dwell", stuck: neverReadyDwell - time.Second, want: detection.DecisionUnknown},
+		{name: "exactly at the dwell", stuck: neverReadyDwell, want: detection.DecisionWedged},
+		{name: "past the dwell", stuck: neverReadyDwell + time.Minute, want: detection.DecisionWedged},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got, _ := Decide(bornBroken(tc.stuck, "KubeletNotReady"), nil, nil, testNow); got != tc.want {
-				t.Errorf("Decide() = %v, want %v", got, tc.want)
+			if got, _ := testRegistry(t).Decide(bornBroken(tc.stuck, "KubeletNotReady"), nil, nil, testNow); got != tc.want {
+				t.Errorf("testRegistry(t).Decide() = %v, want %v", got, tc.want)
 			}
 		})
 	}
@@ -123,8 +125,8 @@ func TestNeverReadyLeavesLifecycleAlone(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got, _ := Decide(tc.node, nil, nil, testNow); got != DecisionUnknown {
-				t.Errorf("Decide() = %v, want Unknown; a node that was once Ready belongs to node lifecycle", got)
+			if got, _ := testRegistry(t).Decide(tc.node, nil, nil, testNow); got != detection.DecisionUnknown {
+				t.Errorf("testRegistry(t).Decide() = %v, want Unknown; a node that was once Ready belongs to node lifecycle", got)
 			}
 		})
 	}
@@ -138,13 +140,13 @@ func TestNeverReadyTolerance(t *testing.T) {
 	created := testNow.Add(-2 * time.Hour)
 
 	inside := nodeAt(created, created.Add(neverReadyTolerance), false, "KubeletNotReady")
-	if got, _ := Decide(inside, nil, nil, testNow); got != DecisionWedged {
-		t.Errorf("a transition at the tolerance edge is still born broken: Decide() = %v, want Wedged", got)
+	if got, _ := testRegistry(t).Decide(inside, nil, nil, testNow); got != detection.DecisionWedged {
+		t.Errorf("a transition at the tolerance edge is still born broken: testRegistry(t).Decide() = %v, want Wedged", got)
 	}
 
 	outside := nodeAt(created, created.Add(neverReadyTolerance+time.Second), false, "KubeletNotReady")
-	if got, _ := Decide(outside, nil, nil, testNow); got != DecisionUnknown {
-		t.Errorf("a transition past the tolerance means the node reached Ready: Decide() = %v, want Unknown", got)
+	if got, _ := testRegistry(t).Decide(outside, nil, nil, testNow); got != detection.DecisionUnknown {
+		t.Errorf("a transition past the tolerance means the node reached Ready: testRegistry(t).Decide() = %v, want Unknown", got)
 	}
 }
 
@@ -174,9 +176,9 @@ func TestNeverReadyIgnoresUnusableEvidence(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, _ := Decide(tc.node, nil, nil, testNow)
-			if got != DecisionUnknown {
-				t.Errorf("Decide() = %v, want Unknown", got)
+			got, _ := testRegistry(t).Decide(tc.node, nil, nil, testNow)
+			if got != detection.DecisionUnknown {
+				t.Errorf("testRegistry(t).Decide() = %v, want Unknown", got)
 			}
 		})
 	}
@@ -186,9 +188,9 @@ func TestNeverReadyIgnoresUnusableEvidence(t *testing.T) {
 // reason blank. The label is what mitigation keys on, so a missing triage detail
 // must not cost us the detection.
 func TestNeverReadyEmptyReasonStillLabels(t *testing.T) {
-	got, snap := Decide(bornBroken(time.Hour, ""), nil, nil, testNow)
-	if got != DecisionWedged {
-		t.Fatalf("Decide() = %v, want Wedged", got)
+	got, snap := testRegistry(t).Decide(bornBroken(time.Hour, ""), nil, nil, testNow)
+	if got != detection.DecisionWedged {
+		t.Fatalf("testRegistry(t).Decide() = %v, want Wedged", got)
 	}
 	if snap.MatchedSignature != "" {
 		t.Errorf("MatchedSignature = %q, want empty so no signature annotation is written", snap.MatchedSignature)
@@ -205,9 +207,9 @@ func TestNeverReadyEmptyReasonStillLabels(t *testing.T) {
 func TestNeverReadyDoesNotDisturbTheReadyPath(t *testing.T) {
 	events, pods := stuckFailing(3, ago(15*time.Minute))
 
-	got, snap := Decide(testNode(true, true), events, pods, testNow)
-	if got != DecisionWedged {
-		t.Fatalf("Decide() = %v, want Wedged", got)
+	got, snap := testRegistry(t).Decide(testNode(true, true), events, pods, testNow)
+	if got != detection.DecisionWedged {
+		t.Fatalf("testRegistry(t).Decide() = %v, want Wedged", got)
 	}
 	if snap.DetectorName != "swift-vf-teardown" {
 		t.Errorf("DetectorName = %q, want swift-vf-teardown to still own the Ready path", snap.DetectorName)
@@ -215,8 +217,8 @@ func TestNeverReadyDoesNotDisturbTheReadyPath(t *testing.T) {
 
 	// The same node with no evidence stays Unknown rather than being caught by
 	// never-ready, whose Evaluate has no Node to read.
-	if got, _ := Decide(testNode(true, true), nil, nil, testNow); got != DecisionUnknown {
-		t.Errorf("Decide(quiet Ready node) = %v, want Unknown", got)
+	if got, _ := testRegistry(t).Decide(testNode(true, true), nil, nil, testNow); got != detection.DecisionUnknown {
+		t.Errorf("testRegistry(t).Decide(quiet Ready node) = %v, want Unknown", got)
 	}
 }
 
@@ -227,22 +229,22 @@ func TestNeverReadyOwnership(t *testing.T) {
 	node := bornBroken(22*time.Hour, "KubeletNotReady")
 	node.Labels = map[string]string{}
 
-	if got, _ := Decide(node, nil, nil, testNow); got != DecisionNotApplicable {
-		t.Errorf("Decide(non-SWIFT born-broken node) = %v, want NotApplicable", got)
+	if got, _ := testRegistry(t).Decide(node, nil, nil, testNow); got != detection.DecisionNotApplicable {
+		t.Errorf("testRegistry(t).Decide(non-SWIFT born-broken node) = %v, want NotApplicable", got)
 	}
 }
 
 // TestNeverReadyIsNodeOnly pins the separation in the type system rather than in
-// a runtime check: this detector reads the Node, so it must be a NodeDetector
-// and must not satisfy PodDetector. If it ever did, Decide's Ready path would
+// a runtime check: this detector reads the Node, so it must be a detection.NodeDetector
+// and must not satisfy detection.PodDetector. If it ever did, Decide's Ready path would
 // evaluate it against a pod population it has nothing to say about.
 func TestNeverReadyIsNodeOnly(t *testing.T) {
-	var d Detector = neverReady
-	if _, ok := d.(NodeDetector); !ok {
-		t.Error("neverReady does not satisfy NodeDetector; it would never run on the NotReady path")
+	var d detection.Detector = neverReady
+	if _, ok := d.(detection.NodeDetector); !ok {
+		t.Error("neverReady does not satisfy detection.NodeDetector; it would never run on the NotReady path")
 	}
-	if _, ok := d.(PodDetector); ok {
-		t.Error("neverReady satisfies PodDetector; it must not be reachable from the Ready path")
+	if _, ok := d.(detection.PodDetector); ok {
+		t.Error("neverReady satisfies detection.PodDetector; it must not be reachable from the Ready path")
 	}
 }
 
@@ -250,7 +252,7 @@ func TestNeverReadyIsNodeOnly(t *testing.T) {
 // pod-centric summary is what every existing detector renders into the reason
 // annotation, so it has to be byte-identical when Detail is unset.
 func TestSnapshotDetailOverridesReasonString(t *testing.T) {
-	base := Snapshot{Pods: &PodEvidence{SustainedCount: 2, FailureCount: 5}, Window: 10 * time.Minute}
+	base := detection.Snapshot{Pods: &detection.PodEvidence{SustainedCount: 2, FailureCount: 5}, Window: 10 * time.Minute}
 
 	const want = "2 pods stuck past dwell (5 stuck total), no recent success in 10m0s window"
 	if got := base.ReasonString(); got != want {
@@ -304,9 +306,9 @@ func TestProductionBornBrokenNodeFires(t *testing.T) {
 		t.Fatal("the captured node carried the SWIFT v2 label; the detector must own it")
 	}
 
-	got, snap := Decide(node, nil, nil, now)
-	if got != DecisionWedged {
-		t.Fatalf("Decide() = %v, want Wedged; the captured node sat NotReady for 22 hours", got)
+	got, snap := testRegistry(t).Decide(node, nil, nil, now)
+	if got != detection.DecisionWedged {
+		t.Fatalf("testRegistry(t).Decide() = %v, want Wedged; the captured node sat NotReady for 22 hours", got)
 	}
 	// This detector reads the node, not pods, so there is no pod evidence to
 	// report and Pods must stay nil rather than carry zeroes that read as "no
@@ -324,10 +326,10 @@ func TestProductionBornBrokenNodeFires(t *testing.T) {
 	// It must fire far earlier than the 22 hours we actually took, and not before
 	// the dwell.
 	dwellHit := mustParse(created).Add(neverReadyDwell)
-	if got, _ := Decide(node, nil, nil, dwellHit); got != DecisionWedged {
-		t.Errorf("Decide(at the dwell) = %v, want Wedged", got)
+	if got, _ := testRegistry(t).Decide(node, nil, nil, dwellHit); got != detection.DecisionWedged {
+		t.Errorf("testRegistry(t).Decide(at the dwell) = %v, want Wedged", got)
 	}
-	if got, _ := Decide(node, nil, nil, dwellHit.Add(-time.Second)); got != DecisionUnknown {
-		t.Errorf("Decide(one second before the dwell) = %v, want Unknown", got)
+	if got, _ := testRegistry(t).Decide(node, nil, nil, dwellHit.Add(-time.Second)); got != detection.DecisionUnknown {
+		t.Errorf("testRegistry(t).Decide(one second before the dwell) = %v, want Unknown", got)
 	}
 }

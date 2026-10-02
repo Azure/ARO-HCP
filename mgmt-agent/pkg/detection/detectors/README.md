@@ -1,10 +1,9 @@
-# node-health detectors
+# Detectors
 
-This package is the pure detection core of the node-health controller. It answers
-one question, with no Kubernetes I/O: given a node and the Events and Pods
-currently held for it, is the node **wedged**, **healthy** (recovered), or is the
-evidence insufficient to say? The controller package (`..`) consumes the verdict
-and is the only thing that talks to the API server (labeling, events, metrics).
+This package evaluates named node-wide and pod-scoped faults without Kubernetes
+I/O. Node-health consumes the node-wide verdict for health labels.
+Node-mitigation consumes named detections through its separate mitigator registry.
+Pod-scoped faults never authorize a node-wide wedged label.
 
 Keeping detection isolated and side-effect free is what makes it exhaustively
 table-testable: every rule below is exercised by `decide_test.go` against
@@ -12,7 +11,7 @@ synthetic Events and Pods, no cluster required.
 
 ## The decision
 
-`Decide(node, events, pods, now) (Decision, Snapshot)`
+`Registry.Decide(node, events, pods, now) (Decision, Snapshot)`
 returns one of:
 
 - `DecisionWedged`: a detector fired. The controller ensures the node carries the
@@ -43,31 +42,41 @@ just started decides exactly what one running for hours would, with no warm-up.
 A **detector** is one fault family. Detection is modular so that adding a family
 is adding code in its own file, never editing the engine:
 
-- **`decide.go`**: the engine. It defines `Detector` (identity and scope only:
-  `Name`, `Reason`, `Applies`, `Window`), the two evaluation interfaces
-  `PodDetector` and `NodeDetector`, the `Snapshot` of evaluated evidence and its
-  `PodEvidence`, the `Decision` type, the `podRegistry` and `nodeRegistry`, and
-  `Decide`, which iterates them without knowing any concrete type.
-- **`signature_detector.go`**: the shared base. `signatureDetector` implements
+- **[`../types.go`](../types.go)**: detector interfaces, result scopes, `Decision`,
+  `Snapshot`, `PodEvidence` and `Detection`.
+- **[`../registry.go`](../registry.go)**: ordered registration validation.
+  [`Startup`](../../../cmd/options.go) constructs the registry explicitly and
+  injects it into both controllers.
+- **[`../decide.go`](../decide.go)**: the node-wide engine. `Registry.Decide`
+  selects registered node-scoped detectors without knowing their concrete types.
+- **[`../collect.go`](../collect.go)**: `Registry.CollectDetections` returns the
+  node-wide verdict plus independent Pod faults.
+- **`swift_pod_sandbox_stalled.go`**: the named `swift-pod-sandbox-stalled`
+  detector, evaluated per Pod. The same registered logic supplies candidate
+  evidence and the executor's fresh pre-eviction check. Events must have activity
+  within 60 seconds; only overlapping or touching intervals combine toward the
+  60-second fault span. Disconnected Events cannot supply the dwell.
+- **[`../signature.go`](../signature.go)**: the shared base. `detection.Signature` implements
   `PodDetector` once for the common shape and carries the reusable toolkit
   (windowed correlation of failure Events to stuck pods, condition-based dwell
   math, node-Ready and success helpers). Families that fit this shape reuse all
   of it.
-- **`swift_vf.go`** and **`cni_plugin_not_initialized.go`**: each fault family's
+- **`swift_vf_teardown.go`** and **`cni_plugin_not_initialized.go`**: each fault family's
   specifics only. No evaluation logic lives in these files.
 - **`never_ready.go`**: the `never-ready` detector, a `NodeDetector` whose whole
   evidence is the Node object.
+- **`swift.go`**: shared SWIFT signatures and applicability predicates.
 
-A detector reads either the node's Pods and Events or the Node object itself, and
-those are not the same job, so they are not the same interface. A `PodDetector`
+A node-scoped detector reads either the node's Pods and Events or the Node object
+itself. A `PodDetector`
 adds `Evaluate` and `MeetsThreshold`. A `NodeDetector` adds `EvaluateNode`, which
 returns the `Decision` directly, because for it the evidence and the judgement are
-one step. Each registry holds only its own kind, so a detector cannot run on a
-path its evidence does not exist on.
+one step. A `PodScopedDetector` adds `EvaluatePod` and reports an individual Pod
+fault. Each registered detector implements exactly one evaluation interface.
 
-`Decide` picks the path from the node's Ready condition. A node that is not Ready
-never had a pod population worth reading, so `Decide` walks `nodeRegistry` and
-calls `EvaluateNode`. A Ready node goes to `podRegistry`, where each detector gets
+`Decide` picks the node-wide path from the node's Ready condition. A node that is
+not Ready is evaluated by registered `NodeDetector` implementations.
+A Ready node is evaluated by registered `PodDetector` implementations, each with
 `Applies(node)` (skip if the node can't exhibit the fault), then `Evaluate(...)`
 to gather the evidence `Snapshot`, then `MeetsThreshold(snap, now)`. Either way
 the first detector that fires wins and the node is `Wedged`; if none fires but
@@ -77,7 +86,7 @@ some success was seen, the node is `Healthy`; otherwise `Unknown`.
 detector that reads no pods reports no pod counts rather than zeroes that would
 read as "nothing was stuck".
 
-## The `signatureDetector` shape
+## The `detection.Signature` shape
 
 Most kubelet-visible wedges look the same: pods that cannot get a sandbox, marked
 by a particular Event `reason` whose message matches a signature, with no fresh
@@ -86,16 +95,17 @@ constants, never config):
 
 | field                | meaning |
 |----------------------|---------|
-| `appliesTo`          | predicate limiting the detector to nodes that can physically exhibit the fault (nil = all nodes) |
-| `eventReason`        | the kubelet Event `reason` that signals a pod-level networking failure |
-| `signatures`         | regexes matched against the failure Event message; any match is a hit. The first one that matches classifies the pod, and the signature classifying most of the counted pods is reported in the `Snapshot` for triage (ties broken by declaration order, so it is stable) |
-| `failuresFloor`      | minimum number of stuck pods that have each individually been stuck past `dwell` (a floor so the storm is sustained, not the trigger) |
-| `window`             | rolling window over which failures and successes are counted |
-| `dwell`              | how long each pod must have been stuck before it counts toward the floor, filtering transient bursts |
-| `requireZeroSuccess` | when true, firing requires zero fresh sandbox successes in the window |
+| `AppliesTo`          | predicate limiting the detector to nodes that can physically exhibit the fault (nil = all nodes) |
+| `EventReason`        | the kubelet Event `reason` that signals a pod-level networking failure |
+| `Signatures`         | regexes matched against the failure Event message; any match is a hit. The first one that matches classifies the pod, and the signature classifying most of the counted pods is reported in the `Snapshot` for triage (ties broken by declaration order, so it is stable) |
+| `FailuresFloor`      | minimum number of stuck pods that have each individually been stuck past `Dwell` (a floor so the storm is sustained, not the trigger) |
+| `EvaluationWindow`   | rolling window over which failures and successes are counted |
+| `Dwell`              | how long each pod must have been stuck before it counts toward the floor, filtering transient bursts |
+| `RequireZeroSuccess` | when true, firing requires zero fresh sandbox successes in the window |
+| `SuccessScope`       | predicate selecting Pods whose sandbox success proves recovery (nil = all Pods) |
 
-`MeetsThreshold` is: `SustainedCount >= failuresFloor` (stuck pods that have each been stuck
-at least `dwell`) **and** `RecentSuccess == false` when `requireZeroSuccess`.
+`MeetsThreshold` is: `SustainedCount >= FailuresFloor` (stuck pods that have each been stuck
+at least `Dwell`) **and** `RecentSuccess == false` when `RequireZeroSuccess`.
 
 Three details that matter, all of them chosen so no signal depends on Events or
 Pods that the apiserver garbage-collects:
@@ -112,7 +122,7 @@ Pods that the apiserver garbage-collects:
   which is deletion-safe, and correlated to a specific Pod by `InvolvedObject.UID` so
   a recycled name cannot inherit a deleted Pod's Events); they are never counted.
 - **Success presence is load-bearing, and it is read from the same Pods.**
-  `requireZeroSuccess` is what separates a hard wedge (VF gone, no fresh sandboxes)
+  `RequireZeroSuccess` is what separates a hard wedge (VF gone, no fresh sandboxes)
   from a flap (some pods still starting). `Evaluate` scans the node's Pods with
   `SuccessAt` and sets `RecentSuccess` when one lands inside the window. Two shapes
   count, and host-network pods are excluded from both since they reach a running
@@ -160,14 +170,14 @@ is outside the observed failure scope.
   cannot get sandboxes. In many episodes the node stays Ready throughout because
   the kubelet `NetworkReady` condition only gates the initial Ready transition;
   in some episodes the node does eventually go NotReady. Because the detector
-  gates behind `isNodeReady`, it only fires while the node reports Ready.
+  gates behind `detection.NodeReady`, it only fires while the node reports Ready.
 
-Both use `requireZeroSuccess: true`.
-`swift-vf-teardown` uses `window: 10m`, `dwell: 10m`, and `failuresFloor: 2`
+Both use `RequireZeroSuccess: true`.
+`swift-vf-teardown` uses `EvaluationWindow: 10m`, `Dwell: 10m`, and `FailuresFloor: 2`
 (a hard wedge presents with very few distinct pods);
-`cni-plugin-not-initialized` uses `window: 20m`, `dwell: 20m`, and
-`failuresFloor: 3` (a wider window chosen to clear the observed reimage
-ceiling — production data across five regions showed transient CNI bursts
+`cni-plugin-not-initialized` uses `EvaluationWindow: 20m`, `Dwell: 20m`, and
+`FailuresFloor: 3` (a wider window chosen to clear the observed reimage
+ceiling, production data across five regions showed transient CNI bursts
 topping out around 14 minutes).
 
 `SwiftV2LabelKey`/`Value` are exported because the controller uses them to scope
@@ -198,13 +208,35 @@ Ready condition's reason is carried as the signature for triage instead, which
 keeps the evidence to the Node object alone.
 
 ## Adding a fault family
-1. If it fits the signature shape, add a new `signatureDetector` value in its own
-   file (e.g. `myfault.go`) with its constants, plus its `appliesTo` predicate.
+1. If it fits the signature shape, add a constructor returning `detection.Signature`
+   in its own file (e.g. `myfault.go`) with its constants and `AppliesTo` predicate.
 2. If it needs different evidence, add a new type in its own file implementing
-   `Detector` plus whichever of `PodDetector` or `NodeDetector` matches what it
-   reads.
-3. Register it in `podRegistry` or `nodeRegistry` in `decide.go`, whichever
-   matches its interface.
-4. Add table cases to `decide_test.go`.
+   `Detector` plus exactly one of `PodDetector`, `NodeDetector` or
+   `PodScopedDetector`. Set `Scope` to match the result, not the evidence source:
+   `PodDetector` uses Pods to diagnose a whole node.
+3. Add its constructor to `detection.NewRegistry` in `cmd/options.go`, preserving
+   the node-wide precedence order.
+4. Add detector cases and update the registry identity/scope test. Cover node
+   labeling separately from Pod fault collection.
 
 `Decide` needs no changes in any case: it only knows the interfaces.
+
+## Consumers and mitigators
+
+| Consumer | Input | Responsibility |
+| --- | --- | --- |
+| `node-health` | `Decide` node-wide verdict | Maintain owned health labels with positive-recovery and Unknown semantics. |
+| `node-mitigation` | `CollectDetections` scoped results | Route detector names to selected mitigators; apply live safety checks before action. |
+
+`swift-pod-sandbox-stalled` requires initial sandbox failure spanning at least
+60 seconds and matching activity within the last 60 seconds on a Ready SWIFT-v2
+node. Fresh successful neighbors do not suppress it. Its Pod UID and timestamps
+are evidence only, not permission to evict.
+
+The independent [`mitigation.Registry`](../../mitigation/registry.go) is also
+constructed in startup. Each mitigator
+has its own `Name`, `DetectorNames` mapping and implementation file.
+[`mitigators/swift.go`](../../mitigation/mitigators/swift.go) implements the stable `swift` policy
+for `swift-pod-sandbox-stalled` only. Node-wide detections have no eviction route.
+Duplicate names and conflicting routes fail registry construction. Adding a
+detector does not implicitly authorize an action.
