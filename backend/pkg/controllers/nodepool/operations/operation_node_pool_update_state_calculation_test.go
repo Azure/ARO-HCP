@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -494,13 +495,14 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 			ctx := context.Background()
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
-			controller := &operationNodePoolUpdate{
+			controller := &nodePoolUpdateHypershiftCheck{
+				nodePoolLister: &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{tt.nodePool}},
 				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 					Desires: tt.readDesires,
 				},
 			}
 
-			state, err := controller.hypershiftNodePoolOperationState(ctx, tt.nodePool, tt.csNodePool)
+			state, err := controller.CalculateOperationStatus(ctx, &coreapi.Operation{ExternalID: tt.nodePool.ID}, tt.csNodePool)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
@@ -514,7 +516,6 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 	t.Parallel()
 
 	fixture := operationtesting.NewNodePoolTestFixture()
-	controller := &operationNodePoolUpdate{}
 
 	tests := []struct {
 		name              string
@@ -608,7 +609,8 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			state, err := controller.clusterServiceNodePoolSpecOperationState(tt.nodePool, tt.csNodePool)
+			controller := &nodePoolUpdateClusterServiceSpecCheck{nodePoolLister: &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{tt.nodePool}}}
+			state, err := controller.CalculateOperationStatus(context.Background(), &coreapi.Operation{ExternalID: tt.nodePool.ID}, tt.csNodePool)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
@@ -621,7 +623,7 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 func TestHypershiftNodePoolLabelsSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	tests := []struct {
 		name       string
@@ -685,7 +687,7 @@ func TestHypershiftNodePoolLabelsSpecMatchesDesired(t *testing.T) {
 func TestHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	tests := []struct {
 		name       string
@@ -797,7 +799,7 @@ func TestHypershiftNodePoolReplicasOrAutoscalingSpecMatchesDesired(t *testing.T)
 func TestHypershiftNodePoolTaintsSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	tests := []struct {
 		name       string
@@ -876,7 +878,7 @@ func TestHypershiftNodePoolTaintsSpecMatchesDesired(t *testing.T) {
 func TestHypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	baseDesired := &coreapi.NodePool{
 		Properties: coreapi.NodePoolProperties{},
@@ -1049,7 +1051,7 @@ func TestHypershiftNodePoolNodeDrainTimeoutSpecMatchesDesired(t *testing.T) {
 func TestHypershiftNodePoolStatusReplicasMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	tests := []struct {
 		name             string
@@ -1124,7 +1126,7 @@ func TestHypershiftNodePoolStatusReplicasMatchesDesired(t *testing.T) {
 func TestHypershiftNodePoolConditionStatusMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	tests := []struct {
 		name          string
@@ -1198,7 +1200,7 @@ func TestHypershiftNodePoolConditionStatusMatchesDesired(t *testing.T) {
 func TestHypershiftNodePoolStatusMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationNodePoolUpdate{}
+	controller := &nodePoolUpdateHypershiftCheck{}
 
 	tests := []struct {
 		name        string

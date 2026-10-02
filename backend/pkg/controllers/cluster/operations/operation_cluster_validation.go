@@ -15,7 +15,6 @@
 package operations
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -25,26 +24,9 @@ import (
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const clusterValidationFailureTimeout = 10 * time.Minute
-
-func (c *operationClusterCreate) clusterValidation(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
-	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		return operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "ServiceProviderCluster not cached yet"), nil
-	}
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err))
-	}
-	return clusterValidationOperationState(serviceProviderCluster, operation.StartTime, c.clock.Now()), nil
-}
-
-func (c *operationClusterUpdate) clusterValidation(operation *coreapi.Operation, serviceProviderCluster *coreapi.ServiceProviderCluster) *operationbase.OperationState {
-	return clusterValidationOperationState(serviceProviderCluster, operation.StartTime, c.clock.Now())
-}
 
 // clusterValidationOperationState waits for validations to pass, allowing each
 // failed validation and the operation itself at least ten minutes before failing.
