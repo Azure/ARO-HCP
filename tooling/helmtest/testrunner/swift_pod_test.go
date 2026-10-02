@@ -42,7 +42,7 @@ func TestSwiftPodEnablement(t *testing.T) {
 						Values: "../../../mgmt-agent/values.yaml", TestData: map[string]any{"mgmtAgent": map[string]any{
 							"swiftPodMitigation": map[string]any{"enabled": enabled, "configuration": configuration}}}})
 				require.NoError(t, err)
-				var deploymentFound, configFound, roleFound, bindingFound, eviction bool
+				var deploymentFound, configFound, roleFound, bindingFound, eviction, runtimeClass bool
 				for _, document := range strings.Split(manifest, "\n---") {
 					var kind metav1.TypeMeta
 					require.NoError(t, yaml.Unmarshal([]byte(document), &kind))
@@ -67,6 +67,11 @@ func TestSwiftPodEnablement(t *testing.T) {
 						var role rbacv1.ClusterRole
 						require.NoError(t, yaml.Unmarshal([]byte(document), &role))
 						for _, rule := range role.Rules {
+							if slices.Contains(rule.Resources, "runtimeclasses") {
+								runtimeClass = true
+								require.Equal(t, []string{"node.k8s.io"}, rule.APIGroups)
+								require.Equal(t, []string{"get"}, rule.Verbs)
+							}
 							if slices.Contains(rule.Resources, "pods/eviction") {
 								eviction = true
 								require.Equal(t, []string{""}, rule.APIGroups)
@@ -98,6 +103,7 @@ func TestSwiftPodEnablement(t *testing.T) {
 				require.Equal(t, enabled, roleFound)
 				require.Equal(t, enabled, bindingFound)
 				require.Equal(t, enabled, eviction)
+				require.Equal(t, enabled, runtimeClass)
 			})
 		}
 	}

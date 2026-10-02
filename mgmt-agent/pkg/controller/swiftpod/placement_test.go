@@ -329,6 +329,56 @@ func TestSpreadMinimumDomainsAndRevision(t *testing.T) {
 	}
 }
 
+func TestPlacementTerminatingSpreadPods(t *testing.T) {
+	for _, terminating := range []bool{false, true} {
+		t.Run(fmt.Sprintf("terminating=%t", terminating), func(t *testing.T) {
+			a, b := placementNode("a", "a"), placementNode("b", "b")
+			b.Spec.Unschedulable = true
+			pod := placementPod("moving", "a")
+			pod.Spec.TopologySpreadConstraints = []corev1.TopologySpreadConstraint{{
+				MaxSkew: 1, TopologyKey: corev1.LabelTopologyZone, WhenUnsatisfiable: corev1.DoNotSchedule,
+				LabelSelector: &metav1.LabelSelector{MatchLabels: pod.Labels},
+			}}
+			other := placementPod("other", "b")
+			if terminating {
+				other.DeletionTimestamp = &metav1.Time{}
+			}
+			snapshot := ClusterSnapshot{
+				Nodes: []*corev1.Node{a, b},
+				Pods:  []*corev1.Pod{pod, placementPod("resident", "a"), other},
+			}
+			err := placement(snapshot, nil, []*corev1.Pod{pod})
+			if (err != nil) != terminating {
+				t.Fatalf("terminating=%t, expected hold=%t, got %v", terminating, terminating, err)
+			}
+		})
+	}
+}
+
+func TestPlacementTerminatingResources(t *testing.T) {
+	for _, resourceName := range []corev1.ResourceName{
+		corev1.ResourceCPU, corev1.ResourceMemory, corev1.ResourcePods, kuberesources.SwiftNICResourceName,
+	} {
+		t.Run(string(resourceName), func(t *testing.T) {
+			node := placementNode("a", "a")
+			pod, resident := placementPod("moving", "a"), placementPod("resident", "a")
+			resident.DeletionTimestamp = &metav1.Time{}
+			demand := requests(pod, resourcehelper.PodResourcesOptions{})
+			node.Status.Allocatable[resourceName] = demand[resourceName]
+			snapshot := ClusterSnapshot{Nodes: []*corev1.Node{node}, Pods: []*corev1.Pod{pod, resident}}
+			if err := placement(snapshot, nil, []*corev1.Pod{pod}); err == nil {
+				t.Fatalf("terminating Pod's %s was not charged", resourceName)
+			}
+			capacity := demand[resourceName].DeepCopy()
+			capacity.Add(demand[resourceName])
+			node.Status.Allocatable[resourceName] = capacity
+			if err := placement(snapshot, nil, []*corev1.Pod{pod}); err != nil {
+				t.Fatalf("replacement and terminating Pod fit: %v", err)
+			}
+		})
+	}
+}
+
 func TestPlacementReconsidersAssignments(t *testing.T) {
 	for _, count := range []int{2, 3} {
 		t.Run(fmt.Sprintf("pods=%d", count), func(t *testing.T) {

@@ -1595,7 +1595,7 @@ Labels/annotates wedged nodes and emits events/metrics; removes labels on health
 
 [Source](../mgmt-agent/pkg/controller/swiftpod/controller.go) · **Trigger:** Pod-keyed Node/Pod/Event informer notifications and configured per-Pod retry interval.
 
-Disabled by default. The deployment flag gates controller construction, event-handler registration and the configuration informer; runtime mode controls mitigation in enabled deployments. For explicitly selected router Deployments, checks initial SWIFT sandbox failures, live ownership and per-Pod availability including `minReadySeconds`, bounded replacement placement, and durable ConfigMap eviction accounting. Audit performs no writes. Enforce labels the admitted Pod, refreshes admission, records the attempt, and requests UID/resourceVersion-guarded eviction. No Node disruption, Azure calls or Cosmos domain writes. See [operations](controllers/swift-pod-mitigation.md).
+Disabled by default. The deployment flag gates controller construction, event-handler registration and the configuration informer; runtime mode controls mitigation in enabled deployments. For explicitly selected router Deployments, checks initial SWIFT sandbox failures, live ownership and per-Pod availability including `minReadySeconds`, current RuntimeClass overhead and scheduling, bounded replacement placement, and durable ConfigMap eviction accounting. Terminating Pods do not count toward topology spread but retain their resource charges. Audit performs no writes. Enforce labels the admitted Pod, refreshes admission, records the attempt, and requests UID/resourceVersion-guarded eviction. No Node disruption, Azure calls or Cosmos domain writes. See [operations](controllers/swift-pod-mitigation.md).
 
 #### capacity-reporting
 

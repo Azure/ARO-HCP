@@ -37,6 +37,13 @@ It must also match the admitted Pod's RuntimeClass, labels, node selector,
 affinity, topology spread and placement-relevant tolerations. Differences hold
 eviction rather than guessing how admission will mutate a replacement.
 
+For a named RuntimeClass, each admission pass reads its current definition.
+Its overhead must match the admitted Pod, and its node selectors and tolerations
+are applied to a template copy before comparison. Missing or unreadable classes,
+overhead differences and selector conflicts hold eviction. Non-identical
+overlapping tolerations that require admission normalization may also hold.
+Pods without a RuntimeClass require no RuntimeClass read.
+
 The following admission equivalence rules apply:
 
 - Finite `NoExecute` tolerations are excluded from comparison because they never
@@ -70,6 +77,9 @@ Placement accounts for:
 - Outstanding SWIFT NIC allocations, even when the Pod has disappeared.
 - Taints, required affinity/anti-affinity and hard topology spread.
 
+Terminating Pods are excluded from topology-spread counts, as in the scheduler.
+Their resident resource requests and outstanding NIC allocations remain charged.
+
 Resident resources use status-aware requests. Replacement requests use the Pod
 spec, including admission-injected resources, and must cover the validated
 ReplicaSet template's demand for every resource. This comparison includes init
@@ -102,7 +112,7 @@ or disabled.
 ### Limits
 
 Kubernetes reads are not atomic, and the capacity check does not reserve
-capacity. Pod, template and resource changes can race admission. Eviction does
+capacity. Pod, template, RuntimeClass and resource changes can race admission. Eviction does
 not guarantee different-node placement or successful recovery.
 
 Synchronized controller and Kubernetes clocks are required.
@@ -207,7 +217,7 @@ For lost accounting or a migration:
 ## Permissions
 
 Enablement adds Pod GET/patch, eviction create, namespace GET, ReplicaSet reads,
-and a resourceName-scoped accounting GET/update Role. Existing mgmt-agent read
+RuntimeClass GET and a resourceName-scoped accounting GET/update Role. Existing mgmt-agent read
 and Event permissions are reused; its existing ConfigMap create/patch permissions
 are not removed. No additional Node or Azure mutation permissions are granted.
 
