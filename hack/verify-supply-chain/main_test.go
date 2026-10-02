@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -413,13 +414,57 @@ func TestReport(t *testing.T) {
 	got := buf.String()
 
 	for _, want := range []string{
-		".vscode/settings.json (editor-config)",
-		`.claude/settings.json (execution-key): contains a "command" key`,
+		`".vscode/settings.json" (editor-config)`,
+		`".claude/settings.json" (execution-key): contains a "command" key`,
 		"known supply-chain attack pattern",
 		"CONTRIBUTING.md",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("expected report to mention %q, got:\n%s", want, got)
+		}
+	}
+}
+
+// TestReportEscapesControlCharactersInPaths pins that a path cannot write to
+// this report. Git permits any byte but NUL and "/" in a path, so a
+// contributor chooses these bytes: a newline in a directory name splits one
+// finding into what reads as several lines of independent output, and an ANSI
+// sequence moves the cursor up and erases the genuine findings above it in
+// any viewer that interprets escapes. The exit code is unaffected either way
+// -- nothing here can make the check pass -- but a report the reported-on
+// file can rewrite is not evidence of anything.
+func TestReportEscapesControlCharactersInPaths(t *testing.T) {
+	const forged = ".claude/y\n\n  no indicators found in tracked files.\n#/settings.json"
+	const ansi = ".claude/z\x1b[4A\x1b[2K/settings.json"
+
+	var buf bytes.Buffer
+	report(&buf, []finding{
+		{path: forged, rule: ruleAgentSettings, detail: "AI-agent settings files must not be committed"},
+		{path: ansi, rule: ruleAgentSettings, detail: "AI-agent settings files must not be committed"},
+	})
+	got := buf.String()
+
+	// No raw control byte reaches the stream.
+	for _, bad := range []string{"\n\n  no indicators", "\x1b", "\r"} {
+		if strings.Contains(got, bad) {
+			t.Errorf("expected %q to be escaped, got:\n%q", bad, got)
+		}
+	}
+
+	// Each finding stays on exactly one line, so a crafted name cannot
+	// fabricate output that reads as a separate line of its own.
+	lines := strings.Split(strings.TrimSuffix(got, "\n"), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "no indicators found") && !strings.Contains(line, `\n`) {
+			t.Errorf("forged text escaped onto its own line: %q", line)
+		}
+	}
+
+	// The paths are still reported, escaped rather than dropped: a reviewer
+	// has to be able to see which entry is at fault.
+	for _, want := range []string{strconv.Quote(forged), strconv.Quote(ansi)} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected the report to contain %s, got:\n%s", want, got)
 		}
 	}
 }
