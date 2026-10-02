@@ -17,7 +17,6 @@ package k8sresources
 import (
 	"context"
 	"encoding/json"
-	"net/url"
 	"strings"
 	"testing"
 
@@ -49,7 +48,7 @@ type certificateFixture struct {
 }
 
 func ingressTestReference() *coreapi.AzureTLSCertificateReference {
-	return &coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://cluster-secrets.vault.azure.net/")), CertificateName: "ingress-tls-cert-abc123"}
+	return &coreapi.AzureTLSCertificateReference{KeyVaultURL: "https://cluster-secrets.vault.azure.net/", CertificateName: "ingress-tls-cert-abc123"}
 }
 
 func newCertificateFixture(test *testing.T) *certificateFixture {
@@ -253,23 +252,25 @@ func TestIngressCertificateInvalidConfiguration(test *testing.T) {
 			fixture.managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID = ""
 		},
 		"observed vault absent": func(fixture *certificateFixture) {
-			fixture.serviceProvider.Status.AzureResources.IngressCertificate.AzureReference.KeyVaultURL = nil
+			fixture.serviceProvider.Status.AzureResources.IngressCertificate.AzureReference.KeyVaultURL = ""
 		},
 	} {
 		test.Run(name, func(test *testing.T) {
 			fixture := newCertificateFixture(test)
 			mutate(fixture)
-			require.ErrorContains(test, fixture.syncer.SyncOnce(test.Context(), fixture.key), "Key Vault URL")
+			expectedError := "Key Vault URL"
+			if name == "observed vault absent" {
+				expectedError = "invalid observed ingress certificate KeyVaultURL"
+			}
+			require.ErrorContains(test, fixture.syncer.SyncOnce(test.Context(), fixture.key), expectedError)
 			require.Empty(test, fixture.applies(test))
 		})
 	}
 	for _, vaultURL := range []string{"not-a-url", "http://vault.example/", "https://", "https://%", "https://.vault.azure.net", "https://aa.vault.azure.net", "https://1vault.vault.azure.net", "https://vault-.vault.azure.net", "https://vault--name.vault.azure.net", "https://" + strings.Repeat("a", 25) + ".vault.azure.net"} {
 		test.Run(vaultURL, func(test *testing.T) {
 			fixture := newCertificateFixture(test)
-			fixture.managementCluster.Status.HostedClustersSecretsKeyVaultURL = vaultURL
-			parsedURL, _ := url.Parse(vaultURL)
-			fixture.serviceProvider.Status.AzureResources.IngressCertificate.AzureReference.KeyVaultURL = parsedURL
-			require.ErrorContains(test, fixture.syncer.SyncOnce(test.Context(), fixture.key), "Key Vault URL")
+			fixture.serviceProvider.Status.AzureResources.IngressCertificate.AzureReference.KeyVaultURL = vaultURL
+			require.ErrorContains(test, fixture.syncer.SyncOnce(test.Context(), fixture.key), "invalid observed ingress certificate KeyVaultURL")
 			require.Empty(test, fixture.applies(test))
 			require.Empty(test, fixture.reads(test))
 		})
@@ -292,7 +293,7 @@ func TestIngressCertificateNeedsWork(test *testing.T) {
 
 func TestIngressCertificateUsesObservedReference(test *testing.T) {
 	fixture := newCertificateFixture(test)
-	fixture.serviceProvider.Status.AzureResources.IngressCertificate.AzureReference = &coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://observed-vault.vault.azure.net/")), CertificateName: "observed-certificate"}
+	fixture.serviceProvider.Status.AzureResources.IngressCertificate.AzureReference = &coreapi.AzureTLSCertificateReference{KeyVaultURL: "https://observed-vault.vault.azure.net/", CertificateName: "observed-certificate"}
 	require.NoError(test, fixture.syncer.SyncOnce(test.Context(), fixture.key))
 	for _, desire := range fixture.applies(test) {
 		require.Contains(test, string(desire.Spec.ServerSideApply.KubeContent.Raw), "observed-certificate")

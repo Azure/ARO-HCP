@@ -17,7 +17,6 @@ package operations
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"testing"
 	"time"
 
@@ -1334,7 +1333,7 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 
 func confirmedTLSCertificate(name string) *coreapi.TLSCertificate {
 	return &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{
-		KeyVaultURL:     metadataapi.Must(url.Parse("https://certificates.vault.azure.net/")),
+		KeyVaultURL:     "https://certificates.vault.azure.net/",
 		CertificateName: name,
 	}}
 }
@@ -1357,11 +1356,12 @@ func TestTLSCertificatesOperationStatus(test *testing.T) {
 		{name: "both pending", kas: pending, ingress: pending},
 		{name: "KAS pending", kas: pending, ingress: confirmedTLSCertificate("ingress")},
 		{name: "ingress pending", kas: confirmedTLSCertificate("kas"), ingress: pending},
-		{name: "KAS still pending", kas: confirmedAndPending, ingress: confirmedTLSCertificate("ingress")},
-		{name: "ingress still pending", kas: confirmedTLSCertificate("kas"), ingress: confirmedAndPending},
-		{name: "missing vault", kas: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{CertificateName: "kas"}}, ingress: confirmedTLSCertificate("ingress")},
-		{name: "missing certificate name", kas: confirmedTLSCertificate("kas"), ingress: confirmedTLSCertificate("")},
-		{name: "empty vault", kas: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{KeyVaultURL: &url.URL{}, CertificateName: "kas"}}, ingress: confirmedTLSCertificate("ingress")},
+		{name: "KAS confirmed with pending reference", kas: confirmedAndPending, ingress: confirmedTLSCertificate("ingress"), succeeded: true},
+		{name: "ingress confirmed with pending reference", kas: confirmedTLSCertificate("kas"), ingress: confirmedAndPending, succeeded: true},
+		{name: "missing vault", kas: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{CertificateName: "kas"}}, ingress: confirmedTLSCertificate("ingress"), succeeded: true},
+		{name: "missing certificate name", kas: confirmedTLSCertificate("kas"), ingress: confirmedTLSCertificate(""), succeeded: true},
+		{name: "invalid vault", kas: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{KeyVaultURL: "not-a-url"}}, ingress: confirmedTLSCertificate("ingress"), succeeded: true},
+		{name: "empty references", kas: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{}}, ingress: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{}}, succeeded: true},
 		{name: "both confirmed", kas: confirmedTLSCertificate("kas"), ingress: confirmedTLSCertificate("ingress"), succeeded: true},
 	}
 	for _, entry := range tests {

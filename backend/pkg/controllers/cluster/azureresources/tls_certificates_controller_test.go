@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -41,7 +40,7 @@ import (
 )
 
 func expectedTLSCertificate(name string, confirmed bool) *coreapi.TLSCertificate {
-	reference := &coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://certificates.vault.azure.net/")), CertificateName: name}
+	reference := &coreapi.AzureTLSCertificateReference{KeyVaultURL: "https://certificates.vault.azure.net/", CertificateName: name}
 	if confirmed {
 		return &coreapi.TLSCertificate{AzureReference: reference}
 	}
@@ -175,7 +174,7 @@ func TestTLSCertificateReferenceJSON(test *testing.T) {
 	}
 	data, err := json.Marshal(status)
 	require.NoError(test, err)
-	require.Contains(test, string(data), `"keyVaultURL":{"Scheme":"https"`)
+	require.Contains(test, string(data), `"keyVaultURL":"https://certificates.vault.azure.net/"`)
 	require.Contains(test, string(data), `"certificateName":"ingress-tls-cert-abc123"`)
 	var restored coreapi.ServiceProviderClusterStatus
 	require.NoError(test, json.Unmarshal(data, &restored))
