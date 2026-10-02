@@ -18,15 +18,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
@@ -38,6 +42,19 @@ import (
 )
 
 const admissionPhaseTimeout = 10 * time.Minute
+
+const admissionOperationTimeout = time.Minute
+
+// Reserve enough time for an ARM round trip even when many deletes share the phase budget.
+const admissionOperationMinAttemptTimeout = 5 * time.Second
+
+var admissionOperationBackoff = wait.Backoff{
+	Duration: 2 * time.Second,
+	Factor:   2,
+	Jitter:   0.1,
+	Steps:    4,
+	Cap:      30 * time.Second,
+}
 
 type identityLeaseInventory struct {
 	federatedCredentials []federatedCredentialReference
@@ -268,16 +285,71 @@ func validateIdentityNames(resourceGroup string, expected map[string]struct{}, a
 
 func runSerial(ctx context.Context, operations []func(context.Context) error) error {
 	var errs []error
-	for _, operation := range operations {
+	for index, operation := range operations {
 		if ctx.Err() != nil {
 			break
 		}
-		if err := runOperation(ctx, operation); err != nil {
+		timeout := admissionOperationTimeout
+		if deadline, ok := ctx.Deadline(); ok {
+			remaining := time.Until(deadline)
+			timeout = min(timeout, remaining, max(admissionOperationMinAttemptTimeout, remaining/time.Duration(len(operations)-index)))
+		}
+		if err := runOperationWithRetry(ctx, timeout, operation); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	errs = append(errs, ctx.Err())
 	return errors.Join(errs...)
+}
+
+func runOperationWithRetry(ctx context.Context, timeout time.Duration, operation func(context.Context) error) error {
+	operationCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	deadline, _ := operationCtx.Deadline()
+	remainingAttempts := admissionOperationBackoff.Steps
+	var lastErr error
+	err := wait.ExponentialBackoffWithContext(operationCtx, admissionOperationBackoff, func(ctx context.Context) (bool, error) {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		remaining := time.Until(deadline)
+		attemptTimeout := min(remaining, max(admissionOperationMinAttemptTimeout, remaining/time.Duration(remainingAttempts)))
+		remainingAttempts--
+		attemptCtx, cancel := context.WithTimeout(ctx, attemptTimeout)
+		defer cancel()
+
+		lastErr = runOperation(attemptCtx, operation)
+		if lastErr == nil || isNotFound(lastErr) {
+			return true, nil
+		}
+		if !retryableAdmissionError(lastErr) || time.Until(deadline) < admissionOperationMinAttemptTimeout {
+			return false, lastErr
+		}
+		return false, nil
+	})
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if err != nil && !errors.Is(err, lastErr) {
+		return errors.Join(lastErr, err)
+	}
+	return err
+}
+
+func retryableAdmissionError(err error) bool {
+	var responseError *azcore.ResponseError
+	if errors.As(err, &responseError) {
+		return responseError.StatusCode == http.StatusTooManyRequests ||
+			(responseError.StatusCode >= http.StatusInternalServerError && responseError.StatusCode < 600)
+	}
+	var networkError net.Error
+	var dnsError *net.DNSError
+	return errors.Is(err, context.DeadlineExceeded) ||
+		(errors.As(err, &networkError) && networkError.Timeout()) ||
+		(errors.As(err, &dnsError) && dnsError.IsTemporary) ||
+		errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.EPIPE)
 }
 
 func runOperation(ctx context.Context, operation func(context.Context) error) (err error) {
