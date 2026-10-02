@@ -15,6 +15,7 @@
 package deletion
 
 import (
+	"net/url"
 	"testing"
 	"time"
 
@@ -35,7 +36,7 @@ import (
 )
 
 func TestTLSCertificateDeletionGates(test *testing.T) {
-	reference := coreapi.AzureTLSCertificateReference{KeyVaultURL: "https://vault.vault.azure.net/", CertificateName: "certificate"}
+	reference := coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://vault.vault.azure.net/")), CertificateName: "certificate"}
 	for _, scenario := range []struct {
 		name         string
 		kas, ingress *coreapi.TLSCertificate

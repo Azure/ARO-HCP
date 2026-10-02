@@ -15,12 +15,48 @@
 package coreapi_test
 
 import (
+	"encoding/json"
 	"math/rand"
+	"net/url"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
+
+func TestTLSCertificateURLRoundTripAndDeepCopy(test *testing.T) {
+	vaultURL, err := url.Parse("https://certificates.vault.azure.net/")
+	require.NoError(test, err)
+	for _, confirmed := range []bool{false, true} {
+		reference := coreapi.AzureTLSCertificateReference{KeyVaultURL: vaultURL, CertificateName: "certificate"}
+		certificate := &coreapi.TLSCertificate{PendingReference: reference}
+		if confirmed {
+			certificate = &coreapi.TLSCertificate{AzureReference: reference}
+		}
+		original := &coreapi.ServiceProviderCluster{Status: coreapi.ServiceProviderClusterStatus{AzureResources: coreapi.AzureResources{
+			KubeAPIServerCertificate: certificate,
+			IngressCertificate:       certificate.DeepCopy(),
+		}}}
+		serialized, err := json.Marshal(original)
+		require.NoError(test, err)
+		var decoded coreapi.ServiceProviderCluster
+		require.NoError(test, json.Unmarshal(serialized, &decoded))
+		require.Equal(test, original, &decoded)
+		copied := original.DeepCopy()
+		require.Equal(test, original, copied)
+		for _, copiedCertificate := range []*coreapi.TLSCertificate{copied.Status.AzureResources.KubeAPIServerCertificate, copied.Status.AzureResources.IngressCertificate} {
+			copiedReference := &copiedCertificate.PendingReference
+			if confirmed {
+				copiedReference = &copiedCertificate.AzureReference
+			}
+			copiedReference.KeyVaultURL.Host = "changed.vault.azure.net"
+		}
+		require.Equal(test, "certificates.vault.azure.net", vaultURL.Host)
+	}
+	require.Equal(test, &coreapi.AzureTLSCertificateReference{}, (&coreapi.AzureTLSCertificateReference{}).DeepCopy())
+}
 
 func TestDeepCopyCluster(t *testing.T) {
 	seed := rand.Int63()

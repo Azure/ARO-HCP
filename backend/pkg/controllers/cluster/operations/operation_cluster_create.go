@@ -246,6 +246,11 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, currState.WithSource("roleAssignments"))
 	}
+	if currState, err := c.tlsCertificatesOperationStatus(ctx, operation); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.WithSource("tlsCertificates"))
+	}
 
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
@@ -477,6 +482,27 @@ func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Cont
 	roleAssignments := serviceProviderCluster.Status.AzureResources.RoleAssignments
 	if len(roleAssignments.AzureResources) == 0 || len(roleAssignments.PendingAzureResources) != 0 {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "role assignments not yet confirmed"), nil
+	}
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+}
+
+func (c *operationClusterCreate) tlsCertificatesOperationStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "ServiceProviderCluster not cached yet"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	for _, certificate := range []*coreapi.TLSCertificate{
+		serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate,
+		serviceProviderCluster.Status.AzureResources.IngressCertificate,
+	} {
+		if certificate == nil || certificate.AzureReference.KeyVaultURL == nil ||
+			certificate.AzureReference.KeyVaultURL.Scheme != "https" || certificate.AzureReference.KeyVaultURL.Hostname() == "" ||
+			certificate.AzureReference.CertificateName == "" || certificate.PendingReference != (coreapi.AzureTLSCertificateReference{}) {
+			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "TLS certificates not yet confirmed"), nil
+		}
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }

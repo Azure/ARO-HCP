@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -40,7 +41,7 @@ import (
 )
 
 func expectedTLSCertificate(name string, confirmed bool) *coreapi.TLSCertificate {
-	reference := coreapi.AzureTLSCertificateReference{KeyVaultURL: "https://certificates.vault.azure.net/", CertificateName: name}
+	reference := coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://certificates.vault.azure.net/")), CertificateName: name}
 	if confirmed {
 		return &coreapi.TLSCertificate{AzureReference: reference}
 	}
@@ -100,9 +101,13 @@ func TestTLSCertificatesDeletionClearsReferences(test *testing.T) {
 }
 
 func TestTLSCertificatesMissingVaultIsError(test *testing.T) {
-	syncer, key, _ := newObservationFixture(test)
-	syncer.managementClusterLister.(*fleetlistertesting.SliceManagementClusterLister).ManagementClusters[0].Status.HostedClustersSecretsKeyVaultURL = ""
-	require.ErrorContains(test, syncer.SyncOnce(test.Context(), key), "Key Vault URL")
+	for _, vaultURL := range []string{"", "not-a-url", "http://vault.example/", "https://", "https://%"} {
+		test.Run(vaultURL, func(test *testing.T) {
+			syncer, key, _ := newObservationFixture(test)
+			syncer.managementClusterLister.(*fleetlistertesting.SliceManagementClusterLister).ManagementClusters[0].Status.HostedClustersSecretsKeyVaultURL = vaultURL
+			require.ErrorContains(test, syncer.SyncOnce(test.Context(), key), "Key Vault URL")
+		})
+	}
 }
 
 type fakeTLSCertificatesClient struct {
@@ -170,7 +175,7 @@ func TestTLSCertificateReferenceJSON(test *testing.T) {
 	}
 	data, err := json.Marshal(status)
 	require.NoError(test, err)
-	require.Contains(test, string(data), `"keyVaultURL":"https://certificates.vault.azure.net/"`)
+	require.Contains(test, string(data), `"keyVaultURL":{"Scheme":"https"`)
 	require.Contains(test, string(data), `"certificateName":"ingress-tls-cert-abc123"`)
 	var restored coreapi.ServiceProviderClusterStatus
 	require.NoError(test, json.Unmarshal(data, &restored))
@@ -181,8 +186,14 @@ func TestTLSCertificateReferenceJSON(test *testing.T) {
 	require.NotContains(test, document, "ingressCertificate")
 	var azureResources map[string]json.RawMessage
 	require.NoError(test, json.Unmarshal(document["azureResources"], &azureResources))
-	require.JSONEq(test, `{"pendingReference":{"keyVaultURL":"https://certificates.vault.azure.net/","certificateName":"kube-apiserver-tls-cert-abc123"},"azureReference":{"keyVaultURL":"","certificateName":""}}`, string(azureResources["kubeAPIServerCertificate"]))
-	require.JSONEq(test, `{"pendingReference":{"keyVaultURL":"","certificateName":""},"azureReference":{"keyVaultURL":"https://certificates.vault.azure.net/","certificateName":"ingress-tls-cert-abc123"}}`, string(azureResources["ingressCertificate"]))
+	for name, expected := range map[string]*coreapi.TLSCertificate{
+		"kubeAPIServerCertificate": status.AzureResources.KubeAPIServerCertificate,
+		"ingressCertificate":       status.AzureResources.IngressCertificate,
+	} {
+		var certificate coreapi.TLSCertificate
+		require.NoError(test, json.Unmarshal(azureResources[name], &certificate))
+		require.Equal(test, expected, &certificate)
+	}
 }
 
 func TestTLSCertificateOptionalReferences(test *testing.T) {
