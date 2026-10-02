@@ -43,6 +43,7 @@ var watchedGroupSuffixes = []string{
 	"multitenancy.acn.azure.com",
 	"velero.io",
 	"route.openshift.io",
+	"ingress.operator.openshift.io",
 }
 
 // watchedExplicitGVRs is the hardcoded list of GroupVersionResources to watch
