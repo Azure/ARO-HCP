@@ -621,7 +621,7 @@ No writes to Cosmos Resources container.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **133 entries**: 107 backend instances, 12 fleet controllers,
+The catalog contains **134 entries**: 108 backend instances, 12 fleet controllers,
 three kube-applier controller types, eight management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
@@ -643,13 +643,13 @@ infrastructure, not additional controller catalog entries.
 | Management-agent | [options.go](../mgmt-agent/cmd/options.go) |
 | Sessiongate | [options.go](../sessiongate/cmd/options.go) |
 
-The backend registry represents **108 launches**: 106 instances in the billing,
+The backend registry represents **109 launches**: 107 instances in the billing,
 cluster, clusterresources, cosmosmigration, datadump, externalauth, metrics,
 mismatch, and nodepool zones, the Azure SKU cached-reader controller, and the
-shared union kube-applier informer controller. This matches the catalog's 101
+shared union kube-applier informer controller. This matches the catalog's 108
 backend instances plus the separately counted shared union controller.
 `ClusterDenyAssignment` is instantiated and launched only when `HasRealFPA` is
-true; otherwise 101 controllers run. The flag is also passed to cluster creation.
+true; otherwise 108 controllers run. The flag is also passed to cluster creation.
 
 Each top-level controller package owns a `registration.go` file and a `Register`
 function: [billing](../backend/pkg/controllers/billing/registration.go),
@@ -784,6 +784,29 @@ Reads Azure identities for the service-managed and control-plane operator identi
 [Source](../backend/pkg/controllers/cluster/identity/fetch_data_plane_operators_managed_identities_info.go) · **Trigger:** Cluster; 1m, 12h recheck.
 
 Reads the requested data-plane operator identities and writes `Status.DataPlaneOperatorsManagedIdentities.Identities` and its recheck time. No Azure mutation.
+
+#### ActualHostedCluster
+
+**File:** [actual_hosted_cluster_controller.go](../backend/pkg/controllers/cluster/hostedcluster/actual_hosted_cluster_controller.go)
+**Trigger:** Cluster, ServiceProviderCluster, cluster-scoped ManagementClusterContent,
+ReadDesire, and ApplyDesire informers; 5-minute resync.
+
+Mirrors the observed HostedCluster so the frontend has a source of management-cluster
+state it is allowed to read (see [Why management-cluster state is mirrored onto
+ServiceProviderCluster](#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster)).
+Leaves the field `nil` until the HostedCluster is observed, and only writes when the observed
+object changes. A missing or unsuccessful ReadDesire observation leaves an already-published
+mirror in place — those states also cover a cold union informer, so clearing on them would wipe
+and rewrite every mirror on each backend restart. A successful empty observation clears the
+mirror because it proves the HostedCluster is absent. Deletion does not gate mirroring:
+successful observations continue updating the object while the cluster is deleting, and a
+successful empty observation retracts it to `nil` for both active and deleting clusters.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | Existence only; no deletion gate |
+| Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions[Successful]` — gates all mirror updates, including clearing empty content</li><li>`Status.KubeContent` — the observed HostedCluster, whole object (`Spec` + `Status`)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ActualHostedCluster`** = the observed HostedCluster, mirrored verbatim (`Spec` + `Status` + `metadata`)</li></ul> |
 
 #### EnsureManagedResourceGroup
 
