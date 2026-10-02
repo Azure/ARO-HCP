@@ -241,6 +241,10 @@ defaults:
     # environment to opt out.
     nodeHealth:
       enabled: true
+    swiftPodMitigation:
+      enabled: false
+      configuration: |
+        mode: disabled
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: mgmt-agent

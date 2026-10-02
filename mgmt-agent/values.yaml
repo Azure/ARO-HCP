@@ -32,6 +32,9 @@ nodeHealth:
   config:
     enabled: {{ .mgmtAgent.nodeHealth.enabled }}
 nodeSelector: {}
+swiftPodMitigation:
+  enabled: {{ .mgmtAgent.swiftPodMitigation.enabled }}
+  configuration: {{ printf "%q" .mgmtAgent.swiftPodMitigation.configuration }}
 tolerations: []
 affinity: {}
 serviceAccount:

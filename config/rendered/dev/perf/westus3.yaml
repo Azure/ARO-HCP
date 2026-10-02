@@ -797,6 +797,10 @@ mgmtAgent:
   managedIdentityName: mgmt-agent
   nodeHealth:
     enabled: true
+  swiftPodMitigation:
+    configuration: |
+      mode: disabled
+    enabled: false
 mgmtKeyVault:
   name: ah-perf-mg-usw3ptest-1
   private: false

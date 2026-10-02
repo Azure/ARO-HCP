@@ -621,8 +621,8 @@ No writes to Cosmos Resources container.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **134 entries**: 108 backend instances, 12 fleet controllers,
-three kube-applier controller types, eight management-agent controllers/watchers,
+The catalog contains **135 entries**: 108 backend instances, 12 fleet controllers,
+three kube-applier controller types, nine management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
 Kubernetes read controllers are described once. Optional, legacy and example
@@ -1591,6 +1591,12 @@ Runs the compiled detector registry on cached Node/Pod/Event evidence for SWIFTv
 
 Labels/annotates wedged nodes and emits events/metrics; removes labels on healthy/not-applicable verdicts and leaves them unchanged when evidence is Unknown. It does not cordon, evict or delete nodes. The watched [configuration](../mgmt-agent/pkg/controller/nodehealth/config.go) controls only `enabled` (default false); detector definitions and thresholds are compiled, not runtime-configurable. No Cosmos domain write.
 
+#### swift-pod-mitigation
+
+[Source](../mgmt-agent/pkg/controller/swiftpod/controller.go) · **Trigger:** Pod-keyed Node/Pod/Event informer notifications and configured per-Pod retry interval.
+
+Disabled by default. The deployment flag gates controller construction, event-handler registration and the configuration informer; runtime mode controls mitigation in enabled deployments. For explicitly selected router Deployments, checks initial SWIFT sandbox failures, live ownership and per-Pod availability including `minReadySeconds`, current RuntimeClass overhead and scheduling, bounded replacement placement, and durable ConfigMap eviction accounting. Terminating Pods do not count toward topology spread but retain their resource charges. Audit performs no writes. Enforce labels the admitted Pod, refreshes admission, records the attempt, and requests UID/resourceVersion-guarded eviction. No Node disruption, Azure calls or Cosmos domain writes. See [operations](controllers/swift-pod-mitigation.md).
+
 #### capacity-reporting
 
 [Source](../mgmt-agent/pkg/controller/capacityreporting/controller.go) · **Trigger:** Periodic; 30s, 25s timeout.
@@ -1655,6 +1661,7 @@ The DataplaneController registers ready session credentials, owner and backend A
 | Shared-ingress router Service | External management-cluster provisioning creates the Service/load balancer | [EnsureSharedIngressReadDesireController](#ensuresharedingressreaddesirecontroller) creates observation intent; [SharedIngressReportingController](#sharedingressreportingcontroller) mirrors IPs and availability into Fleet. Admin management-cluster responses expose those IPs; these controllers do not create ingress resources. |
 | Kubernetes observation | [ReadDesireKubernetesController](#readdesirekubernetescontroller) reads targets | Writes mirrored Cosmos status; never provisions the observed target. The manager and union controller maintain the watches. |
 | Kubernetes CapacityReport, Node labels/capacity, monitoring objects | Management-agent controllers | Direct Kubernetes writes; fleet consumes mirrored capacity. [node-health](#node-health) labels/annotates detected SWIFTv2 failures and emits events; mitigation is outside this controller. [capacity-reporting](#capacity-reporting) preserves zero resource quantities and atomically replaces the HCP readiness grouping. |
+| Selected SWIFT router Pods and eviction accounting | Management-agent [swift-pod-mitigation](#swift-pod-mitigation) | Opt-in, identity-guarded eviction with availability and placement checks. Attempts persist in a separately initialized ConfigMap before submission. No Cosmos writes or Node disruption. |
 | Kubernetes Session/CSR/approval/credential secrets | [SessionControlPlaneController](#sessioncontrolplanecontroller) | Direct sessiongate control-plane writes; the dataplane controller maintains only its proxy registry. |
 
 ## 3. Resource Lifecycle Digraphs
