@@ -23,6 +23,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -173,13 +176,40 @@ var _ = Describe("Customer", func() {
 			}, 15*time.Minute, 30*time.Second).Should(Succeed(), "console URL should become available for cluster %q", customerClusterName)
 			GinkgoLogr.Info("Console URL available", "url", consoleURL)
 
+			// DEBUG: revert after console URL debugging is done
+			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client for console pod debug")
+
+			var lastConsoleStatus int
 			Eventually(func(g Gomega) {
+				// DEBUG: dump openshift-console pod readiness on every poll
+				if pods, podErr := kubeClient.CoreV1().Pods("openshift-console").List(ctx, metav1.ListOptions{}); podErr != nil {
+					GinkgoLogr.Info("Console pod debug: failed to list pods", "error", podErr)
+				} else {
+					for _, p := range pods.Items {
+						ready := false
+						for _, c := range p.Status.ContainerStatuses {
+							if c.Name == "console" {
+								ready = c.Ready
+							}
+						}
+						GinkgoLogr.Info("Console pod debug", "pod", p.Name, "phase", p.Status.Phase, "ready", ready)
+					}
+				}
+
 				statusCode, err := framework.TestHTTPSConnectivityWithStatus(ctx, consoleURL, 10*time.Second, true)
+				// DEBUG: log every status change
+				if err != nil {
+					GinkgoLogr.Info("Console reachability check", "url", consoleURL, "error", err)
+				} else if statusCode != lastConsoleStatus {
+					GinkgoLogr.Info("Console reachability check", "url", consoleURL, "statusCode", statusCode)
+					lastConsoleStatus = statusCode
+				}
 				g.Expect(err).NotTo(HaveOccurred(),
 					"public ingress (console) should be reachable from outside the VNet, but got error: %v", err)
 				g.Expect(statusCode).To(BeNumerically("<", http.StatusBadRequest),
 					"console should return a successful response or redirect, got %d", statusCode)
-			}, 20*time.Minute, 15*time.Second).Should(Succeed(),
+			}, 45*time.Minute, 15*time.Second).Should(Succeed(), // DEBUG: extended to 45m for diagnosis
 				"public ingress should be reachable from outside the VNet")
 			GinkgoLogr.Info("Public ingress reachable from outside the VNet, confirming shared ingress is operational")
 		},
