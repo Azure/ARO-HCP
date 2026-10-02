@@ -33,9 +33,9 @@ import (
 )
 
 const (
-	// clusterRequirementsValidAggregatorControllerName is the controller name used for
+	// ClusterRequirementsValidAggregatorControllerName is the controller name used for
 	// metrics labels, ctx values, log fields, and the Controller document name.
-	clusterRequirementsValidAggregatorControllerName = "ClusterRequirementsValidAggregator"
+	ClusterRequirementsValidAggregatorControllerName = "ClusterRequirementsValidAggregator"
 )
 
 // clusterRequirementsValidAggregator surfaces ServiceProviderCluster.Status.Validations
@@ -68,7 +68,7 @@ func NewClusterRequirementsValidAggregatorController(
 		resourcesDBClient:            resourcesDBClient,
 	}
 	return controllerutils.NewClusterWatchingController(
-		clusterRequirementsValidAggregatorControllerName,
+		ClusterRequirementsValidAggregatorControllerName,
 		resourcesDBClient,
 		informers,
 		nil,

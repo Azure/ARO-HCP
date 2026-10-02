@@ -434,8 +434,8 @@ func TestUnionKubeApplierInformers_EndToEnd(t *testing.T) {
 	}
 
 	// HasSynced across the union after both subs are added + synced.
-	if !u.HasSynced() {
-		t.Errorf("HasSynced = false, want true (both subs synced)")
+	if u.HasSynced() {
+		t.Errorf("HasSynced = true before management-cluster discovery")
 	}
 
 	applyInf, applyLister := u.ApplyDesires()

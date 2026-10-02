@@ -73,6 +73,20 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+  - name: adminapi-apr-assignment
+    action: ARM
+    template: templates/adminapi-alert-processing-rule-assignment.bicep
+    parameters: configurations/adminapi-alert-processing-rule-assignment.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: adminApiPrincipalId
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: adminApiPrincipalId
+    dependsOn:
+    - resourceGroup: service
+      step: cluster-output
 - name: auditLogs
   resourceGroup: '{{ .auditLogsEventHub.rg }}'
   subscription: '{{ .svc.subscription.key }}'

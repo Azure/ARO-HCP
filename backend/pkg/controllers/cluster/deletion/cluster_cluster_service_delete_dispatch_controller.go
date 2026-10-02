@@ -74,6 +74,8 @@ type clusterClusterServiceDeleteDispatchSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceDeleteDispatchSyncer)(nil)
 
+const ClusterClusterServiceDeleteDispatchControllerName = "ClusterClusterServiceDeleteDispatch"
+
 func NewClusterClusterServiceDeleteDispatchController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -93,7 +95,7 @@ func NewClusterClusterServiceDeleteDispatchController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterClusterServiceDeleteDispatch",
+		ClusterClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

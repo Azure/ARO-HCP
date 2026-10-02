@@ -45,6 +45,8 @@ type issuanceObserver struct {
 
 var _ controllerutils.SystemAdminCredentialRequestSyncer = (*issuanceObserver)(nil)
 
+const SystemAdminCredentialIssuanceObserverControllerName = "SystemAdminCredentialIssuanceObserver"
+
 // NewIssuanceObserverController returns a CredentialRequestWatchingController
 // that observes the mirrored CSR from the ReadDesire and transitions
 // individual SystemAdminCredentialRequest documents from Pending → Issued (or Failed).
@@ -62,7 +64,7 @@ func NewIssuanceObserverController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
-		"SystemAdminCredentialIssuanceObserver",
+		SystemAdminCredentialIssuanceObserverControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,

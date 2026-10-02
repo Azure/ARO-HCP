@@ -15,10 +15,10 @@
 package prometheus_test
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yamlv3 "go.yaml.in/yaml/v3"
 	"helm.sh/helm/v4/pkg/chart/common"
@@ -42,13 +42,27 @@ func TestSchedulingRole(t *testing.T) {
 	require.NoError(t, yamlv3.Unmarshal(valuesSource, &rawValues), "unrendered values must remain valid YAML for yamllint")
 	raw, err := os.ReadFile("../../config/rendered/dev/dev/westus3.yaml")
 	require.NoError(t, err)
+	type schedulingCase struct {
+		name           string
+		systemPoolOnly any
+		role           string
+	}
 	for _, cluster := range []string{"svc", "mgmt", "opstool"} {
-		for _, systemPoolOnly := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/systemPoolOnly=%t", cluster, systemPoolOnly), func(t *testing.T) {
+		cases := []schedulingCase{
+			{"systemPoolOnly=false", false, "infra"},
+			{"systemPoolOnly=true", true, "infra"},
+		}
+		if cluster == "svc" {
+			cases[1].role = "system"
+			// SDP preprocesses config leaves as non-empty strings before deployment.
+			cases = append(cases, schedulingCase{"systemPoolOnly=placeholder", "__svc.aks.systemPoolOnly__", "infra"})
+		}
+		for _, tc := range cases {
+			t.Run(cluster+"/"+tc.name, func(t *testing.T) {
 				var cfg types.Configuration
 				require.NoError(t, yaml.Unmarshal(raw, &cfg))
 				cfg = types.MergeConfiguration(cfg, map[string]any{
-					"svc": map[string]any{"aks": map[string]any{"systemPoolOnly": systemPoolOnly}},
+					"svc": map[string]any{"aks": map[string]any{"systemPoolOnly": tc.systemPoolOnly}},
 				})
 				// Dev config has no opstool cluster; reuse its service images and AKS name.
 				if cluster == "opstool" {
@@ -68,10 +82,7 @@ func TestSchedulingRole(t *testing.T) {
 				manifests, err := engine.Render(chart, renderValues)
 				require.NoError(t, err)
 
-				role := "infra"
-				if cluster == "svc" && systemPoolOnly {
-					role = "system"
-				}
+				role := tc.role
 				want := &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{
 					MatchExpressions: []corev1.NodeSelectorRequirement{{
 						Key: "aro-hcp.azure.com/role", Operator: corev1.NodeSelectorOpIn, Values: []string{role},
@@ -96,7 +107,7 @@ func TestSchedulingRole(t *testing.T) {
 					}
 					require.NotNil(t, affinity, path)
 					require.NotNil(t, affinity.NodeAffinity, path)
-					require.Equal(t, want, affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution, path)
+					assert.Equal(t, want, affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution, path)
 				}
 			})
 		}

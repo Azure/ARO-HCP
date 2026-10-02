@@ -62,3 +62,17 @@ resourceGroups:
     dependsOn:
     - resourceGroup: opstool
       step: output
+  - name: dashboards
+    action: ARM
+    template: dashboards.bicep
+    parameters: ../../dev-infrastructure/configurations/tenant-quota-dashboards.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: azureMonitorWorkspaceId
+      input:
+        resourceGroup: opstool
+        step: output
+        name: azureMonitorWorkspaceId
+    dependsOn:
+    - resourceGroup: opstool
+      step: output

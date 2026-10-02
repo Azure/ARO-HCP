@@ -25,6 +25,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -150,23 +152,18 @@ type kubeApplierCosmosDBClient struct {
 
 var _ KubeApplierDBClient = &kubeApplierCosmosDBClient{}
 
-// NewKubeApplierDBClient wraps a pre-opened Cosmos container client for a single management cluster.
-func NewKubeApplierDBClient(container *azcosmos.ContainerClient, managementClusterResourceID *azcorearm.ResourceID) (KubeApplierDBClient, error) {
-	return &kubeApplierCosmosDBClient{
-		kubeApplier:                 container,
-		managementClusterResourceID: managementClusterResourceID,
-	}, nil
-}
-
-// NewKubeApplierDBClientFromDatabase opens the named container under the given
-// Cosmos database and wraps it for the named management cluster. Convenience
-// for callers like the kube-applier sidecar that have a DatabaseClient in hand.
-func NewKubeApplierDBClientFromDatabase(database *azcosmos.DatabaseClient, containerName string, managementClusterResourceID *azcorearm.ResourceID) (KubeApplierDBClient, error) {
+// NewKubeApplierDBClient creates a client for one management cluster's container
+// with its own Cosmos pipeline bound to bucket.
+func NewKubeApplierDBClient(url, databaseName, containerName string, managementClusterResourceID *azcorearm.ResourceID, options cosmosclient.Options, bucket *cosmosratelimit.TokenBucket) (KubeApplierDBClient, error) {
+	database, err := cosmosclient.NewCosmosDatabaseClient(url, databaseName, options, bucket)
+	if err != nil {
+		return nil, err
+	}
 	container, err := database.NewContainer(containerName)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	return NewKubeApplierDBClient(container, managementClusterResourceID)
+	return &kubeApplierCosmosDBClient{kubeApplier: container, managementClusterResourceID: managementClusterResourceID}, nil
 }
 
 func (c *kubeApplierCosmosDBClient) ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
@@ -347,7 +344,10 @@ type KubeApplierDBClients interface {
 
 // kubeApplierDBClients is the cosmos-backed implementation of KubeApplierDBClients.
 type kubeApplierDBClients struct {
-	database *azcosmos.DatabaseClient
+	url                string
+	databaseName       string
+	options            cosmosclient.Options
+	bucketForContainer func(string) (*cosmosratelimit.TokenBucket, error)
 
 	// mcLister is the source of truth for which management clusters exist and
 	// what their per-container configuration looks like. It is queried fresh
@@ -367,10 +367,15 @@ var _ KubeApplierDBClients = &kubeApplierDBClients{}
 // Status.KubeApplierCosmosContainerName names the Cosmos container; the
 // management cluster's Status.MaestroConsumerName is used as the per-container
 // partition key. Per-MC KubeApplierDBClient instances are built lazily and
-// cached on first access via For().
-func NewKubeApplierDBClients(database *azcosmos.DatabaseClient, mcLister ManagementClusterLister) KubeApplierDBClients {
+// cached on first access via For(). bucketForContainer must retain the same
+// budget for repeated lookups of a container, and may assign independent budgets
+// to different containers. The actual container client requires a TokenBucket.
+func NewKubeApplierDBClients(url, databaseName string, options cosmosclient.Options, bucketForContainer func(string) (*cosmosratelimit.TokenBucket, error), mcLister ManagementClusterLister) KubeApplierDBClients {
+	if bucketForContainer == nil {
+		panic("kube-applier storage clients require a token bucket provider")
+	}
 	return &kubeApplierDBClients{
-		database: database,
+		url: url, databaseName: databaseName, options: options, bucketForContainer: bucketForContainer,
 		mcLister: mcLister,
 		clients:  map[string]KubeApplierDBClient{},
 	}
@@ -407,19 +412,12 @@ func (c *kubeApplierDBClients) For(ctx context.Context, managementClusterResourc
 		logger.Info("management cluster found but Status.KubeApplierCosmosContainerName is empty; kube-applier client cannot be built and per-cluster ReadDesires will not be written")
 		return nil
 	}
-	container, err := c.database.NewContainer(containerName)
+	bucket, err := c.bucketForContainer(containerName)
 	if err != nil {
-		// NewContainer only errors on malformed inputs at construction time —
-		// treat as misconfiguration and surface as nil. The caller already
-		// has to handle nil for "not found" anyway.
-		logger.Error(err, "failed to construct kube-applier cosmos container; treating as unavailable", "containerName", containerName)
+		logger.Error(err, "failed to resolve kube-applier Cosmos RU budget", "containerName", containerName)
 		return nil
 	}
-	// Partition key per container is the lowercased MaestroConsumerName; *Desire
-	// documents written into this container must carry a matching
-	// Spec.ManagementCluster. The kube-applier binary is started with the same
-	// string via --management-cluster.
-	client, err := NewKubeApplierDBClient(container, managementClusterResourceID)
+	client, err := NewKubeApplierDBClient(c.url, c.databaseName, containerName, managementClusterResourceID, c.options, bucket)
 	if err != nil {
 		logger.Error(err, "failed to construct kube-applier DB client; treating as unavailable", "containerName", containerName)
 		return nil

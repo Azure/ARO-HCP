@@ -1,0 +1,80 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package mismatch
+
+import (
+	"strings"
+	"time"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+)
+
+func registerClusterServiceMatchingClusterController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterServiceMatchingClusterController, false),
+	}
+}
+
+func instantiateClusterServiceMatchingClusterController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
+	return NewClusterServiceClusterMatchingController(controllerContext.Clock, controllerContext.ResourcesDBClient, subscriptionLister, controllerContext.ClustersServiceClient), nil
+}
+
+func registerDeleteOrphanedCosmosResourcesController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     10,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateDeleteOrphanedCosmosResourcesController, false),
+	}
+}
+
+func instantiateDeleteOrphanedCosmosResourcesController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return NewDeleteOrphanedCosmosResourcesController(controllerContext.ResourcesDBClient, controllerContext.KubeApplierDBClients, subscriptionLister, managementClusterLister), nil
+}
+
+func registerMissingResourceIDController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateMissingResourceIDController, false),
+	}
+}
+
+func instantiateMissingResourceIDController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return NewMissingResourceIDController(controllerContext.ResourcesDBClient), nil
+}
+
+func registerBackfillClusterUIDController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateBackfillClusterUIDController, true),
+	}
+}
+
+func instantiateBackfillClusterUIDController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, clusterLister := controllerContext.BackendInformers.Clusters()
+	return controllerutils.NewClusterWatchingController(
+		BackfillClusterUIDControllerName, controllerContext.ResourcesDBClient, controllerContext.BackendInformers, controllerContext.UnionKubeApplierInformers, 60*time.Minute,
+		NewBackfillClusterUIDController(controllerContext.Clock, controllerContext.ResourcesDBClient, controllerContext.BillingDBClient, clusterLister)), nil
+}
+
+func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(ClusterServiceMatchingClustersControllerName)] = registerClusterServiceMatchingClusterController()
+	registry[strings.ToLower(DeleteOrphanedCosmosResourcesControllerName)] = registerDeleteOrphanedCosmosResourcesController()
+	registry[strings.ToLower(MissingResourceIDControllerName)] = registerMissingResourceIDController()
+	registry[strings.ToLower(BackfillClusterUIDControllerName)] = registerBackfillClusterUIDController()
+}

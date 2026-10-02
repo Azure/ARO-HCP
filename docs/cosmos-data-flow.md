@@ -6,6 +6,21 @@ It maps their inputs, decisions and effects across Cosmos DB, Azure, Cluster Ser
 and Kubernetes. Source baseline: `7997fa34a240560a792c3dd410396cd7651a9f39`.
 Targeted update baseline: `4c1bf7d74e714d2ce24a8175a0d4846cc78d7113`;
 scope: ContainerRegistry pull-credential validation and Cosmos snapshots moved from periodic dump controllers to informer lists.
+Frontend admission-cache update baseline: `d9a1b9a4e2bf2298763bf7e1924f117678bdc2ba`
+plus working-tree changes; scope: four-resource frontend admission informer bundle,
+aggregate startup sync, cached admission inventories/provider state and affected
+lifecycle views. Targeted integration-test cache waits remain deferred.
+RU budget update baseline: `e50c6077a32b443e8ccb8d6a01a858b3a4c3d595`;
+scope: unrestricted backend informer clients and logging each RU refill wait.
+Rollout update baseline: main `5ee98fa7c2` plus the progressive-version-rollout
+commits; scope: seven backend rollout controllers, version/operation consumers,
+shared ownership, and cluster create/update and rollout diagrams, including the experimental
+Immediate z-stream update policy. Review fixes cover
+rollout membership, initial-assignment ownership, input-event queue metrics,
+field annotations, and the recency-only selection contract.
+External-auth operation update baseline: `51851bfabe`, rebased on main `08987b4eba`;
+scope: frontend create acceptance without a parent Cluster Service ID, empty
+create/update operation `InternalID`, and the corresponding lifecycle diagrams.
 
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
@@ -68,10 +83,10 @@ No resource lifecycle edges change.
 ## Request Unit (RU) attribution
 
 Sources: [Cosmos metrics policy](../internal/database/cosmosstorage/cosmosmetrics/policy.go),
-[client wiring](../internal/database/cosmosstorage/corecosmosstorage/database.go), and
+[client wiring](../internal/database/cosmosstorage/cosmosclient/database.go), and
 [informer attribution](../internal/database/informers/informerutils/context.go).
 
-Clients constructed through `corecosmosstorage.NewCosmosDatabaseClient` record two
+Clients constructed through `cosmosclient.NewCosmosDatabaseClient` record two
 shared, process-wide counters through the same per-retry pipeline policy:
 
 - `cosmos_request_units_total` sums the `x-ms-request-charge` response header
@@ -129,6 +144,158 @@ sum by (source_kind, source) (
 )
 ```
 
+### RU rate limiting and storage construction
+
+The backend derives storage consumer names from its controller launch registry,
+using the registry's lowercase keys for RU budgets. Metrics controllers and the
+Azure SKU cache do not receive storage clients. Each remaining controller receives
+a copy of the shared context with its own Resources, Billing, Fleet, and
+kube-applier clients. Shared informer clients are constructed separately.
+
+Each container storage constructor (`NewResourcesDBClient`, `NewBillingDBClient`,
+`NewFleetDBClient`, and `NewKubeApplierDBClient`) requires a
+[`cosmosratelimit.TokenBucket`](../internal/database/cosmosstorage/cosmosratelimit/bucket.go)
+and creates its own Cosmos client and HTTP pipeline. The shared
+[`NewCosmosDatabaseClient`](../internal/database/cosmosstorage/cosmosclient/database.go)
+helper installs metrics and a policy bound directly to that bucket. Connection
+options can be reused; constructed database clients are not passed between
+container interfaces. `NewKubeApplierDBClients` retains the connection options and a bucket provider.
+Once Fleet resolves a management cluster's actual container name, the registry
+asks the provider for that container's bucket and constructs its client. It caches
+those clients for subsequent lookups.
+
+The bucket starts full and refills continuously up to capacity. Requests may
+start while its RU balance is **at least zero**. After each HTTP attempt, the
+[`cosmosratelimit` policy](../internal/database/cosmosstorage/cosmosratelimit/policy.go)
+subtracts the response's `x-ms-request-charge`, including fractional charges and
+charged failures. Negative balances hold subsequent requests until refill repays
+the debt. A charge larger than capacity is retained in full. Invalid charges are
+ignored using the same rules as metrics. In-flight requests can overshoot the
+budget because their actual costs are only known on completion.
+
+All requests through a container client use its bucket: CRUDs, nested clients,
+transaction execution, global queries, change feeds, individual pages, and SDK
+retries. No token bucket is carried in context. Context still supplies cancellation,
+logging, and source attribution. Canceled waits return the context error without
+dispatching. Blocked calls log the bucket name, RU balance, refill rate, and an
+estimated wait on every wait iteration; later in-flight charges can extend that
+estimate and produce another log. Wait metrics count the entire blocked call
+once. A transaction pays the batch's reported RU charge once per HTTP attempt,
+independently of its step count.
+
+[CRUD layers](../internal/database/cosmosstorage/cosmosstorageutils/crud_layer.go)
+remain available for `ResourceCRUD` and `ValidatingResourceCRUD`; a bucket can
+provide an optional earlier admission check. `List` remains lazy and uses the
+`Items` context when iterated. The
+[`transaction layer`](../internal/database/cosmosstorage/cosmosstorageutils/transaction_layer.go)
+applies a layer to `Execute` while preserving step assembly, callbacks, options,
+and results. Charge accounting always belongs to the bucket bound to the client.
+
+### Per-controller and per-container RU budgets
+
+[`BackendOptions.StorageFactory`](../backend/pkg/app/cosmos_wiring.go) requires a
+controller name for every Resources, Billing, Fleet, or kube-applier client lookup.
+It owns a separate `ControllerRateLimits` instance for each physical Cosmos
+container and passes the corresponding controller's bucket to each container
+constructor. Repeated lookups return the same clients and buckets. CRUDs,
+transactions, and workers share debt only when both their controller and container
+match. Different containers, including different management clusters' kube-applier
+containers, have independent allocations and debt.
+
+The factory initializes Resources, Billing, and Fleet clients for the
+[registered storage consumers](../backend/pkg/app/storage_controller_names.go)
+before startup. Shared backend, Fleet, and union kube-applier informers use
+unlimited buckets for their lists, change-feed polls, and Fleet discovery reads.
+These informer clients retain request metrics but do not reserve a controller
+budget share or wait for RU refill. Only limited consumers count toward the
+per-controller allocation; the FPA-only controller is included only when enabled.
+Each MC container's limiter set is created lazily and cached when its name is
+resolved through Fleet. Fleet lookups themselves use the controller's Fleet bucket.
+
+The allocations are hardcoded in `BackendStorageFactoryOptions` and the
+[kube-applier startup](../kube-applier/cmd/root.go), using these container maxima:
+
+| Container | Maximum RU/s | Backend share | Kube-applier binary share |
+|---|---:|---:|---:|
+| Resources | 19,000 | 80% = 15,200 RU/s | — |
+| Billing | 4,000 | 80% = 3,200 RU/s | — |
+| Fleet | 4,000 | 80% = 3,200 RU/s | — |
+| Each kube-applier MC container | 19,000 | 30% = 5,700 RU/s | 50% = 9,500 RU/s |
+
+For the backend, each container's share is divided by the number of registered
+limited storage consumers. Both bucket capacity (RUs) and refill rate (RU/s) equal
+that per-controller allocation, allowing one second of burst capacity. The
+kube-applier binary shares its 9,500 RU bucket across its controllers and informers.
+The 30% and 50% limited shares together leave 20% headroom for unrestricted informer
+and other traffic; no additional 80% factor is applied to those shares.
+There are no rate-allocation flags.
+
+The backend reduces orphaned Cosmos, orphaned billing, placement pending, orphaned
+managed resource group, and revoked credential garbage collection budgets to 10%
+of a normal controller's share in **each** container. Customer deletion controllers
+retain normal shares. Unused shares are not redistributed. Use controller name
+constants for lookups and metric identity. Invalid names, duplicate registrations,
+unknown fraction overrides, and invalid rates are rejected at construction.
+Looking up an unregistered controller name panics as a wiring error.
+
+These are process-local budgets, so additional active processes can multiply the
+allocation. Frontend, Fleet, and admin currently pass explicit unlimited buckets,
+preserving their existing throughput behavior while emitting request metrics.
+Controller field ownership and lifecycle graph edges are unchanged by this wiring.
+
+### Limiter metrics
+
+[Limiter metrics](../internal/database/cosmosstorage/cosmosratelimit/metrics.go)
+use exactly the same base labels and source precedence as `cosmosmetrics`:
+`source_kind`, `source`, `cosmosdb_container`, `operation`, and `status_code`.
+Informer identity takes precedence over controller identity. Wait metrics have
+`status_code="unknown"` because no response exists yet. Optional early CRUD or
+transaction waits also have unknown container and operation labels. HTTP policy
+waits classify the pending request's container and operation.
+
+| Metric | Meaning |
+|---|---|
+| `cosmos_rate_limiter_requests_total` | HTTP attempts dispatched, counted by outcome after completion; includes retries and unlimited clients. A transport failure has unknown status. |
+| `cosmos_rate_limiter_waits_total` | Calls that begin waiting for a bucket, including subsequently canceled waits; rechecking or extending the same wait does not count again. |
+| `cosmos_rate_limiter_waiting_requests` | Calls currently blocked on a bucket; returns to zero after admission or cancellation. |
+| `cosmos_rate_limiter_wait_duration_seconds` | Histogram of time spent waiting, including canceled waits; excludes network time and calls that never waited. |
+
+Metrics are exposed through the services' metrics endpoints, including the admin
+server's private registry. A canceled wait increments waiting metrics but does not
+count as a dispatched HTTP attempt. Local budget waits are separate from Cosmos
+HTTP 429 responses.
+
+Request rate by controller:
+
+```promql
+sum by (source) (
+  max without (prometheus_replica) (
+    rate(cosmos_rate_limiter_requests_total{source_kind="controller"}[5m])
+  )
+)
+```
+
+An alert expression identifying controllers that started waiting in the last five
+minutes (choose the duration and threshold to match the controller's latency needs):
+
+```promql
+sum by (source) (
+  max without (prometheus_replica) (
+    increase(cosmos_rate_limiter_waits_total{source_kind="controller"}[5m])
+  )
+) > 0
+```
+
+To detect controllers currently blocked, including a single long wait:
+
+```promql
+sum by (source) (
+  max without (prometheus_replica) (
+    cosmos_rate_limiter_waiting_requests{source_kind="controller"}
+  )
+) > 0
+```
+
 ---
 
 ## 1. Frontend Endpoint Writes
@@ -139,6 +306,68 @@ metadata helpers live under [metadataapihelpers](../internal/apihelpers/metadata
 [fleetapihelpers](../internal/apihelpers/fleetapihelpers/) and
 [kubeapplierapihelpers](../internal/apihelpers/kubeapplierapihelpers/).
 The helper-package move does not change endpoint ownership or transactional boundaries.
+
+### Admission Caches and Startup
+
+The frontend owns exactly four read-only, in-memory admission caches backed by the
+**Resources** container: `Clusters` (`Cluster`), `NodePools` (`NodePool`),
+`ServiceProviderClusters` (`ServiceProviderCluster`, SPC) and
+`ServiceProviderNodePools` (`ServiceProviderNodePool`, SPNP).
+[Command wiring](../frontend/cmd/cmd.go) constructs the
+[`FrontendInformers` bundle](../internal/database/informers/coreinformers/frontend.go),
+not the backend informer bundle. Its [core informers](../internal/database/informers/coreinformers/informers.go)
+use initial global lists, Cosmos changefeed
+updates and periodic relists (30-minute default); the one-hour informer resync is
+not a live database refresh. Cluster subscription lookup uses a lower-cased
+subscription index across resource groups; node-pool inventory uses the owning
+cluster index. Cached objects are read-only inputs, not mutation targets.
+
+[`Frontend.Run`](../frontend/pkg/frontend/frontend.go) starts the informer bundle and
+the metrics server, then waits for the bundle's aggregate `HasSynced` (**all four** caches) through
+`cache.WaitForNamedCacheSyncWithContext` before serving the API. Aborted warmup
+returns an error without serving API requests; shutdown cancels and joins the
+informer/server goroutines and closes listeners, including an unserved API listener.
+
+| Admission consumer | Cached inputs | Live inputs / effects retained |
+|---|---|---|
+| Cluster PUT create and deployment preflight | `newClusterAdmissionContext` lists clusters in the request subscription, then node pools under those cached clusters. [Collision checks](../internal/admission/admit_cluster.go) use these inventories for managed-resource-group name, subnet and NSG reuse. | Subscription and request-target existence reads remain live. Preflight does not persist resources. |
+| Cluster PUT/PATCH update | The same [context builder](../frontend/pkg/frontend/cluster.go) gets SPC and lists the cluster's node pools, pairing every cached pool, including deleting pools, with its cached SPNP for version-skew admission. | Subscription and target-cluster reads remain live; the resource/operation transaction is unchanged. |
+| Node-pool PUT create | [Node-pool admission setup](../frontend/pkg/frontend/node_pool.go) gets the parent SPC for control-plane version state; no SPNP is required for create. | Subscription, parent-cluster and target-existence reads remain live; the resource/operation transaction is unchanged. |
+| Node-pool PUT/PATCH update | The same node-pool context builder gets the parent SPC and target SPNP for version validation. | Subscription, parent-cluster and target-node-pool reads remain live; the resource/operation transaction is unchanged. |
+| Explicit node-pool DELETE | [DeleteNodePool](../frontend/pkg/frontend/node_pool.go) lists sibling pools for the [best-effort last-pool check](../internal/admission/admit_nodepool.go), which rejects inventories of at most one pool. | The target node pool, provisioning-state conflict checks and operation handling remain live; the delete transaction is unchanged. |
+
+All SPC/SPNP reads for admission come from the caches. Admission setup does not
+call GetOrCreate, create provider documents, or fall back to a live parent-resource
+read on a cache miss. A missing required SPC/SPNP fails setup with a contextual
+internal error (HTTP 500), not an ARM target NotFound (HTTP 404); the diagnostic
+identifies the dependency and admission context. Provider document creation remains
+with backend [CreateServiceProviderCluster](#createserviceprovidercluster) and
+[CreateServiceProviderNodePool](#createserviceprovidernodepool), not an admission
+side effect of the endpoint writes listed below.
+
+Cluster-update admission includes cached node pools whose
+`ServiceProviderProperties.DeletionTimestamp` is non-nil: deletion intent does not
+mean the pool is gone, so its version still constrains admission.
+Any cached pool with missing SPNP is an error, even if its parent
+node-pool resource has already disappeared from Cosmos.
+
+These inputs are **best effort and eventually consistent**, not uniqueness
+locks or a consistent snapshot across the four caches and direct resource reads.
+Initial sync prevents admission against cold caches; it imposes **no ongoing
+freshness limit** or request-time freshness gate. Cache lag and concurrent requests
+can miss conflicts or temporarily reject valid requests. All other frontend reads
+remain live, including ordinary GET/LIST responses, subscriptions, target-resource
+and existence checks, operations, credentials (including SPC reads outside admission), and
+cluster/subscription cascade-deletion inventories. The frontend still obtains
+management-cluster observations only through backend-mirrored service-provider
+state, never through management-cluster or kube-applier access.
+
+Integration tests retain the existing
+[`WaitForFrontendCaches`](../test-integration/utils/integrationutils/frontend_cache.go)
+convergence helper, now comparing all four caches against global database lists
+for membership, versions and serialized content, not just initial synchronization.
+The targeted per-resource test-wait redesign is **deferred**; this test helper is
+not a production request-time freshness gate.
 
 ### Read-Only Create Fields
 
@@ -188,7 +417,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `Cluster` | <ul><li>`CustomerProperties.*` from request body (unmarshaled, read-only fields cleared before conversion to internal, `EnsureDefaults()` applied)</li><li>`TrackedResource.ID` (from URL resource ID)</li><li>`TrackedResource.Name` (from URL resource ID)</li><li>`TrackedResource.Type` (from URL resource ID)</li><li>`TrackedResource.Location` = `azureLocation`</li><li>`Tags`</li><li>`SystemData.CreatedAt`, `SystemData.CreatedBy`, `SystemData.CreatedByType`</li><li>`SystemData.LastModifiedAt`, `SystemData.LastModifiedBy`, `SystemData.LastModifiedByType`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (from `X-Ms-Identity-Url` header)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` from `CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` and `.ServiceManagedIdentity`, without supplied client/principal IDs)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
+| `Cluster` | <ul><li>`CustomerProperties.*` from request body (unmarshaled, read-only fields cleared before conversion to internal, `EnsureDefaults()` applied)</li><li>`TrackedResource.ID` (from URL resource ID)</li><li>`TrackedResource.Name` (from URL resource ID)</li><li>`TrackedResource.Type` (from URL resource ID)</li><li>`TrackedResource.Location` = `azureLocation`</li><li>`Tags`</li><li>`SystemData.CreatedAt`, `SystemData.CreatedBy`, `SystemData.CreatedByType`</li><li>`SystemData.LastModifiedAt`, `SystemData.LastModifiedBy`, `SystemData.LastModifiedByType`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (from `X-Ms-Identity-Url` header)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` from `CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` and `.ServiceManagedIdentity`, without supplied client/principal IDs)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` = `Immediate` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.z-stream-update-policy=Immediate` is present; otherwise unset (other supplied values are rejected when gated on)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID` (from `X-Ms-Home-Tenant-Id` header)</li><li>`ClientID` (from `X-Ms-Client-Object-Id` header)</li><li>`NotificationURI` (from `X-Ms-Async-Notification-Uri` header)</li><li>`StartTime` = now</li><li>`LastTransitionTime` = now</li><li>`OperationID` = generated ARM resource ID</li><li>`ResourceID` = generated ARM resource ID</li><li>`ClientRequestID`, `CorrelationRequestID` (from correlation data)</li></ul> |
 
 ---
@@ -201,7 +430,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `Cluster` | <ul><li>`CustomerProperties.*` (from request body; `DNS.BaseDomainPrefix` and `Platform.ManagedResourceGroup` carried from old if empty)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity` (PrincipalID, TenantID, non-nil UserAssignedIdentity values), `ServiceProviderProperties` (entire deep copy), `Status` (entire deep copy)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
+| `Cluster` | <ul><li>`CustomerProperties.*` (from request body; `DNS.BaseDomainPrefix` and `Platform.ManagedResourceGroup` carried from old if empty)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity` (PrincipalID, TenantID, non-nil UserAssignedIdentity values), `ServiceProviderProperties` (entire deep copy), `Status` (entire deep copy)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` = `Immediate` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.z-stream-update-policy=Immediate` is present; otherwise unset (other supplied values are rejected when gated on)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI` (from headers)</li><li>`StartTime`, `LastTransitionTime`, `OperationID`, `ResourceID`, `ClientRequestID`, `CorrelationRequestID`</li></ul> |
 
 ---
@@ -214,7 +443,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `Cluster` | <ul><li>`CustomerProperties.*` (old resource used as base, PATCH body overlaid, then converted to internal; `Platform.ContainerRegistry` dispatched to CS via `clusterUpdateDispatchConfig` for day-2 set/change/clear)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `ServiceProviderProperties`, `Status`</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
+| `Cluster` | <ul><li>`CustomerProperties.*` (old resource used as base, PATCH body overlaid, then converted to internal; `Platform.ContainerRegistry` dispatched to CS via `clusterUpdateDispatchConfig` for day-2 set/change/clear)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `ServiceProviderProperties`, `Status`</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` = `Immediate` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.z-stream-update-policy=Immediate` is present; otherwise unset (other supplied values are rejected when gated on)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI`</li></ul> |
 
 ---
@@ -283,6 +512,12 @@ transitively deletes all clusters (and their children) via transactional batches
 **Handler:** `createExternalAuth` ([external_auth.go](../frontend/pkg/frontend/external_auth.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` x2)
 
+The frontend live-reads the parent cluster and checks provisioning-state conflicts,
+but does not require the parent's `ServiceProviderProperties.ClusterServiceID`.
+It can persist the external-auth resource and create operation before Cluster
+Service has created the parent. Backend creation still requires that parent ID
+and retries until it is available.
+
 | Object | Fields Written |
 |--------|---------------|
 | `ExternalAuth` | <ul><li>Writable `Properties.*` from request body (unmarshaled, read-only fields cleared before conversion to internal, `EnsureDefaults()` applied)</li><li>`ProxyResource.ID`, `ProxyResource.Name`, `ProxyResource.Type`</li><li>`SystemData`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
@@ -296,10 +531,15 @@ transitively deletes all clusters (and their children) via transactional batches
 **Handler:** `updateExternalAuthInCosmos` ([external_auth.go](../frontend/pkg/frontend/external_auth.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` + `AddReplaceToTransaction`)
 
+The operation always has an empty `InternalID`, including updates of legacy
+resources with a stored Cluster Service ID. The resource's
+`ServiceProviderProperties.ClusterServiceID` is preserved for backend dispatch
+and completion. The operation poller locates the resource by `Operation.ExternalID`.
+
 | Object | Fields Written |
 |--------|---------------|
 | `ExternalAuth` | <ul><li>`Properties.*` (from request)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyExternalAuthValues`: `ProxyResource`, `CosmosMetadata`, `Properties.ProvisioningState`, `ServiceProviderProperties`, `Status`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID`, `InternalID` = `*externalAuth.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = external auth ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li></ul> |
 
 ---
 
@@ -381,7 +621,7 @@ No writes to Cosmos Resources container.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **131 entries**: 105 backend instances, 12 fleet controllers,
+The catalog contains **134 entries**: 108 backend instances, 12 fleet controllers,
 three kube-applier controller types, eight management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
@@ -390,16 +630,85 @@ controllers remain in the inventory. External operators are boundaries, not coun
 as in-repo controllers. Generic watching/operation wrappers, HTTP servers, informer
 factories, leader election and Prometheus collectors are infrastructure rather than
 additional business controllers.
+The four [frontend admission informers](#admission-caches-and-startup) are likewise
+infrastructure, not additional controller catalog entries.
 
 ### Registration and trigger conventions
 
 | Service | Startup evidence |
 |---|---|
-| Backend | [backend.go](../backend/pkg/app/backend.go), including conditional deny-assignment registration and all validation/metrics instances |
+| Backend | [backend.go](../backend/pkg/app/backend.go) launches the unordered [controller registry](../backend/pkg/app/controller_registry.go), including conditional deny-assignment registration and all validation/metrics instances; [ControllerContext](../backend/pkg/controllers/controllerconfig/context.go) owns shared dependencies |
 | Fleet | [manager.go](../fleet/pkg/manager/manager.go) |
 | Kube-applier | [kube_applier.go](../kube-applier/pkg/app/kube_applier.go); read manager creates target read controllers dynamically |
 | Management-agent | [options.go](../mgmt-agent/cmd/options.go) |
 | Sessiongate | [options.go](../sessiongate/cmd/options.go) |
+
+The backend registry represents **109 launches**: 107 instances in the billing,
+cluster, clusterresources, cosmosmigration, datadump, externalauth, metrics,
+mismatch, and nodepool zones, the Azure SKU cached-reader controller, and the
+shared union kube-applier informer controller. This matches the catalog's 108
+backend instances plus the separately counted shared union controller.
+`ClusterDenyAssignment` is instantiated and launched only when `HasRealFPA` is
+true; otherwise 108 controllers run. The flag is also passed to cluster creation.
+
+Each top-level controller package owns a `registration.go` file and a `Register`
+function: [billing](../backend/pkg/controllers/billing/registration.go),
+[cluster](../backend/pkg/controllers/cluster/registration.go),
+[clusterresources](../backend/pkg/controllers/clusterresources/registration.go),
+[cosmosmigration](../backend/pkg/controllers/cosmosmigration/registration.go),
+[datadump](../backend/pkg/controllers/datadump/registration.go),
+[externalauth](../backend/pkg/controllers/externalauth/registration.go),
+[metrics](../backend/pkg/controllers/metrics/registration.go),
+[mismatch](../backend/pkg/controllers/mismatch/registration.go), and
+[nodepool](../backend/pkg/controllers/nodepool/registration.go).
+The [SKU](../backend/pkg/azure/cachedreader/registration.go) and
+[union](../internal/database/unioninformers/kubeapplier/registration.go) packages
+register their existing shared supporting-controller instances. The app only
+aggregates these registrations. Keys lowercase the name constants in the actual
+controller implementation packages; there are no app-owned controller constants
+or construction/launch order lists.
+
+Controller construction precedes leader election. Once leading, backend and
+fleet informer factories, the union and SKU controllers, and all consumers launch
+from one unordered map. Each consumer's existing `Run` waits for cache sync after
+installing its queue-shutdown defer and before starting workers or periodic
+reconciliation. Registration-time factory adapters track every informer/lister
+accessor used by constructors, including lister-only dependencies; union consumers
+also wait on the union surface's authoritative `HasSynced` signal. These adapters
+return the original informers and listers; they create no caches or queues.
+
+Backend and fleet factories also expose aggregate `HasSynced` methods. Backend
+startup uses the per-consumer dependency gates instead of waiting on these
+aggregate signals before launching controllers: unrelated caches do not delay a
+consumer, and all cache producers can start regardless of map iteration order.
+
+The union controller waits for the management-cluster cache and delivery of its
+initial handler events, then independently runs its workers and per-MC informers.
+Union readiness requires registration for every discovered MC identity and initial
+sync of both desire caches for those MCs. Empty fleet discovery must complete before
+an empty union becomes ready. Unavailable factories retry through the workqueue;
+failed initial lists remain unready while the informers retry. Waits honor leader
+context cancellation and do not hold topology locks. Producers never wait on their
+own readiness. This is a startup barrier, not dynamic-membership read-error gating:
+later MC additions/removals retain existing eventual-consistency behavior. Per-MC
+relist durations are unchanged. Both VM validators still share the launched SKU
+cached reader, whose cache-miss wait already honors cancellation.
+
+`ControllerContext` carries the shared informer factories rather than individual
+informers or listers. Each named instantiation adapter obtains only the
+informer/lister pairs its constructor needs through those factories' accessors;
+it does not create new factories or caches. The context's
+`AsyncOperationNotificationClient` remains `http.DefaultClient`, used by
+operation controllers to POST status notifications to `Operation.NotificationURI`.
+
+Registry entries retain the existing worker counts: 20 by default, one for each
+of the six metrics controllers and the union informer controller, five for
+`PendingCleanup` and `CosmosMigration`, and ten for
+`DeleteOrphanedCosmosResources`. `BackfillClusterUID` retains its 60-minute resync
+and `CreateBillingDoc` its 60-second resync. Registry keys are lowercased existing
+controller names; log, metric, and persisted controller identities are unchanged.
+These startup gates do not change the catalog's reconciliation effects or the
+field/condition edges in the lifecycle DOT sources and PNGs below.
 
 “Cluster”, “node pool”, “external auth”, “credential request” and “credential
 revocation” in Trigger identify the resource key passed to the shared watching
@@ -452,12 +761,6 @@ Creates the missing `ServiceProviderCluster` document; subsequent controllers ow
 
 For a live cluster with neither confirmed nor pending Cluster Service ID, persists `ServiceProviderProperties.PendingClusterServiceID` before dependent Azure/Cluster Service work.
 
-#### ControlPlaneDesiredVersion
-
-[Source](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go) · **Trigger:** Cluster; 5m, no kube-applier watch.
-
-Requires a service-provider document. Resolves initial and subsequent exact versions using customer `Version.ID`/`ChannelGroup`, update-service graph, active operation and node-pool versions; writes `Spec.ControlPlaneVersion.DesiredVersion` and controller `IntentFailed`. Automatic selection does not downgrade; enforced rollback has separate handling.
-
 #### Placement
 
 [Source](../backend/pkg/controllers/cluster/placement/placement_controller.go) · **Trigger:** Cluster; 5m resync, explicit 29s retry when no fit exists.
@@ -482,11 +785,34 @@ Reads Azure identities for the service-managed and control-plane operator identi
 
 Reads the requested data-plane operator identities and writes `Status.DataPlaneOperatorsManagedIdentities.Identities` and its recheck time. No Azure mutation.
 
+#### ActualHostedCluster
+
+**File:** [actual_hosted_cluster_controller.go](../backend/pkg/controllers/cluster/hostedcluster/actual_hosted_cluster_controller.go)
+**Trigger:** Cluster, ServiceProviderCluster, cluster-scoped ManagementClusterContent,
+ReadDesire, and ApplyDesire informers; 5-minute resync.
+
+Mirrors the observed HostedCluster so the frontend has a source of management-cluster
+state it is allowed to read (see [Why management-cluster state is mirrored onto
+ServiceProviderCluster](#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster)).
+Leaves the field `nil` until the HostedCluster is observed, and only writes when the observed
+object changes. A missing or unsuccessful ReadDesire observation leaves an already-published
+mirror in place — those states also cover a cold union informer, so clearing on them would wipe
+and rewrite every mirror on each backend restart. A successful empty observation clears the
+mirror because it proves the HostedCluster is absent. Deletion does not gate mirroring:
+successful observations continue updating the object while the cluster is deleting, and a
+successful empty observation retracts it to `nil` for both active and deleting clusters.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | Existence only; no deletion gate |
+| Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions[Successful]` — gates all mirror updates, including clearing empty content</li><li>`Status.KubeContent` — the observed HostedCluster, whole object (`Spec` + `Status`)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ActualHostedCluster`** = the observed HostedCluster, mirrored verbatim (`Spec` + `Status` + `metadata`)</li></ul> |
+
 #### EnsureManagedResourceGroup
 
 [Source](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go) · **Trigger:** Cluster; 5m; 10s while provisioning.
 
-Records pending managed resource group intent, gets/creates the Azure resource group with ownership metadata, and confirms `Status.AzureResources.ManagedResourceGroup.AzureResource` only after provisioning succeeds. During deletion it observes absence and clears tracking; it does not delete the Azure group.
+Records pending managed resource group intent, gets/creates the Azure resource group with ownership metadata, and confirms `Status.AzureResources.ManagedResourceGroup.AzureResource` only after provisioning succeeds. During deletion it observes absence and clears tracking. If the managed resource group has been orphaned (Cluster Service deletion completed, Cluster Service ID cleared, and the Azure resource group still exists and is not deleting), it initiates Azure deletion of the orphaned group.
 
 #### ClusterDenyAssignment
 
@@ -554,13 +880,13 @@ Copies resolved identity information into `Cluster.Identity.UserAssignedIdentiti
 
 [Source](../backend/pkg/controllers/cluster/version/control_plane_active_version_controller.go) · **Trigger:** Cluster and mirrored reads; 5m.
 
-Reads cached cluster/provider documents and mirrored HostedCluster history. Writes exact versions with Completed/Partial state into `ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions`, and copies desired update channels into `Status.DesiredVersionChannels`. Separately replaces `Cluster.Status.ActiveVersions` with distinct major.minor strings for customer responses. Prefers `status.controlPlaneVersion.history`, falling back to `status.version.history`; collects history through the first completed entry. These are observations, not desired-version changes. ETag conflicts wait for a later reconcile; the two document writes are not transactional.
+Reads cached cluster/provider documents and mirrored HostedCluster history. Writes exact versions with Completed/Partial state and `LastTransitionTime` into `ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions` (retaining existing times while version/state match and backfilling zero times at observation), and copies desired update channels into `Status.DesiredVersionChannels`. Separately replaces `Cluster.Status.ActiveVersions` with distinct major.minor strings for customer responses. Prefers `status.controlPlaneVersion.history`, falling back to `status.version.history`; collects history through the first completed entry. These are observations, not desired-version changes. ETag conflicts wait for a later reconcile; the two document writes are not transactional.
 
 #### TriggerControlPlaneUpgrade
 
 [Source](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) · **Trigger:** Cluster; 1m.
 
-Reads the cluster from its informer cache, compares provider desired/active control-plane versions and Cluster Service state, and submits an upgrade policy when needed. Records controller intent failure if rejected.
+Reads the cluster from its informer cache, requires a non-nil provider desired version, compares desired/active control-plane versions and Cluster Service state, and submits an upgrade policy when needed. Records controller intent failure if rejected.
 
 #### ClusterClusterServiceUpdateDispatch
 
@@ -584,7 +910,72 @@ Uses `Spec.BackupState`, placement and namespaces to reconcile Velero schedule A
 
 [Source](../backend/pkg/controllers/cluster/backups/key_rotation_controller.go) · **Trigger:** Cluster and mirrored reads; 5m.
 
-Observes encryption-key rotation and backup state, creates Velero Backup ApplyDesires/ReadDesires, and records completion/cleanup state. Leaves completed backups for Velero TTL cleanup. During cluster deletion, directly purges its desires without deleting Backup CRs; [BackupCleanup](#backupcleanup) may request earlier deletion after the HostedCluster disappears.
+Observes encryption-key rotation and creates an on-demand Velero Backup ApplyDesire/ReadDesire for the post-rotation key fingerprint, then records completion/cleanup state and retains completed backups until their TTL. Starting a *new* backup for a not-yet-recorded rotation requires both `BackupConfig.BackupScheduleState` (fleet-wide) and `ServiceProviderCluster.Spec.BackupScheduleState` (per-cluster) to be non-`Disabled`; a rotation observed while paused with no ApplyDesire yet is recorded as skipped (never retried after resume, only a later rotation is eligible), while an ApplyDesire already in flight is never abandoned once pause takes effect. During cluster deletion, directly purges its desires without deleting Backup CRs; [BackupCleanup](#backupcleanup) may request earlier deletion after the HostedCluster disappears.
+
+### Backend: fleet control-plane version rollout
+
+These seven controllers are registered in the [cluster registry](../backend/pkg/controllers/cluster/registration.go)
+and run under [backend leader election](../backend/pkg/app/backend.go),
+replacing the removed per-cluster `ControlPlaneDesiredVersion` controller. Fleet
+`ControlPlaneVersionRollout` documents are keyed by y-stream channel (for example,
+`stable-4.21`) in the provider-namespace partition. Cluster requested versions,
+service-provider desired versions, and externally observed active versions remain
+separate. [Membership](../backend/pkg/controllers/cluster/version/rollout/membership.go)
+uses the cluster's channel group plus the desired minor, falling back to the oldest
+completed active minor; it does not fall back to customer-requested versions.
+All assignment writes use optimistic concurrency. Conflicts are logged before
+waiting for an informer update, including conflicts reserving a rollout batch.
+Seeding skips existing rollout documents without logging that steady-state case.
+Per-cluster wrappers can persist
+child Controller bookkeeping; the [per-rollout wrapper](../backend/pkg/utils/controllerutils/control_plane_version_rollout_watching_controller.go)
+writes no child Controller document. These controllers select versions in Cosmos;
+Cluster Service and HyperShift perform the upgrades.
+
+#### ControlPlaneVersionRolloutSeeding
+
+[Source](../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller.go) · [Startup](../backend/pkg/app/backend.go) · **Trigger:** Cluster and service-provider cluster informers; cluster key, 5m resync; no kube-applier watch.
+
+Reads cached `CustomerProperties.Version.ID`/`ChannelGroup` and `ServiceProviderProperties.DeletionTimestamp`. Skips missing/deleting clusters, nightly channels and malformed requested channels. Creates a missing, empty Fleet rollout for the requested minor, and also for `Spec.PinnedVersion.ExactVersion`'s minor when pinned. Existing rollout documents are left unchanged; create conflicts count as another seeder winning. The rollout informer then enables best-version selection and status/assignment reconciliation.
+
+#### ControlPlaneVersionBestVersionSelection
+
+[Source](../backend/pkg/controllers/cluster/version/rollout/best_version_controller.go) · [Startup](../backend/pkg/app/backend.go) · **Trigger:** Rollout informer; channel key, 5m resync; no additional cooldown.
+
+Requires an existing rollout. Reads its `Spec.BestExactVersion`, queries the update graph through the [Cincinnati selector](../backend/pkg/controllers/cluster/version/rollout/cincinnati_selector.go), and combines the selectable version with the configured per-channel minimum. The graph request has a 30-second overall deadline, including retries and response-body reads; a timeout returns an error without changing the stored best version. Stable holds one z-stream back; other graph-backed channels take the latest. Selection uses recency; evaluating Cincinnati conditional-update risks is a follow-up. Nightly skips the graph and relies on exact-version overrides. Writes only `Spec.BestExactVersion` when a non-nil different version is selected; no selectable version or an unchanged result produces no write. Assignment controllers consume the target independently; this write does not mean any cluster upgraded.
+
+#### ControlPlaneVersionStatusCollector
+
+[Source](../backend/pkg/controllers/cluster/version/rollout/status_collector_controller.go) · [Watch mapping](../backend/pkg/controllers/cluster/version/rollout/status_collector_watches.go) · [Startup](../backend/pkg/app/backend.go) · **Trigger:** Rollout informer, 5m resync; relevant cluster/service-provider add, delete and field-change events also enqueue affected channels without periodic resync on those extra handlers.
+
+Requires an existing rollout. Reads cached cluster channel groups, deletion timestamps, and provider desired/active versions and transition times. Missing or deleting backing clusters are excluded from every count. Provider changes enqueue both old/new membership minors across existing channel groups; unknown membership and cluster membership changes conservatively enqueue all applicable rollouts. A cluster becoming marked for deletion also triggers recomputation. Input events enqueue immediately without incrementing workqueue retry metrics; unrelated updates are ignored. Replaces `Status.ClusterCountByDesiredExactVersion`, `MismatchedClusterCountByDesiredExactVersion`, `FailedClusterCountByDesiredExactVersion`, `ClusterCountByAchievedExactVersion` and `SuccessfulClusterCountByAchievedExactVersion`, skipping unchanged aggregates. Only Completed entries count as achieved; partial-only history remains mismatched. Success requires the achieved entry's nonzero transition time to be older than 1h; failure requires a mismatch whose desired transition time exceeds the minor's maximum duration (2h by default). These are rollout accounting states, not ARM provisioning-state writes.
+
+#### InitialNormalClusterDesiredVersion
+
+[Source](../backend/pkg/controllers/cluster/version/rollout/initial_normal_desired_version_controller.go) · [Startup](../backend/pkg/app/backend.go) · **Trigger:** Cluster and service-provider cluster informers; cluster key, 1m resync; missing rollout/best retries after 10s.
+
+Requires a provider document with nil `Spec.ControlPlaneVersion.DesiredVersion` or a missing/zero `DesiredVersionLastTransitionTime`. An existing desired version only receives a timestamp backfill, including for pinned clusters. New assignment excludes SRE pins and experimental exact versions, requires a valid requested channel from cached cluster `Version.ID`/`ChannelGroup`, and reads that rollout's non-nil `Spec.BestExactVersion`. Writes desired version and transition time without canary/rolling gates or rollout-condition writes. Initial desired state enables cluster creation; external convergence is checked separately. Invalid requested channels return errors.
+
+#### MinorUpgradeNormalClusterDesiredVersion
+
+[Source](../backend/pkg/controllers/cluster/version/rollout/minor_upgrade_normal_desired_version_controller.go) · [Startup](../backend/pkg/app/backend.go) · **Trigger:** Cluster and service-provider cluster informers; cluster key, 1m resync; missing rollout/best retries after 10s.
+
+Requires cached cluster/provider documents, no SRE pin or experimental exact version, and a non-nil desired version whose major/minor differs from parsed customer `Version.ID`. Resolves the requested `Version.ChannelGroup`/minor rollout and writes its non-nil best version plus `DesiredVersionLastTransitionTime`. Patch-only changes do not trigger assignment. Invalid requested channels return errors. This selection bypasses progressive gates and leaves rollout conditions alone; upgrade dispatch and operation completion observe the new provider target.
+
+Before assigning a minor-upgrade target, checks every cached node pool’s requested and observed active versions using the shared admission skew rules. Deleting pools remain inputs until they leave the inventory. Missing provider state or incompatible versions return an error without changing the desired version.
+
+#### ZStreamProgressiveDesiredVersionRollout
+
+[Source](../backend/pkg/controllers/cluster/version/rollout/zstream_progressive_desired_version_rollout_controller.go) · [Watch mapping](../backend/pkg/controllers/cluster/version/rollout/zstream_progressive_desired_version_rollout_watches.go) · [Startup](../backend/pkg/app/backend.go) · **Trigger:** Rollout informer; channel key, 5m resync. Candidate-channel changes on cluster events and provider events with nil desired version enqueue additional work; unrelated/patch-only cluster updates do not. Extra handlers have no periodic resync and enqueue input changes immediately without incrementing retry metrics.
+
+Requires an existing rollout with `Spec.BestExactVersion`. Requeues for the remainder of the persisted 60s `Status.LastAssignmentTime` cooldown. Reads cached membership and recomputes progress counts and eligibility from the same provider snapshot, rather than trusting delayed status-collector aggregates. Missing or deleting backing clusters are excluded from both counts and candidates. Candidates require a non-nil desired version below best; initial assignment exclusively owns nil desired versions, including clusters with active history in another minor. Candidates must have no held pin; a pin is eligible once best reaches `Spec.PinnedVersion.UntilExactVersion`. Experimental exact-version and `ZStreamUpdatePolicy=Immediate` clusters belong to forced assignment and are excluded. No eligible clusters means no assignments, not proof of external convergence.
+
+[Policy](../backend/pkg/controllers/cluster/version/rollout/config.go) stops normal assignment when failures exceed `max(2, 5% of clusters desiring best)`. Canary selection fills `ceil(6% of channel members) + 2` slots, then waits for `ceil(6%)` successful clusters. Rolling selection fills a `ceil(12%)` window, freeing slots as clusters become successful. Before assigning a random bounded batch, reserves `Status.LastAssignmentTime` with an ETag-guarded Fleet write; conflicts stop the batch. Selected provider documents receive best and the current desired-version transition time. Writes rollout `Status.Conditions[Progressing]`/`[Degraded]`; partial assignment errors are collected and reported as degraded. It never persists the temporary decision-count maps. Actual upgrade progress returns through active-version observation.
+
+#### ForcedClusterDesiredVersion
+
+[Source](../backend/pkg/controllers/cluster/version/rollout/forced_desired_version_controller.go) · [Startup](../backend/pkg/app/backend.go) · **Trigger:** Cluster/service-provider and mirrored-resource events; cluster key, 1m resync.
+
+Requires cached cluster/provider documents and an SRE `Spec.PinnedVersion.ExactVersion` or experimental `ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion` or `ZStreamUpdatePolicy=Immediate`. Precedence is SRE pin, then exact override, then Immediate. A pin holds its exact version until its channel's `Spec.BestExactVersion` reaches `UntilExactVersion`, then adopts best and clears `Spec.PinnedVersion`. Missing release threshold or best keeps the pin. Unpinned experimental exact versions hold indefinitely and need no rollout lookup. Writes `Spec.ControlPlaneVersion.DesiredVersion` and its transition time on changes, independently of normal rollout gates; no change means no provider write. For Immediate, reads the best version from the desired minor's channel and advances only when desired/best are non-nil, major/minor match and best is newer. It bypasses canary, rolling-window, failure-budget and batch-cooldown gates so production e2e automatic z-stream upgrade tests do not depend on fleet progress. It never downgrades or changes minor, and leaves initial/minor assignment with their existing controllers. Cluster Service dispatch observes the desired target; this controller does not claim upgrade completion.
 
 ### Backend: cluster deletion and operations
 
@@ -626,7 +1017,7 @@ For the matching nonterminal operation, writes status/error/transition time and 
 
 [Source](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) · **Trigger:** Active operation; 10s.
 
-Observes dispatched configuration and completion, including the same cluster validation check and five-minute failure grace period as [OperationClusterCreate](#operationclustercreate). For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Checks resolved provider desired major/minor against the customer request, rejects incompatible SRE/exact overrides, and waits up to 129s from first observed mismatch for assignment (tracked in memory per operation). It no longer reads or creates status for the removed desired-version controller. Combines dispatched configuration, Cluster Service state, mirrored HostedCluster completion, and the same cluster validation check and five-minute failure grace period as [OperationClusterCreate](#operationclustercreate). For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
 
 #### OperationClusterDelete
 
@@ -750,7 +1141,7 @@ Aggregates service-provider validation conditions into the ARM RequirementsValid
 
 [Source](../backend/pkg/controllers/externalauth/creation/external_auth_cluster_service_create_controller.go) · **Trigger:** ExternalAuth; 1m.
 
-For a live resource without `ClusterServiceID`, live-reads the resource and requires the parent cluster ID. Adopts the deterministic Cluster Service resource or POSTs it, then persists its ID. External auth has no separate service-provider document; updates use the parent cluster's HostedCluster ReadDesire.
+For a live resource without `ClusterServiceID`, live-reads the resource and requires the cached parent cluster's nonempty `ServiceProviderProperties.ClusterServiceID`. A missing parent ID returns a retryable error; frontend acceptance does not satisfy this backend prerequisite. Adopts the deterministic Cluster Service resource or POSTs it, then persists its ID on the external-auth document. External auth has no separate service-provider document; updates use the parent cluster's HostedCluster ReadDesire.
 
 #### ExternalAuthClusterServiceUpdateDispatch
 
@@ -786,13 +1177,13 @@ Once deletion prerequisites and child cleanup are satisfied, deletes the ARM res
 
 [Source](../backend/pkg/controllers/externalauth/operations/operation_external_auth_create.go) · **Trigger:** Active operation; 10s.
 
-A successful Cluster Service GET of external auth is the completion check; this does not wait for downstream authentication rollout readiness. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+Uses `Operation.ExternalID` to find the cached external-auth resource and waits for its `ServiceProviderProperties.ClusterServiceID`; it does not use `Operation.InternalID`. A successful Cluster Service GET of external auth is the completion check; this does not wait for downstream authentication rollout readiness. For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
 
 #### OperationExternalAuthUpdate
 
 [Source](../backend/pkg/controllers/externalauth/operations/operation_external_auth_update.go) · **Trigger:** Active operation; 10s.
 
-Combines desired-versus-observed Cluster Service configuration with the parent HostedCluster spec from its ReadDesire (issuer, clients, claims and validation rules). HostedCluster authentication status is not checked. Updates operation and ARM provisioning state, clears the terminal active-operation reference and sends the notification.
+Uses `Operation.ExternalID` to find the cached external-auth resource and waits for its `ServiceProviderProperties.ClusterServiceID`; it does not use `Operation.InternalID`. Combines desired-versus-observed Cluster Service configuration with the parent HostedCluster spec from its ReadDesire (issuer, clients, claims and validation rules). HostedCluster authentication status is not checked. Updates operation and ARM provisioning state, clears the terminal active-operation reference and sends the notification.
 
 #### OperationExternalAuthDelete
 
@@ -972,7 +1363,7 @@ Reads worker/integration subnets and NSG rules and evaluates required connectivi
 
 [Source](../backend/pkg/utils/validationutils/container_registry_pull_credentials_permission_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
 
-Validates that the CAPZ control-plane operator identity has `Microsoft.ManagedIdentity/userAssignedIdentities/assign/action` permission on the customer's container registry pull managed identity. Skipped if no pull MI is configured; fails if pull MI is in a different subscription than the cluster (cross-subscription not yet supported). Uses Azure CheckAccess V2 API to verify permission. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
+Validates that the CAPZ control-plane operator identity has `Microsoft.ManagedIdentity/userAssignedIdentities/assign/action` permission on the customer's container registry pull managed identity. Skipped if no pull MI is configured; fails if pull MI is in a different subscription than the cluster (cross-subscription not yet supported). Uses Azure CheckAccess V2 API to verify permission. Writes the corresponding service-provider `Status.Validations` condition through its controller-specific Resources storage client and RU budget; no Azure mutation.
 
 ### Backend: billing, repair, diagnostics and caches
 
@@ -1028,7 +1419,7 @@ Finds Cluster Service clusters absent from the Cosmos inventory. Requires a crea
 
 [Source](../backend/pkg/controllers/datadump/cs_state_dump.go) · **Trigger:** Cluster; 1m.
 
-Reads and logs Cluster Service state; no domain mutation.
+Reads cluster and node-pool records from informer-backed listers to obtain their Cluster Service IDs, then fetches and logs Cluster Service state with a cluster GET and a GET for each registered node pool; no domain mutation.
 
 #### FPAVirtualMachineResourceSKUsCachedReader
 
@@ -1250,12 +1641,13 @@ The DataplaneController registers ready session credentials, owner and backend A
 
 | Resource / system | Actual mutator | Intent, observation and cleanup |
 |---|---|---|
-| Azure managed resource group | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) creates; [CleanOrphanedClusterManagedResourceGroup](#cleanorphanedclustermanagedresourcegroup) deletes confirmed orphans only in readwrite mode | Pending reference is persisted before creation; provisioning success confirms it. Normal deletion relies on external teardown; EnsureManagedResourceGroup only observes absence and clears references. |
+| Azure managed resource group | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) creates; [CleanOrphanedClusterManagedResourceGroup](#cleanorphanedclustermanagedresourcegroup) deletes confirmed orphans only in readwrite mode | Pending reference is persisted before creation; provisioning success confirms it. Normal deletion relies on external teardown; EnsureManagedResourceGroup observes absence and clears references. EnsureManagedResourceGroup also initiates Azure deletion for orphaned MRGs (where Cluster Service deletion completed, Cluster Service ID cleared, but Azure resource group still exists) |
 | Azure deny assignments | [ClusterDenyAssignment](#clusterdenyassignment) gets/creates/updates/deletes stale assignments | Tracks pending/confirmed IDs. Cluster creation requires no pending entries, a nonempty confirmed list and `EarliestRecheckTime` when enabled. Cluster deletion skips direct assignment cleanup; resource-group deletion cascades. |
 | Azure role assignments | [IdentityRoleAssignments](#identityroleassignments) gets and creates missing assignments | Persists intent before PUT; later GET confirms existence. Old confirmed assignments are retained. Cluster creation requires a nonempty confirmed list and no pending assignments. |
 | Azure identities, VM SKUs, quota, NSGs, container registry pull MI access and access checks | Identity/validation controllers and SKU cache **observe** | Store resolved identities, validation conditions or memory cache; these checks do not create identities, change NSGs, raise quota or modify managed identities. [ClusterValidationContainerRegistryPullCredentialsPermissionValidation](#clustervalidationcontainerregistrypullcredentialspermissionvalidation) checks CAPZ assign/action permission on pull MI using CheckAccess V2. |
 | Azure VMSS NICs / AKS pool ceilings | [SwiftNICController](#swiftniccontroller) and [ManagementClusterScaleCeilingReportingController](#managementclusterscaleceilingreportingcontroller) **observe** | The former changes Kubernetes Node capacity; the latter writes Cosmos scheduling capacity. Neither changes Azure VM/pool size. |
 | Azure Monitor metrics-container ingestion limits | [AMWIngestionScaling](#amwingestionscaling) reads utilization and updates Azure limits | Periodic fleet controller, outside any single cluster's lifecycle. |
+| OpenShift update graph | [ControlPlaneVersionBestVersionSelection](#controlplaneversionbestversionselection) **observes** | Selects the channel target in Fleet Cosmos; assignment writes provider intent, while Cluster Service and HyperShift execute upgrades. |
 | Cluster Service cluster/node pool/external auth | Create, update-dispatch, upgrade and delete-dispatch controllers call the external API | ID clearers observe 404; operation pollers observe completion. [ClusterServiceMatchingClusters](#clusterservicematchingclusters) also deletes aged, live-rechecked orphan clusters. |
 | Cluster Service provision shards / Maestro consumers | Fleet registration controllers ensure external registrations | Fleet management-cluster conditions record readiness for placement. Maestro/work-agent and HyperShift are external components, not repository controllers in this catalog. |
 | Kubernetes desired manifests | [ApplyDesireController](#applydesirecontroller) applies/deletes objects | Backend `ClusterResources`, backup and credential controllers write intent documents. An ApplyDesire **Delete request** executes a Kubernetes deletion; removal of the Cosmos intent alone does not. |
@@ -1298,7 +1690,9 @@ bash docs/diagrams/controller-flows/render.sh
 
 ![Cluster create controller digraph](diagrams/controller-flows/cluster-create.png)
 
-The prerequisites panel separates selected `Spec.ManagementClusterResourceID` from observed placement. The [create controller](../backend/pkg/controllers/cluster/creation/cluster_cluster_service_create_controller.go) requires pending ID, desired version, selected provision shard and, when enabled, the deny-assignment state (no pending entries, a nonempty confirmed list and `EarliestRecheckTime` set). [Placement](../backend/pkg/controllers/cluster/placement/placement_controller.go) supplies the pre-create target; actual placement is learned after Cluster Service creation.
+[Frontend create admission](../frontend/pkg/frontend/cluster.go) uses cached subscription clusters and their node pools for best-effort collision checks; [deployment preflight](../frontend/pkg/frontend/frontend.go) uses the same context without the create write. All four frontend caches must initially sync before API serving, even though cluster create uses only the two inventories; [ongoing freshness is not bounded](#admission-caches-and-startup).
+
+Initial desired-version assignment uses the requested channel's best version; SRE pins and experimental exact versions use forced assignment. Both precede Cluster Service creation. The prerequisites panel separates selected `Spec.ManagementClusterResourceID` from observed placement. The [create controller](../backend/pkg/controllers/cluster/creation/cluster_cluster_service_create_controller.go) requires pending ID, desired version, selected provision shard and, when enabled, the deny-assignment state (no pending entries, a nonempty confirmed list and `EarliestRecheckTime` set). [Placement](../backend/pkg/controllers/cluster/placement/placement_controller.go) supplies the pre-create target; actual placement is learned after Cluster Service creation.
 
 ### Cluster create: fleet readiness and placement
 
@@ -1338,7 +1732,29 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 ![Cluster update controller digraph](diagrams/controller-flows/cluster-update.png)
 
-[Desired-version selection](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes and validation observations. Validation failures lasting at least five minutes also fail the operation with `InvalidResource` once the operation is at least five minutes old; sizing, identities and backup maintenance continue independently.
+[Frontend update admission](../frontend/pkg/frontend/cluster.go) combines cached node-pool inventory and SPC/SPNP state with a live target-cluster read. Deleting cached pools remain version-skew validation inputs and require cached SPNP state until they leave the inventory. Missing required provider state produces a contextual internal error, with no GetOrCreate or live parent fallback. These [admission inputs remain best effort](#admission-caches-and-startup), not an atomic snapshot.
+
+[Desired-version assignment](#backend-fleet-control-plane-version-rollout), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes and validation observations. Validation failures lasting at least five minutes also fail the operation with `InvalidResource` once the operation is at least five minutes old; sizing, identities and backup maintenance continue independently.
+
+### Control-plane version rollout
+
+[Full PNG](diagrams/controller-flows/control-plane-version-rollout.png) · [Graphviz source](diagrams/controller-flows/control-plane-version-rollout.dot)
+
+![Control-plane version rollout digraph](diagrams/controller-flows/control-plane-version-rollout.png)
+
+[Seeding](#controlplaneversionrolloutseeding) creates the channel document and
+[best selection](#controlplaneversionbestversionselection) chooses its target.
+[Initial](#initialnormalclusterdesiredversion) and [minor-version](#minorupgradenormalclusterdesiredversion)
+assignments use the requested channel; [normal rollout](#zstreamprogressivedesiredversionrollout)
+uses provider membership and bounded canary/rolling gates. [Forced assignment](#forcedclusterdesiredversion)
+handles pins, exact overrides and experimental Immediate updates. Immediate advances
+within the desired minor independently of canary progress, while pins and exact
+overrides remain authoritative. Solid assignment edges are alternative ownership
+paths. [Version observation](#controlplaneactiveversions) supplies the completed
+history and timestamps for both [status collection](#controlplaneversionstatuscollector)
+and normal assignment's own snapshot calculations. Persisted aggregate counts are
+observations; normal assignment recomputes its decision inputs. An assigned version
+is not upgrade completion, and automatic z-stream rollout creates no ARM operation.
 
 ### Cluster delete
 
@@ -1346,7 +1762,7 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 ![Cluster delete controller digraph](diagrams/controller-flows/cluster-delete.png)
 
-[ClusterResources](../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) first drops its tagged ApplyDesire documents, stopping their reconciliation without deleting their Kubernetes targets. [Delete dispatch](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) waits for that intent cleanup before calling Cluster Service DELETE. External components then tear down Kubernetes and Azure resources. [Child cleanup](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) waits for resource and credential children, and preserves owned ApplyDesires for their controllers and removes provider state only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires clear. [Managed-resource-group reconciliation](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go) only observes deletion; it does not issue it. The optional orphan-group cleaner is a background repair path, not a prerequisite for typical deletion.
+[ClusterResources](../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) first drops its tagged ApplyDesire documents, stopping their reconciliation without deleting their Kubernetes targets. [Delete dispatch](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) waits for that intent cleanup before calling Cluster Service DELETE. External components then tear down Kubernetes and Azure resources. [Child cleanup](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) waits for resource and credential children, and preserves owned ApplyDesires for their controllers and removes provider state only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires clear. [Managed-resource-group reconciliation](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go) observes deletion during normal flow but also initiates Azure deletion for orphaned managed resource groups (where Cluster Service deletion completed, Cluster Service ID cleared, but Azure resource group still exists). The optional orphan-group cleaner is a background repair path, not a prerequisite for typical deletion.
 
 The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controller.go) branch starts only after live reads confirm no HC remains in the recognized backup's HC namespace, not merely a deletion timestamp. All backup/operation/opt-out gates in its [catalog entry](#backupcleanup) must also pass. It requests Velero deletion without waiting for TTL; pending work polls and processed requests with a remaining Backup are retried. [KeyRotationBackup](../backend/pkg/controllers/cluster/backups/key_rotation_controller.go) only purges its Cosmos desires during cluster deletion. Neither ARM success nor Backup absence proves Kopia GC completion; BackupRepositories remain for maintenance, and this branch does not gate the ARM result.
 
@@ -1356,6 +1772,8 @@ The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controll
 
 ![Node pool create controller digraph](diagrams/controller-flows/nodepool-create.png)
 
+[Frontend create admission](../frontend/pkg/frontend/node_pool.go) requires cached parent SPC state, but no SPNP. Parent-cluster and target-existence reads remain live. Missing SPC fails with an internal error before the resource/operation transaction; admission does not create provider state.
+
 [Node-pool creation](../backend/pkg/controllers/nodepool/creation/node_pool_cluster_service_create_controller.go) needs the parent Cluster Service ID, but POST does not wait for the service-provider desired version. [Create-operation completion](../backend/pkg/controllers/nodepool/operations/operation_node_pool_create.go) uses Cluster Service node-pool status; Kubernetes version observation feeds subsequent upgrade decisions independently.
 
 ### Node pool update
@@ -1363,6 +1781,8 @@ The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controll
 [Full PNG](diagrams/controller-flows/nodepool-update.png) · [Graphviz source](diagrams/controller-flows/nodepool-update.dot)
 
 ![Node pool update controller digraph](diagrams/controller-flows/nodepool-update.png)
+
+[Frontend update admission](../frontend/pkg/frontend/node_pool.go) requires cached SPC and SPNP state; parent-cluster and target-node-pool reads remain live. Missing required provider state fails with an internal error, without a live fallback or provider creation, before the resource/operation transaction.
 
 [Update completion](../backend/pkg/controllers/nodepool/operations/operation_node_pool_update.go) combines version resolution, Cluster Service state/configuration and mirrored Kubernetes NodePool checks. [NodePoolVersion](../backend/pkg/controllers/nodepool/version/nodepool_version_controller.go) selects desired state; [NodePoolActiveVersions](../backend/pkg/controllers/nodepool/version/nodepool_active_version_controller.go) records both provider and customer-visible observations. Status completion requires replicas plus AllNodesHealthy and AllMachinesReady; both health checks are skipped for fixed zero replicas.
 
@@ -1372,6 +1792,8 @@ The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controll
 
 ![Node pool delete controller digraph](diagrams/controller-flows/nodepool-delete.png)
 
+[Explicit frontend DELETE](../frontend/pkg/frontend/node_pool.go) checks the cached sibling-pool inventory for best-effort last-pool protection before writing deletion intent. Target and operation reads remain live. [Cache lag and concurrent deletes](#admission-caches-and-startup) can still defeat this check; cluster/subscription cascade deletion continues to use live inventories and does not run this explicit-delete admission check.
+
 [Node-pool delete dispatch](../backend/pkg/controllers/nodepool/deletion/node_pool_cluster_service_delete_dispatch_controller.go) does not wait for ApplyDesire cleanup. [Child cleanup](../backend/pkg/controllers/nodepool/deletion/node_pool_child_resources_cleanup_controller.go) removes its subtree and desires after the ID is cleared. ClusterResources stops publishing a deleting node pool, while external controllers may still be converging.
 
 ### External auth create
@@ -1380,6 +1802,15 @@ The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controll
 
 ![External auth create controller digraph](diagrams/controller-flows/externalauth-create.png)
 
+[Frontend create](../frontend/pkg/frontend/external_auth.go) requires an existing
+parent and passing validation/conflict checks, but no parent Cluster Service ID.
+It atomically stores the resource and an operation with the external-auth ARM ID
+in `ExternalID` and an empty `InternalID`.
+[Backend creation](../backend/pkg/controllers/externalauth/creation/external_auth_cluster_service_create_controller.go)
+retries until the parent's Cluster Service ID is available, then adopts or creates
+the external auth and stores its ID on the resource. The create poller reads that
+resource ID before checking Cluster Service.
+
 [Create completion](../backend/pkg/controllers/externalauth/operations/operation_external_auth_create.go) succeeds after a Cluster Service GET succeeds. There is no separate ServiceProviderExternalAuth document or external-auth-scoped read pipeline; this completion check does not establish downstream authentication readiness.
 
 ### External auth update
@@ -1387,6 +1818,12 @@ The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controll
 [Full PNG](diagrams/controller-flows/externalauth-update.png) · [Graphviz source](diagrams/controller-flows/externalauth-update.dot)
 
 ![External auth update controller digraph](diagrams/controller-flows/externalauth-update.png)
+
+[Frontend update](../frontend/pkg/frontend/external_auth.go) preserves any stored
+resource Cluster Service ID while writing an operation with an empty `InternalID`.
+The dispatcher and operation poller still require the resource's Cluster Service
+ID; the poller locates the resource using `Operation.ExternalID`. Frontend
+acceptance and backend completion therefore have different prerequisites.
 
 [Update completion checks](../backend/pkg/controllers/externalauth/operations/operation_external_auth_update_state_calculation.go) compare both Cluster Service configuration and the parent HostedCluster spec read through its existing ReadDesire. Authentication status is explicitly not checked. This is stricter than the create poller's existence check, but is still not end-to-end authentication validation.
 
@@ -1412,6 +1849,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Cluster `CustomerProperties`; node-pool/external-auth `Properties` | Frontend create/update writes customer intent. [ClusterBaseDomainPrefixSync](#clusterbasedomainprefixsync) fills the generated DNS prefix. Dispatch/version controllers react to relevant differences. |
 | Cluster `ServiceProviderProperties.ProvisioningState`; node-pool/external-auth `Properties.ProvisioningState` | Frontend marks Accepted/Deleting; the matching operation controller writes progress/terminal state. This is ARM request state, not a complete inventory of external resources. |
 | `ServiceProviderProperties.ActiveOperationID` | Frontend sets the new operation reference; terminal operation updates clear it. Pollers reject superseded operation IDs. |
+| External-auth create/update `Operation.ExternalID` / `InternalID` | Frontend writes the ARM resource ID / empty ID, even for a resource with an existing Cluster Service ID. Pollers use `ExternalID` to look up the resource and its backend-owned `ServiceProviderProperties.ClusterServiceID`. The operation does not copy or clear the resource's ID. |
 | `Operation.Status`, `Error`, `LastTransitionTime`, `NotificationURI` | Frontend initializes/cancels requests; operation controllers update status and send/clear async notifications through the shared helper. |
 | `ServiceProviderProperties.DeletionTimestamp` and deletion-approach flags | Frontend stamps deletion intent; dispatch, cleanup and final deletion controllers consume it. Deletion timestamp alone does not mean external resources are gone. |
 | Cluster `PendingClusterServiceID` / `ClusterServiceID` | [Pending ID assignment](#clusterpendingclusterserviceidassign) reserves the ID. [Cluster creation](#clusterclusterservicecreate) confirms the external ID and clears pending. The [ID clearer](#clusterdeletionclusterserviceidclearer) clears confirmed ID only after external absence. Node-pool/external-auth create and clear controllers similarly share their confirmed-ID fields. |
@@ -1426,15 +1864,20 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 
 | Field / object | Writers and downstream meaning |
 |---|---|
-| Cluster `Spec.ControlPlaneVersion.DesiredVersion` | [ControlPlaneDesiredVersion](#controlplanedesiredversion) selects the exact target. Cluster create and upgrade dispatch consume it. |
-| Service-provider cluster `Status.ControlPlaneVersion.ActiveVersions` / `Status.DesiredVersionChannels` | [ControlPlaneActiveVersions](#controlplaneactiveversions) copies exact HostedCluster history and desired channels. Desired target and active history can differ while an upgrade is underway. |
+| Service-provider cluster `Spec.ControlPlaneVersion.DesiredVersion` / `DesiredVersionLastTransitionTime` | [Initial assignment](#initialnormalclusterdesiredversion), [minor-version assignment](#minorupgradenormalclusterdesiredversion), [normal rollout](#zstreamprogressivedesiredversionrollout) and [forced assignment](#forcedclusterdesiredversion) write the target and transition time. Initial assignment also backfills a missing/zero time without changing the target. Cluster creation, upgrade dispatch and operation completion consume desired state; it is not an observed version. |
+| Cluster `ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` | Frontend admission projects the AFEC-gated `aro-hcp.experimental.cluster.z-stream-update-policy` tag; its only valid value is `Immediate`. Removing the tag or AFEC clears the policy. [Forced assignment](#forcedclusterdesiredversion) follows the desired channel's best z-stream without progressive gates, after pins and exact overrides. |
+| Service-provider cluster `Spec.PinnedVersion` | SRE supplies `ExactVersion` and optional `UntilExactVersion`. [Forced assignment](#forcedclusterdesiredversion) clears the pin once channel best reaches the release threshold. Pins precede experimental exact versions and normal assignment. |
+| Fleet `ControlPlaneVersionRollout.Spec.BestExactVersion` | [Seeding](#controlplaneversionrolloutseeding) creates empty requested/pinned channel documents. [Best selection](#controlplaneversionbestversionselection) owns the target; assignment controllers consume it. |
+| Fleet rollout status count maps | [Status collector](#controlplaneversionstatuscollector) alone persists desired, mismatched, failed, achieved and successful counts. Normal assignment recomputes its own snapshot counts to avoid collector lag. |
+| Fleet rollout `Status.LastAssignmentTime` / `Status.Conditions` | [Normal assignment](#zstreamprogressivedesiredversionrollout) reserves batches before provider writes and reports Progressing/Degraded. Persisted cooldown protects across restarts; it does not claim external completion. |
+| Service-provider cluster `Status.ControlPlaneVersion.ActiveVersions` / `Status.DesiredVersionChannels` | [ControlPlaneActiveVersions](#controlplaneactiveversions) copies exact HostedCluster history with per-version/state transition times and desired channels. Completed history and nonzero transition times drive rollout accounting. Desired target and active history can differ while an upgrade is underway. |
 | Node-pool desired / active versions | [NodePoolVersion](#nodepoolversion) writes `Spec.NodePoolVersion.DesiredVersion`; [NodePoolActiveVersions](#nodepoolactiveversions) writes `Status.NodePoolVersion.ActiveVersions`. [TriggerNodePoolUpgrade](#triggernodepoolupgrade) reacts to their difference. |
 | Service-provider cluster `Status.Placement.Conditions[CapacityAvailable]` | [Placement](#placement) records True with selected Spec placement, False for known lack of capacity/eligibility, or Unknown for incomplete observations. [OperationClusterCreate](#operationclustercreate) consumes it when placement remains unresolved at the overall deadline. |
 | Management cluster `Status.SharedIngressIPAddresses` / `SharedIngressAvailable` / `Ready` | [SharedIngressReportingController](#sharedingressreportingcontroller) copies Service IPs and availability; [ManagementClusterLifecycleController](#managementclusterlifecyclecontroller) combines availability with registrations into Ready. [Admin responses](../admin/server/handlers/stamp/managementcluster.go) expose observed IPs. |
 | Cluster `Spec.ManagementClusterResourceID` / `Status.ManagementClusterResourceID` | [Placement](#placement) chooses the target; [ManagementClusterPlacementSync](#managementclusterplacementsync) records Cluster Service reality. Desired placement enables creation; actual placement enables per-cluster kube-applier access. |
 | Scheduling `Status.PendingAssignedClusters` | [Placement](#placement) reserves; [CapacityReportingController](#capacityreportingcontroller) removes observed entries; [PendingCleanup](#pendingcleanup) removes missing/misplaced entries and unresolved reservations for deleting/terminal clusters. |
 | Scheduling observed capacity / scale ceiling; fleet HCP resource requirements | Fleet capacity and scale-ceiling controllers write observed scheduling inputs. [HCPResourceRequirementsController](#hcpresourcerequirementscontroller) aggregates per-HCP demand. Placement retains SWIFT NIC eligibility and selection, but prefers lower known CPU/memory contention against current capacity for zero-NIC demand. Aggregate HCP demand is not used for placement. |
-| `Status.AzureResources.ManagedResourceGroup` | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) writes pending/confirmed reference and clears both after observing deletion. Deny/role assignment controllers need the confirmed group; final provider-document cleanup needs references gone. |
+| `Status.AzureResources.ManagedResourceGroup` | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) writes pending/confirmed reference and clears both after observing deletion. Deletes orphaned managed resource groups when Cluster Service deletion completed but the Azure resource group still exists. Deny/role assignment controllers need the confirmed group; final provider-document cleanup needs references gone.  |
 | `Status.AzureResources.DenyAssignments` / `RoleAssignments` | Their respective controllers track `PendingAzureResources` and confirmed `AzureResources`. The role controller confirms newly created assignments in a later observation pass. |
 | `Status.MSIManagedIdentities`, `Status.DataPlaneOperatorsManagedIdentities` | Identity fetchers write resolved IDs/errors for assignment and identity-property synchronization. `Spec.EarliestRecheckTimesByController` has independently owned entries for identity and role-assignment controllers; deny assignments keep their own `EarliestRecheckTime` under `Status.AzureResources.DenyAssignments`. |
 | `Status.Validations` | Each registered validation writes its own condition in the service-provider cluster or node pool; requirements aggregators consume the set. |

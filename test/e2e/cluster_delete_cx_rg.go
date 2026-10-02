@@ -75,6 +75,8 @@ var _ = Describe("Customer", func() {
 					"customerVnetSubnetName": customerVnetSubnetName,
 				},
 				TestArtifactsFS,
+				// Keep one complete HCP lifecycle using least-privilege,
+				// per-resource role assignments.
 				framework.RBACScopeResource,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cluster %q", customerClusterName)

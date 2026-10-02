@@ -35,6 +35,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -50,7 +52,8 @@ type readonlyCreateCase struct {
 func readonlyCreateCases(t testing.TB) []readonlyCreateCase {
 	t.Helper()
 	reg := prometheus.NewRegistry()
-	frontend := NewFrontend(logr.Discard(), nil, nil, reg, reg, nil, nil, nil, "eastus", true)
+	db := corecosmosstoragetesting.NewMockResourcesDBClient()
+	frontend := NewFrontend(logr.Discard(), nil, nil, reg, reg, db, newTestFrontendInformers(t, db), nil, nil, "eastus", true, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
 	docs := readonlySwagger{}
 	var cases []readonlyCreateCase
 	for _, versionName := range slices.Sorted(maps.Keys(frontend.apiRegistry.ListVersions())) {

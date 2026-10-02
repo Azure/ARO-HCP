@@ -18,14 +18,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -173,8 +168,8 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
 			ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
-			logger := utils.LoggerFromContext(ctx)
 
 			testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, withMock)
 			require.NoError(t, err)
@@ -182,42 +177,22 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 			cleanupCtx = utils.ContextWithLogger(cleanupCtx, integrationutils.DefaultLogger(t))
 			defer testInfo.Cleanup(cleanupCtx)
 
-			frontendStarted := atomic.Bool{}
 			frontendErrCh := make(chan error, 1)
-			defer func() {
-				if frontendStarted.Load() {
-					require.NoError(t, <-frontendErrCh)
-				}
-			}()
-			adminAPIStarted := atomic.Bool{}
 			adminAPIErrCh := make(chan error, 1)
 			defer func() {
-				if adminAPIStarted.Load() {
-					require.NoError(t, <-adminAPIErrCh)
-				}
+				cancel()
+				frontendErr, adminErr := <-frontendErrCh, <-adminAPIErrCh
+				require.NoError(t, frontendErr)
+				require.NoError(t, adminErr)
 			}()
-			defer cancel()
 			go func() {
-				frontendStarted.Store(true)
 				frontendErrCh <- testInfo.Frontend.Run(ctx)
 			}()
 			go func() {
-				adminAPIStarted.Store(true)
 				adminAPIErrCh <- testInfo.AdminAPI.Run(ctx)
 			}()
 
-			err = wait.PollUntilContextCancel(ctx, 100*time.Millisecond, true, func(ctx context.Context) (bool, error) {
-				for _, url := range []string{testInfo.FrontendURL, testInfo.AdminURL} {
-					resp, err := http.Get(url)
-					if err != nil {
-						return false, nil
-					}
-					if closeErr := resp.Body.Close(); closeErr != nil {
-						logger.Error(closeErr, "failed to close response body")
-					}
-				}
-				return true, nil
-			})
+			err = integrationutils.WaitForHTTPReady(ctx, testInfo.FrontendURL+"/healthz", testInfo.AdminURL+"/healthz/ready")
 			require.NoError(t, err)
 
 			// Register subscription
@@ -237,7 +212,102 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 	}
 }
 
+// alwaysRequiredControlPlaneOperators and alwaysRequiredDataPlaneOperators mirror the identity
+// config's Always requirements. They are spelled out rather than derived so that a change to the
+// config shows up here as a deliberate edit.
+var (
+	alwaysRequiredControlPlaneOperators = []string{
+		"cloud-controller-manager", "cloud-network-config", "cluster-api-azure",
+		"control-plane", "disk-csi-driver", "file-csi-driver", "image-registry", "ingress",
+	}
+	alwaysRequiredDataPlaneOperators = []string{"disk-csi-driver", "file-csi-driver", "image-registry"}
+)
+
+// withRequiredOperatorIdentities fills in the operator identities a create requires, so the
+// inline payloads below only have to spell out the fields each round-trip case is about.
+// Control plane identities are also assigned under .identity; data plane identities must not be.
+// kms is added only when the payload enables customer-managed etcd encryption, mirroring the
+// OnEnablement requirement rather than the Always ones.
+func withRequiredOperatorIdentities(payload []byte, subscriptionID string) []byte {
+	identityResourceID := func(name string) string {
+		return fmt.Sprintf("/subscriptions/%s/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", subscriptionID, name)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(payload, &doc); err != nil {
+		panic(err)
+	}
+
+	identity := doc["identity"].(map[string]any)
+	assigned := identity["userAssignedIdentities"].(map[string]any)
+	properties := doc["properties"].(map[string]any)
+	platform := properties["platform"].(map[string]any)
+	operatorsAuthentication, ok := platform["operatorsAuthentication"].(map[string]any)
+	if !ok {
+		operatorsAuthentication = map[string]any{}
+		platform["operatorsAuthentication"] = operatorsAuthentication
+	}
+	userAssignedIdentities, ok := operatorsAuthentication["userAssignedIdentities"].(map[string]any)
+	if !ok {
+		userAssignedIdentities = map[string]any{}
+		operatorsAuthentication["userAssignedIdentities"] = userAssignedIdentities
+	}
+	controlPlaneOperators, ok := userAssignedIdentities["controlPlaneOperators"].(map[string]any)
+	if !ok {
+		controlPlaneOperators = map[string]any{}
+		userAssignedIdentities["controlPlaneOperators"] = controlPlaneOperators
+	}
+
+	controlPlaneOperatorNames := append([]string{}, alwaysRequiredControlPlaneOperators...)
+	if etcdUsesCustomerManagedKeys(properties) {
+		controlPlaneOperatorNames = append(controlPlaneOperatorNames, "kms")
+	}
+	for _, operatorName := range controlPlaneOperatorNames {
+		if _, ok := controlPlaneOperators[operatorName]; ok {
+			continue
+		}
+		resourceID := identityResourceID(operatorName + "-identity")
+		controlPlaneOperators[operatorName] = resourceID
+		assigned[resourceID] = map[string]any{}
+	}
+
+	dataPlaneOperators, ok := userAssignedIdentities["dataPlaneOperators"].(map[string]any)
+	if !ok {
+		dataPlaneOperators = map[string]any{}
+		userAssignedIdentities["dataPlaneOperators"] = dataPlaneOperators
+	}
+	for _, operatorName := range alwaysRequiredDataPlaneOperators {
+		if _, ok := dataPlaneOperators[operatorName]; ok {
+			continue
+		}
+		dataPlaneOperators[operatorName] = identityResourceID(operatorName + "-dataplane-identity")
+	}
+
+	out, err := json.Marshal(doc)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
+func etcdUsesCustomerManagedKeys(properties map[string]any) bool {
+	etcd, ok := properties["etcd"].(map[string]any)
+	if !ok {
+		return false
+	}
+	dataEncryption, ok := etcd["dataEncryption"].(map[string]any)
+	if !ok {
+		return false
+	}
+	return dataEncryption["keyManagementMode"] == "CustomerManaged"
+}
+
 func clusterCreatePayload(clusterName, apiVersion string) []byte {
+	const subscriptionID = "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+	return withRequiredOperatorIdentities(clusterCreatePayloadTemplate(clusterName, apiVersion), subscriptionID)
+}
+
+func clusterCreatePayloadTemplate(clusterName, apiVersion string) []byte {
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
 
 	switch apiVersion {
@@ -517,6 +587,7 @@ func createClusterAndComplete(
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	createServiceProviderClusterForTesting(t, ctx, testInfo, clusterName, "4.20.8")
+	require.NoError(t, testInfo.WaitForFrontendCaches(ctx))
 
 	// Deliberately not stamping a ClusterServiceID on the cluster here (unlike
 	// createNodePoolAndComplete): cluster updates still synchronously call out to
@@ -754,6 +825,7 @@ func createNodePoolAndComplete(
 		testInfo.ResourcesDBClient(),
 		clusterResourceID(clusterName),
 	))
+	require.NoError(t, testInfo.WaitForFrontendCaches(ctx))
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, nodePoolCreatePayload(nodePoolName, apiVersion)))
 
@@ -764,6 +836,14 @@ func createNodePoolAndComplete(
 	csID, err := integrationutils.CalculateClusterServiceIDFromNodePoolResourceID(ctx, testInfo.ResourcesDBClient(), resourceID)
 	require.NoError(t, err)
 	require.NoError(t, integrationutils.SetClusterServiceID(ctx, testInfo.ResourcesDBClient(), resourceID, csID))
+	_, err = testInfo.ResourcesDBClient().ServiceProviderNodePools(subscriptionID, parsedID.ResourceGroupName, clusterName, nodePoolName).Create(ctx, &coreapi.ServiceProviderNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(resourceID + "/serviceProviderNodePools/default")),
+			PartitionKey: subscriptionID,
+		},
+	}, nil)
+	require.NoError(t, err)
+	require.NoError(t, testInfo.WaitForFrontendCaches(ctx))
 }
 
 // externalAuthCreatePayload returns the ExternalAuth creation payload.

@@ -54,6 +54,8 @@ type operationClusterDelete struct {
 	notificationClient   *http.Client
 }
 
+const OperationClusterDeleteControllerName = "OperationClusterDelete"
+
 // NewOperationClusterDeleteController returns a new Controller instance that
 // follows an asynchronous cluster deletion operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -98,7 +100,7 @@ func NewOperationClusterDeleteController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationClusterDelete",
+		OperationClusterDeleteControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -394,7 +396,7 @@ func countDescendants(ctx context.Context, crud cosmosstorageutils.UntypedResour
 }
 
 func (c *operationClusterDelete) hostedClusterDeletionStatus(ctx context.Context, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cached HostedCluster: %w", err)
 	}

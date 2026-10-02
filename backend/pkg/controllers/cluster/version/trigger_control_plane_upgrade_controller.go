@@ -37,6 +37,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// clusterCreateGracePeriod is how long after a cluster's CreatedAt we suppress
+// automatic upgrade triggering while an active Create operation is still in
+// flight. After this window the create is expected to have finished, so resuming
+// upgrade triggering is safe.
+const clusterCreateGracePeriod = 2 * time.Hour
+
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
 	clock                        utilsclock.PassiveClock
@@ -47,6 +53,8 @@ type triggerControlPlaneUpgradeSyncer struct {
 }
 
 var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
+
+const TriggerControlPlaneUpgradeControllerName = "TriggerControlPlaneUpgrade"
 
 // NewTriggerControlPlaneUpgradeController creates a new controller that triggers control plane upgrades.
 // It monitors clusters where the desired version differs from the actual version and calls
@@ -74,7 +82,7 @@ func NewTriggerControlPlaneUpgradeController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"TriggerControlPlaneUpgrade",
+		TriggerControlPlaneUpgradeControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

@@ -63,6 +63,7 @@ ignore:
 - 'hypershiftoperator/values.yaml'
 - 'observability/arobit/values-mgmt.yaml'
 - 'observability/arobit/values-svc.yaml'
+- 'mgmt-agent/deploy/templates/servicemonitor.yaml'
 rules:
   brackets: enable
   colons: enable

@@ -227,12 +227,17 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 
 	switch cfg.scope {
 	case BicepDeploymentScopeResourceGroup:
-		pollerResp, err := deploymentsClient.BeginCreateOrUpdate(
-			ctx,
-			cfg.resourceGroup,
-			cfg.deploymentName,
-			deploymentProperties,
-			nil,
+		pollerResp, err := beginDeploymentWithResubmit(ctx, fmt.Sprintf("%q in resourcegroup=%q", cfg.deploymentName, cfg.resourceGroup),
+			func(ctx context.Context) (*runtime.Poller[armresources.DeploymentsClientCreateOrUpdateResponse], error) {
+				return deploymentsClient.BeginCreateOrUpdate(ctx, cfg.resourceGroup, cfg.deploymentName, deploymentProperties, nil)
+			},
+			func(ctx context.Context) (string, error) {
+				resp, err := deploymentsClient.Get(ctx, cfg.resourceGroup, cfg.deploymentName, nil)
+				if err != nil {
+					return "", err
+				}
+				return deploymentProvisioningState(&resp.DeploymentExtended), nil
+			},
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed creating deployment %q in resourcegroup=%q: %w", cfg.deploymentName, cfg.resourceGroup, err)
@@ -247,11 +252,17 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 		return &resp.DeploymentExtended, nil
 
 	case BicepDeploymentScopeSubscription:
-		pollerResp, err := deploymentsClient.BeginCreateOrUpdateAtSubscriptionScope(
-			ctx,
-			cfg.deploymentName,
-			deploymentProperties,
-			nil,
+		pollerResp, err := beginDeploymentWithResubmit(ctx, fmt.Sprintf("%q at subscription scope", cfg.deploymentName),
+			func(ctx context.Context) (*runtime.Poller[armresources.DeploymentsClientCreateOrUpdateAtSubscriptionScopeResponse], error) {
+				return deploymentsClient.BeginCreateOrUpdateAtSubscriptionScope(ctx, cfg.deploymentName, deploymentProperties, nil)
+			},
+			func(ctx context.Context) (string, error) {
+				resp, err := deploymentsClient.GetAtSubscriptionScope(ctx, cfg.deploymentName, nil)
+				if err != nil {
+					return "", err
+				}
+				return deploymentProvisioningState(&resp.DeploymentExtended), nil
+			},
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed creating deployment %q at subscription scope: %w", cfg.deploymentName, err)
@@ -269,6 +280,13 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 		return nil, fmt.Errorf("unsupported deployment scope %v", cfg.scope)
 	}
 
+}
+
+func deploymentProvisioningState(deployment *armresources.DeploymentExtended) string {
+	if deployment == nil || deployment.Properties == nil || deployment.Properties.ProvisioningState == nil {
+		return ""
+	}
+	return string(*deployment.Properties.ProvisioningState)
 }
 
 func ListAllDeployments(

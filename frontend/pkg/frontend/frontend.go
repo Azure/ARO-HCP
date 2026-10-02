@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -48,6 +49,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
@@ -55,6 +57,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -62,19 +66,29 @@ import (
 )
 
 type Frontend struct {
-	clock                utilsclock.PassiveClock
-	clusterServiceClient ocm.ClusterServiceClientSpec
-	listener             net.Listener
-	metricsListener      net.Listener
-	server               http.Server
-	metricsServer        http.Server
-	resourcesDBClient    corecosmosstorage.ResourcesDBClient
-	auditClient          audit.Client
-	healthGauge          prometheus.Gauge
+	clock                         utilsclock.PassiveClock
+	clusterServiceClient          ocm.ClusterServiceClientSpec
+	listener                      net.Listener
+	metricsListener               net.Listener
+	server                        http.Server
+	metricsServer                 http.Server
+	resourcesDBClient             corecosmosstorage.ResourcesDBClient
+	informers                     coreinformers.FrontendInformers
+	clusterLister                 corelisters.ClusterLister
+	nodePoolLister                corelisters.NodePoolLister
+	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+	auditClient                   audit.Client
+	healthGauge                   prometheus.Gauge
 	// this is the azure location for this instance of the frontend
 	azureLocation string
 
 	apiRegistry coreapi.APIRegistry
+
+	// clusterScopedIdentitiesConfig describes which operator identities a cluster requires. The role
+	// definition config set it is built from varies per environment, so it is supplied by the
+	// caller rather than chosen here.
+	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
 
 	exitOnPanic bool
 }
@@ -86,10 +100,12 @@ func NewFrontend(
 	registerer prometheus.Registerer,
 	gatherer prometheus.Gatherer,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	informers coreinformers.FrontendInformers,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
 	exitOnPanic bool,
+	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig,
 ) *Frontend {
 	// zero side-effect registration path
 	apiRegistry := coreapi.NewAPIRegistry()
@@ -116,8 +132,10 @@ func NewFrontend(
 				return utils.ContextWithLogger(context.Background(), logger)
 			},
 		},
-		auditClient:       auditClient,
-		resourcesDBClient: resourcesDBClient,
+		auditClient:                   auditClient,
+		resourcesDBClient:             resourcesDBClient,
+		informers:                     informers,
+		clusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
 		healthGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
@@ -129,6 +147,10 @@ func NewFrontend(
 		exitOnPanic:   exitOnPanic,
 	}
 
+	_, f.clusterLister = informers.Clusters()
+	_, f.nodePoolLister = informers.NodePools()
+	_, f.serviceProviderClusterLister = informers.ServiceProviderClusters()
+	_, f.serviceProviderNodePoolLister = informers.ServiceProviderNodePools()
 	f.server.Handler = f.routes(registerer)
 	f.metricsServer.Handler = f.metricsRoutes(gatherer)
 
@@ -137,15 +159,27 @@ func NewFrontend(
 
 func (f *Frontend) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancelCause(ctx)
-	defer func() {
+	logger := utils.LoggerFromContext(ctx)
+	var wg sync.WaitGroup
+	errCh := make(chan error, 2)
+	shutdown := sync.OnceFunc(func() {
 		cancel(fmt.Errorf("run returned"))
 
 		// always attempt a graceful shutdown, a double ctrl+c exits the process
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
 		defer shutdownCancel()
-		_ = f.server.Shutdown(shutdownCtx)
-		_ = f.metricsServer.Shutdown(shutdownCtx)
-	}()
+		if err := f.server.Shutdown(shutdownCtx); err != nil {
+			logger.Error(err, "failed to shutdown http server")
+		}
+		if err := f.metricsServer.Shutdown(shutdownCtx); err != nil {
+			logger.Error(err, "failed to shutdown metrics server")
+		}
+		// Serve may never have taken ownership of the API listener if warmup aborted.
+		_ = f.listener.Close()
+		_ = f.metricsListener.Close()
+		wg.Wait()
+	})
+	defer shutdown()
 
 	if len(f.azureLocation) == 0 {
 		panic("azureLocation must be set")
@@ -155,50 +189,49 @@ func (f *Frontend) Run(ctx context.Context) error {
 	// control the behavior of k8s.io/apimachinery/pkg/util/runtime.HandleCrash* methods
 	k8sutilruntime.ReallyCrash = f.exitOnPanic
 
-	// This just digs up the logger passed to NewFrontend.
-	logger := utils.LoggerFromContext(ctx)
-
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
 
-	errCh := make(chan error, 2)
-	wg := sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(1)
 	go func() {
 		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
-		errCh <- f.server.Serve(f.listener)
+		f.informers.RunWithContext(ctx)
 	}()
+	wg.Add(1)
 	go func() {
 		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
-		errCh <- f.metricsServer.Serve(f.metricsListener)
+		err := f.metricsServer.Serve(f.metricsListener)
+		errCh <- err
+		cancel(err)
 	}()
 
-	<-ctx.Done()
-
-	// always attempt a graceful shutdown, a double ctrl+c exits the process
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
-	defer shutdownCancel()
-	if err := f.server.Shutdown(shutdownCtx); err != nil {
-		logger.Error(err, "failed to shutdown http server")
+	var runErr error
+	if !cache.WaitForNamedCacheSyncWithContext(ctx, f.informers.HasSynced) {
+		runErr = fmt.Errorf("admission cache warmup aborted: %w", context.Cause(ctx))
+	} else if ctx.Err() != nil {
+		runErr = context.Cause(ctx)
+	} else {
+		wg.Add(1)
+		go func() {
+			defer k8sutilruntime.HandleCrash()
+			defer wg.Done()
+			err := f.server.Serve(f.listener)
+			errCh <- err
+			cancel(err)
+		}()
+		<-ctx.Done()
 	}
-	if err := f.metricsServer.Shutdown(shutdownCtx); err != nil {
-		logger.Error(err, "failed to shutdown http server")
-	}
 
-	wg.Wait()
+	shutdown()
 	close(errCh)
-	errs := []error{}
 	for err := range errCh {
-		if err != nil {
-			logger.Info("go func completed", "message", err.Error())
-		}
 		if !errors.Is(err, http.ErrServerClosed) {
-			errs = append(errs, err)
+			runErr = errors.Join(runErr, err)
 		}
 	}
-	return errors.Join(errs...)
+	return runErr
 }
 
 func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {

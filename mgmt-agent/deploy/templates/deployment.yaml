@@ -28,6 +28,7 @@ spec:
         - "--log-verbosity={{ .Values.logVerbosity }}"
         - "--node-health-configmap={{ .Values.nodeHealth.configMapName }}"
         - "--node-health-config-key={{ .Values.nodeHealth.configKey }}"
+        - "--monitoring-api-group={{ .Values.monitoringApiGroup }}"
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         name: mgmt-agent-controller
         env:

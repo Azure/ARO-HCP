@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:c9e511915aca21dfd803e8cbab46da2250df80abba5f7ec13fb78f6daf5e4864
+      digest: sha256:d88f1b5db1d00985843e95b2f000f043b5b42ef5784739f6b03c21628faccaa8
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
   operator:
     bundle:
-      digest: sha256:70fe0561c9e3664ea503d923bb7b29cfdc14ae2cbe5677aa670e04033c418baa
+      digest: sha256:0caf9b648dd1df7c47c4ece294cb41ce559a16d45c42e26a0a111cfa8932d948
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
 acr:
@@ -82,7 +82,7 @@ armHelperTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 arobit:
   forwarder:
     image:
-      digest: sha256:eb3e2e068172121a9ca133c5d17784df770dacc104f20c7d4a7df5f1c70e8a08
+      digest: sha256:70dea5e158860b7b59a9e9aae0e79fc5ab51f2c356fcc14aef38ce1ff6d7d577
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
     resources:
@@ -98,7 +98,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:7af6cb650e29c367219bebbce4020e6d53088d22e07ab5040d4b4a03685e7176
+      digest: sha256:1246475526fd5062cd7d8c822f51b60d9f5343064cf941742b571f3fc9956ad5
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -184,7 +184,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci01
   image:
-    digest: sha256:39b62d34c0ae6caad264fcc2a086fe84c7a97da3f7baab017f01c28e10c3ba6f
+    digest: sha256:5fffce295f8b49be38ae2385714d09af29700dd3dc60c40a058f7aeb66e97d72
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -306,6 +306,8 @@ frontend:
     issuer: Self
     name: frontend-cert-ci01-j7654321
     san: rp.j7654321.hcpsvc.osadev.cloud
+  clusterScopedIdentitiesConfig:
+    roleSetName: dev
   cosmosDB:
     billingContainerMaxScale: 4000
     disableLocalAuth: true
@@ -484,7 +486,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:d106c9d8e3f595d02a1eb5e0a54955648c06db16da9bf8ea1e5883958abd009a
+    digest: sha256:74ab3bb9b87fa7fca0504b62f5b19b1e53aeb3b95d9caeb9368862deee556672
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -497,7 +499,7 @@ hypershift:
     registry: quay.io
     repository: redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main
 imageRegistryPolicy:
-  extraAllowedRegistries: docker.io/grafana,docker.io/library/postgres
+  extraAllowedRegistries: docker.io/grafana,docker.io/library/postgres,quay.io/redhat-user-workloads/crt-redhat-acm-tenant,quay.io/openshift-release-dev/ocp-release
   validationActions: Deny
 imageSync:
   environmentName: aro-hcp-image-sync
@@ -528,7 +530,7 @@ kubeApplier:
       limits:
         memory: unlimited
       requests:
-        cpu: 231m
+        cpu: 260m
         memory: 224Mi
     serviceAccountName: kube-applier
   managedIdentityName: kube-applier
@@ -536,7 +538,7 @@ kubeApplier:
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:7246ca0f71c274f1fff5c944a8dc4c4663fe7a8ee4cdff206fdab7b5f836da2e
+    digest: sha256:54b14654077ec8c910ff0eeeda191bb45421c6496b2211751fbfd13b38779a46
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
   k8s:
@@ -590,7 +592,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:ffd2db39ad670485703d8aa0195ae02979c719e660ec8e21107141d2e7e824e8
+        digest: sha256:3a8316d42c6491dbc15f2cf59985901365c7c402d3a0649abe695a4a6554654e
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certIssuer: Self
@@ -696,6 +698,7 @@ mgmt:
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
+  monitoringApiGroup: monitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-j7654321-mgmt-1
@@ -788,7 +791,7 @@ mgmtAgent:
     replicas: 2
     resources:
       requests:
-        cpu: 313m
+        cpu: 350m
         memory: 768Mi
     serviceAccountName: mgmt-agent
   managedIdentityName: mgmt-agent
@@ -1179,15 +1182,15 @@ swiftRecorder:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:8d45b0367ed345fa2dbb6ffc0ce8b62e5bb3eb72a7bfba5bc9d66248180b66d1
+    digest: sha256:9d772e6ec41a99a9807e8a579010b9c2c0824d40d418e7dd7643782f09fab8fe
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   enableInstantAccess: false
   hypershiftPlugin:
-    digest: sha256:6a503ce6301acdc58807ec7e700f4a84c943ce1123e49e2ac42d04db9dad8384
+    digest: sha256:894c2b85eb6db3381e03cd9cc5b84dc518ba043e5c0f331a5eeaebfc3f806ffb
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:2fb7f934ac0502ef375ff9abba6121827d4dc62660c9ab6751ceffac77b37ac9
+    digest: sha256:8d1d01d0f429208b83725ab55beb358aee024f9c1b1511ea940fee220b0bb7fe
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9

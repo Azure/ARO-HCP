@@ -27,9 +27,6 @@ import (
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-
-	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 var requestUnits = promauto.With(legacyregistry.Registerer()).NewCounterVec(
@@ -37,7 +34,7 @@ var requestUnits = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		Name: "cosmos_request_units_total",
 		Help: "Total Cosmos DB request units charged across HTTP attempts.",
 	},
-	[]string{"source_kind", "source", "cosmosdb_container", "operation", "status_code"},
+	LabelNames(),
 )
 
 var requestCount = promauto.With(legacyregistry.Registerer()).NewCounterVec(
@@ -45,7 +42,7 @@ var requestCount = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		Name: "cosmos_requests_total",
 		Help: "Total Cosmos DB HTTP attempts, by outcome, regardless of request charge.",
 	},
-	[]string{"source_kind", "source", "cosmosdb_container", "operation", "status_code"},
+	LabelNames(),
 )
 
 // RegisterMetrics registers the shared request charge and request count
@@ -77,16 +74,8 @@ func (p *requestChargePolicy) Do(req *policy.Request) (*http.Response, error) {
 	}
 
 	raw := req.Raw()
-	container, operation := classifyRequest(raw)
-	sourceKind, source := sourceKindUnattributed, "unknown"
-	if name, ok := informerutils.InformerNameFromContext(raw.Context()); ok && name != "" {
-		sourceKind, source = sourceKindInformer, name
-	} else if name, ok := utils.ControllerNameFromContext(raw.Context()); ok && name != "" {
-		sourceKind, source = sourceKindController, name
-	}
-	statusCode := strconv.Itoa(resp.StatusCode)
-
-	p.requestCount.WithLabelValues(sourceKind, source, container, operation, statusCode).Inc()
+	labels := LabelValues(raw.Context(), raw, resp)
+	p.requestCount.WithLabelValues(labels...).Inc()
 
 	rawCharge := resp.Header.Get("x-ms-request-charge")
 	if rawCharge == "" {
@@ -97,7 +86,7 @@ func (p *requestChargePolicy) Do(req *policy.Request) (*http.Response, error) {
 		return resp, err
 	}
 
-	p.requestUnits.WithLabelValues(sourceKind, source, container, operation, statusCode).Add(charge)
+	p.requestUnits.WithLabelValues(labels...).Add(charge)
 	return resp, err
 }
 

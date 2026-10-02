@@ -29,6 +29,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,6 +41,7 @@ type OperationSynchronizer interface {
 }
 
 type genericOperation struct {
+	internalcontrollerutils.CacheSyncWaiter
 	name string
 
 	synchronizer      OperationSynchronizer
@@ -144,6 +146,10 @@ func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
 func (c *genericOperation) Run(ctx context.Context, threadiness int) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
+
+	if !c.WaitForCacheSync(ctx) {
+		return
+	}
 
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx)

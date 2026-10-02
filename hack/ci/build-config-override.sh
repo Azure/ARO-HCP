@@ -107,7 +107,7 @@ if [[ -n "${LEASED_MSI_MOCK_SP:-}" ]]; then
     echo "ERROR: LEASED_MSI_MOCK_SP='${LEASED_MSI_MOCK_SP}' not found in dev-infrastructure/openshift-ci/msi-mock-pool.yaml"
     exit 1
   fi
-  echo "MSI mock SP override: ${LEASED_MSI_MOCK_SP} -> clientId=${MSI_MOCK_CLIENT_ID}"
+  echo "MSI mock SP override: ${LEASED_MSI_MOCK_SP}"
   export _YQ_CID="${MSI_MOCK_CLIENT_ID}"
   export _YQ_PID="${MSI_MOCK_PRINCIPAL_ID}"
   export _YQ_CERT="${MSI_MOCK_CERT_NAME}"
@@ -142,7 +142,7 @@ if [[ -n "${LEASED_ARM_HELPER_SP:-}" ]]; then
     exit 1
   fi
 
-  echo "Backend ARM helper SP override: ${BACKEND_ARM_HELPER_LEASE} -> clientId=${BACKEND_ARM_HELPER_CLIENT_ID}"
+  echo "Backend ARM helper SP override: ${BACKEND_ARM_HELPER_LEASE}"
   export _YQ_ARM_HELPER_CID="${BACKEND_ARM_HELPER_CLIENT_ID}"
   export _YQ_ARM_HELPER_CERT="${BACKEND_ARM_HELPER_CERT_NAME}"
   yq -i "
@@ -165,7 +165,7 @@ if [[ -n "${LEASED_ARM_HELPER_SP:-}" ]]; then
       exit 1
     fi
 
-    echo "Clusters Service ARM helper SP override: ${CLUSTERS_SERVICE_ARM_HELPER_LEASE} -> clientId=${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}"
+    echo "Clusters Service ARM helper SP override: ${CLUSTERS_SERVICE_ARM_HELPER_LEASE}"
   else
     echo "No dedicated Clusters Service ARM helper SP lease provided, reusing the Backend ARM helper lease"
   fi
@@ -192,12 +192,10 @@ fi
 # Merge hypershift image overrides if present (written by aro-hcp-hypershift-images-push)
 HYPERSHIFT_OVERRIDES="${SHARED_DIR}/hypershift-image-overrides.yaml"
 if [[ -f "${HYPERSHIFT_OVERRIDES}" ]]; then
-    echo "Merging hypershift image overrides:"
-    cat "${HYPERSHIFT_OVERRIDES}"
+    echo "Merging hypershift image overrides from ${HYPERSHIFT_OVERRIDES}"
     yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' \
         "${OVERRIDE_CONFIG_FILE}" "${HYPERSHIFT_OVERRIDES}" > "${OVERRIDE_CONFIG_FILE}.tmp"
     mv "${OVERRIDE_CONFIG_FILE}.tmp" "${OVERRIDE_CONFIG_FILE}"
 fi
 
 echo "Created override config at: ${OVERRIDE_CONFIG_FILE}"
-cat "${OVERRIDE_CONFIG_FILE}"

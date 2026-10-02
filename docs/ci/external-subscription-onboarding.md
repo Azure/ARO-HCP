@@ -39,14 +39,18 @@ Resource groups left behind by failed or timed-out tests are garbage-collected b
 For an **external** subscription:
 
 - The subscription is **not listed** in `config/config-dev-ci.yaml` — the ARO-HCP pipeline does not interact with it at all
-- The `apply-identity-pool` command **skips** it by default (controlled by `identity_provisioning: unmanaged` in the slot catalog)
+- The `apply-identity-pool` command **skips** it by default (controlled by `slot_assets.e2e_identities.provisioning: unmanaged` in the slot catalog)
 - The subscription-owning team is responsible for running the RBAC setup and identity-pool provisioning themselves, using the ARO-HCP Bicep modules and tooling
+
+Unmanaged provisioning does not bypass runtime admission. Slot acquisition uses
+the selected cluster-profile credentials to clean and validate the leased E2E
+identities; see the [credential contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#credentials).
 
 ## Responsibility Split
 
 | Step | Responsible Team | Description |
 | :--- | :--------------- | :---------- |
-| Slot catalog entry | ARO-HCP (approves PR) | Add the pool to `test/e2e-config/e2e-slots.yaml` with `identity_provisioning: unmanaged` |
+| Slot catalog entry | ARO-HCP (approves PR) | Add the pool to `test/e2e-config/e2e-slots.yaml` with `slot_assets.e2e_identities.provisioning: unmanaged` |
 | Boskos sync | ARO-HCP (approves PR) | Run `slot-manager sync-boskos-config` and merge the `openshift/release` PR |
 | Vault secret | ARO-HCP (manual) | Add `customer-<shard>-subscription-id` and `customer-<shard>-subscription-name` to the cluster profile secret |
 | CI Bot grants | Subscription owner | Grant the CI bot (test runner) the required roles on the subscription (Step 1 below) |

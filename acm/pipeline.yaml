@@ -74,6 +74,8 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # A CRD created by an earlier step can take a moment to reach API discovery.
+      - "ensure CRDs are installed first"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: deploy-mce-config
@@ -101,6 +103,8 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # A CRD created by an earlier step can take a moment to reach API discovery.
+      - "ensure CRDs are installed first"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: deploy-policies
@@ -127,5 +131,7 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      # A CRD created by an earlier step can take a moment to reach API discovery.
+      - "ensure CRDs are installed first"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
