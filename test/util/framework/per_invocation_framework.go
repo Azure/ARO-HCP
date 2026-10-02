@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	"github.com/Azure/ARO-HCP/test/util/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azclient"
 )
 
@@ -406,6 +407,24 @@ func subscriptionName() string {
 func location() string {
 	// can't use gomega in this method since it is used outside of It()
 	return os.Getenv("LOCATION")
+}
+
+// MIMockPrincipalID returns the object ID of the mocked managed-identity service principal that
+// per-cluster operators authenticate as in environments where the Managed Identities Data Plane is
+// mocked (dev/CI). Return nothing if no mock exists to avoid spurious role assignments in e2e.
+func MIMockPrincipalID() string {
+	if fromEnv := os.Getenv("MI_MOCK_PRINCIPAL_ID"); fromEnv != "" {
+		return fromEnv
+	}
+	cfg, err := config.GetServiceConfig()
+	if err != nil {
+		return ""
+	}
+	fromConfig, err := config.GetStringByPath(cfg, "miMockPrincipalId")
+	if err != nil {
+		return ""
+	}
+	return fromConfig
 }
 
 // testUserClientID returns the value of AZURE_CLIENT_ID environment variable

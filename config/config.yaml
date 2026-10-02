@@ -1604,6 +1604,12 @@ clouds:
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
+          # Cluster Service
+          clustersService:
+            image:
+              registry: arohcpsvcdev.azurecr.io
+              repository: cmarches/aro-hcp-clusters-service
+              digest: sha256:62b90dbe8f65c706d734508a77bac8b5c5ca640b82b7ef4af85156dab6ddf8ed # 1790878958
           monitoring:
             svcWorkspaceName: 'services-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
             hcpWorkspaceName: 'hcps-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
@@ -1801,6 +1807,10 @@ clouds:
             assignNSP: false
           # Cluster Service
           clustersService:
+            image:
+              registry: arohcpsvcdev.azurecr.io
+              repository: cmarches/aro-hcp-clusters-service
+              digest: sha256:62b90dbe8f65c706d734508a77bac8b5c5ca640b82b7ef4af85156dab6ddf8ed
             postgres:
               deploy: false
               password: 'TheBlurstOfTimes'
@@ -1905,6 +1915,10 @@ clouds:
             assignNSP: false
           # Cluster Service
           clustersService:
+            image:
+              registry: arohcpsvcdev.azurecr.io
+              repository: cmarches/aro-hcp-clusters-service
+              digest: sha256:62b90dbe8f65c706d734508a77bac8b5c5ca640b82b7ef4af85156dab6ddf8ed
             postgres:
               deploy: false
               password: 'TheBlurstOfTimes'

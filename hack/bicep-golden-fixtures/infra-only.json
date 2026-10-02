@@ -161,6 +161,27 @@
               },
               "type": "string"
             },
+            "enableKeyVaultPurgeProtection": {
+              "defaultValue": false,
+              "metadata": {
+                "description": "Enable purge protection on the customer Key Vault (requires soft delete)"
+              },
+              "type": "bool"
+            },
+            "enableKeyVaultSoftDelete": {
+              "defaultValue": false,
+              "metadata": {
+                "description": "Enable soft delete on the customer Key Vault"
+              },
+              "type": "bool"
+            },
+            "keyVaultSoftDeleteRetentionInDays": {
+              "defaultValue": 7,
+              "metadata": {
+                "description": "Soft delete retention in days"
+              },
+              "type": "int"
+            },
             "persistTagValue": {
               "defaultValue": false,
               "metadata": {
@@ -235,13 +256,15 @@
               "location": "[resourceGroup().location]",
               "name": "[variables('customerKeyVaultName')]",
               "properties": {
+                "enablePurgeProtection": "[if(parameters('enableKeyVaultPurgeProtection'), true(), null())]",
                 "enableRbacAuthorization": true,
-                "enableSoftDelete": false,
+                "enableSoftDelete": "[if(parameters('enableKeyVaultSoftDelete'), true(), null())]",
                 "publicNetworkAccess": "[if(parameters('privateKeyVault'), 'Disabled', 'Enabled')]",
                 "sku": {
                   "family": "A",
                   "name": "standard"
                 },
+                "softDeleteRetentionInDays": "[if(parameters('enableKeyVaultSoftDelete'), parameters('keyVaultSoftDeleteRetentionInDays'), null())]",
                 "tenantId": "[subscription().tenantId]"
               },
               "type": "Microsoft.KeyVault/vaults"

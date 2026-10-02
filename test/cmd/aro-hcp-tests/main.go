@@ -52,11 +52,11 @@ import (
 )
 
 func fastTestsOnly(query string) string {
-	return fmt.Sprintf("%s && !labels.exists(l, l==\"%s\")", query, labels.Slow[0])
+	return fmt.Sprintf("(%s) && !labels.exists(l, l==\"%s\")", query, labels.Slow[0])
 }
 
 func slowTestsOnly(query string) string {
-	return fmt.Sprintf("%s && labels.exists(l, l==\"%s\")", query, labels.Slow[0])
+	return fmt.Sprintf("(%s) && labels.exists(l, l==\"%s\")", query, labels.Slow[0])
 }
 
 // parseSuiteParallelismOverride reads ARO_HCP_SUITE_PARALLELISM and
@@ -593,7 +593,7 @@ func setupCli() *cobra.Command {
 			// Subset of E2E tests to be executed as a final step during ARO
 			// HCP Continous Deployment GitHub Action Workflow.
 			// TODO: revisit labels to tweak which tests to select here
-			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0]),
+			fastTestsOnly(fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0])),
 		},
 		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
 		Parallelism:   parallelism(20),

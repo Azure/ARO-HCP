@@ -485,6 +485,35 @@ func TestBuildCSNodePool(t *testing.T) {
 					),
 				),
 		},
+		{
+			name: "passes disk encryption set ID to CS",
+			hcpNodePool: getHCPNodePoolResource(
+				func(hsc *coreapi.NodePool) {
+					hsc.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID(
+						"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
+				},
+			),
+			expectedCSNodePool: getBaseCSNodePoolBuilder().
+				AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
+					ResourceName("").
+					VMSize("").
+					EncryptionAtHost(
+						arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
+							State(csEncryptionAtHostStateDisabled),
+					).
+					OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
+						SizeGibibytes(64).
+						StorageAccountType(string(metadataapi.DiskStorageAccountTypePremium_LRS)).
+						Persistence("persistent").
+						SseEncryptionSetResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"),
+					),
+				),
+		},
+		{
+			name:               "nil disk encryption set ID does not set SSE field",
+			hcpNodePool:        getHCPNodePoolResource(),
+			expectedCSNodePool: getBaseCSNodePoolBuilder(),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -721,6 +750,7 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 					CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 						EncryptionType("kms").
 						Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+							KeyVaultType(arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault).
 							Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
 							ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
 								KeyName("test-key").
@@ -1164,6 +1194,7 @@ func TestBuildCSCluster(t *testing.T) {
 							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 								EncryptionType("kms").
 								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									KeyVaultType(arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault).
 									Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
 									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
 										KeyName("test-key").
@@ -1234,7 +1265,80 @@ func TestBuildCSCluster(t *testing.T) {
 							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 								EncryptionType("kms").
 								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									KeyVaultType(arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault).
 									Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPrivate).
+									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+										KeyName("test-key").
+										KeyVaultName("test-vault").
+										KeyVersion("v1"),
+									),
+								),
+							),
+						)).
+					ManagedResourceGroupName(coreapitesting.TestManagedResourceGroupName).
+					NetworkSecurityGroupResourceID(coreapitesting.TestNetworkSecurityGroupResourceID).
+					NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
+						OutboundType(csOutboundType)).
+					OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
+						ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
+							ControlPlaneOperatorsManagedIdentities(testControlPlaneOperatorIdentities()).
+							DataPlaneOperatorsManagedIdentities(testDataPlaneOperatorIdentities()).
+							ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
+					ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
+					ResourceName(strings.ToLower(coreapitesting.TestClusterName)).
+					SubnetResourceID(coreapitesting.TestSubnetResourceID).
+					VnetIntegrationSubnetResourceID(coreapitesting.TestVnetIntegrationSubnetResourceID).
+					SubscriptionID(strings.ToLower(coreapitesting.TestSubscriptionID)).
+					TenantID(coreapitesting.TestTenantID),
+				),
+		},
+		{
+			name: "CREATE - converts KMS encryption with ManagedHSM keyVaultType",
+			cluster: func() *coreapi.Cluster {
+				cluster := coreapitesting.MinimumValidClusterTestCase()
+				cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						KeyVaultType: coreapi.KmsKeyVaultTypeManagedHSM,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "v1",
+						},
+					},
+				}
+				return cluster
+			}(),
+			expectedCSCluster: ocmClusterDefaults(coreapitesting.TestLocation).
+				NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
+					Unit(csNodeDrainGracePeriodUnit).
+					Value(float64(0))).
+				Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().
+					PodPriorityThreshold(-10).
+					MaxNodeProvisionTime("15m").
+					MaxPodGracePeriod(600).
+					ResourceLimits(arohcpv1alpha1.NewAutoscalerResourceLimits().
+						MaxNodesTotal(0))).
+				Properties(map[string]string{}).
+				API(arohcpv1alpha1.NewClusterAPI().
+					Listening(arohcpv1alpha1.ListeningMethodExternal).
+					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
+							Mode(CSCIDRBlockAllowAccessModeAllowAll)))).
+				Ingresses(arohcpv1alpha1.NewIngressList().Items(
+					arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
+				)).
+				Azure(arohcpv1alpha1.NewAzure().
+					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+							KeyManagementMode(csKeyManagementModeCustomerManaged).
+							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+								EncryptionType("kms").
+								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
+									KeyVaultType(arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeManagedHsm).
 									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
 										KeyName("test-key").
 										KeyVaultName("test-vault").
@@ -1279,6 +1383,7 @@ func TestBuildCSCluster(t *testing.T) {
 							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 								EncryptionType("kms").
 								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									KeyVaultType(arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault).
 									Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
 									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
 										KeyName("test-key").
@@ -1990,6 +2095,36 @@ func TestConvertCSContainerRegistryPullCredentialsToRP(t *testing.T) {
 				require.NotNil(t, result)
 				assert.Equal(t, tt.expected.String(), result.String())
 			}
+		})
+	}
+}
+
+func TestConvertKmsKeyVaultTypeRPToCS(t *testing.T) {
+	tests := []struct {
+		name      string
+		vaultType string
+		want      arohcpv1alpha1.AzureKmsEncryptionKeyVaultType
+	}{
+		{
+			name:      "ManagedHSM maps to CS ManagedHsm",
+			vaultType: coreapi.KmsKeyVaultTypeManagedHSM,
+			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeManagedHsm,
+		},
+		{
+			name:      "KeyVault maps to CS KeyVault",
+			vaultType: coreapi.KmsKeyVaultTypeKeyVault,
+			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault,
+		},
+		{
+			name:      "empty defaults to CS KeyVault",
+			vaultType: "",
+			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, convertKmsKeyVaultTypeRPToCS(tt.vaultType))
 		})
 	}
 }
