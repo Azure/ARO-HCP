@@ -33,6 +33,27 @@ ordinary updates. An honored `"true"` tag together with an integration subnet is
 rejected. Tag names are case-insensitive; values must be exactly `"true"` or
 `"false"`. Without AFEC, the tag is ignored and normal subnet requirements apply.
 
+### Default ingress OneCert certificate tests
+
+`cluster_create_public_ingress_onecert.go` and
+`cluster_create_private_ingress_onecert.go` follow the
+`cluster_create_private_ingress.go` provisioning and sample-app pattern. They
+verify the ARM ingress type, guest IngressController scope, and HTTP 200 over
+trusted HTTPS, then match the served leaf's SHA-256 fingerprint to a certificate
+retrieved through the Azure Key Vault certificates API with a
+`OneCertV2-PublicCA` issuer policy. The private test probes from a customer VM in
+the cluster VNet and also checks that external access fails.
+
+Set `ARO_HCP_INGRESS_CERTIFICATE_VAULT_URLS` to a comma-separated list of HTTPS
+vault origins containing the deployment's OneCert ingress certificates. Supply
+all candidate vaults when placement can select more than one. The test's Azure
+credential needs certificate list/get access on these vaults, not secret or
+private-key access. Vault origins are test inputs; no kubeconfig, HostedCluster,
+SecretProviderClass, or other management-cluster resource is read. A missing or
+invalid vault setting fails before provisioning rather than silently skipping
+certificate coverage. The private probe requires Python 3 and the system CA
+trust store on the test VM. Neither probe disables TLS or hostname verification.
+
 ### Resource Naming
 
 > **Important:** These tests are running in parallel so it is **VITAL** that we avoid naming collisions with other tests that may be running in CI at the same time. This may break CI runs until the duplicate resources are removed!
@@ -289,6 +310,7 @@ Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENT
 | Provisioning | `NodePoolCreationTimeout` | `CreateNodePoolFromParam20240610`, `CreateNodePoolAndWait20240610`; preview: `CreateNodePoolFromParam20251223`, `CreateNodePoolAndWait20251223` |
 | Provisioning | `ExternalAuthCreationTimeout` | `CreateOrUpdateExternalAuthAndWait20240610` |
 | Access cluster | `GetAdminRESTConfigTimeout` | `GetAdminRESTConfigForHCPCluster20240610` |
+| Ingress certificate | `IngressCertificateVerificationTimeout` | Public and private OneCert sample-app HTTPS and Key Vault leaf verification |
 | Deletion | `HCPClusterDeletionTimeout` | `DeleteHCPCluster20240610`, `DeleteAllHCPClusters20240610`, inline delete pollers |
 | Deletion | `NodePoolDeletionTimeout` | `DeleteNodePool20240610`, inline node pool delete pollers |
 | Deletion | `ExternalAuthDeletionTimeout` | `DeleteExternalAuth20240610`, inline external auth delete pollers |

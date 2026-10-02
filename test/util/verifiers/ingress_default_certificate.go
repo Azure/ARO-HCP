@@ -15,38 +15,33 @@
 package verifiers
 
 import (
-	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
-	"net"
+	"net/http"
 	"strings"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
-
-	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
-
-	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
-	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
 
 type verifyIngressDefaultCertificate struct {
-	managementConfig *rest.Config
-	credential       azcore.TokenCredential
-	resourceID       string
-	timeout          time.Duration
+	credential azcore.TokenCredential
+	vaultURLs  []string
+	host       string
+	probe      func(context.Context) (string, error)
+	timeout    time.Duration
 }
 
-func VerifyIngressDefaultCertificate(managementConfig *rest.Config, credential azcore.TokenCredential, resourceID string, timeout time.Duration) HostedClusterVerifier {
-	return verifyIngressDefaultCertificate{managementConfig: managementConfig, credential: credential, resourceID: resourceID, timeout: timeout}
+func VerifyIngressDefaultCertificate(credential azcore.TokenCredential, vaultURLs []string, host string, probe func(context.Context) (string, error), timeout time.Duration) HostedClusterVerifier {
+	return verifyIngressDefaultCertificate{credential: credential, vaultURLs: vaultURLs, host: host, probe: probe, timeout: timeout}
 }
 
 func (verifier verifyIngressDefaultCertificate) Name() string {
@@ -54,99 +49,118 @@ func (verifier verifyIngressDefaultCertificate) Name() string {
 }
 
 func (verifier verifyIngressDefaultCertificate) Verify(ctx context.Context, adminConfig *rest.Config) error {
-	managementClient, err := dynamic.NewForConfig(verifier.managementConfig)
-	if err != nil {
-		return fmt.Errorf("create management client: %w", err)
+	if len(verifier.vaultURLs) == 0 {
+		return fmt.Errorf("at least one OneCert certificate vault URL is required")
 	}
-	guestClient, err := operatorclient.NewForConfig(adminConfig)
-	if err != nil {
-		return fmt.Errorf("create guest operator client: %w", err)
-	}
-	return pollUntilReady(ctx, verifier.Name(), verifier.timeout, DefaultPollInterval, adminConfig, 0, nil, func(ctx context.Context) error {
-		hostedClusters, err := managementClient.Resource(schema.GroupVersionResource{Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "hostedclusters"}).List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return fmt.Errorf("find created HostedCluster: %w", err)
-		}
-		var hostedCluster *unstructured.Unstructured
-		for index := range hostedClusters.Items {
-			candidate := &hostedClusters.Items[index]
-			if strings.EqualFold(candidate.GetAnnotations()[hyperv1.ManagedAzureResourceIDAnnotation], verifier.resourceID) {
-				if hostedCluster != nil {
-					return fmt.Errorf("multiple HostedClusters match %s", verifier.resourceID)
-				}
-				hostedCluster = candidate
-			}
-		}
-		if hostedCluster == nil {
-			return fmt.Errorf("no HostedCluster matches %s", verifier.resourceID)
-		}
-		secretName, _, err := unstructured.NestedString(hostedCluster.Object, "spec", "operatorConfiguration", "ingressOperator", "defaultCertificate", "name")
-		if err != nil || secretName == "" {
-			return fmt.Errorf("HostedCluster %s/%s has no default ingress certificate reference", hostedCluster.GetNamespace(), hostedCluster.GetName())
-		}
-		provider, err := managementClient.Resource(schema.GroupVersionResource{Group: "secrets-store.csi.x-k8s.io", Version: "v1", Resource: "secretproviderclasses"}).Namespace(hostedCluster.GetNamespace()).Get(ctx, secretName, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("get ingress certificate Key Vault source: %w", err)
-		}
-		parameters, _, err := unstructured.NestedStringMap(provider.Object, "spec", "parameters")
-		if err != nil {
-			return fmt.Errorf("read Key Vault source parameters: %w", err)
-		}
-		if parameters["keyvaultName"] == "" || (parameters["cloudName"] != "" && parameters["cloudName"] != "AzurePublicCloud") {
-			return fmt.Errorf("expected a public Azure Key Vault source")
-		}
-		var objects struct {
-			Array []string `json:"array"`
-		}
-		if err := yaml.Unmarshal([]byte(parameters["objects"]), &objects); err != nil {
-			return fmt.Errorf("decode Key Vault objects: %w", err)
-		}
-		if len(objects.Array) != 1 {
-			return fmt.Errorf("expected one ingress certificate source, got %d", len(objects.Array))
-		}
-		var object struct {
-			ObjectName    string `json:"objectName"`
-			ObjectType    string `json:"objectType"`
-			ObjectVersion string `json:"objectVersion"`
-		}
-		if err := yaml.Unmarshal([]byte(objects.Array[0]), &object); err != nil {
-			return fmt.Errorf("decode ingress certificate source: %w", err)
-		}
-		if object.ObjectName == "" || object.ObjectType != "secret" {
-			return fmt.Errorf("expected named Key Vault certificate secret source")
-		}
-		certificateClient, err := azcertificates.NewClient("https://"+parameters["keyvaultName"]+".vault.azure.net", verifier.credential, nil)
+	clients := make([]*azcertificates.Client, 0, len(verifier.vaultURLs))
+	for _, vaultURL := range verifier.vaultURLs {
+		client, err := azcertificates.NewClient(vaultURL, verifier.credential, nil)
 		if err != nil {
 			return fmt.Errorf("create Key Vault certificate client: %w", err)
 		}
-		certificate, err := certificateClient.GetCertificate(ctx, object.ObjectName, object.ObjectVersion, nil)
+		clients = append(clients, client)
+	}
+	return pollUntilReady(ctx, verifier.Name(), verifier.timeout, DefaultPollInterval, adminConfig, 0, nil, func(ctx context.Context) error {
+		fingerprint, err := verifier.probe(ctx)
 		if err != nil {
-			return fmt.Errorf("get intended Key Vault certificate %s: %w", object.ObjectName, err)
+			return fmt.Errorf("reach sample app over trusted HTTPS: %w", err)
 		}
-		if certificate.Policy == nil || certificate.Policy.IssuerParameters == nil || certificate.Policy.IssuerParameters.Name == nil || *certificate.Policy.IssuerParameters.Name != "OneCertV2-PublicCA" {
-			return fmt.Errorf("Key Vault certificate %s must use OneCertV2-PublicCA, not a self-signed issuer", object.ObjectName)
+		fingerprint = strings.TrimSpace(fingerprint)
+		decoded, err := hex.DecodeString(fingerprint)
+		if err != nil || len(decoded) != sha256.Size {
+			return fmt.Errorf("HTTPS probe did not return a SHA-256 leaf fingerprint")
 		}
-		ingress, err := guestClient.OperatorV1().IngressControllers("openshift-ingress-operator").Get(ctx, "default", metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("get guest default IngressController: %w", err)
+		for _, client := range clients {
+			pager := client.NewListCertificatePropertiesPager(nil)
+			for pager.More() {
+				page, err := pager.NextPage(ctx)
+				if err != nil {
+					return fmt.Errorf("list Key Vault certificates: %w", err)
+				}
+				for _, properties := range page.Value {
+					if properties.ID == nil {
+						continue
+					}
+					certificate, err := client.GetCertificate(ctx, properties.ID.Name(), "", nil)
+					if err != nil {
+						return fmt.Errorf("get Key Vault certificate %s: %w", properties.ID.Name(), err)
+					}
+					if certificateFingerprint(certificate.CER) != fingerprint {
+						continue
+					}
+					return verifyOneCertLeaf(certificate, verifier.host)
+				}
+			}
 		}
-		if ingress.Status.Domain == "" {
-			return fmt.Errorf("default IngressController has no domain")
-		}
-		host := "certificate-check." + ingress.Status.Domain
-		dialer := tls.Dialer{NetDialer: &net.Dialer{Timeout: 30 * time.Second}, Config: &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}}
-		connection, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, "443"))
-		if err != nil {
-			return fmt.Errorf("verify ingress TLS chain and hostname %s: %w", host, err)
-		}
-		defer connection.Close()
-		state := connection.(*tls.Conn).ConnectionState()
-		if len(state.VerifiedChains) == 0 || len(state.PeerCertificates) == 0 {
-			return fmt.Errorf("ingress TLS handshake returned no verified certificate chain")
-		}
-		if !bytes.Equal(state.PeerCertificates[0].Raw, certificate.CER) {
-			return fmt.Errorf("served ingress leaf does not match Key Vault certificate %s", object.ObjectName)
-		}
-		return nil
+		return fmt.Errorf("served ingress leaf %s does not match any certificate in the configured Key Vaults", fingerprint)
 	})
+}
+
+func verifyOneCertLeaf(certificate azcertificates.GetCertificateResponse, host string) error {
+	if certificate.Policy == nil || certificate.Policy.IssuerParameters == nil || certificate.Policy.IssuerParameters.Name == nil || *certificate.Policy.IssuerParameters.Name != "OneCertV2-PublicCA" {
+		return fmt.Errorf("matching Key Vault certificate must use OneCertV2-PublicCA, not a self-signed issuer")
+	}
+	leaf, err := x509.ParseCertificate(certificate.CER)
+	if err != nil {
+		return fmt.Errorf("parse Key Vault leaf: %w", err)
+	}
+	if err := leaf.VerifyHostname(host); err != nil {
+		return fmt.Errorf("Key Vault leaf must cover the sample app hostname: %w", err)
+	}
+	return nil
+}
+
+func certificateFingerprint(der []byte) string {
+	fingerprint := sha256.Sum256(der)
+	return hex.EncodeToString(fingerprint[:])
+}
+
+func ProbeIngressCertificate(ctx context.Context, host string) (string, error) {
+	transport := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{
+		Transport:     transport,
+		Timeout:       30 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+host, nil)
+	if err != nil {
+		return "", err
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("sample app returned HTTP %d, expected 200", response.StatusCode)
+	}
+	if response.TLS == nil || len(response.TLS.VerifiedChains) == 0 || len(response.TLS.PeerCertificates) == 0 {
+		return "", fmt.Errorf("sample app returned no verified TLS certificate chain")
+	}
+	return certificateFingerprint(response.TLS.PeerCertificates[0].Raw), nil
+}
+
+func IngressCertificateProbeCommand(host string) string {
+	return fmt.Sprintf(`python3 - <<'PYTHON'
+import base64
+import hashlib
+import http.client
+import ssl
+
+host = base64.b64decode(%q).decode("ascii")
+context = ssl.create_default_context()
+context.minimum_version = ssl.TLSVersion.TLSv1_2
+connection = http.client.HTTPSConnection(host, timeout=30, context=context)
+try:
+    connection.connect()
+    leaf = connection.sock.getpeercert(binary_form=True)
+    connection.request("GET", "/")
+    response = connection.getresponse()
+    if response.status != 200:
+        raise RuntimeError("sample app returned HTTP %%d, expected 200" %% response.status)
+    print(hashlib.sha256(leaf).hexdigest())
+finally:
+    connection.close()
+PYTHON`, base64.StdEncoding.EncodeToString([]byte(host)))
 }
