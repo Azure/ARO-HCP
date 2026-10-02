@@ -39,6 +39,7 @@ import (
 
 type ControllerContext struct {
 	AzureLocation                                       string
+	ServiceTenantID                                     string
 	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
 	BackupConfig                                        *clusterbackups.BackupConfig
 	BillingDBClient                                     billingcosmosstorage.BillingDBClient
