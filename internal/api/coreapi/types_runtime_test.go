@@ -17,7 +17,6 @@ package coreapi_test
 import (
 	"encoding/json"
 	"math/rand"
-	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,10 +26,12 @@ import (
 )
 
 func TestTLSCertificateURLRoundTripAndDeepCopy(test *testing.T) {
-	vaultURL, err := url.Parse("https://certificates.vault.azure.net/")
-	require.NoError(test, err)
+	vaultURL := "https://certificates.vault.azure.net/"
 	for _, confirmed := range []bool{false, true} {
 		reference := &coreapi.AzureTLSCertificateReference{KeyVaultURL: vaultURL, CertificateName: "certificate"}
+		serializedReference, err := json.Marshal(reference)
+		require.NoError(test, err)
+		require.JSONEq(test, `{"keyVaultURL":"https://certificates.vault.azure.net/","certificateName":"certificate"}`, string(serializedReference))
 		certificate := &coreapi.TLSCertificate{PendingReference: reference}
 		if confirmed {
 			certificate = &coreapi.TLSCertificate{AzureReference: reference}
@@ -52,10 +53,10 @@ func TestTLSCertificateURLRoundTripAndDeepCopy(test *testing.T) {
 				copiedReference = copiedCertificate.AzureReference
 			}
 			copiedReference.CertificateName = "changed"
-			copiedReference.KeyVaultURL.Host = "changed.vault.azure.net"
+			copiedReference.KeyVaultURL = "https://changed.vault.azure.net/"
 		}
 		require.Equal(test, "certificate", reference.CertificateName)
-		require.Equal(test, "certificates.vault.azure.net", vaultURL.Host)
+		require.Equal(test, vaultURL, reference.KeyVaultURL)
 	}
 	require.Equal(test, &coreapi.AzureTLSCertificateReference{}, (&coreapi.AzureTLSCertificateReference{}).DeepCopy())
 }

@@ -46,6 +46,7 @@ digraph cluster_convergence {
   armprops -> op [label="API endpoint populated"];
   role -> azure [label="GET / create missing"];
   role -> op [label="confirmed nonempty; none\npending"];
+  certificates -> op [label="KAS + ingress\nAzureReference non-nil"];
   validation -> op [label="False: Provisioning + InvalidResource;\nfailure and operation each >= 5m: Failed;\nall True: ready"];
   op -> done [label="all completion checks\nsatisfied"];
   failed [label="ARM operation Failed\nselected error code", fillcolor="#fbe8e5", color="#a64f43"];

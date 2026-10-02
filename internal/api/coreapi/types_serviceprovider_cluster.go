@@ -16,7 +16,6 @@ package coreapi
 
 import (
 	"fmt"
-	"net/url"
 
 	"github.com/blang/semver/v4"
 
@@ -569,18 +568,10 @@ type TLSCertificate struct {
 type AzureTLSCertificateReference struct {
 	// KeyVaultURL mirrors the hosted-cluster secrets Key Vault URL of the management cluster.
 	// Written by: TLSCertificates
-	KeyVaultURL *url.URL `json:"keyVaultURL"`
+	KeyVaultURL string `json:"keyVaultURL,omitempty"`
 	// CertificateName is the name of the certificate created by Cluster Service in that vault.
 	// Written by: TLSCertificates
 	CertificateName string `json:"certificateName"`
-}
-
-func (in *AzureTLSCertificateReference) DeepCopyInto(out *AzureTLSCertificateReference) {
-	*out = *in
-	if in.KeyVaultURL != nil {
-		out.KeyVaultURL = new(url.URL)
-		*out.KeyVaultURL = *in.KeyVaultURL
-	}
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.

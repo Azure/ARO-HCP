@@ -173,7 +173,7 @@ func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controlle
 	}
 	for _, certificate := range certificates {
 		if certificate.state.AzureReference == nil {
-			certificate.state.PendingReference = &coreapi.AzureTLSCertificateReference{KeyVaultURL: vaultURL, CertificateName: certificate.name}
+			certificate.state.PendingReference = &coreapi.AzureTLSCertificateReference{KeyVaultURL: managementCluster.Status.HostedClustersSecretsKeyVaultURL, CertificateName: certificate.name}
 		}
 	}
 	if controllerutil.NeedsUpdate(existing, replacement) {
@@ -185,7 +185,7 @@ func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controlle
 			continue
 		}
 		reference := certificate.state.PendingReference
-		ready, err := syncer.observe(ctx, reference.KeyVaultURL.String(), reference.CertificateName)
+		ready, err := syncer.observe(ctx, reference.KeyVaultURL, reference.CertificateName)
 		if err != nil {
 			observationErrors = append(observationErrors, fmt.Errorf("observe certificate %q: %w", certificate.name, err))
 			continue

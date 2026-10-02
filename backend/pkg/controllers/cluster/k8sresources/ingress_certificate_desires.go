@@ -17,6 +17,7 @@ package k8sresources
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -50,13 +51,13 @@ func buildIngressCertificateDesires(
 	if certificate == nil {
 		return nil, nil, fmt.Errorf("observed ingress certificate is required")
 	}
-	vaultURL := certificate.KeyVaultURL
-	if vaultURL == nil || vaultURL.Scheme != "https" || vaultURL.Hostname() == "" {
-		return nil, nil, fmt.Errorf("invalid hosted clusters secrets Key Vault URL")
+	vaultURL, err := url.Parse(certificate.KeyVaultURL)
+	if err != nil || vaultURL.Scheme != "https" || vaultURL.Hostname() == "" {
+		return nil, nil, fmt.Errorf("invalid observed ingress certificate KeyVaultURL")
 	}
 	vaultName, _, _ := strings.Cut(vaultURL.Hostname(), ".")
 	if !keyVaultNamePattern.MatchString(vaultName) || strings.Contains(vaultName, "--") {
-		return nil, nil, fmt.Errorf("invalid hosted clusters secrets Key Vault URL: invalid vault name %q", vaultName)
+		return nil, nil, fmt.Errorf("invalid observed ingress certificate KeyVaultURL: invalid vault name %q", vaultName)
 	}
 	if certificate.CertificateName == "" {
 		return nil, nil, fmt.Errorf("observed ingress certificate has no certificate name")
