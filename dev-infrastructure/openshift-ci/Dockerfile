@@ -1,4 +1,4 @@
-ARG BUILDER_IMAGE_TAG
+ARG BUILDER_IMAGE_TAG=rhel-9-golang-1.26-openshift-4.22
 FROM registry.ci.openshift.org/ocp/builder:${BUILDER_IMAGE_TAG}
 
 # Tool versions - defaults here must be kept in sync with /versions.mk
