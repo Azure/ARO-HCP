@@ -1126,6 +1126,65 @@ func TestAdmitCluster_Update(t *testing.T) {
 			},
 			expectErrors: []utils.ExpectedError{},
 		},
+
+		{
+			name:                         "allows stable to nightly upgrade in same minor (major.minor comparison)",
+			oldClusterVersionID:          "4.20",
+			channelGroup:                 "stable",
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20.8"),
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.20.0-0.nightly-2026-10-02-150000"
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "allows nightly to nightly upgrade in same minor (major.minor comparison)",
+			oldClusterVersionID:          "4.20.0-0.nightly-2026-10-01-125400",
+			channelGroup:                 "nightly",
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20.0-0.nightly-2026-10-01-125400"),
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0-0.nightly-2026-10-01-125400")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.20.0-0.nightly-2026-10-02-150000"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "allows nightly to stable upgrade in same minor",
+			oldClusterVersionID:          "4.20.0-0.nightly-2026-10-01-125400",
+			channelGroup:                 "nightly",
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20.0-0.nightly-2026-10-01-125400"),
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0-0.nightly-2026-10-01-125400")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.20"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "allows nightly to stable upgrade",
+			oldClusterVersionID:          "4.20.0-0.nightly-2026-10-01-125400",
+			channelGroup:                 "nightly",
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20.0-0.nightly-2026-10-01-125400"),
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.20.0-0.nightly-2026-10-01-125400")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.21"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "rejects nightly downgrade to different minor",
+			oldClusterVersionID:          "4.21.0-0.nightly-2026-10-01-125400",
+			channelGroup:                 "nightly",
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.0-0.nightly-2026-10-01-125400"),
+			nodePools:                    []*coreapi.NodePool{makeTestNodePool("workers", "4.21.0-0.nightly-2026-10-01-125400")},
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.CustomerProperties.Version.ID = "4.20.0-0.nightly-2026-10-02-150000"
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "must be at least"},
+			},
+		},
 		{
 			name:                         "kms key version change allowed at 4.22 nightly",
 			oldClusterVersionID:          "4.22",

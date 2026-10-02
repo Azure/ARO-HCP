@@ -935,7 +935,15 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 					errs = append(errs, field.Invalid(versionPath, newObj.ID, skewErr.Error()))
 				}
 			}
-			errs = append(errs, validation.VersionMustBeAtLeast(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+
+			// Nightly versions include prerelease identifiers (e.g., X.Y.0-0.nightly-...) that may sort
+			// lower than stable versions in semver comparison, even if the nightly was built after
+			// the current active control plane version. Only compare the major.minor of the version.
+			if newObj.ChannelGroup == metadataapi.ChannelGroupNightly {
+				errs = append(errs, validation.VersionMustBeAtLeastMajorMinor(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+			} else {
+				errs = append(errs, validation.VersionMustBeAtLeast(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+			}
 		}
 	}
 
