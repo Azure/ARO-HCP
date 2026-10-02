@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package resources
+package k8sresources
 
 import (
 	"encoding/json"
@@ -42,10 +42,13 @@ func buildIngressCertificateDesires(
 	key controllerutils.HCPClusterKey,
 	managementCluster *fleetapi.ManagementCluster,
 	namespace, clusterServiceID, serviceTenantID string,
-	certificate coreapi.AzureTLSCertificateReference,
+	certificate *coreapi.AzureTLSCertificateReference,
 ) ([]*kubeapplierapi.ApplyDesire, []*kubeapplierapi.ReadDesire, error) {
 	if serviceTenantID == "" {
 		return nil, nil, fmt.Errorf("service tenant ID is required for ingress certificates")
+	}
+	if certificate == nil {
+		return nil, nil, fmt.Errorf("observed ingress certificate is required")
 	}
 	vaultURL := certificate.KeyVaultURL
 	if vaultURL == nil || vaultURL.Scheme != "https" || vaultURL.Hostname() == "" {

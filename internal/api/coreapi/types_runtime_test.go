@@ -30,7 +30,7 @@ func TestTLSCertificateURLRoundTripAndDeepCopy(test *testing.T) {
 	vaultURL, err := url.Parse("https://certificates.vault.azure.net/")
 	require.NoError(test, err)
 	for _, confirmed := range []bool{false, true} {
-		reference := coreapi.AzureTLSCertificateReference{KeyVaultURL: vaultURL, CertificateName: "certificate"}
+		reference := &coreapi.AzureTLSCertificateReference{KeyVaultURL: vaultURL, CertificateName: "certificate"}
 		certificate := &coreapi.TLSCertificate{PendingReference: reference}
 		if confirmed {
 			certificate = &coreapi.TLSCertificate{AzureReference: reference}
@@ -47,15 +47,32 @@ func TestTLSCertificateURLRoundTripAndDeepCopy(test *testing.T) {
 		copied := original.DeepCopy()
 		require.Equal(test, original, copied)
 		for _, copiedCertificate := range []*coreapi.TLSCertificate{copied.Status.AzureResources.KubeAPIServerCertificate, copied.Status.AzureResources.IngressCertificate} {
-			copiedReference := &copiedCertificate.PendingReference
+			copiedReference := copiedCertificate.PendingReference
 			if confirmed {
-				copiedReference = &copiedCertificate.AzureReference
+				copiedReference = copiedCertificate.AzureReference
 			}
+			copiedReference.CertificateName = "changed"
 			copiedReference.KeyVaultURL.Host = "changed.vault.azure.net"
 		}
+		require.Equal(test, "certificate", reference.CertificateName)
 		require.Equal(test, "certificates.vault.azure.net", vaultURL.Host)
 	}
 	require.Equal(test, &coreapi.AzureTLSCertificateReference{}, (&coreapi.AzureTLSCertificateReference{}).DeepCopy())
+}
+
+func TestTLSCertificateUnsetReferences(test *testing.T) {
+	for _, input := range []string{"{}", `{"pendingReference":null,"azureReference":null}`} {
+		var certificate coreapi.TLSCertificate
+		require.NoError(test, json.Unmarshal([]byte(input), &certificate))
+		require.Nil(test, certificate.PendingReference)
+		require.Nil(test, certificate.AzureReference)
+		copied := certificate.DeepCopy()
+		require.Nil(test, copied.PendingReference)
+		require.Nil(test, copied.AzureReference)
+		serialized, err := json.Marshal(copied)
+		require.NoError(test, err)
+		require.JSONEq(test, "{}", string(serialized))
+	}
 }
 
 func TestDeepCopyCluster(t *testing.T) {

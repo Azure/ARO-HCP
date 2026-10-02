@@ -109,7 +109,7 @@ func (syncer *tlsCertificatesSyncer) NeedsWork(cluster *coreapi.Cluster, service
 		return serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate != nil || serviceProviderCluster.Status.AzureResources.IngressCertificate != nil
 	}
 	return cluster.ServiceProviderProperties.ClusterServiceID != nil &&
-		(serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate == nil || serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate.AzureReference == (coreapi.AzureTLSCertificateReference{}) || serviceProviderCluster.Status.AzureResources.IngressCertificate == nil || serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference == (coreapi.AzureTLSCertificateReference{}))
+		(serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate == nil || serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate.AzureReference == nil || serviceProviderCluster.Status.AzureResources.IngressCertificate == nil || serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference == nil)
 }
 
 func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -172,8 +172,8 @@ func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controlle
 		{"ingress-tls-cert-" + clusterServiceID, replacement.Status.AzureResources.IngressCertificate},
 	}
 	for _, certificate := range certificates {
-		if certificate.state.AzureReference == (coreapi.AzureTLSCertificateReference{}) {
-			certificate.state.PendingReference = coreapi.AzureTLSCertificateReference{KeyVaultURL: vaultURL, CertificateName: certificate.name}
+		if certificate.state.AzureReference == nil {
+			certificate.state.PendingReference = &coreapi.AzureTLSCertificateReference{KeyVaultURL: vaultURL, CertificateName: certificate.name}
 		}
 	}
 	if controllerutil.NeedsUpdate(existing, replacement) {
@@ -181,7 +181,7 @@ func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controlle
 	}
 	var observationErrors []error
 	for _, certificate := range certificates {
-		if certificate.state.AzureReference != (coreapi.AzureTLSCertificateReference{}) {
+		if certificate.state.AzureReference != nil {
 			continue
 		}
 		reference := certificate.state.PendingReference
@@ -192,7 +192,7 @@ func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controlle
 		}
 		if ready {
 			certificate.state.AzureReference = reference
-			certificate.state.PendingReference = coreapi.AzureTLSCertificateReference{}
+			certificate.state.PendingReference = nil
 		}
 	}
 	return errors.Join(append(observationErrors, syncer.persist(ctx, key, existing, replacement))...)

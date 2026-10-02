@@ -558,10 +558,10 @@ type DenyAssignmentReference struct {
 type TLSCertificate struct {
 	// PendingReference identifies a certificate not yet confirmed to be provisioned in Azure.
 	// Written by: TLSCertificates
-	PendingReference AzureTLSCertificateReference `json:"pendingReference,omitempty"`
+	PendingReference *AzureTLSCertificateReference `json:"pendingReference,omitempty"`
 	// AzureReference identifies a certificate confirmed to be provisioned in Azure.
 	// Written by: TLSCertificates
-	AzureReference AzureTLSCertificateReference `json:"azureReference,omitempty"`
+	AzureReference *AzureTLSCertificateReference `json:"azureReference,omitempty"`
 }
 
 // AzureTLSCertificateReference identifies a single Azure Key Vault TLS certificate.

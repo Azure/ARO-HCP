@@ -36,7 +36,7 @@ import (
 )
 
 func TestTLSCertificateDeletionGates(test *testing.T) {
-	reference := coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://vault.vault.azure.net/")), CertificateName: "certificate"}
+	reference := &coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://vault.vault.azure.net/")), CertificateName: "certificate"}
 	for _, scenario := range []struct {
 		name         string
 		kas, ingress *coreapi.TLSCertificate
@@ -48,7 +48,7 @@ func TestTLSCertificateDeletionGates(test *testing.T) {
 		{name: "ingress pending", ingress: &coreapi.TLSCertificate{PendingReference: reference}},
 		{name: "ingress confirmed", ingress: &coreapi.TLSCertificate{AzureReference: reference}},
 		{name: "both", kas: &coreapi.TLSCertificate{PendingReference: reference}, ingress: &coreapi.TLSCertificate{AzureReference: reference}},
-		{name: "partial reference", kas: &coreapi.TLSCertificate{AzureReference: coreapi.AzureTLSCertificateReference{CertificateName: "certificate"}}},
+		{name: "partial reference", kas: &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{CertificateName: "certificate"}}},
 	} {
 		test.Run(scenario.name, func(test *testing.T) {
 			cluster := newTestClusterWithNewDeletionApproach(test, func(cluster *coreapi.Cluster) {
