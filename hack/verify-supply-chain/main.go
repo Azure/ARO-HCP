@@ -141,7 +141,9 @@ func main() {
 		if readableBlob(f) {
 			content, err := blobContent(root, f.oid)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error reading %s (%s): %v\n", f.path, f.oid, err)
+				// Quoted for the same reason as in report: both values come
+				// from the index.
+				fmt.Fprintf(os.Stderr, "error reading %q (%q): %v\n", f.path, f.oid, err)
 				os.Exit(2)
 			}
 			found = scanAgentJSON(f.path, content)
@@ -456,13 +458,31 @@ func hasSegment(p, segment string) bool {
 	return false
 }
 
+// report prints the findings. Paths are quoted with %q rather than printed
+// raw, because a path is attacker-chosen data and git permits any byte in one
+// except NUL and the separator.
+//
+// An unquoted path is a way to write to this report. A directory named with a
+// newline splits one finding into what reads as several lines of independent
+// output, and one named with an ANSI sequence can move the cursor up and
+// erase the genuine findings above it in any viewer that interprets escapes.
+// Neither changes the exit code — the check still fails, and nothing here can
+// make it pass — but a security tool whose output can be written by the thing
+// it is reporting on is not worth reading. %q also keeps ordinary paths
+// legible: Go escapes only non-printable characters, so a path with
+// non-ASCII letters in it survives intact.
+//
+// The rest of each line is safe already. The rule is one of this file's own
+// constants; a detail embeds an execution key with %q, an index mode git
+// constrains to a known set, and a decoder error that encoding/json has
+// itself escaped.
 func report(w io.Writer, findings []finding) {
 	fmt.Fprintln(w, "ERROR: supply-chain attack indicators found in tracked files.")
 	fmt.Fprintln(w)
 
 	malware := false
 	for _, f := range findings {
-		fmt.Fprintf(w, "  %s (%s): %s\n", f.path, f.rule, f.detail)
+		fmt.Fprintf(w, "  %q (%s): %s\n", f.path, f.rule, f.detail)
 		if f.malware {
 			malware = true
 			fmt.Fprintln(w, `      This matches a known supply-chain attack pattern. Do not run it.`)
