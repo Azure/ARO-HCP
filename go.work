@@ -13,6 +13,7 @@ use (
 	./hack/verify-gomega-assertions
 	./hack/verify-mi-containers
 	./hack/verify-schema-additional-properties
+	./hack/verify-supply-chain
 	./internal
 	./kube-applier
 	./mgmt-agent
