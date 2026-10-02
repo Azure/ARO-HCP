@@ -17,6 +17,7 @@ package framework
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -273,4 +274,74 @@ func TestPickAtLeastOpenshiftVersionId(t *testing.T) {
 			assert.Equal(t, tc.wantVersion, got)
 		})
 	}
+}
+
+func TestCheckNightlyImageAge(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name          string
+		version       string
+		wantErr       bool
+		wantSkippable bool
+	}{
+		{
+			name:    "fresh nightly is accepted",
+			version: "4.19.0-0.nightly-multi-2026-09-20-142156",
+		},
+		{
+			name:    "nightly built exactly 30 days ago is accepted",
+			version: "4.19.0-0.nightly-multi-2026-09-02-120000",
+		},
+		{
+			name:          "nightly older than 30 days is skippable",
+			version:       "4.19.0-0.nightly-multi-2026-08-01-142156",
+			wantErr:       true,
+			wantSkippable: true,
+		},
+		{
+			name:          "unparseable date is not skippable",
+			version:       "4.19.0-0.nightly-multi-not-a-date",
+			wantErr:       true,
+			wantSkippable: false,
+		},
+		{
+			name:          "missing date suffix is not skippable",
+			version:       "4.19.0-0.nightly",
+			wantErr:       true,
+			wantSkippable: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := checkNightlyImageAge(tc.version, now)
+			if !tc.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			if tc.wantSkippable {
+				assert.True(t, IsIncompatibleNightlyVersionError(err),
+					"stale nightly should be skippable; got: %v", err)
+				assert.True(t, errors.Is(err, ErrNightlyVersionTooOld),
+					"stale nightly should wrap ErrNightlyVersionTooOld; got: %v", err)
+			} else {
+				assert.False(t, IsIncompatibleNightlyVersionError(err),
+					"parse error should not be skippable; got: %v", err)
+			}
+		})
+	}
+}
+
+func TestIsRetryableVersionError_nightlyTooOld(t *testing.T) {
+	t.Parallel()
+
+	err := checkNightlyImageAge("4.19.0-0.nightly-multi-2020-01-01-000000", time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC))
+	require.Error(t, err)
+	assert.False(t, isRetryableVersionError(err), "stale nightly must not be retried")
 }
