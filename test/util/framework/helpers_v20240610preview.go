@@ -689,6 +689,16 @@ func UpdateHCPCluster20240610(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
+	// A nil tag map means preserve existing tags, even when adding our deadline.
+	if update.Tags == nil {
+		current, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed reading tags before updating cluster %q in resource group %q: %w", hcpClusterName, resourceGroupName, err)
+		}
+		update.Tags = current.Tags
+	}
+	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagClusterMaxUpdateDuration, timeout)
+
 	var hcpOpenShiftCluster *hcpsdk20240610preview.HcpOpenShiftCluster
 	var lastTransientErr error
 	attempt := 0
@@ -918,6 +928,16 @@ func UpdateNodePoolAndWait20240610(
 ) (*hcpsdk20240610preview.NodePool, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateNodePoolAndWait for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
 	defer cancel()
+
+	// A nil tag map means preserve existing tags, even when adding our deadline.
+	if update.Tags == nil {
+		current, err := nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed reading tags before updating node pool %q in cluster %q resource group %q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+		}
+		update.Tags = current.Tags
+	}
+	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagNodePoolMaxUpdateDuration, timeout)
 
 	poller, err := nodePoolsClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, update, nil)
 	if err != nil {
