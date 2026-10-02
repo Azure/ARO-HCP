@@ -181,6 +181,54 @@ func validateTemplate(pod *corev1.Pod, template *corev1.PodTemplateSpec) error {
 	return nil
 }
 
+// Checks current RuntimeClass overhead and applies its scheduling requirements to a template copy.
+func runtimeTemplate(ctx context.Context, client kubernetes.Interface, pod *corev1.Pod, template *corev1.PodTemplateSpec) (*corev1.PodTemplateSpec, error) {
+	if !apiequality.Semantic.DeepEqual(pod.Spec.RuntimeClassName, template.Spec.RuntimeClassName) {
+		return nil, fmt.Errorf("ReplicaSet template RuntimeClass differs from the admitted Pod")
+	}
+	if pod.Spec.RuntimeClassName == nil {
+		return template, nil
+	}
+	rc, err := client.NodeV1().RuntimeClasses().Get(ctx, *pod.Spec.RuntimeClassName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("read RuntimeClass %q: %w", *pod.Spec.RuntimeClassName, err)
+	}
+	if rc.DeletionTimestamp != nil {
+		return nil, fmt.Errorf("RuntimeClass %q is terminating", rc.Name)
+	}
+	var overhead corev1.ResourceList
+	if rc.Overhead != nil {
+		overhead = rc.Overhead.PodFixed
+	}
+	if !apiequality.Semantic.DeepEqual(pod.Spec.Overhead, overhead) ||
+		(len(template.Spec.Overhead) > 0 && !apiequality.Semantic.DeepEqual(template.Spec.Overhead, overhead)) {
+		return nil, fmt.Errorf("RuntimeClass %q overhead differs from the admitted Pod or ReplicaSet template", rc.Name)
+	}
+	result := template.DeepCopy()
+	result.Spec.Overhead = overhead.DeepCopy()
+	if rc.Scheduling != nil {
+		if result.Spec.NodeSelector == nil {
+			result.Spec.NodeSelector = map[string]string{}
+		}
+		for key, value := range rc.Scheduling.NodeSelector {
+			if existing, ok := result.Spec.NodeSelector[key]; ok && existing != value {
+				return nil, fmt.Errorf("RuntimeClass %q node selector %q conflicts with the ReplicaSet template", rc.Name, key)
+			}
+			result.Spec.NodeSelector[key] = value
+		}
+		// Keep non-identical overlaps explicit; template comparison holds if admission
+		// would normalize them differently instead of guessing toleration equivalence.
+		for _, toleration := range rc.Scheduling.Tolerations {
+			if !slices.ContainsFunc(result.Spec.Tolerations, func(existing corev1.Toleration) bool {
+				return apiequality.Semantic.DeepEqual(existing, toleration)
+			}) {
+				result.Spec.Tolerations = append(result.Spec.Tolerations, toleration)
+			}
+		}
+	}
+	return result, nil
+}
+
 // Verifies the live Pod-to-Deployment owner chain and requires a supported router matching the workload policy.
 func workload(ctx context.Context, client kubernetes.Interface, pod *corev1.Pod, cfg Config) (*appsv1.Deployment, *WorkloadPolicy, error) {
 	if pod.Labels["app"] != "private-router" {
@@ -200,7 +248,11 @@ func workload(ctx context.Context, client kubernetes.Interface, pod *corev1.Pod,
 	if rs.UID != owner.UID || rs.DeletionTimestamp != nil || rs.Spec.Replicas == nil || *rs.Spec.Replicas < 1 {
 		return nil, nil, fmt.Errorf("ReplicaSet identity or desired replicas changed")
 	}
-	if err := validateTemplate(pod, &rs.Spec.Template); err != nil {
+	template, err := runtimeTemplate(ctx, client, pod, &rs.Spec.Template)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := validateTemplate(pod, template); err != nil {
 		return nil, nil, err
 	}
 	deploymentOwner := metav1.GetControllerOf(rs)

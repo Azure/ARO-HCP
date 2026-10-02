@@ -31,6 +31,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	nodev1 "k8s.io/api/node/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -745,6 +746,210 @@ func TestReplacementTemplateRuntimeClass(t *testing.T) {
 			err := validateTemplate(pod, template)
 			if (err != nil) != tc.hold {
 				t.Fatalf("expected hold=%t, got %v", tc.hold, err)
+			}
+		})
+	}
+}
+
+func TestRuntimeClassAdmission(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		overheadOnly bool
+		change       func(*nodev1.RuntimeClass)
+		readErr      error
+	}{
+		{name: "matching"},
+		{name: "matching overhead only", overheadOnly: true},
+		{name: "overhead increased", overheadOnly: true, change: func(rc *nodev1.RuntimeClass) {
+			rc.Overhead.PodFixed[corev1.ResourceCPU] = resource.MustParse("500m")
+		}},
+		{name: "overhead decreased", overheadOnly: true, change: func(rc *nodev1.RuntimeClass) {
+			rc.Overhead.PodFixed[corev1.ResourceCPU] = resource.MustParse("50m")
+		}},
+		{name: "overhead removed", overheadOnly: true, change: func(rc *nodev1.RuntimeClass) { rc.Overhead = nil }},
+		{name: "overhead resource added", overheadOnly: true, change: func(rc *nodev1.RuntimeClass) {
+			rc.Overhead.PodFixed[corev1.ResourceMemory] = resource.MustParse("500Mi")
+		}},
+		{name: "selector changed", change: func(rc *nodev1.RuntimeClass) {
+			rc.Scheduling.NodeSelector[corev1.LabelHostname] = "b"
+		}},
+		{name: "selector added", change: func(rc *nodev1.RuntimeClass) {
+			rc.Scheduling.NodeSelector["example.com/pool"] = "runtime"
+		}},
+		{name: "scheduling added", overheadOnly: true, change: func(rc *nodev1.RuntimeClass) {
+			rc.Scheduling = &nodev1.Scheduling{NodeSelector: map[string]string{"example.com/pool": "runtime"}}
+		}},
+		{name: "scheduling removed", change: func(rc *nodev1.RuntimeClass) { rc.Scheduling = nil }},
+		{name: "toleration removed", change: func(rc *nodev1.RuntimeClass) { rc.Scheduling.Tolerations = nil }},
+		{name: "toleration changed", change: func(rc *nodev1.RuntimeClass) {
+			rc.Scheduling.Tolerations[0].Key = "other"
+		}},
+		{name: "missing", readErr: apierrors.NewNotFound(nodev1.Resource("runtimeclasses"), "router")},
+		{name: "forbidden", readErr: apierrors.NewForbidden(nodev1.Resource("runtimeclasses"), "router", errors.New("denied"))},
+		{name: "timeout", readErr: apierrors.NewTimeoutError("runtime class read", 1)},
+	} {
+		for _, stage := range []string{"audit", "before claim", "after claim"} {
+			t.Run(tc.name+"/"+stage, func(t *testing.T) {
+				f := newFixture(t)
+				if stage == "audit" {
+					f.cfg.Mode = Audit
+					if err := f.c.SetConfig(f.cfg); err != nil {
+						t.Fatal(err)
+					}
+				}
+				rc := &nodev1.RuntimeClass{
+					ObjectMeta: metav1.ObjectMeta{Name: "router"}, Handler: "router",
+					Overhead: &nodev1.Overhead{PodFixed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}},
+					Scheduling: &nodev1.Scheduling{
+						NodeSelector: map[string]string{corev1.LabelHostname: "a"},
+						Tolerations:  []corev1.Toleration{{Key: "runtime", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule}},
+					},
+				}
+				if tc.overheadOnly {
+					rc.Scheduling = nil
+				}
+				pod := f.pod.DeepCopy()
+				pod.Spec.RuntimeClassName = ptr.To(rc.Name)
+				pod.Spec.Overhead = rc.Overhead.PodFixed.DeepCopy()
+				if rc.Scheduling != nil {
+					pod.Spec.NodeSelector = rc.Scheduling.DeepCopy().NodeSelector
+					pod.Spec.Tolerations = append(pod.Spec.Tolerations, rc.Scheduling.Tolerations...)
+				}
+				if err := f.kube.Tracker().Update(corev1.SchemeGroupVersion.WithResource("pods"), pod, pod.Namespace); err != nil {
+					t.Fatal(err)
+				}
+				gvr := appsv1.SchemeGroupVersion.WithResource("replicasets")
+				obj, err := f.kube.Tracker().Get(gvr, pod.Namespace, "router-rs")
+				if err != nil {
+					t.Fatal(err)
+				}
+				rs := obj.(*appsv1.ReplicaSet)
+				rs.Spec.Template.Spec.RuntimeClassName = ptr.To(rc.Name)
+				if err := f.kube.Tracker().Update(gvr, rs, rs.Namespace); err != nil {
+					t.Fatal(err)
+				}
+				claimed, reads := false, 0
+				f.kube.PrependReactor("patch", "pods", func(ktesting.Action) (bool, runtime.Object, error) {
+					claimed = true
+					return false, nil, nil
+				})
+				f.kube.PrependReactor("get", "runtimeclasses", func(action ktesting.Action) (bool, runtime.Object, error) {
+					reads++
+					if action.(ktesting.GetAction).GetName() != rc.Name || action.GetNamespace() != "" {
+						t.Fatal("RuntimeClass read targeted the wrong object")
+					}
+					current := rc.DeepCopy()
+					if stage != "after claim" || claimed {
+						if tc.readErr != nil {
+							return true, nil, tc.readErr
+						}
+						if tc.change != nil {
+							tc.change(current)
+						}
+					}
+					return true, current, nil
+				})
+				err = f.run()
+				hold := tc.change != nil || tc.readErr != nil
+				if (err != nil) != hold {
+					t.Fatalf("expected hold=%t, got %v", hold, err)
+				}
+				if tc.readErr != nil && !errors.Is(err, tc.readErr) {
+					t.Fatalf("RuntimeClass read error lost: %v", err)
+				}
+				wantReads := 1
+				if stage == "after claim" || (!hold && stage != "audit") {
+					wantReads = 2
+				}
+				if reads != wantReads {
+					t.Fatalf("RuntimeClass reads=%d, want %d", reads, wantReads)
+				}
+				actions := mutations(f.kube.Actions())
+				if hold || stage == "audit" {
+					want := 0
+					if stage == "after claim" {
+						want = 1
+					}
+					if len(actions) != want || (want == 1 && (actions[0].GetVerb() != "patch" || actions[0].GetResource().Resource != "pods")) {
+						t.Fatalf("expected only %d ownership claims, got %v", want, actions)
+					}
+				} else if len(actions) != 4 || actions[2].GetSubresource() != "eviction" {
+					t.Fatalf("expected claim, accounting, eviction and event, got %v", actions)
+				}
+			})
+		}
+	}
+}
+
+func TestRuntimeTemplate(t *testing.T) {
+	tolerance := corev1.Toleration{Key: "runtime", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule}
+	for _, tc := range []struct {
+		name   string
+		change func(*corev1.Pod, *corev1.PodTemplateSpec, *nodev1.RuntimeClass)
+		hold   bool
+	}{
+		{name: "no runtime class", change: func(p *corev1.Pod, template *corev1.PodTemplateSpec, _ *nodev1.RuntimeClass) {
+			p.Spec.RuntimeClassName, template.Spec.RuntimeClassName = nil, nil
+		}},
+		{name: "no overhead or scheduling"},
+		{name: "overhead added", hold: true, change: func(_ *corev1.Pod, _ *corev1.PodTemplateSpec, rc *nodev1.RuntimeClass) {
+			rc.Overhead = &nodev1.Overhead{PodFixed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}}
+		}},
+		{name: "template overhead conflicts", hold: true, change: func(_ *corev1.Pod, template *corev1.PodTemplateSpec, _ *nodev1.RuntimeClass) {
+			template.Spec.Overhead = corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}
+		}},
+		{name: "terminating class", hold: true, change: func(_ *corev1.Pod, _ *corev1.PodTemplateSpec, rc *nodev1.RuntimeClass) {
+			rc.DeletionTimestamp = &metav1.Time{}
+		}},
+		{name: "matching explicit selector", change: func(p *corev1.Pod, template *corev1.PodTemplateSpec, rc *nodev1.RuntimeClass) {
+			p.Spec.NodeSelector = map[string]string{"pool": "router"}
+			template.Spec.NodeSelector = map[string]string{"pool": "router"}
+			rc.Scheduling = &nodev1.Scheduling{NodeSelector: map[string]string{"pool": "router"}}
+		}},
+		{name: "selector conflict", hold: true, change: func(p *corev1.Pod, template *corev1.PodTemplateSpec, rc *nodev1.RuntimeClass) {
+			p.Spec.NodeSelector = map[string]string{"pool": "router"}
+			template.Spec.NodeSelector = map[string]string{"pool": "router"}
+			rc.Scheduling = &nodev1.Scheduling{NodeSelector: map[string]string{"pool": "other"}}
+		}},
+		{name: "duplicate toleration", change: func(p *corev1.Pod, template *corev1.PodTemplateSpec, rc *nodev1.RuntimeClass) {
+			p.Spec.Tolerations = []corev1.Toleration{tolerance}
+			template.Spec.Tolerations = []corev1.Toleration{tolerance}
+			rc.Scheduling = &nodev1.Scheduling{Tolerations: []corev1.Toleration{tolerance}}
+		}},
+		{name: "overlapping tolerations hold conservatively", hold: true, change: func(p *corev1.Pod, template *corev1.PodTemplateSpec, rc *nodev1.RuntimeClass) {
+			p.Spec.Tolerations = []corev1.Toleration{tolerance}
+			narrow := tolerance
+			narrow.Operator, narrow.Value = corev1.TolerationOpEqual, "router"
+			template.Spec.Tolerations = []corev1.Toleration{narrow}
+			rc.Scheduling = &nodev1.Scheduling{Tolerations: []corev1.Toleration{tolerance}}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pod := placementPod("router", "a")
+			pod.Spec.RuntimeClassName = ptr.To("router")
+			template := &corev1.PodTemplateSpec{ObjectMeta: *pod.ObjectMeta.DeepCopy(), Spec: *pod.Spec.DeepCopy()}
+			template.Spec.NodeName = ""
+			rc := &nodev1.RuntimeClass{ObjectMeta: metav1.ObjectMeta{Name: "router"}, Handler: "router"}
+			if tc.change != nil {
+				tc.change(pod, template, rc)
+			}
+			beforePod, beforeTemplate := pod.DeepCopy(), template.DeepCopy()
+			client := fake.NewClientset(rc)
+			result, err := runtimeTemplate(t.Context(), client, pod, template)
+			if err == nil {
+				err = validateTemplate(pod, result)
+			}
+			if (err != nil) != tc.hold {
+				t.Fatalf("expected hold=%t, got %v", tc.hold, err)
+			}
+			if !apiequality.Semantic.DeepEqual(beforePod, pod) || !apiequality.Semantic.DeepEqual(beforeTemplate, template) {
+				t.Fatal("RuntimeClass admission mutated its inputs")
+			}
+			if pod.Spec.RuntimeClassName == nil && len(client.Actions()) != 0 {
+				t.Fatal("Pod without a RuntimeClass made API calls")
+			}
+			if len(mutations(client.Actions())) != 0 {
+				t.Fatal("RuntimeClass admission mutated Kubernetes")
 			}
 		})
 	}

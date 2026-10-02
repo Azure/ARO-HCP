@@ -320,7 +320,8 @@ func spreadFits(pod *corev1.Pod, node *corev1.Node, constraint corev1.TopologySp
 		return false, nil
 	}
 	for _, other := range placed {
-		if other.Namespace != pod.Namespace || !eligibleNodes[other.Spec.NodeName] || !selector.Matches(labels.Set(other.Labels)) {
+		if other.DeletionTimestamp != nil || other.Namespace != pod.Namespace ||
+			!eligibleNodes[other.Spec.NodeName] || !selector.Matches(labels.Set(other.Labels)) {
 			continue
 		}
 		counts[nodes[other.Spec.NodeName].Labels[constraint.TopologyKey]]++
