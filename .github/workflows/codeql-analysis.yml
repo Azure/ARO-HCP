@@ -66,8 +66,8 @@ jobs:
     - name: Build (go)
       if: matrix.language == 'go'
       run: |
-        # Keep large modules apart. Distribute every other workspace module
-        # deterministically, including modules added to go.work later.
+        # Keep substantial modules on stable shards, apart from the largest
+        # builds. Distribute other workspace modules as go.work changes.
         module_dirs=$(go list -f '{{.Dir}}/...' -m)
         mapfile -t modules <<< "$module_dirs"
         selected=()
@@ -78,8 +78,10 @@ jobs:
             */backend/...) target=1 ;;
             */test/...) target=2 ;;
             */tooling/hcpctl/...) target=3 ;;
+            */kube-applier/...) target=3 ;;
             */mgmt-agent/...|*/test-integration/...) target=4 ;;
             */fleet/...) target=5 ;;
+            */frontend/...) target=5 ;;
             *) target=$((other % 6)); other=$((other + 1)) ;;
           esac
           if (( target == ${{ matrix.shard }} )); then
