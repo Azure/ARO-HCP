@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/kuberesources"
 )
 
+// Checks replacement placement with the admitted Pod, excluding faults other than its own Pod-scoped stall.
 func (c *Controller) checkPlacement(cfg Config, snapshot ClusterSnapshot, pod *corev1.Pod) error {
 	if err := snapshot.checkFreshness(c.clock(), cfg.ObservationMaxAge.Duration); err != nil {
 		return err
@@ -76,6 +77,7 @@ func (c *Controller) checkPlacement(cfg Config, snapshot ClusterSnapshot, pod *c
 	return placement(snapshot, nil, []*corev1.Pod{replacement})
 }
 
+// Detects hard scheduling selectors that depend on bind-time region or zone Pod labels.
 func topologyLabelScheduling(pod *corev1.Pod) bool {
 	topologyKey := func(key string) bool {
 		return key == corev1.LabelTopologyRegion || key == corev1.LabelTopologyZone
@@ -121,12 +123,14 @@ func topologyLabelScheduling(pod *corev1.Pod) bool {
 	return false
 }
 
+// Computes resource demand, including one Pod slot.
 func requests(pod *corev1.Pod, options resourcehelper.PodResourcesOptions) corev1.ResourceList {
 	result := resourcehelper.PodRequests(pod, options)
 	result[corev1.ResourcePods] = *resource.NewQuantity(1, resource.DecimalSI)
 	return result
 }
 
+// Adds or subtracts resource quantities in place.
 func addResources(dst, src corev1.ResourceList, subtract bool) {
 	for name, amount := range src {
 		value := dst[name]
@@ -139,6 +143,7 @@ func addResources(dst, src corev1.ResourceList, subtract bool) {
 	}
 }
 
+// Checks hard Node taints, requiring indefinite tolerance of NoExecute taints.
 func tolerates(pod *corev1.Pod, node *corev1.Node) bool {
 	for i := range node.Spec.Taints {
 		taint := &node.Spec.Taints[i]
@@ -159,6 +164,7 @@ func tolerates(pod *corev1.Pod, node *corev1.Node) bool {
 	return true
 }
 
+// Checks whether another Pod matches an affinity term's labels and namespace scope.
 func matchesTerm(subject, other *corev1.Pod, term corev1.PodAffinityTerm, namespaces map[string]*corev1.Namespace) (bool, error) {
 	selector, err := metav1.LabelSelectorAsSelector(term.LabelSelector)
 	if err != nil {
@@ -184,6 +190,7 @@ func matchesTerm(subject, other *corev1.Pod, term corev1.PodAffinityTerm, namesp
 	return selected(*term.NamespaceSelector, namespace.Labels), nil
 }
 
+// Checks required affinity, both Pods' anti-affinity rules, hard topology spread and taints.
 func affinityFits(pod *corev1.Pod, node *corev1.Node, placed []*corev1.Pod, nodes map[string]*corev1.Node, namespaces map[string]*corev1.Namespace) (bool, error) {
 	if ok, err := nodeaffinity.GetRequiredNodeAffinity(pod).Match(node); err != nil || !ok {
 		return ok, err
@@ -250,6 +257,7 @@ func affinityFits(pod *corev1.Pod, node *corev1.Node, placed []*corev1.Pod, node
 	return tolerates(pod, node), nil
 }
 
+// Extends a selector with matchLabelKeys and mismatchLabelKeys values from the Pod.
 func keyedSelector(selector labels.Selector, pod *corev1.Pod, matching, mismatching []string) (labels.Selector, error) {
 	for _, group := range []struct {
 		keys     []string
@@ -272,6 +280,7 @@ func keyedSelector(selector labels.Selector, pod *corev1.Pod, matching, mismatch
 	return selector, nil
 }
 
+// Checks whether placement respects topology skew across eligible domains.
 func spreadFits(pod *corev1.Pod, node *corev1.Node, constraint corev1.TopologySpreadConstraint, placed []*corev1.Pod, nodes map[string]*corev1.Node) (bool, error) {
 	domain, exists := node.Labels[constraint.TopologyKey]
 	if !exists {
@@ -336,7 +345,7 @@ func spreadFits(pod *corev1.Pod, node *corev1.Node, constraint corev1.TopologySp
 
 const maxPlacementAttempts = 4096
 
-// placement simulates destinations for all displaced pods together.
+// Simulates replacement and pending Pod placement with a bounded backtracking search.
 // It is conservative: unsupported constraints hold instead of guessing scheduler
 // behavior, and external unscheduled demand also consumes the available headroom.
 func placement(snapshot ClusterSnapshot, excluded map[string]bool, moving []*corev1.Pod) error {

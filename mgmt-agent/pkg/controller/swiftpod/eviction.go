@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// Rechecks live Pod and Node identity, fault evidence and workload availability before eviction.
 func (c *Controller) evictionTarget(ctx context.Context, cfg Config, original *corev1.Node, selected *corev1.Pod,
 	snapshot ClusterSnapshot) (*corev1.Pod, *appsv1.Deployment, error) {
 	if err := snapshot.checkFreshness(c.clock(), cfg.ObservationMaxAge.Duration); err != nil {
@@ -65,6 +66,7 @@ func (c *Controller) evictionTarget(ctx context.Context, cfg Config, original *c
 	return pod, deployment, err
 }
 
+// Logs eligible candidates in audit mode; in enforce mode, claims, rechecks, records and requests eviction.
 func (c *Controller) rescue(ctx context.Context, cfg Config, revision uint64, node *corev1.Node, selected *corev1.Pod, snapshot ClusterSnapshot) error {
 	pod, deployment, err := c.evictionTarget(ctx, cfg, node, selected, snapshot)
 	if err != nil {
