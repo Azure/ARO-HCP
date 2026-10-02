@@ -24,6 +24,8 @@ create/update operation `InternalID`, and the corresponding lifecycle diagrams.
 Ingress-certificate update baseline: `aac7f68f368798143d25c593bc9e3f20d92437f9`
 plus working-tree changes; scope: backend IngressCertificate registration,
 service-tenant configuration, paired kube-applier desires and owner-managed teardown.
+Certificate-observation update baseline: `9a4006d51`; scope: separate read-only
+ObserveCertificates controller, per-certificate pending/done status and ingress delivery gate.
 
 Update-deadline baseline: `a0f232352a2e933142f2f2dfb61f2870aed7a26f` plus working-tree changes; scope: cluster/node-pool update admission, create/update timeout error codes and diagnostics, and their lifecycle views.
 
@@ -864,7 +866,15 @@ On cluster deletion, stops fetching manifests and removes all its tagged ApplyDe
 
 Requires observed management-cluster placement, HostedCluster namespace and Cluster Service ID. Reads the management cluster's hosted-cluster secrets Key Vault URL and managed identity client ID, plus the backend service tenant configuration. Creates or repairs two owner-tagged cluster-scoped `ApplyDesire`/`ReadDesire` pairs: an Azure `SecretProviderClass` and a `SecretSync` in the HostedCluster namespace. The Key Vault object is `ingress-tls-cert-<CS-ID>`; both Kubernetes resources and the resulting TLS secret are named `default-ingress-tls-cert-<CS-ID>`. Read desires mirror the supporting resources; certificate/private-key contents are not placed in Cosmos. Missing placement or certificate inputs defer reconciliation; malformed vault URLs and missing service tenant configuration produce errors.
 
-On cluster deletion, removes only its owner-tagged ApplyDesire and ReadDesire documents, even if the Cluster Service ID, namespace or fleet configuration is no longer available. It does not request Kubernetes resource deletion: namespace cleanup removes the certificate resources. Generic child cleanup skips owner-tagged ApplyDesires and relies on this teardown. The controller does not alter the HostedCluster's default-certificate reference or the legacy ACM-policy resources; those remain Cluster Service responsibilities.
+Delivery waits for `ServiceProviderCluster.Status.IngressCertificate=Done`; KAS observation does not gate ingress delivery. On cluster deletion, removes only its owner-tagged ApplyDesire and ReadDesire documents, even if the certificate is pending or the Cluster Service ID, namespace or fleet configuration is no longer available. It does not request Kubernetes resource deletion: namespace cleanup removes the certificate resources. Generic child cleanup skips owner-tagged ApplyDesires and relies on this teardown. The controller does not alter the HostedCluster's default-certificate reference or the legacy ACM-policy resources; those remain Cluster Service responsibilities.
+
+#### ObserveCertificates
+
+[Source](../backend/pkg/controllers/cluster/azureresources/certificate_observation_controller.go) · **Trigger:** Cluster, ServiceProviderCluster and cluster-scoped kube-applier desires; 30s.
+
+Separate read-only observer for the certificates created by Cluster Service's `tls_certificates_provision_step.go`. CS `utils.GetApiTlsCertName` names the KAS Key Vault certificate/backing secret `kube-apiserver-tls-cert-<CS-ID>`; `utils.GetIngressTlsCertName` names ingress `ingress-tls-cert-<CS-ID>`. Their Kubernetes secret names are `kube-apiserver-tls-cert` and `default-ingress-tls-cert-<CS-ID>` respectively. Uses the backend identity to GET certificate metadata from `ManagementCluster.Status.HostedClustersSecretsKeyVaultURL`; it never creates certificates or retrieves private-key material.
+
+`NeedsWork` skips deletion, missing CS ID and clusters with both certificates done. Persists `Status.KubeAPIServerCertificate` and `Status.IngressCertificate` as `Pending` before Azure reads, then independently promotes each to `Done` when an enabled, currently valid certificate with public data and a backing secret ID exists. Missing certificates remain pending; read errors retry without discarding progress on the other certificate. Writes use `ServiceProviderClusters(...).Replace(...)` with ETag protection; conflicts defer to the next reconciliation. Only status markers, not certificate material, enter Cosmos. This is initial-provisioning observation, not renewal monitoring. Cluster Service retains certificate creation/deletion ownership.
 
 #### CreateClusterScopedReadDesires
 

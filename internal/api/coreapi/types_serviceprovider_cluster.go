@@ -172,6 +172,10 @@ type ServiceProviderClusterPinnedVersion struct {
 
 // ServiceProviderClusterStatus contains the observed state of the cluster.
 type ServiceProviderClusterStatus struct {
+	// Written by: ObserveCertificates
+	KubeAPIServerCertificate CertificateObservationState `json:"kubeAPIServerCertificate,omitempty"`
+	// Written by: ObserveCertificates
+	IngressCertificate CertificateObservationState `json:"ingressCertificate,omitempty"`
 	// Conditions are the top-level ServiceProviderCluster status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
 	// +optional
@@ -361,6 +365,13 @@ type ServiceProviderClusterStatus struct {
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
 }
+
+type CertificateObservationState string
+
+const (
+	CertificateObservationPending CertificateObservationState = "Pending"
+	CertificateObservationDone    CertificateObservationState = "Done"
+)
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
 // ServiceProviderCluster. It is kept off the top-level Status.Conditions per the

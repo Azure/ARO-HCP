@@ -20,6 +20,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
@@ -62,6 +63,9 @@ func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfi
 	}
 
 	clients := &azureclient.BackendIdentityAzureClients{
+		CertificatesClient: func(vaultURL string) (*azcertificates.Client, error) {
+			return azcertificates.NewClient(vaultURL, defaultAzureCredential, &azcertificates.ClientOptions{ClientOptions: *azureConfig.CloudEnvironment.AZCoreClientOptions()})
+		},
 		DataplaneIdentitiesOIDCConfigurationBlobStorageClient: blobStorageClient,
 		RoleDefinitionsClient: roleDefinitionsClient,
 	}
