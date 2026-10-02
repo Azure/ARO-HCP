@@ -16,8 +16,6 @@ package e2e
 
 import (
 	"context"
-	"errors"
-	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -25,7 +23,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -136,21 +134,30 @@ var _ = Describe("ARO HCP Service", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster spec")
 			cluster.Identity = msi
 			cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities = uamis
-			_, err = hcpClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, customerClusterName, cluster, nil)
+			// Include visibility checks and role assignment deployment in the creation
+			// budget, which starts with the request just like the backend deadline.
+			creationCtx, cancelCreation := context.WithTimeout(ctx, clusterCreationTimeout)
+			defer cancelCreation()
+			creationPoller, err := hcpClient.BeginCreateOrUpdate(creationCtx, *resourceGroup.Name, customerClusterName, cluster, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to start cluster creation")
 
 			By("waiting for cluster resource to become visible")
+			// Use a bounded Eventually timeout that respects creationCtx: if the parent
+			// context expires, stop retrying immediately rather than continuing for the
+			// full Eventually duration.
+			visibilityCtx, cancelVisibility := context.WithTimeout(creationCtx, 2*time.Minute)
+			defer cancelVisibility()
 			Eventually(func(g Gomega) {
-				_, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				_, err := hcpClient.Get(visibilityCtx, *resourceGroup.Name, customerClusterName, nil)
 				g.Expect(err).NotTo(HaveOccurred(), "GET cluster failed — RP may not have registered the resource yet")
-			}, 2*time.Minute, 10*time.Second).Should(Succeed(),
+			}, 2*time.Minute, 10*time.Second).WithContext(visibilityCtx).Should(Succeed(),
 				"timed out waiting for cluster resource to become visible after BeginCreateOrUpdate")
 
 			By("verifying cluster does not enter terminal Failed state while role assignments are missing")
 			var lastConsistentlyErr string
 			var lastConsistentlyState hcpsdk20251223preview.ProvisioningState
 			Consistently(func(g Gomega) {
-				resp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				resp, err := hcpClient.Get(creationCtx, *resourceGroup.Name, customerClusterName, nil)
 				if err != nil {
 					lastConsistentlyState = ""
 					if msg := err.Error(); msg != lastConsistentlyErr {
@@ -187,7 +194,7 @@ var _ = Describe("ARO HCP Service", func() {
 			if leasedPool != nil {
 				deployMIOpts = append(deployMIOpts, framework.WithIdentityPool(leasedPool))
 			}
-			_, err = tc.DeployManagedIdentities(ctx,
+			_, err = tc.DeployManagedIdentities(creationCtx,
 				customerClusterName,
 				framework.RBACScopeResourceGroup,
 				deployMIOpts...,
@@ -195,37 +202,24 @@ var _ = Describe("ARO HCP Service", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy role assignments for managed identities")
 
 			By("waiting for cluster to reach Succeeded state")
-			var lastEventuallyErr string
-			var lastEventuallyState hcpsdk20251223preview.ProvisioningState
-			Eventually(func(g Gomega) {
-				resp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-				if err != nil {
-					lastEventuallyState = ""
-					var respErr *azcore.ResponseError
-					if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-						g.Expect(err).NotTo(HaveOccurred(), "cluster returned 404 — resource disappeared after role assignment deployment")
-						return
-					}
-					if msg := err.Error(); msg != lastEventuallyErr {
-						GinkgoLogr.Info("GET cluster returned error, retrying", "error", err)
-						lastEventuallyErr = msg
-					}
-					g.Expect(err).NotTo(HaveOccurred(), "GET cluster failed — RP returned an unexpected error")
-				}
-				lastEventuallyErr = ""
-				g.Expect(resp.Properties).NotTo(BeNil(), "cluster response has nil Properties")
-				g.Expect(resp.Properties.ProvisioningState).NotTo(BeNil(), "cluster response has nil ProvisioningState")
-				state := *resp.Properties.ProvisioningState
-				if state != lastEventuallyState {
-					GinkgoLogr.Info("cluster provisioning state", "state", state)
-					lastEventuallyState = state
-				}
-				g.Expect(state).NotTo(Equal(hcpsdk20251223preview.ProvisioningStateFailed),
-					"cluster entered terminal Failed state after role assignment deployment")
-				g.Expect(state).To(Equal(hcpsdk20251223preview.ProvisioningStateSucceeded),
-					"cluster has not yet reached Succeeded state")
-			}, clusterCreationTimeout-consistentlyLoopDuration, 30*time.Second).Should(Succeed(),
-				"cluster should eventually succeed after role assignments are created")
+			// Poll the original operation so terminal failures include the backend's
+			// error instead of repeatedly observing a generic Failed resource state.
+			_, err = creationPoller.PollUntilDone(creationCtx, &runtime.PollUntilDoneOptions{
+				Frequency: framework.StandardPollInterval,
+			})
+			Expect(err).NotTo(HaveOccurred(),
+				"cluster %q in resource group %q should complete creation after role assignments are created (total creation timeout %s)",
+				customerClusterName, *resourceGroup.Name, clusterCreationTimeout)
+
+			// Use the parent context for the final Get: PollUntilDone may complete at the
+			// edge of creationCtx's deadline, and we don't want a flaky timeout on the
+			// final verification when the operation actually succeeded.
+			resp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get cluster after its creation operation succeeded")
+			Expect(resp.Properties).NotTo(BeNil(), "cluster response has nil Properties after creation")
+			Expect(resp.Properties.ProvisioningState).NotTo(BeNil(), "cluster response has nil ProvisioningState after creation")
+			Expect(*resp.Properties.ProvisioningState).To(Equal(hcpsdk20251223preview.ProvisioningStateSucceeded),
+				"cluster should report Succeeded after its creation operation succeeded")
 
 			By("verifying cluster is viable")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
