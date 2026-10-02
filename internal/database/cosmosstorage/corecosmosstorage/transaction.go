@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 
+	k8sjson "k8s.io/apimachinery/pkg/util/json"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -117,7 +119,7 @@ func (t *cosmosDBTransaction) Execute(ctx context.Context, o *azcosmos.Transacti
 }
 
 func (t *cosmosDBTransaction) String() string {
-	ret, err := json.Marshal(t.ToJSONStructRendering())
+	ret, err := k8sjson.Marshal(t.ToJSONStructRendering())
 	if err != nil {
 		return "failed to marshal transaction details: " + err.Error()
 	}
@@ -149,7 +151,7 @@ func getCastResult[InternalAPIType, CosmosAPIType any](r *cosmosDBTransactionRes
 	}
 
 	var cosmosObj CosmosAPIType
-	if err := json.Unmarshal(data, &cosmosObj); err != nil {
+	if err := k8sjson.Unmarshal(data, &cosmosObj); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal Cosmos DB item '%s': %w", cosmosUID, err)
 	}
 
@@ -163,7 +165,7 @@ func (r *cosmosDBTransactionResult) GetItem(cosmosUID string) (any, error) {
 	}
 
 	var typedDoc cosmosstorageutils.TypedDocument
-	err := json.Unmarshal(data, &typedDoc)
+	err := k8sjson.Unmarshal(data, &typedDoc)
 	if err != nil {
 		return nil, err
 	}

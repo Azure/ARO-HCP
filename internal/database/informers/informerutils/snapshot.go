@@ -16,11 +16,12 @@ package informerutils
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/go-logr/logr"
+
+	"k8s.io/apimachinery/pkg/util/json"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 

@@ -15,10 +15,10 @@
 package cosmosstorageutils
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/json"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
