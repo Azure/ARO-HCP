@@ -21,10 +21,7 @@ import (
 	"regexp"
 	"strings"
 
-	ocmv1 "open-cluster-management.io/api/work/v1"
-
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -131,7 +128,7 @@ func buildIngressCertificateDesires(
 				ManagementCluster: managementCluster.ResourceID,
 				Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
 				TargetItem:        target,
-				ServerSideApply:   &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: content}, FieldManager: ptr.To(ocmv1.DefaultFieldManager)},
+				ServerSideApply:   &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: content}},
 			},
 			Tags: map[string]string{kubeapplierapi.TagControllerName: IngressCertificateControllerName},
 		})
