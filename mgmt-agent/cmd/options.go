@@ -84,6 +84,7 @@ type RawControllerOptions struct {
 	MonitoringAPIGroup        string
 }
 
+// DefaultControllerOptions returns the default mgmt-agent startup settings.
 func DefaultControllerOptions() *RawControllerOptions {
 	return &RawControllerOptions{
 		HealthAddress:           ":8080",
@@ -93,6 +94,7 @@ func DefaultControllerOptions() *RawControllerOptions {
 	}
 }
 
+// BindFlags exposes controller settings as command-line flags.
 func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&o.HealthAddress, "health-address", o.HealthAddress, "The bind address for the health check server (e.g., ':8080')")
 	cmd.Flags().StringVar(&o.Kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Optional.")
@@ -155,6 +157,7 @@ type ControllerOptions struct {
 	*completedControllerOptions
 }
 
+// Validate checks required startup settings before clients and controllers are created.
 func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControllerOptions, error) {
 	if o.Namespace == "" {
 		return nil, fmt.Errorf("namespace is required")
@@ -172,6 +175,7 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 	}, nil
 }
 
+// Complete builds clients, informers, enabled controllers and the leader-election lock.
 func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerOptions, error) {
 	azureCredential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
 	if err != nil {
@@ -472,6 +476,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	}, nil
 }
 
+// Loads in-cluster credentials when available, otherwise using kubeconfig loading rules.
 func (o *ValidatedControllerOptions) buildKubeConfig() (*rest.Config, error) {
 	config, err := rest.InClusterConfig()
 	if err == nil {
@@ -494,6 +499,7 @@ func (o *ValidatedControllerOptions) buildKubeConfig() (*rest.Config, error) {
 	return config, nil
 }
 
+// Run starts health and metrics serving alongside leader election, coordinating shutdown.
 func (o *ControllerOptions) Run(ctx context.Context) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -549,7 +555,7 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-// runControllersUnderLeaderElection runs the controllers inside the leader-election callback.
+// Runs the controllers inside the leader-election callback.
 // Informers are started inside the callback: a non-leader replica should not be running controllers.
 func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Context) error {
 	logger := klog.FromContext(ctx)
@@ -697,7 +703,7 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 	return nil
 }
 
-// runHTTPServer runs the server and shuts it down when ctx is cancelled.
+// Runs the HTTP server and shuts it down when ctx is cancelled.
 // It returns nil if the server was shut down cleanly (http.ErrServerClosed),
 // or the underlying error if ListenAndServe failed for another reason.
 func runHTTPServer(ctx context.Context, server *http.Server, name string) error {

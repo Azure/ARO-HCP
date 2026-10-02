@@ -42,6 +42,7 @@ type ClusterSnapshot struct {
 	NICs map[string]map[types.UID]int64
 }
 
+// Rejects snapshots with future timestamps or observations older than the allowed age.
 func (s ClusterSnapshot) checkFreshness(now time.Time, maxAge time.Duration) error {
 	if s.ObservedAt.After(now) || now.Sub(s.ObservedAt) > maxAge {
 		return fmt.Errorf("cluster snapshot is stale")
@@ -49,6 +50,7 @@ func (s ClusterSnapshot) checkFreshness(now time.Time, maxAge time.Duration) err
 	return nil
 }
 
+// Collects live cluster state, fault evidence and delegated NIC allocations.
 // Cached discovery only selects work. Admission and placement use a
 // live cluster-wide snapshot so missed watch updates cannot authorize disruption.
 func (c *Controller) snapshot(ctx context.Context) (ClusterSnapshot, error) {
@@ -129,6 +131,7 @@ func (c *Controller) snapshot(ctx context.Context) (ClusterSnapshot, error) {
 	return snapshot, nil
 }
 
+// Reports whether the Node is Ready, non-terminating and labeled for SWIFT v2.
 func swiftNode(node *corev1.Node) bool {
 	return ready(node) && node.Labels[detectors.SwiftV2LabelKey] == detectors.SwiftV2LabelValue
 }

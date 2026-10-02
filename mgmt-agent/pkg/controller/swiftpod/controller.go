@@ -43,6 +43,7 @@ var ErrPaused = errors.New("SWIFT mitigation paused by configuration change")
 
 type podKey struct{ namespace, name string }
 
+// AddLoggerValues attaches the Pod's namespace and name to log entries.
 func (key podKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 	return logger.WithValues("namespace", key.namespace, "pod", key.name)
 }
@@ -63,6 +64,7 @@ type Controller struct {
 	configurationAllowed bool
 }
 
+// NewController creates a disabled controller and registers its informer handlers.
 func NewController(kube kubernetes.Interface, dyn dynamic.Interface, namespace string,
 	nodes coreinformers.NodeInformer, pods coreinformers.PodInformer, events coreinformers.EventInformer,
 	clock func() time.Time) (*Controller, error) {
@@ -85,6 +87,7 @@ func NewController(kube kubernetes.Interface, dyn dynamic.Interface, namespace s
 	return c, nil
 }
 
+// Queues router Pods affected by Pod, sandbox Event or Node changes.
 func (c *Controller) enqueue(obj any) {
 	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		obj = tombstone.Obj
@@ -103,6 +106,7 @@ func (c *Controller) enqueue(obj any) {
 	}
 }
 
+// Queues every cached private-router Pod for reevaluation.
 func (c *Controller) enqueueAll() {
 	pods, err := c.pods.List(labels.SelectorFromSet(labels.Set{"app": "private-router"}))
 	if err != nil {
@@ -114,12 +118,14 @@ func (c *Controller) enqueueAll() {
 	}
 }
 
+// Reads the accepted configuration and its revision under the configuration lock.
 func (c *Controller) configuration() (Config, uint64) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.config, c.revision
 }
 
+// SetConfig validates and copies configuration, advances its revision and requeues router Pods.
 func (c *Controller) SetConfig(cfg Config) error {
 	if err := cfg.Validate(); err != nil {
 		return err
@@ -143,6 +149,7 @@ func (c *Controller) SetConfig(cfg Config) error {
 	return nil
 }
 
+// AllowConfiguration gates audit and enforce modes, resetting to disabled when disallowed.
 func (c *Controller) AllowConfiguration(allowed bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -153,6 +160,7 @@ func (c *Controller) AllowConfiguration(allowed bool) {
 	}
 }
 
+// OnConfigMap applies valid configuration, disables on a missing key and retains policy on errors.
 func (c *Controller) OnConfigMap(cm *corev1.ConfigMap, key string) {
 	data, exists := cm.Data[key]
 	if !exists {
@@ -168,12 +176,14 @@ func (c *Controller) OnConfigMap(cm *corev1.ConfigMap, key string) {
 	}
 }
 
+// OnConfigMapDeleted disables mitigation when its configuration disappears.
 func (c *Controller) OnConfigMapDeleted() {
 	if err := c.SetConfig(Default()); err != nil {
 		klog.ErrorS(err, "disable SWIFT mitigation")
 	}
 }
 
+// Runs a write only in enforce mode at the expected revision, blocking config changes until it returns.
 func (c *Controller) write(revision uint64, fn func() error) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -183,6 +193,7 @@ func (c *Controller) write(revision uint64, fn func() error) error {
 	return fn()
 }
 
+// Run waits for informer caches and processes queued Pods with configuration-aware retries.
 func (c *Controller) Run(ctx context.Context) error {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
@@ -231,6 +242,7 @@ func (c *Controller) Run(ctx context.Context) error {
 	}
 }
 
+// Screens cached candidates and evaluates rescue against live observations.
 func (c *Controller) reconcile(ctx context.Context, key podKey, cfg Config, revision uint64) (bool, error) {
 	if cfg.Mode == Disabled {
 		return false, nil

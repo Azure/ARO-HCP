@@ -18,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// Reports whether the Node exists, is Ready and is not terminating.
 func ready(node *corev1.Node) bool {
 	if node == nil || node.DeletionTimestamp != nil {
 		return false

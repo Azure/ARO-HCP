@@ -23,6 +23,7 @@ import (
 
 const ownershipLabel = "node-mitigation.aro-hcp.azure.com/managed-by"
 
+// Builds a UID- and resourceVersion-guarded ownership patch, rejecting another mitigation owner.
 func ownershipPatch(meta metav1.ObjectMeta) ([]byte, error) {
 	if owner := meta.Labels[ownershipLabel]; owner != "" && owner != ControllerName {
 		return nil, fmt.Errorf("resource has another mitigation owner")

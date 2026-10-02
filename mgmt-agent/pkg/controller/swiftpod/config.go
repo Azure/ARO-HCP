@@ -56,8 +56,10 @@ type Config struct {
 	Workload                WorkloadPolicy  `json:"workload"`
 }
 
+// Default returns a disabled mitigation configuration.
 func Default() Config { return Config{Mode: Disabled} }
 
+// Parse decodes and validates configuration, rejecting unknown fields and oversized input.
 func Parse(data []byte) (Config, error) {
 	if len(data) > 64*1024 {
 		return Config{}, fmt.Errorf("SWIFT configuration exceeds 64 KiB")
@@ -69,6 +71,7 @@ func Parse(data []byte) (Config, error) {
 	return cfg, cfg.Validate()
 }
 
+// Validate checks the mode and requires explicit safety settings when mitigation is active.
 func (cfg Config) Validate() error {
 	if cfg.Mode != Disabled && cfg.Mode != Audit && cfg.Mode != Enforce {
 		return fmt.Errorf("unknown SWIFT mitigation mode %q", cfg.Mode)
@@ -98,6 +101,7 @@ func (cfg Config) Validate() error {
 	return nil
 }
 
+// Returns the configured retry interval, falling back to 30 seconds when unset or invalid.
 func (cfg Config) retryInterval() time.Duration {
 	if cfg.RetryInterval.Duration > 0 {
 		return cfg.RetryInterval.Duration

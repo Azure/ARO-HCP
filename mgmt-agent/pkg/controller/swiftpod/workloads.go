@@ -33,10 +33,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/kuberesources"
 )
 
+// Reports whether the Pod has succeeded or failed.
 func terminal(pod *corev1.Pod) bool {
 	return pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed
 }
 
+// Reports whether the Pod is Ready and not terminating.
 func podReady(pod *corev1.Pod) bool {
 	if pod.DeletionTimestamp != nil {
 		return false
@@ -49,6 +51,7 @@ func podReady(pod *corev1.Pod) bool {
 	return false
 }
 
+// Checks readiness and the minimum Ready duration.
 func podAvailable(pod *corev1.Pod, minReadySeconds int32, now time.Time) bool {
 	if !podReady(pod) {
 		return false
@@ -65,11 +68,13 @@ func podAvailable(pod *corev1.Pod, minReadySeconds int32, now time.Time) bool {
 	return false
 }
 
+// Reports whether the labels match the selector.
 func selected(selector metav1.LabelSelector, values map[string]string) bool {
 	parsed, err := metav1.LabelSelectorAsSelector(&selector)
 	return err == nil && parsed.Matches(labels.Set(values))
 }
 
+// Rejects Pod features this mitigation cannot safely handle.
 func supportedPod(pod *corev1.Pod) error {
 	if pod.Annotations[corev1.MirrorPodAnnotationKey] != "" || pod.Spec.HostNetwork ||
 		pod.Spec.HostPID || pod.Spec.HostIPC || len(pod.Spec.EphemeralContainers) > 0 {
@@ -105,13 +110,14 @@ func supportedPod(pod *corev1.Pod) error {
 	return nil
 }
 
+// Removes finite NoExecute tolerations, which cannot qualify a placement destination.
 func placementTolerations(tolerations []corev1.Toleration) []corev1.Toleration {
-	// Finite NoExecute tolerations never admit a destination in tolerates().
 	return slices.DeleteFunc(slices.Clone(tolerations), func(t corev1.Toleration) bool {
 		return t.Effect == corev1.TaintEffectNoExecute && t.TolerationSeconds != nil
 	})
 }
 
+// Normalizes known admission-added tolerations for comparison with the ReplicaSet template.
 func templateTolerations(spec corev1.PodSpec) []corev1.Toleration {
 	result := placementTolerations(spec.Tolerations)
 	demand := requests(&corev1.Pod{Spec: spec}, resourcehelper.PodResourcesOptions{})
@@ -132,6 +138,7 @@ func templateTolerations(spec corev1.PodSpec) []corev1.Toleration {
 	})
 }
 
+// Checks that the replacement template fits the admitted Pod's scheduling and resource assumptions.
 func validateTemplate(pod *corev1.Pod, template *corev1.PodTemplateSpec) error {
 	replacement := &corev1.Pod{ObjectMeta: template.ObjectMeta, Spec: template.Spec}
 	if err := supportedPod(replacement); err != nil {
@@ -174,7 +181,7 @@ func validateTemplate(pod *corev1.Pod, template *corev1.PodTemplateSpec) error {
 	return nil
 }
 
-// workload verifies the recreating owner chain, not a pod name or labels alone.
+// Verifies the live Pod-to-Deployment owner chain and requires a supported router matching the workload policy.
 func workload(ctx context.Context, client kubernetes.Interface, pod *corev1.Pod, cfg Config) (*appsv1.Deployment, *WorkloadPolicy, error) {
 	if pod.Labels["app"] != "private-router" {
 		return nil, nil, fmt.Errorf("not a private-router Pod")
@@ -243,6 +250,7 @@ func workload(ctx context.Context, client kubernetes.Interface, pod *corev1.Pod,
 	return nil, nil, fmt.Errorf("no matching workload policy")
 }
 
+// Verifies the workload and requires enough available replicas on healthy, non-excluded Nodes.
 func (c *Controller) availableWorkload(ctx context.Context, pod *corev1.Pod, cfg Config, snapshot ClusterSnapshot, excluded map[string]bool) (*appsv1.Deployment, error) {
 	deployment, policy, err := workload(ctx, c.kube, pod, cfg)
 	if err != nil {

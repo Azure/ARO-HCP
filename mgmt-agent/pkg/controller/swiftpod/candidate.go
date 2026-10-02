@@ -23,8 +23,8 @@ import (
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
 )
 
-// stalled requires a sustained, fresh failure span for an initial
-// sandbox. Event counts are not evidence of elapsed time or separate failures.
+// Requires sustained, fresh SWIFT failure evidence for a Pod's initial sandbox.
+// Event counts are not evidence of elapsed time or separate failures.
 func stalled(pod *corev1.Pod, events []*corev1.Event, now time.Time) bool {
 	if !detectors.PodRequestsSwiftNIC(pod) || pod.UID == "" ||
 		pod.Spec.NodeName == "" || pod.Spec.HostNetwork || pod.DeletionTimestamp != nil {

@@ -51,6 +51,7 @@ type budget struct {
 	configMap *corev1.ConfigMap
 }
 
+// Reads and validates durable eviction accounting, pruning expired records in memory.
 func (c *Controller) readBudget(ctx context.Context, cfg Config) (*budget, error) {
 	cm, err := c.kube.CoreV1().ConfigMaps(c.namespace).Get(ctx, BudgetName, metav1.GetOptions{})
 	if err != nil {
@@ -93,6 +94,7 @@ func (c *Controller) readBudget(ctx context.Context, cfg Config) (*budget, error
 	return b, nil
 }
 
+// Checks accounting capacity, cooldowns and per-workload and per-Node eviction limits.
 func evictionAllowance(b *budget, cfg Config, workload, node types.UID, now time.Time) error {
 	if len(b.Evictions) >= maxRecords {
 		return fmt.Errorf("eviction accounting storage limit reached")
@@ -122,6 +124,7 @@ func evictionAllowance(b *budget, cfg Config, workload, node types.UID, now time
 	return nil
 }
 
+// Persists accounting with resourceVersion conflict protection.
 // The caller holds the configuration fence through recording and submission.
 func (c *Controller) saveBudget(ctx context.Context, b *budget) error {
 	data, err := json.Marshal(b.ledger)
