@@ -970,6 +970,19 @@ func registerIngressCertificateController() controllerconfig.ControllerRegistrat
 	}
 }
 
+func registerTLSCertificatesController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateTLSCertificatesController, true),
+	}
+}
+
+func instantiateTLSCertificatesController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterazureresources.NewTLSCertificatesController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers, managementClusterLister, controllerContext.BackendIdentityAzureClients), nil
+}
+
 func instantiateIngressCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
 	return clusterresources.NewIngressCertificateController(
@@ -1247,6 +1260,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterplacement.PendingCleanupControllerName)] = registerPendingCleanupController()
 	registry[strings.ToLower(clusterbackups.BackupScheduleControllerName)] = registerBackupScheduleController()
 	registry[strings.ToLower(clusterresources.IngressCertificateControllerName)] = registerIngressCertificateController()
+	registry[strings.ToLower(clusterazureresources.TLSCertificatesControllerName)] = registerTLSCertificatesController()
 	registry[strings.ToLower(clusteridentity.FetchMSIIdentitiesInfoControllerName)] = registerFetchMSIIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)] = registerFetchDataPlaneOperatorsManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()

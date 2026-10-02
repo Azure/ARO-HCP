@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	ocmv1 "open-cluster-management.io/api/work/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -123,8 +122,8 @@ func TestIngressCertificateContentsAndIdempotence(test *testing.T) {
 	require.Len(test, reads, 2)
 	for _, desire := range applies {
 		require.Equal(test, kubeapplierapi.ApplyDesireTypeServerSideApply, desire.Spec.Type)
-		require.NotNil(test, desire.Spec.ServerSideApply.FieldManager)
-		require.Equal(test, ocmv1.DefaultFieldManager, *desire.Spec.ServerSideApply.FieldManager)
+		require.Nil(test, desire.Spec.ServerSideApply.FieldManager)
+		require.NotEqual(test, "open-cluster-management-policies", desire.Spec.TargetItem.Namespace)
 		require.Equal(test, fixture.managementCluster.ResourceID, desire.Spec.ManagementCluster)
 		require.Equal(test, strings.ToLower(fixture.managementCluster.ResourceID.String()), desire.PartitionKey)
 		require.Equal(test, IngressCertificateControllerName, desire.Tags[kubeapplierapi.TagControllerName])
