@@ -485,10 +485,10 @@ type AzureResources struct {
 	DenyAssignments DenyAssignmentReferences `json:"denyAssignments,omitempty"`
 	// KubeAPIServerCertificate tracks the kube-apiserver TLS certificate created by Cluster Service.
 	// Written by: TLSCertificates
-	KubeAPIServerCertificate TLSCertificate `json:"kubeAPIServerCertificate,omitempty"`
+	KubeAPIServerCertificate *TLSCertificate `json:"kubeAPIServerCertificate,omitempty"`
 	// IngressCertificate tracks the ingress TLS certificate created by Cluster Service.
 	// Written by: TLSCertificates
-	IngressCertificate TLSCertificate `json:"ingressCertificate,omitempty"`
+	IngressCertificate *TLSCertificate `json:"ingressCertificate,omitempty"`
 	// ManagedResourceGroup tracks the managed resource group for the cluster.
 	// Written by: EnsureManagedResourceGroup
 	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`

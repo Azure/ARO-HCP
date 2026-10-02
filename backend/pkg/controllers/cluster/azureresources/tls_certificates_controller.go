@@ -105,10 +105,10 @@ func observeTLSCertificate(ctx context.Context, client tlsCertificatesClient, na
 func (syncer *tlsCertificatesSyncer) NeedsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	// TODO: If the management cluster where the HCP is placed changes, remove the old certificate references and create new ones for the new management cluster.
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate != (coreapi.TLSCertificate{}) || serviceProviderCluster.Status.AzureResources.IngressCertificate != (coreapi.TLSCertificate{})
+		return serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate != nil || serviceProviderCluster.Status.AzureResources.IngressCertificate != nil
 	}
 	return cluster.ServiceProviderProperties.ClusterServiceID != nil &&
-		(serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate.AzureReference == (coreapi.AzureTLSCertificateReference{}) || serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference == (coreapi.AzureTLSCertificateReference{}))
+		(serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate == nil || serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate.AzureReference == (coreapi.AzureTLSCertificateReference{}) || serviceProviderCluster.Status.AzureResources.IngressCertificate == nil || serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference == (coreapi.AzureTLSCertificateReference{}))
 }
 
 func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -131,8 +131,8 @@ func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controlle
 	}
 	replacement := existing.DeepCopy()
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		replacement.Status.AzureResources.KubeAPIServerCertificate = coreapi.TLSCertificate{}
-		replacement.Status.AzureResources.IngressCertificate = coreapi.TLSCertificate{}
+		replacement.Status.AzureResources.KubeAPIServerCertificate = nil
+		replacement.Status.AzureResources.IngressCertificate = nil
 		return syncer.persist(ctx, key, existing, replacement)
 	}
 	managementClusterID := existing.Status.ManagementClusterResourceID
@@ -153,13 +153,19 @@ func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controlle
 	if vaultURL == "" {
 		return utils.TrackError(fmt.Errorf("management cluster has no hosted clusters secrets Key Vault URL"))
 	}
+	if replacement.Status.AzureResources.KubeAPIServerCertificate == nil {
+		replacement.Status.AzureResources.KubeAPIServerCertificate = &coreapi.TLSCertificate{}
+	}
+	if replacement.Status.AzureResources.IngressCertificate == nil {
+		replacement.Status.AzureResources.IngressCertificate = &coreapi.TLSCertificate{}
+	}
 	clusterServiceID := cluster.ServiceProviderProperties.ClusterServiceID.ID()
 	certificates := []struct {
 		name  string
 		state *coreapi.TLSCertificate
 	}{
-		{"kube-apiserver-tls-cert-" + clusterServiceID, &replacement.Status.AzureResources.KubeAPIServerCertificate},
-		{"ingress-tls-cert-" + clusterServiceID, &replacement.Status.AzureResources.IngressCertificate},
+		{"kube-apiserver-tls-cert-" + clusterServiceID, replacement.Status.AzureResources.KubeAPIServerCertificate},
+		{"ingress-tls-cert-" + clusterServiceID, replacement.Status.AzureResources.IngressCertificate},
 	}
 	for _, certificate := range certificates {
 		if certificate.state.AzureReference == (coreapi.AzureTLSCertificateReference{}) {

@@ -282,7 +282,7 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 			"managedResourceGroupID", mrgID.String())
 		return false, nil
 	}
-	if spc.Status.AzureResources.KubeAPIServerCertificate != (coreapi.TLSCertificate{}) || spc.Status.AzureResources.IngressCertificate != (coreapi.TLSCertificate{}) {
+	if spc.Status.AzureResources.KubeAPIServerCertificate != nil || spc.Status.AzureResources.IngressCertificate != nil {
 		logger.Info("waiting for TLS certificate references to be cleared before removing the ServiceProviderCluster document")
 		return false, nil
 	}
