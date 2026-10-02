@@ -493,6 +493,7 @@ record-services-override: $(YQ) $(ORAS)
 	  /tmp/_kube-applier-override.yaml \
 	  /tmp/_fleet-override.yaml \
 	  /tmp/_aro-hcp-exporter-override.yaml \
+	  $(if $(PERS_EXTRA_OVERRIDE_FILE),"$(PERS_EXTRA_OVERRIDE_FILE)") \
 	  > $(PERS_OVERRIDE_FILE)
 .PHONY: record-services-override
 
@@ -500,15 +501,14 @@ record-services-override: $(YQ) $(ORAS)
 # Query ACR for the latest image digest of each service (no build/push)
 #
 latest-services-override: $(YQ)
-	$(MAKE) -C frontend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml &
-	$(MAKE) -C backend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml &
-	$(MAKE) -C admin record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml &
-	$(MAKE) -C sessiongate record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml &
-	$(MAKE) -C mgmt-agent record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml &
-	$(MAKE) -C kube-applier record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml &
-	$(MAKE) -C fleet record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml &
-	$(MAKE) -C tooling/aro-hcp-exporter record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_aro-hcp-exporter-override.yaml &
-	wait
+	$(MAKE) -C frontend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml
+	$(MAKE) -C backend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml
+	$(MAKE) -C admin record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml
+	$(MAKE) -C sessiongate record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml
+	$(MAKE) -C mgmt-agent record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml
+	$(MAKE) -C kube-applier record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml
+	$(MAKE) -C fleet record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml
+	$(MAKE) -C tooling/aro-hcp-exporter record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_aro-hcp-exporter-override.yaml
 	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
 	  /tmp/_frontend-override.yaml \
 	  /tmp/_backend-override.yaml \
@@ -518,6 +518,7 @@ latest-services-override: $(YQ)
 	  /tmp/_kube-applier-override.yaml \
 	  /tmp/_fleet-override.yaml \
 	  /tmp/_aro-hcp-exporter-override.yaml \
+	  $(if $(PERS_EXTRA_OVERRIDE_FILE),"$(PERS_EXTRA_OVERRIDE_FILE)") \
 	  > $(PERS_OVERRIDE_FILE)
 .PHONY: latest-services-override
 
@@ -544,6 +545,20 @@ personal-dev-env:
 	$(error personal-dev-env: DEPLOY_ENV must be set to "pers" or "swft", not "$(DEPLOY_ENV)")
 endif
 .PHONY: personal-dev-env
+
+LEASED_INFRA_IDENTITY_DIR ?= $(abspath _artifacts/leased-infra-identities)
+
+prepare-leased-infra-identities: $(TEMPLATIZE) $(YQ) $(JQ)
+	DEPLOY_ENV="$(DEPLOY_ENV)" CONFIG_FILE="$(CONFIG_FILE)" \
+		TEMPLATIZE="$(TEMPLATIZE)" YQ="$(YQ)" JQ="$(JQ)" \
+		LEASED_INFRA_IDENTITY_PREFIX="$(LEASED_INFRA_IDENTITY_PREFIX)" \
+		LEASED_INFRA_IDENTITY_DIR="$(LEASED_INFRA_IDENTITY_DIR)" \
+		bash hack/prepare-leased-infra-identities.sh
+.PHONY: prepare-leased-infra-identities
+
+personal-dev-env-leased-identities: prepare-leased-infra-identities
+	$(MAKE) personal-dev-env STEP_CACHE_DIR="" PERS_EXTRA_OVERRIDE_FILE="$(LEASED_INFRA_IDENTITY_DIR)/config-override.yaml"
+.PHONY: personal-dev-env-leased-identities
 
 #
 # Dev CI topology local run

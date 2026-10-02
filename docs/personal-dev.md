@@ -56,6 +56,11 @@ The creation process can take up to 20 minutes.
 
 This command creates a personal DEV environment with a unique name that is derived from your username. It builds and pushes all in-repo service images (frontend, backend, admin, sessiongate) from your local checkout and deploys them along with all required infrastructure components.
 
+To test pre-created infrastructure identities instead, follow the
+[leased identity testing procedure](ci/infrastructure-identity-deployment.md#personal-dev-testing).
+`make personal-dev-env-leased-identities` opts into that mode with two management
+stamps; the normal `personal-dev-env` target remains unchanged.
+
 > [!NOTE] Update Personal DEV Environment 
 > This command can be used to update your personal DEV environment as well. It will apply the latest changes to the infrastructure and services. Steps are cached, so it's quick and safe to re-run the entire environment setup.
 > If you only want to update individual aspects of the environment, follow the [partial setup](#partial-personal-dev-environment-setup) instructions.
