@@ -1182,12 +1182,12 @@ swiftRecorder:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:63ae3f3c05a90670fa3c4f93204a33247bc4c250cd1e2177e5a9123ba86fa7f2
+    digest: sha256:9d772e6ec41a99a9807e8a579010b9c2c0824d40d418e7dd7643782f09fab8fe
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   enableInstantAccess: true
   hypershiftPlugin:
-    digest: sha256:b5ef80491e5455c43e0038853b38a4ccc730d4aa6bfaed0d4ef6e4ec532a7431
+    digest: sha256:894c2b85eb6db3381e03cd9cc5b84dc518ba043e5c0f331a5eeaebfc3f806ffb
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
