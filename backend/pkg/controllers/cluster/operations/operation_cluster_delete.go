@@ -396,7 +396,7 @@ func countDescendants(ctx context.Context, crud cosmosstorageutils.UntypedResour
 }
 
 func (c *operationClusterDelete) hostedClusterDeletionStatus(ctx context.Context, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cached HostedCluster: %w", err)
 	}

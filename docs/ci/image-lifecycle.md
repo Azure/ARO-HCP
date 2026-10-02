@@ -104,6 +104,59 @@ Tagging aro-hcp/aro-hcp-ci-images:aro-hcp-e2e-base-ci into pipeline:root
 
 That line means "import the shared CI build root into this specific job namespace."
 
+### Nested Podman Toolchain
+
+`dev-infrastructure/openshift-ci/Dockerfile.nested-podman` defines a
+source-free nested Podman toolchain. Its publication and adoption require
+companion configuration in `openshift/release`; adding the Dockerfile alone
+does not change the existing `nested-podman-src` lifecycle.
+
+The intended split follows the shared build-root pattern:
+
+- **Shared toolchain:** `aro-hcp/aro-hcp-ci-images:aro-hcp-nested-podman-ci`,
+  built from `ci/nested-podman:latest` with the additional ARO HCP tools.
+- **Job-local source:** `pipeline:nested-podman-src`, layering the exact
+  source revision under test onto the shared toolchain. This image remains
+  job-local so PR tests never run against source from an earlier postsubmit.
+
+Roll out the companion configuration in this order:
+
+1. Extend `Azure-ARO-HCP-main__baseimage-generator.yaml` to import
+   `ci/nested-podman:latest` and build the new Dockerfile with
+   `from: nested-podman` and `to: aro-hcp-nested-podman-ci`. Do not use
+   `from: src` for this image: that would replace the nested Podman base.
+   Include the new Dockerfile in image-job and smoke-test change triggers.
+   Validate the candidate image's tools, non-root Go installation, and nested
+   container execution before adoption.
+2. Promote the new output into the existing `aro-hcp/aro-hcp-ci-images`
+   ImageStream using the generator's postsubmit promotion. Confirm that the
+   tag is available before switching consumers.
+3. In `Azure-ARO-HCP-main.yaml`, replace the upstream nested Podman input
+   with the promoted ARO HCP toolchain. Reduce `nested-podman-src` to:
+
+   ```dockerfile
+   FROM nested-podman
+   COPY --chown=1000:0 /src /opt/app-root/src/github.com/Azure
+   WORKDIR /opt/app-root/src/github.com/Azure/ARO-HCP
+   ```
+
+   The shared image defaults to UID 1000. The checkout must be owned by that
+   user so integration jobs can create `bin/envtest` via `make envtest-setup`
+   and other repository-local build outputs without switching to root.
+   Keep the existing `src` input mapping and the jobs' `nested_podman`
+   settings and capabilities. Run integration and mega-linter against this
+   configuration before adopting it.
+
+Package downloads then occur during toolchain publication rather than every
+source-image build. A failed toolchain build must not replace the last
+successfully promoted image. The producer still needs periodic or deliberate
+rebuilds to pick up upstream base-image and package updates; path-based
+triggers alone do not detect them. Reverting the consumer configuration to
+its previous input and inline installation restores the old lifecycle.
+
+Local build and smoke-test commands are documented in
+[the image directory](../../dev-infrastructure/openshift-ci/README.md#nested-podman-base-image).
+
 ### Shared CI Test Runner Image
 
 `aro-hcp-e2e-tests` has a separate but related lifecycle.

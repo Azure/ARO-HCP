@@ -50,7 +50,7 @@ import (
 func TestHypershiftHostedClusterOperationState(t *testing.T) {
 	t.Parallel()
 
-	// From platformImageContentSources in operation_cluster_update_state_calculation.go.
+	// From platformImageContentSources in internal/utils/apihelpers/imagecontentsources.go.
 	testClusterUpdatePlatformImageContentSource := "quay.io/openshift-release-dev/ocp-release"
 
 	fixture := operationtesting.NewClusterTestFixture()
@@ -1291,7 +1291,7 @@ func TestHypershiftHostedClusterAutoscalingSpecMatchesDesired(t *testing.T) {
 func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	// From platformImageContentSources in operation_cluster_update_state_calculation.go.
+	// From platformImageContentSources in internal/utils/apihelpers/imagecontentsources.go.
 	testClusterUpdatePlatformImageContentSource := "quay.io/openshift-release-dev/ocp-release"
 
 	controller := &operationClusterUpdate{}

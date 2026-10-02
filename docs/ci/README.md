@@ -233,6 +233,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 ## Source Of Truth
 
 - **This repository** holds product code, test code, EV2 wiring, and the local implementation of cleanup and identity-leasing behavior.
+- **GitHub Actions CodeQL** is defined in `.github/workflows/codeql-analysis.yml`. Python runs once; Go builds every `go.work` module across six jobs with distinct code-scanning categories. When changing the partition, check that every module is assigned exactly once and that each shard uploads an analysis.
 - **`openshift/release`** holds Prow job configuration, ci-operator configuration, and step-registry workflows for ARO HCP CI.
 - **Generated Prow job manifests** under `ci-operator/jobs/Azure/ARO-HCP/` in `openshift/release` are outputs, not hand-edited source.
 

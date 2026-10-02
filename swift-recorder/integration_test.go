@@ -377,14 +377,20 @@ func runRecorderIntegration(t *testing.T) {
 		lines := bytes.Split(data, []byte("\n"))
 		for _, line := range lines[:len(lines)-1] { // Ignore a write still in progress.
 			var entry struct {
-				Record *integrationRecord `json:"record"`
+				Message string          `json:"msg"`
+				Record  json.RawMessage `json:"record"`
 			}
 			if err := json.Unmarshal(line, &entry); err != nil {
 				t.Fatalf("non-JSON recorder output: %s (%v)", line, err)
 			}
-			if entry.Record != nil {
-				records = append(records, *entry.Record)
+			if entry.Message != "SWIFT startup record" {
+				continue
 			}
+			var record integrationRecord
+			if err := json.Unmarshal(entry.Record, &record); err != nil {
+				t.Fatalf("invalid pod record: %s (%v)", line, err)
+			}
+			records = append(records, record)
 		}
 		return records
 	}

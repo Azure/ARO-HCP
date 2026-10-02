@@ -3,18 +3,18 @@ rule_files:
 evaluation_interval: 1m
 tests:
 # ========================================
-# Cluster create: threshold 1200s (20 min)
+# Cluster create: threshold 3600s (60 min) with a 5-minute for clause
 # ========================================
-# Test: fires when cluster create exceeds 20 minutes
+# Test: fires after cluster create exceeds 60 minutes for five minutes
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
-    values: "0+0x25"
+    values: "0+0x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
-    values: "1+0x25"
+    values: "1+0x70"
   alert_rule_test:
-  # At 21m, time()=1260 > 1200 threshold
-  - eval_time: 21m
+  # At 66m, the expression has been true since 61m and the 5-minute for has elapsed.
+  - eval_time: 66m
     alertname: BackendAsyncOperationClusterCreateStuck
     exp_alerts:
     - exp_labels:
@@ -30,44 +30,56 @@ tests:
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/1/cluster/a'
         summary: 'Cluster create for /sub/1/cluster/a stuck in provisioning'
-        description: 'Cluster create operation for /sub/1/cluster/a has been running for over 20 minutes and is currently in provisioning phase (e2e timeout: ClusterCreationTimeout).'
+        description: 'Cluster create operation for /sub/1/cluster/a has been running for over 60 minutes and is currently in provisioning phase.'
         runbook_url: TBD
-# Test: does not fire when cluster create is under 20 minutes
+# Test: does not fire before cluster create reaches the 60-minute threshold
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
-    values: "0+0x20"
+    values: "0+0x60"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
-    values: "1+0x20"
+    values: "1+0x60"
   alert_rule_test:
-  # At 19m, time()=1140 < 1200 threshold
-  - eval_time: 19m
+  # At 59m, time()=3540 < 3600 threshold
+  - eval_time: 59m
+    alertname: BackendAsyncOperationClusterCreateStuck
+    exp_alerts: []
+# Test: does not fire until the condition has persisted for five minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/for", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x65"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/for", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x65"
+  alert_rule_test:
+  # At 64m, the expression has been true for only four minutes.
+  - eval_time: 64m
     alertname: BackendAsyncOperationClusterCreateStuck
     exp_alerts: []
 # Test: does not fire when cluster create has succeeded
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "0+0x25"
+    values: "0+0x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "1+0x25"
+    values: "1+0x70"
   alert_rule_test:
-  - eval_time: 21m
+  - eval_time: 66m
     alertname: BackendAsyncOperationClusterCreateStuck
     exp_alerts: []
 # Test: deduplicates across prometheus replicas (only one alert instance)
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
-    values: "0+0x25"
+    values: "0+0x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
-    values: "1+0x25"
+    values: "1+0x70"
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
-    values: "0+0x25"
+    values: "0+0x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
-    values: "1+0x25"
+    values: "1+0x70"
   alert_rule_test:
-  - eval_time: 21m
+  - eval_time: 66m
     alertname: BackendAsyncOperationClusterCreateStuck
     exp_alerts:
     - exp_labels:
@@ -83,7 +95,7 @@ tests:
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/1/cluster/d'
         summary: 'Cluster create for /sub/1/cluster/d stuck in provisioning'
-        description: 'Cluster create operation for /sub/1/cluster/d has been running for over 20 minutes and is currently in provisioning phase (e2e timeout: ClusterCreationTimeout).'
+        description: 'Cluster create operation for /sub/1/cluster/d has been running for over 60 minutes and is currently in provisioning phase.'
         runbook_url: TBD
 # ========================================
 # Cluster update: threshold 2700s (45 min)
@@ -672,11 +684,11 @@ tests:
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/a", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
-    values: "0+0x25"
+    values: "0+0x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/a", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
-    values: "1+0x25"
+    values: "1+0x70"
   alert_rule_test:
-  - eval_time: 21m
+  - eval_time: 66m
     alertname: BackendAsyncOperationClusterCreateStuck
     exp_alerts:
     - exp_labels:
@@ -692,7 +704,7 @@ tests:
         exclude_internal_subscriptions: "true"
       exp_annotations:
         summary: "Cluster create for /sub/e2e/cluster/a stuck in provisioning"
-        description: "Cluster create operation for /sub/e2e/cluster/a has been running for over 20 minutes and is currently in provisioning phase (e2e timeout: ClusterCreationTimeout)."
+        description: "Cluster create operation for /sub/e2e/cluster/a has been running for over 60 minutes and is currently in provisioning phase."
         runbook_url: TBD
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/e2e/cluster/a'
 # Test: backstop fires for e2e subscription (filtering is at generator level, not YAML)
