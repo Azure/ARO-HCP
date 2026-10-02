@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-var _ = Describe("Customer", func() {
+var _ = Describe("ARO-HCP", func() {
 	DescribeTable("should serve a valid default ingress certificate through private ingress with OCP "+framework.DefaultOpenshiftChannelGroup()+" channel",
 		labels.MIContainers(1),
 		func(ctx context.Context, version string) {
