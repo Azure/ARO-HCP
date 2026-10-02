@@ -313,6 +313,8 @@ other cleanup programs are outside this ARM audit path.
 
 For `cleanup-sweeper` `rg-ordered`, candidate resource groups are chosen using `tooling/cleanup-sweeper/resourcegroups.policy.yaml`. Discovery treats the `createdAt` tag (RFC3339 timestamp on the resource group) as required for any `action: delete` rule: groups without a parseable tag are not candidates.
 
+Managed resource groups of a candidate are deleted first, because deleting the candidate also deletes the resources that manage them. If any resource group in that managed subtree is excluded, or would be selected by a `skip` rule once its parent is gone, the candidate is skipped as well.
+
 The policy excludes long-lived slot-managed identity containers and
 infrastructure-identity bundle resource groups. Their names start with
 `aro-hcp-msi-container-` and `aro-hcp-dev-infrastructure-identities-`,
