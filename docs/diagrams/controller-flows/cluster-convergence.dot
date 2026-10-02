@@ -28,7 +28,7 @@ digraph cluster_convergence {
   cs -> ingress [label="confirmed cluster ID"];
   cs -> certificates [label="CS creates KAS + ingress certs"];
   place -> certificates [label="hosted-cluster secrets vault"];
-  certificates -> ingress [label="IngressCertificate.AzureReference set"];
+  certificates -> ingress [label="AzureResources.IngressCertificate\nAzureReference set"];
   place -> ingress [label="observed management cluster"];
   props -> ingress [label="HostedCluster namespace"];
   ingress -> apply [label="SPC + SecretSync ApplyDesires"];

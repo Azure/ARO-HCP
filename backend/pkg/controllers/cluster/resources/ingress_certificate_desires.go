@@ -48,7 +48,7 @@ func buildIngressCertificateDesires(
 	if serviceTenantID == "" {
 		return nil, nil, fmt.Errorf("service tenant ID is required for ingress certificates")
 	}
-	vaultURL, err := url.Parse(certificate.KVURL)
+	vaultURL, err := url.Parse(certificate.KeyVaultURL)
 	if err != nil || vaultURL.Scheme != "https" || vaultURL.Hostname() == "" {
 		return nil, nil, fmt.Errorf("invalid hosted clusters secrets Key Vault URL")
 	}

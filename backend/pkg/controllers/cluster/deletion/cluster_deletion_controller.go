@@ -261,7 +261,7 @@ func (c *clusterDeletionController) deletePreconditionTLSCertificatesCleared(ctx
 	if err != nil {
 		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster for TLS certificate deletion gate: %w", err))
 	}
-	if spc.Status.KubeAPIServerCertificate != (coreapi.TLSCertificate{}) || spc.Status.IngressCertificate != (coreapi.TLSCertificate{}) {
+	if spc.Status.AzureResources.KubeAPIServerCertificate != (coreapi.TLSCertificate{}) || spc.Status.AzureResources.IngressCertificate != (coreapi.TLSCertificate{}) {
 		utils.LoggerFromContext(ctx).Info("waiting for TLS certificate references to be cleared before deleting the cluster")
 		return false, nil
 	}
