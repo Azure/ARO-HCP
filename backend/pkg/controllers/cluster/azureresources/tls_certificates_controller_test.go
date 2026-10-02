@@ -41,7 +41,7 @@ import (
 )
 
 func expectedTLSCertificate(name string, confirmed bool) *coreapi.TLSCertificate {
-	reference := coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://certificates.vault.azure.net/")), CertificateName: name}
+	reference := &coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://certificates.vault.azure.net/")), CertificateName: name}
 	if confirmed {
 		return &coreapi.TLSCertificate{AzureReference: reference}
 	}

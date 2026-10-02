@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package resources
+package k8sresources
 
 import (
 	"context"
@@ -48,8 +48,8 @@ type certificateFixture struct {
 	client            *kubeappliercosmosstoragetesting.MockKubeApplierDBClient
 }
 
-func ingressTestReference() coreapi.AzureTLSCertificateReference {
-	return coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://cluster-secrets.vault.azure.net/")), CertificateName: "ingress-tls-cert-abc123"}
+func ingressTestReference() *coreapi.AzureTLSCertificateReference {
+	return &coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://cluster-secrets.vault.azure.net/")), CertificateName: "ingress-tls-cert-abc123"}
 }
 
 func newCertificateFixture(test *testing.T) *certificateFixture {
@@ -285,14 +285,14 @@ func TestIngressCertificateNeedsWork(test *testing.T) {
 			fixture := newCertificateFixture(test)
 			fixture.serviceProvider.Status.HostedClusterNamespace = namespace
 			fixture.serviceProvider.Status.AzureResources.IngressCertificate = certificate
-			require.Equal(test, namespace != "" && certificate != nil && certificate.AzureReference != (coreapi.AzureTLSCertificateReference{}), fixture.syncer.NeedsWork(fixture.serviceProvider))
+			require.Equal(test, namespace != "" && certificate != nil && certificate.AzureReference != nil, fixture.syncer.NeedsWork(fixture.serviceProvider))
 		}
 	}
 }
 
 func TestIngressCertificateUsesObservedReference(test *testing.T) {
 	fixture := newCertificateFixture(test)
-	fixture.serviceProvider.Status.AzureResources.IngressCertificate.AzureReference = coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://observed-vault.vault.azure.net/")), CertificateName: "observed-certificate"}
+	fixture.serviceProvider.Status.AzureResources.IngressCertificate.AzureReference = &coreapi.AzureTLSCertificateReference{KeyVaultURL: metadataapi.Must(url.Parse("https://observed-vault.vault.azure.net/")), CertificateName: "observed-certificate"}
 	require.NoError(test, fixture.syncer.SyncOnce(test.Context(), fixture.key))
 	for _, desire := range fixture.applies(test) {
 		require.Contains(test, string(desire.Spec.ServerSideApply.KubeContent.Raw), "observed-certificate")

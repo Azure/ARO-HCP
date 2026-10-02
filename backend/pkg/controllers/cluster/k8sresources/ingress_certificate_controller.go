@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package resources
+package k8sresources
 
 import (
 	"context"
@@ -148,7 +148,7 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 }
 
 func (syncer *ingressCertificateSyncer) NeedsWork(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	return serviceProviderCluster.Status.AzureResources.IngressCertificate != nil && serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference != (coreapi.AzureTLSCertificateReference{}) && serviceProviderCluster.Status.HostedClusterNamespace != ""
+	return serviceProviderCluster.Status.AzureResources.IngressCertificate != nil && serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference != nil && serviceProviderCluster.Status.HostedClusterNamespace != ""
 }
 
 func (syncer *ingressCertificateSyncer) teardown(

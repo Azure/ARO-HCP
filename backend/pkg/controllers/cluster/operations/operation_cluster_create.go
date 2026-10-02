@@ -498,9 +498,9 @@ func (c *operationClusterCreate) tlsCertificatesOperationStatus(ctx context.Cont
 		serviceProviderCluster.Status.AzureResources.KubeAPIServerCertificate,
 		serviceProviderCluster.Status.AzureResources.IngressCertificate,
 	} {
-		if certificate == nil || certificate.AzureReference.KeyVaultURL == nil ||
+		if certificate == nil || certificate.AzureReference == nil || certificate.AzureReference.KeyVaultURL == nil ||
 			certificate.AzureReference.KeyVaultURL.Scheme != "https" || certificate.AzureReference.KeyVaultURL.Hostname() == "" ||
-			certificate.AzureReference.CertificateName == "" || certificate.PendingReference != (coreapi.AzureTLSCertificateReference{}) {
+			certificate.AzureReference.CertificateName == "" || certificate.PendingReference != nil {
 			return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "TLS certificates not yet confirmed"), nil
 		}
 	}
