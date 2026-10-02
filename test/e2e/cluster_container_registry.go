@@ -266,6 +266,8 @@ func verifyACRPullFromNodes(ctx context.Context, adminRESTConfig *rest.Config, n
 // in test/util/framework/constants.go and CreateClusterCustomerResources20261001, which this test
 // does not control).
 var _ = Describe("Customer", func() {
+	timeBombDeadline := framework.V20261001PreviewDeploymentDeadline
+
 	It("should be able to create a cluster with ACR pull via managed identity and pull from a private ACR",
 		labels.RequireNothing,
 		labels.Medium,
@@ -422,10 +424,10 @@ var _ = Describe("Customer", func() {
 			_, err = framework.CreateHCPClusterAndWait20261001(ctx, GinkgoLogr, hcpClient,
 				*resourceGroup.Name, customerClusterName, clusterResource, framework.ClusterCreationTimeout)
 			if framework.IsAPINotDeployedError(err) {
-				if time.Now().Before(framework.V20261001PreviewDeploymentDeadline) {
-					Skip(fmt.Sprintf("v20261001preview API not yet deployed; skipping until %s", framework.V20261001PreviewDeploymentDeadline.Format(time.RFC3339)))
+				if time.Now().Before(timeBombDeadline) {
+					Skip(fmt.Sprintf("v20261001preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
 				}
-				Fail(fmt.Sprintf("v20261001preview API still not deployed as of %s deadline", framework.V20261001PreviewDeploymentDeadline.Format(time.RFC3339)))
+				Fail(fmt.Sprintf("v20261001preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster with containerRegistry set")
 
