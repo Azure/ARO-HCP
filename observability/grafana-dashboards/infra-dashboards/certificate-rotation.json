@@ -5,7 +5,7 @@
     "certificates",
     "svc"
   ],
-  "timezone": "browser",
+  "timezone": "utc",
   "schemaVersion": 39,
   "version": 1,
   "refresh": "5m",
@@ -57,6 +57,7 @@
     {
       "id": 5,
       "title": "Certificate lifetime used",
+      "description": "Percent of the current certificate validity period elapsed. Disabled certificates, invalid validity periods, and vaults without a successful collection in the last hour have no value.",
       "type": "gauge",
       "datasource": {
         "type": "prometheus",
@@ -128,6 +129,7 @@
     {
       "id": 6,
       "title": "Time until expiry by certificate",
+      "description": "Days until each enabled certificate expires. Vaults without a successful collection in the last hour have no value; missing bars do not indicate health.",
       "type": "bargauge",
       "datasource": {
         "type": "prometheus",
@@ -287,6 +289,7 @@
     {
       "id": 1,
       "title": "Certificate collection age by Key Vault",
+      "description": "Time since the exporter last read all configured certificates in each vault. Red means the last successful collection was more than one hour ago; no value means no successful collection timestamp is available.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -350,6 +353,7 @@
     {
       "id": 2,
       "title": "Exporter scrape availability",
+      "description": "Shows Scraping when any exporter target is up, or Unavailable when the deployment exists but no target is up. No value does not establish health.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -428,6 +432,7 @@
     {
       "id": 3,
       "title": "Exporter replicas available / desired",
+      "description": "Available and desired replicas of the aro-hcp-exporter deployment. Fewer available than desired indicates reduced exporter capacity.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -490,6 +495,7 @@
     {
       "id": 4,
       "title": "Exporter scrape and collection history",
+      "description": "Scrape availability and per-vault collection freshness over time. Collection is 1 when the last successful read is within an hour, and 0 when it is older or has never succeeded.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
