@@ -89,6 +89,9 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	if cluster.ServiceProviderProperties.DeletionTimestamp == nil && !syncer.NeedsWork(serviceProviderCluster) {
+		return nil
+	}
 	managementClusterID := serviceProviderCluster.Status.ManagementClusterResourceID
 	if managementClusterID == nil {
 		return nil
@@ -106,12 +109,9 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 		return utils.TrackError(err)
 	}
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return syncer.teardown(ctx, key, applyCRUD, readCRUD)
+		return syncer.teardown(ctx, applyCRUD, readCRUD)
 	}
-	if serviceProviderCluster.Status.IngressCertificate != coreapi.CertificateObservationDone {
-		return nil
-	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil || serviceProviderCluster.Status.HostedClusterNamespace == "" {
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
 		return nil
 	}
 	if managementClusterID.Parent == nil {
@@ -125,11 +125,11 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 		return utils.TrackError(err)
 	}
 	if managementCluster.Status.HostedClustersSecretsKeyVaultURL == "" || managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID == "" {
-		return nil
+		return utils.TrackError(fmt.Errorf("management cluster is missing hosted clusters secrets Key Vault URL or managed identity client ID"))
 	}
 	applyDesires, readDesires, err := buildIngressCertificateDesires(
 		key, managementCluster, serviceProviderCluster.Status.HostedClusterNamespace,
-		cluster.ServiceProviderProperties.ClusterServiceID.ID(), syncer.serviceTenantID,
+		cluster.ServiceProviderProperties.ClusterServiceID.ID(), syncer.serviceTenantID, serviceProviderCluster.Status.IngressCertificate.AzureReference,
 	)
 	if err != nil {
 		return utils.TrackError(err)
@@ -147,34 +147,21 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 	return nil
 }
 
+func (syncer *ingressCertificateSyncer) NeedsWork(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	return serviceProviderCluster.Status.IngressCertificate.AzureReference != (coreapi.AzureTLSCertificateReference{}) && serviceProviderCluster.Status.HostedClusterNamespace != ""
+}
+
 func (syncer *ingressCertificateSyncer) teardown(
 	ctx context.Context,
-	key controllerutils.HCPClusterKey,
 	applyCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
 	readCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire],
 ) error {
-	applyDesires, err := syncer.applyDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	for _, desire := range applyDesires {
-		if desire.Tags[kubeapplierapi.TagControllerName] != IngressCertificateControllerName {
-			continue
+	for _, name := range []string{ingressSecretProviderClassDesireName, ingressSecretSyncDesireName} {
+		if err := applyCRUD.Delete(ctx, name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+			return utils.TrackError(fmt.Errorf("delete ingress certificate ApplyDesire %s: %w", name, err))
 		}
-		if err := applyCRUD.Delete(ctx, desire.ResourceID.Name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-			return utils.TrackError(fmt.Errorf("delete ingress certificate ApplyDesire %s: %w", desire.ResourceID.Name, err))
-		}
-	}
-	readDesires, err := syncer.readDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	for _, desire := range readDesires {
-		if desire.Tags[kubeapplierapi.TagControllerName] != IngressCertificateControllerName {
-			continue
-		}
-		if err := readCRUD.Delete(ctx, desire.ResourceID.Name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-			return utils.TrackError(fmt.Errorf("delete ingress certificate ReadDesire %s: %w", desire.ResourceID.Name, err))
+		if err := readCRUD.Delete(ctx, name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+			return utils.TrackError(fmt.Errorf("delete ingress certificate ReadDesire %s: %w", name, err))
 		}
 	}
 	return nil

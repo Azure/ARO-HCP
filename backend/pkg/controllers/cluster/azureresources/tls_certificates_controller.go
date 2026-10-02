@@ -37,9 +37,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const CertificateObservationControllerName = "ObserveCertificates"
+const TLSCertificatesControllerName = "TLSCertificates"
 
-type certificateObservationSyncer struct {
+type tlsCertificatesSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
@@ -47,12 +47,12 @@ type certificateObservationSyncer struct {
 	observe                      func(context.Context, string, string) (bool, error)
 }
 
-var _ controllerutils.ClusterSyncer = (*certificateObservationSyncer)(nil)
+var _ controllerutils.ClusterSyncer = (*tlsCertificatesSyncer)(nil)
 
-func NewCertificateObservationController(resourcesDBClient corecosmosstorage.ResourcesDBClient, informers coreinformers.BackendInformers, kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers, managementClusterLister fleetlisters.ManagementClusterLister, clients *azureclient.BackendIdentityAzureClients) controllerutils.Controller {
+func NewTLSCertificatesController(resourcesDBClient corecosmosstorage.ResourcesDBClient, informers coreinformers.BackendInformers, kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers, managementClusterLister fleetlisters.ManagementClusterLister, clients *azureclient.BackendIdentityAzureClients) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
-	return controllerutils.NewClusterWatchingController(CertificateObservationControllerName, resourcesDBClient, informers, kubeApplierInformers, 30*time.Second, &certificateObservationSyncer{
+	return controllerutils.NewClusterWatchingController(TLSCertificatesControllerName, resourcesDBClient, informers, kubeApplierInformers, 30*time.Second, &tlsCertificatesSyncer{
 		resourcesDBClient:            resourcesDBClient,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
@@ -62,31 +62,55 @@ func NewCertificateObservationController(resourcesDBClient corecosmosstorage.Res
 			if err != nil {
 				return false, err
 			}
-			certificate, err := client.GetCertificate(ctx, name, "", nil)
-			var responseError *azcore.ResponseError
-			if errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
-				return false, nil
-			}
-			if err != nil {
-				return false, err
-			}
-			return certificateReady(certificate.Certificate, time.Now()), nil
+			return observeTLSCertificate(ctx, client, name)
 		},
 	})
 }
 
-func certificateReady(certificate azcertificates.Certificate, now time.Time) bool {
-	attributes := certificate.Attributes
-	return len(certificate.CER) > 0 && certificate.SID != nil && len(*certificate.SID) > 0 && attributes != nil && attributes.Enabled != nil && *attributes.Enabled &&
-		(attributes.NotBefore == nil || !now.Before(*attributes.NotBefore)) && (attributes.Expires == nil || now.Before(*attributes.Expires))
+type tlsCertificatesClient interface {
+	GetCertificate(context.Context, string, string, *azcertificates.GetCertificateOptions) (azcertificates.GetCertificateResponse, error)
+	GetCertificateOperation(context.Context, string, *azcertificates.GetCertificateOperationOptions) (azcertificates.GetCertificateOperationResponse, error)
 }
 
-func (syncer *certificateObservationSyncer) NeedsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	return cluster.ServiceProviderProperties.DeletionTimestamp == nil && cluster.ServiceProviderProperties.ClusterServiceID != nil &&
-		(serviceProviderCluster.Status.KubeAPIServerCertificate != coreapi.CertificateObservationDone || serviceProviderCluster.Status.IngressCertificate != coreapi.CertificateObservationDone)
+func observeTLSCertificate(ctx context.Context, client tlsCertificatesClient, name string) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	_, err := client.GetCertificate(ctx, name, "", nil)
+	var responseError *azcore.ResponseError
+	if errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	operation, err := client.GetCertificateOperation(ctx, name, nil)
+	if err != nil {
+		return false, err
+	}
+	if operation.Status == nil {
+		return false, fmt.Errorf("certificate %q operation has no status", name)
+	}
+	switch *operation.Status {
+	case "completed":
+		return true, nil
+	case "inProgress":
+		return false, nil
+	case "failed", "cancelled":
+		return false, fmt.Errorf("certificate %q operation %s", name, *operation.Status)
+	default:
+		return false, fmt.Errorf("certificate %q has unknown operation status %q", name, *operation.Status)
+	}
 }
 
-func (syncer *certificateObservationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (syncer *tlsCertificatesSyncer) NeedsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return serviceProviderCluster.Status.KubeAPIServerCertificate != (coreapi.TLSCertificate{}) || serviceProviderCluster.Status.IngressCertificate != (coreapi.TLSCertificate{})
+	}
+	return cluster.ServiceProviderProperties.ClusterServiceID != nil &&
+		(serviceProviderCluster.Status.KubeAPIServerCertificate.AzureReference == (coreapi.AzureTLSCertificateReference{}) || serviceProviderCluster.Status.IngressCertificate.AzureReference == (coreapi.AzureTLSCertificateReference{}))
+}
+
+func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	cluster, err := syncer.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
@@ -105,12 +129,9 @@ func (syncer *certificateObservationSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 	replacement := existing.DeepCopy()
-	for _, state := range []*coreapi.CertificateObservationState{&replacement.Status.KubeAPIServerCertificate, &replacement.Status.IngressCertificate} {
-		if *state != coreapi.CertificateObservationDone {
-			*state = coreapi.CertificateObservationPending
-		}
-	}
-	if controllerutil.NeedsUpdate(existing, replacement) {
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		replacement.Status.KubeAPIServerCertificate = coreapi.TLSCertificate{}
+		replacement.Status.IngressCertificate = coreapi.TLSCertificate{}
 		return syncer.persist(ctx, key, existing, replacement)
 	}
 	managementClusterID := existing.Status.ManagementClusterResourceID
@@ -129,33 +150,44 @@ func (syncer *certificateObservationSyncer) SyncOnce(ctx context.Context, key co
 	}
 	vaultURL := managementCluster.Status.HostedClustersSecretsKeyVaultURL
 	if vaultURL == "" {
-		return nil
+		return utils.TrackError(fmt.Errorf("management cluster has no hosted clusters secrets Key Vault URL"))
 	}
 	clusterServiceID := cluster.ServiceProviderProperties.ClusterServiceID.ID()
-	var observationErrors []error
-	for _, certificate := range []struct {
+	certificates := []struct {
 		name  string
-		state *coreapi.CertificateObservationState
+		state *coreapi.TLSCertificate
 	}{
 		{"kube-apiserver-tls-cert-" + clusterServiceID, &replacement.Status.KubeAPIServerCertificate},
 		{"ingress-tls-cert-" + clusterServiceID, &replacement.Status.IngressCertificate},
-	} {
-		if *certificate.state == coreapi.CertificateObservationDone {
+	}
+	for _, certificate := range certificates {
+		if certificate.state.AzureReference == (coreapi.AzureTLSCertificateReference{}) {
+			certificate.state.PendingReference = coreapi.AzureTLSCertificateReference{KVURL: vaultURL, CertificateName: certificate.name}
+		}
+	}
+	if controllerutil.NeedsUpdate(existing, replacement) {
+		return syncer.persist(ctx, key, existing, replacement)
+	}
+	var observationErrors []error
+	for _, certificate := range certificates {
+		if certificate.state.AzureReference != (coreapi.AzureTLSCertificateReference{}) {
 			continue
 		}
-		ready, err := syncer.observe(ctx, vaultURL, certificate.name)
+		reference := certificate.state.PendingReference
+		ready, err := syncer.observe(ctx, reference.KVURL, reference.CertificateName)
 		if err != nil {
 			observationErrors = append(observationErrors, fmt.Errorf("observe certificate %q: %w", certificate.name, err))
 			continue
 		}
 		if ready {
-			*certificate.state = coreapi.CertificateObservationDone
+			certificate.state.AzureReference = reference
+			certificate.state.PendingReference = coreapi.AzureTLSCertificateReference{}
 		}
 	}
 	return errors.Join(append(observationErrors, syncer.persist(ctx, key, existing, replacement))...)
 }
 
-func (syncer *certificateObservationSyncer) persist(ctx context.Context, key controllerutils.HCPClusterKey, existing, replacement *coreapi.ServiceProviderCluster) error {
+func (syncer *tlsCertificatesSyncer) persist(ctx context.Context, key controllerutils.HCPClusterKey, existing, replacement *coreapi.ServiceProviderCluster) error {
 	if !controllerutil.NeedsUpdate(existing, replacement) {
 		return nil
 	}

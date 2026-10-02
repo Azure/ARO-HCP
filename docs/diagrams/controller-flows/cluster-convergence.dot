@@ -6,7 +6,7 @@ digraph cluster_convergence {
   place [label="ManagementClusterPlacementSync", fillcolor="#e6f0fa", color="#35648a"];
   resources [label="ClusterResources", fillcolor="#e6f0fa", color="#35648a"];
   ingress [label="IngressCertificate\nservice tenant + fleet vault/identity\nHostedCluster namespace", fillcolor="#e6f0fa", color="#35648a"];
-  certificates [label="ObserveCertificates\nbackend identity: read-only Key Vault GET\nKAS + ingress: Pending -> Done", fillcolor="#e6f0fa", color="#35648a"];
+  certificates [label="TLSCertificates\nbackend identity: read-only Key Vault GETs\nKAS + ingress: PendingReference -> AzureReference\noperation status = completed", fillcolor="#e6f0fa", color="#35648a"];
   read [label="CreateClusterScopedReadDesires", fillcolor="#e6f0fa", color="#35648a"];
   apply [label="ApplyDesireController", fillcolor="#e6f0fa", color="#35648a"];
   kube [label="Management-cluster Kubernetes\nHyperShift / supporting controllers", fillcolor="#fff0da", color="#b27624"];
@@ -28,7 +28,7 @@ digraph cluster_convergence {
   cs -> ingress [label="confirmed cluster ID"];
   cs -> certificates [label="CS creates KAS + ingress certs"];
   place -> certificates [label="hosted-cluster secrets vault"];
-  certificates -> ingress [label="Status.IngressCertificate = Done"];
+  certificates -> ingress [label="IngressCertificate.AzureReference set"];
   place -> ingress [label="observed management cluster"];
   props -> ingress [label="HostedCluster namespace"];
   ingress -> apply [label="SPC + SecretSync ApplyDesires"];
