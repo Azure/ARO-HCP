@@ -527,6 +527,7 @@ latest-services-override: $(YQ)
 ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
 ifdef USE_LATEST_IMAGES
 personal-dev-env: latest-services-override install-tools
+	$(MAKE) -C dev-infrastructure svc.aks.preserve-pool-topology DEPLOY_ENV=$(DEPLOY_ENV) OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
 	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
 	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.cosmos.access
 else
@@ -536,6 +537,7 @@ personal-dev-env: install-tools
 	$(eval export IMAGE_TAG ARO_HCP_REVISION)
 	$(MAKE) build-services
 	$(MAKE) record-services-override
+	$(MAKE) -C dev-infrastructure svc.aks.preserve-pool-topology DEPLOY_ENV=$(DEPLOY_ENV) OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
 	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
 	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.cosmos.access
 endif
