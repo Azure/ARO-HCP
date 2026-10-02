@@ -148,7 +148,7 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 }
 
 func (syncer *ingressCertificateSyncer) NeedsWork(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	return serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference != (coreapi.AzureTLSCertificateReference{}) && serviceProviderCluster.Status.HostedClusterNamespace != ""
+	return serviceProviderCluster.Status.AzureResources.IngressCertificate != nil && serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference != (coreapi.AzureTLSCertificateReference{}) && serviceProviderCluster.Status.HostedClusterNamespace != ""
 }
 
 func (syncer *ingressCertificateSyncer) teardown(

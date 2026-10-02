@@ -38,14 +38,16 @@ func TestTLSCertificateDeletionGates(test *testing.T) {
 	reference := coreapi.AzureTLSCertificateReference{KeyVaultURL: "https://vault.vault.azure.net/", CertificateName: "certificate"}
 	for _, scenario := range []struct {
 		name         string
-		kas, ingress coreapi.TLSCertificate
+		kas, ingress *coreapi.TLSCertificate
 	}{
-		{name: "KAS pending", kas: coreapi.TLSCertificate{PendingReference: reference}},
-		{name: "KAS confirmed", kas: coreapi.TLSCertificate{AzureReference: reference}},
-		{name: "ingress pending", ingress: coreapi.TLSCertificate{PendingReference: reference}},
-		{name: "ingress confirmed", ingress: coreapi.TLSCertificate{AzureReference: reference}},
-		{name: "both", kas: coreapi.TLSCertificate{PendingReference: reference}, ingress: coreapi.TLSCertificate{AzureReference: reference}},
-		{name: "partial reference", kas: coreapi.TLSCertificate{AzureReference: coreapi.AzureTLSCertificateReference{CertificateName: "certificate"}}},
+		{name: "empty KAS wrapper", kas: &coreapi.TLSCertificate{}},
+		{name: "empty ingress wrapper", ingress: &coreapi.TLSCertificate{}},
+		{name: "KAS pending", kas: &coreapi.TLSCertificate{PendingReference: reference}},
+		{name: "KAS confirmed", kas: &coreapi.TLSCertificate{AzureReference: reference}},
+		{name: "ingress pending", ingress: &coreapi.TLSCertificate{PendingReference: reference}},
+		{name: "ingress confirmed", ingress: &coreapi.TLSCertificate{AzureReference: reference}},
+		{name: "both", kas: &coreapi.TLSCertificate{PendingReference: reference}, ingress: &coreapi.TLSCertificate{AzureReference: reference}},
+		{name: "partial reference", kas: &coreapi.TLSCertificate{AzureReference: coreapi.AzureTLSCertificateReference{CertificateName: "certificate"}}},
 	} {
 		test.Run(scenario.name, func(test *testing.T) {
 			cluster := newTestClusterWithNewDeletionApproach(test, func(cluster *coreapi.Cluster) {
@@ -82,8 +84,8 @@ func TestTLSCertificateDeletionGates(test *testing.T) {
 			providerCRUD := database.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 			provider, err = providerCRUD.Get(test.Context(), coreapi.ServiceProviderClusterResourceName)
 			require.NoError(test, err)
-			provider.Status.AzureResources.KubeAPIServerCertificate = coreapi.TLSCertificate{}
-			provider.Status.AzureResources.IngressCertificate = coreapi.TLSCertificate{}
+			provider.Status.AzureResources.KubeAPIServerCertificate = nil
+			provider.Status.AzureResources.IngressCertificate = nil
 			_, err = providerCRUD.Replace(test.Context(), provider, nil)
 			require.NoError(test, err)
 			allowed, err = deleter.deletePreconditionTLSCertificatesCleared(test.Context(), key)

@@ -154,8 +154,16 @@ func (in *AzureReference) DeepCopy() *AzureReference {
 func (in *AzureResources) DeepCopyInto(out *AzureResources) {
 	*out = *in
 	in.DenyAssignments.DeepCopyInto(&out.DenyAssignments)
-	out.KubeAPIServerCertificate = in.KubeAPIServerCertificate
-	out.IngressCertificate = in.IngressCertificate
+	if in.KubeAPIServerCertificate != nil {
+		in, out := &in.KubeAPIServerCertificate, &out.KubeAPIServerCertificate
+		*out = new(TLSCertificate)
+		**out = **in
+	}
+	if in.IngressCertificate != nil {
+		in, out := &in.IngressCertificate, &out.IngressCertificate
+		*out = new(TLSCertificate)
+		**out = **in
+	}
 	in.ManagedResourceGroup.DeepCopyInto(&out.ManagedResourceGroup)
 	in.RoleAssignments.DeepCopyInto(&out.RoleAssignments)
 	return
