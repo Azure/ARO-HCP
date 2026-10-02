@@ -142,10 +142,15 @@ var _ = Describe("ARO HCP Service", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to start cluster creation")
 
 			By("waiting for cluster resource to become visible")
+			// Use a bounded Eventually timeout that respects creationCtx: if the parent
+			// context expires, stop retrying immediately rather than continuing for the
+			// full Eventually duration.
+			visibilityCtx, cancelVisibility := context.WithTimeout(creationCtx, 2*time.Minute)
+			defer cancelVisibility()
 			Eventually(func(g Gomega) {
-				_, err := hcpClient.Get(creationCtx, *resourceGroup.Name, customerClusterName, nil)
+				_, err := hcpClient.Get(visibilityCtx, *resourceGroup.Name, customerClusterName, nil)
 				g.Expect(err).NotTo(HaveOccurred(), "GET cluster failed — RP may not have registered the resource yet")
-			}, 2*time.Minute, 10*time.Second).Should(Succeed(),
+			}, 2*time.Minute, 10*time.Second).WithContext(visibilityCtx).Should(Succeed(),
 				"timed out waiting for cluster resource to become visible after BeginCreateOrUpdate")
 
 			By("verifying cluster does not enter terminal Failed state while role assignments are missing")
@@ -206,7 +211,10 @@ var _ = Describe("ARO HCP Service", func() {
 				"cluster %q in resource group %q should complete creation after role assignments are created (total creation timeout %s)",
 				customerClusterName, *resourceGroup.Name, clusterCreationTimeout)
 
-			resp, err := hcpClient.Get(creationCtx, *resourceGroup.Name, customerClusterName, nil)
+			// Use the parent context for the final Get: PollUntilDone may complete at the
+			// edge of creationCtx's deadline, and we don't want a flaky timeout on the
+			// final verification when the operation actually succeeded.
+			resp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to get cluster after its creation operation succeeded")
 			Expect(resp.Properties).NotTo(BeNil(), "cluster response has nil Properties after creation")
 			Expect(resp.Properties.ProvisioningState).NotTo(BeNil(), "cluster response has nil ProvisioningState after creation")
