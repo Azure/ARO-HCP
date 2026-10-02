@@ -62,7 +62,7 @@ spec:
         - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/must-gather-rhel9@sha256:a7fe0c2c6095ca36cd1156f18d709fd9b529a9fad0bac256e9dd298c64b7b4fc'
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:55edda3a56de153fde34112922a7bb5cfc8faefe61cf8c3ef443aa78d818241f'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:f731ba9125ba13a59b56e2786d86ac27cbb6f870769ffec492a6798d16f45ac4'
         - name: OPERAND_IMAGE_CLOUDEVENTS_CONDUCTOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cloudevents-conductor-rhel9@sha256:591020b3cabb2542d0cbe7f4815cc6a12a8cd64c52ff1d0050983e88546dbe24'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
@@ -94,11 +94,11 @@ spec:
         - name: OPERAND_IMAGE_CONSOLE_MCE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:5e14275fdef1574dd3c81cf12f97f299ae8bef73986cb9bdaf9dac7ee2f7b4a3'
         - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:6449b2bcfba47f2244f54ab72bf7a209ce238a931512887c1ba7fc2a57996b54'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:6acae8040095afdee65b1aac9c175f630cb0fc77fbf6d71973c0408546bd9cae'
         - name: OPERAND_IMAGE_OPENSHIFT_HIVE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hive-rhel9@sha256:3ef0b8f4478219e735c9f56517c0818c48b8c3a2e1efc6dc87693610a2e74688'
         - name: OPERAND_IMAGE_HYPERSHIFT_ADDON_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-addon-rhel9-operator@sha256:4aba5720dee78693fc555d91c54952b2067dbc4ae5704513f5df9812f99343b6'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-addon-rhel9-operator@sha256:21f62bd627a35e91853b5e6eaec7e9253e44d48078a367f44edae43734c56ee9'
         - name: OPERAND_IMAGE_HYPERSHIFT_CLI
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-cli-rhel9@sha256:277fca1e4ea9fa705d7dda09c4d61050945183a0f1fd88cc1d2e8def63c72876'
         - name: OPERAND_IMAGE_HYPERSHIFT_OPERATOR
@@ -147,7 +147,7 @@ spec:
           value: 2.17.4
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
-        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:55edda3a56de153fde34112922a7bb5cfc8faefe61cf8c3ef443aa78d818241f'
+        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:f731ba9125ba13a59b56e2786d86ac27cbb6f870769ffec492a6798d16f45ac4'
         livenessProbe:
           httpGet:
             path: /healthz

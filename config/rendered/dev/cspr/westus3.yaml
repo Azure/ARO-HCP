@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:2225e5dc0dfd111b81e57b93805ce3e6e3a475ab801595937d838c9d2cde91af
+      digest: sha256:d88f1b5db1d00985843e95b2f000f043b5b42ef5784739f6b03c21628faccaa8
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
   operator:
     bundle:
-      digest: sha256:d63df58d4f62673470f0b5cf505facdb9da15bcdbd9871a219ae429cc59d512b
+      digest: sha256:0caf9b648dd1df7c47c4ece294cb41ce559a16d45c42e26a0a111cfa8932d948
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
 acr:
@@ -98,7 +98,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:762175a844350eb00c1bad406a6b49e09a2bccc15cf8e031624cf0a160d1929d
+      digest: sha256:1246475526fd5062cd7d8c822f51b60d9f5343064cf941742b571f3fc9956ad5
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -184,7 +184,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpcspr
   image:
-    digest: sha256:334be6593f70366843725136c0a9240109a9f28625ffd992565960c0617cc460
+    digest: sha256:5fffce295f8b49be38ae2385714d09af29700dd3dc60c40a058f7aeb66e97d72
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -486,7 +486,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:aa2bba8774c3a70af9e023e5abafa0a1e3ddfeb92f4fe2de9b112fa3d1b411ea
+    digest: sha256:74ab3bb9b87fa7fca0504b62f5b19b1e53aeb3b95d9caeb9368862deee556672
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -592,7 +592,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:ffd2db39ad670485703d8aa0195ae02979c719e660ec8e21107141d2e7e824e8
+        digest: sha256:3a8316d42c6491dbc15f2cf59985901365c7c402d3a0649abe695a4a6554654e
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certIssuer: Self
@@ -1191,6 +1191,6 @@ velero:
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:a44807095c0016206033a3a6eee7839a72e7f730ff24701c35d288fa0ea30fa3
+    digest: sha256:8d1d01d0f429208b83725ab55beb358aee024f9c1b1511ea940fee220b0bb7fe
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9

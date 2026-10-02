@@ -196,7 +196,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:762175a844350eb00c1bad406a6b49e09a2bccc15cf8e031624cf0a160d1929d # 1.44.2-20260930-1 (2026-09-30 19:13)
+        digest: sha256:1246475526fd5062cd7d8c822f51b60d9f5343064cf941742b571f3fc9956ad5 # 1.44.2-20261001-1 (2026-10-01 19:18)
   # Kube Events
   kubeEvents:
     enabled: true
@@ -421,7 +421,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:aa2bba8774c3a70af9e023e5abafa0a1e3ddfeb92f4fe2de9b112fa3d1b411ea # de67cbfa09cbf6fc498599c76873e703ab4f6a03 (2026-10-01 12:46)
+      digest: sha256:74ab3bb9b87fa7fca0504b62f5b19b1e53aeb3b95d9caeb9368862deee556672 # 93d92b828c33cab578a64e045a89056eade14434 (2026-10-01 21:08)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -555,7 +555,7 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:a44807095c0016206033a3a6eee7839a72e7f730ff24701c35d288fa0ea30fa3 # 1.6.2 (2026-10-01 12:03)
+      digest: sha256:8d1d01d0f429208b83725ab55beb358aee024f9c1b1511ea940fee220b0bb7fe # 1.6.2 (2026-10-01 18:37)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
@@ -1090,7 +1090,7 @@ defaults:
         image:
           registry: mcr.microsoft.com
           repository: azurelinux/base/nginx
-          digest: sha256:ffd2db39ad670485703d8aa0195ae02979c719e660ec8e21107141d2e7e824e8 # 1.28.3-8-azl3.0.20260909 (2026-09-11 20:35)
+          digest: sha256:3a8316d42c6491dbc15f2cf59985901365c7c402d3a0649abe695a4a6554654e # 1.30.4-1-azl3.0.20260923 (2026-09-23 21:03)
     eventGrid:
       name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
@@ -1123,18 +1123,18 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:d63df58d4f62673470f0b5cf505facdb9da15bcdbd9871a219ae429cc59d512b # v2.17.4-473 (2026-10-01 14:10)
+        digest: sha256:0caf9b648dd1df7c47c4ece294cb41ce559a16d45c42e26a0a111cfa8932d948 # v2.17.4-474 (2026-10-01 20:21)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:2225e5dc0dfd111b81e57b93805ce3e6e3a475ab801595937d838c9d2cde91af # v2.17.4-512 (2026-10-01 14:21)
+        digest: sha256:d88f1b5db1d00985843e95b2f000f043b5b42ef5784739f6b03c21628faccaa8 # v2.17.4-513 (2026-10-01 20:07)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:334be6593f70366843725136c0a9240109a9f28625ffd992565960c0617cc460 # 42cfdd0202930019114f46b03e0a8ebe2841f5ea (2026-10-01 10:47)
+      digest: sha256:5fffce295f8b49be38ae2385714d09af29700dd3dc60c40a058f7aeb66e97d72 # 725054695d93f08342999fe288a0377df619d133 (2026-10-01 18:41)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
