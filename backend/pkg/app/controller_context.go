@@ -54,6 +54,7 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		AzureLocation:                     b.options.AzureLocation,
 		ServiceTenantID:                   b.options.ServiceTenantID,
 		BackendIdentityAzureCachedReaders: b.options.BackendIdentityAzureCachedReaders,
+		BackendIdentityAzureClients:       b.options.BackendIdentityAzureClients,
 		BackupConfig:                      b.options.BackupConfig,
 		CheckAccessV2ClientBuilder:        b.options.CheckAccessV2ClientBuilder,
 		CloudEnvironment:                  b.options.CloudEnvironment,

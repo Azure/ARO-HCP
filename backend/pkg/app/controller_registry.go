@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster"
+	clusterazureresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cosmosmigration"
@@ -71,6 +72,7 @@ func newControllerRegistry() map[string]ControllerRegistration {
 	registry := map[string]ControllerRegistration{}
 	billing.Register(registry)
 	cluster.Register(registry)
+	clusterazureresources.Register(registry)
 	clusterresources.Register(registry)
 	cosmosmigration.Register(registry)
 	datadump.Register(registry)

@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -106,6 +107,9 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 	}
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return syncer.teardown(ctx, key, applyCRUD, readCRUD)
+	}
+	if serviceProviderCluster.Status.IngressCertificate != coreapi.CertificateObservationDone {
+		return nil
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil || serviceProviderCluster.Status.HostedClusterNamespace == "" {
 		return nil

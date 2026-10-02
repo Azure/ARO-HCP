@@ -63,6 +63,7 @@ func newCertificateFixture(test *testing.T) *certificateFixture {
 	serviceProvider := &coreapi.ServiceProviderCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: serviceProviderID},
 		Status: coreapi.ServiceProviderClusterStatus{
+			IngressCertificate:          coreapi.CertificateObservationDone,
 			ManagementClusterResourceID: managementClusterID,
 			HostedClusterNamespace:      "hosted-cluster-namespace",
 			ControlPlaneNamespace:       "not-the-hosted-cluster-namespace",
@@ -182,6 +183,7 @@ func TestIngressCertificateTeardown(test *testing.T) {
 	now := metav1.Now()
 	fixture.cluster.ServiceProviderProperties.DeletionTimestamp = &now
 	fixture.cluster.ServiceProviderProperties.ClusterServiceID = nil
+	fixture.serviceProvider.Status.IngressCertificate = coreapi.CertificateObservationPending
 	fixture.serviceProvider.Status.HostedClusterNamespace = ""
 	fixture.syncer.managementClusterLister = &fleetlistertesting.SliceManagementClusterLister{}
 	fixture.syncer.serviceTenantID = ""
@@ -199,6 +201,10 @@ func TestIngressCertificateTeardown(test *testing.T) {
 
 func TestIngressCertificatePrerequisites(test *testing.T) {
 	for name, mutate := range map[string]func(*certificateFixture){
+		"certificate unobserved": func(fixture *certificateFixture) { fixture.serviceProvider.Status.IngressCertificate = "" },
+		"certificate pending": func(fixture *certificateFixture) {
+			fixture.serviceProvider.Status.IngressCertificate = coreapi.CertificateObservationPending
+		},
 		"cluster absent": func(fixture *certificateFixture) {
 			fixture.syncer.clusterLister = &corelistertesting.SliceClusterLister{}
 		},
