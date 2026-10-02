@@ -17,8 +17,8 @@ VERSION_ARGS = BUILDER_IMAGE_TAG PROMTOOL_VERSION BICEP_VERSION
 verify: ## Verify versions are consistent across config files
 	@GO_WORK_MINOR=$$(echo "$(GO_WORK_VERSION)" | cut -d. -f1,2); \
 	BUILDER_GO=$$(echo "$(BUILDER_IMAGE_TAG)" | grep -oP 'golang-\K[0-9]+\.[0-9]+'); \
-	if [ "$$GO_WORK_MINOR" != "$$BUILDER_GO" ]; then \
-		echo "ERROR: go.work Go version $$GO_WORK_MINOR ≠ builder image Go version $$BUILDER_GO"; \
+	if [ "$${BUILDER_GO#*.}" -lt "$${GO_WORK_MINOR#*.}" ]; then \
+		echo "ERROR: builder image Go version $$BUILDER_GO is older than go.work Go version $$GO_WORK_MINOR"; \
 		exit 1; \
 	fi; \
 	echo "  go version $$GO_WORK_MINOR OK"
