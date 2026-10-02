@@ -37,10 +37,15 @@ import (
 const (
 	DefaultLeaseWaitInterval = 1 * time.Minute
 	DefaultMaxWaitForLease   = 30 * time.Minute
+	DefaultAdmissionTimeout  = 10 * time.Minute
 )
 
 func DefaultAcquireOptions() *RawAcquireOptions {
 	allowedSubscriptions, allowedLocations, selectedLocation := defaultAcquireSelectors()
+	admissionTimeout := strings.TrimSpace(os.Getenv("ARO_HCP_ADMISSION_TIMEOUT"))
+	if admissionTimeout == "" {
+		admissionTimeout = DefaultAdmissionTimeout.String()
+	}
 	return &RawAcquireOptions{
 		ClusterProfileDir:      strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
 		ClusterProfileDirs:     splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
@@ -53,6 +58,7 @@ func DefaultAcquireOptions() *RawAcquireOptions {
 		BuildID:                strings.TrimSpace(os.Getenv("BUILD_ID")),
 		SharedDir:              strings.TrimSpace(os.Getenv("SHARED_DIR")),
 		DisabledAssetAdmission: splitSelectorValues(os.Getenv("ARO_HCP_DISABLE_ASSET_ADMISSION")),
+		AdmissionTimeout:       admissionTimeout,
 
 		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
 		LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
@@ -109,6 +115,7 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.SharedDir, "shared-dir", opts.SharedDir, "Path to SHARED_DIR")
 	cmd.Flags().StringVar(&opts.CatalogPath, "slot-catalog", opts.CatalogPath, "Path to the canonical E2E slot catalog")
 	cmd.Flags().StringSliceVar(&opts.DisabledAssetAdmission, "disable-asset-admission", opts.DisabledAssetAdmission, "Emergency opt-out of admission for named asset kinds (repeatable or comma-separated). All other assets remain admitted. Defaults from ARO_HCP_DISABLE_ASSET_ADMISSION.")
+	cmd.Flags().StringVar(&opts.AdmissionTimeout, "admission-timeout", opts.AdmissionTimeout, "Maximum duration for the entire asset admission phase (e.g. 20m). Defaults from ARO_HCP_ADMISSION_TIMEOUT, or 10m when unset.")
 	cmd.Flags().StringVar(&opts.LeaseProxyServerURL, "lease-proxy-server-url", opts.LeaseProxyServerURL, "Lease proxy server URL")
 	cmd.Flags().DurationVar(&opts.LeaseProxyTimeout, "lease-proxy-timeout", opts.LeaseProxyTimeout, "Maximum time to spend probing a single candidate pool, including retryable proxy/network retries.")
 	cmd.Flags().DurationVar(&opts.MaxWaitForLease, "max-wait-for-lease", opts.MaxWaitForLease, "Maximum total time to keep retrying after full candidate-pool passes yield no immediate lease. Zero waits forever.")
@@ -136,11 +143,13 @@ type RawAcquireOptions struct {
 	Now                    func() time.Time
 	AssetRegistry          *assets.Registry
 	DisabledAssetAdmission []string
+	AdmissionTimeout       string
 	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
 }
 
 type validatedAcquireOptions struct {
 	*RawAcquireOptions
+	admissionTimeout time.Duration
 }
 
 type ValidatedAcquireOptions struct {
@@ -162,6 +171,7 @@ type completedAcquireOptions struct {
 	PoolEnvironment        string
 	AssetRegistry          *assets.Registry
 	DisabledAssetAdmission []assets.Kind
+	AdmissionTimeout       time.Duration
 	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
 	Now                    func() time.Time
 	Sleep                  func(context.Context, time.Duration) error
@@ -219,8 +229,19 @@ func (o *RawAcquireOptions) Validate() (*ValidatedAcquireOptions, error) {
 		return nil, fmt.Errorf("--lease-wait-interval must be greater than zero")
 	}
 
+	admissionTimeout := DefaultAdmissionTimeout
+	if o.AdmissionTimeout != "" {
+		var err error
+		admissionTimeout, err = time.ParseDuration(o.AdmissionTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("--admission-timeout: %w", err)
+		}
+	}
+	if admissionTimeout <= 0 {
+		return nil, errors.New("--admission-timeout must be greater than zero")
+	}
 	return &ValidatedAcquireOptions{
-		validatedAcquireOptions: &validatedAcquireOptions{RawAcquireOptions: o},
+		validatedAcquireOptions: &validatedAcquireOptions{RawAcquireOptions: o, admissionTimeout: admissionTimeout},
 	}, nil
 }
 
@@ -313,6 +334,7 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 			PoolEnvironment:        environment,
 			AssetRegistry:          registry,
 			DisabledAssetAdmission: disabledAssetAdmission,
+			AdmissionTimeout:       o.admissionTimeout,
 			ResolveSubscriptions:   resolveSubscriptions,
 			Now:                    o.Now,
 			Sleep:                  sleepContext,
@@ -674,8 +696,15 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	logger.Info("Starting asset admission",
 		"assetCount", len(state.Slot.AssetRequirements),
 		"runtimeRegion", state.RuntimeRegion,
+		"timeout", o.AdmissionTimeout,
 	)
-	if err := o.AssetRegistry.AdmitLease(ctx, request, o.DisabledAssetAdmission...); err != nil {
+	admissionCtx, cancelAdmission := context.WithTimeout(ctx, o.AdmissionTimeout)
+	err = o.AssetRegistry.AdmitLease(admissionCtx, request, o.DisabledAssetAdmission...)
+	if err == nil {
+		err = admissionCtx.Err()
+	}
+	cancelAdmission()
+	if err != nil {
 		return err
 	}
 	contract := slots.NewRuntimeContractBuilder()
