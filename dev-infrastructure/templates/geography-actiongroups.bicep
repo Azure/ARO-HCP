@@ -7,18 +7,6 @@ param icmConnectionName string
 @description('ICM connection id')
 param icmConnectionId string
 
-@description('ICM incident receiver name for SRE')
-param icmActionGroupNameSRE string
-
-@description('Short display name for the SRE action group')
-param icmActionGroupShortNameSRE string
-
-@description('ICM routing ID')
-param icmRoutingIdSRE string
-
-@description('ICM automitigation enabled ID')
-param icmAutomitigationEnabledSRE string
-
 @description('ICM incident receiver name for SL')
 param icmActionGroupNameSL string
 
@@ -107,10 +95,6 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
     icmEnvironment: icmEnvironment
     icmConnectionName: icmConnectionName
     icmConnectionId: icmConnectionId
-    icmActionGroupNameSRE: icmActionGroupNameSRE
-    icmActionGroupShortNameSRE: icmActionGroupShortNameSRE
-    icmRoutingIdSRE: icmRoutingIdSRE
-    icmAutomitigationEnabledSRE: icmAutomitigationEnabledSRE
     icmActionGroupNameSL: icmActionGroupNameSL
     icmActionGroupShortNameSL: icmActionGroupShortNameSL
     icmRoutingIdSL: icmRoutingIdSL
@@ -132,7 +116,6 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
 }
 
 output actionGroupSL string = manageConnection ? actionGroups!.outputs.actionGroupsSL : ''
-output actionGroupSRE string = manageConnection ? actionGroups!.outputs.actionGroupsSRE : ''
 output actionGroupRP string = manageConnection ? actionGroups!.outputs.actionGroupsRP : ''
 output actionGroupMSFT string = manageConnection ? actionGroups!.outputs.actionGroupsMSFT : ''
 output actionGroupDEV string = manageConnection ? actionGroups!.outputs.actionGroupsDEV : ''

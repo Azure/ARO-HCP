@@ -140,8 +140,6 @@ The new metric will appear in the `hcps-REGION` Azure Monitor Workspace after th
    ```
    This runs `promtool` tests, processes all PrometheusRules, and regenerates `dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep`.
 
-5. For HCP-workspace rules (metrics from `ocm-*` namespaces), register in `observability/alerts-sre-hcps.yaml` instead.
-
 ### Verifying which metrics are available
 
 After deploying the SRE metric set, check what's actually being scraped:
