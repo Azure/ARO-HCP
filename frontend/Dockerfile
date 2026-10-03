@@ -1,6 +1,6 @@
 ARG PLATFORM
 
-FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS builder
 COPY internal/go.mod internal/go.sum internal/
 COPY frontend/go.mod frontend/go.sum frontend/
 RUN cd frontend && go mod download
