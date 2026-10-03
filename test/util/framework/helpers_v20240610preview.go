@@ -601,7 +601,7 @@ func deleteHCPClusterAttempt(
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.HcpOpenShiftClustersClientDeleteResponse:
 	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
 	}
 
@@ -866,7 +866,7 @@ func DeleteNodePool20240610(
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.NodePoolsClientDeleteResponse:
 	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
 	}
 
@@ -1031,7 +1031,7 @@ func CreateOrUpdateExternalAuthAndWait20240610(
 		}
 		return &m.ExternalAuth, nil
 	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 		return nil, fmt.Errorf("unknown type %T", m)
 	}
 }
@@ -1089,7 +1089,7 @@ func DeleteExternalAuthAndWait20240610(
 	case hcpsdk20240610preview.ExternalAuthsClientDeleteResponse:
 		return nil
 	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
 	}
 }
@@ -1173,7 +1173,7 @@ func CreateHCPClusterAndWait20240610(
 			}
 			return &m.HcpOpenShiftCluster, nil
 		default:
-			fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
+			ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 			return nil, fmt.Errorf("unknown type %T", m)
 		}
 	} else {
@@ -1290,7 +1290,7 @@ func CreateNodePoolAndWait20240610(
 		}
 		return &m.NodePool, nil
 	default:
-		fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
+		ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 		return nil, fmt.Errorf("unknown type %T", m)
 	}
 }
