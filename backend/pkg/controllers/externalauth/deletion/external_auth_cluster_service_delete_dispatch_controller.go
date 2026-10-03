@@ -25,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
+	"k8s.io/utils/ptr"
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
@@ -50,9 +51,12 @@ const missingClusterServiceIDTimeout = 120 * time.Second
 // DeleteExternalAuth is invoked, this controller picks it up and calls
 // Cluster Service out-of-band so the frontend never has to block on it.
 // Once the controller has issued the delete (or given up waiting for a
-// ClusterServiceID), it stamps ClusterServiceDeletionTimestamp on the
-// ExternalAuth to record that this step is complete and avoid re-issuing
-// the delete on subsequent syncs.
+// ClusterServiceID, or observed parent-cluster uninstalling), it stamps
+// ClusterServiceDeletionTimestamp on the ExternalAuth to record that this
+// step is complete and avoid re-issuing the delete on subsequent syncs.
+// ClusterServiceExternalAuthDeleteAccepted is always written as true or false
+// when the timestamp is stamped, so it is distinct from unset pre-rollout
+// documents.
 type externalAuthClusterServiceDeleteDispatchSyncer struct {
 	clock                utilsclock.PassiveClock
 	externalAuthLister   corelisters.ExternalAuthLister
@@ -119,6 +123,8 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) NeedsWork(externalAuth 
 //
 // In either terminal case -- CS delete issued or wait abandoned -- we
 // stamp ClusterServiceDeletionTimestamp so the next sync short-circuits.
+// ClusterServiceExternalAuthDeleteAccepted is written as true only when CS
+// accepted DELETE, and false otherwise.
 func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -156,6 +162,7 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 		c.firstSeenDeletionTimestampCache.Add(cacheKey, firstSeenExternalAuthDeletionTimestamp)
 	}
 
+	csExternalAuthDeleteAccepted := false
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID
 	if csID == nil || len(csID.String()) == 0 {
 		elapsed := c.clock.Since(firstSeenExternalAuthDeletionTimestamp)
@@ -195,10 +202,12 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 		}
 	} else {
 		logger.Info("requested cluster-service ExternalAuth delete", "clusterServiceID", csID.String())
+		csExternalAuthDeleteAccepted = true
 	}
 
 	replacement := externalAuth.DeepCopy()
 	replacement.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: c.clock.Now().UTC()}
+	replacement.ServiceProviderProperties.ClusterServiceExternalAuthDeleteAccepted = ptr.To(csExternalAuthDeleteAccepted)
 	_, err = externalAuthCRUD.Replace(ctx, replacement, nil)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
