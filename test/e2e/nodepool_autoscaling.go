@@ -240,6 +240,11 @@ var _ = Describe("Customer", func() {
 			}
 			Expect(len(nodes.Items)).To(BeNumerically(">=", minExpected), "expected at least %d nodes after no-AZ nodepool creation", minExpected)
 
+			By("keeping cluster alive for 2 hours for manual inspection")
+			GinkgoWriter.Printf("Cluster %s and nodepools %s, %s are ready. Sleeping for 2 hours before cleanup.\n", customerClusterName, azNodePoolName, noAZNodePoolName)
+			GinkgoWriter.Printf("Resource group: %s\n", *resourceGroup.Name)
+			time.Sleep(2 * time.Hour)
+
 		})
 
 	It("should respect cluster-wide node limits with nodepool autoscaling",
