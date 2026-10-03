@@ -31,7 +31,7 @@ import (
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -81,7 +81,7 @@ var _ = Describe("Service Provider", func() {
 			versionLabel := strings.ReplaceAll(minorVersion, ".", "-") // e.g. "4.20" -> "4-20"
 			suffix := rand.String(6)
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = installVersion
 			clusterParams.ChannelGroup = channelGroup
@@ -94,7 +94,7 @@ var _ = Describe("Service Provider", func() {
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20260901(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -115,17 +115,18 @@ var _ = Describe("Service Provider", func() {
 			}
 
 			By(fmt.Sprintf("creating the HCP cluster at exact install version '%s' on %s channel", installVersion, channelGroup))
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				clusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with version %s on %s channel", clusterName, installVersion, channelGroup)
 
 			By("verifying the cluster is viable")
-			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
 				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
@@ -142,18 +143,18 @@ var _ = Describe("Service Provider", func() {
 			// minor clears that internal pin without an exact-version tag to remove.
 			// Retain Immediate from the progressive rollout test: production fleet
 			// canary readiness can outlast this test's upgrade timeout.
-			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+			update := hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
 				Tags: map[string]*string{
 					metadataapi.TagClusterZStreamUpdatePolicy: to.Ptr(string(coreapi.ImmediateZStreamUpdatePolicy)),
 				},
-				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
-					Version: &hcpsdk20240610preview.VersionProfile{
+				Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
+					Version: &hcpsdk20260901preview.VersionProfileUpdate{
 						ID:           to.Ptr(minorVersion),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
 			}
-			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
+			_, err = framework.UpdateHCPCluster20260901(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to enable immediate z-stream updates for cluster %q on minor version %s", clusterName, minorVersion)
 
 			By("verifying that only a z-stream upgrade was performed")

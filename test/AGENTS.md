@@ -2,18 +2,18 @@
 
 ## Provision HCP cluster
 
-* **Cluster creation:** Cluster creation, which leverages methods from the framework module, offers three main approaches for creating and deploying an HCP cluster: `CreateHCPClusterFromParam20240610`, which handles creation and automatically waits for successful deployment; `BeginCreateHCPCluster20240610`, which initiates the process but requires explicit test logic to wait for provisioning completion; and an alternative using `CreateHCPClusterFromParam20240610` with a 0-second timeout, which executes the creation but immediately bypasses the waiting phase for provisioning to finish.
-* **Cluster Params:** The `NewDefaultClusterParams20240610` method from the framework module should be used to configure the default cluster parameters. Before creating cluster customer resources, the `ClusterName` parameter must be set. Different cluster configurations can be achieved by assigning custom values to the parameters.
+* **Cluster creation:** Cluster creation, which leverages methods from the framework module, offers three main approaches for creating and deploying an HCP cluster: `CreateHCPClusterFromParam20260901`, which handles creation and automatically waits for successful deployment; `BeginCreateHCPCluster20260901`, which initiates the process but requires explicit test logic to wait for provisioning completion; and an alternative using `CreateHCPClusterFromParam20260901` with a 0-second timeout, which executes the creation but immediately bypasses the waiting phase for provisioning to finish.
+* **Cluster Params:** The `NewDefaultClusterParams20260901` method from the framework module should be used to configure the default cluster parameters. Before creating cluster customer resources, the `ClusterName` parameter must be set. Different cluster configurations can be achieved by assigning custom values to the parameters.
 * **Prepare cluster customer resources:** Creating a cluster requires several
   resources (like an NSG, VNet, subnet, and managed identities). To create
   these resources and set the cluster's parameters, use the
-  `CreateClusterCustomerResources20240610` method from the framework module.
+  `CreateClusterCustomerResources20260901` method from the framework module.
   Use `RBACScopeResourceGroup` as RBACScope argument of
-  `CreateClusterCustomerResources20240610` function, but make sure that
+  `CreateClusterCustomerResources20260901` function, but make sure that
   `framework.RBACScopeResource` is used in at least one test case in E2E
   test suite.
-* **Nodepool creation:** To create a nodepool, utilize the `CreateNodePoolFromParam20240610` method. Beforehand, the default nodepool parameters should be prepared using the `NewDefaultNodePoolParams20240610` method. Both of these methods are located within the `framework` module. Like cluster parameters, custom configurations can be assigned to the nodepool parameter values.
-* **API version suffix convention:** Framework helpers that call the ARM SDK must use explicit API version suffixes in their names. Prefer `...20240610` helpers for the stable test path (for example `GetHCPCluster20240610`, `UpdateHCPCluster20240610`, `CreateNodePoolAndWait20240610`) and `...20251223` or any future versions helpers only when testing preview-specific behavior (for example `BuildHCPClusterFromParams20251223`, `CreateHCPClusterAndWait20251223`).
+* **Nodepool creation:** To create a nodepool, utilize the `CreateNodePoolFromParam20260901` method. Beforehand, the default nodepool parameters should be prepared using the `NewDefaultNodePoolParams20260901` method. Both of these methods are located within the `framework` module. Like cluster parameters, custom configurations can be assigned to the nodepool parameter values.
+* **API version suffix convention:** Framework helpers that call the ARM SDK must use explicit API version suffixes in their names. Prefer `...20260901` helpers for the stable test path (for example `GetHCPCluster20260901`, `UpdateHCPCluster20260901`, `CreateNodePoolAndWait20260901`) and `...20260901` or any future versions helpers only when testing preview-specific behavior (for example `BuildHCPClusterFromParams20260901`, `CreateHCPClusterAndWait20260901`).
 * **Timeouts:** Add named constants in [`test/util/framework/constants.go`](util/framework/constants.go) only for durations **shared across multiple test cases** (same ARM operation, framework helper, or verifier pattern). A timeout that is unique to one test and used once can stay as a local literal (e.g. in an `Eventually` block). When several tests need the same budget, use the matching constant instead of repeating a magic number:
   * **Provisioning:** `ClusterCreationTimeout`, `NodePoolCreationTimeout`, `ExternalAuthCreationTimeout`
   * **Access Cluster:** `GetAdminRESTConfigTimeout` (for `GetAdminRESTConfigForHCPClusterYYYYMMDD` and similar credential fetches)
@@ -37,7 +37,7 @@ All cluster and node pool operations are tied to a specific API version. This me
 
 ## Kubernetes verifiers
 
-* **K8S client-go:** Use this client to communicate with created HCP clusters. Client requires rest Config which is provided by method `GetAdminRESTConfigForHCPCluster20240610` with 10 minutes timeout.
+* **K8S client-go:** Use this client to communicate with created HCP clusters. Client requires rest Config which is provided by method `GetAdminRESTConfigForHCPCluster20260901` with 10 minutes timeout.
 * **HostedClusterVerifier:** This interface is designed for all verifiers and provides the essential `Name` and `Verify` methods for extension.
 * **Parallel checks:** Use `VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyFoo(), verifiers.VerifyBar(), ...)` to run independent verifiers in parallel. Each verifier is responsible for its own polling, diagnostics, and delta-only logging when it needs to wait.
 * **Polling:** Verifiers that poll require a timeout parameter (e.g. `verifiers.VerifyDaemonSetReady(ns, name, 10*time.Minute)`). The timeout must be > 0; passing zero is a runtime error. Verifiers that are inherently single-shot (e.g. `VerifyPullSecretAuthData`) do not accept a timeout. Polling runs inside each verifier's `Verify` method via shared helpers in `poll.go` using `verifiers.DefaultPollInterval`. Reuse `verifiers.VerifyDaemonSetReady(namespace, name, timeout)` for any DaemonSet readiness check; `VerifyGlobalPullSecretSyncer` is a thin alias for the syncer in kube-system.
@@ -46,7 +46,7 @@ All cluster and node pool operations are tied to a specific API version. This me
 
 ## Cleanup of Resources
 
-* **TestContext:** Using [TestContext](https://github.com/Azure/ARO-HCP/blob/main/test/util/framework/per_test_framework.go#L51), to create a resource group, will automatically register it for a cleanup after the test. The cleanup process involves deleting all HCP clusters within the designated resource groups (via `DeleteAllHCPClusters20240610`). The resource groups themselves are removed, along with any remaining Azure resources.
+* **TestContext:** Using [TestContext](https://github.com/Azure/ARO-HCP/blob/main/test/util/framework/per_test_framework.go#L51), to create a resource group, will automatically register it for a cleanup after the test. The cleanup process involves deleting all HCP clusters within the designated resource groups (via `DeleteAllHCPClusters20260901`). The resource groups themselves are removed, along with any remaining Azure resources.
 * **Test resources:** Within the test, remove any created resources that are not part of the TestContext resource group or its associated HCP clusters. Ensure all tests start from a known, clean state to avoid flakiness and false positives.
 
 # Best Practices for Writing E2E Test Cases
@@ -264,12 +264,12 @@ It("should create cluster successfully",
 ## Client Usage Patterns
 
 ### HCP SDK Client:
-- Use `tc.Get20240610ClientFactoryOrDie(ctx)` to get client factory
+- Use `tc.Get20260901ClientFactoryOrDie(ctx)` to get client factory
 - Chain to specific clients: `.NewHcpOpenShiftClustersClient()`, `.NewHcpOpenShiftClusterNodePoolsClient()`
 - Always use context with timeout for async operations
 
 ### Kubernetes Client:
-- Use `framework.GetAdminRESTConfigForHCPCluster20240610()` to get REST config (10-minute timeout)
+- Use `framework.GetAdminRESTConfigForHCPCluster20260901()` to get REST config (10-minute timeout)
 - Use standard `client-go` libraries for K8s operations
 - Verifiers are in `test/util/verifiers/` and implement `HostedClusterVerifier` interface
 
