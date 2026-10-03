@@ -762,6 +762,7 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 	return nil
 }
 
+// Adds a cluster delete operation and initializes child deletion when needed.
 func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction cosmosstorageutils.DBTransaction, cluster *coreapi.Cluster) error {
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
@@ -808,8 +809,9 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
+	now := f.clock.Now().UTC()
 	if cluster.ServiceProviderProperties.DeletionTimestamp == nil {
-		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: f.clock.Now().UTC()}
+		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
 	}
 	cluster.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	cluster.ServiceProviderProperties.ProvisioningState = operationDoc.Status
@@ -817,7 +819,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 	// permanent environments, for all regions.
 	cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = true
 
-	cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = computeDeleteOperationCompletionDeadline(cluster)
+	cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = computeDeleteOperationCompletionDeadline(cluster, now)
 
 	_, err = f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).
 		AddReplaceToTransaction(ctx, transaction, cluster, nil)
@@ -825,37 +827,53 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
-	// recurse down to delete children
+	// Preserve initialized child deletions, but include children created while
+	// parent monitoring was Failed or admitted concurrently with deletion.
 	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	for _, nodePool := range nodePoolIterator.Items(ctx) {
+		if nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
+			nodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach {
+			continue
+		}
 		// don't include the writer/request so that we don't have conflicting notificationURIs
 		if err := f.addDeleteNodePoolToTransaction(ctx, nil, nil, transaction, nodePool); err != nil {
 			return utils.TrackError(err)
 		}
+	}
+	if err := nodePoolIterator.GetError(); err != nil {
+		return utils.TrackError(err)
 	}
 	externalAuthIterator, err := f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(cluster.ID.Name).List(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	for _, externalAuth := range externalAuthIterator.Items(ctx) {
+		if externalAuth.ServiceProviderProperties.DeletionTimestamp != nil &&
+			externalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach {
+			continue
+		}
 		// don't include the writer/request so that we don't have conflicting notificationURIs
 		if err := f.addDeleteExternalAuthToTransaction(ctx, nil, nil, transaction, externalAuth); err != nil {
 			return utils.TrackError(err)
 		}
 	}
+	if err := externalAuthIterator.GetError(); err != nil {
+		return utils.TrackError(err)
+	}
 
 	return nil
 }
 
-func computeDeleteOperationCompletionDeadline(cluster *coreapi.Cluster) *metav1.Time {
+// Computes the monitoring deadline for an accepted delete attempt.
+func computeDeleteOperationCompletionDeadline(cluster *coreapi.Cluster, now time.Time) *metav1.Time {
 	duration := admission.DefaultDeleteOperationCompletionDeadlineDuration
 	if cluster.ServiceProviderProperties.DeleteOperationCompletionTimeout != nil {
 		duration = *cluster.ServiceProviderProperties.DeleteOperationCompletionTimeout
 	}
-	deadline := metav1.NewTime(cluster.ServiceProviderProperties.DeletionTimestamp.Add(duration))
+	deadline := metav1.NewTime(now.Add(duration))
 	return &deadline
 }
 
