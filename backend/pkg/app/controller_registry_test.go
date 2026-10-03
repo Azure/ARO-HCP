@@ -108,6 +108,7 @@ var expectedControllerLaunches = []struct {
 	{"externalauthdegradedaggregator", 20},
 	{"desiredcontrolplanesize", 20},
 	{"serviceproviderclusterpropertiessync", 20},
+	{"clustervalidationazureclustervnetintegrationsubnetsizevalidation", 20},
 	{"clustervalidationazureresourceprovidersregistrationvalidation", 20},
 	{"clustervalidationazureclusterresourcegroupexistencevalidation", 20},
 	{"clustervalidationazureclustermanagedidentitiesexistencevalidation", 20},
