@@ -890,6 +890,7 @@ monitoring:
       automitigationEnabled: ""
       enabled: true
       routingId: ""
+  internalSubscriptions: []
   svcWorkspaceName: services-usw3test
 msiCredentialsRefresher:
   certificate:
