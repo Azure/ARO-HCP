@@ -20,25 +20,18 @@ import (
 	"os"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 )
 
-func newHardcodedIdentityFPAMIDataplaneClientBuilder(
-	azureMIMockCertBundlePath string, azureMIMockClientID string, azureMIMockPrincipalID string, azureMIMockTenantID string,
-	azureConfig *azureconfig.AzureConfig,
-) (azureclient.FPAMIDataplaneClientBuilder, error) {
+func newHardcodedIdentity(azureMIMockCertBundlePath string, azureMIMockClientID string, azureMIMockPrincipalID string, azureMIMockTenantID string) (*azureclient.HardcodedIdentity, error) {
 	bundle, err := os.ReadFile(azureMIMockCertBundlePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read bundle file: %w", err)
 	}
 	bundleBase64Encoded := base64.StdEncoding.EncodeToString(bundle)
-	hardcodedIdentity := &azureclient.HardcodedIdentity{
+	return &azureclient.HardcodedIdentity{
 		ClientID:     azureMIMockClientID,
 		ClientSecret: bundleBase64Encoded,
 		PrincipalID:  azureMIMockPrincipalID,
 		TenantID:     azureMIMockTenantID,
-	}
-	res := azureclient.NewHardcodedIdentityFPAMIDataplaneClientBuilder(azureConfig.CloudEnvironment.CloudConfiguration(), hardcodedIdentity)
-
-	return res, nil
+	}, nil
 }
