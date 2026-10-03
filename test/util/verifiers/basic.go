@@ -121,9 +121,11 @@ var standardVerifiers = []HostedClusterVerifier{
 	verifyAllAPIServicesAvailable(),
 }
 
-func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additionalVerifiers ...HostedClusterVerifier) error {
-	allVerifiers := append(standardVerifiers, additionalVerifiers...)
-
+// verifyAll runs every supplied verifier in parallel and joins their errors.
+//
+// It is deliberately unexported: VerifyHCPCluster is the single entry point tests use to run
+// independent verifiers in parallel (see test/AGENTS.md).
+func verifyAll(ctx context.Context, adminRESTConfig *rest.Config, allVerifiers ...HostedClusterVerifier) error {
 	errCh := make(chan error, len(allVerifiers))
 	wg := sync.WaitGroup{}
 	for _, verifier := range allVerifiers {
@@ -145,4 +147,30 @@ func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additio
 	}
 
 	return errors.Join(errs...)
+}
+
+// VerifyHCPCluster runs the standard cluster viability verifiers, plus any additional verifiers,
+// in parallel. It is the single entry point for running independent verifiers concurrently (see
+// test/AGENTS.md).
+//
+// Pass only verifiers that are independent of the standard viability set and that settle on a
+// comparable timescale. The standard verifiers are single-shot or bounded well below a long wait
+// -- verifyBasicAccess lists services once with no retry, verifyAllAPIServicesAvailable gives up
+// after 5 minutes -- so an additional verifier that polls for tens of minutes does not extend
+// them. It leaves them having sampled the cluster once, at the start of that wait, which asserts
+// viability against the cluster as it was before whatever the wait was for, and turns a transient
+// error at t=0 into a failed spec even if the API recovers seconds later.
+//
+// A verifier that waits that long belongs in a phase of its own, called one at a time with
+// Expect(verifier.Verify(ctx, adminRESTConfig)).NotTo(HaveOccurred(), "..."), with VerifyHCPCluster
+// called afterwards to check viability once the wait has resolved. The control plane upgrade specs
+// are the worked example; ARO-26775 is what the other shape costs.
+func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additionalVerifiers ...HostedClusterVerifier) error {
+	// Build a fresh slice rather than appending to standardVerifiers, which would let one
+	// caller write into a package-level backing array shared by parallel specs.
+	allVerifiers := make([]HostedClusterVerifier, 0, len(standardVerifiers)+len(additionalVerifiers))
+	allVerifiers = append(allVerifiers, standardVerifiers...)
+	allVerifiers = append(allVerifiers, additionalVerifiers...)
+
+	return verifyAll(ctx, adminRESTConfig, allVerifiers...)
 }

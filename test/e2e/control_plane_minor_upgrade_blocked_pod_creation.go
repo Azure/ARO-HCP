@@ -16,7 +16,6 @@ package e2e
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -231,13 +230,29 @@ var _ = Describe("Customer", func() {
 			_, err = framework.UpdateHCPCluster20260901(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
+			// The verifiers poll internally, so they are phased rather than run under a single
+			// VerifyHCPCluster call: the control plane must reach the target minor first, and
+			// the kube-apiserver confirmation then runs on whatever budget remains. Floored at
+			// minimumUpgradeConfirmationTimeout so the confirmation is never handed a
+			// non-positive timeout it would fail on outright.
+			upgradeDeadline := time.Now().Add(framework.HCPClusterVersionUpgradeTimeout)
+
 			By("verifying control plane reached the target minor")
-			Eventually(func() error {
-				return errors.Join(
-					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion).Verify(ctx, adminRESTConfig),
-					verifiers.VerifyHostedControlPlaneYStreamUpgrade(installVersionId, upgradeVersionId).Verify(ctx, adminRESTConfig),
-				)
-			}).WithContext(ctx).WithTimeout(framework.HCPClusterVersionUpgradeTimeout).WithPolling(2*time.Minute).Should(Succeed(), "control plane did not reach %s on cluster %q with deny-pod ValidatingAdmissionPolicy", upgradeVersionId, clusterName)
+			Expect(verifiers.VerifyHostedControlPlaneYStreamUpgrade(
+				installVersionId,
+				upgradeVersionId,
+				framework.HCPClusterVersionUpgradeTimeout,
+			).Verify(ctx, adminRESTConfig)).NotTo(HaveOccurred(),
+				"control plane did not reach %s on cluster %q with deny-pod ValidatingAdmissionPolicy",
+				upgradeVersionId, clusterName)
+
+			By("verifying the kube-apiserver reports the upgraded version")
+			Expect(verifiers.VerifyKubeAPIServerServerVersionUpgraded(
+				preUpgradeKubeAPIServerVersion,
+				max(time.Until(upgradeDeadline), minimumUpgradeConfirmationTimeout),
+			).Verify(ctx, adminRESTConfig)).NotTo(HaveOccurred(),
+				"kube-apiserver of cluster %q still reported the pre-upgrade version after the control plane reached %s with deny-pod ValidatingAdmissionPolicy",
+				clusterName, upgradeVersionId)
 
 			By("verifying cluster API remains reachable after control plane upgrade")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
