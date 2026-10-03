@@ -915,6 +915,8 @@ defaults:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       san: ''
       contentType: x-pkcs12
+    alertProcessingRules:
+      deploy: false
   # Session Gate
   sessiongate:
     image:
@@ -1574,6 +1576,8 @@ clouds:
             regionalSubdomain: '{{ .ctx.region }}'
           # Admin API
           adminApi:
+            alertProcessingRules:
+              deploy: true
             cert:
               san: 'admin.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           # Sessiongate
@@ -1671,6 +1675,10 @@ clouds:
                 privateLinkLocation: westus3
         # this is the personal DEV environment
         defaults:
+          # Admin API
+          adminApi:
+            alertProcessingRules:
+              deploy: true
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1745,6 +1753,10 @@ clouds:
               profile: "development"
       perf:
         defaults:
+          # Admin API
+          adminApi:
+            alertProcessingRules:
+              deploy: true
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1783,6 +1795,10 @@ clouds:
               profile: "ci"
       ci00:
         defaults:
+          # Admin API
+          adminApi:
+            alertProcessingRules:
+              deploy: true
           # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
           # Remove this image switch after dedicated image onboarding (stage 2).
           swiftRecorder:
@@ -1885,6 +1901,10 @@ clouds:
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
+          # Admin API
+          adminApi:
+            alertProcessingRules:
+              deploy: true
           # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
           # Remove this image switch after dedicated image onboarding (stage 2).
           swiftRecorder:

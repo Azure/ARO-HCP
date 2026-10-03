@@ -67,3 +67,12 @@ sessiongate:
     policyLabel: "{{ .mise.sessiongate.policyLabel }}"
   minSessionTTL: 1m
   maxSessionTTL: 24h
+# Alert processing rules. The admin API exposes the
+# /admin/v1/alertprocessingrules routes against the region's resource group,
+# scoped to the region's HCP and services Azure Monitor Workspaces.
+alertProcessingRules:
+  deploy: {{ .adminApi.alertProcessingRules.deploy }}
+  subscriptionId: "__subscriptionId__"
+  resourceGroup: "{{ .regionRG }}"
+  svcAmwName: "{{ .monitoring.svcWorkspaceName }}"
+  hcpAmwName: "{{ .monitoring.hcpWorkspaceName }}"
