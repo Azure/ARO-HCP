@@ -190,6 +190,15 @@ The reference-retention safeguard does not replace the manual drain prerequisite
 
 ## API Verification
 
+The multiversion installation E2E checks prospective availability before allocating
+identities or customer resources. After Cincinnati resolves the requested minor
+version and channel group, it waits up to 15 minutes for LIST membership and a
+matching GET response using the `2024-06-10-preview` API. Each poll starts a fresh
+pager, reads every page, and checks the advertised name, group, and enabled state.
+The deadline also bounds SDK retries. Missing or unresolved catalog data retries;
+invalid responses fail with the expected profile and last observation. Nightly
+installations retain their exact-build workflow and skip this catalog wait.
+
 For **all registered API versions**, use the regional endpoints:
 
 ```text
