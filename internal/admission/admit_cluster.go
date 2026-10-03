@@ -124,8 +124,7 @@ func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContex
 // version (a bare "<major>.<minor>", or malformed) is left untouched here; static
 // validation reports a malformed version.id.
 //
-// When neither source is present but the old cluster carried an exact pin, the
-// customer is removing it, so the exact version is cleared.
+// A minor version without an exact-version tag clears an old exact pin.
 //
 // Tags are read from admissionContext.OriginalCluster (the pre-mutation source
 // of truth) while version.id is read from and written back to the object being
@@ -183,8 +182,7 @@ func mutateClusterControlPlaneExactVersion(_ context.Context, admissionContext *
 		newObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &exact
 		newObj.CustomerProperties.Version.ID = fmt.Sprintf("%d.%d", parsedVersionID.Major, parsedVersionID.Minor)
 	default:
-		// Neither the tag nor a patch-bearing version.id is present. If the old
-		// cluster carried an exact pin, the customer is removing it, so clear it.
+		// Clear the old exact pin for a minor-version request or tag removal.
 		if oldObj != nil && oldObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion != nil {
 			newObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = nil
 		}

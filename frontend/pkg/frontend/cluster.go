@@ -561,9 +561,33 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *coreapi.
 		return nil, utils.TrackError(err)
 	}
 
-	// TODO find a way to represent the desired change without starting from internal state here (very confusing)
-	// TODO we appear to lack a test, but this seems to take an original, apply the patch and unmarshal the result, meaning the above patch step is just incorrect.
-	var newExternalCluster = versionedInterface.NewCluster(oldInternalCluster)
+	subscription, err := SubscriptionFromContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	// Restore an ID-derived exact pin only in the private merge baseline. Merge
+	// patch then preserves omitted IDs and applies explicit replacements or nulls.
+	// Tag-derived pins use the public minor version so removing the tag unpins.
+	patchBaseline := oldInternalCluster
+	exactVersion := oldInternalCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+	if subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) && exactVersion != nil {
+		hasExactTag := false
+		for key := range oldInternalCluster.Tags {
+			if strings.EqualFold(key, metadataapi.TagClusterControlPlaneExactVersion) {
+				hasExactTag = true
+				break
+			}
+		}
+		if !hasExactTag {
+			if oldInternalCluster.CustomerProperties.Version.ID != fmt.Sprintf("%d.%d", exactVersion.Major, exactVersion.Minor) {
+				return nil, utils.TrackError(fmt.Errorf("stored cluster version ID %q does not match exact version %q", oldInternalCluster.CustomerProperties.Version.ID, exactVersion.String()))
+			}
+			patchBaseline = oldInternalCluster.DeepCopy()
+			patchBaseline.CustomerProperties.Version.ID = exactVersion.String()
+		}
+	}
+	newExternalCluster := versionedInterface.NewCluster(patchBaseline)
 	if err := coreapihelpers.ApplyRequestBody(http.MethodPatch, body, newExternalCluster); err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -614,7 +638,7 @@ func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Req
 }
 
 func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalCluster, oldInternalCluster *coreapi.Cluster) error {
-	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, oldInternalCluster.ID.SubscriptionID)
+	subscription, err := SubscriptionFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
