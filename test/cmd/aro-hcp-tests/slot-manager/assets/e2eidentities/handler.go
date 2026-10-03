@@ -132,7 +132,11 @@ func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, c
 	if err := contract.Add(string(h.Kind()), framework.IdentityConsumerGuardEnvvar, mode); err != nil {
 		return err
 	}
-	return contract.Add(string(h.Kind()), "LEASED_MSI_CONTAINERS", strings.Join(request.AcquiredSlotState.Slot.IdentityContainerNames(), " "))
+	containers := request.AcquiredSlotState.AdmittedIdentityContainers
+	if len(containers) == 0 {
+		return fmt.Errorf("no admitted identity containers to publish")
+	}
+	return contract.Add(string(h.Kind()), "LEASED_MSI_CONTAINERS", strings.Join(containers, " "))
 }
 
 func azurePoolDependencies() (azcore.TokenCredential, subscriptionIDResolverFunc, error) {

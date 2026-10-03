@@ -53,7 +53,7 @@ Regardless of how CI acquired the pool, the runtime behavior inside the test bin
   - Each spec is identified by a stable `specID()`, derived from the Ginkgo spec text and the OS process ID.
   - At the start of a spec, `AssignIdentityContainers()` atomically reserves the required number of containers by transitioning `free -> assigned`. If there are not enough free entries, it returns `ErrNotEnoughFreeIdentityContainers` and retries with backoff until containers become available or the context is cancelled.
   - When a spec actually needs a container, `ResolveIdentitiesForTemplate()` or `DeployManagedIdentities()` calls `useNextAssigned(specID)`, which transitions a single entry from `assigned -> busy` and returns its resource group name.
-  - During cleanup, `releaseLeasedIdentities()` checks surviving HCP and node-pool consumers before deleting FICs, container-scoped RBAC or separately tracked role assignments. Enforcement blocks the whole spec's identity cleanup if the inventory is unsafe or incomplete. A busy container becomes `free` only after tracked assignments and its container cleanup succeed; failed cleanup leaves it reserved.
+  - During cleanup in ARM-backed environments, `releaseLeasedIdentities()` checks surviving HCP and node-pool consumers before deleting FICs, container-scoped RBAC or separately tracked role assignments. Enforcement blocks the whole spec's identity cleanup if the inventory is unsafe or incomplete. DEV skips consumer checks during acquisition and teardown to avoid subscription-wide ARM inventory traffic; its normal cleanup still runs. A busy container becomes `free` only after tracked assignments and its container cleanup succeed; failed cleanup leaves it reserved.
   - A crashed test process leaves its busy entries unavailable to other specs using that state file. A new job must pass slot admission again, independently of whether teardown ran or the Boskos lease expired. The cross-job consumer safeguard covers ARM-backed environments, not DEV local frontends.
 - **Identity naming**
   - The set of managed identities in each container is fixed and defined in `NewDefaultIdentities()` in `identities_helper.go`, including names such as `cluster-api-azure`, `control-plane`, `cloud-controller-manager`, `image-registry`, and `service`.
@@ -117,6 +117,14 @@ acquired pool's optional `vm_family_policy` against its runtime region. Pools
 without policy export `{}`. The suite rejects a subsequent location override
 that differs from `SELECTED_LOCATION`, so select the desired region during
 acquisition rather than after sourcing the contract.
+
+In enforcement mode, ARM-backed acquisition inventories all consumers once,
+excludes every referenced container, and cleans and exports only the remainder.
+Incomplete inventory or fewer than three safe containers blocks acquisition
+before cleanup. Three is the largest current per-spec reservation, not a
+guarantee of full parallel throughput. All dedicated containers remain owned by
+the slot; `admitted_identity_containers` records the runtime subset separately.
+Audit mode logs references but permits cleanup and publication of the full set.
 
 The acquire step mounts cluster-profile credentials. Slot-manager authenticates
 directly from the selected profile; a prior `az login` is not required. See

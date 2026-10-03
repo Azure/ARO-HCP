@@ -143,6 +143,9 @@ func (h *lifecycleHandler) AdmitLease(ctx context.Context, request assets.LeaseR
 	if h.reuseError != nil {
 		return h.reuseError
 	}
+	if h.kind == slots.KindE2EIdentities {
+		request.AcquiredSlotState.AdmittedIdentityContainers = request.AcquiredSlotState.Slot.IdentityContainerNames()
+	}
 	if request.SkipAdmissionCleanup {
 		return nil
 	}
@@ -355,6 +358,9 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 				state, err := slots.LoadAcquiredSlotState(options.SharedDir)
 				if err != nil {
 					t.Fatal(err)
+				}
+				if phase == "publish" && !reflect.DeepEqual(state.AdmittedIdentityContainers, request.AcquiredSlotState.Slot.IdentityContainerNames()) {
+					t.Fatalf("publication ran before admitted containers were persisted: %+v", state)
 				}
 				want := []slots.Lease{{ResourceType: "bundle-type", ResourceName: "bundle-04"}, {ResourceType: "bundle-type", ResourceName: "bundle-01"}}
 				if !reflect.DeepEqual(state.Leases.Assets[slots.KindInfrastructureIdentities], want) {

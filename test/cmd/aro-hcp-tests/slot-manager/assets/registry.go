@@ -63,6 +63,7 @@ type LeaseRequest struct {
 	SkipAdmissionCleanup bool
 	// IdentityConsumerGuardMode controls enforcement without disabling inventory auditing or cleanup.
 	IdentityConsumerGuardMode string
+	MinimumIdentityContainers int
 }
 
 // Handler implements pool management and the lease lifecycle for one asset kind.

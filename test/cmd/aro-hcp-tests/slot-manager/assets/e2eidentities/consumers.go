@@ -17,6 +17,7 @@ package e2eidentities
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/go-logr/logr"
 
@@ -25,15 +26,23 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
-// Checks surviving consumers independently of whether the previous run performed teardown.
-func checkIdentityLeaseConsumers(ctx context.Context, request assets.LeaseRequest, factory *hcpsdk.ClientFactory) error {
+// Selects consumer-free containers without changing the slot's dedicated ownership inventory.
+func selectIdentityLeaseContainers(ctx context.Context, request assets.LeaseRequest, factory *hcpsdk.ClientFactory) ([]string, error) {
 	if request.AcquiredSlotState == nil {
-		return errors.New("acquired slot state is nil")
+		return nil, errors.New("acquired slot state is nil")
 	}
 	slot := request.AcquiredSlotState.Slot
 	if slot.Environment == "dev" {
 		logr.FromContextOrDiscard(ctx).Info("ARM consumer check does not cover DEV local frontend clusters", "phase", "acquisition")
-		return ctx.Err()
+		return slot.IdentityContainerNames(), ctx.Err()
 	}
-	return framework.CheckIdentityConsumers20261001(ctx, factory, slot.Subscriptions.E2E.ID, slot.IdentityContainerNames(), "acquisition", request.IdentityConsumerGuardMode)
+	available, err := framework.FilterIdentityConsumers20261001(ctx, factory, slot.Subscriptions.E2E.ID, slot.IdentityContainerNames(), "acquisition", request.IdentityConsumerGuardMode)
+	if err != nil {
+		return nil, err
+	}
+	minimum := max(1, request.MinimumIdentityContainers)
+	if len(available) < minimum {
+		return nil, fmt.Errorf("not enough safe identity containers: need %d, available %d of %d", minimum, len(available), len(slot.IdentityContainerNames()))
+	}
+	return available, nil
 }

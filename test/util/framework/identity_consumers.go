@@ -43,33 +43,53 @@ func IdentityConsumerGuardMode(mode string) (string, error) {
 
 // CheckIdentityConsumers20261001 audits identity consumers and enforces safe reuse unless explicitly set to audit.
 func CheckIdentityConsumers20261001(ctx context.Context, factory *hcpsdk.ClientFactory, subscriptionID string, containers []string, phase, mode string) error {
-	mode, err := IdentityConsumerGuardMode(mode)
+	available, err := FilterIdentityConsumers20261001(ctx, factory, subscriptionID, containers, phase, mode)
 	if err != nil {
 		return err
+	}
+	if len(available) != len(containers) {
+		return errors.New("identity containers are still referenced by HCP consumers")
+	}
+	return nil
+}
+
+// FilterIdentityConsumers20261001 inventories all consumers once and excludes referenced containers in enforce mode.
+func FilterIdentityConsumers20261001(ctx context.Context, factory *hcpsdk.ClientFactory, subscriptionID string, containers []string, phase, mode string) ([]string, error) {
+	mode, err := IdentityConsumerGuardMode(mode)
+	if err != nil {
+		return nil, err
 	}
 	logger := logr.FromContextOrDiscard(ctx).WithValues(
 		"phase", phase, "guardMode", mode, "subscriptionID", subscriptionID,
 		"identityContainers", containers, "job", os.Getenv("JOB_NAME"), "buildID", os.Getenv("BUILD_ID"),
 	)
-	err = checkIdentityConsumers20261001(ctx, factory, subscriptionID, containers)
+	referencedContainers := map[string]bool{}
+	err = checkIdentityConsumers20261001(ctx, factory, subscriptionID, containers, func(reference *identityConsumerReferenceError) {
+		referencedContainers[reference.container] = true
+		logger.Error(reference, "Identity container is still referenced",
+			"identity", reference.identity, "consumer", reference.consumer, "container", reference.container, "blocked", mode == "enforce")
+	})
 	if err != nil {
-		var referenced *identityConsumerReferenceError
-		if errors.As(err, &referenced) {
-			logger = logger.WithValues("identity", referenced.identity, "consumer", referenced.consumer)
-		}
 		logger.Error(err, "Identity consumer guard could not establish safe cleanup and reuse", "blocked", mode == "enforce" || ctx.Err() != nil)
 		if mode == "enforce" || ctx.Err() != nil {
-			return err
+			return nil, err
 		}
-		return nil
+		return append([]string(nil), containers...), nil
 	}
-	logger.Info("Identity consumer inventory completed without matching references", "blocked", false)
-	return nil
+	available := make([]string, 0, len(containers))
+	for _, container := range containers {
+		if mode == "audit" || !referencedContainers[container] {
+			available = append(available, container)
+		}
+	}
+	logger.Info("Identity consumer inventory completed", "referencedContainers", len(referencedContainers), "availableContainers", len(available), "blocked", len(available) != len(containers))
+	return available, nil
 }
 
 type identityConsumerReferenceError struct {
-	identity string
-	consumer string
+	identity  string
+	consumer  string
+	container string
 }
 
 // Error identifies the consumer preventing identity cleanup and reuse.
@@ -78,15 +98,15 @@ func (e *identityConsumerReferenceError) Error() string {
 }
 
 // Checks every HCP and node-pool page before declaring the inventory safe.
-func checkIdentityConsumers20261001(ctx context.Context, factory *hcpsdk.ClientFactory, subscriptionID string, containers []string) error {
+func checkIdentityConsumers20261001(ctx context.Context, factory *hcpsdk.ClientFactory, subscriptionID string, containers []string, onReference func(*identityConsumerReferenceError)) error {
 	if factory == nil || subscriptionID == "" || len(containers) == 0 {
 		return errors.New("consumer check requires an HCP client, resolved subscription and identity containers")
 	}
-	leased := map[string]struct{}{}
+	leased := map[string]string{}
 	for _, group := range containers {
 		for _, name := range NewDefaultIdentities().ToSlice() {
 			id := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", subscriptionID, group, name)
-			leased[strings.ToLower(id)] = struct{}{}
+			leased[strings.ToLower(id)] = group
 		}
 	}
 	clusters := factory.NewHcpOpenShiftClustersClient().NewListBySubscriptionPager(nil)
@@ -125,7 +145,7 @@ func checkIdentityConsumers20261001(ctx context.Context, factory *hcpsdk.ClientF
 			for _, identity := range profile.DataPlaneOperators {
 				references = append(references, identity)
 			}
-			if err := checkConsumerIdentities(*cluster.ID, cluster.Identity, references, leased); err != nil {
+			if err := checkConsumerIdentities(*cluster.ID, cluster.Identity, references, leased, onReference); err != nil {
 				return err
 			}
 
@@ -148,7 +168,7 @@ func checkIdentityConsumers20261001(ctx context.Context, factory *hcpsdk.ClientF
 						!strings.EqualFold(nodeID.ResourceType.String(), "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools") {
 						return fmt.Errorf("invalid node pool consumer ID %q for HCP %q", *nodePool.ID, *cluster.ID)
 					}
-					if err := checkConsumerIdentities(*nodePool.ID, nodePool.Identity, nil, leased); err != nil {
+					if err := checkConsumerIdentities(*nodePool.ID, nodePool.Identity, nil, leased, onReference); err != nil {
 						return err
 					}
 				}
@@ -159,7 +179,7 @@ func checkIdentityConsumers20261001(ctx context.Context, factory *hcpsdk.ClientF
 }
 
 // Validates explicit identity references and reports any consumer of the leased inventory.
-func checkConsumerIdentities(consumer string, identity *hcpsdk.ManagedServiceIdentity, references []*string, leased map[string]struct{}) error {
+func checkConsumerIdentities(consumer string, identity *hcpsdk.ManagedServiceIdentity, references []*string, leased map[string]string, onReference func(*identityConsumerReferenceError)) error {
 	if identity != nil {
 		if identity.Type == nil {
 			return fmt.Errorf("incomplete managed identity profile for consumer %q", consumer)
@@ -185,8 +205,8 @@ func checkConsumerIdentities(consumer string, identity *hcpsdk.ManagedServiceIde
 		if err != nil || id.SubscriptionID == "" || id.ResourceGroupName == "" || !strings.EqualFold(id.ResourceType.String(), "Microsoft.ManagedIdentity/userAssignedIdentities") {
 			return fmt.Errorf("consumer %q has an invalid managed identity ID %q", consumer, *reference)
 		}
-		if _, found := leased[strings.ToLower(id.String())]; found {
-			return &identityConsumerReferenceError{identity: *reference, consumer: consumer}
+		if container, found := leased[strings.ToLower(id.String())]; found {
+			onReference(&identityConsumerReferenceError{identity: *reference, consumer: consumer, container: container})
 		}
 	}
 	return nil
