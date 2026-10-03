@@ -35,6 +35,7 @@ import (
 //   - *coreapi.ManagementClusterContent
 //   - *coreapi.SystemAdminCredentialRequest
 //   - *coreapi.SystemAdminCredentialRevocation
+//   - *coreapi.OpenShiftVersionCatalog
 //
 // Returns an error if any resource cannot be created or if an unsupported type is encountered.
 func NewMockResourcesDBClientWithResources(ctx context.Context, resources []any) (*MockResourcesDBClient, error) {
@@ -52,6 +53,9 @@ func NewMockResourcesDBClientWithResources(ctx context.Context, resources []any)
 // addResource adds a single resource to the mockResourcesDBClient.
 func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) error {
 	switch r := resource.(type) {
+	case *coreapi.OpenShiftVersionCatalog:
+		_, err := m.OpenShiftVersionCatalogs().Create(ctx, r, nil)
+		return err
 	case *coreapi.Cluster:
 		return m.addCluster(ctx, r)
 	case *coreapi.NodePool:

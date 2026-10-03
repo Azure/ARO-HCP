@@ -5,11 +5,12 @@ This plan maps the fleet rollout design originally authored on the
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: the seven controllers, Cosmos storage, informers, and backend wiring
+> Status: the seven rollout controllers plus catalog publication, Cosmos storage, informers, and backend wiring
 > are implemented. They run unconditionally. Production policy is hardcoded;
 > risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
 > Structured rollout profiles, legacy backfill, and discovery/reference seeding are
-> implemented. Catalog publication and rollout retirement are not implemented yet.
+> implemented. Frontend version GET/LIST still use Cluster Service; catalog read
+> cutover and rollout retirement are not implemented yet.
 
 ## 1. Background: the pipeline before this change
 
@@ -137,6 +138,20 @@ not yet available and remains a follow-up.
 Update the `// Written by:` field annotations (see CLAUDE.md cosmos-data-flow
 rule) and run `make deepcopy`.
 
+### 3.3 `OpenShiftVersionCatalog` (regional Resources singleton)
+
+[`OpenShiftVersionCatalog`](../../internal/api/coreapi/types_openshiftversioncatalog.go)
+embeds `CosmosMetadata` and stores `Entries []OpenShiftVersionCatalogEntry`. Each
+entry has `Version coreapi.VersionProfile` and `Available bool`; the publisher
+owns both fields. The internal resource ID is
+`/providers/microsoft.redhatopenshift/openshiftversioncatalogs/default`, partition
+key `microsoft.redhatopenshift`. It lives in the regional **Resources** container,
+not Fleet, and is not an ARM resource. The
+[`OpenShiftVersionCatalogs()` accessor](../../internal/database/cosmosstorage/corecosmosstorage/database.go)
+provides point reads and ETag-protected replacement. Empty results persist as
+`entries: []`, distinct from a missing document. Frontend version GET/LIST do not
+read this snapshot yet.
+
 ## 4. Rollout policy
 
 `RolloutConfig` is passed directly from backend construction. This change has no
@@ -166,14 +181,15 @@ Discovery uses `MinimumBackendVersion` (currently `4.20`) from
 [`versionpolicy`](../../internal/versionpolicy/policy.go). Referenced minor version
 and channel group pairs remain repairable below that floor. This discovery floor
 is separate from the per-channel minimum exact versions used by selection.
+Publication uses the separate `MinimumPublicVersion` floor, also currently `4.20`.
 
 ## 5. Controllers
 
-All seven run in the `backend` binary. Three assignment controllers are per-cluster
+All eight run in the `backend` binary. Three assignment controllers are per-cluster
 (use `controllerutils.NewClusterWatchingController` + `HCPClusterKey`); three are
 per-`ControlPlaneVersionRollout`, keyed by the rollout channel name. Seeding uses
 a homogeneous structured-profile queue; discovery and reference repair add no
-controller registrations.
+controller registrations. Catalog publication adds one regional-key controller.
 
 [`TypedController[T]`](../../internal/controllerutils/typed_controller.go) owns the
 reusable typed queue, worker/retry loop, logging, reconcile metrics, cache-sync
@@ -187,6 +203,9 @@ delegating worker execution to the base. The seeder constructor returns
 `controllerregistry.Runnable`, not the watching-specific backend
 `controllerutils.Controller`: profile keys need no resource-ID conversion or
 `MakeKey` stub. It writes no child Controller bookkeeping.
+The publisher also returns `controllerregistry.Runnable` and uses the typed base
+directly, with rollout informer callbacks enqueueing its aggregate regional key;
+it writes no child Controller bookkeeping either.
 
 Assignment and per-rollout controllers follow the house pattern: a syncer struct holding listers +
 DB clients (interfaces), a `New…Controller` constructor, and a `SyncOnce`
@@ -312,10 +331,29 @@ including pools still being deleted. Pins and experimental exact overrides are
 owned exclusively by forced assignment. Both initial and minor assignment retry missing rollout/best data
 after ten seconds and bypass progressive z-stream gates.
 
+### 5.9 OpenShift Version Catalog Publication
+
+[`OpenShiftVersionCatalog`](../../backend/pkg/controllers/cluster/version/rollout/version_catalog_controller.go)
+uses one regional key and one worker. Rollout add/update/delete events (including
+tombstones), explicit startup enqueue and a five-minute delayed requeue trigger
+projection after initial Fleet cache sync. Legacy profiles are adapted at the read
+boundary without persisting backfill. Pure `reconcileVersionCatalog` validates
+every rollout, projects profiles at/above the public floor, sets `Available` to
+`BestExactVersion != nil`, and sorts by ID then channel group. Unresolved entries
+remain present and unavailable; availability is not a fleet-health gate.
+
+The sync shell point-reads Resources `default`, creates it when absent and replaces
+only changed entries with ETag concurrency. Invalid profiles, including malformed
+below-floor rollouts, abort projection without replacing the previous snapshot.
+Errors and conflicts use queue retries with fresh reads. Empty Fleet state produces
+an empty catalog; publication does not wait for discovery's first successful pass.
+Frontend GET/LIST remain on Cluster Service, so persistence has no public API effect
+at this stage. See the [publication diagram](../cosmos-data-flow.md#version-catalog-publication).
+
 ## 6. Ownership and cutover
 
 This implementation deliberately replaces `ControlPlaneDesiredVersion`; all
-seven rollout controllers run unconditionally. The earlier feature-flag proposal
+eight rollout/catalog controllers run unconditionally. The earlier feature-flag proposal
 was removed during review. Restoring it would reintroduce the removed owner and
 is not part of this change.
 
@@ -335,6 +373,10 @@ bounds unresolved version waits, and no longer reads or creates a legacy
   legacy-health cleanup after observed persistence.
 - [Legacy writer tests](../../backend/pkg/controllers/cluster/version/rollout/legacy_writers_test.go)
   cover best/status/condition writes before backfill and stale writes after repair.
+- [Publisher tests](../../backend/pkg/controllers/cluster/version/rollout/version_catalog_controller_test.go)
+  cover projection, legacy read adaptation, queue behavior and periodic scheduling;
+  [storage tests](../../internal/database/cosmosstorage/corecosmosstorage/version_catalog_test.go)
+  cover Resources identity, partitioning and conditional replacement.
 - **Pure decision functions** (`computeRolloutStatusCounts`, `selectBestExactVersion`, `eligibleClusters`,
   `rolloutDecision`) get exhaustive table-driven unit tests — no fakes needed.
 - **`SyncOnce`** tests use the in-memory mock DB
@@ -365,10 +407,11 @@ Implemented:
 
 - Fleet API, validation of supported channel groups and major/minor names,
   Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
-- Seven controllers, backend registration under leader election, and unit tests.
+- Eight rollout/catalog controllers, backend registration under leader election, and unit tests.
 - Structured `Spec.Version`, legacy read adaptation and ETag-protected backfill.
 - Independent discovery/reference producers feeding one typed seeder queue, with
   below-floor reference repair and obsolete per-cluster health cleanup.
+- Regional Resources catalog persistence and publication from Fleet rollout profiles.
 - Shared Cincinnati selection with the existing per-channel offset policy.
 - Persisted transition ages and assignment cooldown reservations.
 - Forced-version precedence, pinned-channel seeding, and completed-only progress.
@@ -376,7 +419,8 @@ Implemented:
 
 Follow-ups:
 
-- Catalog publication and unreferenced-rollout retirement controllers.
+- Frontend version GET/LIST cutover from Cluster Service to the Resources catalog.
+- Unreferenced-rollout retirement controller.
 - Filter platform/control-plane risks from Cincinnati conditional updates. The
   current graph helper selects by recency, so selected versions are not
   guaranteed to be free of conditional-update risks.

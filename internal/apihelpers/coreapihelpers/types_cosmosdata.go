@@ -34,6 +34,14 @@ func ToResourceGroupResourceIDString(subscriptionName, resourceGroupName string)
 	return strings.ToLower(path.Join("/subscriptions", subscriptionName, "resourceGroups", resourceGroupName))
 }
 
+func ToOpenShiftVersionCatalogResourceIDString(name string) string {
+	return strings.ToLower(path.Join("/providers", coreapi.OpenShiftVersionCatalogResourceType.String(), name))
+}
+
+func ToOpenShiftVersionCatalogResourceID(name string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToOpenShiftVersionCatalogResourceIDString(name))
+}
+
 func ToResourceGroupResourceID(subscriptionID, resourceGroupName string) (*azcorearm.ResourceID, error) {
 	return azcorearm.ParseResourceID(ToResourceGroupResourceIDString(subscriptionID, resourceGroupName))
 }

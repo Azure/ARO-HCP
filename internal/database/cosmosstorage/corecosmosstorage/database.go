@@ -63,6 +63,8 @@ type ResourcesDBClient interface {
 
 	Subscriptions() cosmosstorageutils.ResourceCRUD[coreapi.Subscription, *coreapi.Subscription]
 
+	OpenShiftVersionCatalogs() cosmosstorageutils.ResourceCRUD[coreapi.OpenShiftVersionCatalog, *coreapi.OpenShiftVersionCatalog]
+
 	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
 
 	// ListMissingResourceID returns documents in the Resources container that lack a resourceID field.
@@ -120,6 +122,12 @@ func (d *resourcesCosmosDBClient) Operations(subscriptionID string) OperationCRU
 func (d *resourcesCosmosDBClient) Subscriptions() cosmosstorageutils.ResourceCRUD[coreapi.Subscription, *coreapi.Subscription] {
 	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.Subscription, *coreapi.Subscription, cosmosstorageutils.GenericDocument[coreapi.Subscription]](
 		d.resources, nil, azcorearm.SubscriptionResourceType)
+}
+
+func (d *resourcesCosmosDBClient) OpenShiftVersionCatalogs() cosmosstorageutils.ResourceCRUD[coreapi.OpenShiftVersionCatalog, *coreapi.OpenShiftVersionCatalog] {
+	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[coreapi.OpenShiftVersionCatalog, *coreapi.OpenShiftVersionCatalog, cosmosstorageutils.GenericDocument[coreapi.OpenShiftVersionCatalog]](
+		d.resources, nil, coreapi.OpenShiftVersionCatalogResourceType,
+		cosmosstorageutils.ProviderNamespacePartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {

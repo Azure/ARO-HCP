@@ -102,6 +102,16 @@ func (m *MockResourcesDBClient) Subscriptions() cosmosstorageutils.ResourceCRUD[
 	return newMockSubscriptionCRUD(m)
 }
 
+func (m *MockResourcesDBClient) OpenShiftVersionCatalogs() cosmosstorageutils.ResourceCRUD[coreapi.OpenShiftVersionCatalog, *coreapi.OpenShiftVersionCatalog] {
+	crud := NewMockResourceCRUD[coreapi.OpenShiftVersionCatalog, *coreapi.OpenShiftVersionCatalog, cosmosstorageutils.GenericDocument[coreapi.OpenShiftVersionCatalog]](
+		m, nil, coreapi.OpenShiftVersionCatalogResourceType)
+	crud.MakeResourceIDPath = coreapihelpers.ToOpenShiftVersionCatalogResourceID
+	crud.GetListPrefix = func() (string, error) {
+		return coreapihelpers.ToOpenShiftVersionCatalogResourceIDString("") + "/", nil
+	}
+	return crud
+}
+
 // ListMissingResourceID returns documents that lack a resourceID field.
 func (m *MockResourcesDBClient) ListMissingResourceID(ctx context.Context, options *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[cosmosstorageutils.TypedDocument], error) {
 	m.mu.RLock()
