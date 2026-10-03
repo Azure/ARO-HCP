@@ -16,8 +16,6 @@ package framework
 
 import "time"
 
-const IngressCertificateVerificationTimeout = 15 * time.Minute
-
 // When updating timeouts, see test/e2e/README.md#updating-e2e-timeouts.
 
 // Provisioning timeouts

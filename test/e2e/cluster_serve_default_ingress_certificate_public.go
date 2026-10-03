@@ -32,7 +32,7 @@ import (
 )
 
 var _ = Describe("ARO-HCP", func() {
-	DescribeTable("should serve a valid default ingress certificate through public ingress with OCP "+framework.DefaultOpenshiftChannelGroup()+" channel",
+	DescribeTable("should serve the default ingress certificate through public ingress with OCP "+framework.DefaultOpenshiftChannelGroup()+" channel",
 		labels.MIContainers(1),
 		func(ctx context.Context, version string) {
 			const (
@@ -151,18 +151,8 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster health or IngressController scope for cluster %q", customerClusterName)
 			GinkgoLogr.Info("Cluster health and IngressController scope verified")
 
-			By("deploying a sample web app to verify ingress connectivity")
-			sampleApp, err := framework.DeploySampleApp(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to deploy sample web app for ingress connectivity test")
-
-			appURL := "https://" + sampleApp.RouteHost
-			GinkgoLogr.Info("Sample app deployed", "url", appURL)
-
 			By("verifying sample app HTTPS reachability with a valid, publicly trusted default ingress certificate")
-			probe := func(ctx context.Context) error {
-				return verifiers.ProbeIngressCertificate(ctx, sampleApp.RouteHost)
-			}
-			err = verifiers.VerifyIngressDefaultCertificate(probe, framework.IngressCertificateVerificationTimeout).Verify(ctx, adminRESTConfig)
+			err = verifiers.VerifySimpleWebApp().WithDefaultIngressCertificateVerification().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "sample app must return HTTP 200 over trusted HTTPS through public ingress")
 
 		},

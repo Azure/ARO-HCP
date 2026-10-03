@@ -33,23 +33,22 @@ ordinary updates. An honored `"true"` tag together with an integration subnet is
 rejected. Tag names are case-insensitive; values must be exactly `"true"` or
 `"false"`. Without AFEC, the tag is ignored and normal subnet requirements apply.
 
-### Default ingress certificate tests
+### Default ingress certificate test
 
-`cluster_create_public_ingress_default_cert.go` and
-`cluster_create_private_ingress_default_cert.go` follow the
-`cluster_create_private_ingress.go` provisioning and sample-app pattern. They
-verify the ARM ingress type, guest IngressController scope, and HTTP 200 over
+`cluster_serve_default_ingress_certificate_public.go` follows the
+`cluster_create_private_ingress.go` provisioning pattern and reuses
+`verifiers.VerifySimpleWebApp` with default ingress certificate verification. It
+verifies the ARM ingress type, guest IngressController scope, and HTTP 200 over
 HTTPS with a valid, publicly trusted default ingress certificate. The sample
-app's edge-terminated Route supplies no certificate of its own. The private test
-probes from a customer VM in the cluster VNet and also checks that external TCP
-access to port 443 fails.
+app's edge-terminated Route supplies no certificate of its own.
 
-These are black-box tests using only customer-accessible resources. Both probes
-use the client's system CA trust store and verify certificate validity and the
-route hostname; neither disables TLS or hostname verification. The private
-probe requires Python 3 on the test VM. The tests run in any environment using
-the configured release channel and skip before provisioning if the requested
-release line is unavailable. They start with 5.1; earlier release lines will be
+This is a black-box test using only customer-accessible resources. After checking
+app availability, the verifier requires system CA trust, certificate validity,
+the route hostname, a wildcard ingress SAN, a nonempty subject common name, and
+a positive serial number. Strict TLS verification is required even in development;
+redirects cannot bypass the ingress endpoint. The test runs in any environment using
+the configured release channel and skips before provisioning if the requested
+release line is unavailable. It starts with 5.1; earlier release lines will be
 added only once a CPO override for
 https://github.com/openshift/hypershift/pull/9132 exists across all previously
 released versions.
@@ -310,7 +309,6 @@ Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENT
 | Provisioning | `NodePoolCreationTimeout` | `CreateNodePoolFromParam20240610`, `CreateNodePoolAndWait20240610`; preview: `CreateNodePoolFromParam20251223`, `CreateNodePoolAndWait20251223` |
 | Provisioning | `ExternalAuthCreationTimeout` | `CreateOrUpdateExternalAuthAndWait20240610` |
 | Access cluster | `GetAdminRESTConfigTimeout` | `GetAdminRESTConfigForHCPCluster20240610` |
-| Ingress certificate | `IngressCertificateVerificationTimeout` | Public and private sample-app HTTPS with a valid, trusted default ingress certificate |
 | Deletion | `HCPClusterDeletionTimeout` | `DeleteHCPCluster20240610`, `DeleteAllHCPClusters20240610`, inline delete pollers |
 | Deletion | `NodePoolDeletionTimeout` | `DeleteNodePool20240610`, inline node pool delete pollers |
 | Deletion | `ExternalAuthDeletionTimeout` | `DeleteExternalAuth20240610`, inline external auth delete pollers |

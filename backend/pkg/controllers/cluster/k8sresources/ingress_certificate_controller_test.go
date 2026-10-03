@@ -139,11 +139,11 @@ func TestIngressCertificateContentsAndIdempotence(test *testing.T) {
 		case "SecretProviderClass":
 			require.Equal(test, "secrets-store.csi.x-k8s.io/v1", content["apiVersion"])
 			require.Equal(test, "secretproviderclasses", desire.Spec.TargetItem.Resource)
-			require.JSONEq(test, `{"provider":"azure","parameters":{"keyvaultName":"cluster-secrets","tenantId":"service-tenant-id","usePodIdentity":"false","useVMManagedIdentity":"true","userAssignedIdentityID":"secrets-identity-client-id","objects":"array:\n  - |\n    objectName: \"ingress-tls-cert-abc123\"\n    objectType: secret\n"}}`, string(spec))
+			require.JSONEq(test, `{"provider":"azure","parameters":{"keyvaultName":"cluster-secrets","tenantId":"service-tenant-id","usePodIdentity":"false","useVMManagedIdentity":"true","userAssignedIdentityID":"secrets-identity-client-id","objects":"array:\n  - |\n    objectName: \"ingress-tls-cert-abc123\"\n    objectType: secret\n    objectFormat: pem\n"}}`, string(spec))
 		case "SecretSync":
 			require.Equal(test, "secret-sync.x-k8s.io/v1alpha1", content["apiVersion"])
 			require.Equal(test, "secretsyncs", desire.Spec.TargetItem.Resource)
-			require.JSONEq(test, `{"serviceAccountName":"default","secretProviderClassName":"default-ingress-tls-cert-abc123","secretObject":{"type":"kubernetes.io/tls","data":[{"sourcePath":"ingress-tls-cert-abc123","targetKey":"tls.key"},{"sourcePath":"ingress-tls-cert-abc123","targetKey":"tls.crt"}]}}`, string(spec))
+			require.JSONEq(test, `{"serviceAccountName":"default","secretProviderClassName":"default-ingress-tls-cert-abc123","secretObject":{"type":"kubernetes.io/tls","data":[{"sourcePath":"ingress-tls-cert-abc123.key","targetKey":"tls.key"},{"sourcePath":"ingress-tls-cert-abc123.crt","targetKey":"tls.crt"}]}}`, string(spec))
 		default:
 			test.Fatalf("unexpected kind: %v", content["kind"])
 		}

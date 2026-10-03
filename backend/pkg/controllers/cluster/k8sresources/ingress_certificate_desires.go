@@ -75,7 +75,7 @@ func buildIngressCertificateDesires(
 				"provider": "azure",
 				"parameters": map[string]string{
 					"keyvaultName":           vaultName,
-					"objects":                fmt.Sprintf("array:\n  - |\n    objectName: %q\n    objectType: secret\n", certificateName),
+					"objects":                fmt.Sprintf("array:\n  - |\n    objectName: %q\n    objectType: secret\n    objectFormat: pem\n", certificateName),
 					"tenantId":               serviceTenantID,
 					"usePodIdentity":         "false",
 					"useVMManagedIdentity":   "true",
@@ -92,8 +92,8 @@ func buildIngressCertificateDesires(
 				"secretObject": map[string]any{
 					"type": "kubernetes.io/tls",
 					"data": []map[string]string{
-						{"sourcePath": certificateName, "targetKey": "tls.key"},
-						{"sourcePath": certificateName, "targetKey": "tls.crt"},
+						{"sourcePath": certificateName + ".key", "targetKey": "tls.key"},
+						{"sourcePath": certificateName + ".crt", "targetKey": "tls.crt"},
 					},
 				},
 			},
