@@ -34,6 +34,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -50,10 +51,14 @@ type federatedCredentialReference struct {
 	name          string
 }
 
+// Checks for surviving consumers before cleaning identities for a new lease.
 func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) error {
 	ctx, cancel := context.WithTimeout(ctx, admissionPhaseTimeout)
 	defer cancel()
 
+	if request.AcquiredSlotState != nil && request.AcquiredSlotState.Slot.Environment == "dev" && request.SkipAdmissionCleanup {
+		return ctx.Err()
+	}
 	credential, subscriptionID, err := leaseCredential(request)
 	if err != nil {
 		return err
@@ -67,13 +72,27 @@ func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) err
 	if err != nil {
 		return fmt.Errorf("failed creating role assignments client: %w", err)
 	}
+	hcpFactory, err := hcpsdk.NewClientFactory(subscriptionID, credential, nil)
+	if err != nil {
+		return fmt.Errorf("failed creating HCP client factory: %w", err)
+	}
 
-	return admitIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient)
+	return admitIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient, hcpFactory)
 }
 
-func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient) error {
+// Inventories the whole lease and checks consumers before issuing any cleanup request.
+func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient, hcpFactory *hcpsdk.ClientFactory) error {
+	if request.AcquiredSlotState == nil {
+		return errors.New("acquired slot state is nil")
+	}
+	if request.SkipAdmissionCleanup {
+		return checkIdentityLeaseConsumers(ctx, request, hcpFactory)
+	}
 	inventory, err := loadIdentityLeaseInventory(ctx, request, msiFactory, roleAssignmentsClient)
 	if err != nil {
+		return err
+	}
+	if err := checkIdentityLeaseConsumers(ctx, request, hcpFactory); err != nil {
 		return err
 	}
 
@@ -110,11 +129,10 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 	if err := runSerial(ctx, deleteOperations); err != nil {
 		return fmt.Errorf("failed cleaning E2E identity lease: %w", err)
 	}
-	// Exclusive ownership lets us rely on successful synchronous deletes without
-	// polling for absence or repeating the inventory.
 	return nil
 }
 
+// Builds credentials for the lease's explicitly resolved subscription.
 func leaseCredential(request assets.LeaseRequest) (azcore.TokenCredential, string, error) {
 	if request.AcquiredSlotState == nil {
 		return nil, "", errors.New("acquired slot state is nil")
@@ -135,6 +153,7 @@ func leaseCredential(request assets.LeaseRequest) (azcore.TokenCredential, strin
 	return credential, subscriptionID, nil
 }
 
+// Collects all cleanup candidates without mutating any identity.
 func loadIdentityLeaseInventory(
 	ctx context.Context,
 	request assets.LeaseRequest,
@@ -241,6 +260,7 @@ func loadIdentityLeaseInventory(
 	return inventory, nil
 }
 
+// Parses a canonical, unpadded principal UUID.
 func parsePrincipalID(value string) (uuid.UUID, error) {
 	id, err := uuid.Parse(value)
 	if err != nil {
@@ -252,6 +272,7 @@ func parsePrincipalID(value string) (uuid.UUID, error) {
 	return id, nil
 }
 
+// Reports missing identities in a leased container.
 func validateIdentityNames(resourceGroup string, expected map[string]struct{}, actual map[string]string) error {
 	var missing []string
 	for name := range expected {
@@ -266,6 +287,7 @@ func validateIdentityNames(resourceGroup string, expected map[string]struct{}, a
 	return nil
 }
 
+// Runs cleanup serially and stops scheduling requests when the context is cancelled.
 func runSerial(ctx context.Context, operations []func(context.Context) error) error {
 	var errs []error
 	for _, operation := range operations {
@@ -280,6 +302,7 @@ func runSerial(ctx context.Context, operations []func(context.Context) error) er
 	return errors.Join(errs...)
 }
 
+// Runs one cleanup operation with the process crash policy.
 func runOperation(ctx context.Context, operation func(context.Context) error) (err error) {
 	// Preserve fail-closed errors when ReallyCrash is false without bypassing
 	// the process crash policy when it is true.
@@ -289,6 +312,7 @@ func runOperation(ctx context.Context, operation func(context.Context) error) (e
 	return operation(ctx)
 }
 
+// Reports whether ARM returned an HTTP not-found response.
 func isNotFound(err error) bool {
 	if err == nil {
 		return false

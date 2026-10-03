@@ -211,7 +211,8 @@ credentials, or exported `AZURE_*` variables.
 The acquire step must mount the same applicable profile credentials used by the
 test step. The selected identity needs permission to enumerate the E2E identity
 inventory and role assignments, and delete leased principals' FICs and role
-assignments. Missing credential files or insufficient permissions fail admission.
+assignments. ARM-backed environments also require cluster and node-pool list
+permissions in that subscription. Missing credential files or insufficient permissions fail admission.
 No credentials are written to shared runtime state.
 
 ### Region selection
@@ -261,8 +262,8 @@ Asset presence already means required.
 - `unmanaged`: another owner provisions the backing resources.
 
 Provisioning ownership does not alter admission. Every declared asset must pass
-admission before publication unless explicitly disabled with the emergency
-opt-out below.
+reuse safety checks before publication. The emergency opt-out below disables
+cleanup, not those checks.
 
 Implementation details that are intrinsic to an asset, such as the standard
 E2E identity set, belong in the handler and its provisioning code rather than
@@ -408,7 +409,7 @@ that cleanup or the process itself fails, Test Platform's job-lifecycle
 reconciliation provides the same eventual lease cleanup guarantee as static
 ci-operator Boskos leases.
 
-The runtime contract is withheld until every non-disabled asset passes admission.
+The runtime contract is withheld until every asset passes its reuse safety checks.
 All assets must still be fully acquired and resolved before publication.
 
 Admission assumes exclusive ownership of the allocated assets: previous
@@ -418,8 +419,9 @@ asset's readiness. It does not protect against concurrent external writers.
 ### Emergency admission opt-out
 
 `slot-manager acquire --disable-asset-admission=e2e_identities` skips only that
-asset kind's admission phase. The flag accepts comma-separated values and can be
-repeated. Admission remains enabled for every kind not explicitly listed,
+asset kind's admission cleanup. Its reuse safety checks still run and can reject
+acquisition. The flag accepts comma-separated values and can be repeated.
+Full admission remains enabled for every kind not explicitly listed,
 including newly added kinds. Unknown or unimplemented kinds fail before leasing.
 
 `ARO_HCP_DISABLE_ASSET_ADMISSION` supplies the default list for CI invocations;
@@ -435,12 +437,15 @@ and does not bypass catalog validation or provisioning checks.
 Use this only as a temporary mitigation, for example during ARM throttling.
 For E2E identities it skips identity/principal verification and cleanup of stale
 FICs and role assignments, so the identities are not guaranteed clean for reuse.
+The ARM consumer check is mandatory even with this opt-out. An unavailable or
+incomplete consumer inventory cannot be bypassed.
 Remove the opt-out after mitigation; it applies only to that acquisition and is
 not a persistent catalog or release setting.
 
 ### Failure behavior
 
-For asset kinds without an explicit opt-out, admission is fail-closed:
+Reuse safety checks are fail-closed even with an explicit cleanup opt-out.
+Full admission also fails closed on cleanup inventory and deletion errors:
 
 - a missing required resource fails;
 - incomplete inventory fails;
@@ -631,7 +636,28 @@ For every resolved resource group, the handler:
 3. enumerates every federated identity credential on those standard identities;
 4. enumerates role assignments for their principal IDs across the E2E
    subscription, including child scopes;
-5. deletes all discovered federated identity credentials and role assignments.
+5. in ARM-backed environments, enumerates all HCPs and their node pools across
+   the subscription, including every page and provisioning state;
+6. rejects the whole lease if any cluster identity, operator identity, container-registry
+   pull identity or node-pool identity references a standard identity in any leased container;
+7. deletes all discovered federated identity credentials and role assignments
+   only after the full consumer check succeeds.
+
+Failed and deleting clusters still count as consumers. Missing required identity
+metadata, malformed references, failed list requests and cancellation all prevent
+cleanup and runtime publication. The error identifies the consumer and identity
+when a reference matches. Releasing or reacquiring the Boskos lease does not
+waive the next consumer check.
+
+Consumer inventory uses API version `2026-10-01-preview`, which exposes the
+container-registry pull identity. Unsupported API versions fail admission rather
+than falling back to a response that omits this reference.
+
+DEV retains its existing cleanup behavior. Its local frontend is provisioned
+after slot acquisition, and its cluster inventory is not exposed through the
+ARM endpoint used by this check. This guard therefore covers persistent
+ARM-backed environments, not DEV local clusters. It does not fence an external
+writer that creates a new consumer after the inventory read.
 
 Discovery lists role assignments once for the E2E subscription and matches them
 against the expected identities' principal IDs. Each synchronous deletion must
