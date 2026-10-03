@@ -40,7 +40,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Cluster Autoscaler Staleness\n\nLists customer HCPs where the cluster-autoscaler `main` activity metric is at least **5 minutes** old. Each table is backed by one HCP Prometheus datasource; use the Data Source selector to focus on a region. No rows means no matching stale activity was found in the selected datasources.\n\nThis dashboard supports investigation related to **ITN-2026-00313**. For follow-up steps, see the [temporary cluster-autoscaler troubleshooting guide](https://github.com/Azure/ARO-HCP/blob/main/docs/ops/temporary-cluster-autoscaler-override.md).",
+        "content": "### Cluster Autoscaler Staleness\n\nLists customer HCPs where the cluster-autoscaler `main` activity metric is at least **5 minutes** old. Each table is backed by one HCP Prometheus datasource; use the Data Source selector to focus on a region. No rows means no matching stale activity was found in the selected datasources.\n\nThis dashboard supports investigation related to **ITN-2026-00313**.",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -190,6 +190,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
+  "title": "Cluster Autoscaler Staleness",
   "uid": "sre-ca-main-activity-staleness",
   "version": 1
 }
