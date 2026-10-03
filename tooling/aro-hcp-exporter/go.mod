@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter
 
-go 1.25.7
+go 1.26.0
 
 require (
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260323141821-e06bce560a90
@@ -14,7 +14,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.0
-	k8s.io/apimachinery v0.35.3
+	k8s.io/apimachinery v0.36.2
 )
 
 require (
