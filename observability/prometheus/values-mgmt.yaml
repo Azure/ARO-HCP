@@ -1,4 +1,5 @@
 schedulingRole: "infra"
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
   crds:
@@ -30,7 +31,9 @@ kube-prometheus-stack:
   kubeApiServer:
     enabled: false
   kubeStateMetrics:
-    enabled: true # OSS prometheus scrapes kube-state-metrics so the HCP ksm are routed to the hcp Azure Monitor Workspace
+    enabled: {{ eq .mgmt.monitoringApiGroup "monitoring.coreos.com" }}
+  defaultRules:
+    create: {{ eq .mgmt.monitoringApiGroup "monitoring.coreos.com" }}
   prometheus:
     enabled: false # Prometheus is deployed using templates/prometheus.yaml
   prometheusOperator:
@@ -80,7 +83,7 @@ kube-prometheus-stack:
     image:
       registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
-      sha: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
+      sha: "sha256:{{ .mgmt.prometheus.kubeStateMetrics.image.sha }}"
     rbac:
       extraRules:
       - apiGroups: ["hypershift.openshift.io"]

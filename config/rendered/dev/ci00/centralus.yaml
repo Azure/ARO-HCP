@@ -293,7 +293,7 @@ fleet:
     serviceAccountName: fleet
   managedIdentityName: fleet
   nodePoolPlanning:
-    profile: ci
+    profile: production
     zones: ""
   registration:
     autoApproveStamps: true
@@ -690,7 +690,7 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
-  applyKubeletFixes: true
+  applyKubeletFixes: false
   defaultStorageClassSkuName: PremiumV2_LRS
   hcpBackups:
     storageAccount:
@@ -698,7 +698,7 @@ mgmt:
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
-  monitoringApiGroup: monitoring.coreos.com
+  monitoringApiGroup: azmonitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-j7654321-mgmt-1
@@ -711,9 +711,9 @@ mgmt:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:c5d026c4a8335c2d098ce04776e25babc3e7773e70817b5b709f388bb52488d2
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
+        sha: 9b99d6e6e3a52eeb24295f1ebbb62dd2f415b1665ca2235e259bdf79792876de
     namespace: prometheus
     namespaceNetworkPolicyGroup: monitoring
     prometheusConfigReloader:
@@ -744,7 +744,7 @@ mgmt:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: thanos/thanos
-        sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
+        sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6
         tag: v0.41.0
   rg: hcp-underlay-ci00-j7654321-mgmt-1
   stampIdentifier: "1"
@@ -1034,7 +1034,7 @@ svc:
       name: infra
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D2ds_v6
+      vmSize: Standard_D4ds_v6
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: "1.35"
@@ -1073,6 +1073,7 @@ svc:
     tag: prod-stable
     targetVersion: asm-1-29
     versions: asm-1-29
+  monitoringApiGroup: azmonitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-j7654321-svc
@@ -1089,9 +1090,9 @@ svc:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:c5d026c4a8335c2d098ce04776e25babc3e7773e70817b5b709f388bb52488d2
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
+        sha: 9b99d6e6e3a52eeb24295f1ebbb62dd2f415b1665ca2235e259bdf79792876de
     namespace: prometheus
     namespaceNetworkPolicyGroup: ""
     prometheusConfigReloader:
@@ -1123,7 +1124,7 @@ svc:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: thanos/thanos
-        sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
+        sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6
         tag: v0.41.0
   rg: hcp-underlay-ci00-j7654321-svc
   subscription:

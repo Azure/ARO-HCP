@@ -16,7 +16,7 @@ spec:
     targetPort: metrics
     protocol: TCP
 ---
-apiVersion: monitoring.coreos.com/v1
+apiVersion: {{ .Values.monitoringApiGroup }}/v1
 kind: ServiceMonitor
 metadata:
   name: swift-recorder

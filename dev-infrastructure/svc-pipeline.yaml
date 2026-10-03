@@ -652,7 +652,7 @@ resourceGroups:
     - resourceGroup: service
       step: cluster-output
   - name: prometheus
-    # Deploy prometheus first since istio depends on it's CRDs
+    # Deploy prometheus first since istio depends on its CRDs
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
     timeout: 10m
@@ -784,7 +784,7 @@ resourceGroups:
     releaseName: acrpull
     releaseNamespace: acrpull
     chartDir: ./../acrpull/deploy
-    valuesFile: ./../acrpull/deploy/values.yaml
+    valuesFile: ./../acrpull/deploy/values-svc.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -813,7 +813,7 @@ resourceGroups:
     releaseName: service-lifecycle
     releaseNamespace: kube-system
     chartDir: ../service-lifecycle/deploy
-    valuesFile: ../service-lifecycle/deploy/values.yaml
+    valuesFile: ../service-lifecycle/deploy/values-svc.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output

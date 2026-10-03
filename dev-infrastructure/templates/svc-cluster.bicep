@@ -759,6 +759,7 @@ module underlayClusterMetric '../modules/metrics/underlay-clusters-metric.bicep'
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     clusterName: aksClusterName
+    clusterType: 'svc'
   }
 }
 

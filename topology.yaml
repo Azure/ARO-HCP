@@ -48,6 +48,9 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet
           pipelinePath: fleet/pipeline.yaml
           purpose: Deploy the Fleet controller.
+        - serviceGroup: Microsoft.Azure.ARO.HCP.SVC.CleanupPrometheus
+          pipelinePath: dev-infrastructure/svc-cleanup-prometheus.pipeline.yaml
+          purpose: Remove Prometheus operator and CRDs from the SVC cluster after all services have migrated to AMA.
         pipelinePath: dev-infrastructure/svc-pipeline.yaml
         purpose: Deploy the service cluster and supporting infrastructure.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
@@ -82,6 +85,9 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet.Registration
           pipelinePath: fleet/registration/pipeline.yaml
           purpose: Register the stamp and management cluster in CosmosDB.
+        - serviceGroup: Microsoft.Azure.ARO.HCP.MGMT.CleanupPrometheus
+          pipelinePath: dev-infrastructure/mgmt-cleanup-prometheus.pipeline.yaml
+          purpose: Remove Prometheus operator and CRDs from the Management cluster after all services have migrated to AMA.
         pipelinePath: dev-infrastructure/mgmt-pipeline.yaml
         purpose: Deploy a management cluster and backing infrastructure.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring

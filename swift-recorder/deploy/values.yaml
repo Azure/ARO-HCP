@@ -1,1 +1,2 @@
 enabled: false
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
