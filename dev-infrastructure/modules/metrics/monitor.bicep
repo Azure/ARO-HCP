@@ -7,6 +7,9 @@ param monitorName string
 @description('Purpose of the monitor')
 param purpose string
 
+@description('Log Analytics workspace for daily usage logs; empty disables deployment of the diagnostic setting')
+param metricsUsageInsightsWorkspaceId string
+
 import * as res from '../resource.bicep'
 
 var grafanaRef = res.grafanaRefFromId(grafanaResourceId)
@@ -17,6 +20,20 @@ resource monitor 'microsoft.monitor/accounts@2021-06-03-preview' = {
   location: resourceGroup().location
   tags: {
     aroHCPPurpose: purpose
+  }
+}
+
+resource metricsUsageInsights 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(metricsUsageInsightsWorkspaceId)) {
+  name: 'metrics-usage-insights'
+  scope: monitor
+  properties: {
+    workspaceId: metricsUsageInsightsWorkspaceId
+    logs: [
+      {
+        category: 'MetricsUsageDetails'
+        enabled: true
+      }
+    ]
   }
 }
 
