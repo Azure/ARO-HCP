@@ -59,7 +59,7 @@ func TestDenyAssignmentDefinitionsSingleComplete(t *testing.T) {
 		"Microsoft.Resources/tags/*",
 		"Microsoft.PolicyInsights/remediations/write",
 		"Microsoft.PolicyInsights/remediations/delete",
-		"Microsoft.Authorization/roleAssignments/write",
+		"Microsoft.Authorization/*",
 		"Microsoft.Network/dnszones/CAA/write",
 		"Microsoft.Network/dnszones/CAA/delete",
 		"Microsoft.Network/dnszones/TXT/write",
