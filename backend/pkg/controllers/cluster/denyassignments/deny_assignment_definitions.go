@@ -104,7 +104,8 @@ func denyAssignmentDefinitions(cluster *coreapi.Cluster) []denyAssignmentDefinit
 			"Microsoft.Resources/tags/*", // Enable tagging for Resources RP only
 			"Microsoft.PolicyInsights/remediations/write",
 			"Microsoft.PolicyInsights/remediations/delete",
-			"Microsoft.Authorization/roleAssignments/write",
+			// Operators need authorization actions (e.g. DNS/ingress role assignments), as allowed by denyAllOtherRPs.
+			"Microsoft.Authorization/*",
 			"Microsoft.Network/dnszones/CAA/write",
 			"Microsoft.Network/dnszones/CAA/delete",
 			"Microsoft.Network/dnszones/TXT/write",
