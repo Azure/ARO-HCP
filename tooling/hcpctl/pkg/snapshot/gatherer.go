@@ -17,6 +17,7 @@ package snapshot
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -29,6 +30,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
@@ -749,6 +752,18 @@ func (g *Gatherer) gatherPhase(
 					verificationSuite: phase.name + "/" + key,
 				})
 			}
+
+			// Deployments queries
+			deploymentsDir := filepath.Join(resDir, "deployments")
+			for _, q := range queriesByCategory(categoryDeployments) {
+				poolItems = append(poolItems, workItem{
+					query:             q,
+					data:              phaseDataPtr,
+					mu:                phaseMu,
+					outputDir:         deploymentsDir,
+					verificationSuite: phase.name + "/" + key,
+				})
+			}
 		}
 
 		// Per-request trace queries — only for requests in this phase.
@@ -1060,21 +1075,26 @@ func (g *Gatherer) executeQuery(ctx context.Context, q querySpec, data *queryDat
 		return nil, fmt.Errorf("query %s failed: %w", q.key(), err)
 	}
 
-	// Write combined output file: README + query + results.
 	outDir := filepath.Join(baseDir, q.component)
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	readme := readQueryReadme(q)
-	md := composeOutput(readme, rendered, rows)
-	mdFile := filepath.Join(outDir, q.queryName+".md")
-	if err := os.WriteFile(mdFile, []byte(md), 0o644); err != nil {
-		return nil, fmt.Errorf("failed to write output: %w", err)
+	if q.outputFormat == "yaml" {
+		if err := writeYAMLOutput(outDir, q, rows); err != nil {
+			return nil, err
+		}
+	} else {
+		readme := readQueryReadme(q)
+		md := composeOutput(readme, rendered, rows)
+		mdFile := filepath.Join(outDir, q.queryName+".md")
+		if err := os.WriteFile(mdFile, []byte(md), 0o644); err != nil {
+			return nil, fmt.Errorf("failed to write output: %w", err)
+		}
 	}
 
 	if len(rows) > 0 {
-		logger.V(1).Info("Wrote query output", "query", q.key(), "rows", len(rows), "file", mdFile)
+		logger.V(1).Info("Wrote query output", "query", q.key(), "rows", len(rows))
 	} else {
 		logger.V(1).Info("Query returned no results", "query", q.key())
 	}
@@ -1123,11 +1143,43 @@ func writeQueryOutput(q querySpec, data queryData, baseDir string, cachedRows []
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
+	if q.outputFormat == "yaml" {
+		return writeYAMLOutput(outDir, q, cachedRows)
+	}
+
 	readme := readQueryReadme(q)
 	md := composeOutput(readme, rendered, cachedRows)
 	mdFile := filepath.Join(outDir, q.queryName+".md")
 	if err := os.WriteFile(mdFile, []byte(md), 0o644); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
+	}
+
+	return nil
+}
+
+// writeYAMLOutput extracts the first column of the first result row (expected
+// to be a JSON object from a Kusto dynamic column), converts it to YAML, and
+// writes it as <queryName>.yaml. If there are no results, no file is written.
+func writeYAMLOutput(outDir string, q querySpec, rows []resultRow) error {
+	if len(rows) == 0 || len(rows[0].values) == 0 {
+		return nil
+	}
+
+	jsonStr := rows[0].values[0]
+
+	var obj interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &obj); err != nil {
+		return fmt.Errorf("query %s: failed to parse JSON from Kusto result: %w", q.key(), err)
+	}
+
+	yamlBytes, err := yaml.Marshal(obj)
+	if err != nil {
+		return fmt.Errorf("query %s: failed to convert to YAML: %w", q.key(), err)
+	}
+
+	outFile := filepath.Join(outDir, q.queryName+".yaml")
+	if err := os.WriteFile(outFile, yamlBytes, 0o644); err != nil {
+		return fmt.Errorf("failed to write YAML output: %w", err)
 	}
 
 	return nil
