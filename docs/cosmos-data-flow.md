@@ -877,7 +877,7 @@ Delivery `NeedsWork` requires a nonempty `ServiceProviderCluster.Status.AzureRes
 
 #### TLSCertificates
 
-[Source](../backend/pkg/controllers/cluster/azureresources/tls_certificates_controller.go) · **Trigger:** Cluster, ServiceProviderCluster and cluster-scoped kube-applier desires; 30s.
+[Source](../backend/pkg/controllers/cluster/azureresources/tls_certificates_controller.go) · **Trigger:** Cluster, ServiceProviderCluster and cluster-scoped ManagementClusterContent; 30s. Does not watch kube-applier ApplyDesire/ReadDesire events because certificate observation does not read desires.
 
 Separate read-only observer for the certificates created by Cluster Service's `tls_certificates_provision_step.go`. CS `utils.GetApiTlsCertName` names the KAS Key Vault certificate/backing secret `kube-apiserver-tls-cert-<CS-ID>`; `utils.GetIngressTlsCertName` names ingress `ingress-tls-cert-<CS-ID>`. Their Kubernetes secret names are `kube-apiserver-tls-cert` and `default-ingress-tls-cert-<CS-ID>` respectively. Uses the backend identity to GET certificate metadata from `ManagementCluster.Status.HostedClustersSecretsKeyVaultURL`; it never creates certificates or retrieves private-key material.
 

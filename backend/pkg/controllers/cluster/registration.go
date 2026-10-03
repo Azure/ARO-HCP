@@ -973,14 +973,14 @@ func registerIngressCertificateController() controllerconfig.ControllerRegistrat
 func registerTLSCertificatesController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateTLSCertificatesController, true),
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateTLSCertificatesController, false),
 	}
 }
 
 func instantiateTLSCertificatesController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
 	return clusterazureresources.NewTLSCertificatesController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
-		controllerContext.UnionKubeApplierInformers, managementClusterLister, controllerContext.BackendIdentityAzureClients), nil
+		managementClusterLister, controllerContext.BackendIdentityAzureClients), nil
 }
 
 func instantiateIngressCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {

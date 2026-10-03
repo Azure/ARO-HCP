@@ -109,7 +109,7 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 		return utils.TrackError(err)
 	}
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return syncer.teardown(ctx, applyCRUD, readCRUD)
+		return syncer.syncDeletion(ctx, applyCRUD, readCRUD)
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
 		return nil
@@ -151,7 +151,7 @@ func (syncer *ingressCertificateSyncer) NeedsWork(serviceProviderCluster *coreap
 	return serviceProviderCluster.Status.AzureResources.IngressCertificate != nil && serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference != nil && serviceProviderCluster.Status.HostedClusterNamespace != ""
 }
 
-func (syncer *ingressCertificateSyncer) teardown(
+func (syncer *ingressCertificateSyncer) syncDeletion(
 	ctx context.Context,
 	applyCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
 	readCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire],

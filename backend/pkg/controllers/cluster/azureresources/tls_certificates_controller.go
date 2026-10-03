@@ -34,7 +34,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
-	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -50,10 +49,10 @@ type tlsCertificatesSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*tlsCertificatesSyncer)(nil)
 
-func NewTLSCertificatesController(resourcesDBClient corecosmosstorage.ResourcesDBClient, informers coreinformers.BackendInformers, kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers, managementClusterLister fleetlisters.ManagementClusterLister, clients *azureclient.BackendIdentityAzureClients) controllerutils.Controller {
+func NewTLSCertificatesController(resourcesDBClient corecosmosstorage.ResourcesDBClient, informers coreinformers.BackendInformers, managementClusterLister fleetlisters.ManagementClusterLister, clients *azureclient.BackendIdentityAzureClients) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
-	return controllerutils.NewClusterWatchingController(TLSCertificatesControllerName, resourcesDBClient, informers, kubeApplierInformers, 30*time.Second, &tlsCertificatesSyncer{
+	return controllerutils.NewClusterWatchingController(TLSCertificatesControllerName, resourcesDBClient, informers, nil, 30*time.Second, &tlsCertificatesSyncer{
 		resourcesDBClient:            resourcesDBClient,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
@@ -134,7 +133,7 @@ func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controlle
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		replacement.Status.AzureResources.KubeAPIServerCertificate = nil
 		replacement.Status.AzureResources.IngressCertificate = nil
-		return syncer.persist(ctx, key, existing, replacement)
+		return syncer.persistIfChanged(ctx, key, existing, replacement)
 	}
 	managementClusterID := existing.Status.ManagementClusterResourceID
 	if managementClusterID == nil {
@@ -177,7 +176,7 @@ func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controlle
 		}
 	}
 	if controllerutil.NeedsUpdate(existing, replacement) {
-		return syncer.persist(ctx, key, existing, replacement)
+		return syncer.persistIfChanged(ctx, key, existing, replacement)
 	}
 	var observationErrors []error
 	for _, certificate := range certificates {
@@ -195,10 +194,10 @@ func (syncer *tlsCertificatesSyncer) SyncOnce(ctx context.Context, key controlle
 			certificate.state.PendingReference = nil
 		}
 	}
-	return errors.Join(append(observationErrors, syncer.persist(ctx, key, existing, replacement))...)
+	return errors.Join(append(observationErrors, syncer.persistIfChanged(ctx, key, existing, replacement))...)
 }
 
-func (syncer *tlsCertificatesSyncer) persist(ctx context.Context, key controllerutils.HCPClusterKey, existing, replacement *coreapi.ServiceProviderCluster) error {
+func (syncer *tlsCertificatesSyncer) persistIfChanged(ctx context.Context, key controllerutils.HCPClusterKey, existing, replacement *coreapi.ServiceProviderCluster) error {
 	if !controllerutil.NeedsUpdate(existing, replacement) {
 		return nil
 	}
