@@ -61,6 +61,8 @@ type LeaseRequest struct {
 	// SkipAdmissionCleanup disables admission mutations, never reuse safety checks.
 	// The registry sets this separately for each demanded asset.
 	SkipAdmissionCleanup bool
+	// IdentityConsumerGuardMode controls enforcement without disabling inventory auditing or cleanup.
+	IdentityConsumerGuardMode string
 }
 
 // Handler implements pool management and the lease lifecycle for one asset kind.
