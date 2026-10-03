@@ -93,7 +93,11 @@ func TestUnionDesireInformer_HasSyncedChecker(test *testing.T) {
 	if err != nil {
 		test.Fatal(err)
 	}
-	defer union.RemoveEventHandler(registration)
+	defer func() {
+		if err := union.RemoveEventHandler(registration); err != nil {
+			test.Error(err)
+		}
+	}()
 	checker := registration.HasSyncedChecker()
 	if checker.Name() == "" {
 		test.Fatal("checker has no name")

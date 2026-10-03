@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/pipeline-documentation
 
-go 1.25.7
+go 1.26.0
 
 require (
 	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260921171559-9111ffaaedb3
@@ -14,5 +14,5 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	k8s.io/apimachinery v0.35.3 // indirect
+	k8s.io/apimachinery v0.36.2 // indirect
 )
