@@ -237,6 +237,56 @@ The `cleanup-sweeper` `shared-leftovers` workflow runs per environment. Alongsid
 
 To resolve the principals behind orphaned role assignments, `shared-leftovers` reads the Microsoft Graph active directory, which requires `Directory.Read.All`. It deletes an assignment when the principal is absent from the active directory, including when the principal is soft-deleted. It performs the same active-directory check again immediately before deletion. A discovery failure ends the role-assignment step before deletion. A per-target revalidation failure skips that target while independently validated targets continue. The per-environment ARM identity (`VAULT_SECRET_PROFILE`) usually lacks that tenant-wide grant, so the step exports a dedicated Graph identity from `GRAPH_SECRET_PROFILE` (the dev bot, which holds `Directory.Read.All`) whenever its mounted profile differs from the ARM profile. When the two resolve to the same profile, no separate Graph credential is used and the ARM identity serves both. The sweeper binary reads that dedicated identity from `GRAPH_AZURE_CLIENT_ID` / `GRAPH_AZURE_TENANT_ID` / `GRAPH_AZURE_CLIENT_SECRET`, which the `aro-hcp-deprovision-cleanup-sweeper` step in `openshift/release` exports from the mounted Graph profile.
 
+#### Tracing sweeper deletions
+
+The `rg-ordered` and `shared-leftovers` commands carry a unique `runID`,
+`subscriptionID`, `workflow`, and `dryRun` through their logs. Prow runs also
+record `prowJob`, `prowBuildID`, and `prowJobID` from the job environment.
+`commitSHA` contains the build-time version, or `development` when not supplied.
+Go builds with VCS stamping also record the full `vcs.revision` and
+`vcs.modified`; a modified build is not an exact reproduction of that commit.
+Missing Prow or VCS metadata is not inferred from a branch name.
+
+Role-assignment discovery records `assignmentID`, `principalID`, and
+`reason=principal_absent` with `phase=discovery`. Immediately before deletion,
+the fresh ARM assignment and Graph check supply the principal, scope, and final
+decision with `phase=revalidation`. An active principal is retained. A 404 at
+either the assignment re-read or DELETE is reported as already absent, not as
+a deletion performed by this run.
+
+Each ARM DELETE attempt logs `Sending ARM DELETE request` before dispatch and
+`Received ARM DELETE response` when a response is available. Correlation fields
+are:
+
+| Field | Meaning |
+| --- | --- |
+| `clientRequestID` | The `x-ms-client-request-id` sent to Azure. |
+| `attempt` | SDK attempt number, starting at one for each logical request. |
+| `requestPath` | Target ARM path, without query parameters. |
+| `statusCode` | HTTP response status, not proof that asynchronous cleanup finished. |
+| `azureRequestID` | Returned `x-ms-request-id`. |
+| `azureCorrelationRequestID` | Returned `x-ms-correlation-request-id`. |
+| `azureRoutingRequestID` | Returned `x-ms-routing-request-id`. |
+
+SDK retries retain the client request ID and increment `attempt`. A new
+step-level retry issues a new logical request and revalidates the target again.
+The per-attempt audit entry for a transport failure records only the error
+type, not its text, URL, body, or credentials. This restriction applies to the
+audit entries, not the complete command log stream: existing runner and command
+error logs are unchanged and can include SDK response bodies or transport URLs.
+A sent-request log without a response means the outcome is unknown. Dry-run
+emits candidate logs but no DELETE attempt logs.
+
+Match request IDs against Azure records that expose them, then use `runID` to
+find the decision and job metadata. Azure does not guarantee that every header
+appears in Activity Log, and empty response ID fields mean Azure did not return
+them. A shared caller identity or user agent alone does not identify the process.
+Missing or incomplete historical sweeper logs cannot prove that the sweeper did
+not issue a request. The dedicated `ci-certificates` data-plane command and
+other cleanup programs are outside this ARM audit path.
+
+#### Resource-group policy
+
 For `cleanup-sweeper` `rg-ordered`, candidate resource groups are chosen using `tooling/cleanup-sweeper/resourcegroups.policy.yaml`. Discovery treats the `createdAt` tag (RFC3339 timestamp on the resource group) as required for any `action: delete` rule: groups without a parseable tag are not candidates.
 
 The policy excludes long-lived slot-managed identity pools whose resource-group
