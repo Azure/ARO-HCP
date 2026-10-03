@@ -33,8 +33,8 @@ var tierNameRegex = regexp.MustCompile(`^[a-z][a-z0-9]{0,4}$`)
 // for system/infra pools (D-series) and worker pools (E-series), from newest
 // to oldest generation.
 var (
-	dFamilyPriority = []VMFamily{"standardDDSv7Family", "standardDDSv6Family", "standardDDSv5Family", "standardDDSv4Family", "standardDSv3Family"}
-	eFamilyPriority = []VMFamily{"standardEDSv7Family", "standardEDSv6Family", "standardEDSv5Family", "standardEDSv4Family", "standardESv3Family"}
+	dFamilyPriority = []VMFamily{"StandardDdsv7Family", "StandardDdsv6Family", "standardDDSv5Family", "standardDDSv4Family", "standardDSv3Family"}
+	eFamilyPriority = []VMFamily{"StandardEdsv7Family", "StandardEdsv6Family", "standardEDSv5Family", "standardEDSv4Family", "standardESv3Family"}
 )
 
 // TierConfig defines a single node pool tier — a desired VM size class with
@@ -64,11 +64,12 @@ type TierConfig struct {
 	Taints      []string
 	EnableSwift bool
 	Required    bool
-	// PoolCount is the number of pools the tier creates. For PoolModePerZone it
-	// must be >= 1 and is the number of zonal pools (clamped to the number of
-	// zones available); the pools land in the first PoolCount zones where the
-	// chosen SKU is available. For PoolModeRegional it must be exactly 1 — a
-	// single zoneless pool. Both constraints are enforced by ValidateProfile.
+	// PoolCount is the number of zones a PoolModePerZone tier spans and must be
+	// >= 1 (clamped to the number of zones available). The tier uses the zones
+	// allowing the most nodes per zone; every zone gets the same node count,
+	// with one pool per family serving it. For PoolModeRegional it must be
+	// exactly 1 — a single zoneless pool. Both constraints are enforced by
+	// ValidateProfile.
 	PoolCount int
 }
 
@@ -82,6 +83,7 @@ type Profile struct {
 const (
 	ProfileCI          = "ci"
 	ProfileDevelopment = "development"
+	ProfileIntegration = "integration"
 	ProfileProduction  = "production"
 )
 
@@ -150,7 +152,7 @@ var profiles = map[string]Profile{
 				Name:           "inf",
 				Role:           PoolRoleInfra,
 				FamilyPriority: dFamilyPriority,
-				Cores:          8,
+				Cores:          4,
 				PoolMode:       PoolModePerZone,
 				PoolCount:      2,
 				MaxNodes:       3,
@@ -175,16 +177,64 @@ var profiles = map[string]Profile{
 		},
 		BudgetStrategy: UnlimitedBudget,
 	},
+	// ProfileIntegration keeps each management cluster within the capacity it
+	// runs today: integration management clusters share one subscription's
+	// quota, which leaves no room for the production tiers.
+	ProfileIntegration: {
+		Tiers: []TierConfig{
+			{
+				Name:           "sys",
+				Role:           PoolRoleSystem,
+				FamilyPriority: eFamilyPriority,
+				Cores:          4,
+				PoolMode:       PoolModeRegional,
+				PoolCount:      1,
+				MaxNodes:       2,
+				OSDiskSizeGB:   128,
+				MaxPods:        100,
+				EnableSwift:    true,
+				Taints:         []string{TaintCriticalAddonsOnly},
+				Required:       true,
+			},
+			{
+				Name:           "inf",
+				Role:           PoolRoleInfra,
+				FamilyPriority: dFamilyPriority,
+				Cores:          4,
+				PoolMode:       PoolModePerZone,
+				PoolCount:      2,
+				MaxNodes:       3,
+				OSDiskSizeGB:   128,
+				MaxPods:        225,
+				Taints:         []string{TaintInfra},
+				Required:       true,
+			},
+			{
+				Name:            "wrk",
+				Role:            PoolRoleWorker,
+				FamilyPriority:  eFamilyPriority,
+				Cores:           16,
+				PoolMode:        PoolModePerZone,
+				PoolCount:       3,
+				MaxNodes:        14,
+				InitialMinNodes: 5,
+				OSDiskSizeGB:    512,
+				MaxPods:         225,
+				EnableSwift:     true,
+			},
+		},
+		BudgetStrategy: SubscriptionQuotaBudget,
+	},
 	ProfileProduction: {
 		Tiers: []TierConfig{
 			{
 				Name:           "sys",
 				Role:           PoolRoleSystem,
 				FamilyPriority: eFamilyPriority,
-				Cores:          8,
+				Cores:          4,
 				PoolMode:       PoolModeRegional,
 				PoolCount:      1,
-				MaxNodes:       3,
+				MaxNodes:       2,
 				OSDiskSizeGB:   128,
 				MaxPods:        100,
 				EnableSwift:    true,
@@ -195,10 +245,10 @@ var profiles = map[string]Profile{
 				Name:           "inf",
 				Role:           PoolRoleInfra,
 				FamilyPriority: eFamilyPriority,
-				Cores:          32,
+				Cores:          16,
 				PoolMode:       PoolModePerZone,
 				PoolCount:      2,
-				MaxNodes:       3,
+				MaxNodes:       4,
 				OSDiskSizeGB:   128,
 				MaxPods:        225,
 				Taints:         []string{TaintInfra},
@@ -211,7 +261,7 @@ var profiles = map[string]Profile{
 				Cores:           16,
 				PoolMode:        PoolModePerZone,
 				PoolCount:       3,
-				MaxNodes:        19,
+				MaxNodes:        20,
 				InitialMinNodes: 5,
 				OSDiskSizeGB:    512,
 				MaxPods:         225,
@@ -224,7 +274,7 @@ var profiles = map[string]Profile{
 				Cores:           32,
 				PoolMode:        PoolModePerZone,
 				PoolCount:       3,
-				MaxNodes:        4,
+				MaxNodes:        3,
 				InitialMinNodes: 1,
 				OSDiskSizeGB:    512,
 				MaxPods:         225,

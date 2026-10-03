@@ -1,0 +1,18 @@
+zones: 1,2,3
+
+tiers:
+  wrk  worker  PerZone  pools=3  cores=32  maxNodes=10  initialMinNodes=0  osDisk=512GB  maxPods=225  swift=false  required=false  families=StandardEdsv6Family
+
+quota limits (vCPUs):
+  StandardEdsv6Family:  224
+
+skus:
+  Standard_E32ds_v6  StandardEdsv6Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=false  ephemeralDisk=0GB  zones=1,2,3
+
+fully allocated: false
+
+pools:
+  (none)
+
+failures:
+  NoEligibleSKU  required=false  tier 0 (32 cores): no family has an eligible SKU with exactly 32 vCPUs (unrestricted in region, unconstrained vCPUs, ephemeral OS disk of at least 512 GB)

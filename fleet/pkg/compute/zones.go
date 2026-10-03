@@ -22,12 +22,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-// RequiredAvailabilityZones is the number of zones every pool spans.
+// RequiredAvailabilityZones is the minimum number of zones node pools span.
 const RequiredAvailabilityZones = 3
 
-// ResolveZones computes exactly RequiredAvailabilityZones availability zones
-// to plan node pools across, shared by the nodepool controller and the
-// aks-cluster-create tool so both derive and validate zones identically.
+// ResolveZones computes exactly 3 availability zones
+// for the aks-cluster-create tool to create node pools across.
 //
 // regionAvailabilityZones is the region's real zone count (config
 // azureRegionAvailabilityZoneCount), trusted as authoritative.
@@ -46,13 +45,46 @@ func ResolveZones(explicitZones string, regionAvailabilityZones int) ([]string, 
 	}
 
 	if len(strings.TrimSpace(explicitZones)) == 0 {
-		zones := make([]string, 0, RequiredAvailabilityZones)
-		for zone := 1; zone <= RequiredAvailabilityZones; zone++ {
-			zones = append(zones, strconv.Itoa(zone))
-		}
-		return zones, nil
+		return firstZones(RequiredAvailabilityZones), nil
 	}
 
+	zones, err := parseZoneList(explicitZones, regionAvailabilityZones)
+	if err != nil {
+		return nil, err
+	}
+	if len(zones) != RequiredAvailabilityZones {
+		return nil, fmt.Errorf("zone list %q names %d zones, must name exactly %d", explicitZones, len(zones), RequiredAvailabilityZones)
+	}
+	return zones, nil
+}
+
+// ResolvePlanningZones returns every availability zone of the region for the
+// nodepool planner to place tiers in; each tier picks the zones allowing the
+// most nodes per zone among them.
+//
+// regionAvailabilityZones is the region's real zone count (config
+// azureRegionAvailabilityZoneCount), trusted as authoritative. A region with
+// fewer than RequiredAvailabilityZones zones is rejected.
+func ResolvePlanningZones(regionAvailabilityZones int) ([]string, error) {
+	if regionAvailabilityZones < RequiredAvailabilityZones {
+		return nil, fmt.Errorf("region has %d availability zones, fewer than the %d required", regionAvailabilityZones, RequiredAvailabilityZones)
+	}
+	return firstZones(regionAvailabilityZones), nil
+}
+
+// firstZones returns zones 1..count.
+func firstZones(count int) []string {
+	zones := make([]string, 0, count)
+	for zone := 1; zone <= count; zone++ {
+		zones = append(zones, strconv.Itoa(zone))
+	}
+	return zones
+}
+
+// parseZoneList parses a comma-separated zone list into normalized zones in
+// the given order, rejecting empty, non-integer, duplicate, and out-of-range
+// entries.
+func parseZoneList(explicitZones string, regionAvailabilityZones int) ([]string, error) {
 	seen := sets.New[int]()
 	var zones []string
 	for entry := range strings.SplitSeq(explicitZones, ",") {
@@ -72,9 +104,6 @@ func ResolveZones(explicitZones string, regionAvailabilityZones int) ([]string, 
 		}
 		seen.Insert(zone)
 		zones = append(zones, strconv.Itoa(zone))
-	}
-	if len(zones) != RequiredAvailabilityZones {
-		return nil, fmt.Errorf("zone list %q names %d zones, must name exactly %d", explicitZones, len(zones), RequiredAvailabilityZones)
 	}
 	return zones, nil
 }

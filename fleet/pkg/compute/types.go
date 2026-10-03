@@ -56,7 +56,7 @@ const (
 )
 
 // VMFamily is a named string type for Azure VM family identifiers (e.g.
-// "standardEDSv6Family"). It disambiguates map keys from raw VM size strings.
+// "StandardEdsv6Family"). It disambiguates map keys from raw VM size strings.
 type VMFamily string
 
 // VMSpec captures the hardware characteristics of a VM size. Bundling these

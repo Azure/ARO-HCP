@@ -8,10 +8,10 @@ desired:
   w1abc  worker  Standard_E32ds_v6  zone=1  max=6
 
 budget (vCPUs):
-  standardEDSv6Family:  320
+  StandardEdsv6Family:  320
 
 initial headroom (vCPUs):
-  standardEDSv6Family:  320
+  StandardEdsv6Family:  320
 
 fully allocated: true
 
@@ -20,12 +20,23 @@ initial capacity:
   infra:   cpu=0    memory=0GiB     swiftNICs=0
   worker:  cpu=320  memory=2560GiB  swiftNICs=70
 
+role floor:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=192  memory=1536GiB  swiftNICs=42
+
+worker zone floor:
+  zone 1:  cpu=192  memory=1536GiB  swiftNICs=42
+
 actions:
-    1.  Reduce    worker  Standard_E32ds_v6  w1abc  count=9        floor: cpu=192  memory=1536GiB  swiftNICs=42  capacity: cpu=288  (+96)  memory=2304GiB  (+768GiB)  swiftNICs=63  (+21)  EDSv6:    352c remaining
-    2.  Reduce    worker  Standard_E32ds_v6  w1abc  count=8        floor: cpu=192  memory=1536GiB  swiftNICs=42  capacity: cpu=256  (+64)  memory=2048GiB  (+512GiB)  swiftNICs=56  (+14)  EDSv6:    384c remaining
-    3.  Reduce    worker  Standard_E32ds_v6  w1abc  count=7        floor: cpu=192  memory=1536GiB  swiftNICs=42  capacity: cpu=224  (+32)  memory=1792GiB  (+256GiB)  swiftNICs=49  (+7)   EDSv6:    416c remaining
-    4.  Reduce    worker  Standard_E32ds_v6  w1abc  count=6        floor: cpu=192  memory=1536GiB  swiftNICs=42  capacity: cpu=192  (+0)   memory=1536GiB  (+0GiB)    swiftNICs=42  (+0)   EDSv6:    448c remaining
-    5.  Unfreeze  worker  Standard_E32ds_v6  w1abc  min=1   max=6  floor: cpu=192  memory=1536GiB  swiftNICs=42  capacity: cpu=192  (+0)   memory=1536GiB  (+0GiB)    swiftNICs=42  (+0)
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action    role    pool   vm size   change         role margin            zone margin               quota left
+     1  Reduce    worker  w1abc  E32ds_v6  count=9          +96c   +768G   +21n  z1   +96c   +768G   +21n  Edsv6 352c
+     2  Reduce    worker  w1abc  E32ds_v6  count=8          +64c   +512G   +14n  z1   +64c   +512G   +14n  Edsv6 384c
+     3  Reduce    worker  w1abc  E32ds_v6  count=7          +32c   +256G    +7n  z1   +32c   +256G    +7n  Edsv6 416c
+     4  Reduce    worker  w1abc  E32ds_v6  count=6           +0c     +0G    +0n  z1    +0c     +0G    +0n  Edsv6 448c
+     5  Unfreeze  worker  w1abc  E32ds_v6  min=1   max=6     +0c     +0G    +0n  z1    +0c     +0G    +0n
 
 steps:      5
 converged:  true

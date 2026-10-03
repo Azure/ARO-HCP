@@ -1,0 +1,18 @@
+zones: 1,2,3
+
+tiers:
+  wrk  worker  PerZone  pools=3  cores=32  maxNodes=10  initialMinNodes=0  osDisk=512GB  maxPods=225  swift=false  required=false  families=-
+
+quota limits (vCPUs):
+  StandardEdsv6Family:  224
+
+skus:
+  Standard_E32ds_v6  StandardEdsv6Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1792GB  zones=1,2,3
+
+fully allocated: false
+
+pools:
+  (none)
+
+failures:
+  NoEligibleFamily  required=false  tier 0 (32 cores): family priority list is empty

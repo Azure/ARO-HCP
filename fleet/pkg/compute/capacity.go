@@ -17,6 +17,8 @@ package compute
 import (
 	"fmt"
 	"maps"
+	"slices"
+	"strings"
 )
 
 // RoleCapacity is configured capacity at the pool ceilings, not observed
@@ -34,6 +36,26 @@ func (c RoleCapacity) String() string {
 var CapacityRoles = [...]PoolRole{PoolRoleSystem, PoolRoleInfra, PoolRoleWorker}
 
 type CapacityByRole map[PoolRole]RoleCapacity
+
+// Add returns the sum of both capacities.
+func (c RoleCapacity) Add(other RoleCapacity) RoleCapacity {
+	return RoleCapacity{VCPUs: c.VCPUs + other.VCPUs, MemoryBytes: c.MemoryBytes + other.MemoryBytes, SwiftNICs: c.SwiftNICs + other.SwiftNICs}
+}
+
+// Sub returns c minus other.
+func (c RoleCapacity) Sub(other RoleCapacity) RoleCapacity {
+	return RoleCapacity{VCPUs: c.VCPUs - other.VCPUs, MemoryBytes: c.MemoryBytes - other.MemoryBytes, SwiftNICs: c.SwiftNICs - other.SwiftNICs}
+}
+
+// Min returns the per-dimension minimum of both capacities.
+func (c RoleCapacity) Min(other RoleCapacity) RoleCapacity {
+	return RoleCapacity{VCPUs: min(c.VCPUs, other.VCPUs), MemoryBytes: min(c.MemoryBytes, other.MemoryBytes), SwiftNICs: min(c.SwiftNICs, other.SwiftNICs)}
+}
+
+// Covers reports whether c is at least floor in every dimension.
+func (c RoleCapacity) Covers(floor RoleCapacity) bool {
+	return c.VCPUs >= floor.VCPUs && c.MemoryBytes >= floor.MemoryBytes && c.SwiftNICs >= floor.SwiftNICs
+}
 
 // CapacityAtCount computes a pool's configured resources for a node count.
 // Callers validate the pool's SKU data before using it for capacity protection.
@@ -61,11 +83,7 @@ func PoolCapacities(pools []Pool) (CapacityByRole, error) {
 		if pool.Role == PoolRoleWorker && pool.EnableSwift && pool.Spec.SecondaryNICs <= 0 {
 			return nil, fmt.Errorf("cannot determine Swift NIC capacity of pool %q", pool.Name)
 		}
-		poolCapacity := pool.CapacityAtCount(int64(pool.MaxCount))
-		capacity.VCPUs += poolCapacity.VCPUs
-		capacity.MemoryBytes += poolCapacity.MemoryBytes
-		capacity.SwiftNICs += poolCapacity.SwiftNICs
-		result[pool.Role] = capacity
+		result[pool.Role] = capacity.Add(pool.CapacityAtCount(int64(pool.MaxCount)))
 	}
 	return result, nil
 }
@@ -78,8 +96,7 @@ func (capacity CapacityByRole) EnsureMeetsBaseline(capacityBaseline CapacityByRo
 		if !ok {
 			return fmt.Errorf("missing %s capacity baseline", role)
 		}
-		got := capacity[role]
-		if got.VCPUs < minimum.VCPUs || got.MemoryBytes < minimum.MemoryBytes || got.SwiftNICs < minimum.SwiftNICs {
+		if got := capacity[role]; !got.Covers(minimum) {
 			return fmt.Errorf("%s capacity %v is below protected baseline %v", role, got, minimum)
 		}
 	}
@@ -93,12 +110,67 @@ func (desired CapacityByRole) ResolveEffectiveFloor(baseline CapacityByRole, ful
 	floor := maps.Clone(baseline)
 	if fullyAllocated {
 		for role, capacity := range floor {
-			target := desired[role]
-			floor[role] = RoleCapacity{
-				VCPUs:       min(capacity.VCPUs, target.VCPUs),
-				MemoryBytes: min(capacity.MemoryBytes, target.MemoryBytes),
-				SwiftNICs:   min(capacity.SwiftNICs, target.SwiftNICs),
-			}
+			floor[role] = capacity.Min(desired[role])
+		}
+	}
+	if err := desired.EnsureMeetsBaseline(floor); err != nil {
+		return nil, err
+	}
+	return floor, nil
+}
+
+// WorkerCapacityByZone is worker capacity per availability zone. Etcd runs on
+// worker pools and its zonal disks cannot move, so a zone's worker capacity
+// must be protected on its own: evicted etcd pods only reschedule into their
+// disk's zone.
+type WorkerCapacityByZone map[string]RoleCapacity
+
+// WorkerZoneCapacities sums the ceilings of worker pools pinned to a single
+// zone, per zone. A worker pool spanning several zones is rejected: its
+// capacity cannot be attributed to the zones its etcd disks live in. Zoneless
+// worker pools are not zone-protected and count towards no zone. Callers
+// validate capacity with PoolCapacities first.
+func WorkerZoneCapacities(pools []Pool) (WorkerCapacityByZone, error) {
+	result := WorkerCapacityByZone{}
+	for _, pool := range pools {
+		if pool.Role != PoolRoleWorker || len(pool.AvailabilityZones) == 0 {
+			continue
+		}
+		if len(pool.AvailabilityZones) > 1 {
+			return nil, fmt.Errorf("worker pool %q spans zones %s; its capacity cannot be attributed to one zone", pool.Name, strings.Join(pool.AvailabilityZones, ","))
+		}
+		zone := pool.AvailabilityZones[0]
+		result[zone] = result[zone].Add(pool.CapacityAtCount(int64(pool.MaxCount)))
+	}
+	return result, nil
+}
+
+// EnsureMeetsBaseline rejects worker capacity below the supplied baseline in
+// any zone or resource dimension, checking zones in order.
+func (capacity WorkerCapacityByZone) EnsureMeetsBaseline(baseline WorkerCapacityByZone) error {
+	for _, zone := range slices.Sorted(maps.Keys(baseline)) {
+		if got := capacity[zone]; !got.Covers(baseline[zone]) {
+			return fmt.Errorf("worker capacity %v in zone %s is below protected baseline %v", got, zone, baseline[zone])
+		}
+	}
+	return nil
+}
+
+// ResolveEffectiveFloor applies CapacityByRole.ResolveEffectiveFloor per zone:
+// a fully allocated plan protects the per-dimension minimum of current and
+// desired capacity in every zone, a partial plan the entire current capacity.
+// A desired plan without worker capacity in a zone that has it now is rejected
+// either way, since the etcd disks there cannot move. The supplied baseline is
+// not modified.
+func (desired WorkerCapacityByZone) ResolveEffectiveFloor(baseline WorkerCapacityByZone, fullyAllocated bool) (WorkerCapacityByZone, error) {
+	floor := maps.Clone(baseline)
+	for _, zone := range slices.Sorted(maps.Keys(baseline)) {
+		target, ok := desired[zone]
+		if !ok {
+			return nil, fmt.Errorf("desired plan has no worker capacity in zone %s, whose etcd disks cannot move", zone)
+		}
+		if fullyAllocated {
+			floor[zone] = baseline[zone].Min(target)
 		}
 	}
 	if err := desired.EnsureMeetsBaseline(floor); err != nil {

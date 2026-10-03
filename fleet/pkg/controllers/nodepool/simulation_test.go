@@ -112,20 +112,23 @@ func TestSimulationCreateMinimumConsumesLiveQuota(t *testing.T) {
 }
 
 func TestSimulationRunningAboveCeilingDoesNotReleaseQuota(t *testing.T) {
-	desired := []compute.Pool{
+	// The undesired pool is shrunk only after growth is considered, so its
+	// lowered ceiling is visible to the create decision. All 20 vCPUs are still
+	// running after an external maximum reduction.
+	desired := []compute.Pool{pool("new", specD4v3, "1", 1, 32)}
+	current := []PoolState{poolState("old", specD4v3, "1", 2, 32, true, 5)}
+	budgets := map[compute.VMFamily]int64{specD4v3.Family: 0}
+	drained := requireSimulation(t, desired, current, budgets, true, 20)
+	require.Equal(t, "converged", drained.Outcome)
+	require.Equal(t, actionFreeze, drained.Steps[0].Action.kind(), "lowering the ceiling must not fund a new node before the old nodes are removed")
+
+	// A later observation confirms scale-down and the corresponding quota release.
+	desired = []compute.Pool{
 		pool("existing", specD4v3, "1", 2, 32),
 		pool("new", specD4v3, "2", 1, 32),
 	}
-	current := []PoolState{poolState("existing", specD4v3, "1", 2, 32, true, 5)}
-	// All 20 vCPUs are still running after an external maximum reduction.
-	budgets := map[compute.VMFamily]int64{specD4v3.Family: 0}
-	blocked := requireSimulation(t, desired, current, budgets, true, 10)
-	require.Equal(t, "blocked", blocked.Outcome)
-	require.Empty(t, blocked.Steps, "lowering the ceiling must not fund a new node before the old nodes are removed")
-
-	// A later observation confirms scale-down and the corresponding quota release.
-	current[0].Count = 2
-	budgets[specD4v3.Family] = 3 * specD4v3.VCPUs
+	current = []PoolState{poolState("existing", specD4v3, "1", 2, 32, true, 2)}
+	budgets = map[compute.VMFamily]int64{specD4v3.Family: 3 * specD4v3.VCPUs}
 	converged := requireSimulation(t, desired, current, budgets, true, 10)
 	require.Equal(t, "converged", converged.Outcome)
 	require.Len(t, converged.Steps, 1)

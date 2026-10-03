@@ -1,0 +1,22 @@
+zones: 1,2,3
+
+tiers:
+  wrk  worker  PerZone  pools=3  cores=32  maxNodes=4  initialMinNodes=0  osDisk=512GB  maxPods=225  swift=true  required=false  families=StandardEdsv6Family,standardEDSv5Family
+
+quota limits (vCPUs):
+  StandardEdsv6Family:  288
+  standardEDSv5Family:  416
+
+skus:
+  Standard_E32ds_v5  standardEDSv5Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1200GB  zones=1,2,3
+  Standard_E32ds_v6  StandardEdsv6Family  cpu=32  memory=256GiB  nics=7  ephemeralOSDisk=true  ephemeralDisk=1792GB  zones=1,2
+
+fully allocated: true
+
+pools:
+  wrk18bc26f  worker  Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=1  min=1  max=4  osDisk=512GB  maxPods=225  swift=true  labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk28bc26f  worker  Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=2  min=1  max=4  osDisk=512GB  maxPods=225  swift=true  labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk36c3e65  worker  Standard_E32ds_v5  cpu=32  memory=256GiB  nics=7  zone=3  min=1  max=4  osDisk=512GB  maxPods=225  swift=true  labels=aro-hcp.azure.com/role=worker  taints=-
+
+failures:
+  (none)

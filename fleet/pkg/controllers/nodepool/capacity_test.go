@@ -84,9 +84,49 @@ func TestAllowsCapacityReduction(t *testing.T) {
 				current = append(current, PoolState{Pool: compute.Pool{Name: "new", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}, MaxCount: 5, EnableSwift: true}, Count: 1, AutoScalingEnabled: true})
 			}
 			baseline := compute.CapacityByRole{compute.PoolRoleSystem: {}, compute.PoolRoleInfra: {}, compute.PoolRoleWorker: test.floor}
-			require.Equal(t, test.want, allowsCapacityReduction(current, current[0], test.next, baseline))
+			require.Equal(t, test.want, allowsCapacityReduction(current, current[0], test.next, transitionFloor{roles: baseline}))
 			require.Equal(t, test.ceiling, current[0].MaxCount)
 			require.Equal(t, test.count, current[0].Count)
+		})
+	}
+}
+
+// Etcd pods only reschedule into the zone of their disk, so capacity in
+// another zone must not cover a worker reduction. Only worker pools are
+// protected per zone.
+func TestAllowsCapacityReductionWorkerZoneFloor(t *testing.T) {
+	onlyCPU := func(c compute.RoleCapacity) compute.RoleCapacity { return compute.RoleCapacity{VCPUs: c.VCPUs} }
+	onlyMemory := func(c compute.RoleCapacity) compute.RoleCapacity {
+		return compute.RoleCapacity{MemoryBytes: c.MemoryBytes}
+	}
+	onlyNICs := func(c compute.RoleCapacity) compute.RoleCapacity { return compute.RoleCapacity{SwiftNICs: c.SwiftNICs} }
+	tests := []struct {
+		name      string
+		role      compute.PoolRole
+		coverZone string
+		zoneFloor func(compute.RoleCapacity) compute.RoleCapacity
+		want      bool
+	}{
+		{name: "worker covered in its own zone", role: compute.PoolRoleWorker, coverZone: "1", zoneFloor: onlyCPU, want: true},
+		{name: "worker CPU covered only in another zone", role: compute.PoolRoleWorker, coverZone: "2", zoneFloor: onlyCPU},
+		{name: "worker memory covered only in another zone", role: compute.PoolRoleWorker, coverZone: "2", zoneFloor: onlyMemory},
+		{name: "worker NICs covered only in another zone", role: compute.PoolRoleWorker, coverZone: "2", zoneFloor: onlyNICs},
+		{name: "infra covered in another zone", role: compute.PoolRoleInfra, coverZone: "2", zoneFloor: onlyCPU, want: true},
+		{name: "worker in a zone without floor", role: compute.PoolRoleWorker, coverZone: "2", want: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			old := poolState("old", specE32v6, "1", 4, 512, false, 4)
+			cover := poolState("cover", specE32v6, test.coverZone, 4, 512, true, 1)
+			old.Role, cover.Role = test.role, test.role
+			current := []PoolState{old, cover}
+			// Both floors equal one full pool: dropping a node is only safe
+			// when the other pool covers it in the floor's scope.
+			floor := transitionFloor{roles: compute.CapacityByRole{test.role: old.CapacityAtCount(4)}}
+			if test.zoneFloor != nil {
+				floor.workerZones = compute.WorkerCapacityByZone{"1": test.zoneFloor(old.CapacityAtCount(4))}
+			}
+			require.Equal(t, test.want, allowsCapacityReduction(current, old, 3, floor))
 		})
 	}
 }
@@ -122,7 +162,7 @@ func TestFindNextActionSkipsUnsafeCorrections(t *testing.T) {
 				current = append(current, PoolState{Pool: infra, Count: 1, AutoScalingEnabled: true, ProvisioningState: "Succeeded"})
 			}
 			baseline := compute.CapacityByRole{compute.PoolRoleSystem: {}, compute.PoolRoleInfra: {}, compute.PoolRoleWorker: {VCPUs: 40, MemoryBytes: memoryBytes("160Gi")}}
-			action := findNextAction(desired, current, map[compute.VMFamily]int64{"family": test.headroom}, baseline, compute.NetworkConfig{})
+			action := findNextAction(desired, current, map[compute.VMFamily]int64{"family": test.headroom}, transitionFloor{roles: baseline}, compute.NetworkConfig{})
 			if len(test.wantType) == 0 {
 				require.Nil(t, action)
 				return
@@ -140,15 +180,10 @@ func TestProtectedReplacement(t *testing.T) {
 		available  int64
 		desiredMax int32
 		converged  bool
-		partial    bool
-		wantErr    bool
 	}{
 		{name: "spare_quota", available: 40, desiredMax: 10, converged: true},
 		{name: "no_spare_quota", available: 20, desiredMax: 10},
-		// Overlap reaches the desired total, so the next reconcile cannot
-		// squeeze the old pool to free quota for further replacement growth.
-		{name: "growing_replacement", available: 60, desiredMax: 20},
-		{name: "partial_replacement_overlap_rejected", available: 40, desiredMax: 10, partial: true, wantErr: true},
+		{name: "growing_replacement", available: 60, desiredMax: 20, converged: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -157,30 +192,74 @@ func TestProtectedReplacement(t *testing.T) {
 			old.Name = "old"
 			old.MaxCount = 10
 			current := []PoolState{{Pool: old, Count: 5, AutoScalingEnabled: true, ProvisioningState: "Succeeded"}}
-			tr := requireSimulation(t, desired, current, map[compute.VMFamily]int64{"family": test.available}, !test.partial, 30)
-			if test.wantErr {
-				require.Equal(t, "rejected", tr.Outcome)
-				require.ErrorContains(t, tr.RejectedPlan, "worker capacity")
-				require.Len(t, tr.Steps, 1, "overlap must raise the live baseline before the next reconcile")
-			} else {
-				require.NoError(t, tr.RejectedPlan)
-			}
+			tr := requireSimulation(t, desired, current, map[compute.VMFamily]int64{"family": test.available}, true, 30)
+			require.NoError(t, tr.RejectedPlan)
 			if test.converged {
 				require.Equal(t, "converged", tr.Outcome)
-			} else if !test.wantErr {
+			} else {
 				require.Equal(t, "blocked", tr.Outcome)
 			}
 			require.Equal(t, test.converged, configurationConverged(desired, tr.finalState()))
 			if !test.converged {
 				require.Equal(t, current[0], tr.finalState()[0], "blocked replacement must preserve the old pool")
 			}
-			if test.name == "growing_replacement" {
-				require.Len(t, tr.Steps, 1)
-				require.Equal(t, compute.RoleCapacity{VCPUs: 80, MemoryBytes: memoryBytes("320Gi"), SwiftNICs: 40}, requireStateCapacity(t, tr.finalState())[compute.PoolRoleWorker])
-			}
 			compareGolden(t, formatTrace(tr))
 		})
 	}
+}
+
+// A partial plan (quota short of the target) must keep the initial capacity of
+// the worker role and of every worker zone; it may only replace it.
+func TestPartialPlanProtectsInitialCapacity(t *testing.T) {
+	spec := compute.VMSpec{Size: "sku", Family: "family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 2}
+	tests := []struct {
+		name    string
+		desired []compute.Pool
+		current []PoolState
+		wantErr string
+	}{
+		{
+			name:    "replacement at the initial capacity converges",
+			desired: []compute.Pool{pool("new", spec, "1", 10, 32)},
+			current: []PoolState{poolState("old", spec, "1", 10, 32, true, 5)},
+		},
+		{
+			name:    "shrinking below the initial capacity is rejected",
+			desired: []compute.Pool{pool("new", spec, "1", 8, 32)},
+			current: []PoolState{poolState("old", spec, "1", 10, 32, true, 5)},
+			wantErr: "worker capacity",
+		},
+		{
+			name:    "moving worker capacity between zones is rejected",
+			desired: []compute.Pool{pool("new1", spec, "1", 8, 32), pool("new2", spec, "2", 2, 32)},
+			current: []PoolState{poolState("old1", spec, "1", 5, 32, true, 5), poolState("old2", spec, "2", 5, 32, true, 5)},
+			wantErr: "zone 2 is below protected baseline",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tr := requireSimulation(t, test.desired, test.current, map[compute.VMFamily]int64{"family": 40}, false, 60)
+			if len(test.wantErr) > 0 {
+				require.Equal(t, "rejected", tr.Outcome)
+				require.ErrorContains(t, tr.RejectedPlan, test.wantErr)
+				require.Empty(t, tr.Steps)
+				return
+			}
+			require.NoError(t, tr.RejectedPlan)
+			assertConverged(t, test.desired, tr.finalState())
+		})
+	}
+}
+
+// A worker pool spanning several zones cannot be protected per zone, so the
+// projection refuses to plan around it.
+func TestWorkerPoolSpanningZonesIsRejected(t *testing.T) {
+	desired := []compute.Pool{pool("new", specE32v6, "1", 4, 512)}
+	spread := poolState("spread", specE32v6, "1", 4, 512, true, 2)
+	spread.AvailabilityZones = []string{"1", "2"}
+	tr := requireSimulation(t, desired, []PoolState{spread}, map[compute.VMFamily]int64{specE32v6.Family: 1000}, true, 10)
+	require.Equal(t, "rejected", tr.Outcome)
+	require.ErrorContains(t, tr.RejectedPlan, `worker pool "spread" spans zones 1,2`)
 }
 
 func TestFindNextActionSkipsUnsafeShrinks(t *testing.T) {
@@ -235,7 +314,7 @@ func TestFindNextActionSkipsUnsafeShrinks(t *testing.T) {
 			desiredCapacity, err := compute.PoolCapacities(test.desired)
 			require.NoError(t, err)
 			require.NoError(t, desiredCapacity.EnsureMeetsBaseline(test.baseline))
-			action := findNextAction(test.desired, test.current, map[compute.VMFamily]int64{}, test.baseline, compute.NetworkConfig{})
+			action := findNextAction(test.desired, test.current, map[compute.VMFamily]int64{}, transitionFloor{roles: test.baseline}, compute.NetworkConfig{})
 			require.NotNil(t, action)
 			require.Equal(t, test.wantType, action.kind())
 			require.Equal(t, test.wantPool, action.poolName())
@@ -274,7 +353,7 @@ func TestFindNextActionDrainUsesBaseline(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, desiredCapacity.EnsureMeetsBaseline(baseline))
 			// The new family's four unused slots consume all its available quota.
-			action := findNextAction(desired, current, map[compute.VMFamily]int64{"family-a": 0, "family-b": 16}, baseline, compute.NetworkConfig{})
+			action := findNextAction(desired, current, map[compute.VMFamily]int64{"family-a": 0, "family-b": 16}, transitionFloor{roles: baseline}, compute.NetworkConfig{})
 			if !test.wantDrain {
 				require.Nil(t, action)
 				return

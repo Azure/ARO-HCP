@@ -27,10 +27,10 @@ import (
 // (quota limit minus live usage) minus the committed-but-not-running ceiling of
 // current pools. Same-family transitions converge iteratively: grow (step 4)
 // runs before shrink (step 5), and every reduction preserves the accepted
-// per-role transition floor.
+// transition floor of its role and, for worker pools, of its zone.
 //
 // Returns nil when converged or blocked. Returns waitAction when any pool is in progress.
-func findNextAction(desired []compute.Pool, current []PoolState, availableVCPUs map[compute.VMFamily]int64, capacityFloor compute.CapacityByRole, networkConfig compute.NetworkConfig) Action {
+func findNextAction(desired []compute.Pool, current []PoolState, availableVCPUs map[compute.VMFamily]int64, capacityFloor transitionFloor, networkConfig compute.NetworkConfig) Action {
 	if blocker := firstInProgressPool(current); blocker != nil {
 		return newWaitAction(blocker.Name, blocker.Spec.Size, blocker.ZoneString(), waitPollHint)
 	}
@@ -73,7 +73,7 @@ func findNextAction(desired []compute.Pool, current []PoolState, availableVCPUs 
 	}
 
 	// 5. Shrink undesired pools (identity-based, not headroom-gated).
-	//    Each reduction must preserve the per-role transition floor.
+	//    Each reduction must preserve the transition floor.
 	if action, ok := findShrinkAction(current, desiredByName, capacityFloor); ok {
 		return action
 	}
@@ -94,7 +94,7 @@ func findReconcileAction(desired []compute.Pool, currentByName map[string]PoolSt
 // findCorrectDesiredAction handles desired pools that exist but are
 // misconfigured: frozen pools that need unfreezing, pools with maxCount above
 // target, or pools whose count exceeds desired max and need draining.
-func findCorrectDesiredAction(desired []compute.Pool, currentByName map[string]PoolState, headroom map[compute.VMFamily]int64, current []PoolState, capacityFloor compute.CapacityByRole) (Action, bool) {
+func findCorrectDesiredAction(desired []compute.Pool, currentByName map[string]PoolState, headroom map[compute.VMFamily]int64, current []PoolState, capacityFloor transitionFloor) (Action, bool) {
 	for _, pool := range desired {
 		cur, exists := currentByName[pool.Name]
 		if !exists {
@@ -126,7 +126,10 @@ func findCorrectDesiredAction(desired []compute.Pool, currentByName map[string]P
 			continue
 		}
 
-		if cur.MaxCount > pool.MaxCount {
+		// The cluster autoscaler does not scale a pool down just because it runs
+		// above its maximum, so a count above the desired maximum must be
+		// frozen and drained even when the live maximum is not above target.
+		if cur.MaxCount > pool.MaxCount || cur.Count > pool.MaxCount {
 			if pool.MaxCount >= cur.Count {
 				if !allowsCapacityReduction(current, cur, int64(pool.MaxCount), capacityFloor) {
 					continue
@@ -215,7 +218,7 @@ func findGrowAction(desired []compute.Pool, currentByName map[string]PoolState, 
 	return nil, false
 }
 
-func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool, capacityFloor compute.CapacityByRole) (Action, bool) {
+func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool, capacityFloor transitionFloor) (Action, bool) {
 	undesired := undesiredPools(current, desiredByName)
 	if len(undesired) == 0 {
 		return nil, false
@@ -256,14 +259,19 @@ func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool
 		return newDeleteAction(cur.Name, cur.Spec.Size, cur.ZoneString(), cur.ETag), true
 	}
 
-	// Squeeze unused ceiling without evicting nodes. This may dip below the
-	// new desired total but must preserve the accepted transition floor.
+	// Squeeze unused ceiling without evicting nodes, down to the lowest ceiling
+	// the accepted transition floor allows. This may dip below the new desired
+	// total. When the floor stops the squeeze short of the node count, the freed
+	// quota grows replacement capacity first, which lets the next squeeze go
+	// further.
 	for _, cur := range undesired {
-		if cur.AutoScalingEnabled && cur.MaxCount > cur.Count {
-			if !allowsCapacityReduction(current, cur, int64(cur.Count), capacityFloor) {
-				continue
+		if !cur.AutoScalingEnabled || cur.MaxCount <= cur.Count {
+			continue
+		}
+		for ceiling := cur.Count; ceiling < cur.MaxCount; ceiling++ {
+			if allowsCapacityReduction(current, cur, int64(ceiling), capacityFloor) {
+				return newSetScalingBoundsAction(cur.Name, cur.Spec.Size, cur.ZoneString(), cur.ETag, min(cur.MinCount, ceiling), ceiling), true
 			}
-			return newSetScalingBoundsAction(cur.Name, cur.Spec.Size, cur.ZoneString(), cur.ETag, min(cur.MinCount, cur.Count), cur.Count), true
 		}
 	}
 

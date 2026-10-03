@@ -1,0 +1,154 @@
+[
+  {
+    "name": "infra1",
+    "properties": {
+      "vmSize": "Standard_E32ds_v4",
+      "availabilityZones": [
+        "1"
+      ],
+      "osDiskSizeGB": 32,
+      "osDiskType": "Ephemeral",
+      "provisioningState": "Succeeded",
+      "enableAutoScaling": true,
+      "count": 1,
+      "minCount": 1,
+      "maxCount": 3,
+      "nodeLabels": {
+        "aro-hcp.azure.com/role": "infra"
+      },
+      "nodeTaints": [
+        "infra=true:NoSchedule"
+      ],
+      "maxPods": 225,
+      "mode": "User"
+    }
+  },
+  {
+    "name": "infra2",
+    "properties": {
+      "vmSize": "Standard_E32ds_v4",
+      "availabilityZones": [
+        "2"
+      ],
+      "osDiskSizeGB": 32,
+      "osDiskType": "Ephemeral",
+      "provisioningState": "Succeeded",
+      "enableAutoScaling": true,
+      "count": 1,
+      "minCount": 1,
+      "maxCount": 3,
+      "nodeLabels": {
+        "aro-hcp.azure.com/role": "infra"
+      },
+      "nodeTaints": [
+        "infra=true:NoSchedule"
+      ],
+      "maxPods": 225,
+      "mode": "User"
+    }
+  },
+  {
+    "name": "system",
+    "properties": {
+      "vmSize": "Standard_E8ds_v5",
+      "availabilityZones": [
+        "1",
+        "2",
+        "3"
+      ],
+      "osDiskSizeGB": 128,
+      "osDiskType": "Ephemeral",
+      "provisioningState": "Succeeded",
+      "enableAutoScaling": true,
+      "count": 1,
+      "minCount": 1,
+      "maxCount": 4,
+      "nodeLabels": {
+        "aro-hcp.azure.com/role": "system"
+      },
+      "nodeTaints": [
+        "CriticalAddonsOnly=true:NoSchedule"
+      ],
+      "maxPods": 100,
+      "mode": "System",
+      "tags": {
+        "aks-nic-enable-multi-tenancy": "true"
+      }
+    }
+  },
+  {
+    "name": "userswft1",
+    "properties": {
+      "vmSize": "Standard_E32ds_v5",
+      "availabilityZones": [
+        "1"
+      ],
+      "osDiskSizeGB": 512,
+      "osDiskType": "Ephemeral",
+      "provisioningState": "Succeeded",
+      "enableAutoScaling": true,
+      "count": 6,
+      "minCount": 6,
+      "maxCount": 14,
+      "nodeLabels": {
+        "aro-hcp.azure.com/role": "worker"
+      },
+      "maxPods": 225,
+      "mode": "User",
+      "tags": {
+        "aks-nic-enable-multi-tenancy": "true",
+        "aks-nic-secondary-count": "7"
+      }
+    }
+  },
+  {
+    "name": "userswft2",
+    "properties": {
+      "vmSize": "Standard_E32ds_v5",
+      "availabilityZones": [
+        "2"
+      ],
+      "osDiskSizeGB": 512,
+      "osDiskType": "Ephemeral",
+      "provisioningState": "Succeeded",
+      "enableAutoScaling": true,
+      "count": 6,
+      "minCount": 6,
+      "maxCount": 14,
+      "nodeLabels": {
+        "aro-hcp.azure.com/role": "worker"
+      },
+      "maxPods": 225,
+      "mode": "User",
+      "tags": {
+        "aks-nic-enable-multi-tenancy": "true",
+        "aks-nic-secondary-count": "7"
+      }
+    }
+  },
+  {
+    "name": "userswft3",
+    "properties": {
+      "vmSize": "Standard_E32ds_v5",
+      "availabilityZones": [
+        "3"
+      ],
+      "osDiskSizeGB": 512,
+      "osDiskType": "Ephemeral",
+      "provisioningState": "Succeeded",
+      "enableAutoScaling": true,
+      "count": 6,
+      "minCount": 6,
+      "maxCount": 14,
+      "nodeLabels": {
+        "aro-hcp.azure.com/role": "worker"
+      },
+      "maxPods": 225,
+      "mode": "User",
+      "tags": {
+        "aks-nic-enable-multi-tenancy": "true",
+        "aks-nic-secondary-count": "7"
+      }
+    }
+  }
+]

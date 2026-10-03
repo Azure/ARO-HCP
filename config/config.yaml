@@ -891,7 +891,6 @@ defaults:
       autoApproveStamps: true
     nodePoolPlanning:
       profile: "production"
-      zones: ""
   # Admin API
   adminApi:
     audit:

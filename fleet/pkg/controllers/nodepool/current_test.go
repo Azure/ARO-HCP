@@ -119,7 +119,7 @@ func TestCurrentPoolStates(t *testing.T) {
 		{
 			name: "configured Swift NIC count overrides the SKU maximum",
 			skuMetadata: map[string]*skucache.SKUMetadata{
-				"Standard_E16ds_v6": {Name: "Standard_E16ds_v6", Family: "standardEDSv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7},
+				"Standard_E16ds_v6": {Name: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7},
 			},
 			pools: []armcontainerservice.AgentPool{
 				{
@@ -148,7 +148,7 @@ func TestCurrentPoolStates(t *testing.T) {
 				{
 					Pool: compute.Pool{
 						Role: compute.PoolRoleWorker, Name: "wrk161",
-						Spec:              compute.VMSpec{Size: "Standard_E16ds_v6", Family: "standardEDSv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 3},
+						Spec:              compute.VMSpec{Size: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 3},
 						AvailabilityZones: []string{"1"}, MaxCount: 10, OSDiskSizeGB: 256, MaxPods: 225,
 						Labels:      map[string]string{compute.RoleLabel: "worker", "workload": "general"},
 						Taints:      []string{"dedicated=worker:NoSchedule"},
@@ -389,6 +389,45 @@ func TestUnfreezeObservedPoolMinimum(t *testing.T) {
 			require.True(t, ok, "a non-autoscaled pool must be unfrozen")
 			require.Equal(t, test.wantMinimum, action.MinCount)
 			require.Equal(t, test.wantMinimum, tr.finalState()[0].MinCount)
+		})
+	}
+}
+
+func TestWorkerPoolZones(t *testing.T) {
+	agentPool := func(role string, zones ...string) armcontainerservice.AgentPool {
+		properties := &armcontainerservice.ManagedClusterAgentPoolProfileProperties{}
+		if len(role) > 0 {
+			properties.NodeLabels = map[string]*string{compute.RoleLabel: ptr.To(role)}
+		}
+		for _, zone := range zones {
+			properties.AvailabilityZones = append(properties.AvailabilityZones, ptr.To(zone))
+		}
+		return armcontainerservice.AgentPool{Name: ptr.To("pool"), Properties: properties}
+	}
+	tests := []struct {
+		name  string
+		pools []armcontainerservice.AgentPool
+		want  []string
+	}{
+		{
+			name:  "zones of worker pools, deduplicated and sorted",
+			pools: []armcontainerservice.AgentPool{agentPool("worker", "3"), agentPool("worker", "1"), agentPool("worker", "3")},
+			want:  []string{"1", "3"},
+		},
+		{
+			name:  "other roles and unmanaged pools do not pin zones",
+			pools: []armcontainerservice.AgentPool{agentPool("infra", "2"), agentPool("system", "1", "2", "3"), agentPool("", "3")},
+			want:  []string{},
+		},
+		{
+			name:  "zoneless worker pools pin no zone",
+			pools: []armcontainerservice.AgentPool{agentPool("worker"), {Name: ptr.To("no-properties")}},
+			want:  []string{},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, workerPoolZones(test.pools))
 		})
 	}
 }
