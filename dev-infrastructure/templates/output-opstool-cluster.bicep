@@ -39,6 +39,10 @@ resource cihealthUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-
   name: 'cihealth'
 }
 
+resource cihealthAuthUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
+  name: 'cihealth-auth'
+}
+
 resource certManagerUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
   name: 'cert-manager'
 }
@@ -71,6 +75,8 @@ output opstoolUAMIClientId string = opstoolUAMI.properties.clientId
 output opstoolUAMIId string = opstoolUAMI.id
 output cihealthUAMIClientId string = cihealthUAMI.properties.clientId
 output cihealthUAMIId string = cihealthUAMI.id
+output cihealthAuthUAMIClientId string = cihealthAuthUAMI.properties.clientId
+output cihealthAuthUAMIId string = cihealthAuthUAMI.id
 output certManagerUAMIClientId string = certManagerUAMI.properties.clientId
 output certManagerUAMIId string = certManagerUAMI.id
 output certManagerUAMIPrincipalId string = certManagerUAMI.properties.principalId

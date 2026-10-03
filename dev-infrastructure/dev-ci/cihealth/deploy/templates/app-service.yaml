@@ -11,7 +11,7 @@ spec:
   ports:
     - name: http
       port: {{ .Values.app.service.port }}
-      targetPort: http
+      targetPort: {{ ternary "auth-proxy" "http" .Values.authProxy.enabled }}
       protocol: TCP
   selector:
     {{- include "cihealth.selectorLabels" . | nindent 4 }}

@@ -58,6 +58,30 @@ app:
       memory: 512Mi
   extraEnv: []
   extraArgs: []
+authProxy:
+  enabled: false
+  image:
+    registry: "quay.io"
+    repository: "oauth2-proxy/oauth2-proxy"
+    tag: "v7.12.0"
+    digest: ""
+    pullPolicy: IfNotPresent
+  listenPort: 4180
+  tenantId: ""
+  clientIdVersion: ""
+  clientSecretVersion: ""
+  cookieSecretVersion: ""
+  allowedGroupId: ""
+  keyVaultSecretNames:
+    clientId: "cihealth-oauth2-proxy-client-id"
+    clientSecret: "cihealth-oauth2-proxy-client-secret"
+    cookieSecret: "cihealth-oauth2-proxy-cookie-secret"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
 httpRoute:
   enabled: false
   host: ""

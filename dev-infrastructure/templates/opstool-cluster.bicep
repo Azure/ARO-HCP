@@ -6,6 +6,9 @@ import {
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
+@description('Resource ID of the global rollout managed identity')
+param globalMSIId string
+
 @description('Availability Zones to use for the infrastructure, as a CSV string. Defaults to all the zones of the location')
 param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
 var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
@@ -166,6 +169,10 @@ resource cihealthMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31
   name: 'cihealth'
 }
 
+resource cihealthAuthMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: 'cihealth-auth'
+}
+
 resource certManagerMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: 'cert-manager'
 }
@@ -183,6 +190,11 @@ var workloadIdentities = items({
     uamiName: cihealthMI.name
     namespace: 'cihealth'
     serviceAccountName: 'cihealth'
+  }
+  cihealth_auth_wi: {
+    uamiName: cihealthAuthMI.name
+    namespace: 'cihealth-auth'
+    serviceAccountName: 'cihealth-auth'
   }
   cert_manager_wi: {
     uamiName: certManagerMI.name
@@ -347,6 +359,18 @@ module workloadKV '../modules/keyvault/keyvault.bicep' = {
   }
 }
 
+module globalMSIWorkloadKVAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'global-msi-workload-kv-access'
+  params: {
+    keyVaultName: workloadKVName
+    roleName: 'Key Vault Secrets Officer'
+    managedIdentityPrincipalIds: [reference(globalMSIId, '2023-01-31').principalId]
+  }
+  dependsOn: [
+    workloadKV
+  ]
+}
+
 module tenantQuotaKVAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'tenant-quota-kv-access'
   params: {
@@ -365,6 +389,18 @@ module cihealthKVAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
     keyVaultName: workloadKVName
     roleName: 'Key Vault Secrets User'
     managedIdentityPrincipalIds: [cihealthMI.properties.principalId]
+  }
+  dependsOn: [
+    workloadKV
+  ]
+}
+
+module cihealthAuthKVAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'cihealth-auth-kv-access'
+  params: {
+    keyVaultName: workloadKVName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalIds: [cihealthAuthMI.properties.principalId]
   }
   dependsOn: [
     workloadKV

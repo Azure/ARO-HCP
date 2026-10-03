@@ -1,0 +1,53 @@
+nameOverride: "cihealth-auth"
+fullnameOverride: "cihealth-auth"
+
+msiClientId: "__cihealthAuthUAMIClientId__"
+
+secretProvider:
+  keyVault: "__workloadKVName__"
+  msiClientId: "__cihealthAuthUAMIClientId__"
+  tenantId: "__tenantId__"
+
+image:
+  registry: "{{ .opstool.cihealth.image.registry }}"
+  repository: "{{ .opstool.cihealth.image.repository }}"
+  digest: "{{ .opstool.cihealth.image.digest }}"
+
+disableRuntimeWorkloads: false
+
+app:
+  replicas: {{ .opstool.cihealthAuth.app.replicas }}
+
+authProxy:
+  enabled: true
+  image:
+    registry: "{{ .opstool.cihealthAuth.authProxy.image.registry }}"
+    repository: "{{ .opstool.cihealthAuth.authProxy.image.repository }}"
+    tag: "{{ .opstool.cihealthAuth.authProxy.image.tag }}"
+    digest: "{{ .opstool.cihealthAuth.authProxy.image.digest }}"
+  tenantId: "__tenantId__"
+  clientIdVersion: "__cihealthAuthClientIdVersion__"
+  clientSecretVersion: "__cihealthAuthClientSecretVersion__"
+  cookieSecretVersion: "__cihealthAuthCookieSecretVersion__"
+  allowedGroupId: "{{ .opstool.cihealthAuth.authProxy.allowedGroupId }}"
+  keyVaultSecretNames:
+    clientId: "{{ .opstool.cihealthAuth.authProxy.clientIdKeyVaultSecretName }}"
+    clientSecret: "{{ .opstool.cihealthAuth.authProxy.clientSecretKeyVaultSecretName }}"
+    cookieSecret: "{{ .opstool.cihealthAuth.authProxy.cookieSecretKeyVaultSecretName }}"
+
+controllers:
+  replicas: 1
+
+postgres:
+  keyVaultSecretNames:
+    username: "{{ .opstool.cihealthAuth.postgres.usernameKeyVaultSecretName }}"
+    password: "{{ .opstool.cihealthAuth.postgres.passwordKeyVaultSecretName }}"
+    database: "{{ .opstool.cihealthAuth.postgres.databaseKeyVaultSecretName }}"
+
+httpRoute:
+  enabled: true
+  host: "{{ .opstool.cihealthAuth.httpRoute.host }}"
+  gatewayName: "{{ .opstool.cihealth.httpRoute.gatewayName }}"
+  gatewayNamespace: "{{ .opstool.cihealth.httpRoute.gatewayNamespace }}"
+  sectionName: "{{ .opstool.cihealth.httpRoute.sectionName }}"
+  blockReviewPath: {{ .opstool.cihealth.httpRoute.blockReviewPath }}
