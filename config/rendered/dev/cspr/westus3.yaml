@@ -515,6 +515,10 @@ imageSync:
   ondemandSync:
     pullSecretName: component-sync-pull-secret
   outboundServiceTags: ""
+infrastructureIdentities:
+  managementResourceGroups: ""
+  serviceResourceGroup: ""
+  useLeased: false
 keyVaultDNSSuffix: vault.azure.net
 kubeApplier:
   cosmosContainerMaxScale: 19000

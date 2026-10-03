@@ -1,5 +1,8 @@
 using '../modules/fleet/fleet-lookup.bicep'
 
+param useLeasedInfrastructureIdentities = {{ .infrastructureIdentities.useLeased }}
+param infrastructureIdentityResourceGroup = '{{ .infrastructureIdentities.serviceResourceGroup }}'
+
 param msiName = '{{ .fleet.managedIdentityName }}'
 param imagePullerMsiName = 'image-puller'
 param regionalResourceGroup = '{{ .regionRG }}'

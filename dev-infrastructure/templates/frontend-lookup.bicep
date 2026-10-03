@@ -13,12 +13,16 @@ param rpCosmosDbName string
 @description('The name of the AKS cluster in which the Frontend will run')
 param aksClusterName string
 
+param useLeasedInfrastructureIdentities bool = false
+param infrastructureIdentityResourceGroup string = ''
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? infrastructureIdentityResourceGroup : resourceGroup().name)
+
 //
 //   I M A G E   P U L L E R   L O O K U P
 //
 
 resource imagePullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: imagePullerMsiName
 }
 
@@ -30,7 +34,7 @@ output imagePullerMsiTenantId string = imagePullerIdentity.properties.tenantId
 //
 
 resource frontendIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: frontendMsiName
 }
 

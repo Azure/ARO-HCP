@@ -7,12 +7,16 @@ param imagePullerMsiName string
 @description('The name of the AKS cluster in which the SessionGate will run')
 param aksClusterName string
 
+param useLeasedInfrastructureIdentities bool = false
+param infrastructureIdentityResourceGroup string = ''
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? infrastructureIdentityResourceGroup : resourceGroup().name)
+
 //
 //   S E S S I O N   G A T E   L O O K U P
 //
 
 resource sessiongateIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: sessiongateMsiName
 }
 
@@ -20,7 +24,7 @@ output tenantId string = tenant().tenantId
 output sessiongateMsiClientId string = sessiongateIdentity.properties.clientId
 
 resource imagePullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: imagePullerMsiName
 }
 
