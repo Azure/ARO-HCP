@@ -651,6 +651,21 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: cluster-output
+  # TRANSIENT: remove after rollout to all environments (AROSLSRE-2290)
+  # Cleans up orphaned tracing pods (jaeger, otel-collector, lgtm) left behind
+  # after PR #7072 removed the observability/tracing pipeline.
+  - name: cleanup-observability-tracing
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: kubectl delete namespace observability --ignore-not-found
+    dependsOn:
+    - resourceGroup: service
+      step: cluster-output
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: prometheus
     # Deploy prometheus first since istio depends on it's CRDs
     aksCluster: '{{ .svc.aks.name }}'
