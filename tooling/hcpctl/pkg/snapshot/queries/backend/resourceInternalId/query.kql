@@ -1,5 +1,13 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
+{{- if .SeedFromIdentity }}
+// Identity-seeded (from-cluster): the clusterServiceID is a prerequisite for the
+// clustersService/* queries. cosmosResourceSnapshots is a change feed, so scan history
+// up to the window end rather than within the window, otherwise an idle cluster with no
+// in-window changes yields no internal id and the dependent queries return nothing.
+| where timestamp <= {{ kqlDatetime .FullEndTime }}
+{{- else }}
 | where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
+{{- end }}
 {{- if and .ServiceClusterName .ManagementClusterName }}
 | where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
 {{- end }}
@@ -7,4 +15,15 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosRes
 | where resourceGroup =~ '{{ .ResourceGroup }}'
 | where resourceID =~ '{{ .ResourceID }}'
 | extend internalId=tostring(content.properties.serviceProviderProperties.clusterServiceID)
+{{- if .SeedFromIdentity }}
+// The all-history scan can span a delete+recreate under the same ARM resource id, which
+// leaves multiple non-empty historical clusterServiceIDs. Collapse to the latest snapshot
+// and drop it if that snapshot is soft-deleted, so downstream clustersService/* queries
+// get the current internal id, not a stale one (matching the cosmosResourceDiscovery
+// latest-snapshot collapse).
+| extend deletionTimestamp=tostring(content.deletionTimestamp)
+| summarize arg_max(tolong(content._ts), internalId, deletionTimestamp) by resourceID
+| where isempty(deletionTimestamp)
+{{- end }}
+| where isnotempty(internalId)
 | distinct internalId

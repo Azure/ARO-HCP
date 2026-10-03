@@ -130,6 +130,14 @@ type queryData struct {
 	FullStartTime time.Time
 	FullEndTime   time.Time
 
+	// SeedFromIdentity is true for identity-seeded (from-cluster) runs. Discovery
+	// queries that resolve the cluster's resource inventory use it to drop the lower
+	// time bound: cosmosResourceSnapshots is a change feed, so an idle cluster whose
+	// last change predates FullStartTime has no in-window row. Inventory is resolved
+	// across history up to FullEndTime, while the gathered state/log data stays
+	// window-scoped.
+	SeedFromIdentity bool
+
 	// PhaseStartTime and PhaseEndTime define the current phase (test or
 	// cleanup). Use these for queries that should be scoped to a single phase.
 	PhaseStartTime time.Time

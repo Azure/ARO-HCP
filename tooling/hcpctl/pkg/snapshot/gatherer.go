@@ -36,6 +36,66 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
+// seedMode records how resource discovery was seeded. It is decided once in
+// Gather and threaded explicitly to the discovery code so branching is on the
+// mode rather than inferred from whether individual fields happen to be set.
+type seedMode string
+
+const (
+	// seedModeRequest seeds discovery from frontend ARM request logs
+	// (the from-resource default).
+	seedModeRequest seedMode = "request"
+	// seedModeIdentity seeds discovery from a cluster identity (the from-cluster
+	// entrypoint), independent of ARM traffic in the resource group.
+	seedModeIdentity seedMode = "identity"
+)
+
+// skipsRequestDiscovery reports whether frontend request discovery is skipped for
+// this seed mode. Identity-seeded runs are not request-anchored, so request-scoped
+// output and request-derived resources are intentionally omitted.
+func (m seedMode) skipsRequestDiscovery() bool {
+	return m == seedModeIdentity
+}
+
+// contextQueriesFor returns the context queries to run for the given seed mode.
+// In identity mode the frontend request query is omitted (the run is not
+// request-anchored); alert context queries always run.
+func contextQueriesFor(mode seedMode) []querySpec {
+	if !mode.skipsRequestDiscovery() {
+		return contextQueries
+	}
+	filtered := make([]querySpec, 0, len(contextQueries))
+	for _, q := range contextQueries {
+		if q.queryName == "frontendRequests" {
+			continue
+		}
+		filtered = append(filtered, q)
+	}
+	return filtered
+}
+
+// selectCosmosDiscoveryData picks the cluster identity that drives Cosmos and
+// per-resource discovery. In identity mode the seed pins discovery to the
+// requested cluster, regardless of ARM traffic to other clusters in the same
+// resource group (frontendRequests is filtered by resource group only, so it may
+// surface a different HCP). In request mode the cluster is derived from the first
+// request data that carries both a cluster id and subscription. Returns a zero
+// queryData when request mode has no qualifying request.
+func selectCosmosDiscoveryData(mode seedMode, seedData queryData, requestData []queryData) queryData {
+	if mode == seedModeIdentity {
+		return seedData
+	}
+	for _, d := range requestData {
+		if d.ClusterResourceID != "" && d.SubscriptionID != "" {
+			out := seedData
+			out.ClusterResourceID = d.ClusterResourceID
+			out.SubscriptionID = d.SubscriptionID
+			return out
+		}
+	}
+	return queryData{}
+}
+
 // GatherInput provides the parameters needed to gather a diagnostic snapshot.
 type GatherInput struct {
 	// ClusterURI is the full Kusto cluster endpoint URL.
@@ -68,6 +128,18 @@ type GatherInput struct {
 	// the relevant clusters.
 	ServiceClusterName    string
 	ManagementClusterName string
+
+	// SeedClusterResourceID and SeedSubscriptionID bootstrap resource discovery
+	// directly from a cluster identity instead of from frontend ARM request logs.
+	// Used by the `from-cluster` entrypoint so per-resource queries (backend state,
+	// HyperShift conditions, velero backup health) run even when the cluster had no
+	// ARM traffic in the window. When SeedClusterResourceID is set it is used
+	// directly (and its subscription is parsed from it). When only
+	// SeedSubscriptionID is set, the gatherer resolves the cluster resource id from
+	// the resource group via the backend/clusterByResourceGroup query. When both are
+	// empty, discovery is seeded the default way, from ARM requests.
+	SeedClusterResourceID string
+	SeedSubscriptionID    string
 }
 
 // validate checks that all required fields are set.
@@ -277,6 +349,24 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		PhaseEndTime:   input.TimeWindow.End,
 	}
 
+	// Identity seeding (from-cluster entrypoint): resolve the cluster resource id
+	// from the input, without relying on ARM request logs. When resolved, seed it
+	// onto seedData so resource discovery runs even for a cluster with no ARM
+	// traffic in the window. When no identity seed is provided, this is a no-op and
+	// discovery falls back to the ARM-request path (from-resource).
+	mode := seedModeRequest
+	seedClusterID, seedSubscriptionID, err := g.resolveSeedCluster(ctx, input, seedData)
+	if err != nil {
+		return nil, nil, err
+	}
+	if seedClusterID != "" {
+		seedData.ClusterResourceID = seedClusterID
+		seedData.SubscriptionID = seedSubscriptionID
+		seedData.SeedFromIdentity = true
+		mode = seedModeIdentity
+		logger.Info("Identity-seeded discovery", "clusterResourceID", seedClusterID)
+	}
+
 	pool := &queryPool{gatherer: g, input: input}
 
 	// =========================================================================
@@ -285,22 +375,30 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 
 	discoveryDir := filepath.Join(outputDir, "discovery")
 
-	// Run context queries (frontendRequests) to discover all ARM requests.
-	for _, q := range contextQueries {
+	// Run context queries to discover ARM requests and alerts. In identity mode
+	// (from-cluster) the frontend request query is omitted: the run is not request-
+	// anchored, so request-scoped sections are intentionally absent from the output.
+	for _, q := range contextQueriesFor(mode) {
 		if _, err := g.executeQuery(ctx, q, &seedData, discoveryDir, input); err != nil {
 			return nil, nil, fmt.Errorf("context query %s failed: %w", q.key(), err)
 		}
 	}
 
-	// Discover all ARM requests from the frontend request data.
-	requests, err := g.discoverRequests(ctx, input, seedData)
-	if err != nil {
-		logger.Error(err, "Failed to discover requests, continuing with empty request list")
-		requests = nil
+	// Discover all ARM requests from the frontend request data. Skipped in identity
+	// mode so unrelated ARM traffic in the resource group does not create
+	// request-scoped output or add request-derived resources; resource discovery
+	// then runs from the seeded cluster identity instead.
+	var requests []frontendRequest
+	if !mode.skipsRequestDiscovery() {
+		requests, err = g.discoverRequests(ctx, input, seedData)
+		if err != nil {
+			logger.Error(err, "Failed to discover requests, continuing with empty request list")
+			requests = nil
+		}
 	}
 
 	// Run per-request and per-resource discovery.
-	trackedReqs, resources, resourceOrder := g.runDiscovery(ctx, pool, seedData, requests, discoveryDir, report, logger)
+	trackedReqs, resources, resourceOrder := g.runDiscovery(ctx, pool, mode, seedData, requests, discoveryDir, report, logger)
 
 	if ctx.Err() != nil {
 		return nil, nil, ctx.Err()
@@ -319,10 +417,12 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			TestStartTime:    input.TestStartTime,
 			CleanupStartTime: input.CleanupStartTime,
 		},
-		ResourceGroup:   input.ResourceGroup,
-		KustoCluster:    input.ClusterURI,
-		KustoDatabase:   input.ServiceDatabase,
-		DirectoryLayout: directoryLayout(),
+		ResourceGroup:     input.ResourceGroup,
+		KustoCluster:      input.ClusterURI,
+		KustoDatabase:     input.ServiceDatabase,
+		SeedMode:          string(mode),
+		ClusterResourceID: seedData.ClusterResourceID,
+		DirectoryLayout:   directoryLayout(),
 	}
 
 	for _, phase := range phases {
@@ -364,12 +464,80 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 	return manifest, report, nil
 }
 
+// resolveSeedCluster determines the cluster resource id (and its subscription id)
+// to seed discovery with when running identity-seeded (from-cluster entrypoint).
+// It returns ("", "", nil) when no identity seed was provided, in which case the
+// caller falls back to the ARM-request seeding path (from-resource).
+//
+// An explicit SeedClusterResourceID is used directly, with its subscription parsed
+// from the ARM id. Otherwise, when only SeedSubscriptionID is set, the cluster is
+// resolved from the resource group via the backend/clusterByResourceGroup query.
+func (g *Gatherer) resolveSeedCluster(ctx context.Context, input GatherInput, seedData queryData) (clusterResourceID, subscriptionID string, err error) {
+	if input.SeedClusterResourceID != "" {
+		parsed, perr := azcorearm.ParseResourceID(input.SeedClusterResourceID)
+		if perr != nil {
+			return "", "", fmt.Errorf("invalid SeedClusterResourceID %q: %w", input.SeedClusterResourceID, perr)
+		}
+		// When a subscription is supplied alongside an explicit cluster id, it must
+		// agree with the id; a mismatch is a caller error, not a silent override.
+		if input.SeedSubscriptionID != "" && !strings.EqualFold(input.SeedSubscriptionID, parsed.SubscriptionID) {
+			return "", "", fmt.Errorf("SeedSubscriptionID %q does not match subscription %q in SeedClusterResourceID %q", input.SeedSubscriptionID, parsed.SubscriptionID, input.SeedClusterResourceID)
+		}
+		return input.SeedClusterResourceID, parsed.SubscriptionID, nil
+	}
+	if input.SeedSubscriptionID == "" {
+		return "", "", nil
+	}
+
+	// Resolve the cluster from subscription + resource group via Cosmos snapshots.
+	d := seedData
+	d.SubscriptionID = input.SeedSubscriptionID
+	rendered, err := renderQuery("queries/backend/clusterByResourceGroup/query.kql", d)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to render clusterByResourceGroup query: %w", err)
+	}
+	rows, err := g.executeKQL(ctx, rendered, seedData.ServiceDatabase, input.QueryTimeout)
+	if err != nil {
+		return "", "", fmt.Errorf("clusterByResourceGroup query failed: %w", err)
+	}
+	resolved, err := resolveClusterFromResourceGroup(rows, input.SeedSubscriptionID, input.ResourceGroup)
+	if err != nil {
+		return "", "", err
+	}
+	return resolved, input.SeedSubscriptionID, nil
+}
+
+// resolveClusterFromResourceGroup picks the single cluster resource id from the
+// clusterByResourceGroup query rows, returning a descriptive error for the
+// zero-row (wrong scope / created after the window end) and multi-row (ambiguous)
+// cases.
+func resolveClusterFromResourceGroup(rows []resultRow, subscriptionID, resourceGroup string) (string, error) {
+	var ids []string
+	for _, r := range rows {
+		if len(r.values) > 0 && r.values[0] != "" {
+			ids = append(ids, r.values[0])
+		}
+	}
+	switch len(ids) {
+	case 0:
+		// clusterByResourceGroup scans all history up to the window end (it ignores
+		// the window start), so the miss means the cluster does not exist at or before
+		// the end time, not that it was merely idle during the window.
+		return "", fmt.Errorf("no HCP cluster found in subscription %q resource group %q at or before the window end", subscriptionID, resourceGroup)
+	case 1:
+		return ids[0], nil
+	default:
+		return "", fmt.Errorf("resource group %q in subscription %q contains %d HCP clusters (%s); re-run with --cluster-resource-id to select one", resourceGroup, subscriptionID, len(ids), strings.Join(ids, ", "))
+	}
+}
+
 // runDiscovery executes request-level and resource-level discovery queries,
 // writing output to the discovery directory. Returns the tracked requests,
 // deduplicated resources, and resource ordering.
 func (g *Gatherer) runDiscovery(
 	ctx context.Context,
 	pool *queryPool,
+	mode seedMode,
 	seedData queryData,
 	requests []frontendRequest,
 	discoveryDir string,
@@ -440,16 +608,14 @@ func (g *Gatherer) runDiscovery(
 	// Cosmos resource discovery: find all resource types under the cluster prefix
 	// =========================================================================
 
-	// Collect the first ClusterResourceID + SubscriptionID from tracked requests.
-	var cosmosDiscoveryData queryData
+	// Determine the cluster that drives Cosmos/per-resource discovery. See
+	// selectCosmosDiscoveryData: identity mode pins to the seed; request mode derives
+	// from the first tracked request that supplied a cluster.
+	requestData := make([]queryData, len(trackedReqs))
 	for i := range trackedReqs {
-		if trackedReqs[i].data.ClusterResourceID != "" && trackedReqs[i].data.SubscriptionID != "" {
-			cosmosDiscoveryData = seedData
-			cosmosDiscoveryData.ClusterResourceID = trackedReqs[i].data.ClusterResourceID
-			cosmosDiscoveryData.SubscriptionID = trackedReqs[i].data.SubscriptionID
-			break
-		}
+		requestData[i] = trackedReqs[i].data
 	}
+	cosmosDiscoveryData := selectCosmosDiscoveryData(mode, seedData, requestData)
 
 	// cosmosChildTypes maps lowercased parent resource ID → set of child resource types.
 	cosmosChildTypes := make(map[string]map[string]bool)
@@ -459,7 +625,7 @@ func (g *Gatherer) runDiscovery(
 	if cosmosDiscoveryData.ClusterResourceID != "" {
 		rendered, err := renderQuery("queries/backend/cosmosResourceDiscovery/query.kql", cosmosDiscoveryData)
 		if err == nil {
-			rows, queryErr := g.executeKQL(ctx, rendered, cosmosDiscoveryData.ServiceDatabase, 2*time.Minute)
+			rows, queryErr := g.executeKQL(ctx, rendered, cosmosDiscoveryData.ServiceDatabase, pool.input.QueryTimeout)
 			if queryErr != nil {
 				logger.Error(queryErr, "Cosmos resource discovery query failed, continuing without discovery")
 			} else {
