@@ -82,6 +82,7 @@ type lifecycleHandler struct {
 	admit            func(context.Context) error
 	assetInventories *[]slots.AssetInventory
 	poolRequests     *[]assets.PoolRequest
+	reuseError       error
 }
 
 func (h *lifecycleHandler) Kind() assets.Kind { return h.kind }
@@ -138,6 +139,12 @@ func (h *lifecycleHandler) AdmitLease(ctx context.Context, request assets.LeaseR
 		if err := h.admit(ctx); err != nil {
 			return err
 		}
+	}
+	if h.reuseError != nil {
+		return h.reuseError
+	}
+	if request.SkipAdmissionCleanup {
+		return nil
 	}
 	return h.call("admit", request)
 }
@@ -250,12 +257,12 @@ func TestAcquireAdmissionDeadlineAndRollback(t *testing.T) {
 
 func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []string{"success", "resolve", "admit", "publish", "second acquire", "duplicate secondary", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state", "skip e2e admission", "skip infra admission", "skip both admissions", "unskipped admission fails"} {
+	for _, scenario := range []string{"success", "resolve", "admit", "publish", "second acquire", "duplicate secondary", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state", "skip e2e admission", "skip infra admission", "skip both admissions", "unskipped admission fails", "unsafe reuse", "unsafe reuse with cleanup disabled", "cancelled reuse check"} {
 		t.Run(scenario, func(t *testing.T) {
 			calls := []string{}
 			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
 			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
-			skipE2E := scenario == "skip e2e admission" || scenario == "skip both admissions" || scenario == "unskipped admission fails"
+			skipE2E := scenario == "skip e2e admission" || scenario == "skip both admissions" || scenario == "unskipped admission fails" || scenario == "unsafe reuse with cleanup disabled"
 			skipInfra := scenario == "skip infra admission" || scenario == "skip both admissions"
 			if skipE2E {
 				e2e.fail = "admit"
@@ -265,6 +272,12 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			}
 			if scenario == "resolve" || scenario == "admit" || scenario == "publish" {
 				infra.fail = scenario
+			}
+			if strings.HasPrefix(scenario, "unsafe reuse") {
+				e2e.reuseError = errors.New("identity still referenced by HCP")
+			}
+			if scenario == "cancelled reuse check" {
+				e2e.reuseError = context.Canceled
 			}
 			registry, err := assets.NewRegistry(
 				e2e,
@@ -412,6 +425,16 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			}
 			if err == nil {
 				t.Fatal("expected fail-closed acquisition")
+			}
+			if e2e.reuseError != nil {
+				if !errors.Is(err, e2e.reuseError) {
+					t.Fatalf("lost consumer-check error: %v", err)
+				}
+				for _, call := range calls {
+					if strings.HasPrefix(call, "admit:") || strings.HasPrefix(call, "publish:") {
+						t.Fatalf("unsafe reuse reached cleanup or publication: %v", calls)
+					}
+				}
 			}
 			if infra.fail != "" && !strings.Contains(err.Error(), "fake "+infra.fail+" failed") {
 				t.Fatalf("expected failure from %s, got %v", infra.fail, err)

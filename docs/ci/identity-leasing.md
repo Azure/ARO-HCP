@@ -366,10 +366,20 @@ Common failure modes:
     to `e2e_identities`
   - other asset kinds still run admission by default; repeated flags or a
     comma-separated list can explicitly disable additional kinds
-  - this skips E2E identity verification and stale FIC/RBAC cleanup, not leasing,
-    structural validation, exports, or release; each actual skip is logged as a warning
+  - this skips E2E identity verification and stale FIC/RBAC cleanup, not the
+    ARM consumer safety check, leasing, structural validation, exports, or release;
+    each cleanup skip is logged as a warning
   - clear the parameter after mitigation to restore clean-reuse checks; see the
     [admission opt-out contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#emergency-admission-opt-out)
+- **identity still referenced by a cluster or node pool**
+  - ARM-backed environments reject the whole slot before any FIC or RBAC deletion,
+    including when the consumer is Failed or Deleting
+  - let the referenced consumer finish teardown before retrying; the cleanup
+    opt-out cannot bypass this check, and a list error does not prove absence
+  - DEV local frontends are provisioned after acquisition and are not covered
+    by this ARM consumer check
+  - the check requires API version `2026-10-01-preview` so container-registry
+    pull identities are visible; an unsupported API blocks admission
 - **slot-manager acquisition or release failure**
   - inspect the acquire/release step logs and `${SHARED_DIR}/aro-hcp-slot-state.yaml`
   - follow the design's [failure behavior](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#failure-behavior)

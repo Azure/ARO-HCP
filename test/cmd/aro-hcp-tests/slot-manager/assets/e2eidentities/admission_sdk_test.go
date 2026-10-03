@@ -40,6 +40,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -52,15 +53,16 @@ func (admissionCredential) GetToken(context.Context, policy.TokenRequestOptions)
 // This transport never opens a socket. All SDK requests, including deletes and
 // subscription-wide role enumeration, are handled by a bounded fake inventory.
 type admissionTransport struct {
-	active        atomic.Int32
-	latency       time.Duration
-	mu            sync.Mutex
-	scenario      string
-	role          bool
-	deletes       []string
-	roleLists     int
-	identityLists int
-	requests      []string
+	active           atomic.Int32
+	latency          time.Duration
+	mu               sync.Mutex
+	scenario         string
+	role             bool
+	deletes          []string
+	roleLists        int
+	identityLists    int
+	requests         []string
+	consumerResponse func(*http.Request) (any, int, error)
 }
 
 func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
@@ -79,6 +81,15 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 	names := framework.NewDefaultIdentities().ToSlice()
 	principal := "00000000-0000-0000-0000-0000000000AB"
 	switch {
+	case request.Method == http.MethodGet && strings.Contains(path, "/Microsoft.RedHatOpenShift/"):
+		payload = map[string]any{"value": []any{}}
+		if a.consumerResponse != nil {
+			var err error
+			payload, status, err = a.consumerResponse(request)
+			if err != nil {
+				return nil, err
+			}
+		}
 	case request.Method == http.MethodDelete:
 		if a.scenario == "role delete failure" {
 			status = http.StatusForbidden
@@ -163,7 +174,7 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-func admissionSDKClients(t *testing.T, transport *admissionTransport) (*armmsi.ClientFactory, *armauthorization.RoleAssignmentsClient) {
+func admissionSDKClients(t *testing.T, transport *admissionTransport) (*armmsi.ClientFactory, *armauthorization.RoleAssignmentsClient, *hcpsdk.ClientFactory) {
 	t.Helper()
 	options := &azcorearm.ClientOptions{ClientOptions: policy.ClientOptions{
 		Transport: transport, Retry: policy.RetryOptions{MaxRetries: -1},
@@ -176,7 +187,11 @@ func admissionSDKClients(t *testing.T, transport *admissionTransport) (*armmsi.C
 	if err != nil {
 		t.Fatal(err)
 	}
-	return factory, roles
+	hcp, err := hcpsdk.NewClientFactory("sub", admissionCredential{}, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return factory, roles, hcp
 }
 
 func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
@@ -186,9 +201,10 @@ func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				dirty := scenario == "residue" || scenario == "already deleted"
 				transport := &admissionTransport{scenario: scenario, role: dirty, latency: time.Millisecond}
-				factory, roles := admissionSDKClients(t, transport)
+				factory, roles, hcp := admissionSDKClients(t, transport)
 				groups := []string{"identity-rg-00", "identity-rg-01"}
 				request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+					Subscriptions: slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{ID: "sub"}},
 					Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
 						Allocation: slots.AllocationDedicated, ResourceGroups: groups,
 					}},
@@ -197,7 +213,7 @@ func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 				ctx := logr.NewContext(t.Context(), funcr.NewJSON(func(report string) {
 					reports = append(reports, report)
 				}, funcr.Options{}))
-				if err := admitIdentityLeaseWithClients(ctx, request, factory, roles); err != nil {
+				if err := admitIdentityLeaseWithClients(ctx, request, factory, roles, hcp); err != nil {
 					t.Fatalf("admission failed: %v", err)
 				}
 				wantReports := len(groups)
@@ -242,7 +258,7 @@ func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 						t.Fatalf("deleted another principal's role assignment: %s", path)
 					}
 				}
-				if want := len(wantInventory) + 1 + wantDeletes; len(transport.requests) != want {
+				if want := len(wantInventory) + 2 + wantDeletes; len(transport.requests) != want {
 					t.Fatalf("admission must not rescan or confirm deletions: got %d requests, want %d", len(transport.requests), want)
 				}
 			})
@@ -267,15 +283,16 @@ func TestAdmissionFailsClosed(t *testing.T) {
 	} {
 		t.Run(tc.scenario, func(t *testing.T) {
 			transport := &admissionTransport{scenario: tc.scenario, role: true}
-			factory, roles := admissionSDKClients(t, transport)
+			factory, roles, hcp := admissionSDKClients(t, transport)
 			request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+				Subscriptions: slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{ID: "sub"}},
 				Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
 					Allocation: slots.AllocationDedicated, ResourceGroups: []string{"identity-rg"},
 				}},
 			}}}
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			err := admitIdentityLeaseWithClients(ctx, request, factory, roles)
+			err := admitIdentityLeaseWithClients(ctx, request, factory, roles, hcp)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("expected admission failure containing %q, got %v", tc.want, err)
 			}
