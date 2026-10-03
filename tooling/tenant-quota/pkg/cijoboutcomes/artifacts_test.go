@@ -16,8 +16,12 @@ package cijoboutcomes
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -114,17 +118,84 @@ func TestFetchFinishedAtToleratesAMissingRecord(t *testing.T) {
 }
 
 func TestFetchFinishedAtReadsTheCompletionTime(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"timestamp":1787696844,"passed":false,"result":"ABORTED"}`))
-	}))
-	defer server.Close()
-
-	finishedAt, err := fetchFinishedAtFrom(context.Background(), server.Client(), server.URL)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	for _, bucket := range []string{"test-platform-results", "test-platform-results-public"} {
+		t.Run(bucket, func(t *testing.T) {
+			const prefix = "logs/periodic-ci-Azure-ARO-HCP-main-e2e-parallel/1234567890"
+			info, err := snapshot.ParseProwURL("https://prow.ci.openshift.org/view/gs/" + bucket + "/" + prefix)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := &http.Client{Transport: ingestionTransport(func(r *http.Request) (*http.Response, error) {
+				wantURL := "https://storage.googleapis.com/" + bucket + "/" + prefix + "/finished.json"
+				if r.Method != http.MethodGet || r.URL.String() != wantURL {
+					return nil, fmt.Errorf("unexpected completion request: %s %s", r.Method, r.URL)
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(`{"timestamp":1787696844,"passed":false,"result":"ABORTED"}`)),
+				}, nil
+			})}
+			finishedAt, err := fetchFinishedAt(t.Context(), client, info.GCSBucket, info.GCSPrefix)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if want := time.Unix(1787696844, 0).UTC(); !finishedAt.Equal(want) {
+				t.Errorf("got %v, want %v", finishedAt, want)
+			}
+		})
 	}
-	want := time.Unix(1787696844, 0).UTC()
-	if !finishedAt.Equal(want) {
-		t.Errorf("got %v, want %v", finishedAt, want)
+}
+
+func TestFetchADOBuildID(t *testing.T) {
+	for _, bucket := range []string{"test-platform-results", "test-platform-results-public"} {
+		for _, tc := range []struct {
+			name, body, want, wantErr string
+			status                    int
+		}{
+			{name: "rollout", status: 200, body: `{"metadata":{"annotations":{"ev2.rollout/build":"181589814"}},"status":{"build_id":"2100631679885381632"}}`, want: "181589814"},
+			{name: "identifier preserved", status: 200, body: `{"metadata":{"annotations":{"ev2.rollout/build":"00123"}}}`, want: "00123"},
+			{name: "no rollout annotation", status: 200, body: `{"metadata":{"annotations":{"ev2.rollout/environment":"int"}},"status":{"build_id":"2100631679885381632"}}`},
+			{name: "no annotations", status: 200, body: `{"metadata":{}}`},
+			{name: "empty annotation", status: 200, body: `{"metadata":{"annotations":{"ev2.rollout/build":""}}}`},
+			{name: "missing artifact", status: 404, wantErr: "artifact not found"},
+			{name: "forbidden", status: 403, wantErr: "unexpected status 403"},
+			{name: "server error", status: 503, wantErr: "unexpected status 503"},
+			{name: "malformed JSON", status: 200, body: `{`, wantErr: "failed to parse"},
+			{name: "invalid annotation type", status: 200, body: `{"metadata":{"annotations":{"ev2.rollout/build":123}}}`, wantErr: "failed to parse"},
+		} {
+			t.Run(bucket+"/"+tc.name, func(t *testing.T) {
+				const prefix = "logs/branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel/2100631679885381632"
+				client := &http.Client{Transport: ingestionTransport(func(r *http.Request) (*http.Response, error) {
+					wantURL := "https://storage.googleapis.com/" + bucket + "/" + prefix + "/prowjob.json"
+					if r.Method != http.MethodGet || r.URL.String() != wantURL {
+						return nil, fmt.Errorf("unexpected metadata request: %s %s", r.Method, r.URL)
+					}
+					return &http.Response{StatusCode: tc.status, Body: io.NopCloser(strings.NewReader(tc.body))}, nil
+				})}
+				got, err := fetchADOBuildID(t.Context(), client, bucket, prefix)
+				if tc.wantErr != "" {
+					if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+						t.Fatalf("got error %v, want %q", err, tc.wantErr)
+					}
+				} else if err != nil {
+					t.Fatal(err)
+				}
+				if got != tc.want {
+					t.Errorf("ADO build ID = %q, want %q", got, tc.want)
+				}
+			})
+		}
+	}
+}
+
+func TestFetchADOBuildIDPreservesCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	client := &http.Client{Transport: ingestionTransport(func(r *http.Request) (*http.Response, error) {
+		return nil, r.Context().Err()
+	})}
+	_, err := fetchADOBuildID(ctx, client, "test-platform-results-public", "logs/job/123")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v, want context.Canceled", err)
 	}
 }
