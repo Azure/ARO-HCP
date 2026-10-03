@@ -23,10 +23,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -60,32 +57,21 @@ type Notifier interface {
 }
 
 type GenericWatchingController[T comparable] struct {
-	CacheSyncWaiter
-	name           string
-	resourceType   azcorearm.ResourceType
-	syncer         GenericSyncer[T]
-	reconcileTotal *prometheus.CounterVec
-
-	// queue is where incoming work is placed to de-dup and to allow "easy"
-	// rate limited requeues on errors
-	queue workqueue.TypedRateLimitingInterface[T]
+	*TypedController[T]
+	resourceType azcorearm.ResourceType
+	syncer       GenericSyncer[T]
 }
 
 // NewGenericWatchingController creates a controller that watches Cosmos-backed
 // informers and delegates reconciliation to syncer.
 func NewGenericWatchingController[T comparable](name string, resourceType azcorearm.ResourceType, syncer GenericSyncer[T], reconcileTotal *prometheus.CounterVec) *GenericWatchingController[T] {
 	c := &GenericWatchingController[T]{
-		name:           name,
-		resourceType:   resourceType,
-		syncer:         syncer,
-		reconcileTotal: reconcileTotal,
-		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedControllerRateLimiter[T](),
-			workqueue.TypedRateLimitingQueueConfig[T]{
-				Name: name,
-			},
-		),
+		resourceType: resourceType,
+		syncer:       syncer,
 	}
+	c.TypedController = NewTypedController(name, func(ctx context.Context, key T) error {
+		return c.syncer.SyncOnce(ctx, key)
+	}, reconcileTotal)
 
 	return c
 }
@@ -95,7 +81,7 @@ func (c *GenericWatchingController[T]) Enqueue(keyObj any) {
 	if !ok {
 		return
 	}
-	c.queue.Add(key)
+	c.TypedController.Enqueue(key)
 }
 
 func (c *GenericWatchingController[T]) EnqueueAfter(keyObj any, duration time.Duration) {
@@ -103,7 +89,7 @@ func (c *GenericWatchingController[T]) EnqueueAfter(keyObj any, duration time.Du
 	if !ok {
 		return
 	}
-	c.queue.AddAfter(key, duration)
+	c.TypedController.EnqueueAfter(key, duration)
 }
 
 func (c *GenericWatchingController[T]) SyncOnce(ctx context.Context, keyObj any) error {
@@ -112,71 +98,7 @@ func (c *GenericWatchingController[T]) SyncOnce(ctx context.Context, keyObj any)
 		return fmt.Errorf("invalid key type %T", keyObj)
 	}
 
-	return c.syncer.SyncOnce(ctx, key)
-}
-
-func (c *GenericWatchingController[T]) Run(ctx context.Context, threadiness int) {
-	// don't let panics crash the process
-	defer utilruntime.HandleCrash()
-	// make sure the work queue is shutdown which will trigger workers to end
-	defer c.queue.ShutDown()
-
-	if !c.WaitForCacheSync(ctx) {
-		return
-	}
-
-	ctx = utils.ContextWithControllerName(ctx, c.name)
-	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("Starting")
-
-	// start up your worker threads based on threadiness.  Some controllers
-	// have multiple kinds of workers
-	for i := 0; i < threadiness; i++ {
-		// runWorker will loop until "something bad" happens.  The .Until will
-		// then rekick the worker after one second
-		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
-	}
-
-	logger.Info("Started workers")
-
-	// wait until we're told to stop
-	<-ctx.Done()
-	logger.Info("Shutting down")
-}
-
-func (c *GenericWatchingController[T]) runWorker(ctx context.Context) {
-	for c.processNextWorkItem(ctx) {
-	}
-}
-
-// processNextWorkItem deals with one item off the queue.  It returns false
-// when it's time to quit.
-func (c *GenericWatchingController[T]) processNextWorkItem(ctx context.Context) bool {
-	ref, shutdown := c.queue.Get()
-	if shutdown {
-		return false
-	}
-	defer c.queue.Done(ref)
-
-	logger := utils.LoggerFromContext(ctx)
-	logger = utils.AddLoggerValues(logger, ref)
-	ctx = utils.ContextWithLogger(ctx, logger)
-
-	if c.reconcileTotal != nil {
-		c.reconcileTotal.WithLabelValues(c.name).Inc()
-	}
-	err := c.SyncOnce(ctx, ref)
-	if err == nil {
-		c.queue.Forget(ref)
-		return true
-	}
-
-	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
-	c.queue.AddRateLimited(ref)
-
-	return true
+	return c.TypedController.SyncOnce(ctx, key)
 }
 
 // QueueForInformers is equivalent to calling QueueForInformersWithMaxDepth with maxDepth of -1.
