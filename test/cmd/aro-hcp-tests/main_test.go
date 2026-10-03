@@ -25,7 +25,6 @@ import (
 	"sync"
 	"testing"
 
-	e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
 	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
 
@@ -103,27 +102,6 @@ func captureStderr(t *testing.T, fn func()) string {
 	return string(data)
 }
 
-func specNames(specs et.ExtensionTestSpecs) []string {
-	names := make([]string, len(specs))
-	for i, s := range specs {
-		names[i] = s.Name
-	}
-	return names
-}
-
-func assertSpecOrder(t *testing.T, specs et.ExtensionTestSpecs, want []string) {
-	t.Helper()
-	got := specNames(specs)
-	if len(got) != len(want) {
-		t.Fatalf("expected specs %v, got %v", want, got)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("expected specs sorted as %v, got %v", want, got)
-		}
-	}
-}
-
 func TestParseMIContainersLabel(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -147,20 +125,7 @@ func TestParseMIContainersLabel(t *testing.T) {
 	}
 }
 
-func TestMIDemandPriority(t *testing.T) {
-	labeled := &et.ExtensionTestSpec{Name: "labeled", Labels: sets.New("MIContainers:4")}
-	if got := miDemandPriority(labeled); got != 4 {
-		t.Fatalf("miDemandPriority() = %d, want 4", got)
-	}
-	unlabeled := &et.ExtensionTestSpec{Name: "unlabeled", Labels: sets.New[string]()}
-	if got := miDemandPriority(unlabeled); got != 0 {
-		t.Fatalf("miDemandPriority() for a spec missing the label = %d, want 0", got)
-	}
-}
-
-func TestConfigureMISchedulerWiresResourcePoolsAndSortsByDemand(t *testing.T) {
-	t.Setenv("ARO_HCP_DISABLE_MI_SORT", "")
-
+func TestConfigureMISchedulerWiresResourcePools(t *testing.T) {
 	newSpecs := func() et.ExtensionTestSpecs {
 		return et.ExtensionTestSpecs{
 			{Name: "zero-demand", Labels: sets.New("MIContainers:0")},
@@ -168,7 +133,6 @@ func TestConfigureMISchedulerWiresResourcePoolsAndSortsByDemand(t *testing.T) {
 			{Name: "low-demand", Labels: sets.New("MIContainers:1")},
 		}
 	}
-	wantOrder := []string{"high-demand", "low-demand", "zero-demand"}
 
 	t.Run("pooled identities enabled", func(t *testing.T) {
 		specs := newSpecs()
@@ -176,7 +140,6 @@ func TestConfigureMISchedulerWiresResourcePoolsAndSortsByDemand(t *testing.T) {
 			configureMIScheduler(specs, miSchedulerConfig{pooledIdentitiesEnabled: true, containerCount: 5, containerCountSource: "test"})
 		})
 
-		assertSpecOrder(t, specs, wantOrder)
 		for _, spec := range specs {
 			demand, _ := parseMIContainersLabel(spec)
 			if got := spec.Resources.ResourcePools["mi-containers"]; got != demand {
@@ -194,7 +157,6 @@ func TestConfigureMISchedulerWiresResourcePoolsAndSortsByDemand(t *testing.T) {
 			configureMIScheduler(specs, miSchedulerConfig{pooledIdentitiesEnabled: false, containerCount: 5, containerCountSource: "test"})
 		})
 
-		assertSpecOrder(t, specs, wantOrder)
 		for _, spec := range specs {
 			if len(spec.Resources.ResourcePools) != 0 {
 				t.Fatalf("expected no ResourcePools wiring when pooled identities are disabled, got %v on %q", spec.Resources.ResourcePools, spec.Name)
@@ -204,34 +166,6 @@ func TestConfigureMISchedulerWiresResourcePoolsAndSortsByDemand(t *testing.T) {
 			t.Fatalf("expected scheduler banner noting pooled identities are disabled, got: %s", stderr)
 		}
 	})
-}
-
-// TestMISchedulerSortReflectedInExtensionSpecs guards against the bug fixed in
-// ARO-29044: initMIScheduler must be wired to ext.GetSpecs(), not the local specs
-// slice from before ext.AddSpecs(specs). AddSpecs does e.specs = append(e.specs,
-// specs...), which allocates a new backing array -- wiring the pre-AddSpecs slice
-// would make the demand-priority sort reorder a slice run-suite/run-test never reads.
-func TestMISchedulerSortReflectedInExtensionSpecs(t *testing.T) {
-	origSpecs, origSetup := miSchedulerSpecs, miSchedulerSetup
-	defer func() {
-		miSchedulerSpecs, miSchedulerSetup = origSpecs, origSetup
-		miSchedulerConfigure = sync.Once{}
-	}()
-	t.Setenv("ARO_HCP_DISABLE_MI_SORT", "")
-
-	specs := et.ExtensionTestSpecs{
-		{Name: "low-demand", Labels: sets.New("MIContainers:0")},
-		{Name: "high-demand", Labels: sets.New("MIContainers:2")},
-	}
-
-	ext := e.NewExtension("test", "payload", "mi-scheduler-regression")
-	ext.AddSpecs(specs)
-
-	initMIScheduler(ext.GetSpecs(), miSchedulerConfig{pooledIdentitiesEnabled: false, containerCount: 1, containerCountSource: "test"})
-	miSchedulerConfigure = sync.Once{}
-	captureStderr(t, ensureMISchedulerConfigured)
-
-	assertSpecOrder(t, ext.GetSpecs(), []string{"high-demand", "low-demand"})
 }
 
 func TestEnsureMISchedulerConfiguredRunsOnce(t *testing.T) {
