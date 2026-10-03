@@ -1,0 +1,25 @@
+// @owner: sre-team
+// @domain: Triage/Resolvers
+// @depends: cosmosResourceSnapshots
+// @params: resource_id=ARM resource ID (case-insensitive), cutoff=earliest timestamp to consider
+// @returns: single row with cluster_id string column
+.create-or-alter function
+with (
+  docstring = 'Resolves an ARM resource ID to an internal Clusters Service cluster_id. | Returns: single row with cluster_id (internal format) | Example: let cid = toscalar(ResolveClusterId("/subscriptions/.../hcpOpenShiftClusters/foo", ago(7d)))',
+  folder = 'Triage\\Resolvers'
+)
+ResolveClusterId(resource_id: string, cutoff: datetime)
+{
+    cosmosResourceSnapshots
+    | where timestamp > cutoff
+    | where resourceType =~ "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+    | where cosmosContainer == "resources"
+    | where resourceID =~ resource_id
+    | extend csid = tostring(content.properties.serviceProviderProperties.clusterServiceID)
+    | where isnotempty(csid)
+    | summarize arg_max(timestamp, csid)
+    | extend cluster_id = extract(@"clusters/([^/]+)$", 1, csid)
+    | where isnotempty(cluster_id)
+    | project cluster_id
+    | take 1
+}
