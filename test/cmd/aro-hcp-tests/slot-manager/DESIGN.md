@@ -212,7 +212,8 @@ The acquire step must mount the same applicable profile credentials used by the
 test step. The selected identity needs permission to enumerate the E2E identity
 inventory and role assignments, and delete leased principals' role
 assignments. ARM-backed environments also require cluster and node-pool list
-permissions in that subscription. Missing credential files or insufficient permissions fail admission.
+permissions in that subscription. Missing credential files or insufficient
+permissions fail admission.
 No credentials are written to shared runtime state.
 
 ### Region selection
@@ -679,50 +680,49 @@ therefore modify unmanaged backing resources.
 
 ### Admission
 
-The handler:
+Admission has three steps. See the
+[acquisition flow](../../../../docs/ci/identity-leasing.md#acquisition)
+for a visual summary.
 
-1. in ARM-backed environments, inventories all HCPs and their node pools once
-   across the subscription, including every page and provisioning state;
-2. in enforcement mode, excludes every container whose standard identities are
-   referenced by a cluster, operator, container-registry pull identity or node pool;
-3. requires at least three safe containers before loading cleanup inventory,
-   matching the largest current per-spec reservation;
-4. enumerates user-assigned managed identities in the selected containers;
-5. selects the 13 standard identities and requires valid principal IDs,
-   reporting unexpected names without inspecting or cleaning those identities;
-6. enumerates role assignments for their principal IDs across the E2E
-   subscription, including child scopes;
-7. deletes discovered assignments only for the selected containers.
+1. **Select containers.** In ARM-backed environments, scan every HCP and node-pool
+   page once across the subscription. Enforcement excludes containers referenced
+   by cluster, operator, registry-pull or node-pool identities. At least three
+   safe containers must remain before cleanup starts.
+2. **Clean the selected set.** Enumerate its managed identities, validate the 13
+   standard identities and their principal IDs, then collect and delete their
+   subscription-wide role assignments, including child scopes.
+3. **Publish after success.** Persist `admitted_identity_containers` before
+   exporting it as `LEASED_MSI_CONTAINERS`. Excluded containers stay untouched.
+   The full dedicated inventory and release journal keep ownership of all containers.
 
 Federated identity credential (FIC) cleanup is not part of admission: it is
 expensive in time and ARM calls and does not affect test correctness.
 
-Excluded containers remain untouched and owned by the slot. The durable
-`admitted_identity_containers` field records the selected subset without changing
-the dedicated resource-group inventory or release journal. Admission persists
-this subset before publishing it as `LEASED_MSI_CONTAINERS`. Insufficient capacity
-blocks acquisition before cleanup; reduced capacity can still reduce parallel
-throughput. Audit mode selects the full set.
+Three containers match the largest current per-spec reservation. Fewer available
+containers can reduce parallel throughput even when admission succeeds.
 
-Failed and deleting clusters still count as consumers. Missing required identity
-metadata, malformed references and failed list requests prevent
-cleanup and runtime publication. Audit logs identify each referenced container,
-consumer and identity. A match does not stop the remaining inventory pages.
-Releasing or reacquiring the Boskos lease does not
-waive the next consumer check. These checks enforce by default; audit mode
-explicitly permits unsafe or incomplete inventories. Cancellation of the
-operation still stops cleanup in both modes.
+#### Consumer scan
 
-Consumer inventory uses API version `2026-10-01-preview`, which exposes the
-container-registry pull identity. Unsupported API versions fail admission in
-enforcement mode rather than falling back to a response that omits this reference.
+| Condition | Enforcement behavior |
+| --- | --- |
+| Failed or Deleting consumer | Still counts as in use |
+| Matching identity | Exclude its container and continue scanning every page |
+| Missing metadata, malformed reference or failed list request | Stop before cleanup or publication |
+| Unsupported `2026-10-01-preview` API | Stop; do not fall back to an API that hides registry-pull identities |
 
-DEV skips consumer inventory during both acquisition and pooled teardown while
-retaining normal cleanup. Its frontend is provisioned after acquisition, and
-subscription-wide inventory on DEV presubmits would add ARM throttling pressure.
-The guard covers persistent ARM-backed environments, not DEV local clusters.
-The guard does not fence an external
-writer that creates a new consumer after the inventory read.
+Audit mode logs these findings but selects the full set, even after scan errors.
+Cancellation stops cleanup in both modes.
+
+**DEV skips consumer scans during acquisition and teardown, not cleanup.** Its
+frontend is provisioned after acquisition, and subscription-wide presubmit scans
+would add ARM throttling pressure. Cross-job protection covers persistent
+ARM-backed environments only.
+
+Every acquisition checks consumers again, regardless of lease return or expiry.
+The scan is a point-in-time check: it cannot prevent external writers from
+creating a consumer afterwards.
+
+#### Cleanup contract
 
 Discovery lists role assignments once for the E2E subscription and matches them
 against the expected identities' principal IDs. Each synchronous deletion must
@@ -753,34 +753,40 @@ repairs RBAC residue from interrupted jobs or failed teardown.
 
 ### Temporary enforcement and teardown
 
-`--identity-consumer-guard=enforce|audit` defaults to `enforce`, reads its default
-from `ARO_HCP_IDENTITY_CONSUMER_GUARD`, and exports the resolved policy to the E2E
-test process. An empty value means enforce; unknown values fail before leasing.
-Direct test invocations use the same environment variable.
+`--identity-consumer-guard=enforce|audit` reads its default from
+`ARO_HCP_IDENTITY_CONSUMER_GUARD` and exports the selected mode to tests.
+An empty value means `enforce`; unknown values fail before leasing.
+Direct test runs use the same variable.
 
-Outside DEV, both modes scan and log phase, mode, subscription, identity containers, job/build
-context and disposition. Matching references include consumer and identity IDs;
-teardown adds the spec. Audit mode permits cleanup after consumer matches or
-inventory errors, deliberately giving up the consumer safeguard without disabling
-normal FIC/RBAC cleanup. Deletion and mutation-inventory errors still fail closed.
-The admission cleanup opt-out is independent and should not be used to disable
-only this temporary safeguard.
+| Mode | Acquisition | Pooled teardown |
+| --- | --- | --- |
+| `enforce` (default) | Clean and publish the safe subset | Block the whole spec's identity cleanup on any reference or incomplete scan |
+| `audit` | Log findings, clean and publish the full set | Log findings and allow cleanup |
 
-ARM-backed pooled teardown uses the same scanner before *any* identity deletion, including
-tracked role assignments outside the container. An unsafe or incomplete scan
-in enforcement mode retains all containers for that spec. Tracked assignments
-must be cleaned before any container is returned. Each busy entry transitions
-to free only after its own FIC and container RBAC cleanup succeeds; errors are
-returned without persisting a free entry. Assigned-only entries remain free of
-per-container mutations. Teardown's scan has a ten-minute budget within its
-existing cleanup context.
+DEV skips both scans. Elsewhere, logs include phase, mode, subscription,
+containers, job/build and decision. Matches include consumer and identity IDs;
+teardown adds the spec.
 
-Failed or skipped resource cleanup still reaches this guard. If the process
-crashes instead, busy entries remain unavailable within its persisted pool,
-and acquisition independently checks consumers and cleans identities for the
-next job. Lease return or expiry alone never establishes consumer safety.
-This is a temporary E2E mitigation, not a fix for RP deletion/recovery after
-missing RBAC, and it cannot unblock already-stuck clusters.
+Audit mode removes consumer protection, not cleanup. Cleanup-inventory and
+deletion errors still block reuse. The separate admission cleanup opt-out skips
+acquisition cleanup, not the consumer scan.
+
+#### Returning containers to the test pool
+
+The teardown scan runs before **any identity deletion**, including tracked role
+assignments outside the container. It has a ten-minute budget within the cleanup
+context and still runs when resource cleanup fails or is skipped.
+
+- Clean tracked role assignments before returning any container.
+- Mark each busy entry `free` only after its own FIC and container RBAC cleanup
+  succeeds. On failure, return the error and leave the entry reserved.
+- Assigned-only entries need no per-container mutation.
+
+A process crash leaves busy entries reserved in the persisted pool. New-job
+acquisition checks consumers and cleans identities independently of teardown.
+
+This is a temporary E2E safeguard. It does not fix RP recovery after missing
+RBAC or unblock already-stuck clusters.
 
 ## Inventory maintenance
 
