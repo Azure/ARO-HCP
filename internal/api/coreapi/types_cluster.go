@@ -191,13 +191,13 @@ type ClusterServiceProviderProperties struct {
 	// marked as failed with a message listing the remaining cosmos resources preventing deletion.
 	// Set by admission on CREATE and UPDATE from the TagClusterMaxDeletionDuration tag.
 	// Nil when the tag is absent or the ExperimentalReleaseFeatures AFEC is not registered.
-	// The frontend DELETE handler computes the deadline as DeletionTimestamp + this duration.
+	// The frontend DELETE handler adds this duration to the accepted attempt time, defaulting to 12 hours when nil.
 	// Written by: Frontend PUT/PATCH Cluster (via admission)
 	DeleteOperationCompletionTimeout *time.Duration `json:"deleteOperationCompletionTimeout,omitempty"`
 
 	// DeleteOperationCompletionDeadline is the absolute time by which the cluster deletion operation
-	// must complete. Computed by the frontend DELETE handler as DeletionTimestamp + DeleteOperationCompletionTimeout
-	// (or DeletionTimestamp + 12h when DeleteOperationCompletionTimeout is nil).
+	// must complete. Computed by the frontend DELETE handler as the accepted attempt time plus
+	// DeleteOperationCompletionTimeout (or 12 hours when nil), preserving the original DeletionTimestamp.
 	// Written by: Frontend DELETE Cluster
 	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
 }
