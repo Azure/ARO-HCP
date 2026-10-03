@@ -1,25 +1,39 @@
 digraph version_catalog {
-  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Version catalog - internal discovery, publication and retirement", dpi=110];
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.35", ranksep="0.5", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Version catalog - discovery, publication and retirement", dpi=110];
   node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
-  graphdata [label="Cincinnati graph-data archive\nvalidated allowed profiles at/above backend floor", fillcolor="#fff0da", color="#b27624"];
-  refs [label="Cached Cluster / SPC references\nrequested, desired, exact pins, overrides, active\nincludes deleting and nightly; not pin thresholds", fillcolor="#e4f2e5", color="#4c8053"];
-  seed [label="ControlPlaneVersionRolloutSeeding\nindependent discovery / reference producers\nafter cache sync: immediate + 5m tickers\ncache-only events also enqueue profiles\none homogeneous typed queue; live read + retries"];
-  fleet [label="Fleet: ControlPlaneVersionRollout\nSpec.Version: canonical ID + ChannelGroup\nBestExactVersion may be nil", fillcolor="#e4f2e5", color="#4c8053"];
-  best [label="ControlPlaneVersionBestVersionSelection\nCincinnati exact-release selection\nexisting selector does not resolve nightly"];
-  publish [label="OpenShiftVersionCatalog\ninitial cache sync + startup + rollout events\n5m delayed requeue; one regional key / worker\nadapt legacy profile without persisted backfill\nvalidate all; public floor; sort ID then channel\nAvailable = BestExactVersion != nil"];
-  catalog [label="Resources: OpenShiftVersionCatalog/default\nprovider-namespace partition; regional account\nEntries: Version {ID, ChannelGroup}, Available\nincludes unresolved entries; empty results = []", fillcolor="#e4f2e5", color="#4c8053"];
-  retire [label="ControlPlaneVersionRolloutRetirement\nafter cache sync: immediate + 5m ticker\none regional key / worker; queue retries\nadapt legacy profiles; validate all inventory\nDELETE only below backend floor AND unreferenced\nany inventory error blocks all deletion"];
-  boundary [shape=note, label="Catalog persistence only at this stage\nFrontend version GET/LIST still use Cluster Service", fillcolor="#f5f5f5", color="#777777"];
-  graphdata -> seed [label="discovered profiles"];
-  refs -> seed [label="referenced profiles, including below floor"];
-  seed -> fleet [label="CREATE / legacy profile backfill\npreserve metadata, selection and status"];
-  fleet -> best [label="profile exists", style=dashed];
-  best -> fleet [label="persist changed best", constraint=false];
-  refs -> retire [label="complete reference inventory\nincludes deleting documents", style=dashed, constraint=false];
-  fleet -> retire [label="cached structured inventory\nlegacy read adaptation", style=dashed];
-  retire -> fleet [label="DELETE obsolete unreferenced profiles\n404 tolerated; retain at/above floor", constraint=false];
-  fleet -> publish [label="cached full inventory\nadd / update / delete, including tombstones"];
-  publish -> catalog [label="point GET; CREATE / changed ETag REPLACE\nerrors preserve previous snapshot and retry"];
-  {rank=same; catalog; boundary;}
+  graphdata [label="Cincinnati graph-data archive\nchannel names, not exact-release selection\ntypically no nightly definitions", fillcolor="#fff0da", color="#b27624"];
+  refs [label="Cached Cluster / SPC references\nrequested, desired, exact pins, overrides, active\nincludes deleting documents; not pin thresholds", fillcolor="#e4f2e5", color="#4c8053"];
+  subgraph cluster_seed {
+    label="ControlPlaneVersionRolloutSeeding - one controller identity";
+    color="#35648a";
+    discovery [label="Run after cache sync: HTTP discovery producer\nimmediate + 5m between passes\nfailures logged; next-interval retry"];
+    repair [label="Run after cache sync: independent cache producer\nreferences + all legacy profiles for backfill\nlegacy-health cleanup after observed valid repair\nimmediate + 5m; failures logged for next interval"];
+    events [label="Cluster / SPC version-reference callbacks\nevent object + targeted cached counterpart\nproduce normalized profiles"];
+    seed [label="Homogeneous rolloutSeedKey.Version queue\nlive GET; CREATE or ETag-protected backfill\nmissing below floor: recheck cached references\nworker errors use queue retries / reconcile metrics"];
+  }
+  fleet [label="Fleet: ControlPlaneVersionRollout\nSpec.Version: canonical ID + ChannelGroup\nname must match profile; BestExactVersion may be nil", fillcolor="#e4f2e5", color="#4c8053"];
+  best [label="ControlPlaneVersionBestVersionSelection\nexisting Cincinnati exact-release selector\nnightly remains unresolved by this selector"];
+  retire [label="ControlPlaneVersionRolloutRetirement\nstartup + every 5m; adapt legacy read boundary\nvalidate structured inventory before deletion\nDELETE only below backend floor AND unreferenced"];
+  publish [label="OpenShiftVersionCatalog\nrollout events + startup + every 5m\nadapt legacy read boundary; project Spec.Version\npublic floor; Available = best != nil\nhonors any selected nightly rollout"];
+  catalog [label="Resources: OpenShiftVersionCatalog/default\nregional snapshot, including empty results", fillcolor="#e4f2e5", color="#4c8053"];
+  api [label="Frontend GET / LIST (all API versions)\none Resources point read; no CS fallback\nshared allowed-channel sets\ncandidate / nightly require AFEC", fillcolor="#eee7fb", color="#7b59a4"];
+  health [label="Resources: legacy per-cluster\nseeder Controller status", fillcolor="#e4f2e5", color="#4c8053"];
+  graphdata -> discovery [label="validated profiles at/above backend floor"];
+  refs -> repair [label="full cached inventory\nincludes nightly"];
+  refs -> events [label="targeted cached counterpart"];
+  discovery -> seed [label="profiles"];
+  repair -> seed [label="known reference / legacy profiles\npartial inventory still makes progress"];
+  events -> seed [label="profiles"];
+  fleet -> repair [label="cached legacy inventory\n+ repair observation", style=dashed, constraint=false];
+  repair -> health [label="DELETE after observed repair\n404 tolerated; cleanup errors retry next interval"];
+  seed -> fleet [label="CREATE structured profile / REPLACE legacy profile\npreserve selection, status and metadata"];
+  fleet -> best [label="channel exists", style=dashed];
+  best -> fleet [label="REPLACE selected best", constraint=false];
+  refs -> retire [label="all references validated", style=dashed, constraint=false];
+  fleet -> retire [label="channel below backend floor", style=dashed];
+  retire -> fleet [label="DELETE; retain referenced channels", constraint=false];
+  fleet -> publish [label="initial sync + add/update/delete"];
+  publish -> catalog [label="CREATE / changed REPLACE"];
+  catalog -> api [label="snapshot, not fleet health"];
 }

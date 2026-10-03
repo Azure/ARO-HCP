@@ -497,6 +497,10 @@ type ResourceKey struct {
 	// If empty, falls back to StepInput.APIVersion, then DefaultTestAPIVersion.
 	// Only used by HTTP step types; non-HTTP steps (e.g., completeOperation) ignore this field.
 	APIVersion string `json:"apiVersion,omitempty"`
+
+	// Optional assertions on the final httpGet response, including error responses.
+	ExpectedStatusCode int               `json:"expectedStatusCode,omitempty"`
+	ExpectedHeaders    map[string]string `json:"expectedHeaders,omitempty"`
 }
 
 func (s StepInput) HTTPTestAccessor(key ResourceKey) HTTPTestAccessor {

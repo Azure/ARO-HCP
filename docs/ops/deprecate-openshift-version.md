@@ -2,15 +2,9 @@
 
 This procedure follows the current discovery, catalog and retirement
 [implementation](../cosmos-data-flow.md#backend-fleet-control-plane-version-rollout).
-Deprecation has two separate stages: stop new admission and catalog publication
-first, then retire internal channel state after the fleet drains. Neither stage
-upgrades or deletes customer clusters.
-
-**Current implementation boundary:** public-floor validation and backend catalog
-publication/retirement are implemented. Frontend version GET/LIST still query
-Cluster Service. Their cutover to the Resources catalog is upcoming, so a public
-floor change does not yet remove versions from those endpoints. Do not declare
-endpoint deprecation complete based only on catalog persistence.
+Deprecation has two separate stages:
+stop public admission/publication first, then retire internal channel state after
+the fleet drains. Neither stage upgrades or deletes customer clusters.
 
 ## Policy Controls
 
@@ -19,9 +13,9 @@ Both controls are compiled constants in
 currently `4.20`. They compare major/minor, ignoring patch and prerelease; they are
 not runtime configuration or emergency feature flags.
 
-| Constant | Current effect | When to advance |
+| Constant | Effect | When to advance |
 |---|---|---|
-| `MinimumPublicVersion` | Frontend rejects creates and changed cluster-version requests below the floor; backend catalog publication hides those minors. Frontend GET/LIST filtering is part of the upcoming catalog cutover. | First, after manually proving every affected cluster retains a valid next upgrade target. |
+| `MinimumPublicVersion` | Frontend rejects creates and changed cluster-version requests below the floor; backend catalog publication and frontend version reads hide those minors. | First, after manually proving every affected cluster retains a valid next upgrade target. |
 | `MinimumBackendVersion` | Discovery stops seeding unreferenced older channels; retirement may delete older rollout documents only when unreferenced. | Separately, after old-version dependencies have drained. Keep it at or below the public floor. |
 
 These are distinct from the selector's per-channel exact-version minimums in
@@ -66,26 +60,23 @@ upgrade path; obtain actual compatibility evidence before approving deprecation.
 
 Removing the numeric major-version ceiling allows creation on future minor versions
 in the stable/fast channel groups; it does not authorize every cross-major upgrade.
-Existing node-pool cross-major upgrade checks still require experimental release
-features. Verify the entire control-plane and node-pool upgrade path before
-selecting a cross-major target for an ordinary subscription; catalog membership
-alone is insufficient.
+Existing node-pool cross-major upgrade checks still require experimental release features. Verify the
+entire control-plane and node-pool upgrade path before selecting a cross-major
+target for an ordinary subscription; catalog membership alone is insufficient.
 
 ## 2. Advance the Public Floor
 
 1. Change only `MinimumPublicVersion` in a reviewed code change; leave the backend
    floor unchanged so old channels continue to be discovered and processed.
 2. Deploy both frontend and backend builds carrying that policy. Frontend enforces
-   admission; backend filters the persisted catalog. Frontend GET/LIST remain on
-   Cluster Service until the upcoming cutover. Account for mixed builds during
-   deployment. For Int/Stage/Prod, promote through `sdp-pipelines` and the deployment
-   pipelines at [aka.ms/arohcp-pipelines](https://aka.ms/arohcp-pipelines); a source
-   merge alone does not apply the change.
+   admission and read filtering; backend filters the persisted catalog. Account for
+   mixed builds during deployment before declaring public deprecation complete.
+   For Int/Stage/Prod, promote through `sdp-pipelines` and the deployment pipelines
+   at [aka.ms/arohcp-pipelines](https://aka.ms/arohcp-pipelines); a source merge alone
+   does not apply the change.
 3. Verify that new creates and changed version requests below the floor are
-   rejected, and that the Resources catalog no longer contains the retired minor.
-   Repeat admission checks with ordinary and experimental-release subscriptions.
-   GET/LIST withdrawal is a separate verification step after the frontend cutover,
-   not expected behavior of the current handlers.
+   rejected, and that GET/LIST no longer advertises the retired minor. Repeat with
+   ordinary and experimental-release subscriptions.
 4. Verify unrelated updates to existing below-floor clusters still work when their
    stored version profile **and** experimental exact override remain unchanged.
    This grandfathering bypasses only the new floor check, not other validation.
@@ -135,13 +126,12 @@ version-reference-changing updates use targeted cache reads to enqueue normalize
 
 The seeder's `Run` waits for cache sync, then starts two independent producer loops:
 HTTP discovery, and cached reference inventory plus legacy-profile backfill and
-Controller-status cleanup. Each runs immediately and then on a five-minute ticker;
-calls to the same producer never overlap. Producers share the seeder's controller
-identity; enumeration failures are logged for the next tick and do not increment
-queue retry/reconcile metrics. Workers live-read and create/backfill rollouts from
-the profile-only queue; write failures, including conflicts, use rate-limited queue
-retries. Missing below-floor rollouts require a fresh cached reference check before
-creation.
+Controller-status cleanup. Each runs immediately and waits five minutes between
+passes. Producers share the seeder's controller identity; enumeration failures are
+logged for the next interval and do not increment queue retry/reconcile metrics.
+Workers live-read and create/backfill rollouts from the profile-only queue;
+write failures, including conflicts, use rate-limited queue retries. Missing
+below-floor rollouts require a fresh cached reference check before creation.
 
 Fleet rollouts store their minor version and channel group in
 [`Spec.Version`](../../internal/api/fleetapi/types_control_plane_version_rollout.go)
@@ -162,7 +152,7 @@ After an error-free inventory, the reference producer removes a cluster's legacy
 seeder Controller status only when the cache shows valid structured rollouts for
 all that cluster's references. This prevents stale Degraded conditions from
 surviving the controller transition while retaining health state until repair is
-observed. Cleanup errors are logged and retried at the next producer tick.
+observed. Cleanup errors are logged and retried at the next producer interval.
 See the [migration tests](../../internal/apihelpers/fleetapihelpers/rollout_version_test.go)
 and [seeder lifecycle tests](../../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller_test.go)
 for preservation, concurrency and cleanup behavior.
@@ -176,12 +166,12 @@ dependencies and allow their owning lifecycle controllers to resolve them.
 
 1. After the drain evidence is complete, raise `MinimumBackendVersion` in a separate
    reviewed and deployed change, no higher than the public floor.
-2. Observe `ControlPlaneVersionRolloutSeeding`, `ControlPlaneVersionRolloutRetirement`,
-   and `OpenShiftVersionCatalog` logs/reconcile metrics. Maintenance starts after
-   cache sync and repeats every five minutes. Seeder producer/cleanup failures
-   appear in logs and retry at the next tick; seeder worker writes, retirement
-   passes and catalog reconciliation use queue error retries. Informer lag and
-   errors can delay completion beyond that interval.
+2. Observe `ControlPlaneVersionRolloutSeeding`, `ControlPlaneVersionRolloutRetirement`, and
+   `OpenShiftVersionCatalog` logs/reconcile metrics. Maintenance starts after cache
+   sync and repeats every five minutes. Seeder producer/cleanup failures appear in
+   logs and retry at the next interval; seeder worker writes, retirement passes and
+   catalog reconciliation use queue error retries. Informer lag and errors can
+   delay completion beyond that interval.
 3. Confirm that below-floor, unreferenced Fleet `ControlPlaneVersionRollout`
    documents disappear. Referenced channels must remain, even below the floor;
    seeding can repair a missing referenced channel. At/above-floor channels remain
@@ -194,50 +184,57 @@ dependencies and allow their owning lifecycle controllers to resolve them.
 Retirement is internal garbage collection, not a fleet-wide stop switch. It
 validates references and the entire structured rollout inventory before deleting
 anything in a pass. Unsupported groups, malformed profiles and name/profile
-mismatches block the pass; nightly follows the shared policy. It uses eventually
-consistent informer inventories, not a transactional global lock. The
-reference-retention safeguard does not replace the manual drain prerequisite.
-Deletes tolerate 404; another delete error stops the pass and retries without
-rolling back earlier deletions. See the
-[retirement controller](../../backend/pkg/controllers/cluster/version/rollout/rollout_retirement_controller.go).
+mismatches block the pass; nightly follows the shared policy. It
+uses eventually consistent informer inventories, not a transactional global lock.
+The reference-retention safeguard does not replace the manual drain prerequisite.
 
 ## API Verification
 
-For all registered API versions, the regional endpoints are:
+For **all registered API versions**, use the regional endpoints:
 
 ```text
 GET /subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenShift/locations/{location}/hcpOpenShiftVersions?api-version={apiVersion}
 GET /subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenShift/locations/{location}/hcpOpenShiftVersions/{name}?api-version={apiVersion}
 ```
 
-**Current behavior:** the
-[`ArmResourceListVersion` and `GetOpenshiftVersions` handlers](../../frontend/pkg/frontend/frontend.go)
-call Cluster Service `ListVersions`/`GetVersion`. They do not read the Resources
-catalog, and their responses cannot verify catalog publication or floor filtering.
-Validate current admission behavior and inspect the backend-owned snapshot
-separately. A missing, empty or unresolved catalog does not currently impose
-catalog-derived HTTP status codes on these endpoints.
+The [handler](../../frontend/pkg/frontend/openshift_versions.go) point-reads only
+the Resources catalog. It never falls back to Cluster Service, Fleet, or a live
+Cincinnati query. Returned names are minors: `4.21` (stable), `4.21-fast`,
+`4.21-candidate`, and `4.21-nightly`. Stable/fast are public at or above the floor;
+candidate and nightly require the registered AFEC
+`microsoft.redhatopenshift/experimentalreleasefeatures`. The shared metadata
+allowed-channel sets determine visibility; unknown groups are excluded.
 
-**Upcoming frontend cutover:** after the scheduled change to catalog-backed reads
-is implemented and deployed, verify GET/LIST withdrawal below the public floor,
-subscription visibility for experimental channels, canonical public names, and
-the missing/empty/unresolved-catalog response contract against that implementation.
-Those endpoint checks are not implemented behavior in this revision. Do not apply
-the later catalog-backed API's bootstrap/status expectations to the current
-Cluster Service handlers.
+| Observation | Expected result |
+|---|---|
+| Missing/bootstrap catalog | `503 ServiceUnavailable`, `Retry-After: 59`, for LIST or GET. |
+| Visible eligible entries exist, but none has a selected best version | `503 ServiceUnavailable`, `Retry-After: 59`; also applies to a visible unresolved single GET. |
+| Some visible entries resolved, others unresolved | LIST `200`, only resolved entries, sorted by public name. |
+| Present empty catalog, or all entries filtered out | LIST `200` with `{"value":[]}`, no `nextLink`. Hidden unresolved candidate/nightly entries do not cause 503. |
+| Absent, hidden or below-floor single name in an existing catalog | `404 NotFound`; a hidden candidate/nightly entry does not reveal whether it is resolved. |
+| Noncanonical single name | `404`; no aliases for `4.21-stable`, `4.21.0`, `fast-4.21`, `openshift-v4.21`, or `4.21-FAST`. |
+| Available visible entry | `200`, with `channelGroup` and `enabled: true`; end-of-life fields omitted. |
 
-For backend verification now, availability means a non-nil Fleet
-`Spec.BestExactVersion`, not completed upgrades or recent successful discovery.
-The publisher waits for initial Fleet informer sync, not discovery's first
-successful pass, so it can persist `entries: []` before rollouts are seeded.
-Unresolved entries remain present with `Available: false`; the publisher has no
-all-channel resolution gate. The generic projection honors any selected nightly
-rollout, but the existing Cincinnati selector does not resolve nightly releases,
-graph-data typically has no nightly definitions, and no CI releasestream downloader
-is added. The nightly exact-pin admission rule is unchanged.
+An early empty `200` is accepted: the catalog publisher waits for the initial Fleet
+informer sync, not for discovery's first successful pass. It can publish an empty
+snapshot before discovery/seeding creates rollouts; single GET then returns 404.
+Do not treat every bootstrap interval as 503 or an empty 200 as evidence that
+discovery has completed. Both policy floors remain `4.20` in the current code.
 
-If the snapshot does not converge, trace the seeder's archive fetch/validation and
-owned queue, best-version selection, Fleet informer sync, and catalog publication
-as diagnostic dependencies, not a guaranteed controller execution schedule.
-Existing resolved state can survive graph outages; there is no freshness TTL.
-Do not manually populate the catalog or delete reference state to force progress.
+Availability means a non-nil Fleet `Spec.BestExactVersion`, not completed upgrades
+or recent successful discovery. The generic catalog honors any selected nightly
+rollout, but availability remains dependent on backend selection. The existing
+Cincinnati selector does not resolve nightly releases, graph-data typically has
+no nightly channel definitions, and no CI releasestream downloader is added.
+An AFEC-enabled GET of a present unresolved nightly entry therefore returns 503,
+not a selected release. The nightly exact-pin admission rule is unchanged.
+Existing resolved data can remain available through
+graph outages; there is no freshness TTL or runtime global gate. Other Cosmos
+errors follow normal error handling, not the missing-catalog fallback. Aligning
+TypeSpec with omitted EOL fields and always-true `enabled` remains follow-up work.
+
+If 503 persists, trace the seeder's archive fetch/validation and owned queue,
+best-version selection, Fleet informer sync, and catalog publication in that order
+as diagnostic dependencies, not a guaranteed controller execution schedule. Check
+visibility before treating an empty 200 or 404 as missing internal state. Do not
+manually populate the catalog or restore a Cluster Service fallback.

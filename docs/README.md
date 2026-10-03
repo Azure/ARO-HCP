@@ -143,6 +143,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 
 ### Guides and Operations
 
+- [Deprecate an OpenShift Minor Version](ops/deprecate-openshift-version.md): public admission/publication first, internal retirement after fleet drain.
 - [Introduce a new Service to ARO HCP](introduce-new-services.md)
   - Guidance on how to introduce new services into the ARO HCP architecture and deployment concept
 - [Bump Service Component Image Digests](ops/bump-image-digests.md)
@@ -160,7 +161,6 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Dashboard for pod health, restarts, node pressure, and scheduling delays
 - [Cleanup Stuck Cluster Deletion](ops/cleanup-stuck-cluster-deletion.md)
   - Procedure for manually cleaning up clusters stuck on deletion
-- [Deprecate an OpenShift Minor Version](ops/deprecate-openshift-version.md): public admission/catalog floors, reference drain, and internal rollout retirement
 - [Fix Maestro Stale Resource Bundle](ops/fix-maestro-stale-resource-bundle.md)
   - How to resolve Maestro resource bundle staleness issues
 - [Node Health](controllers/node-health.md)
