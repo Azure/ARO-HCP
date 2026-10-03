@@ -4,6 +4,7 @@ digraph cluster_delete {
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
   delete [label="Frontend DELETE cluster\ndeletion timestamp + Delete Operation\nchild node-pool / external-auth deletes", fillcolor="#eee7fb", color="#7b59a4"];
   resources [label="ClusterResources\nremove tagged ApplyDesire documents", fillcolor="#e6f0fa", color="#35648a"];
+  ingress [label="IngressCertificate\ndelete known ApplyDesire/ReadDesire names\nno Kubernetes deletes", fillcolor="#e6f0fa", color="#35648a"];
   dispatch [label="ClusterClusterServiceDelete\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
   cs [label="Cluster Service / external cleanup\nKubernetes and Azure resources", fillcolor="#fff0da", color="#b27624"];
   clear [label="ClusterDeletionClusterServiceID\nClearer", fillcolor="#e6f0fa", color="#35648a"];
@@ -11,6 +12,7 @@ digraph cluster_delete {
   credentials [label="Credential request / revocation\ndeletion controllers", fillcolor="#e6f0fa", color="#35648a"];
   children [label="Node-pool and external-auth\ndeletion flows complete", fillcolor="#e4f2e5", color="#4c8053"];
   group [label="EnsureManagedResourceGroup", fillcolor="#e6f0fa", color="#35648a"];
+  certificates [label="TLSCertificates\nclear KAS + ingress references\nno Key Vault mutations", fillcolor="#e6f0fa", color="#35648a"];
   cleanup [label="ClusterChildResourcesCleanup\nController", fillcolor="#e6f0fa", color="#35648a"];
   final [label="ClusterDeletionController", fillcolor="#e6f0fa", color="#35648a"];
   op [label="OperationClusterDelete", fillcolor="#e6f0fa", color="#35648a"];
@@ -19,6 +21,11 @@ digraph cluster_delete {
   velero [label="Velero (external)\nprocess DeleteBackupRequest\ndelete Backup and associated backup data", fillcolor="#fff0da", color="#b27624"];
   retained [label="Backup absent: stop reconciling\nBackupRepositories retained for Kopia maintenance\nNot proof of repository GC; not an ARM gate", fillcolor="#e4f2e5", color="#4c8053"];
   delete -> resources [label="deletion intent"];
+  delete -> ingress [label="deletion intent"];
+  delete -> certificates [label="deletion intent"];
+  certificates -> cleanup [label="all certificate references empty"];
+  certificates -> final [label="live reference-clear gate"];
+  ingress -> cleanup [label="owned ApplyDesires removed"];
   resources -> dispatch [label="all tagged ApplyDesires gone\nKubernetes objects remain"];
   dispatch -> cs [label="DELETE; stamp dispatch\ntimestamp"];
   cs -> clear [label="GET reports not found"];

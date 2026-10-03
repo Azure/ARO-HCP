@@ -16,14 +16,65 @@ package verifiers
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
+
+func TestVerifyDefaultIngressCertificate(test *testing.T) {
+	for _, testCase := range []struct {
+		name      string
+		mutate    func(*tls.ConnectionState)
+		wantError string
+	}{
+		{name: "trusted wildcard certificate"},
+		{name: "unverified chain", mutate: func(state *tls.ConnectionState) { state.VerifiedChains = nil }, wantError: "no verified TLS certificate chain"},
+		{name: "missing peer", mutate: func(state *tls.ConnectionState) { state.PeerCertificates = nil }, wantError: "no verified TLS certificate chain"},
+		{name: "wrong hostname", mutate: func(state *tls.ConnectionState) { state.PeerCertificates[0].DNSNames = []string{"*.other.example.com"} }, wantError: "does not cover route"},
+		{name: "route-specific certificate", mutate: func(state *tls.ConnectionState) {
+			state.PeerCertificates[0].DNSNames = []string{"app.apps.cluster.example.com"}
+		}, wantError: "do not contain"},
+		{name: "empty subject", mutate: func(state *tls.ConnectionState) { state.PeerCertificates[0].Subject.CommonName = "" }, wantError: "invalid subject"},
+		{name: "missing serial", mutate: func(state *tls.ConnectionState) { state.PeerCertificates[0].SerialNumber = nil }, wantError: "serial number"},
+		{name: "zero serial", mutate: func(state *tls.ConnectionState) { state.PeerCertificates[0].SerialNumber = big.NewInt(0) }, wantError: "serial number"},
+	} {
+		test.Run(testCase.name, func(test *testing.T) {
+			certificate := &x509.Certificate{
+				Subject:      pkix.Name{CommonName: "reserved.example.com"},
+				DNSNames:     []string{"*.apps.cluster.example.com"},
+				SerialNumber: big.NewInt(1),
+			}
+			state := tls.ConnectionState{PeerCertificates: []*x509.Certificate{certificate}, VerifiedChains: [][]*x509.Certificate{{certificate}}}
+			if testCase.mutate != nil {
+				testCase.mutate(&state)
+			}
+			err := verifyDefaultIngressCertificate(state, "app.apps.cluster.example.com")
+			if testCase.wantError == "" {
+				require.NoError(test, err)
+			} else {
+				require.ErrorContains(test, err, testCase.wantError)
+			}
+		})
+	}
+}
+
+func TestSimpleWebAppDefaultIngressCertificateVerification(test *testing.T) {
+	verifier := VerifySimpleWebApp(map[string]string{"node": "worker"})
+	require.False(test, verifier.verifyDefaultIngressCertificate)
+	strictVerifier := verifier.WithDefaultIngressCertificateVerification()
+	require.True(test, strictVerifier.verifyDefaultIngressCertificate)
+	require.Equal(test, verifier.nodeSelector, strictVerifier.nodeSelector)
+}
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 

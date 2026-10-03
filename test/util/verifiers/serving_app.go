@@ -24,6 +24,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -41,8 +43,9 @@ import (
 var staticFiles embed.FS
 
 type verifySimpleWebApp struct {
-	namespaceName string
-	nodeSelector  map[string]string
+	namespaceName                   string
+	nodeSelector                    map[string]string
+	verifyDefaultIngressCertificate bool
 }
 
 func (v verifySimpleWebApp) Name() string {
@@ -81,12 +84,24 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	}
 
 	// Then require strict TLS verification on the same route reachability check.
-	if framework.IsDevelopmentEnvironment() {
+	if framework.IsDevelopmentEnvironment() && !v.verifyDefaultIngressCertificate {
 		ginkgo.GinkgoWriter.Printf("Skipping strict TLS route reachability in development environment\n")
 		return nil
 	}
 	secureTransport := http.DefaultTransport.(*http.Transport).Clone()
-	if err := waitForRouteReachability(ctx, &http.Client{Transport: secureTransport}, url, 10*time.Minute, "strict TLS verification"); err != nil {
+	defer secureTransport.CloseIdleConnections()
+	secureClient := &http.Client{Transport: secureTransport}
+	if v.verifyDefaultIngressCertificate {
+		secureTransport.TLSClientConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			VerifyConnection: func(state tls.ConnectionState) error {
+				return verifyDefaultIngressCertificate(state, app.RouteHost)
+			},
+		}
+		secureClient.Timeout = 30 * time.Second
+		secureClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	}
+	if err := waitForRouteReachability(ctx, secureClient, url, 10*time.Minute, "strict TLS verification"); err != nil {
 		printTLSErrorDetails("strict TLS verification", err)
 		printNegotiatedCertificate(ctx, "strict TLS verification", app.RouteHost)
 		return err
@@ -301,10 +316,33 @@ func (v verifySimpleWebApp) cleanup(ctx context.Context, adminRESTConfig *rest.C
 	return nil
 }
 
-func VerifySimpleWebApp(nodeSelector ...map[string]string) HostedClusterVerifier {
+func VerifySimpleWebApp(nodeSelector ...map[string]string) verifySimpleWebApp {
 	var ns map[string]string
 	if len(nodeSelector) > 0 {
 		ns = nodeSelector[0]
 	}
 	return verifySimpleWebApp{nodeSelector: ns}
+}
+
+func (verifier verifySimpleWebApp) WithDefaultIngressCertificateVerification() verifySimpleWebApp {
+	verifier.verifyDefaultIngressCertificate = true
+	return verifier
+}
+
+func verifyDefaultIngressCertificate(state tls.ConnectionState, host string) error {
+	if len(state.VerifiedChains) == 0 || len(state.PeerCertificates) == 0 {
+		return fmt.Errorf("route %q served no verified TLS certificate chain", host)
+	}
+	certificate := state.PeerCertificates[0]
+	if err := certificate.VerifyHostname(host); err != nil {
+		return fmt.Errorf("default ingress certificate does not cover route %q: %w", host, err)
+	}
+	_, ingressDomain, found := strings.Cut(host, ".")
+	if !found || !slices.Contains(certificate.DNSNames, "*."+ingressDomain) {
+		return fmt.Errorf("default ingress certificate SANs %v do not contain %q", certificate.DNSNames, "*."+ingressDomain)
+	}
+	if certificate.Subject.CommonName == "" || certificate.SerialNumber == nil || certificate.SerialNumber.Sign() <= 0 {
+		return fmt.Errorf("default ingress certificate has invalid subject %v or serial number %v", certificate.Subject, certificate.SerialNumber)
+	}
+	return nil
 }

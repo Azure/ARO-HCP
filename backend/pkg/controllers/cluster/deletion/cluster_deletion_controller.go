@@ -142,9 +142,16 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
+	preconditionMet, err := c.deletePreconditionTLSCertificatesCleared(ctx, key)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if !preconditionMet {
+		return nil
+	}
 	// Precondition: all cluster-scoped ApplyDesires for this cluster must be gone.
 	// Node-pool-scoped desires are handled by the node pool deletion pipeline.
-	preconditionMet, err := c.deletePreconditionAllApplyDesiresGone(ctx, key, cachedSPC)
+	preconditionMet, err = c.deletePreconditionAllApplyDesiresGone(ctx, key, cachedSPC)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to check ApplyDesire precondition: %w", err))
 	}
@@ -241,6 +248,21 @@ func (c *clusterDeletionController) deletePreconditionAllMaestroClusterScopedRea
 	if spc != nil && len(spc.Status.MaestroReadonlyBundles) > 0 {
 		logger.Info("waiting for cluster-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
 			"remainingBundles", len(spc.Status.MaestroReadonlyBundles))
+		return false, nil
+	}
+	return true, nil
+}
+
+func (c *clusterDeletionController) deletePreconditionTLSCertificatesCleared(ctx context.Context, key controllerutils.HCPClusterKey) (bool, error) {
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return true, nil
+	}
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster for TLS certificate deletion gate: %w", err))
+	}
+	if spc.Status.AzureResources.KubeAPIServerCertificate != nil || spc.Status.AzureResources.IngressCertificate != nil {
+		utils.LoggerFromContext(ctx).Info("waiting for TLS certificate references to be cleared before deleting the cluster")
 		return false, nil
 	}
 	return true, nil

@@ -33,6 +33,26 @@ ordinary updates. An honored `"true"` tag together with an integration subnet is
 rejected. Tag names are case-insensitive; values must be exactly `"true"` or
 `"false"`. Without AFEC, the tag is ignored and normal subnet requirements apply.
 
+### Default ingress certificate test
+
+`cluster_serve_default_ingress_certificate_public.go` follows the
+`cluster_create_private_ingress.go` provisioning pattern and reuses
+`verifiers.VerifySimpleWebApp` with default ingress certificate verification. It
+verifies the ARM ingress type, guest IngressController scope, and HTTP 200 over
+HTTPS with a valid, publicly trusted default ingress certificate. The sample
+app's edge-terminated Route supplies no certificate of its own.
+
+This is a black-box test using only customer-accessible resources. After checking
+app availability, the verifier requires system CA trust, certificate validity,
+the route hostname, a wildcard ingress SAN, a nonempty subject common name, and
+a positive serial number. Strict TLS verification is required even in development;
+redirects cannot bypass the ingress endpoint. The test runs in any environment using
+the configured release channel and skips before provisioning if the requested
+release line is unavailable. It starts with 5.1; earlier release lines will be
+added only once a CPO override for
+https://github.com/openshift/hypershift/pull/9132 exists across all previously
+released versions.
+
 ### Resource Naming
 
 > **Important:** These tests are running in parallel so it is **VITAL** that we avoid naming collisions with other tests that may be running in CI at the same time. This may break CI runs until the duplicate resources are removed!
