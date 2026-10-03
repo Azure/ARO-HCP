@@ -34,10 +34,14 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 const admissionPhaseTimeout = 10 * time.Minute
+
+// The largest per-spec reservation uses three containers (clusters_sharing_resgroup).
+const minimumIdentityContainers = 3
 
 type identityLeaseInventory struct {
 	federatedCredentials []federatedCredentialReference
@@ -50,10 +54,16 @@ type federatedCredentialReference struct {
 	name          string
 }
 
+// Checks for surviving consumers before cleaning identities for a new lease.
 func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) error {
 	ctx, cancel := context.WithTimeout(ctx, admissionPhaseTimeout)
 	defer cancel()
 
+	request.MinimumIdentityContainers = minimumIdentityContainers
+	if request.AcquiredSlotState != nil && request.AcquiredSlotState.Slot.Environment == "dev" && request.SkipAdmissionCleanup {
+		request.AcquiredSlotState.AdmittedIdentityContainers = request.AcquiredSlotState.Slot.IdentityContainerNames()
+		return ctx.Err()
+	}
 	credential, subscriptionID, err := leaseCredential(request)
 	if err != nil {
 		return err
@@ -67,12 +77,29 @@ func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) err
 	if err != nil {
 		return fmt.Errorf("failed creating role assignments client: %w", err)
 	}
+	hcpFactory, err := hcpsdk.NewClientFactory(subscriptionID, credential, nil)
+	if err != nil {
+		return fmt.Errorf("failed creating HCP client factory: %w", err)
+	}
 
-	return admitIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient)
+	return admitIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient, hcpFactory)
 }
 
-func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient) error {
-	inventory, err := loadIdentityLeaseInventory(ctx, request, msiFactory, roleAssignmentsClient)
+// Inventories consumers once and cleans only the selected containers before publication.
+func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient, hcpFactory *hcpsdk.ClientFactory) error {
+	if request.AcquiredSlotState == nil || len(request.AcquiredSlotState.Slot.IdentityContainerNames()) == 0 {
+		return errors.New("acquired slot state has no identity containers")
+	}
+	request.AcquiredSlotState.AdmittedIdentityContainers = nil
+	available, err := selectIdentityLeaseContainers(ctx, request, hcpFactory)
+	if err != nil {
+		return err
+	}
+	if request.SkipAdmissionCleanup {
+		request.AcquiredSlotState.AdmittedIdentityContainers = available
+		return nil
+	}
+	inventory, err := loadIdentityLeaseInventory(ctx, available, msiFactory, roleAssignmentsClient)
 	if err != nil {
 		return err
 	}
@@ -110,8 +137,7 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 	if err := runSerial(ctx, deleteOperations); err != nil {
 		return fmt.Errorf("failed cleaning E2E identity lease: %w", err)
 	}
-	// Exclusive ownership lets us rely on successful synchronous deletes without
-	// polling for absence or repeating the inventory.
+	request.AcquiredSlotState.AdmittedIdentityContainers = available
 	return nil
 }
 
@@ -135,13 +161,14 @@ func leaseCredential(request assets.LeaseRequest) (azcore.TokenCredential, strin
 	return credential, subscriptionID, nil
 }
 
+// Inventories FICs and principal-scoped role assignments for the selected containers.
 func loadIdentityLeaseInventory(
 	ctx context.Context,
-	request assets.LeaseRequest,
+	containers []string,
 	msiFactory *armmsi.ClientFactory,
 	roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
 ) (*identityLeaseInventory, error) {
-	if request.AcquiredSlotState == nil || len(request.AcquiredSlotState.Slot.IdentityContainerNames()) == 0 {
+	if len(containers) == 0 {
 		return nil, errors.New("resolved E2E identity inventory is empty")
 	}
 	expectedIdentityNames := framework.NewDefaultIdentities().ToSlice()
@@ -155,7 +182,7 @@ func loadIdentityLeaseInventory(
 	federatedCredentialsClient := msiFactory.NewFederatedIdentityCredentialsClient()
 	identitiesClient := msiFactory.NewUserAssignedIdentitiesClient()
 
-	for _, resourceGroup := range request.AcquiredSlotState.Slot.IdentityContainerNames() {
+	for _, resourceGroup := range containers {
 		actualIdentities := map[string]string{}
 		var unexpectedIdentities []string
 		pager := identitiesClient.NewListByResourceGroupPager(resourceGroup, nil)

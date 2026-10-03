@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
 
@@ -411,7 +412,7 @@ func (tc *perItOrDescribeTestContext) leasedIdentityContainers() ([]string, erro
 	return leasedContainers, nil
 }
 
-// releaseLeasedIdentities releases all the identity containers leased to the calling test spec.
+// Releases identities only after consumer checks and tracked assignment cleanup succeed.
 // To be used only in the cleanup phase of the test.
 func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Context) error {
 	startTime := time.Now()
@@ -467,24 +468,55 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 	}
 	ficsClient := msiClientFactory.NewFederatedIdentityCredentialsClient()
 
-	var errs []error
-	for _, resourceGroup := range leasedContainers {
-		err := state.releaseByContainerName(resourceGroup,
-			func() error {
-				return tc.cleanupLeasedIdentityContainerFICs(ctx, ficsClient, resourceGroup)
-			},
-			func() error {
-				return tc.cleanupLeasedIdentityContainerRoleAssignments(ctx, client, resourceGroup)
-			},
-		)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to release identity container %s: %w", resourceGroup, err))
-		}
+	guardCtx, cancel := context.WithTimeout(logr.NewContext(ctx, ginkgo.GinkgoLogr.WithValues("spec", specID())), 10*time.Minute)
+	defer cancel()
+	return releaseIdentityContainers(leasedContainers,
+		func() error {
+			return tc.checkLeasedIdentityConsumers(guardCtx, subscriptionID, leasedContainers)
+		},
+		func() error { return tc.cleanupRoleAssignments(ctx, subscriptionID) },
+		func(resourceGroup string) error {
+			return state.releaseByContainerName(resourceGroup,
+				func() error {
+					return tc.cleanupLeasedIdentityContainerFICs(ctx, ficsClient, resourceGroup)
+				},
+				func() error {
+					return tc.cleanupLeasedIdentityContainerRoleAssignments(ctx, client, resourceGroup)
+				},
+			)
+		},
+	)
+}
+
+// Checks ARM consumers before pooled cleanup, excluding DEV local frontend runs.
+func (tc *perItOrDescribeTestContext) checkLeasedIdentityConsumers(ctx context.Context, subscriptionID string, containers []string) error {
+	if tc.perBinaryInvocationTestContext.isDevelopmentEnvironment {
+		logr.FromContextOrDiscard(ctx).Info("Skipping identity consumer inventory in DEV", "phase", "teardown")
+		return ctx.Err()
+	}
+	factory, err := tc.Get20261001ClientFactory(ctx)
+	if err != nil {
+		return fmt.Errorf("failed creating identity consumer client: %w", err)
+	}
+	return CheckIdentityConsumers20261001(ctx, factory, subscriptionID, containers, "teardown", os.Getenv(IdentityConsumerGuardEnvvar))
+}
+
+// Checks the whole spec before any destructive cleanup or pool release.
+func releaseIdentityContainers(containers []string, checkConsumers, cleanupTrackedAssignments func() error, releaseContainer func(string) error) error {
+	if err := checkConsumers(); err != nil {
+		return err
+	}
+	// Tracked assignments may be outside the identity container. Keep every
+	// container reserved until these assignments have also been cleaned.
+	if err := cleanupTrackedAssignments(); err != nil {
+		return fmt.Errorf("failed to cleanup role assignments: %w", err)
 	}
 
-	// Clean up role assignments (role definitions are reusable across e2e tests)
-	if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
-		errs = append(errs, fmt.Errorf("failed to cleanup role assignments: %w", err))
+	var errs []error
+	for _, resourceGroup := range containers {
+		if err := releaseContainer(resourceGroup); err != nil {
+			errs = append(errs, fmt.Errorf("failed to release identity container %s: %w", resourceGroup, err))
+		}
 	}
 
 	if len(errs) > 0 {
@@ -855,7 +887,7 @@ func (e *leasedIdentityPoolEntry) use(me string) error {
 	return nil
 }
 
-// release transitions the entry back to free. Cleanup functions are only
+// Releases the entry only after successful cleanup. Cleanup functions are only
 // executed when the entry was busy; assigned-only entries have not created
 // resources (FICs, role assignments) that need cleanup.
 func (e *leasedIdentityPoolEntry) release(cleanups ...func() error) error {
@@ -864,24 +896,21 @@ func (e *leasedIdentityPoolEntry) release(cleanups ...func() error) error {
 	}
 	assignedOnly := e.Current.State == leaseStateAssigned
 
-	e.History = append(e.History, e.Current)
-	e.Current.State = leaseStateFree
-	e.Current.LeasedBy = ""
-	e.Current.TransitionedAt = time.Now().UTC().Format(time.RFC3339)
-
-	if assignedOnly {
-		return nil
-	}
-
 	errs := []error{}
-	for _, cleanup := range cleanups {
-		if err := cleanup(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to cleanup: %w", err))
+	if !assignedOnly {
+		for _, cleanup := range cleanups {
+			if err := cleanup(); err != nil {
+				errs = append(errs, fmt.Errorf("failed to cleanup: %w", err))
+			}
 		}
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
 	}
+	e.History = append(e.History, e.Current)
+	e.Current.State = leaseStateFree
+	e.Current.LeasedBy = ""
+	e.Current.TransitionedAt = time.Now().UTC().Format(time.RFC3339)
 	return nil
 }
 
@@ -1018,7 +1047,7 @@ func (state *leasedIdentityPoolState) assignNTo(me string, n uint8) error {
 	return nil
 }
 
-// releaseByContainerName releases the identity container by the given name.
+// Releases a named container without persisting free state after failed cleanup.
 func (state *leasedIdentityPoolState) releaseByContainerName(resourceGroup string, cleanupFn ...func() error) error {
 	if err := state.lock(); err != nil {
 		return fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
@@ -1036,8 +1065,7 @@ func (state *leasedIdentityPoolState) releaseByContainerName(resourceGroup strin
 	for i := range state.entries {
 		if state.entries[i].ResourceGroup == resourceGroup {
 			if err := state.entries[i].release(cleanupFn...); err != nil {
-				// cleanup is best effort, just log errors and continue
-				ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities resource group", "resourceGroup", resourceGroup, "error", err)
+				return fmt.Errorf("retaining managed identities resource group %q: %w", resourceGroup, err)
 			}
 			if err := state.writeUnlocked(); err != nil {
 				return fmt.Errorf("failed to write managed identities pool state file: %w", err)

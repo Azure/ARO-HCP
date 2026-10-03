@@ -53,7 +53,8 @@ Regardless of how CI acquired the pool, the runtime behavior inside the test bin
   - Each spec is identified by a stable `specID()`, derived from the Ginkgo spec text and the OS process ID.
   - At the start of a spec, `AssignIdentityContainers()` atomically reserves the required number of containers by transitioning `free -> assigned`. If there are not enough free entries, it returns `ErrNotEnoughFreeIdentityContainers` and retries with backoff until containers become available or the context is cancelled.
   - When a spec actually needs a container, `ResolveIdentitiesForTemplate()` or `DeployManagedIdentities()` calls `useNextAssigned(specID)`, which transitions a single entry from `assigned -> busy` and returns its resource group name.
-  - During cleanup, `releaseLeasedIdentities()` transitions all containers leased by that spec back to `free` and performs best-effort cleanup of federated identity credentials and role assignments in the identity-container resource group.
+  - During cleanup, `releaseLeasedIdentities()` runs the [consumer guard](#temporary-identity-consumer-guard) before deleting identity credentials or role assignments. DEV skips this check, not cleanup.
+  - A busy container becomes `free` only after tracked role assignments and its container cleanup succeed. Failed cleanup or a crashed process leaves busy entries reserved in the state file. New jobs must pass admission again, even if teardown never ran.
 - **Identity naming**
   - The set of managed identities in each container is fixed and defined in `NewDefaultIdentities()` in `identities_helper.go`, including names such as `cluster-api-azure`, `control-plane`, `cloud-controller-manager`, `image-registry`, and `service`.
   - In pooled mode these canonical names are reused as-is in every identity-container resource group.
@@ -111,6 +112,11 @@ Downstream steps source `${SHARED_DIR}/aro-hcp-slot.env` and map
 `SELECTED_LOCATION` to the runtime `LOCATION` they consume. The test framework
 receives `LEASED_MSI_CONTAINERS` through this contract rather than directly from
 a ci-operator lease.
+
+For INT, STG and PROD, the [consumer guard](#temporary-identity-consumer-guard)
+selects which containers can be cleaned and handed to tests. The slot keeps
+ownership of the full set; `admitted_identity_containers` records the selected
+subset before it is exported.
 
 The acquire step mounts cluster-profile credentials. Slot-manager authenticates
 directly from the selected profile; a prior `az login` is not required. See
@@ -361,10 +367,21 @@ Common failure modes:
     to `e2e_identities`
   - other asset kinds still run admission by default; repeated flags or a
     comma-separated list can explicitly disable additional kinds
-  - this skips E2E identity verification and stale FIC/RBAC cleanup, not leasing,
-    structural validation, exports, or release; each actual skip is logged as a warning
+  - this skips E2E identity verification and stale FIC/RBAC cleanup, not the
+    ARM consumer check, leasing, structural validation, exports, or release;
+    each cleanup skip is logged as a warning
   - clear the parameter after mitigation to restore clean-reuse checks; see the
     [admission opt-out contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#emergency-admission-opt-out)
+- **identity still referenced by a cluster or node pool**
+  - enforcement leaves that container untouched, including for Failed or Deleting
+    consumers, and proceeds with the safe remainder
+  - acquisition stops before cleanup if the scan is incomplete or fewer than three
+    safe containers remain; let consumers finish teardown or resolve the scan error
+    before retrying
+  - the cleanup opt-out does not bypass this check; DEV skips consumer checks
+    during both acquisition and teardown
+  - API version `2026-10-01-preview` and cluster/node-pool list permissions are
+    required; an unsupported API blocks enforcement
 - **slot-manager acquisition or release failure**
   - inspect the acquire/release step logs and `${SHARED_DIR}/aro-hcp-slot-state.yaml`
   - follow the design's [failure behavior](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#failure-behavior)
@@ -376,6 +393,59 @@ Common failure modes:
   - the spec tried to consume more containers than it reserved, or skipped the normal reservation path
 - **persistent FIC or role-assignment leakage in identity-container resource groups**
   - investigate the container resource group directly in Azure; repeated leftovers usually mean permission issues or unexpected extra resources
+
+### Temporary identity consumer guard
+
+The guard protects identities still needed by surviving HCPs or node pools.
+It covers **INT, STG and PROD**. DEV skips consumer scans during acquisition
+and teardown to avoid ARM throttling on presubmits; normal cleanup still runs.
+
+#### Acquisition
+
+Enforcement scans every HCP and node-pool page once per acquisition, not once
+per container. Failed and Deleting resources still count as consumers.
+
+```mermaid
+flowchart TD
+    scan["Scan all HCPs and node pools"] --> complete{"Complete inventory?"}
+    complete -->|No| stop["Stop before cleanup"]
+    complete -->|Yes| exclude["Exclude in-use containers"]
+    exclude --> capacity{"At least 3 safe containers?"}
+    capacity -->|No| stop
+    capacity -->|Yes| clean["Clean only the safe containers"]
+    clean -->|Success| publish["Persist and export the safe subset"]
+```
+
+Excluded containers stay untouched and owned by the slot. Three containers
+cover the largest current per-spec reservation, not full parallel throughput.
+Cleanup failures prevent publication.
+
+#### Teardown
+
+Enforcement checks the whole spec before deleting any identity credentials or
+RBAC, including separately tracked role assignments. An in-use container or
+incomplete scan blocks identity cleanup for that spec. Busy containers return
+to the pool only after successful cleanup.
+
+#### Controls and logs
+
+| Setting | Consumer protection | FIC/RBAC cleanup |
+| --- | --- | --- |
+| `--identity-consumer-guard=enforce` (default) | Excludes in-use containers; blocks on incomplete scans | Safe containers only |
+| `--identity-consumer-guard=audit` | Logs findings but allows reuse, even after scan errors | Full set |
+| `--disable-asset-admission=e2e_identities` | Guard still applies | Skipped during acquisition only |
+
+The guard flag also reads `ARO_HCP_IDENTITY_CONSUMER_GUARD`. Slot-manager exports
+the selected mode to tests; direct test runs can set the variable themselves.
+Unknown values are rejected. Cleanup errors still block reuse in either mode.
+
+Both modes log the phase, mode, subscription, containers, job/build and decision.
+Matches identify the consumer and identity; teardown also records the spec.
+
+**Audit mode removes protection, not cleanup.** Keep enforcement until RP
+recovery after missing RBAC is verified. This temporary guard cannot repair
+already-stuck clusters or prevent an external writer from creating a consumer
+after the scan.
 
 ## MSI Mock Service Principal Pool
 
