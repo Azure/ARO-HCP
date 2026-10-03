@@ -221,7 +221,15 @@ func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 				}}}
 				var reports []string
 				ctx := logr.NewContext(t.Context(), funcr.NewJSON(func(report string) {
-					reports = append(reports, report)
+					var entry struct {
+						Message string `json:"msg"`
+					}
+					if err := json.Unmarshal([]byte(report), &entry); err != nil {
+						t.Fatal(err)
+					}
+					if entry.Message == "Unexpected identities in leased resource group; excluded from admission cleanup" {
+						reports = append(reports, report)
+					}
 				}, funcr.Options{}))
 				if err := admitIdentityLeaseWithClients(ctx, request, factory, roles, hcp); err != nil {
 					t.Fatalf("admission failed: %v", err)

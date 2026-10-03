@@ -123,7 +123,15 @@ func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) e
 	return admitE2EIdentityLease(ctx, request)
 }
 
+// PublishLease exports admitted containers and the guard policy used by test teardown.
 func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
+	mode, err := framework.IdentityConsumerGuardMode(request.IdentityConsumerGuardMode)
+	if err != nil {
+		return err
+	}
+	if err := contract.Add(string(h.Kind()), framework.IdentityConsumerGuardEnvvar, mode); err != nil {
+		return err
+	}
 	return contract.Add(string(h.Kind()), "LEASED_MSI_CONTAINERS", strings.Join(request.AcquiredSlotState.Slot.IdentityContainerNames(), " "))
 }
 

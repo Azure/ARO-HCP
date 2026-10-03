@@ -53,7 +53,8 @@ Regardless of how CI acquired the pool, the runtime behavior inside the test bin
   - Each spec is identified by a stable `specID()`, derived from the Ginkgo spec text and the OS process ID.
   - At the start of a spec, `AssignIdentityContainers()` atomically reserves the required number of containers by transitioning `free -> assigned`. If there are not enough free entries, it returns `ErrNotEnoughFreeIdentityContainers` and retries with backoff until containers become available or the context is cancelled.
   - When a spec actually needs a container, `ResolveIdentitiesForTemplate()` or `DeployManagedIdentities()` calls `useNextAssigned(specID)`, which transitions a single entry from `assigned -> busy` and returns its resource group name.
-  - During cleanup, `releaseLeasedIdentities()` transitions all containers leased by that spec back to `free` and performs best-effort cleanup of federated identity credentials and role assignments in the identity-container resource group.
+  - During cleanup, `releaseLeasedIdentities()` checks surviving HCP and node-pool consumers before deleting FICs, container-scoped RBAC or separately tracked role assignments. Enforcement blocks the whole spec's identity cleanup if the inventory is unsafe or incomplete. A busy container becomes `free` only after tracked assignments and its container cleanup succeed; failed cleanup leaves it reserved.
+  - A crashed test process leaves its busy entries unavailable to other specs using that state file. A new job must pass slot admission again, independently of whether teardown ran or the Boskos lease expired. The cross-job consumer safeguard covers ARM-backed environments, not DEV local frontends.
 - **Identity naming**
   - The set of managed identities in each container is fixed and defined in `NewDefaultIdentities()` in `identities_helper.go`, including names such as `cluster-api-azure`, `control-plane`, `cloud-controller-manager`, `image-registry`, and `service`.
   - In pooled mode these canonical names are reused as-is in every identity-container resource group.
@@ -362,19 +363,20 @@ Common failure modes:
   - other asset kinds still run admission by default; repeated flags or a
     comma-separated list can explicitly disable additional kinds
   - this skips E2E identity verification and stale FIC/RBAC cleanup, not the
-    ARM consumer safety check, leasing, structural validation, exports, or release;
+    ARM consumer check, leasing, structural validation, exports, or release;
     each cleanup skip is logged as a warning
   - clear the parameter after mitigation to restore clean-reuse checks; see the
     [admission opt-out contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#emergency-admission-opt-out)
 - **identity still referenced by a cluster or node pool**
-  - ARM-backed environments reject the whole slot before any FIC or RBAC deletion,
+  - enforcement mode in ARM-backed environments rejects the whole slot before any FIC or RBAC deletion,
     including when the consumer is Failed or Deleting
   - let the referenced consumer finish teardown before retrying; the cleanup
     opt-out cannot bypass this check, and a list error does not prove absence
   - DEV local frontends are provisioned after acquisition and are not covered
-    by this ARM consumer check
+    by the acquisition check. Teardown uses the running frontend's inventory,
+    but this does not establish safe reuse across DEV jobs after that frontend disappears
   - the check requires API version `2026-10-01-preview` so container-registry
-    pull identities are visible; an unsupported API blocks admission
+    pull identities are visible; an unsupported API blocks admission in enforcement mode
 - **slot-manager acquisition or release failure**
   - inspect the acquire/release step logs and `${SHARED_DIR}/aro-hcp-slot-state.yaml`
   - follow the design's [failure behavior](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#failure-behavior)
@@ -386,6 +388,34 @@ Common failure modes:
   - the spec tried to consume more containers than it reserved, or skipped the normal reservation path
 - **persistent FIC or role-assignment leakage in identity-container resource groups**
   - investigate the container resource group directly in Azure; repeated leftovers usually mean permission issues or unexpected extra resources
+
+### Temporary identity consumer guard
+
+`slot-manager acquire --identity-consumer-guard=enforce` is the default. It
+checks consumers before acquisition cleanup and before pooled test teardown,
+including separately tracked role assignments outside the identity container.
+Tests receive the same policy through the generated runtime export
+`ARO_HCP_IDENTITY_CONSUMER_GUARD`.
+
+Set `--identity-consumer-guard=audit`, or
+`ARO_HCP_IDENTITY_CONSUMER_GUARD=audit` in the acquisition step, to disable
+enforcement while retaining inventory checks and audit logs. Audit mode allows
+cleanup and reuse despite matching consumers or incomplete inventory. It is an
+explicit removal of the temporary safeguard, not a safe-identity guarantee.
+Cleanup errors still prevent publication or return to the per-test pool.
+For direct test runs without slot-manager, set the same environment variable
+on the test process. Unknown values are rejected.
+
+Audit records include phase, mode, subscription, identity containers, job/build
+context and blocking disposition. A matching reference includes the consumer
+and identity; teardown also includes the spec. No scan is performed against ARM
+for DEV admission because its local frontend is not available yet.
+
+Unlike `--disable-asset-admission=e2e_identities`, audit mode does not skip
+identity inventory or FIC/RBAC cleanup. Leave cleanup enabled to provide clean
+identities to new tests. This mitigation does not fix RP recovery after missing
+permissions, unblock existing stuck clusters, or fence concurrent external
+writers. Disable enforcement only after the product recovery fix is verified.
 
 ## MSI Mock Service Principal Pool
 
