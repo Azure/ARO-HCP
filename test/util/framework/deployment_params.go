@@ -16,7 +16,6 @@ package framework
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -174,8 +173,8 @@ func resolveDefaultControlPlaneVersion() (string, error) {
 func DefaultOpenshiftControlPlaneVersionId() string {
 	version, err := resolveDefaultControlPlaneVersion()
 	if err != nil {
-		if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) || errors.Is(err, ErrNoParseableNightlyTags) {
-			Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", DefaultOCPVersionId, DefaultOpenshiftChannelGroup(), err.Error()))
+		if IsVersionNotFoundError(err) || IsIncompatibleNightlyVersionError(err) {
+			Skip(fmt.Sprintf("No usable install version found in %s channel (%s)", DefaultOpenshiftChannelGroup(), err.Error()))
 		} else {
 			Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", DefaultOpenshiftChannelGroup(), err.Error()))
 		}
@@ -228,8 +227,8 @@ func DefaultOpenshiftNodePoolVersionId() string {
 		// Nightly is not served by the update service graph API; use the release-stream API.
 		resolved, err := GetLatestNightlyInstallVersion(context.Background(), channelGroup, minor)
 		if err != nil {
-			if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) || errors.Is(err, ErrNoParseableNightlyTags) {
-				Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", minor, channelGroup, err.Error()))
+			if IsVersionNotFoundError(err) || IsIncompatibleNightlyVersionError(err) {
+				Skip(fmt.Sprintf("No usable install version found for %s in %s channel (%s)", minor, channelGroup, err.Error()))
 			} else {
 				Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", channelGroup, err.Error()))
 			}
