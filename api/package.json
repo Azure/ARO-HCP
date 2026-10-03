@@ -21,7 +21,7 @@
     "@microsoft.azure/openapi-validator": "2.2.4",
     "@microsoft.azure/openapi-validator-rulesets": "2.2.6",
     "@typespec/compiler": "^1.12.0",
-    "@stoplight/spectral-cli": "^6.14.0",
+    "@stoplight/spectral-cli": "^6.16.3",
     "autorest": "^3.8.0",
     "prettier": "^3.9.5"
   },
