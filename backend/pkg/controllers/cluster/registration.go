@@ -1165,6 +1165,17 @@ func instantiateControlPlaneVersionRolloutSeedingController(controllerContext co
 	), nil
 }
 
+func registerControlPlaneVersionRolloutRetirementController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     1,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateControlPlaneVersionRolloutRetirementController, false),
+	}
+}
+
+func instantiateControlPlaneVersionRolloutRetirementController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return rollout.NewControlPlaneVersionRolloutRetirementController(ctx.FleetDBClient, ctx.BackendInformers, ctx.FleetInformers), nil
+}
+
 func registerOpenShiftVersionCatalogController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     1,
@@ -1177,6 +1188,7 @@ func instantiateOpenShiftVersionCatalogController(ctx controllerconfig.Controlle
 }
 
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(rollout.RolloutRetirementControllerName)] = registerControlPlaneVersionRolloutRetirementController()
 	registry[strings.ToLower(rollout.VersionCatalogControllerName)] = registerOpenShiftVersionCatalogController()
 	registry[strings.ToLower(rollout.BestVersionSelectionControllerName)] = registerBestVersionSelectionController()
 	registry[strings.ToLower(rollout.StatusCollectorControllerName)] = registerStatusCollectorController()

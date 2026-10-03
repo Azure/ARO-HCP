@@ -5,12 +5,13 @@ This plan maps the fleet rollout design originally authored on the
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: the seven rollout controllers plus catalog publication, Cosmos storage, informers, and backend wiring
+> Status: the seven rollout controllers plus catalog publication and retirement,
+> Cosmos storage, informers, and backend wiring
 > are implemented. They run unconditionally. Production policy is hardcoded;
 > risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
 > Structured rollout profiles, legacy backfill, and discovery/reference seeding are
 > implemented. Frontend version GET/LIST still use Cluster Service; catalog read
-> cutover and rollout retirement are not implemented yet.
+> cutover is not implemented yet.
 
 ## 1. Background: the pipeline before this change
 
@@ -181,15 +182,19 @@ Discovery uses `MinimumBackendVersion` (currently `4.20`) from
 [`versionpolicy`](../../internal/versionpolicy/policy.go). Referenced minor version
 and channel group pairs remain repairable below that floor. This discovery floor
 is separate from the per-channel minimum exact versions used by selection.
-Publication uses the separate `MinimumPublicVersion` floor, also currently `4.20`.
+Publication and create/changed-version validation use the separate
+`MinimumPublicVersion` floor, also currently `4.20`. Retirement deletes only
+unreferenced rollouts below `MinimumBackendVersion`; referenced profiles remain
+repairable. See the [deprecation procedure](../ops/deprecate-openshift-version.md)
+for advancing the public floor first and the backend floor only after drain.
 
 ## 5. Controllers
 
-All eight run in the `backend` binary. Three assignment controllers are per-cluster
+All nine run in the `backend` binary. Three assignment controllers are per-cluster
 (use `controllerutils.NewClusterWatchingController` + `HCPClusterKey`); three are
 per-`ControlPlaneVersionRollout`, keyed by the rollout channel name. Seeding uses
 a homogeneous structured-profile queue; discovery and reference repair add no
-controller registrations. Catalog publication adds one regional-key controller.
+controller registrations. Catalog publication and retirement each use a regional key.
 
 [`TypedController[T]`](../../internal/controllerutils/typed_controller.go) owns the
 reusable typed queue, worker/retry loop, logging, reconcile metrics, cache-sync
@@ -206,6 +211,8 @@ delegating worker execution to the base. The seeder constructor returns
 The publisher also returns `controllerregistry.Runnable` and uses the typed base
 directly, with rollout informer callbacks enqueueing its aggregate regional key;
 it writes no child Controller bookkeeping either.
+Retirement uses the periodic wrapper over the same typed base, returning
+`controllerregistry.Runnable` and writing no child Controller bookkeeping.
 
 Assignment and per-rollout controllers follow the house pattern: a syncer struct holding listers +
 DB clients (interfaces), a `New…Controller` constructor, and a `SyncOnce`
@@ -350,10 +357,33 @@ an empty catalog; publication does not wait for discovery's first successful pas
 Frontend GET/LIST remain on Cluster Service, so persistence has no public API effect
 at this stage. See the [publication diagram](../cosmos-data-flow.md#version-catalog-publication).
 
+### 5.10 Control Plane Version Rollout Retirement
+
+[`ControlPlaneVersionRolloutRetirement`](../../backend/pkg/controllers/cluster/version/rollout/rollout_retirement_controller.go)
+waits for its Cluster/SPC/Fleet caches, then enqueues a regional scan immediately
+and on a five-minute ticker. One worker runs the scan; errors use queue retries.
+The sync shell gathers cached inventories and adapts legacy profiles without
+persisting backfill. Pure `reconcileRolloutRetirement` requires an error-free
+reference scan and validates the entire structured rollout inventory before
+returning sorted deletion candidates. Any incomplete or malformed input prevents
+all deletion in that pass.
+
+Only rollouts **below the backend floor and unreferenced** are deleted. Deleting
+Cluster/SPC documents, pins, overrides and every stored active version remain
+references; pin comparison thresholds do not. At/above-floor rollouts survive even
+when absent from graph-data. Delete tolerates 404; other failures stop the pass and
+retry, without rolling back earlier deletes. Retirement can delete an obsolete
+legacy document directly, superseding backfill. A queued seeder key still needs a
+current reference to recreate a missing below-floor rollout.
+
+Deletion triggers catalog reprojection, not cluster migration or external resource
+deletion. Cached references are eventually consistent, not a transactional global
+lock; the manual drain prerequisite in the deprecation procedure remains necessary.
+
 ## 6. Ownership and cutover
 
 This implementation deliberately replaces `ControlPlaneDesiredVersion`; all
-eight rollout/catalog controllers run unconditionally. The earlier feature-flag proposal
+nine rollout/catalog controllers run unconditionally. The earlier feature-flag proposal
 was removed during review. Restoring it would reintroduce the removed owner and
 is not part of this change.
 
@@ -377,6 +407,9 @@ bounds unresolved version waits, and no longer reads or creates a legacy
   cover projection, legacy read adaptation, queue behavior and periodic scheduling;
   [storage tests](../../internal/database/cosmosstorage/corecosmosstorage/version_catalog_test.go)
   cover Resources identity, partitioning and conditional replacement.
+- [Retirement tests](../../backend/pkg/controllers/cluster/version/rollout/rollout_retirement_controller_test.go)
+  cover reference retention, errors blocking all deletion, legacy backfill races
+  and delete failures reaching queue retries.
 - **Pure decision functions** (`computeRolloutStatusCounts`, `selectBestExactVersion`, `eligibleClusters`,
   `rolloutDecision`) get exhaustive table-driven unit tests — no fakes needed.
 - **`SyncOnce`** tests use the in-memory mock DB
@@ -407,11 +440,12 @@ Implemented:
 
 - Fleet API, validation of supported channel groups and major/minor names,
   Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
-- Eight rollout/catalog controllers, backend registration under leader election, and unit tests.
+- Nine rollout/catalog controllers, backend registration under leader election, and unit tests.
 - Structured `Spec.Version`, legacy read adaptation and ETag-protected backfill.
 - Independent discovery/reference producers feeding one typed seeder queue, with
   below-floor reference repair and obsolete per-cluster health cleanup.
 - Regional Resources catalog persistence and publication from Fleet rollout profiles.
+- Retirement of below-backend-floor, unreferenced rollouts after validated inventory.
 - Shared Cincinnati selection with the existing per-channel offset policy.
 - Persisted transition ages and assignment cooldown reservations.
 - Forced-version precedence, pinned-channel seeding, and completed-only progress.
@@ -420,7 +454,6 @@ Implemented:
 Follow-ups:
 
 - Frontend version GET/LIST cutover from Cluster Service to the Resources catalog.
-- Unreferenced-rollout retirement controller.
 - Filter platform/control-plane risks from Cincinnati conditional updates. The
   current graph helper selects by recency, so selected versions are not
   guaranteed to be free of conditional-update risks.
