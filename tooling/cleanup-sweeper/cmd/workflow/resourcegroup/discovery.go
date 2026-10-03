@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 
@@ -25,6 +26,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
 )
 
 func discoverCandidates(ctx context.Context, opts RunOptions) ([]string, error) {
@@ -45,7 +48,7 @@ func discoverCandidates(ctx context.Context, opts RunOptions) ([]string, error) 
 
 	deletionTargets := opts.ResourceGroups.Union(discoveredCandidates)
 	excluded := sets.New(opts.Policy.ExcludedResourceGroups...)
-	finalCandidates := promoteAndSortDeletionTargets(logger, deletionTargets, allResourceGroups, excluded, candidateSources)
+	finalCandidates := promoteAndSortDeletionTargets(logger, deletionTargets, allResourceGroups, excluded, opts.Policy.Discovery, opts.ReferenceTime, candidateSources)
 
 	for _, resourceGroup := range finalCandidates {
 		source := candidateSources[resourceGroup]
@@ -126,47 +129,48 @@ func discoverPolicyCandidates(
 	return discoveredResourceGroups, resourceGroups, nil
 }
 
+type managedChild struct {
+	rg          *armresources.ResourceGroup
+	name        string
+	parent      string
+	parentLower string
+}
+
 // promoteAndSortDeletionTargets ensures that for each deletion target, all managed children are also targets (promoting if necessary) and that children are deleted first.
+// Deleting a parent also deletes the resource that manages each child, so a target with a protected managed child is dropped together with its children.
 func promoteAndSortDeletionTargets(
 	logger logr.Logger,
 	deletionTargets sets.Set[string],
 	allResourceGroups []*armresources.ResourceGroup,
 	excludedResourceGroups sets.Set[string],
+	discoveryPolicy policy.RGDiscoveryPolicy,
+	referenceTime time.Time,
 	candidateSources map[string]string,
 ) []string {
+	children := listManagedChildren(logger, allResourceGroups)
+	dropTargetsWithProtectedChildren(logger, deletionTargets, children, allResourceGroups, excludedResourceGroups, discoveryPolicy, referenceTime)
+
 	imminentOrphans := sets.New[string]()
 	deletionTargetsLower := sets.New[string]()
 	for t := range deletionTargets {
 		deletionTargetsLower.Insert(strings.ToLower(t))
 	}
 
-	for _, rg := range allResourceGroups {
-		if rg.Name == nil || rg.ManagedBy == nil {
+	for _, child := range children {
+		if !deletionTargetsLower.Has(child.parentLower) {
 			continue
 		}
-		name := *rg.Name
-		nameLower := strings.ToLower(name)
-		if excludedResourceGroups.Has(nameLower) {
-			continue
-		}
-		parsed, err := azcorearm.ParseResourceID(*rg.ManagedBy)
-		if err != nil {
-			logger.Info("failed to parse managedBy resource ID, skipping", "resourceGroup", name, "managedBy", *rg.ManagedBy, "error", err)
-			continue
-		}
-		if !deletionTargetsLower.Has(strings.ToLower(parsed.ResourceGroupName)) {
-			continue
-		}
-		imminentOrphans.Insert(name)
+		nameLower := strings.ToLower(child.name)
+		imminentOrphans.Insert(child.name)
 		if deletionTargetsLower.Has(nameLower) {
 			continue
 		}
-		deletionTargets.Insert(name)
+		deletionTargets.Insert(child.name)
 		deletionTargetsLower.Insert(nameLower)
-		candidateSources[name] = fmt.Sprintf("managed child of deletion target %q", parsed.ResourceGroupName)
+		candidateSources[child.name] = fmt.Sprintf("managed child of deletion target %q", child.parent)
 		logger.Info("Adding managed RG to deletion targets (parent scheduled for deletion)",
-			"resourceGroup", name,
-			"parentResourceGroup", parsed.ResourceGroupName,
+			"resourceGroup", child.name,
+			"parentResourceGroup", child.parent,
 		)
 	}
 
@@ -178,6 +182,112 @@ func promoteAndSortDeletionTargets(
 		}
 	}
 	return sorted
+}
+
+func listManagedChildren(logger logr.Logger, allResourceGroups []*armresources.ResourceGroup) []managedChild {
+	children := []managedChild{}
+	for _, rg := range allResourceGroups {
+		if rg.Name == nil || rg.ManagedBy == nil {
+			continue
+		}
+		parsed, err := azcorearm.ParseResourceID(*rg.ManagedBy)
+		if err != nil {
+			logger.Info("failed to parse managedBy resource ID, skipping", "resourceGroup", *rg.Name, "managedBy", *rg.ManagedBy, "error", err)
+			continue
+		}
+		children = append(children, managedChild{
+			rg:          rg,
+			name:        *rg.Name,
+			parent:      parsed.ResourceGroupName,
+			parentLower: strings.ToLower(parsed.ResourceGroupName),
+		})
+	}
+	return children
+}
+
+// dropTargetsWithProtectedChildren removes every deletion target whose managed subtree contains a protected
+// resource group, because deleting the target also deletes the resources that manage that subtree. A managed RG is
+// protected when it is excluded or when a skip rule selects it once its parent is gone. Evaluating it as orphaned
+// keeps a managedByAlive skip rule from masking other protections. Without a reference time the rules cannot be
+// evaluated, so every managed RG is treated as protected.
+func dropTargetsWithProtectedChildren(
+	logger logr.Logger,
+	deletionTargets sets.Set[string],
+	children []managedChild,
+	allResourceGroups []*armresources.ResourceGroup,
+	excludedResourceGroups sets.Set[string],
+	discoveryPolicy policy.RGDiscoveryPolicy,
+	referenceTime time.Time,
+) {
+	knownResourceGroups := sets.New[string]()
+	for _, rg := range allResourceGroups {
+		if rg.Name != nil {
+			knownResourceGroups.Insert(strings.ToLower(*rg.Name))
+		}
+	}
+	childrenByParent := map[string][]managedChild{}
+	parentOf := map[string]string{}
+	for _, child := range children {
+		childrenByParent[child.parentLower] = append(childrenByParent[child.parentLower], child)
+		parentOf[strings.ToLower(child.name)] = child.parentLower
+	}
+
+	type blocker struct {
+		child  managedChild
+		reason string
+	}
+	blockedBy := map[string]blocker{}
+	for _, parentLower := range sets.List(sets.KeySet(childrenByParent)) {
+		var orphanedView sets.Set[string]
+		for _, child := range childrenByParent[parentLower] {
+			reason, protected := "", false
+			switch {
+			case excludedResourceGroups.Has(strings.ToLower(child.name)):
+				reason, protected = "excluded", true
+			case len(discoveryPolicy.Rules) == 0:
+			case referenceTime.IsZero():
+				reason, protected = "missing-reference-time", true
+			default:
+				if orphanedView == nil {
+					orphanedView = knownResourceGroups.Clone()
+					orphanedView.Delete(parentLower)
+				}
+				_, selection := discoveryPolicy.SelectsResourceGroup(child.rg, excludedResourceGroups, orphanedView, referenceTime)
+				if selection.Rule != nil && selection.Rule.Action == policy.RGDiscoveryActionSkip {
+					reason, protected = selection.String(), true
+				}
+			}
+			if !protected {
+				continue
+			}
+			// Every ancestor of a protected RG would delete it through the managing resource chain.
+			for ancestor := parentLower; ; {
+				if _, seen := blockedBy[ancestor]; seen {
+					break
+				}
+				blockedBy[ancestor] = blocker{child: child, reason: reason}
+				next, ok := parentOf[ancestor]
+				if !ok {
+					break
+				}
+				ancestor = next
+			}
+		}
+	}
+
+	for _, target := range sets.List(deletionTargets) {
+		b, blocked := blockedBy[strings.ToLower(target)]
+		if !blocked {
+			continue
+		}
+		deletionTargets.Delete(target)
+		logger.Info("Skipping deletion target to protect a managed RG",
+			"resourceGroup", target,
+			"managedResourceGroup", b.child.name,
+			"parentResourceGroup", b.child.parent,
+			"reason", b.reason,
+		)
+	}
 }
 
 func listResourceGroups(

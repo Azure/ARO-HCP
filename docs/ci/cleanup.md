@@ -239,6 +239,8 @@ To resolve the principals behind orphaned role assignments, `shared-leftovers` r
 
 For `cleanup-sweeper` `rg-ordered`, candidate resource groups are chosen using `tooling/cleanup-sweeper/resourcegroups.policy.yaml`. Discovery treats the `createdAt` tag (RFC3339 timestamp on the resource group) as required for any `action: delete` rule: groups without a parseable tag are not candidates.
 
+Managed resource groups of a candidate are deleted first, because deleting the candidate also deletes the resources that manage them. If any resource group in that managed subtree is excluded, or would be selected by a `skip` rule once its parent is gone, the candidate is skipped as well.
+
 The policy excludes long-lived slot-managed identity pools whose resource-group
 names start with `aro-hcp-msi-container-`. These groups carry `persist=true`,
 but they back repeated E2E leases and must not be treated as resources that
