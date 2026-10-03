@@ -75,7 +75,7 @@ spec:
     labels:
       component: slo
     rules:
-    # Fast Burn (IcM Sev 3, page). 14.4x burn: >72% failures over 1h, >=3 failures.
+    # Fast Burn (IcM Sev 2, page). 14.4x burn: >72% failures over 1h, >=3 failures.
     - alert: userJourneyClusterProvisionErrors1h5m
       expr: |
         errors:backend_cluster_provision:failed_1h >= 3
@@ -83,7 +83,7 @@ spec:
         errors:backend_cluster_provision:error_rate_1h > 0.72
       for: 5m
       labels:
-        severity: "3"
+        severity: "2"
         slo: cluster-provision-errors
         long_window: 1h
         short_window: 5m
@@ -91,7 +91,7 @@ spec:
         summary: "{{ $labels.cluster }}: Cluster create operations failing fast (>72% of recent operations)"
         description: "More than 72% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
-    # Medium Burn (IcM Sev 3, page). 6x burn: >30% failures over 6h, >=5 completions.
+    # Medium Burn (IcM Sev 2, page). 6x burn: >30% failures over 6h, >=5 completions.
     - alert: userJourneyClusterProvisionErrors6h30m
       expr: |
         errors:backend_cluster_provision:total_6h >= 5
@@ -99,7 +99,7 @@ spec:
         errors:backend_cluster_provision:error_rate_6h > 0.30
       for: 30m
       labels:
-        severity: "3"
+        severity: "2"
         slo: cluster-provision-errors
         long_window: 6h
         short_window: 30m
@@ -107,7 +107,7 @@ spec:
         summary: "{{ $labels.cluster }}: Cluster create operation error rate elevated (>30% over 6h)"
         description: "More than 30% of completed cluster create (install) operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
-    # Slow Burn / Budget (IcM Sev 4, ticket). 1x burn: >5% failures over 3d, >=10 completions, >=2 failures.
+    # Slow Burn / Budget (IcM Sev 3, page). 1x burn: >5% failures over 3d, >=10 completions, >=2 failures.
     - alert: userJourneyClusterProvisionErrors3d
       expr: |
         errors:backend_cluster_provision:total_3d >= 10
@@ -117,7 +117,7 @@ spec:
         errors:backend_cluster_provision:error_rate_3d > 0.05
       for: 6h
       labels:
-        severity: "4"
+        severity: "3"
         slo: cluster-provision-errors
         long_window: 3d
       annotations:

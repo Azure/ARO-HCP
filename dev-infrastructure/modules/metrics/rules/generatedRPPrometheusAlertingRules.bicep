@@ -17,15 +17,13 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterErrors1h5m'
         enabled: true
         labels: {
@@ -48,15 +46,13 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterErrors6h30m'
         enabled: true
         labels: {
@@ -79,15 +75,13 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterErrors3d'
         enabled: true
         labels: {
@@ -109,15 +103,13 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterErrorsDegradation'
         enabled: true
         labels: {
@@ -138,15 +130,13 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterStuckOperation'
         enabled: true
         labels: {
@@ -179,15 +169,13 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterSaturationQueueDepth'
         enabled: true
         labels: {
@@ -207,15 +195,13 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterSaturationRetryHotLoop'
         enabled: true
         labels: {
@@ -248,15 +234,13 @@ resource arohcpClusterProvisionSloLatencyAlerts 'Microsoft.AlertsManagement/prom
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterProvisionStuckOperation'
         enabled: true
         labels: {
@@ -289,21 +273,19 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterProvisionErrors1h5m'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '1h'
-          severity: '3'
+          severity: '2'
           short_window: '5m'
           slo: 'cluster-provision-errors'
         }
@@ -317,24 +299,22 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
         }
         expression: 'errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72'
         for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterProvisionErrors6h30m'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '6h'
-          severity: '3'
+          severity: '2'
           short_window: '30m'
           slo: 'cluster-provision-errors'
         }
@@ -348,24 +328,22 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
         }
         expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3'
         for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterProvisionErrors3d'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '3d'
-          severity: '4'
+          severity: '3'
           slo: 'cluster-provision-errors'
         }
         annotations: {
@@ -378,18 +356,16 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
         }
         expression: 'errors:backend_cluster_provision:total_3d >= 10 and errors:backend_cluster_provision:failed_3d >= 2 and errors:backend_cluster_provision:error_rate_3d > 0.05'
         for: 'PT6H'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterProvisionErrorsDegradation'
         enabled: true
         labels: {
@@ -424,15 +400,13 @@ resource rpUserJourneyClusterUpgradeMonitorRules 'Microsoft.AlertsManagement/pro
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterUpgradeStuckInDesired'
         enabled: true
         labels: {
@@ -457,15 +431,13 @@ Service Cluster: {{ $labels.cluster }}
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterUpgradeStuckInProgress'
         enabled: true
         labels: {
@@ -503,15 +475,13 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'UJNodePoolErrors1h5m'
         enabled: true
         labels: {
@@ -534,15 +504,13 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'UJNodePoolErrors6h30m'
         enabled: true
         labels: {
@@ -565,15 +533,13 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'UJNodePoolErrors3d'
         enabled: true
         labels: {
@@ -595,15 +561,13 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'UJNodePoolErrorsDegradation'
         enabled: true
         labels: {
@@ -624,15 +588,13 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'UJNodePoolStuckOperation'
         enabled: true
         labels: {
@@ -665,15 +627,13 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'UJNodePoolSaturationQueueDepth'
         enabled: true
         labels: {
@@ -706,21 +666,19 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendErrors1h5m'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '1h'
-          severity: '3'
+          severity: '2'
           short_window: '5m'
           slo: 'frontend-errors'
         }
@@ -734,24 +692,22 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         }
         expression: '((sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[1h] offset 5m))) > 0.0072 and on (cluster) (sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m] offset 5m))) > 0.0072)'
         for: 'PT2M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendErrors6h30m'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '6h'
-          severity: '3'
+          severity: '2'
           short_window: '30m'
           slo: 'frontend-errors'
         }
@@ -765,18 +721,16 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         }
         expression: '((sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[6h] offset 5m))) > 0.003 and on (cluster) (sum by (cluster, region) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m)) / sum by (cluster, region) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[30m] offset 5m))) > 0.003)'
         for: 'PT15M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendErrors3d6h'
         enabled: true
         labels: {
@@ -812,15 +766,13 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendLatency1h5m'
         enabled: true
         labels: {
@@ -843,15 +795,13 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendLatency6h30m'
         enabled: true
         labels: {
@@ -874,15 +824,13 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendLatency3d6h'
         enabled: true
         labels: {
@@ -918,15 +866,13 @@ resource arohcpFrontendSloReadyAlerts 'Microsoft.AlertsManagement/prometheusRule
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendReady'
         enabled: true
         labels: {
@@ -960,15 +906,13 @@ resource arohcpFrontendSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRu
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendTrafficDrop'
         enabled: true
         labels: {
@@ -1002,15 +946,13 @@ resource arohcpFrontendSloSaturationAlerts 'Microsoft.AlertsManagement/prometheu
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendSaturationMemory'
         enabled: true
         labels: {

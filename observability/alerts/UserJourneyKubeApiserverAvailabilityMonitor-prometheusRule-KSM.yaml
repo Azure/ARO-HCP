@@ -28,7 +28,7 @@ spec:
       labels:
         long_window: 1h
         short_window: 5m
-        severity: "3"
+        severity: "2"
         slo: kas-availability
       annotations:
         summary: "[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (1h/5m) resource_id:{{ $labels.resource_id }}"
@@ -59,7 +59,7 @@ spec:
       labels:
         long_window: 6h
         short_window: 30m
-        severity: "3"
+        severity: "2"
         slo: kas-availability
       annotations:
         summary: "[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (6h/30m) resource_id:{{ $labels.resource_id }}"
