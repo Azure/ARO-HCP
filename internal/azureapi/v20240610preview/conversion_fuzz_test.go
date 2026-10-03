@@ -44,7 +44,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.CryptoRestrictions = metadataapi.CryptoRestrictionsNone
 		},
 		// VnetIntegrationSubnetID was added in v20251223preview and does not exist in v20240610preview.
-		// ContainerRegistry was added in v20261001preview and does not exist in v20240610preview.
+		// ContainerRegistry was added in v20261001 and does not exist in v20240610preview.
 		func(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j.SubnetID != nil {
