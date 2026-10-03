@@ -1,0 +1,14 @@
+// Discover placement by the resource's unique namespaces. The rendered config
+// describes only one management cluster and must not restrict this query.
+union
+    (cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesEvents')
+    | where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
+    | where eventNamespace in ('{{ .HostedClusterNamespace }}', '{{ .HostedControlPlaneNamespace }}')
+    | project cluster),
+    (cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('containerLogs')
+    | where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
+    | where namespace_name in ('{{ .HostedClusterNamespace }}', '{{ .HostedControlPlaneNamespace }}')
+        or (namespace_name == 'hypershift' and log.HostedCluster.namespace == '{{ .HostedClusterNamespace }}')
+    | project cluster)
+| where isnotempty(cluster)
+| distinct cluster
