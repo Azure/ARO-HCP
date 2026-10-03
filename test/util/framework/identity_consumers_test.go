@@ -94,7 +94,7 @@ func TestIdentityGuardTeardown(t *testing.T) {
 						body := `{"value":[]}`
 						if test.incomplete {
 							body = `{}`
-						} else if test.consumer {
+						} else if test.consumer && !strings.HasSuffix(req.URL.Path, "/nodePools") {
 							body = `{"value":[{"id":"/subscriptions/sub/resourceGroups/old/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/old","properties":{"provisioningState":"Deleting","platform":{"operatorsAuthentication":{"userAssignedIdentities":{"serviceManagedIdentity":"/subscriptions/sub/resourceGroups/identity-rg-01/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service","controlPlaneOperators":{"operator":"/subscriptions/sub/resourceGroups/other/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane"},"dataPlaneOperators":{"operator":"/subscriptions/sub/resourceGroups/other/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress"}}}}}}]}`
 						}
 						return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: req}, nil
@@ -173,6 +173,33 @@ func identityGuardTestState(t *testing.T) *leasedIdentityPoolState {
 	return state
 }
 
+func TestIdentityGuardDevTeardown(t *testing.T) {
+	t.Parallel()
+	tc := &perItOrDescribeTestContext{
+		perBinaryInvocationTestContext: &perBinaryInvocationTestContext{isDevelopmentEnvironment: true},
+	}
+	// No credentials or transport exist: constructing an ARM client would fail.
+	for _, cancelled := range []bool{false, true} {
+		ctx, cancel := context.WithCancel(t.Context())
+		if cancelled {
+			cancel()
+		}
+		var cleanup int
+		err := releaseIdentityContainers([]string{"identity-rg-00"},
+			func() error { return tc.checkLeasedIdentityConsumers(ctx, "sub", []string{"identity-rg-00"}) },
+			func() error { cleanup++; return nil },
+			func(string) error { cleanup++; return nil },
+		)
+		cancel()
+		if cancelled {
+			if !errors.Is(err, context.Canceled) || cleanup != 0 {
+				t.Fatalf("cancelled DEV teardown: error=%v cleanup=%d", err, cleanup)
+			}
+		} else if err != nil || cleanup != 2 {
+			t.Fatalf("DEV must skip the guard, not cleanup: error=%v cleanup=%d", err, cleanup)
+		}
+	}
+}
 func TestIdentityPoolCrashAndCleanupRetry(t *testing.T) {
 	t.Parallel()
 	state := identityGuardTestState(t)

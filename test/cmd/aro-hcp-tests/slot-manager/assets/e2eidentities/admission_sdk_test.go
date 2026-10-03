@@ -63,6 +63,7 @@ type admissionTransport struct {
 	identityLists    int
 	requests         []string
 	consumerResponse func(*http.Request) (any, int, error)
+	principals       map[string]string
 }
 
 func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
@@ -114,6 +115,11 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 			id := fmt.Sprintf("00000000-0000-0000-0000-%012d", i+1)
 			if i == 0 {
 				id = strings.ToLower(principal)
+				for group, groupPrincipal := range a.principals {
+					if strings.Contains(path, "/"+group+"/") {
+						id = groupPrincipal
+					}
+				}
 			}
 			switch a.scenario {
 			case "bad principal":
@@ -168,6 +174,12 @@ func (a *admissionTransport) Do(request *http.Request) (*http.Response, error) {
 			roles = append(roles, map[string]any{
 				"id":         "/subscriptions/sub/resourceGroups/previous-run/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111",
 				"properties": map[string]string{"principalId": principal},
+			})
+		}
+		for group, groupPrincipal := range a.principals {
+			roles = append(roles, map[string]any{
+				"id":         "/subscriptions/sub/providers/Microsoft.Authorization/roleAssignments/" + group,
+				"properties": map[string]string{"principalId": groupPrincipal},
 			})
 		}
 		payload = map[string]any{"value": roles}
@@ -256,7 +268,7 @@ func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 				if transport.roleLists != 1 || transport.identityLists != len(groups) {
 					t.Fatalf("admission must load inventory once, got %d role lists and %d identity lists", transport.roleLists, transport.identityLists)
 				}
-				var wantInventory []string
+				wantInventory := []string{"/subscriptions/sub/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters"}
 				for _, group := range groups {
 					path := "/subscriptions/sub/resourceGroups/" + group + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities"
 					wantInventory = append(wantInventory, path)
@@ -279,7 +291,7 @@ func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 						t.Fatalf("deleted another principal's role assignment: %s", path)
 					}
 				}
-				if want := len(wantInventory) + 2 + wantDeletes; len(transport.requests) != want {
+				if want := len(wantInventory) + 1 + wantDeletes; len(transport.requests) != want {
 					t.Fatalf("admission must not rescan or confirm deletions: got %d requests, want %d", len(transport.requests), want)
 				}
 			})

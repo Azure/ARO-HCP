@@ -17,7 +17,9 @@ package e2eidentities
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -32,6 +34,142 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
+func TestAdmissionFiltersCompleteConsumerInventory(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name          string
+		mode          string
+		minimum       int
+		incomplete    bool
+		allReferenced bool
+		wantErr       bool
+	}{
+		{name: "mixed containers at minimum capacity", minimum: minimumIdentityContainers},
+		{name: "insufficient safe capacity", minimum: 4, wantErr: true},
+		{name: "no safe containers", allReferenced: true, wantErr: true},
+		{name: "match followed by inventory failure", incomplete: true, wantErr: true},
+		{name: "audit retains all containers", mode: "audit"},
+		{name: "audit reports incomplete inventory", mode: "audit", incomplete: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			groups := []string{"identity-rg-00", "identity-rg-01", "identity-rg-02", "identity-rg-03", "identity-rg-04"}
+			transport := &admissionTransport{fic: true, principals: map[string]string{}}
+			for i, group := range groups {
+				transport.principals[group] = fmt.Sprintf("aaaaaaaa-0000-0000-0000-%012d", i)
+			}
+			identityID := func(group string) string {
+				return "/subscriptions/sub/resourceGroups/" + group + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service"
+			}
+			clusterID := "/subscriptions/sub/resourceGroups/old/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"
+			cluster := func(name, group string) *hcpsdk.HcpOpenShiftCluster {
+				return &hcpsdk.HcpOpenShiftCluster{
+					ID: to.Ptr(clusterID + name),
+					Properties: &hcpsdk.HcpOpenShiftClusterProperties{
+						Platform: &hcpsdk.PlatformProfile{OperatorsAuthentication: &hcpsdk.OperatorsAuthenticationProfile{
+							UserAssignedIdentities: &hcpsdk.UserAssignedIdentitiesProfile{
+								ServiceManagedIdentity: to.Ptr(identityID(group)),
+								ControlPlaneOperators:  map[string]*string{"operator": to.Ptr(identityID("other"))},
+								DataPlaneOperators:     map[string]*string{"operator": to.Ptr(identityID("other"))},
+							},
+						}},
+					},
+				}
+			}
+			consumerCalls := 0
+			transport.consumerResponse = func(req *http.Request) (any, int, error) {
+				consumerCalls++
+				secondPage := req.URL.Query().Get("page") == "2"
+				nodePools := strings.HasSuffix(req.URL.Path, "/nodePools")
+				next := *req.URL
+				query := next.Query()
+				query.Set("page", "2")
+				next.RawQuery = query.Encode()
+				switch {
+				case !nodePools && !secondPage:
+					first := cluster("first", groups[3])
+					if test.allReferenced {
+						for _, group := range groups {
+							first.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[group] = to.Ptr(identityID(group))
+						}
+					}
+					return map[string]any{"value": []*hcpsdk.HcpOpenShiftCluster{first}, "nextLink": next.String()}, http.StatusOK, nil
+				case !nodePools && test.incomplete:
+					return map[string]any{}, http.StatusOK, nil
+				case !nodePools:
+					return map[string]any{"value": []*hcpsdk.HcpOpenShiftCluster{cluster("second", "other")}}, http.StatusOK, nil
+				case strings.Contains(req.URL.Path, "/first/"):
+					return map[string]any{"value": []any{}}, http.StatusOK, nil
+				case !secondPage:
+					return map[string]any{"value": []any{}, "nextLink": next.String()}, http.StatusOK, nil
+				default:
+					node := &hcpsdk.NodePool{
+						ID: to.Ptr(clusterID + "second/nodePools/workers"),
+						Identity: &hcpsdk.ManagedServiceIdentity{
+							Type:                   to.Ptr(hcpsdk.ManagedServiceIdentityTypeUserAssigned),
+							UserAssignedIdentities: map[string]*hcpsdk.UserAssignedIdentity{strings.ToUpper(identityID(groups[4])): {}},
+						},
+					}
+					return map[string]any{"value": []*hcpsdk.NodePool{node}}, http.StatusOK, nil
+				}
+			}
+			factory, roles, hcp := admissionSDKClients(t, transport)
+			state := &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+				Environment:   "stg",
+				Subscriptions: slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{ID: "sub"}},
+				Assets:        slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{ResourceGroups: slices.Clone(groups)}},
+			}}
+			request := assets.LeaseRequest{AcquiredSlotState: state, IdentityConsumerGuardMode: test.mode, MinimumIdentityContainers: test.minimum}
+			var logs strings.Builder
+			ctx := logr.NewContext(t.Context(), funcr.New(func(_, message string) { logs.WriteString(message) }, funcr.Options{}))
+			err := admitIdentityLeaseWithClients(ctx, request, factory, roles, hcp)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("admission error=%v, want error=%t", err, test.wantErr)
+			}
+			wantCalls := 5
+			if test.incomplete {
+				wantCalls = 3
+			}
+			if consumerCalls != wantCalls {
+				t.Fatalf("must inventory every page once, got %d calls, want %d", consumerCalls, wantCalls)
+			}
+			if !slices.Equal(state.Slot.IdentityContainerNames(), groups) {
+				t.Fatal("filtering changed dedicated lease ownership")
+			}
+			if test.wantErr {
+				if len(transport.deletes) != 0 || transport.identityLists != 0 || len(state.AdmittedIdentityContainers) != 0 {
+					t.Fatal("failed admission inventoried cleanup, mutated identities or admitted containers")
+				}
+				return
+			}
+			want := groups[:3]
+			if test.mode == "audit" {
+				want = groups
+			}
+			if !slices.Equal(state.AdmittedIdentityContainers, want) || transport.identityLists != len(want) || len(transport.deletes) != 2*len(want) {
+				t.Fatalf("admitted=%v identityLists=%d deletes=%v, want only %v", state.AdmittedIdentityContainers, transport.identityLists, transport.deletes, want)
+			}
+			contract := slots.NewRuntimeContractBuilder()
+			if err := NewHandler().PublishLease(ctx, request, contract); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(contract.MarshalShell()), "export LEASED_MSI_CONTAINERS='"+strings.Join(want, " ")+"'") {
+				t.Fatalf("incorrect runtime export: %s", contract.MarshalShell())
+			}
+			if test.mode != "audit" {
+				for _, excluded := range groups[3:] {
+					if !strings.Contains(logs.String(), `"container"="`+excluded+`"`) {
+						t.Fatalf("missing exclusion audit for %s", excluded)
+					}
+					for _, path := range transport.deletes {
+						if strings.Contains(path, excluded) {
+							t.Fatalf("deleted excluded container FIC or principal role: %s", path)
+						}
+					}
+				}
+			}
+		})
+	}
+}
 func TestAdmissionProtectsConsumersBeforeAnyDelete(t *testing.T) {
 	t.Parallel()
 	for _, scenario := range []string{
@@ -190,6 +328,12 @@ func TestAdmissionProtectsConsumersBeforeAnyDelete(t *testing.T) {
 						request.AcquiredSlotState.Slot.Environment = "dev"
 					}
 					wantSuccess := scenario == "unrelated" || scenario == "other subscription" || scenario == "dev" || scenario == "unrelated registry identity"
+					referenced := false
+					switch scenario {
+					case "Succeeded", "Failed", "Deleting", "Updating", "cluster identity", "data plane", "service", "node pool", "case insensitive", "container registry", "later cluster page", "later node pool page", "FIC only":
+						referenced = true
+						wantSuccess = true
+					}
 					if mode == "audit" && scenario != "cancelled" {
 						wantSuccess = true
 					}
@@ -211,6 +355,17 @@ func TestAdmissionProtectsConsumersBeforeAnyDelete(t *testing.T) {
 					wantDeletes := 6
 					if scenario == "FIC only" {
 						wantDeletes = 4
+					}
+					if referenced && mode == "enforce" {
+						wantDeletes -= 2
+						if got := request.AcquiredSlotState.AdmittedIdentityContainers; len(got) != 1 || got[0] != "identity-rg-00" {
+							t.Fatalf("expected only safe container, got %v", got)
+						}
+						for _, path := range transport.deletes {
+							if strings.Contains(path, "/identity-rg-01/") {
+								t.Fatalf("referenced container was mutated: %s", path)
+							}
+						}
 					}
 					if wantSuccess && !skipCleanup && len(transport.deletes) != wantDeletes {
 						t.Fatalf("cleanup sent %d DELETEs, expected %d: %v", len(transport.deletes), wantDeletes, transport.deletes)

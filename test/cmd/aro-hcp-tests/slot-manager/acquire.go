@@ -696,6 +696,12 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	if err := o.AssetRegistry.AdmitLease(ctx, request, o.DisabledAssetAdmission...); err != nil {
 		return err
 	}
+	if err := state.Validate(); err != nil {
+		return err
+	}
+	if err := journal.Persist(); err != nil {
+		return err
+	}
 	contract := slots.NewRuntimeContractBuilder()
 	if err := slots.AddCoreRuntimeExports(contract, state, customerSubscription, profile); err != nil {
 		return err

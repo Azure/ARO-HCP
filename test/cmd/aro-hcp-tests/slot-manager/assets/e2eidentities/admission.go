@@ -40,6 +40,9 @@ import (
 
 const admissionPhaseTimeout = 10 * time.Minute
 
+// The largest per-spec reservation uses three containers (clusters_sharing_resgroup).
+const minimumIdentityContainers = 3
+
 type identityLeaseInventory struct {
 	federatedCredentials []federatedCredentialReference
 	roleAssignments      []*armauthorization.RoleAssignment
@@ -56,7 +59,9 @@ func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) err
 	ctx, cancel := context.WithTimeout(ctx, admissionPhaseTimeout)
 	defer cancel()
 
+	request.MinimumIdentityContainers = minimumIdentityContainers
 	if request.AcquiredSlotState != nil && request.AcquiredSlotState.Slot.Environment == "dev" && request.SkipAdmissionCleanup {
+		request.AcquiredSlotState.AdmittedIdentityContainers = request.AcquiredSlotState.Slot.IdentityContainerNames()
 		return ctx.Err()
 	}
 	credential, subscriptionID, err := leaseCredential(request)
@@ -80,19 +85,22 @@ func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) err
 	return admitIdentityLeaseWithClients(ctx, request, msiFactory, roleAssignmentsClient, hcpFactory)
 }
 
-// Inventories the whole lease and checks consumers before issuing any cleanup request.
+// Inventories consumers once and cleans only the selected containers before publication.
 func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient, hcpFactory *hcpsdk.ClientFactory) error {
-	if request.AcquiredSlotState == nil {
-		return errors.New("acquired slot state is nil")
+	if request.AcquiredSlotState == nil || len(request.AcquiredSlotState.Slot.IdentityContainerNames()) == 0 {
+		return errors.New("acquired slot state has no identity containers")
 	}
-	if request.SkipAdmissionCleanup {
-		return checkIdentityLeaseConsumers(ctx, request, hcpFactory)
-	}
-	inventory, err := loadIdentityLeaseInventory(ctx, request, msiFactory, roleAssignmentsClient)
+	request.AcquiredSlotState.AdmittedIdentityContainers = nil
+	available, err := selectIdentityLeaseContainers(ctx, request, hcpFactory)
 	if err != nil {
 		return err
 	}
-	if err := checkIdentityLeaseConsumers(ctx, request, hcpFactory); err != nil {
+	if request.SkipAdmissionCleanup {
+		request.AcquiredSlotState.AdmittedIdentityContainers = available
+		return nil
+	}
+	inventory, err := loadIdentityLeaseInventory(ctx, available, msiFactory, roleAssignmentsClient)
+	if err != nil {
 		return err
 	}
 
@@ -129,6 +137,7 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 	if err := runSerial(ctx, deleteOperations); err != nil {
 		return fmt.Errorf("failed cleaning E2E identity lease: %w", err)
 	}
+	request.AcquiredSlotState.AdmittedIdentityContainers = available
 	return nil
 }
 
@@ -152,13 +161,14 @@ func leaseCredential(request assets.LeaseRequest) (azcore.TokenCredential, strin
 	return credential, subscriptionID, nil
 }
 
+// Inventories FICs and principal-scoped role assignments for the selected containers.
 func loadIdentityLeaseInventory(
 	ctx context.Context,
-	request assets.LeaseRequest,
+	containers []string,
 	msiFactory *armmsi.ClientFactory,
 	roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
 ) (*identityLeaseInventory, error) {
-	if request.AcquiredSlotState == nil || len(request.AcquiredSlotState.Slot.IdentityContainerNames()) == 0 {
+	if len(containers) == 0 {
 		return nil, errors.New("resolved E2E identity inventory is empty")
 	}
 	expectedIdentityNames := framework.NewDefaultIdentities().ToSlice()
@@ -172,7 +182,7 @@ func loadIdentityLeaseInventory(
 	federatedCredentialsClient := msiFactory.NewFederatedIdentityCredentialsClient()
 	identitiesClient := msiFactory.NewUserAssignedIdentitiesClient()
 
-	for _, resourceGroup := range request.AcquiredSlotState.Slot.IdentityContainerNames() {
+	for _, resourceGroup := range containers {
 		actualIdentities := map[string]string{}
 		var unexpectedIdentities []string
 		pager := identitiesClient.NewListByResourceGroupPager(resourceGroup, nil)

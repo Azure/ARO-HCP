@@ -468,15 +468,11 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 	}
 	ficsClient := msiClientFactory.NewFederatedIdentityCredentialsClient()
 
-	hcpFactory, err := tc.Get20261001ClientFactory(ctx)
-	if err != nil {
-		return fmt.Errorf("failed creating identity consumer client: %w", err)
-	}
 	guardCtx, cancel := context.WithTimeout(logr.NewContext(ctx, ginkgo.GinkgoLogr.WithValues("spec", specID())), 10*time.Minute)
 	defer cancel()
 	return releaseIdentityContainers(leasedContainers,
 		func() error {
-			return CheckIdentityConsumers20261001(guardCtx, hcpFactory, subscriptionID, leasedContainers, "teardown", os.Getenv(IdentityConsumerGuardEnvvar))
+			return tc.checkLeasedIdentityConsumers(guardCtx, subscriptionID, leasedContainers)
 		},
 		func() error { return tc.cleanupRoleAssignments(ctx, subscriptionID) },
 		func(resourceGroup string) error {
@@ -490,6 +486,19 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 			)
 		},
 	)
+}
+
+// Checks ARM consumers before pooled cleanup, excluding DEV local frontend runs.
+func (tc *perItOrDescribeTestContext) checkLeasedIdentityConsumers(ctx context.Context, subscriptionID string, containers []string) error {
+	if tc.perBinaryInvocationTestContext.isDevelopmentEnvironment {
+		logr.FromContextOrDiscard(ctx).Info("Skipping identity consumer inventory in DEV", "phase", "teardown")
+		return ctx.Err()
+	}
+	factory, err := tc.Get20261001ClientFactory(ctx)
+	if err != nil {
+		return fmt.Errorf("failed creating identity consumer client: %w", err)
+	}
+	return CheckIdentityConsumers20261001(ctx, factory, subscriptionID, containers, "teardown", os.Getenv(IdentityConsumerGuardEnvvar))
 }
 
 // Checks the whole spec before any destructive cleanup or pool release.
