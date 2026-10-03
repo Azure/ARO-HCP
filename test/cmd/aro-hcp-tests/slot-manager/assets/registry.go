@@ -302,7 +302,6 @@ func (r *Registry) PublishLease(ctx context.Context, request LeaseRequest, contr
 	return nil
 }
 
-// Checks that pool requests include every required leased inventory.
 func (r *Registry) validatePoolRequest(request PoolRequest) error {
 	if err := r.ValidateRequirements(request.Pools); err != nil {
 		return err
@@ -381,7 +380,6 @@ func (r *Registry) FilterHandlers(selectedKinds []Kind) ([]Handler, error) {
 	return handlers, nil
 }
 
-// Scopes pool inputs to the selected asset handler.
 func (request PoolRequest) forHandler(handler Handler) PoolRequest {
 	scopedRequest := request
 	scopedRequest.Pools = make([]slots.Pool, 0, len(request.Pools))
@@ -394,7 +392,6 @@ func (request PoolRequest) forHandler(handler Handler) PoolRequest {
 	return scopedRequest
 }
 
-// Selects inventories demanded by the supplied pools and asset kind.
 func assetInventoriesForPools(assetInventories []slots.AssetInventory, pools []slots.Pool, kind Kind) []slots.AssetInventory {
 	references := map[string]bool{}
 	for _, pool := range pools {
@@ -413,7 +410,6 @@ func assetInventoriesForPools(assetInventories []slots.AssetInventory, pools []s
 	return selected
 }
 
-// Checks the ownership and inventory required to acquire assets.
 func (request LeaseRequest) validateAcquisition(assetInventories []slots.AssetInventory) error {
 	for _, assetRequirement := range request.AcquiredSlotState.Slot.AssetRequirements {
 		if assetRequirement.Allocation != slots.AllocationLeased {

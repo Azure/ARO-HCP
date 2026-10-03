@@ -39,7 +39,6 @@ const (
 	DefaultMaxWaitForLease   = 30 * time.Minute
 )
 
-// DefaultAcquireOptions reads acquisition defaults from the environment.
 func DefaultAcquireOptions() *RawAcquireOptions {
 	allowedSubscriptions, allowedLocations, selectedLocation := defaultAcquireSelectors()
 	return &RawAcquireOptions{
@@ -62,7 +61,6 @@ func DefaultAcquireOptions() *RawAcquireOptions {
 	}
 }
 
-// Reads subscription and location selectors, respecting an explicit location override.
 func defaultAcquireSelectors() ([]string, []string, string) {
 	allowedSubscriptions := splitSelectorValues(os.Getenv("ALLOWED_SUBSCRIPTIONS"))
 	selectedLocation := strings.TrimSpace(os.Getenv("MULTISTAGE_PARAM_OVERRIDE_LOCATION"))
@@ -73,7 +71,6 @@ func defaultAcquireSelectors() ([]string, []string, string) {
 	return allowedSubscriptions, splitSelectorValues(os.Getenv("ALLOWED_LOCATIONS")), ""
 }
 
-// Splits comma-separated or newline-separated selector values.
 func splitSelectorValues(raw string) []string {
 	parts := strings.FieldsFunc(raw, func(r rune) bool {
 		return r == ',' || r == '\n'
@@ -81,7 +78,7 @@ func splitSelectorValues(raw string) []string {
 	return normalizeValues(parts)
 }
 
-// Trims whitespace, drops empty entries, and de-duplicates
+// normalizeValues trims whitespace, drops empty entries, and de-duplicates
 // while preserving first-seen order.
 func normalizeValues(parts []string) []string {
 	values := make([]string, 0, len(parts))
@@ -175,7 +172,6 @@ type AcquireOptions struct {
 	*completedAcquireOptions
 }
 
-// Builds the acquisition command with the supplied asset registry.
 func newAcquireCommand(registry *assets.Registry) (*cobra.Command, error) {
 	opts := DefaultAcquireOptions()
 	opts.AssetRegistry = registry
@@ -194,7 +190,6 @@ func newAcquireCommand(registry *assets.Registry) (*cobra.Command, error) {
 	return cmd, nil
 }
 
-// Acquire validates options and acquires an admitted slot.
 func Acquire(ctx context.Context, opts *RawAcquireOptions) error {
 	validated, err := opts.Validate()
 	if err != nil {
@@ -207,7 +202,6 @@ func Acquire(ctx context.Context, opts *RawAcquireOptions) error {
 	return completed.Run(ctx)
 }
 
-// Validate checks required acquisition inputs and timeouts.
 func (o *RawAcquireOptions) Validate() (*ValidatedAcquireOptions, error) {
 	switch {
 	case len(o.effectiveClusterProfileDirs()) == 0:
@@ -231,7 +225,7 @@ func (o *RawAcquireOptions) Validate() (*ValidatedAcquireOptions, error) {
 	}, nil
 }
 
-// Returns the cluster profile dirs to resolve the
+// effectiveClusterProfileDirs returns the cluster profile dirs to resolve the
 // leased subscription's owning credentials across. --cluster-profile-dirs
 // (CLUSTER_PROFILE_DIRS) takes precedence; otherwise it falls back to the
 // single --cluster-profile-dir (CLUSTER_PROFILE_DIR) for backward
@@ -248,7 +242,6 @@ func (o *RawAcquireOptions) effectiveClusterProfileDirs() []string {
 	return nil
 }
 
-// Complete resolves the catalog, candidate pools and runtime selection.
 func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, error) {
 	catalog, err := slots.LoadCatalog(o.CatalogPath)
 	if err != nil {
@@ -342,7 +335,6 @@ type locationWeight struct {
 	Weight   uint64
 }
 
-// Selects a permitted runtime region, using deterministic weighting when configured.
 func resolveRegionSelection(catalog *slots.Catalog, environment string, regionMode slots.RegionMode, override, rawWeights, buildID string) (RegionSelection, error) {
 	selection := RegionSelection{
 		Mode:                 regionMode,
@@ -392,7 +384,6 @@ func resolveRegionSelection(catalog *slots.Catalog, environment string, regionMo
 	return RegionSelection{}, errors.New("weighted location selection did not resolve a region")
 }
 
-// Validates weights for every configured region and computes their total.
 func parseLocationWeights(raw string, regions []string) ([]locationWeight, uint64, error) {
 	if strings.TrimSpace(raw) == "" {
 		return nil, 0, errors.New("LOCATION_WEIGHTS must not be empty")
@@ -443,7 +434,6 @@ func parseLocationWeights(raw string, regions []string) ([]locationWeight, uint6
 	return weights, totalWeight, nil
 }
 
-// Formats region weights in catalog order.
 func normalizedWeightsForCatalog(weights []locationWeight) []string {
 	normalized := make([]string, 0, len(weights))
 	for _, weight := range weights {
@@ -452,7 +442,6 @@ func normalizedWeightsForCatalog(weights []locationWeight) []string {
 	return normalized
 }
 
-// ResolveLeasedSlot verifies that the acquired resource belongs to the selected pool.
 func (o *AcquireOptions) ResolveLeasedSlot(pool slots.Pool, resourceName string) (*slots.ExpandedSlot, error) {
 	for _, slot := range slots.ExpandSlotsForPool(o.PoolEnvironment, pool) {
 		if slot.ResourceName == resourceName {
@@ -469,7 +458,6 @@ func (o *AcquireOptions) ResolveLeasedSlot(pool slots.Pool, resourceName string)
 	)
 }
 
-// Run acquires a candidate slot and publishes its admitted runtime contract.
 func (o *AcquireOptions) Run(ctx context.Context) error {
 	if o.AssetRegistry == nil {
 		return errors.New("asset registry is nil")
@@ -595,7 +583,6 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 	}
 }
 
-// Rotates candidate order to spread acquisitions across pools.
 func rotatedCandidatePools(pools []slots.Pool, now time.Time) []slots.Pool {
 	if len(pools) < 2 {
 		return pools
@@ -612,7 +599,6 @@ func rotatedCandidatePools(pools []slots.Pool, now time.Time) []slots.Pool {
 	return rotated
 }
 
-// Returns the selected runtime region or the pool's fixed region.
 func (o *AcquireOptions) runtimeRegionForPool(pool slots.Pool) string {
 	if o.RegionSelection.RuntimeRegion != "" {
 		return o.RegionSelection.RuntimeRegion
@@ -620,7 +606,6 @@ func (o *AcquireOptions) runtimeRegionForPool(pool slots.Pool) string {
 	return pool.Region
 }
 
-// Resolves, admits and publishes acquired assets, rolling leases back on failure.
 func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.Pool, leasedName string) (result error) {
 	if err := slots.ValidateLeasedResourceName(leasedName); err != nil {
 		return fmt.Errorf("primary lease acquisition returned an invalid name for type %q: %w", pool.ResourceType, err)
@@ -717,7 +702,6 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	return nil
 }
 
-// Formats the pool's name, subscription and location for diagnostics.
 func describePool(pool slots.Pool) string {
 	switch pool.EffectiveRegionMode() {
 	case slots.RegionModeRuntimeSelected:
@@ -729,7 +713,6 @@ func describePool(pool slots.Pool) string {
 	}
 }
 
-// Waits for a duration or context cancellation.
 func sleepContext(ctx context.Context, duration time.Duration) error {
 	if duration <= 0 {
 		return nil
