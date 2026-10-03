@@ -37,17 +37,14 @@ func clusterMinor(serviceProviderCluster *coreapi.ServiceProviderCluster) (strin
 	return "", false
 }
 
-// serviceProviderClustersForChannel returns every ServiceProviderCluster that
-// belongs to the given y-stream channel: its cluster's channel group matches and
-// its effective minor (see clusterMinor) equals the channel's minor. Clusters
+// serviceProviderClustersForProfile returns every ServiceProviderCluster that
+// belongs to the validated rollout profile: its cluster's channel group matches
+// and its effective minor (see clusterMinor) equals the profile's ID. Clusters
 // whose backing Cluster is gone or deleting, or which have no
 // channel group, are not matched (there is no default channel group).
-func serviceProviderClustersForChannel(ctx context.Context, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, yStreamChannel string) ([]*coreapi.ServiceProviderCluster, error) {
-	logger := utils.LoggerFromContext(ctx).WithValues("ystreamChannel", yStreamChannel)
-	channelGroup, minor, ok := parseYStreamChannel(yStreamChannel)
-	if !ok {
-		return nil, fmt.Errorf("invalid y-stream channel %q", yStreamChannel)
-	}
+func serviceProviderClustersForProfile(ctx context.Context, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, profile coreapi.VersionProfile) ([]*coreapi.ServiceProviderCluster, error) {
+	logger := utils.LoggerFromContext(ctx).WithValues("channelGroup", profile.ChannelGroup, "minor", profile.ID)
+	channelGroup, minor := profile.ChannelGroup, profile.ID
 
 	clusters, err := clusterLister.List(ctx)
 	if err != nil {

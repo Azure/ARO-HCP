@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
+	"github.com/Azure/ARO-HCP/internal/versionpolicy"
 )
 
 const (
@@ -103,12 +104,13 @@ func newTestServiceProviderCluster(clusterName string, desired *semver.Version, 
 
 func newTestRollout(yStreamChannel string, best *semver.Version, status fleetapi.ControlPlaneVersionRolloutStatus) *fleetapi.ControlPlaneVersionRollout {
 	id := metadataapi.Must(fleetapihelpers.ToControlPlaneVersionRolloutResourceID(yStreamChannel))
+	profile := metadataapi.Must(versionpolicy.ProfileForChannel(yStreamChannel))
 	return &fleetapi.ControlPlaneVersionRollout{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   id,
 			PartitionKey: strings.ToLower(coreapi.ProviderNamespace),
 		},
-		Spec:   fleetapi.ControlPlaneVersionRolloutSpec{BestExactVersion: best},
+		Spec:   fleetapi.ControlPlaneVersionRolloutSpec{Version: profile, BestExactVersion: best},
 		Status: status,
 	}
 }
@@ -157,6 +159,6 @@ type fakeBestVersionSelector struct {
 	err  error
 }
 
-func (f fakeBestVersionSelector) BestExactVersionForChannel(_ context.Context, _ string) (*semver.Version, error) {
+func (f fakeBestVersionSelector) BestExactVersionForProfile(_ context.Context, _ coreapi.VersionProfile) (*semver.Version, error) {
 	return f.best, f.err
 }

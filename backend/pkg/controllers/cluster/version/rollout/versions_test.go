@@ -88,14 +88,6 @@ func TestMinorStringAndChannel(t *testing.T) {
 	assert.Equal(t, "4.21", minorString(semver.MustParse("4.21.6")))
 	assert.Equal(t, "5.0", minorString(semver.MustParse("5.0.0-ec.4")))
 	assert.Equal(t, "stable-4.21", yStreamChannel("stable", "4.21"))
-
-	group, minor, ok := parseYStreamChannel("stable-4.21")
-	assert.True(t, ok)
-	assert.Equal(t, "stable", group)
-	assert.Equal(t, "4.21", minor)
-
-	_, _, ok = parseYStreamChannel("invalid")
-	assert.False(t, ok)
 }
 
 func TestClusterMinor(t *testing.T) {

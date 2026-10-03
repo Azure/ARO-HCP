@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -142,7 +143,11 @@ func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))
 	}
 
-	serviceProviderClusters, err := serviceProviderClustersForChannel(ctx, c.serviceProviderClusterLister, c.clusterLister, key.YStreamChannel)
+	profile, err := fleetapihelpers.RolloutVersionForRead(rollout)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	serviceProviderClusters, err := serviceProviderClustersForProfile(ctx, c.serviceProviderClusterLister, c.clusterLister, profile)
 	if err != nil {
 		return utils.TrackError(err)
 	}

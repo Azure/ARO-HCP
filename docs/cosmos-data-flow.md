@@ -18,6 +18,10 @@ shared ownership, and cluster create/update and rollout diagrams, including the 
 Immediate z-stream update policy. Review fixes cover
 rollout membership, initial-assignment ownership, input-event queue metrics,
 field annotations, and the recency-only selection contract.
+Structured-seeding update scope: `Spec.Version` migration, legacy read adaptation,
+independent discovery/reference producers and the typed profile-keyed seeder.
+The seven rollout controllers and registration totals are unchanged; catalog
+publication and rollout retirement controllers are not implemented yet.
 External-auth operation update baseline: `51851bfabe`, rebased on main `08987b4eba`;
 scope: frontend create acceptance without a parent Cluster Service ID, empty
 create/update operation `InternalID`, and the corresponding lifecycle diagrams.
@@ -638,6 +642,8 @@ factories, leader election and Prometheus collectors are infrastructure rather t
 additional business controllers.
 The four [frontend admission informers](#admission-caches-and-startup) are likewise
 infrastructure, not additional controller catalog entries.
+The seeder's discovery and reference-repair producers share its existing registration
+and do not change these counts.
 
 ### Registration and trigger conventions
 
@@ -723,8 +729,9 @@ where supplied, union kube-applier informers add mirrored-resource events.
 Controllers using the default active-operation cooldown run at most every 10s
 with an active operation and every five minutes without one; see
 [cooldown.go](../backend/pkg/utils/controllerutils/cooldown.go).
-See [backend controller wrappers](../backend/pkg/utils/controllerutils/) and the
-[shared queue implementation](../internal/controllerutils/generic_watching_controller.go).
+See [backend controller wrappers](../backend/pkg/utils/controllerutils/), the
+[typed queue base](../internal/controllerutils/typed_controller.go), and its
+[generic watching adapter](../internal/controllerutils/generic_watching_controller.go).
 Intervals below are periodic resyncs unless explicitly called cooldowns, polls or
 expiry timers. Returned errors normally cause rate-limited retries; a no-work
 return waits for another event/resync. An earliest-recheck gate can suppress work
@@ -927,24 +934,109 @@ These seven controllers are registered in the [cluster registry](../backend/pkg/
 and run under [backend leader election](../backend/pkg/app/backend.go),
 replacing the removed per-cluster `ControlPlaneDesiredVersion` controller. Fleet
 `ControlPlaneVersionRollout` documents are keyed by y-stream channel (for example,
-`stable-4.21`) in the provider-namespace partition. Cluster requested versions,
+`stable-4.21`) in the provider-namespace partition. Their structured
+[`Spec.Version`](../internal/api/fleetapi/types_control_plane_version_rollout.go)
+is a `coreapi.VersionProfile`: canonical major/minor `ID` and an allowed
+`ChannelGroup`. The resource name must equal `ChannelGroup + "-" + ID`.
+Cluster requested versions,
 service-provider desired versions, and externally observed active versions remain
 separate. [Membership](../backend/pkg/controllers/cluster/version/rollout/membership.go)
 uses the cluster's channel group plus the desired minor, falling back to the oldest
 completed active minor; it does not fall back to customer-requested versions.
 All assignment writes use optimistic concurrency. Conflicts are logged before
 waiting for an informer update, including conflicts reserving a rollout batch.
-Seeding skips existing rollout documents without logging that steady-state case.
+Seeding validates existing profiles and skips unchanged valid documents; legacy
+documents receive a profile backfill that preserves selection and status.
 Per-cluster wrappers can persist
 child Controller bookkeeping; the [per-rollout wrapper](../backend/pkg/utils/controllerutils/control_plane_version_rollout_watching_controller.go)
-writes no child Controller document. These controllers select versions in Cosmos;
+writes no child Controller document. Seeding also writes no child Controller
+bookkeeping. It uses [`TypedController[T]`](../internal/controllerutils/typed_controller.go)
+directly for the typed queue, workers, retries, logging, metrics, cache sync and
+worker `Run`. `GenericWatchingController[T]` adapts that base to the existing
+`any`-based interface and resource-ID watcher helpers. The seeder's
+[periodic wrapper](../backend/pkg/controllers/cluster/version/rollout/periodic_controller.go)
+owns producer startup/shutdown; the seeder constructor returns
+`controllerregistry.Runnable`, without the watching-specific `MakeKey` contract.
+Its existing registration still uses
+20 workers, dependent cache-sync gates and no union kube-applier dependency.
+These controllers select versions in Cosmos;
 Cluster Service and HyperShift perform the upgrades.
+
+[`NormalizeRolloutVersion`](../internal/apihelpers/fleetapihelpers/rollout_version.go)
+adapts persisted documents with entirely absent/zero `Spec.Version` by parsing
+their name into a deep copy. Partial profiles, unsupported groups, noncanonical
+minors and name/profile mismatches are errors. Decoding preserves missing profiles
+for the seeder to repair. Selection, membership and status fanout consume
+`RolloutVersionForRead` at legacy read boundaries without mutating informer
+objects. Ordinary best/status/condition writes preserve the missing profile;
+the seeder alone owns its backfill. See the
+[migration tests](../internal/apihelpers/fleetapihelpers/rollout_version_test.go)
+and [legacy writer tests](../backend/pkg/controllers/cluster/version/rollout/legacy_writers_test.go)
+for state preservation and stale-ETag protection.
 
 #### ControlPlaneVersionRolloutSeeding
 
-[Source](../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller.go) · [Startup](../backend/pkg/app/backend.go) · **Trigger:** Cluster and service-provider cluster informers; cluster key, 5m resync; no kube-applier watch.
+[Source](../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller.go) | [Startup](../backend/pkg/controllers/cluster/registration.go) | **Trigger:** two periodic producers plus Cluster/SPC version-reference events feed one profile-keyed queue. No delete handler or kube-applier watch.
 
-Reads cached `CustomerProperties.Version.ID`/`ChannelGroup` and `ServiceProviderProperties.DeletionTimestamp`. Skips missing/deleting clusters, nightly channels and malformed requested channels. Creates a missing, empty Fleet rollout for the requested minor, and also for `Spec.PinnedVersion.ExactVersion`'s minor when pinned. Existing rollout documents are left unchanged; create conflicts count as another seeder winning. The rollout informer then enables best-version selection and status/assignment reconciliation.
+The seeder owns the graph-data client. Its
+[`Run`](../backend/pkg/controllers/cluster/version/rollout/periodic_controller.go)
+waits for dependent caches, then starts two independent producer loops under
+leadership: HTTP discovery, and cached reference inventory plus legacy-profile
+repair and Controller-status cleanup. Each runs immediately and then on a
+five-minute ticker; calls to the same producer never overlap. Both producers and
+workers share the existing `ControlPlaneVersionRolloutSeeding` identity. Every
+worker key is a `rolloutSeedKey{Version: coreapi.VersionProfile{...}}` identifying
+a normalized minor version and channel group. Producer failures are logged and
+retried on the next tick; enumeration does not increment queue retry/reconcile
+metrics. Worker failures use rate-limited queue retries and reconcile metrics.
+
+[`Discovery`](../backend/pkg/controllers/cluster/version/rollout/rollout_discovery.go)
+fetches the [Cincinnati graph-data archive](../internal/cincinnati/graph_data.go)
+from `https://api.openshift.com/api/upgrades_info/graph-data`, with a one-minute
+deadline and bounded in-memory gzip/tar/schema validation. Only complete validated
+results enqueue canonical allowed profiles at/above `MinimumBackendVersion`
+(currently `4.20` in [versionpolicy](../internal/versionpolicy/policy.go)). This
+works in an empty region and makes no exact-release selection or Cluster Service
+call. Discovery errors enqueue no partial result, do not delete existing rollouts
+and do not block the independent reference-repair producer. The archive typically
+has no nightly definitions; accepting nightly references does not add a CI
+releasestream downloader, and the existing selector still skips nightly.
+
+Cluster/SPC add callbacks and version-reference-changing update callbacks combine
+the event object with a targeted cached counterpart read and enqueue normalized
+profiles. Callbacks do no live I/O. Missing SPC still permits Cluster references;
+an SPC with an unresolved parent reports an error. Unchanged resyncs, conditions,
+timestamps, deletion-marker-only and pin-threshold-only changes do not enqueue
+repairs. Callback errors recover through periodic full scans using
+[`collectRolloutReferences`](../backend/pkg/controllers/cluster/version/rollout/rollout_references.go).
+References include Cluster requested versions, experimental exact overrides and
+`Status.ActiveVersions`, plus SPC desired, pinned exact and active versions, using
+the parent's channel group. **Deleting documents and nightly channels remain
+references.** `UntilExactVersion` is only a comparison threshold against best in
+the pinned channel, not a dependency on its own minor. NodePool/SPNP are not inputs.
+Known references remain eligible for additive repair even when the scan also
+reports malformed references, unresolved parents or list errors.
+
+Workers live-read the Fleet rollout and create it if missing, with `Spec.Version`,
+resource ID and lowercased provider-namespace partition key, leaving best nil.
+Creating a missing below-floor rollout requires a fresh cached regional reference
+inventory confirming that profile. Existing legacy rollouts receive only
+`Spec.Version` via an ETag-protected Replace, preserving metadata, best and status.
+Valid structured rollouts are unchanged. Create conflicts and write failures
+return errors for queue retry with a new live read. Pure `reconcileSeeding`
+computes the desired document; `SyncOnce` gathers inputs and persists it.
+
+The reference producer also inventories every legacy rollout, including unused
+below-floor ones, for backfill. A queued migration profile can repair an existing
+document but cannot recreate a missing below-floor document without a current
+reference. After an error-free reference/rollout inventory, the producer deletes
+obsolete per-cluster seeder Controller status in Resources only when the cache
+shows valid structured rollouts for all that cluster's references. This removes
+stale Degraded conditions from the former per-cluster seeder. Enqueueing repair is
+not enough: cleanup must observe persistence. Cleanup tolerates 404; errors wait
+for the next producer tick. See the
+[seeder tests](../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller_test.go)
+for lifecycle, retries, backfill and cleanup coverage.
 
 #### ControlPlaneVersionBestVersionSelection
 
@@ -1661,6 +1753,7 @@ The DataplaneController registers ready session credentials, owner and backend A
 | Azure VMSS NICs / AKS pool ceilings | [SwiftNICController](#swiftniccontroller) and [ManagementClusterScaleCeilingReportingController](#managementclusterscaleceilingreportingcontroller) **observe** | The former changes Kubernetes Node capacity; the latter writes Cosmos scheduling capacity. Neither changes Azure VM/pool size. |
 | Azure Monitor metrics-container ingestion limits | [AMWIngestionScaling](#amwingestionscaling) reads utilization and updates Azure limits | Periodic fleet controller, outside any single cluster's lifecycle. |
 | OpenShift update graph | [ControlPlaneVersionBestVersionSelection](#controlplaneversionbestversionselection) **observes** | Selects the channel target in Fleet Cosmos; assignment writes provider intent, while Cluster Service and HyperShift execute upgrades. |
+| Cincinnati graph-data archive | [ControlPlaneVersionRolloutSeeding](#controlplaneversionrolloutseeding) **observes** | Its independent periodic discovery producer queues structured profiles alongside cached reference repair, including in an empty region. No external mutation, exact-release selection or Cluster Service lookup. |
 | Cluster Service cluster/node pool/external auth | Create, update-dispatch, upgrade and delete-dispatch controllers call the external API | ID clearers observe 404; operation pollers observe completion. [ClusterServiceMatchingClusters](#clusterservicematchingclusters) also deletes aged, live-rechecked orphan clusters. |
 | Cluster Service provision shards / Maestro consumers | Fleet registration controllers ensure external registrations | Fleet management-cluster conditions record readiness for placement. Maestro/work-agent and HyperShift are external components, not repository controllers in this catalog. |
 | Kubernetes desired manifests | [ApplyDesireController](#applydesirecontroller) applies/deletes objects | Backend `ClusterResources`, backup and credential controllers write intent documents. An ApplyDesire **Delete request** executes a Kubernetes deletion; removal of the Cosmos intent alone does not. |
@@ -1755,8 +1848,13 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 ![Control-plane version rollout digraph](diagrams/controller-flows/control-plane-version-rollout.png)
 
-[Seeding](#controlplaneversionrolloutseeding) creates the channel document and
-[best selection](#controlplaneversionbestversionselection) chooses its target.
+[Seeding](#controlplaneversionrolloutseeding) runs independent discovery and
+reference/backfill producers immediately and on five-minute tickers after cache
+sync. Cache-only event callbacks also feed the same homogeneous profile queue.
+Workers create structured channel documents or backfill legacy `Spec.Version`,
+preserving selection and status. Deleting/nightly references remain repairable,
+and missing below-floor profiles require a current cached reference.
+[Best selection](#controlplaneversionbestversionselection) independently chooses the target.
 [Initial](#initialnormalclusterdesiredversion) and [minor-version](#minorupgradenormalclusterdesiredversion)
 assignments use the requested channel; [normal rollout](#zstreamprogressivedesiredversionrollout)
 uses provider membership and bounded canary/rolling gates. [Forced assignment](#forcedclusterdesiredversion)
@@ -1881,7 +1979,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Service-provider cluster `Spec.ControlPlaneVersion.DesiredVersion` / `DesiredVersionLastTransitionTime` | [Initial assignment](#initialnormalclusterdesiredversion), [minor-version assignment](#minorupgradenormalclusterdesiredversion), [normal rollout](#zstreamprogressivedesiredversionrollout) and [forced assignment](#forcedclusterdesiredversion) write the target and transition time. Initial assignment also backfills a missing/zero time without changing the target. Cluster creation, upgrade dispatch and operation completion consume desired state; it is not an observed version. |
 | Cluster `ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` | Frontend admission projects the AFEC-gated `aro-hcp.experimental.cluster.z-stream-update-policy` tag; its only valid value is `Immediate`. Removing the tag or AFEC clears the policy. [Forced assignment](#forcedclusterdesiredversion) follows the desired channel's best z-stream without progressive gates, after pins and exact overrides. |
 | Service-provider cluster `Spec.PinnedVersion` | SRE supplies `ExactVersion` and optional `UntilExactVersion`. [Forced assignment](#forcedclusterdesiredversion) clears the pin once channel best reaches the release threshold. Pins precede experimental exact versions and normal assignment. |
-| Fleet `ControlPlaneVersionRollout.Spec.BestExactVersion` | [Seeding](#controlplaneversionrolloutseeding) creates empty requested/pinned channel documents. [Best selection](#controlplaneversionbestversionselection) owns the target; assignment controllers consume it. |
+| Fleet `ControlPlaneVersionRollout` existence / `Spec.Version` / `Spec.BestExactVersion` | [Seeding](#controlplaneversionrolloutseeding) creates discovered/referenced documents with structured profiles, including deleting/nightly references, and backfills legacy profiles while preserving metadata, selection and status. [Best selection](#controlplaneversionbestversionselection) owns the target; assignment controllers consume it. |
 | Fleet rollout status count maps | [Status collector](#controlplaneversionstatuscollector) alone persists desired, mismatched, failed, achieved and successful counts. Normal assignment recomputes its own snapshot counts to avoid collector lag. |
 | Fleet rollout `Status.LastAssignmentTime` / `Status.Conditions` | [Normal assignment](#zstreamprogressivedesiredversionrollout) reserves batches before provider writes and reports Progressing/Degraded. Persisted cooldown protects across restarts; it does not claim external completion. |
 | Service-provider cluster `Status.ControlPlaneVersion.ActiveVersions` / `Status.DesiredVersionChannels` | [ControlPlaneActiveVersions](#controlplaneactiveversions) copies exact HostedCluster history with per-version/state transition times and desired channels. Completed history and nonzero transition times drive rollout accounting. Desired target and active history can differ while an upgrade is underway. |
@@ -1909,6 +2007,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Credential request spec / status | [Credential dispatch](#systemadmincredentialdispatchrequestcredential) creates request material. [Issuance observation](#systemadmincredentialissuanceobserver) writes signed certificate and terminal conditions. Revocation marking and cluster deletion mark requests for cleanup; request controllers remove external artifacts and documents. |
 | Credential revocation conditions / deletion timestamp | MarkRequests reports request marking; Completion combines that with observed certificate revocation and sets deletion intent; Deletion removes artifacts/document; operation poller observes disappearance. |
 | Child `Controller` conditions and reconcile metadata | Generic wrappers persist bookkeeping; version/other syncers can set intent conditions. Degraded aggregators read them. “No domain write” in the catalog does not imply the wrapper never writes a Controller document. |
+| Legacy per-cluster `ControlPlaneVersionRolloutSeeding` Controller document | The profile-keyed [seeder](#controlplaneversionrolloutseeding) writes no new child bookkeeping. Its reference producer deletes obsolete status only after an error-free inventory and cached observation of valid structured rollouts for the cluster's references. |
 | Kubernetes Session status / secrets | Sessiongate's [control-plane controller](#sessioncontrolplanecontroller) owns session expiry, readiness, endpoint and credential references; [DataplaneController](#dataplanecontroller) consumes them to configure its in-memory proxy registry. |
 
 ## Regeneration
