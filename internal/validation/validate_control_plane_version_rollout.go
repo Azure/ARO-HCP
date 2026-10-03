@@ -16,14 +16,12 @@ package validation
 
 import (
 	"context"
-	"regexp"
-	"strings"
-
-	"github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 // ValidateControlPlaneVersionRolloutCreate validates a new ControlPlaneVersionRollout.
@@ -34,13 +32,20 @@ func ValidateControlPlaneVersionRolloutCreate(_ context.Context, rollout *fleeta
 }
 
 // ValidateControlPlaneVersionRolloutUpdate validates an update to a ControlPlaneVersionRollout.
-func ValidateControlPlaneVersionRolloutUpdate(_ context.Context, newRollout *fleetapi.ControlPlaneVersionRollout, _ *fleetapi.ControlPlaneVersionRollout) field.ErrorList {
+// Existing legacy writers may preserve a missing profile until backfill. A stale
+// legacy snapshot must reach the ETag check so it cannot erase persisted backfill.
+func ValidateControlPlaneVersionRolloutUpdate(_ context.Context, newRollout *fleetapi.ControlPlaneVersionRollout, oldRollout *fleetapi.ControlPlaneVersionRollout) field.ErrorList {
+	if oldRollout != nil && newRollout != nil &&
+		oldRollout.Spec.Version == (coreapi.VersionProfile{}) && newRollout.Spec.Version == (coreapi.VersionProfile{}) &&
+		oldRollout.ResourceID != nil && newRollout.ResourceID != nil && oldRollout.ResourceID.String() == newRollout.ResourceID.String() {
+		if normalized, err := fleetapihelpers.NormalizeRolloutVersion(newRollout); err == nil {
+			return validateControlPlaneVersionRolloutIdentifier(normalized)
+		}
+	}
 	var errs field.ErrorList
 	errs = append(errs, validateControlPlaneVersionRolloutIdentifier(newRollout)...)
 	return errs
 }
-
-var rolloutChannelPattern = regexp.MustCompile(`^(stable|fast|candidate|nightly)-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 
 func validateControlPlaneVersionRolloutIdentifier(rollout *fleetapi.ControlPlaneVersionRollout) field.ErrorList {
 	var errs field.ErrorList
@@ -53,10 +58,8 @@ func validateControlPlaneVersionRolloutIdentifier(rollout *fleetapi.ControlPlane
 		))
 		return errs
 	}
-	_, minor, _ := strings.Cut(channel, "-")
-	_, parseErr := semver.Parse(minor + ".0")
-	if !rolloutChannelPattern.MatchString(channel) || parseErr != nil {
-		errs = append(errs, field.Invalid(path, channel, "y-stream channel must be <stable|fast|candidate|nightly>-<major>.<minor>"))
+	if err := fleetapihelpers.ValidateRolloutVersion(rollout); err != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec", "version"), rollout.Spec.Version, err.Error()))
 	}
 	return errs
 }

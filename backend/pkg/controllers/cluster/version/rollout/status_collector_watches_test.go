@@ -18,13 +18,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 )
 
 func statusWatchFixture(t *testing.T) (*candidateQueue, cache.ResourceEventHandler, cache.ResourceEventHandler) {
@@ -43,6 +47,31 @@ func statusWatchFixture(t *testing.T) (*candidateQueue, cache.ResourceEventHandl
 	require.NotNil(t, serviceProviderClusters.options.ResyncPeriod)
 	require.Zero(t, *serviceProviderClusters.options.ResyncPeriod)
 	return q, clusters.handler, serviceProviderClusters.handler
+}
+
+func TestStatusFanoutProfiles(t *testing.T) {
+	t.Parallel()
+	legacy := newTestRollout("candidate-4.21", nil, fleetapi.ControlPlaneVersionRolloutStatus{})
+	legacy.Spec.Version = coreapi.VersionProfile{}
+	mismatch := newTestRollout("fast-4.21", nil, fleetapi.ControlPlaneVersionRolloutStatus{})
+	mismatch.Spec.Version.ID = "4.22"
+	rollouts := []*fleetapi.ControlPlaneVersionRollout{
+		newTestRollout("stable-4.21", nil, fleetapi.ControlPlaneVersionRolloutStatus{}),
+		legacy, mismatch,
+		newTestRollout("nightly-4.22", nil, fleetapi.ControlPlaneVersionRolloutStatus{}),
+	}
+	before := make([]*fleetapi.ControlPlaneVersionRollout, len(rollouts))
+	for i, rollout := range rollouts {
+		before[i] = rollout.DeepCopy()
+	}
+	c := &statusCollectorSyncer{rolloutLister: &fleetlistertesting.SliceControlPlaneVersionRolloutLister{ControlPlaneVersionRollouts: rollouts}}
+	q := &candidateQueue{}
+	c.enqueueStatusChannels(q, "4.21")
+	require.Empty(t, cmp.Diff([]string{"stable-4.21", "candidate-4.21"}, q.channels))
+	q.channels = nil
+	c.enqueueStatusChannels(q, "")
+	require.Empty(t, cmp.Diff([]string{"stable-4.21", "candidate-4.21", "nightly-4.22"}, q.channels))
+	require.Empty(t, cmp.Diff(before, rollouts, cmp.AllowUnexported(azcorearm.ResourceID{}, azcorearm.ResourceType{})))
 }
 
 func TestStatusCollectorServiceProviderClusterUpdates(t *testing.T) {

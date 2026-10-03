@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
+	"github.com/Azure/ARO-HCP/internal/versionpolicy"
 )
 
 const (
@@ -98,6 +99,7 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// Nightly installs must resolve to a full version; this needs both the customer
 	// version profile and the service-provider exact pin, so it lives at cluster level.
 	errs = append(errs, validateNightlyChannelRequiresFullVersion(ctx, op, newCluster, oldCluster)...)
+	errs = append(errs, validateClusterMinimumVersion(ctx, op, newCluster, oldCluster)...)
 
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
@@ -105,6 +107,24 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	RewriteValidationFieldPaths(errs, validationPathMapper)
 
 	return errs
+}
+
+func validateClusterMinimumVersion(ctx context.Context, op operation.Operation, newCluster, oldCluster *coreapi.Cluster) field.ErrorList {
+	newProfile := newCluster.CustomerProperties.Version
+	newExact := newCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+	if op.Type == operation.Update && oldCluster != nil && newProfile == oldCluster.CustomerProperties.Version {
+		oldExact := oldCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+		// Compare the exact pin as well to detect patch and nightly build changes
+		// after mutation reduces version.id to a minor.
+		if (newExact == nil && oldExact == nil) || (newExact != nil && oldExact != nil && newExact.String() == oldExact.String()) {
+			return nil
+		}
+	}
+	versionID := newProfile.ID
+	if newExact != nil {
+		versionID = newExact.String()
+	}
+	return VersionMustBeAtLeastMajorMinor(ctx, op, field.NewPath("customerProperties", "version", "id"), &versionID, nil, versionpolicy.MinimumPublicVersion)
 }
 
 func validateClusterVNetIntegrationSubnetID(_ context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
@@ -521,21 +541,12 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	if oldObj == nil || len(oldObj.ID) > 0 {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 
-		// Only the major.minor version can be specified for the control plane version
-		// so we only need to check if it meets the minimum required major.minor version
-		errs = append(errs, VersionMustBeAtLeastMajorMinor(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
-
 		errs = append(errs, VersionMayNotDecrease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 		errs = append(errs, OpenshiftVersionAtMostOneMinorSkewWithField(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 	}
 	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
 		// we never allow micro to any cluster that might live longer than a couple days.  We cannot allow it because it might install naughty things
 		errs = append(errs, OpenshiftVersionWithoutMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
-		// only allow OpenShift v5 and above for subscriptions that have the experimental feature registered for now
-		// remove this together with the matching check in the control plane desired version controller when we are ready
-		if v, err := semver.ParseTolerant(newObj.ID); err == nil && v.Major >= 5 {
-			errs = append(errs, field.Invalid(fldPath.Child("id"), newObj.ID, "OpenShift v5 and above is not supported"))
-		}
 	} else {
 		// For our CI clusters, let us install anything: allow full semver format (X.Y.Z-prerelease)
 		errs = append(errs, OpenshiftVersionWithOptionalMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)

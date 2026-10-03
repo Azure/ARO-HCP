@@ -17,7 +17,7 @@ tests:
         component: backend
         name: OperationClusterCreate
         severity: warning
-      exp_annotations:
+      exp_annotations: &clusterCreateAnnotations
         correlationId: 'BackendControllerRetryHotLoop//OperationClusterCreate'
         description: 'Backend controller workqueue OperationClusterCreate has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
@@ -55,3 +55,27 @@ tests:
   - eval_time: 20m
     alertname: BackendControllerRetryHotLoop
     exp_alerts: []
+# Test: Version catalog retries are excluded while unrelated controllers still alert.
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{name="openshiftversioncatalog", namespace="aro-hcp"}'
+    values: "0+100x25"
+  - series: 'workqueue_adds_total{name="openshiftversioncatalog", namespace="aro-hcp"}'
+    values: "0+100x25"
+  - series: 'workqueue_retries_total{name="OpenShiftVersionCatalog", namespace="aro-hcp"}'
+    values: "0+100x25"
+  - series: 'workqueue_adds_total{name="OpenShiftVersionCatalog", namespace="aro-hcp"}'
+    values: "0+100x25"
+  - series: 'workqueue_retries_total{name="OperationClusterCreate", namespace="aro-hcp"}'
+    values: "0+80x25"
+  - series: 'workqueue_adds_total{name="OperationClusterCreate", namespace="aro-hcp"}'
+    values: "0+100x25"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendControllerRetryHotLoop
+    exp_alerts:
+    - exp_labels:
+        component: backend
+        name: OperationClusterCreate
+        severity: warning
+      exp_annotations: *clusterCreateAnnotations

@@ -46,6 +46,12 @@ type ControlPlaneVersionRollout struct {
 
 // ControlPlaneVersionRolloutSpec contains the desired state of the rollout.
 type ControlPlaneVersionRolloutSpec struct {
+	// Version identifies the minor version and channel group coordinated by this
+	// rollout. ID is a canonical major.minor version; the resource name is the
+	// corresponding Cincinnati channel name.
+	// Written by: ControlPlaneVersionRolloutSeeding
+	Version coreapi.VersionProfile `json:"version"`
+
 	// BestExactVersion is selected from the y-stream channel by recency and its
 	// z-stream offset, subject to the SRE minimum-version floor. It is the exact
 	// version the rollout drives clusters toward. Nil means no version has been

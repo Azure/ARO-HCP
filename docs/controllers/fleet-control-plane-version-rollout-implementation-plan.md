@@ -5,7 +5,8 @@ This plan maps the fleet rollout design originally authored on the
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: the seven controllers, Cosmos storage, informers, and backend wiring
+> Status: the seven rollout controllers plus catalog publication and retirement,
+> Cosmos storage, informers, and backend wiring
 > are implemented. They run unconditionally. Production policy is hardcoded;
 > risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
 
@@ -73,6 +74,8 @@ type ControlPlaneVersionRollout struct {
 }
 
 type ControlPlaneVersionRolloutSpec struct {
+    // Canonical major.minor ID and channel group; written by rollout seeding.
+    Version coreapi.VersionProfile `json:"version"`
     // BestExactVersion uses recency and the channel offset, subject to the SRE
     // minimum-version floor. Conditional-update risk filtering is a follow-up.
     BestExactVersion *semver.Version `json:"bestExactVersion,omitempty"`
@@ -89,6 +92,19 @@ type ControlPlaneVersionRolloutStatus struct {
     SuccessfulClusterCountByAchievedExactVersion map[string]int64 `json:"successfulClusterCountByAchievedExactVersion,omitempty"`
 }
 ```
+
+[`Spec.Version`](../../internal/api/fleetapi/types_control_plane_version_rollout.go)
+holds the structured minor version and channel group: for example, `{ID: "4.21",
+ChannelGroup: "stable"}` must have resource name `stable-4.21`, the corresponding
+Cincinnati channel name.
+[`NormalizeRolloutVersion`](../../internal/apihelpers/fleetapihelpers/rollout_version.go)
+parses the name of a persisted rollout with an entirely missing/zero profile into
+a deep copy. Partial profiles and name/profile mismatches are errors. The seeder
+persists the backfill with the live ETag, preserving metadata, best version and
+status. Catalog publication and retirement use the same adapter at their read
+boundaries, then reconcile structured profiles. Decoding leaves missing profiles
+visible for persisted repair. See the
+[migration and concurrency tests](../../internal/apihelpers/fleetapihelpers/rollout_version_test.go).
 
 Wiring checklist (templated on `Stamp`, see the research notes):
 `types_control_plane_version_rollout.go`, `types_runtime.go` (`GetObjectKind`,
@@ -142,18 +158,42 @@ type RolloutConfig struct {
 Production defaults are `CanaryPercentage=6`, `RollingPercentage=12`, one hour
 of readiness, and a two-hour upgrade timeout unless overridden for a minor.
 `GetZStreamOffset` selects one version behind for stable and zero for other graph
-channels. Nightly versions come from the experimental exact-version override;
-they neither seed rollouts nor query Cincinnati.
+channels. Nightly references seed structured rollout profiles under the shared
+allowed-channel policy. The existing selector skips Cincinnati for nightly, so
+nightly installs continue to use the experimental exact-version override.
+
+The separate `MinimumPublicVersion` and `MinimumBackendVersion` constants in
+[`versionpolicy`](../../internal/versionpolicy/policy.go) are both `4.20`.
+The public floor controls publication/admission; the backend floor controls
+discovery and unreferenced-rollout retirement. Referenced minor version and channel
+group pairs remain repairable below the backend floor. See the
+[deprecation procedure](../ops/deprecate-openshift-version.md) for advancing them.
 
 ## 5. Controllers
 
-All seven run in the `backend` binary. Four are per-cluster (use
-`controllerutils.NewClusterWatchingController` + `HCPClusterKey`); three are
-per-`ControlPlaneVersionRollout` (use a new fleet watching controller keyed by
-the rollout channel name, or `genericWatchingController[T]` on the rollout
-resource type + interval resync).
+All nine run in the `backend` binary. Three assignment controllers are per-cluster
+(use `controllerutils.NewClusterWatchingController` + `HCPClusterKey`); three are
+per-`ControlPlaneVersionRollout`, keyed by the rollout channel name. Seeding uses
+a structured-profile queue; catalog publication and retirement use regional keys.
 
-Every controller follows the house pattern: a syncer struct holding listers +
+`TypedController[T]` in `internal/controllerutils/typed_controller.go` owns the
+reusable typed queue, worker/retry loop, logging, reconcile metrics, cache-sync
+gating and worker `Run`. `GenericWatchingController[T]` is the adapter on that
+base that preserves the existing `any`-based interface and resource-ID watcher
+helpers, including `MakeKey` and cooldown handling.
+
+The [periodic wrapper](../../backend/pkg/controllers/cluster/version/rollout/periodic_controller.go)
+uses `TypedController[T]` directly and owns producer startup/shutdown in its `Run`,
+delegating worker execution to the base. Seeding and retirement constructors return
+`controllerregistry.Runnable`, not the backend `controllerutils.Controller`, whose
+contract requires watching. The catalog publisher also uses the typed base
+directly, with explicitly wired informer callbacks enqueueing its aggregate
+regional key. This separates queue execution from event-to-key mapping: producer
+and aggregate keys need no resource-ID conversion or panic-only `MakeKey` stub.
+None of these three controllers writes child Controller bookkeeping; producer
+timing, retry/metrics behavior and reconciliation policies are unchanged.
+
+Assignment and per-rollout controllers follow the house pattern: a syncer struct holding listers +
 DB clients (interfaces), a `New…Controller` constructor, and a `SyncOnce`
 implementing the read → `DeepCopy` → mutate → `equality.Semantic.DeepEqual`
 skip → `Replace` (treating `IsPreconditionFailedError` as a benign no-op) loop.
@@ -220,11 +260,36 @@ controller** — the plan reuses the existing path. Input
   changed-resource notifications and controller restarts. ETag conflicts stop the
   assignment, and partial failures retain the reservation.
 
-### 5.6 Rollout Seeding (per-cluster)
+### 5.6 Rollout Seeding
 
-Creates a rollout for the customer's requested channel and, when pinned, the
-pinned minor's channel. Existing rollout contents are preserved. Nightly and
-deleting clusters are skipped.
+Owns one homogeneous queue of `rolloutSeedKey.Version` profiles. After cache sync,
+[`Run`](../../backend/pkg/controllers/cluster/version/rollout/periodic_controller.go)
+starts independent HTTP discovery and cached-reference/backfill/legacy-health
+cleanup producer loops. Each runs immediately and then at five-minute intervals;
+producer failures are logged for the next interval. Queue retry/reconcile metrics
+cover worker execution. Targeted Cluster/SPC event callbacks use the event object
+and cached counterpart to produce normalized profiles; errors recover through
+periodic repair.
+
+Workers live-read the rollout, create missing discovered profiles at/above the
+backend floor, and recheck the regional cached references before creating missing
+below-floor profiles. References include requested, desired, pinned, override and
+active versions, including deleting resources and nightly channels; pin comparison
+thresholds are excluded. Existing legacy profiles are backfilled using an
+ETag-protected Replace; selected versions, status and metadata are preserved.
+Create conflicts and write failures use queue retries with a fresh live read.
+
+The reference producer inventories all legacy rollouts, including unused
+below-floor ones, for profile backfill. It removes obsolete per-cluster seeder
+Controller status only after an error-free inventory and cache observation of
+valid structured rollouts for the cluster's references. Cleanup failures wait for
+the next producer interval. Discovery and reference repair share the seeder's
+controller identity and lifecycle.
+
+Graph-data typically has no nightly channel definitions, and the existing
+Cincinnati selector does not resolve nightly releases. The generic catalog honors
+any selected nightly rollout, with candidate/nightly visibility gated by the shared
+experimental-release AFEC rule. Nightly exact-pin admission remains unchanged.
 
 ### 5.7 Initial Normal Desired Version (per-cluster)
 
@@ -244,10 +309,8 @@ after ten seconds and bypass progressive z-stream gates.
 
 ## 6. Ownership and cutover
 
-This implementation deliberately replaces `ControlPlaneDesiredVersion`; all
-seven rollout controllers run unconditionally. The earlier feature-flag proposal
-was removed during review. Restoring it would reintroduce the removed owner and
-is not part of this change.
+The assignment controllers own desired-version writes; all nine rollout/catalog
+controllers run unconditionally.
 
 `OperationClusterUpdate` observes the desired version resolved on the SPC by the
 current assignment controllers. It reports incompatible forced overrides directly,
@@ -256,6 +319,16 @@ bounds unresolved version waits, and no longer reads or creates a legacy
 
 ## 7. Testing strategy
 
+- [Structured-profile migration tests](../../internal/apihelpers/fleetapihelpers/rollout_version_test.go)
+  cover name/profile validation, deep-copy preservation, idempotence, decoding of
+  missing profiles and stale-ETag protection.
+- [Seeder tests](../../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller_test.go)
+  cover cached event-produced profiles, independent producer timing and worker
+  retries, cache-sync cancellation, live backfill, below-floor recreation guards
+  and legacy-health cleanup after observed persistence.
+- [Catalog](../../backend/pkg/controllers/cluster/version/rollout/version_catalog_controller_test.go)
+  and [retirement tests](../../backend/pkg/controllers/cluster/version/rollout/rollout_retirement_controller_test.go)
+  cover structured reconciliation and legacy read-boundary adaptation.
 - **Pure decision functions** (`computeRolloutStatusCounts`, `selectBestExactVersion`, `eligibleClusters`,
   `rolloutDecision`) get exhaustive table-driven unit tests — no fakes needed.
 - **`SyncOnce`** tests use the in-memory mock DB
@@ -286,7 +359,8 @@ Implemented:
 
 - Fleet API, validation of supported channel groups and major/minor names,
   Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
-- Seven controllers, backend registration under leader election, and unit tests.
+- Nine rollout/catalog controllers, backend registration under leader election,
+  and unit tests, including structured-profile migration and producer lifecycle.
 - Shared Cincinnati selection with the existing per-channel offset policy.
 - Persisted transition ages and assignment cooldown reservations.
 - Forced-version precedence, pinned-channel seeding, and completed-only progress.

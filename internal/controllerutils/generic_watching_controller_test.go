@@ -310,3 +310,31 @@ func TestProcessNextWorkItemIncrementsReconcileTotal(t *testing.T) {
 	count = testutil.ToFloat64(reconcileTotal.WithLabelValues("test-metrics"))
 	require.Equal(t, float64(2), count)
 }
+
+func TestGenericWatchingControllerFacade(t *testing.T) {
+	c, clusterID, _ := newTestWatchingController()
+	t.Cleanup(c.queue.ShutDown)
+	var enqueuer Enqueuer = c
+	var afterEnqueuer AfterEnqueuer = c
+	var syncer interface {
+		SyncOnce(context.Context, any) error
+	} = c
+
+	enqueuer.Enqueue(42)
+	enqueuer.Enqueue(nil)
+	afterEnqueuer.EnqueueAfter(42, 0)
+	afterEnqueuer.EnqueueAfter(nil, 0)
+	require.Zero(t, c.queue.Len())
+	require.EqualError(t, syncer.SyncOnce(t.Context(), 42), "invalid key type int")
+	require.EqualError(t, syncer.SyncOnce(t.Context(), nil), "invalid key type <nil>")
+
+	key := clusterID.String()
+	enqueuer.Enqueue(key)
+	afterEnqueuer.EnqueueAfter(key, 0)
+	require.Equal(t, []string{key}, popAllQueue(c))
+	wantErr := errors.New("sync failed")
+	c.syncer.(*stringSyncer).syncErr = wantErr
+	require.ErrorIs(t, syncer.SyncOnce(t.Context(), key), wantErr)
+	c.AddCacheSyncs(func() bool { return true })
+	require.True(t, c.WaitForCacheSync(t.Context()))
+}

@@ -41,8 +41,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -277,77 +275,15 @@ func dbListOptionsFromRequest(request *http.Request) *cosmosstorageutils.DBClien
 }
 
 func (f *Frontend) ArmResourceListVersion(writer http.ResponseWriter, request *http.Request) error {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	location := request.PathValue(PathSegmentLocation)
-
-	pagedResponse := coreapi.NewPagedResponse()
-
-	csIterator := f.clusterServiceClient.ListVersions()
-	for csVersion := range csIterator.Items(ctx) {
-		versionName := strings.Replace(csVersion.ID(), metadataapi.OpenShiftVersionPrefix, "", 1)
-		stringResource := "/subscriptions/" + subscriptionID + "/providers/" + coreapi.ProviderNamespace +
-			"/locations/" + location + "/" + coreapi.VersionResourceTypeName + "/" + versionName
-		resourceID, err := azcorearm.ParseResourceID(stringResource)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		value, err := marshalCSVersion(resourceID, csVersion, versionedInterface)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		pagedResponse.AddValue(value)
-	}
-	err = csIterator.GetError()
-
-	// Check for iteration error.
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	return nil
+	return f.serveOpenShiftVersions(writer, request, false)
 }
 
 // GetOpenshiftVersions implements the GET single resource API contract for ARM
 // * 200 If the resource exists
 // * 404 If the resource does not exist
+// * 503 If the catalog or the visible version's availability is unresolved
 func (f *Frontend) GetOpenshiftVersions(writer http.ResponseWriter, request *http.Request) error {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	resourceID, err := utils.ResourceIDFromContext(ctx)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	versionName := resourceID.Name
-	version, err := f.clusterServiceClient.GetVersion(ctx, versionName)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	responseBody, err := marshalCSVersion(resourceID, version, versionedInterface)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, responseBody)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	return nil
+	return f.serveOpenShiftVersions(writer, request, true)
 }
 
 func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseWriter, request *http.Request) error {
@@ -1245,9 +1181,4 @@ func featuresMap(features *[]coreapi.Feature) map[string]string {
 		}
 	}
 	return featureMap
-}
-
-func marshalCSVersion(resourceID *azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface coreapi.Version) ([]byte, error) {
-	openShiftVersion := ocm.ConvertCStoOpenShiftVersion(resourceID, version)
-	return coreapi.MarshalJSON(versionedInterface.NewOpenShiftVersion(openShiftVersion))
 }

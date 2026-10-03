@@ -34,7 +34,8 @@ type HTTPTestAccessor interface {
 	// Get performs a GET and returns the raw *http.Response (after validating
 	// the status code). The body is not read; callers decode it (e.g. via
 	// DecodeResponseBody) and read response headers (e.g. Retry-After), and are
-	// responsible for closing the body.
+	// responsible for closing the body. On HTTP errors the response is returned
+	// with its body already consumed and closed, so headers remain available.
 	Get(ctx context.Context, resourceIDString string) (*http.Response, error)
 	List(ctx context.Context, parentResourceIDString string) ([]any, error)
 	CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error
@@ -151,9 +152,10 @@ func (a *httpHTTPTestAccessor) Delete(ctx context.Context, resourceIDString stri
 const operationStatusLocation = "fake-location"
 
 // doRequest issues the HTTP request and validates the status code. On a non-2xx
-// response it reads the body (to build a descriptive error) and closes it. On
-// success it returns the raw *http.Response with the body unread; the caller is
-// responsible for reading/decoding and closing the body.
+// response it reads the body (to build a descriptive error) and closes it,
+// returning the response alongside the error for status/header assertions.
+// On success it returns the raw *http.Response with the body unread; the caller
+// is responsible for reading/decoding and closing the body.
 func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -218,7 +220,7 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 		if err := json.Indent(&indented, bodyBytes, "", "  "); err == nil {
 			bodyBytes = indented.Bytes()
 		}
-		return nil, utils.TrackError(fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)))
+		return resp, utils.TrackError(fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)))
 	}
 
 	return resp, nil

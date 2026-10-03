@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -64,12 +65,13 @@ func (c *statusCollectorSyncer) enqueueStatusChannels(queue controllerutils.Enqu
 		return
 	}
 	for _, rollout := range rollouts {
-		if rollout.ResourceID == nil {
+		profile, err := fleetapihelpers.RolloutVersionForRead(rollout)
+		if err != nil {
+			logger.Error(err, "Cannot determine affected status channel; rollout resync will retry")
 			continue
 		}
 		yStreamChannel := rollout.ResourceID.Name
-		_, minor, ok := parseYStreamChannel(yStreamChannel)
-		if ok && (affected[""] || affected[minor]) {
+		if affected[""] || affected[profile.ID] {
 			logger.Info("Enqueuing status collection after input change", "ystreamChannel", yStreamChannel)
 			queue.Enqueue(controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: yStreamChannel})
 		}

@@ -143,6 +143,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 
 ### Guides and Operations
 
+- [Deprecate an OpenShift Minor Version](ops/deprecate-openshift-version.md): public admission/publication first, internal retirement after fleet drain.
 - [Introduce a new Service to ARO HCP](introduce-new-services.md)
   - Guidance on how to introduce new services into the ARO HCP architecture and deployment concept
 - [Bump Service Component Image Digests](ops/bump-image-digests.md)

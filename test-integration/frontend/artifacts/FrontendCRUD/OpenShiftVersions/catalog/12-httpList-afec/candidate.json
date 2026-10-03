@@ -1,0 +1,9 @@
+{
+	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOpenShiftVersions/4.21-candidate",
+	"name": "4.21-candidate",
+	"properties": {
+		"channelGroup": "candidate",
+		"enabled": true
+	},
+	"type": "Microsoft.RedHatOpenShift/locations/hcpOpenShiftVersions"
+}

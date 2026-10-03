@@ -161,7 +161,7 @@ func (ProviderNamespacePartitionKeyDeriver) PartitionKey(_ *azcorearm.ResourceID
 
 func (ProviderNamespacePartitionKeyDeriver) PartitionKeyFromObject(obj any) (string, error) {
 	switch obj.(type) {
-	case *fleetapi.ControlPlaneVersionRollout:
+	case *fleetapi.ControlPlaneVersionRollout, *coreapi.OpenShiftVersionCatalog:
 		return strings.ToLower(coreapi.ProviderNamespace), nil
 	default:
 		return "", fmt.Errorf("provider-namespace partitioning does not apply to %T", obj)
