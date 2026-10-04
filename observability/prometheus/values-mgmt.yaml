@@ -30,7 +30,7 @@ kube-prometheus-stack:
   kubeApiServer:
     enabled: false
   kubeStateMetrics:
-    enabled: true # OSS prometheus scrapes kube-state-metrics so the HCP ksm are routed to the hcp Azure Monitor Workspace
+    enabled: true # Only allowlisted management KSM sizing/inventory overrides HCP namespace routing to services AMW.
   prometheus:
     enabled: false # Prometheus is deployed using templates/prometheus.yaml
   prometheusOperator:
