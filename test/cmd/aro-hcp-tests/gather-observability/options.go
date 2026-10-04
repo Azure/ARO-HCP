@@ -310,6 +310,7 @@ type gatherDependencies struct {
 	queryRange            func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*promutil.Response, error)
 	queryMetrics          func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]promutil.Result, string, error)
 	collectUtilization    func(context.Context, map[string]*workspaceData) utilizationReport
+	collectReplicaPeaks   func(context.Context, map[string]*workspaceData) replicaPeakReport
 	collectAMW            func(context.Context) amwReport
 	renderAMW             func(amwReport) ([]byte, error)
 	renderAlerts          func(any) ([]byte, error)
@@ -327,7 +328,8 @@ func (o Options) dependencies() gatherDependencies {
 		fetchAlertRules: fetchAlertRules, lookupEndpoint: promutil.LookupPrometheusEndpoint,
 		queryRange: promutil.QueryRange, queryMetrics: queryAzureMonitorMetrics,
 		collectUtilization: o.collectUtilization, renderUtilization: renderUtilizationHTML,
-		collectAMW: o.collectAMW, renderAMW: renderAMWHTML,
+		collectReplicaPeaks: o.collectReplicaPeaks,
+		collectAMW:          o.collectAMW, renderAMW: renderAMWHTML,
 		renderResourceHistory: renderResourceHistoryHTML,
 		renderAlerts:          renderAlertsHTML, renderPanel: renderPanelHTML,
 		renderPage: renderObservabilityPage, writeFile: os.WriteFile, writeJUnit: junit.Write,
@@ -522,6 +524,10 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 		logger.Error(amwErr, "failed to publish AMW evidence")
 	}
 	tabs = append(tabs, amwTab)
+
+	// Persist compact per-replica evidence before the more expensive chart and
+	// resource-history queries. Collection warnings are informational, not a gate.
+	writeJSON("replica-peaks.json", deps.collectReplicaPeaks(ctx, workspaces))
 
 	// Execute panel queries (Prometheus and Azure Monitor) and render timeseries charts
 	if o.Queries != nil {
