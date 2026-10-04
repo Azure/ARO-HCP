@@ -162,12 +162,7 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
-          limits:
-            cpu: 100m
-            memory: 2Gi
-          requests:
-            cpu: 100m
-            memory: 20Mi
+          {{- include "acm.resources" .Values.resources.backplaneOperator | nindent 10 }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

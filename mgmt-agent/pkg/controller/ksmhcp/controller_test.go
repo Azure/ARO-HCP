@@ -18,7 +18,9 @@ import (
 	"context"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -103,9 +105,33 @@ func TestBuildDeployment(t *testing.T) {
 			Name:       "test-hcp",
 			UID:        "uid-123",
 		},
+		DefaultResources(),
 	)
 
 	testutil.CompareWithFixture(t, dep)
+}
+
+func TestBuildDeploymentResources(t *testing.T) {
+	resources := corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("25m"), corev1.ResourceMemory: resource.MustParse("96Mi")},
+		Limits:   corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("384Mi")},
+	}
+	dep := buildDeployment("test", "ksm:test", serviceNetworkKubeconfigSecret, serviceNetworkKubeconfigKey, metav1.OwnerReference{}, resources)
+	container := dep.Spec.Template.Spec.Containers[0]
+	if *container.Name != "kube-state-metrics" || len(dep.Spec.Template.Spec.Containers) != 1 || len(dep.Spec.Template.Spec.InitContainers) != 0 {
+		t.Fatal("resource override changed container identity or added containers")
+	}
+	for name, want := range resources.Requests {
+		if got := (*container.Resources.Requests)[name]; got.Cmp(want) != 0 {
+			t.Errorf("request %s = %s, want %s", name, got.String(), want.String())
+		}
+	}
+	if got := (*container.Resources.Limits)[corev1.ResourceMemory]; got.Cmp(resources.Limits[corev1.ResourceMemory]) != 0 {
+		t.Errorf("memory limit = %s, want 384Mi", got.String())
+	}
+	if _, ok := (*container.Resources.Limits)[corev1.ResourceCPU]; ok {
+		t.Fatal("resource override added a CPU limit")
+	}
 }
 
 func TestBuildService(t *testing.T) {

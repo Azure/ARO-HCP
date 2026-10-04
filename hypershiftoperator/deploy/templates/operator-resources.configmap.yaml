@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hypershift-operator-resources
+  namespace: '{{ .Release.Namespace }}'
+data:
+  kustomization.yaml: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    resources:
+    - hypershift.yaml
+    patches:
+    - target:
+        group: apps
+        version: v1
+        kind: Deployment
+        name: operator
+        namespace: hypershift
+      patch: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: operator
+          namespace: hypershift
+        spec:
+          template:
+            spec:
+              containers:
+              - name: operator
+                resources:
+                  requests:
+                    cpu: {{ .Values.operatorResources.requests.cpu | quote }}
+                    memory: {{ .Values.operatorResources.requests.memory | quote }}

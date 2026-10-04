@@ -46,6 +46,8 @@ azureCsMiClientId: ""
 clientId: ""
 clientSecret: ""
 useAzureDB: false
+databaseResources: {}
+initResources: {}
 databaseServiceName: "ocm-cs-db"
 databaseK8sSecretName: "ocm-cs-db"
 databaseVolumeCapacity: "512Mi"

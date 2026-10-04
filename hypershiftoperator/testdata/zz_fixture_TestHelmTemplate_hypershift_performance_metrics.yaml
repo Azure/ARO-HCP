@@ -644,6 +644,41 @@ metadata:
   namespace: 'hypershift'
 type: kubernetes.io/dockerconfigjson
 ---
+# Source: aro-hcp-hypershift-operator/templates/operator-resources.configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hypershift-operator-resources
+  namespace: 'hypershift'
+data:
+  kustomization.yaml: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    resources:
+    - hypershift.yaml
+    patches:
+    - target:
+        group: apps
+        version: v1
+        kind: Deployment
+        name: operator
+        namespace: hypershift
+      patch: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: operator
+          namespace: hypershift
+        spec:
+          template:
+            spec:
+              containers:
+              - name: operator
+                resources:
+                  requests:
+                    cpu: "10m"
+                    memory: "150Mi"
+---
 # Source: aro-hcp-hypershift-operator/templates/sre-metrics-set.configmap.yaml
 apiVersion: v1
 kind: ConfigMap
@@ -754,15 +789,18 @@ spec:
   backoffLimit: 1
   template:
     spec:
-      containers:
-      - name: install
+      initContainers:
+      - name: render
         image: "arohcpsvcdev.azurecr.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator@sha256:1234567890"
         command:
         - /bin/sh
         - -c
         - |
-          hypershift install \
-            --install-scope=resources \
+          set -eu
+          hypershift install render \
+            --outputs=resources \
+            --render-sensitive \
+            --output-file=/manifests/hypershift.yaml \
             --enable-conversion-webhook=false \
             --managed-service ARO-HCP \
             --aro-hcp-key-vault-users-client-id __csiSecretStoreClientId__ \
@@ -774,6 +812,48 @@ spec:
             --limit-crd-install=Azure \
             --additional-operator-env-vars IMAGE_SHARED_INGRESS_HAPROXY=arohcpocpdev.azurecr.io/redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main@sha256:1234567890 \
             --enable-cpo-overrides --disable-capi-migration
+        volumeMounts:
+        - name: manifests
+          mountPath: /manifests
+      containers:
+      - name: install
+        image: "mcr.microsoft.com/aks/command/runtime@sha256:1234567890"
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+          cp /overlay/kustomization.yaml /manifests/kustomization.yaml
+          kubectl kustomize /manifests > /manifests/rendered.yaml
+          kubectl create --dry-run=client --validate=false -f /manifests/rendered.yaml -o json |
+            jq -s '{apiVersion: "v1", kind: "List", items: [.[] | if .kind == "List" then .items[] else . end]}' > /manifests/resources.json
+          jq -c '.items[] | select(.kind == "PriorityClass")' /manifests/resources.json > /manifests/priorityclasses.jsonl
+          # Upstream creates PriorityClasses without updating existing immutable values.
+          while IFS= read -r priorityclass; do
+            if output=$(kubectl create -f - <<< "$priorityclass" 2>&1); then
+              printf '%s\n' "$output"
+            elif [[ "$output" == 'Error from server (AlreadyExists): '* ]]; then
+              printf '%s\n' "$output"
+            else
+              printf '%s\n' "$output" >&2
+              exit 1
+            fi
+          done < /manifests/priorityclasses.jsonl
+          jq '.items |= map(select(.kind != "PriorityClass"))' /manifests/resources.json > /manifests/apply.json
+          # Match the upstream install field manager and force-ownership policy.
+          kubectl apply --server-side --force-conflicts --field-manager=hypershift -f /manifests/apply.json
+        volumeMounts:
+        - name: manifests
+          mountPath: /manifests
+        - name: overlay
+          mountPath: /overlay
+          readOnly: true
+      volumes:
+      - name: manifests
+        emptyDir: {}
+      - name: overlay
+        configMap:
+          name: hypershift-operator-resources
       restartPolicy: Never
       serviceAccountName: hypershift-installer
 ---
@@ -825,4 +905,5 @@ spec:
             deploymentName: ovnkube-control-plane
             memory: 100Mi
             cpu: 100m
+
       name: e2e_minimal

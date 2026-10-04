@@ -55,12 +55,21 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
+        {{- $resources := dict }}
+        {{- range $kind, $values := .Values.resources }}
+        {{- $quantities := dict }}
+        {{- range $name, $value := $values }}
+        {{- if not (has (toString $value) (list "NONE" "unlimited")) }}
+        {{- $_ := set $quantities $name $value }}
+        {{- end }}
+        {{- end }}
+        {{- if $quantities }}
+        {{- $_ := set $resources $kind $quantities }}
+        {{- end }}
+        {{- end }}
+        {{- with $resources }}
         resources:
-          limits:
-            cpu: 100m
-            memory: 1Gi
-          requests:
-            cpu: 100m
-            memory: 20Mi
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       serviceAccountName: acrpull
       terminationGracePeriodSeconds: 10

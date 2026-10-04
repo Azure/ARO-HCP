@@ -7,6 +7,12 @@ ksmImage:
   registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
   repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
   digest: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
+guestKSMResources:
+  requests:
+    cpu: "{{ .mgmtAgent.guestKSMResources.requests.cpu }}"
+    memory: "{{ .mgmtAgent.guestKSMResources.requests.memory }}"
+  limits:
+    memory: "{{ .mgmtAgent.guestKSMResources.limits.memory }}"
 deployment:
   replicas: "{{ .mgmtAgent.k8s.replicas }}"
   requests:

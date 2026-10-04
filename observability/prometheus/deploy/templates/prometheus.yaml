@@ -1,6 +1,10 @@
 {{- $none := "NONE" -}}
 {{- $setRequests := or (ne (.Values.prometheusSpec.resources.requests.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.requests.memory | toString) $none) -}}
-{{- $setLimits := ne (.Values.prometheusSpec.resources.limits.memory | toString) $none -}}
+{{- $cpuLimit := $none -}}
+{{- if hasKey .Values.prometheusSpec.resources.limits "cpu" -}}
+{{- $cpuLimit = .Values.prometheusSpec.resources.limits.cpu -}}
+{{- end -}}
+{{- $setLimits := or (ne ($cpuLimit | toString) $none) (ne (.Values.prometheusSpec.resources.limits.memory | toString) $none) -}}
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: PrometheusAgent
 metadata:
@@ -22,6 +26,9 @@ spec:
     {{- end }}
     {{- if $setLimits }}
     limits:
+      {{- if ne ($cpuLimit | toString) $none }}
+      cpu: '{{ $cpuLimit }}'
+      {{- end }}
       {{- if ne (.Values.prometheusSpec.resources.limits.memory | toString) $none }}
       memory: '{{ .Values.prometheusSpec.resources.limits.memory }}'
       {{- end }}

@@ -1,6 +1,13 @@
 istioVersions:
 - "{{ .svc.istio.versions }}"
 opsIngress:
+  resources:
+    requests:
+      cpu: "{{ .svc.opsIngress.gateway.resources.requests.cpu }}"
+      memory: "{{ .svc.opsIngress.gateway.resources.requests.memory }}"
+    limits:
+      cpu: "{{ .svc.opsIngress.gateway.resources.limits.cpu }}"
+      memory: "{{ .svc.opsIngress.gateway.resources.limits.memory }}"
   publicIpAddress: "{{ .svc.opsIngress.gateway.ipAddressName }}"
   publicIpResourceGroup: "{{ .regionRG }}"
   adminApi:

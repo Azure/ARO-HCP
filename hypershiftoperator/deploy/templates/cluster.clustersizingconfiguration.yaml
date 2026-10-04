@@ -47,6 +47,7 @@ spec:
             deploymentName: ovnkube-control-plane
             memory: 100Mi
             cpu: 100m
+{{ include "hypershift.additionalMinimalResourceRequests" . | trim | indent 10 | trimSuffix "          " }}
       name: e2e_minimal
 {{ else }}
 apiVersion: scheduling.hypershift.openshift.io/v1alpha1

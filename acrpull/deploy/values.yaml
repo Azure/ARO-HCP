@@ -2,3 +2,10 @@ namespace: acrpull
 image: "{{ .acrPull.image.registry }}/{{ .acrPull.image.repository }}@{{ .acrPull.image.digest }}"
 ttlRotationFraction: 0.5
 replicas: 2
+resources:
+  requests:
+    cpu: "{{ .acrPull.k8s.resources.requests.cpu }}"
+    memory: "{{ .acrPull.k8s.resources.requests.memory }}"
+  limits:
+    cpu: "{{ .acrPull.k8s.resources.limits.cpu }}"
+    memory: "{{ .acrPull.k8s.resources.limits.memory }}"

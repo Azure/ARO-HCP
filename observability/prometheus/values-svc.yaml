@@ -1,3 +1,5 @@
+# Keep the definition in a YAML comment and retain its trailing newline so the next key is not commented out.
+# {{ define "resources" }}{ {{- $first := true -}}{{- range $kind, $values := . -}}{{- $cpu := printf "%v" $values.cpu -}}{{- $memory := printf "%v" $values.memory -}}{{- $setCPU := and (ne $cpu "NONE") (ne $cpu "unlimited") -}}{{- $setMemory := and (ne $memory "NONE") (ne $memory "unlimited") -}}{{- if or $setCPU $setMemory -}}{{- if not $first }},{{ end -}}{{- $first = false -}}"{{ $kind }}": { {{- if $setCPU }}"cpu": "{{ $cpu }}"{{ end -}}{{- if and $setCPU $setMemory }},{{ end -}}{{- if $setMemory }}"memory": "{{ $memory }}"{{ end -}} }{{- end -}}{{- end -}} }{{ end }}
 schedulingRole: '{{ if eq (printf "%v" .svc.aks.systemPoolOnly) "true" }}system{{ else }}infra{{ end }}'
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
@@ -35,6 +37,7 @@ kube-prometheus-stack:
     enabled: false # Prometheus is deployed using templates/prometheus.yaml
   prometheusOperator:
     enabled: true
+    resources: {{ template "resources" .svc.prometheus.prometheusOperator.resources }}
     fullnameOverride: ""
     image:
       registry: "{{ .svc.prometheus.prometheusOperator.image.registry }}"
@@ -46,6 +49,7 @@ kube-prometheus-stack:
       tag: "{{ .svc.prometheus.thanos.image.tag }}"
       sha: "{{ .svc.prometheus.thanos.image.sha }}"
     prometheusConfigReloader:
+      resources: {{ template "resources" .svc.prometheus.prometheusConfigReloader.resources }}
       image:
         registry: "{{ .svc.prometheus.prometheusConfigReloader.image.registry }}"
         repository: "{{ .svc.prometheus.prometheusConfigReloader.image.repository }}"
@@ -75,6 +79,7 @@ kube-prometheus-stack:
   cleanPrometheusOperatorObjectNames: true
   # config for kube-state-metrics subchart that is imported by the kube-prometheus-stack chart conditionally
   kube-state-metrics:
+    resources: {{ template "resources" .svc.prometheus.kubeStateMetrics.resources }}
     metricLabelsAllowlist:
     - nodes=[node.kubernetes.io/instance-type,kubernetes.azure.com/agentpool]
     image:
