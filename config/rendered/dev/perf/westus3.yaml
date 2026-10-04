@@ -581,7 +581,68 @@ hcpRecovery:
     serviceAccountName: hcp-recovery
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
-  additionalMinimalResourceRequests: {}
+  additionalMinimalResourceRequests:
+    azure-cloud-controller-manager-cloud-controller-manager:
+      containerName: cloud-controller-manager
+      cpu: 40m
+      deploymentName: azure-cloud-controller-manager
+      memory: 140Mi
+    catalog-operator-catalog-operator:
+      containerName: catalog-operator
+      cpu: 20m
+      deploymentName: catalog-operator
+      memory: 140Mi
+    certified-operators-catalog-registry:
+      containerName: registry
+      cpu: 130m
+      deploymentName: certified-operators-catalog
+      memory: 1110Mi
+    community-operators-catalog-registry:
+      containerName: registry
+      cpu: 200m
+      deploymentName: community-operators-catalog
+      memory: 850Mi
+    control-plane-operator-control-plane-operator:
+      containerName: control-plane-operator
+      cpu: 560m
+      deploymentName: control-plane-operator
+      memory: 230Mi
+    etcd-etcd-metrics:
+      containerName: etcd-metrics
+      cpu: 50m
+      deploymentName: etcd
+    ignition-server-ignition-server:
+      containerName: ignition-server
+      cpu: 160m
+      deploymentName: ignition-server
+      memory: 270Mi
+    konnectivity-agent-konnectivity-agent:
+      containerName: konnectivity-agent
+      cpu: 20m
+      deploymentName: konnectivity-agent
+      memory: 90Mi
+    kube-scheduler-kube-scheduler:
+      containerName: kube-scheduler
+      cpu: 40m
+      deploymentName: kube-scheduler
+    packageserver-packageserver:
+      containerName: packageserver
+      cpu: 90m
+      deploymentName: packageserver
+      memory: 590Mi
+    redhat-marketplace-catalog-registry:
+      containerName: registry
+      cpu: 130m
+      deploymentName: redhat-marketplace-catalog
+    redhat-operators-catalog-registry:
+      containerName: registry
+      cpu: 100m
+      deploymentName: redhat-operators-catalog
+      memory: 550Mi
+    router-router:
+      containerName: router
+      cpu: 10m
+      deploymentName: router
   image:
     digest: sha256:c94fd6357b05fd18ba1a0a39628488eb2f2246610b7c230640077eb92ca92b07
     registry: quay.io

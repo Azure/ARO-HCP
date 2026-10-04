@@ -879,31 +879,78 @@ spec:
         resourceRequests:
           - containerName: kube-apiserver
             deploymentName: kube-apiserver
-            memory: 100Mi
-            cpu: 100m
+            memory: 1600Mi
+            cpu: 300m
           - containerName: openshift-controller-manager
             deploymentName: openshift-controller-manager
-            memory: 100Mi
-            cpu: 100m
+            memory: 180Mi
+            cpu: 80m
           - containerName: cluster-policy-controller
             deploymentName: cluster-policy-controller
-            memory: 100Mi
-            cpu: 100m
+            memory: 150Mi
+            cpu: 50m
           - containerName: kube-controller-manager
             deploymentName: kube-controller-manager
-            memory: 100Mi
-            cpu: 100m
+            memory: 250Mi
+            cpu: 50m
           - containerName: openshift-apiserver
             deploymentName: openshift-apiserver
-            memory: 100Mi
-            cpu: 100m
+            memory: 350Mi
+            cpu: 150m
           - containerName: etcd
             deploymentName: etcd
-            memory: 100Mi
-            cpu: 100m
+            memory: 360Mi
+            cpu: 230m
           - containerName: ovnkube-control-plane
             deploymentName: ovnkube-control-plane
             memory: 100Mi
             cpu: 100m
-
+          - deploymentName: "azure-cloud-controller-manager"
+            containerName: "cloud-controller-manager"
+            cpu: "40m"
+            memory: "140Mi"
+          - deploymentName: "catalog-operator"
+            containerName: "catalog-operator"
+            cpu: "20m"
+            memory: "140Mi"
+          - deploymentName: "certified-operators-catalog"
+            containerName: "registry"
+            cpu: "130m"
+            memory: "1110Mi"
+          - deploymentName: "community-operators-catalog"
+            containerName: "registry"
+            cpu: "200m"
+            memory: "850Mi"
+          - deploymentName: "control-plane-operator"
+            containerName: "control-plane-operator"
+            cpu: "560m"
+            memory: "230Mi"
+          - deploymentName: "etcd"
+            containerName: "etcd-metrics"
+            cpu: "50m"
+          - deploymentName: "ignition-server"
+            containerName: "ignition-server"
+            cpu: "160m"
+            memory: "270Mi"
+          - deploymentName: "konnectivity-agent"
+            containerName: "konnectivity-agent"
+            cpu: "20m"
+            memory: "90Mi"
+          - deploymentName: "kube-scheduler"
+            containerName: "kube-scheduler"
+            cpu: "40m"
+          - deploymentName: "packageserver"
+            containerName: "packageserver"
+            cpu: "90m"
+            memory: "590Mi"
+          - deploymentName: "redhat-marketplace-catalog"
+            containerName: "registry"
+            cpu: "130m"
+          - deploymentName: "redhat-operators-catalog"
+            containerName: "registry"
+            cpu: "100m"
+            memory: "550Mi"
+          - deploymentName: "router"
+            containerName: "router"
+            cpu: "10m"
       name: e2e_minimal
