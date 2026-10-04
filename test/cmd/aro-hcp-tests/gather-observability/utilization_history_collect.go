@@ -37,8 +37,8 @@ func utilizationRetainHistory(history map[int64]*utilizationMinute, first, last 
 		for _, node := range minute.nodes {
 			entry := utilizationHistoryEntry{
 				Cluster: node.Cluster, Name: node.Name, Pool: node.Pool, SKU: node.SKU, Inventory: node.inventory,
-				Capacity:    utilizationHistoryResources{CPU: node.Capacity.CPU, Memory: node.ksmMemory, SwiftNIC: node.swiftCapacity},
-				Allocatable: utilizationHistoryResources{CPU: node.Allocatable.CPU, Memory: node.Allocatable.Memory, SwiftNIC: node.swiftAllocatable},
+				Capacity:    utilizationHistoryResources{CPU: node.Capacity.CPU, Memory: node.ksmMemory, SwiftNIC: node.swiftCapacity, Pods: node.podCapacity},
+				Allocatable: utilizationHistoryResources{CPU: node.Allocatable.CPU, Memory: node.Allocatable.Memory, SwiftNIC: node.swiftAllocatable, Pods: node.podAllocatable},
 				Usage:       utilizationHistoryResources{CPU: node.Usage.CPU, Memory: node.Usage.Memory},
 			}
 			if node.swiftCapacity != nil || node.swiftAllocatable != nil {
@@ -112,6 +112,8 @@ func utilizationCollectRequestHistory(ctx context.Context, query utilizationQuer
 
 type utilizationHistoryPod struct {
 	node, phase                      string
+	infoNodes                        map[string]bool
+	phaseConflict                    bool
 	placement, conflict, unscheduled bool
 	scheduled                        bool
 	candidates                       map[string]bool
@@ -159,7 +161,7 @@ func utilizationBuildRequestHistory(samples []utilizationHistorySample, results 
 				uid := strings.ToLower(m["uid"])
 				pod := state.pods[key][uid]
 				if pod == nil {
-					pod = &utilizationHistoryPod{conflict: uid == "", candidates: map[string]bool{}, containers: map[string]*[3]*float64{}}
+					pod = &utilizationHistoryPod{conflict: uid == "", infoNodes: map[string]bool{}, candidates: map[string]bool{}, containers: map[string]*[3]*float64{}}
 					state.pods[key][uid] = pod
 				}
 				if m["node"] != "" {
@@ -168,6 +170,7 @@ func utilizationBuildRequestHistory(samples []utilizationHistorySample, results 
 				if metadata {
 					switch m["__name__"] {
 					case "kube_pod_info":
+						pod.infoNodes[m["node"]] = true
 						state.coverage[utilizationInstanceKey{key.cluster, result.query.workspace}] = true
 						if pod.placement && pod.node != m["node"] {
 							pod.conflict = true
@@ -177,6 +180,7 @@ func utilizationBuildRequestHistory(samples []utilizationHistorySample, results 
 						phase := strings.ToLower(m["phase"])
 						if pod.phase != "" && pod.phase != phase {
 							pod.conflict = true
+							pod.phaseConflict = true
 						}
 						pod.phase = phase
 					case "kube_pod_status_scheduled":
@@ -219,6 +223,50 @@ func utilizationBuildRequestHistory(samples []utilizationHistorySample, results 
 		nodes := map[utilizationNodeKey]bool{}
 		for _, node := range sample.Nodes {
 			nodes[utilizationNodeKey{node.Cluster, node.Name}] = true
+		}
+		// Count bound pod UIDs independently of containers, requests and scheduling
+		// conditions. Only unambiguously terminal phases release a slot; missing or
+		// conflicting phase evidence stays counted, including terminating pods.
+		podCounts := map[utilizationNodeKey]float64{}
+		unknownPodClusters := map[string]bool{}
+		unknownPodNodes := map[utilizationNodeKey]bool{}
+		for _, cluster := range clusters {
+			unknownPodClusters[cluster] = !state.coverage[utilizationInstanceKey{cluster, workspaceSvc}] ||
+				!success[utilizationInstanceKey{workspaceSvc, "history metadata"}] || !success[utilizationInstanceKey{workspaceHcp, "history metadata"}]
+		}
+		for key, incarnations := range state.pods {
+			for uid, pod := range incarnations {
+				if !pod.phaseConflict && (pod.phase == "succeeded" || pod.phase == "failed") {
+					continue
+				}
+				if len(pod.infoNodes) == 0 {
+					// Other pod metrics without info cannot establish bound placement.
+					unknownPodClusters[key.cluster] = true
+					continue
+				}
+				for name := range pod.infoNodes {
+					if name == "" {
+						continue
+					}
+					node := utilizationNodeKey{key.cluster, name}
+					if uid == "" || len(pod.infoNodes) != 1 {
+						unknownPodNodes[node] = true
+						continue
+					}
+					podCounts[node]++
+				}
+			}
+		}
+		for j := range sample.Nodes {
+			node := &sample.Nodes[j]
+			key := utilizationNodeKey{node.Cluster, node.Name}
+			node.Usage.Pods = nil
+			if node.Inventory && !unknownPodClusters[node.Cluster] && !unknownPodNodes[key] {
+				count := podCounts[key]
+				node.Usage.Pods = &count
+			} else {
+				warnings[node.Cluster+"/"+node.Name+": assigned pod count unavailable (pod inventory coverage or UID placement incomplete)"] = true
+			}
 		}
 		invalidate := func(cluster string, candidates map[string]bool, reason string) {
 			if len(candidates) == 0 {
