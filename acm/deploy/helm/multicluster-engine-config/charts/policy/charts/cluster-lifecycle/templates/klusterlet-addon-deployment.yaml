@@ -89,9 +89,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
         resources:
-          requests:
-            memory: "96Mi"
-            cpu: "50m"
+          {{- include "acm.resources" .Values.resources.klusterletAddonController | nindent 10 }}
         env:
           - name: WATCH_NAMESPACE
           - name: POD_NAME

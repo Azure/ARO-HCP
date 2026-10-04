@@ -14,7 +14,11 @@
 
 package rightsize
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/Azure/ARO-HCP/tooling/rightsize-requests/pkg/targets"
+)
 
 // Target maps an observed (namespace, container) pair to the location of its
 // resource block in the config tree.
@@ -23,7 +27,7 @@ type Target struct {
 	Service string
 	// ResourcePath is the dotted path to the container's `resources` node,
 	// RELATIVE to the config prefix (e.g. "backend.k8s.resources" or
-	// "arobit.forwarder.resources"). Request/limit scalar paths are derived from
+	// "svc.arobit.forwarder.resources"). Request/limit scalar paths are derived from
 	// it, and a configurable prefix (e.g. "defaults" or
 	// "clouds.public.defaults") is prepended at edit time.
 	ResourcePath string
@@ -39,50 +43,20 @@ func (t Target) limitPath(prefix, resource string) string {
 	return prefix + "." + t.ResourcePath + ".limits." + resource
 }
 
-// key uniquely identifies a workload container by namespace and container name.
-type key struct {
-	namespace string
-	container string
-}
-
-// mapping is the authoritative table linking Kubernetes (namespace, container)
-// pairs to their resource block in config.yaml (under `defaults`).
-//
-// This table is intentionally explicit: the tool NEVER guesses a mapping. Any
-// (namespace, container) pair observed in Grafana that is not present here is
-// reported as unmapped so a human can extend this table rather than silently
-// editing the wrong field.
-//
-// Container names match the `container` label emitted by cAdvisor /
-// kube-state-metrics (i.e. the pod spec container name), verified against the
-// int-westus3-svc-1/mgmt-2 clusters and the prod services datasources.
-var mapping = map[key]Target{
-	{"aro-hcp", "aro-hcp-backend"}:                  {Service: "backend", ResourcePath: "backend.k8s.resources"},
-	{"aro-hcp", "aro-hcp-frontend"}:                 {Service: "frontend", ResourcePath: "frontend.k8s.resources"},
-	{"aro-hcp-admin-api", "service"}:                {Service: "adminApi", ResourcePath: "adminApi.k8s.resources"},
-	{"aro-hcp-exporter", "aro-hcp-exporter"}:        {Service: "customExporter", ResourcePath: "customExporter.k8s.resources"},
-	{"clusters-service", "clusters-service-server"}: {Service: "clustersService", ResourcePath: "clustersService.k8s.resources"},
-	{"fleet", "fleet-controller"}:                   {Service: "fleet", ResourcePath: "fleet.k8s.resources"},
-	{"kube-applier", "kube-applier"}:                {Service: "kubeApplier", ResourcePath: "kubeApplier.k8s.resources"},
-	{"maestro", "maestro-server"}:                   {Service: "maestro.server", ResourcePath: "maestro.server.k8s.resources"},
-	{"mgmt-agent", "mgmt-agent-controller"}:         {Service: "mgmtAgent", ResourcePath: "mgmtAgent.k8s.resources"},
-	{"secret-sync-controller", "manager"}:           {Service: "secretSyncController", ResourcePath: "secretSyncController.k8s.resources"},
-	{"sessiongate", "sessiongate-controller"}:       {Service: "sessiongate", ResourcePath: "sessiongate.k8s.resources"},
-	{"monitoring", "kube-events"}:                   {Service: "kubeEvents", ResourcePath: "kubeEvents.k8s.resources"},
-	{"arobit", "fluentbit"}:                         {Service: "arobit.forwarder", ResourcePath: "arobit.forwarder.resources"},
-}
-
 // Namespaces returns the distinct namespaces referenced by the mapping. These
 // scope the Grafana queries so we only pull metrics for known services.
 func Namespaces() []string {
 	seen := map[string]struct{}{}
 	var out []string
-	for k := range mapping {
-		if _, ok := seen[k.namespace]; ok {
+	for _, target := range targets.ServiceTargets() {
+		if _, ok := targets.Lookup(target.Namespace, target.Container); !ok {
 			continue
 		}
-		seen[k.namespace] = struct{}{}
-		out = append(out, k.namespace)
+		if _, ok := seen[target.Namespace]; ok {
+			continue
+		}
+		seen[target.Namespace] = struct{}{}
+		out = append(out, target.Namespace)
 	}
 	sort.Strings(out)
 	return out
@@ -90,6 +64,19 @@ func Namespaces() []string {
 
 // Lookup returns the config target for a (namespace, container) pair.
 func Lookup(namespace, container string) (Target, bool) {
-	t, ok := mapping[key{namespace, container}]
-	return t, ok
+	target, ok := targets.Lookup(namespace, container)
+	return Target{Service: target.Service, ResourcePath: target.ResourcePath}, ok
+}
+
+func Resolve(namespace, kind, workload, container, cluster string, init bool) (Target, bool) {
+	target, ok := targets.Resolve(namespace, kind, workload, container, cluster, init)
+	return Target{Service: target.Service, ResourcePath: target.ResourcePath}, ok
+}
+
+func CandidateTargets(namespace, workload, container, cluster string, init bool) []Target {
+	var result []Target
+	for _, target := range targets.CandidateTargets(namespace, workload, container, cluster, init) {
+		result = append(result, Target{Service: target.Service, ResourcePath: target.ResourcePath})
+	}
+	return result
 }

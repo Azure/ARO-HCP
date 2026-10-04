@@ -17,3 +17,11 @@ hubconfig:
     Operator: Equal
     Value: "true"
 org: open-cluster-management
+resources:
+  klusterletAddonController:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: NONE
+      memory: NONE

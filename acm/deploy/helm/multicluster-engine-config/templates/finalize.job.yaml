@@ -17,13 +17,23 @@ spec:
         - /bin/sh
         - -c
         - |
+          set -e
           echo "Waiting for AddonDeploymentConfig 'hypershift-addon-deploy-config' to exist..."
-          until kubectl get AddonDeploymentConfig hypershift-addon-deploy-config; do
+          until kubectl get AddonDeploymentConfig hypershift-addon-deploy-config -n multicluster-engine; do
             sleep 5
           done
 
           echo "AddonDeploymentConfig 'hypershift-addon-deploy-config' found. Patching..."
-          kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"customizedVariables":[{"name":"disableMetrics","value": "true"},{"name":"disableHOManagement","value": "true"},{"name":"autoImportDisabled","value": "true"},{"name":"aroHcp","value": "true"}]}}'
+          {{- $spec := dict "customizedVariables" (list
+              (dict "name" "disableMetrics" "value" "true")
+              (dict "name" "disableHOManagement" "value" "true")
+              (dict "name" "autoImportDisabled" "value" "true")
+              (dict "name" "aroHcp" "value" "true")) -}}
+          {{- $resources := include "acm.resources" .Values.resources.hypershiftAddonAgent | fromYaml -}}
+          {{- if $resources -}}
+            {{- $_ := set $spec "resourceRequirements" (list (dict "containerID" "deployments:hypershift-addon-agent:hypershift-addon-agent" "resources" $resources)) -}}
+          {{- end }}
+          kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{{ dict "spec" $spec | toJson }}'
           echo "Patch applied successfully."
 
           echo "Wait for MulticlusterEngine to be available..."
@@ -48,5 +58,7 @@ spec:
           echo "MulticlusterEngine is available"
         image: "{{ .Values.finalizeMceJobImage }}"
         name: finalize
+        resources:
+          {{- include "acm.resources" .Values.resources.finalize | nindent 10 }}
       restartPolicy: Never
       serviceAccountName: multicluster-engine-operator

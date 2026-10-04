@@ -9,3 +9,19 @@ The controller runs inside mgmt-agent alongside the SwiftNIC controller under a 
 Resources are owned by the HostedControlPlane CR and cleaned up automatically by Kubernetes garbage collection when the HCP is deleted.
 
 Enabled via the `--ksm-image` flag. The collected metrics are controlled via `--metric-allowlist` in [`resources.go`](resources.go).
+
+## Resource Configuration
+
+The mgmt-agent controller accepts `--hcp-kube-state-metrics-cpu-request`,
+`--hcp-kube-state-metrics-memory-request`, and
+`--hcp-kube-state-metrics-memory-limit`. Defaults remain `10m`, `64Mi`, and
+`256Mi`, respectively. Values must be valid positive Kubernetes quantities; the
+memory request must not exceed the limit. There is no CPU limit or init-container
+resource override.
+
+These settings apply to the regular `kube-state-metrics` container in every
+controller-owned `kube-state-metrics-hcp` Deployment. They are passed through the
+controller constructor and used on every server-side apply, so manual workload
+edits are not durable. Configuration integration uses
+`mgmtAgent.guestKSMResources.requests.{cpu,memory}` and
+`mgmtAgent.guestKSMResources.limits.memory` to populate these flags.

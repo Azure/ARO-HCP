@@ -1,0 +1,22 @@
+values: ../../kubelet-ds.values.yaml
+name: kubelet-fixes-resources
+namespace: kube-system
+helmChartDir: ../../mgmt-fixes/deploy/kubelet-ds
+testData:
+  mgmt:
+    applyKubeletFixes: true
+    kubeletFixes:
+      resources:
+        requests:
+          cpu: 20m
+          memory: 16Mi
+        limits:
+          cpu: NONE
+          memory: NONE
+      initResources:
+        requests:
+          cpu: NONE
+          memory: 48Mi
+        limits:
+          cpu: 100m
+          memory: 96Mi

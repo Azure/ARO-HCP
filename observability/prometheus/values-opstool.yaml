@@ -1,3 +1,21 @@
+{{- define "resources" -}}
+{ {{- $first := true -}}{{- range $kind, $values := . -}}
+{{- $cpu := printf "%v" $values.cpu -}}
+{{- $memory := printf "%v" $values.memory -}}
+{{- $setCPU := and (ne $cpu "NONE") (ne $cpu "unlimited") -}}
+{{- $setMemory := and (ne $memory "NONE") (ne $memory "unlimited") -}}
+{{- if or $setCPU $setMemory -}}
+{{- if not $first }},{{ end -}}{{- $first = false -}}
+"{{ $kind }}": {
+{{- if $setCPU }}"cpu": "{{ $cpu }}"{{ end -}}
+{{- if and $setCPU $setMemory }},{{ end -}}
+{{- if $setMemory }}"memory": "{{ $memory }}"{{ end -}}
+}
+{{- end -}}{{- end -}} }
+{{- end -}}
+{{- define "quantity" -}}
+{{- if eq (printf "%v" .) "unlimited" -}}NONE{{- else -}}{{ . }}{{- end -}}
+{{- end -}}
 schedulingRole: "infra"
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
@@ -35,6 +53,8 @@ kube-prometheus-stack:
     enabled: false # Prometheus is deployed using templates/prometheus.yaml
   prometheusOperator:
     enabled: true
+    # Auxiliary components share service-cluster sizing; the agent has separate opstool sizing below.
+    resources: {{ template "resources" .svc.prometheus.prometheusOperator.resources }}
     fullnameOverride: ""
     admissionWebhooks:
       enabled: true
@@ -43,12 +63,14 @@ kube-prometheus-stack:
       repository: "{{ .opstool.prometheus.prometheusOperator.image.repository }}"
       sha: "{{ .opstool.prometheus.prometheusOperator.image.sha }}"
     prometheusConfigReloader:
+      resources: {{ template "resources" .svc.prometheus.prometheusConfigReloader.resources }}
       image:
         registry: "{{ .opstool.prometheus.prometheusConfigReloader.image.registry }}"
         repository: "{{ .opstool.prometheus.prometheusConfigReloader.image.repository }}"
         sha: "{{ .opstool.prometheus.prometheusConfigReloader.image.sha }}"
   cleanPrometheusOperatorObjectNames: true
   kube-state-metrics:
+    resources: {{ template "resources" .svc.prometheus.kubeStateMetrics.resources }}
     image:
       registry: "{{ .opstool.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .opstool.prometheus.kubeStateMetrics.image.repository }}"
@@ -70,10 +92,11 @@ prometheusSpec:
   maximumStartupDurationSeconds: 360
   resources:
     requests:
-      cpu: 500m
-      memory: 1Gi
+      cpu: "{{ template "quantity" .svc.prometheus.opstoolResources.requests.cpu }}"
+      memory: "{{ template "quantity" .svc.prometheus.opstoolResources.requests.memory }}"
     limits:
-      memory: 2Gi
+      cpu: "{{ template "quantity" .svc.prometheus.opstoolResources.limits.cpu }}"
+      memory: "{{ template "quantity" .svc.prometheus.opstoolResources.limits.memory }}"
   replicas: 1
   shards: 1
 prometheus:

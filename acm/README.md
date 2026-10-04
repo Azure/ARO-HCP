@@ -13,6 +13,9 @@ Installation and configuration are split into three individual helm charts
 
 ## Updating charts
 
+See [Resource Controls](resources.md) for config-to-container mappings, defaults,
+generation tests, and upstream resource-control blockers.
+
 To update the MCE and policy charts, change the `acm.mce.bundle` and `acm.operator.bundle` digests in `config/config.yaml` and run `make helm-charts`. Commit the resulting chart changes.
 
 The ACM version is automatically extracted from the ACM operator bundle image at build time. The version is used to:

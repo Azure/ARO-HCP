@@ -1,0 +1,36 @@
+resources:
+  finalize:
+    requests:
+      cpu: NONE
+      memory: NONE
+    limits:
+      cpu: NONE
+      memory: NONE
+  configPolicyController:
+    requests:
+      cpu: NONE
+      memory: NONE
+    limits:
+      cpu: NONE
+      memory: NONE
+  governancePolicyFramework:
+    requests:
+      cpu: NONE
+      memory: NONE
+    limits:
+      cpu: NONE
+      memory: NONE
+  workManager:
+    requests:
+      cpu: NONE
+      memory: NONE
+    limits:
+      cpu: NONE
+      memory: NONE
+  hypershiftAddonAgent:
+    requests:
+      cpu: NONE
+      memory: NONE
+    limits:
+      cpu: NONE
+      memory: NONE

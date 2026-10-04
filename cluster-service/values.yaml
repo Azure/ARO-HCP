@@ -193,6 +193,20 @@ clientId: "foo"
 clientSecret: "bar"
 # If true an azure postgres will be deployed.
 useAzureDB: {{ .clustersService.postgres.deploy }}
+databaseResources:
+  requests:
+    cpu: "{{ .clustersService.postgres.containerizedDb.resources.requests.cpu }}"
+    memory: "{{ .clustersService.postgres.containerizedDb.resources.requests.memory }}"
+  limits:
+    cpu: "{{ .clustersService.postgres.containerizedDb.resources.limits.cpu }}"
+    memory: "{{ .clustersService.postgres.containerizedDb.resources.limits.memory }}"
+initResources:
+  requests:
+    cpu: "{{ .clustersService.initResources.requests.cpu }}"
+    memory: "{{ .clustersService.initResources.requests.memory }}"
+  limits:
+    cpu: "{{ .clustersService.initResources.limits.cpu }}"
+    memory: "{{ .clustersService.initResources.limits.memory }}"
 # The name of the OpenShift Service exposed for the database - only used for container db.
 databaseServiceName: ocm-cs-db
 # The name of the K8s secret where CS DB connection information is placed - only used for container db.

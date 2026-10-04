@@ -1,0 +1,14 @@
+resources:
+  requests:
+    cpu: 10m
+    memory: NONE
+  limits:
+    cpu: NONE
+    memory: NONE
+initResources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: NONE
+    memory: 64Mi

@@ -15,8 +15,10 @@
 package prometheus_test
 
 import (
+	"bytes"
 	"os"
 	"testing"
+	"text/template"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,15 +34,72 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/config"
+	"github.com/Azure/ARO-Tools/config/ev2config"
 	"github.com/Azure/ARO-Tools/config/types"
 )
 
+func TestResourcesTemplate(t *testing.T) {
+	for _, cluster := range []string{"svc", "mgmt"} {
+		tmpl, err := template.ParseFiles("values-" + cluster + ".yaml")
+		require.NoError(t, err)
+		for _, tc := range []struct {
+			name  string
+			input string
+			want  string
+		}{
+			{
+				name:  "both",
+				input: `{"requests":{"cpu":1,"memory":"32Mi"},"limits":{"cpu":"50m","memory":"64Mi"}}`,
+				want:  `{"requests":{"cpu":"1","memory":"32Mi"},"limits":{"cpu":"50m","memory":"64Mi"}}`,
+			},
+			{
+				name:  "partial",
+				input: `{"requests":{"cpu":"25m","memory":"NONE"},"limits":{"cpu":"unlimited","memory":"64Mi"}}`,
+				want:  `{"requests":{"cpu":"25m"},"limits":{"memory":"64Mi"}}`,
+			},
+			{
+				name:  "omit limits",
+				input: `{"requests":{"cpu":"NONE","memory":"32Mi"},"limits":{"cpu":"NONE","memory":"unlimited"}}`,
+				want:  `{"requests":{"memory":"32Mi"}}`,
+			},
+			{
+				name:  "empty",
+				input: `{"requests":{"cpu":"unlimited","memory":"NONE"},"limits":{"cpu":"NONE","memory":"unlimited"}}`,
+				want:  `{}`,
+			},
+		} {
+			t.Run(cluster+"/"+tc.name, func(t *testing.T) {
+				var resources map[string]any
+				require.NoError(t, yaml.Unmarshal([]byte(tc.input), &resources))
+				var output bytes.Buffer
+				require.NoError(t, tmpl.ExecuteTemplate(&output, "resources", resources))
+				require.JSONEq(t, tc.want, output.String())
+			})
+		}
+	}
+}
+
 func TestSchedulingRole(t *testing.T) {
-	valuesSource, err := os.ReadFile("values-svc.yaml")
+	for _, cluster := range []string{"svc", "mgmt"} {
+		valuesSource, err := os.ReadFile("values-" + cluster + ".yaml")
+		require.NoError(t, err)
+		var rawValues yamlv3.Node
+		require.NoError(t, yamlv3.Unmarshal(valuesSource, &rawValues), "%s unrendered values must remain valid YAML for yamllint", cluster)
+	}
+	provider, err := config.NewConfigProvider("../../config/config.yaml")
 	require.NoError(t, err)
-	var rawValues yamlv3.Node
-	require.NoError(t, yamlv3.Unmarshal(valuesSource, &rawValues), "unrendered values must remain valid YAML for yamllint")
-	raw, err := os.ReadFile("../../config/rendered/dev/dev/westus3.yaml")
+	ev2, err := ev2config.ResolveConfig("public", "westus3")
+	require.NoError(t, err)
+	resolver, err := provider.GetResolver(&config.ConfigReplacements{
+		CloudReplacement:       "dev",
+		EnvironmentReplacement: "dev",
+		RegionReplacement:      "westus3",
+		RegionShortReplacement: "usw3",
+		StampReplacement:       "1",
+		Ev2Config:              ev2,
+	})
+	require.NoError(t, err)
+	baseConfig, err := resolver.GetRegionConfiguration("westus3")
 	require.NoError(t, err)
 	type schedulingCase struct {
 		name           string
@@ -59,9 +118,7 @@ func TestSchedulingRole(t *testing.T) {
 		}
 		for _, tc := range cases {
 			t.Run(cluster+"/"+tc.name, func(t *testing.T) {
-				var cfg types.Configuration
-				require.NoError(t, yaml.Unmarshal(raw, &cfg))
-				cfg = types.MergeConfiguration(cfg, map[string]any{
+				cfg := types.MergeConfiguration(baseConfig, map[string]any{
 					"svc": map[string]any{"aks": map[string]any{"systemPoolOnly": tc.systemPoolOnly}},
 				})
 				// Dev config has no opstool cluster; reuse its service images and AKS name.

@@ -1,1 +1,15 @@
 enabled: {{ .mgmt.applyKubeletFixes }}
+resources:
+  requests:
+    cpu: "{{ .mgmt.kubeletFixes.resources.requests.cpu }}"
+    memory: "{{ .mgmt.kubeletFixes.resources.requests.memory }}"
+  limits:
+    cpu: "{{ .mgmt.kubeletFixes.resources.limits.cpu }}"
+    memory: "{{ .mgmt.kubeletFixes.resources.limits.memory }}"
+initResources:
+  requests:
+    cpu: "{{ .mgmt.kubeletFixes.initResources.requests.cpu }}"
+    memory: "{{ .mgmt.kubeletFixes.initResources.requests.memory }}"
+  limits:
+    cpu: "{{ .mgmt.kubeletFixes.initResources.limits.cpu }}"
+    memory: "{{ .mgmt.kubeletFixes.initResources.limits.memory }}"

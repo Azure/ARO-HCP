@@ -1,0 +1,11 @@
+values: ../values.yaml
+name: mgmt-agent-guest-ksm-resources
+namespace: mgmt-agent
+testData:
+  mgmtAgent:
+    guestKSMResources:
+      requests:
+        cpu: 25m
+        memory: 96Mi
+      limits:
+        memory: 384Mi

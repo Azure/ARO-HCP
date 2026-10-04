@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -100,6 +101,7 @@ type KSMHCPController struct {
 	hasSynced     []cache.InformerSynced
 	workqueue     workqueue.TypedRateLimitingInterface[string]
 	ksmImage      string
+	ksmResources  corev1.ResourceRequirements
 	// monitoringAPIGroup is the API group of the ServiceMonitor the controller
 	// creates (monitoring.coreos.com by default, azmonitoring.coreos.com in AMA mode).
 	monitoringAPIGroup string
@@ -116,6 +118,7 @@ func NewKSMHCPController(
 	serviceMonitorInformer cache.SharedIndexInformer,
 	ksmImage string,
 	monitoringAPIGroup string,
+	ksmResources corev1.ResourceRequirements,
 ) (*KSMHCPController, error) {
 	if monitoringAPIGroup == "" {
 		monitoringAPIGroup = DefaultMonitoringAPIGroup
@@ -132,8 +135,9 @@ func NewKSMHCPController(
 			configMapInformer.HasSynced,
 			serviceMonitorInformer.HasSynced,
 		},
-		workqueue: workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[string](), workqueue.TypedRateLimitingQueueConfig[string]{Name: "KSMHCP"}),
-		ksmImage:  ksmImage,
+		workqueue:    workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[string](), workqueue.TypedRateLimitingQueueConfig[string]{Name: "KSMHCP"}),
+		ksmImage:     ksmImage,
+		ksmResources: *ksmResources.DeepCopy(),
 	}
 
 	enqueueHCP := cache.ResourceEventHandlerFuncs{
@@ -301,7 +305,7 @@ func (c *KSMHCPController) reconcile(ctx context.Context, hcp *hypershiftv1beta1
 		return fmt.Errorf("failed to apply configmap in %s: %w", ns, err)
 	}
 
-	deployment := buildDeployment(ns, c.ksmImage, serviceNetworkKubeconfigSecret, serviceNetworkKubeconfigKey, ownerRef)
+	deployment := buildDeployment(ns, c.ksmImage, serviceNetworkKubeconfigSecret, serviceNetworkKubeconfigKey, ownerRef, c.ksmResources)
 	if err := c.applyDeployment(ctx, deployment); err != nil {
 		return fmt.Errorf("failed to apply deployment in %s: %w", ns, err)
 	}

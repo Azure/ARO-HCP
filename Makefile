@@ -412,7 +412,10 @@ test-infrastructure:
 
 test-helm-fixtures: test-infrastructure
 	$(MAKE) -C tooling/helmtest test
+	go test ./swift-recorder/resource_requests_test.go
 	$(MAKE) -C observability/prometheus test
+	$(MAKE) -C acm test-resources
+	go test ./hypershiftoperator/resource_requests_test.go
 .PHONY: test-helmcharts
 
 verify-materialize:

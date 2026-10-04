@@ -1,0 +1,16 @@
+values: ../values.yaml
+name: swift-recorder-resources
+namespace: swift-recorder
+testData:
+  swiftRecorder:
+    enabled: true
+    image:
+      digest: sha256:1234567890
+    k8s:
+      resources:
+        requests:
+          cpu: NONE
+          memory: 96Mi
+        limits:
+          cpu: 100m
+          memory: 512Mi

@@ -1,3 +1,5 @@
+# Keep the definition in a YAML comment and retain its trailing newline so the next key is not commented out.
+# {{ define "resources" }}{ {{- $first := true -}}{{- range $kind, $values := . -}}{{- $cpu := printf "%v" $values.cpu -}}{{- $memory := printf "%v" $values.memory -}}{{- $setCPU := and (ne $cpu "NONE") (ne $cpu "unlimited") -}}{{- $setMemory := and (ne $memory "NONE") (ne $memory "unlimited") -}}{{- if or $setCPU $setMemory -}}{{- if not $first }},{{ end -}}{{- $first = false -}}"{{ $kind }}": { {{- if $setCPU }}"cpu": "{{ $cpu }}"{{ end -}}{{- if and $setCPU $setMemory }},{{ end -}}{{- if $setMemory }}"memory": "{{ $memory }}"{{ end -}} }{{- end -}}{{- end -}} }{{ end }}
 schedulingRole: "infra"
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
@@ -35,6 +37,7 @@ kube-prometheus-stack:
     enabled: false # Prometheus is deployed using templates/prometheus.yaml
   prometheusOperator:
     enabled: true
+    resources: {{ template "resources" .mgmt.prometheus.prometheusOperator.resources }}
     fullnameOverride: ""
     image:
       registry: "{{ .mgmt.prometheus.prometheusOperator.image.registry }}"
@@ -46,6 +49,7 @@ kube-prometheus-stack:
       tag: "{{ .mgmt.prometheus.thanos.image.tag }}"
       sha: "{{ .mgmt.prometheus.thanos.image.sha }}"
     prometheusConfigReloader:
+      resources: {{ template "resources" .mgmt.prometheus.prometheusConfigReloader.resources }}
       image:
         registry: "{{ .mgmt.prometheus.prometheusConfigReloader.image.registry }}"
         repository: "{{ .mgmt.prometheus.prometheusConfigReloader.image.repository }}"
@@ -75,6 +79,7 @@ kube-prometheus-stack:
   cleanPrometheusOperatorObjectNames: true
   # config for kube-state-metrics subchart that is imported by the kube-prometheus-stack chart conditionally
   kube-state-metrics:
+    resources: {{ template "resources" .mgmt.prometheus.kubeStateMetrics.resources }}
     metricLabelsAllowlist:
     - nodes=[node.kubernetes.io/instance-type,kubernetes.azure.com/agentpool]
     image:

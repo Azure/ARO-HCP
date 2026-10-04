@@ -4,6 +4,20 @@ metadata:
   name: addon-hosted-config
   namespace: multicluster-engine
 spec:
+  {{- $requirements := list -}}
+  {{- range $key, $container := dict
+      "configPolicyController" "deployments:config-policy-controller:config-policy-controller"
+      "governancePolicyFramework" "deployments:governance-policy-framework:governance-policy-framework-addon"
+      "workManager" "deployments:klusterlet-addon-workmgr:acm-agent" -}}
+    {{- $resources := include "acm.resources" (index $.Values.resources $key) | fromYaml -}}
+    {{- if $resources -}}
+      {{- $requirements = append $requirements (dict "containerID" $container "resources" $resources) -}}
+    {{- end -}}
+  {{- end }}
+  {{- with $requirements }}
+  resourceRequirements:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   customizedVariables:
   - name: managedKubeConfigSecret
     value: external-managed-kubeconfig

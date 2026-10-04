@@ -13,12 +13,44 @@ installJobImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.
 veleroServer:
   repository: "{{ .velero.server.repository }}"
   digest: "{{ .velero.server.digest }}"
+  resources:
+    requests:
+      cpu: "{{ .velero.server.resources.requests.cpu }}"
+      memory: "{{ .velero.server.resources.requests.memory }}"
+    limits:
+      cpu: "{{ .velero.server.resources.limits.cpu }}"
+      memory: "{{ .velero.server.resources.limits.memory }}"
+nodeAgent:
+  resources:
+    requests:
+      cpu: "{{ .velero.nodeAgent.resources.requests.cpu }}"
+      memory: "{{ .velero.nodeAgent.resources.requests.memory }}"
+    limits:
+      cpu: "{{ .velero.nodeAgent.resources.limits.cpu }}"
+      memory: "{{ .velero.nodeAgent.resources.limits.memory }}"
 azurePlugin:
   repository: "{{ .velero.azurePlugin.repository }}"
   digest: "{{ .velero.azurePlugin.digest }}"
+  # Velero derives init container names from the repository, replacing slashes with dashes.
+  initContainerName: oadp-oadp-velero-plugin-for-microsoft-azure-rhel9
+  resources:
+    requests:
+      cpu: "{{ .velero.azurePlugin.resources.requests.cpu }}"
+      memory: "{{ .velero.azurePlugin.resources.requests.memory }}"
+    limits:
+      cpu: "{{ .velero.azurePlugin.resources.limits.cpu }}"
+      memory: "{{ .velero.azurePlugin.resources.limits.memory }}"
 hypershiftPlugin:
   repository: "{{ .velero.hypershiftPlugin.repository }}"
   digest: "{{ .velero.hypershiftPlugin.digest }}"
+  initContainerName: oadp-oadp-hypershift-velero-plugin-rhel9
+  resources:
+    requests:
+      cpu: "{{ .velero.hypershiftPlugin.resources.requests.cpu }}"
+      memory: "{{ .velero.hypershiftPlugin.resources.requests.memory }}"
+    limits:
+      cpu: "{{ .velero.hypershiftPlugin.resources.limits.cpu }}"
+      memory: "{{ .velero.hypershiftPlugin.resources.limits.memory }}"
 enableInstantAccess: "{{ .velero.enableInstantAccess }}"
 configuration:
   features: EnableCSI
@@ -35,3 +67,19 @@ tolerations:
 installer:
   activeDeadlineSeconds: 1800
   backoffLimit: 3
+  generate:
+    resources:
+      requests:
+        cpu: "{{ .velero.installer.generate.resources.requests.cpu }}"
+        memory: "{{ .velero.installer.generate.resources.requests.memory }}"
+      limits:
+        cpu: "{{ .velero.installer.generate.resources.limits.cpu }}"
+        memory: "{{ .velero.installer.generate.resources.limits.memory }}"
+  apply:
+    resources:
+      requests:
+        cpu: "{{ .velero.installer.apply.resources.requests.cpu }}"
+        memory: "{{ .velero.installer.apply.resources.requests.memory }}"
+      limits:
+        cpu: "{{ .velero.installer.apply.resources.limits.cpu }}"
+        memory: "{{ .velero.installer.apply.resources.limits.memory }}"

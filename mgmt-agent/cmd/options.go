@@ -32,6 +32,7 @@ import (
 	"github.com/spf13/cobra"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -76,12 +77,15 @@ const (
 )
 
 type RawControllerOptions struct {
-	HealthAddress string
-	Kubeconfig    string
-	Namespace     string
-	Workers       int
-	LogVerbosity  int
-	KSMImage      string
+	HealthAddress    string
+	Kubeconfig       string
+	Namespace        string
+	Workers          int
+	LogVerbosity     int
+	KSMImage         string
+	KSMCPURequest    string
+	KSMMemoryRequest string
+	KSMMemoryLimit   string
 
 	NodeHealthConfigMapName string
 	NodeHealthConfigKey     string
@@ -89,7 +93,11 @@ type RawControllerOptions struct {
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
+	resources := ksmhcp.DefaultResources()
 	return &RawControllerOptions{
+		KSMCPURequest:           resources.Requests.Cpu().String(),
+		KSMMemoryRequest:        resources.Requests.Memory().String(),
+		KSMMemoryLimit:          resources.Limits.Memory().String(),
 		HealthAddress:           ":8080",
 		Workers:                 2,
 		NodeHealthConfigMapName: "mgmt-agent-node-health",
@@ -106,6 +114,9 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 		"Log verbosity. 0 is the default verbosity level, equivalent to INFO. "+
 			"It must be a value >= 0, where a higher value means more verbose output.")
 	cmd.Flags().StringVar(&o.KSMImage, "ksm-image", o.KSMImage, "Container image for kube-state-metrics deployed per HCP namespace")
+	cmd.Flags().StringVar(&o.KSMCPURequest, "hcp-kube-state-metrics-cpu-request", o.KSMCPURequest, "CPU request for kube-state-metrics deployed per HCP namespace")
+	cmd.Flags().StringVar(&o.KSMMemoryRequest, "hcp-kube-state-metrics-memory-request", o.KSMMemoryRequest, "Memory request for kube-state-metrics deployed per HCP namespace")
+	cmd.Flags().StringVar(&o.KSMMemoryLimit, "hcp-kube-state-metrics-memory-limit", o.KSMMemoryLimit, "Memory limit for kube-state-metrics deployed per HCP namespace")
 	cmd.Flags().StringVar(&o.NodeHealthConfigMapName, "node-health-configmap", o.NodeHealthConfigMapName,
 		"Name of the ConfigMap (in --namespace) holding the node-health configuration. The controller is disabled until this ConfigMap enables it.")
 	cmd.Flags().StringVar(&o.NodeHealthConfigKey, "node-health-config-key", o.NodeHealthConfigKey,
@@ -118,6 +129,7 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 
 type validatedControllerOptions struct {
 	*RawControllerOptions
+	ksmResources corev1.ResourceRequirements
 }
 
 type ValidatedControllerOptions struct {
@@ -168,9 +180,35 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 	if o.LogVerbosity < 0 {
 		return nil, fmt.Errorf("--log-verbosity must be a value >= 0")
 	}
+	resources := corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{},
+		Limits:   corev1.ResourceList{},
+	}
+	for _, field := range []struct {
+		flag, value string
+		name        corev1.ResourceName
+		target      corev1.ResourceList
+	}{
+		{"hcp-kube-state-metrics-cpu-request", o.KSMCPURequest, corev1.ResourceCPU, resources.Requests},
+		{"hcp-kube-state-metrics-memory-request", o.KSMMemoryRequest, corev1.ResourceMemory, resources.Requests},
+		{"hcp-kube-state-metrics-memory-limit", o.KSMMemoryLimit, corev1.ResourceMemory, resources.Limits},
+	} {
+		quantity, err := resource.ParseQuantity(field.value)
+		if err != nil {
+			return nil, fmt.Errorf("--%s: %w", field.flag, err)
+		}
+		if quantity.Sign() <= 0 {
+			return nil, fmt.Errorf("--%s must be positive", field.flag)
+		}
+		field.target[field.name] = quantity
+	}
+	if resources.Requests.Memory().Cmp(*resources.Limits.Memory()) > 0 {
+		return nil, fmt.Errorf("--hcp-kube-state-metrics-memory-request must not exceed --hcp-kube-state-metrics-memory-limit")
+	}
 	return &ValidatedControllerOptions{
 		validatedControllerOptions: &validatedControllerOptions{
 			RawControllerOptions: o,
+			ksmResources:         resources,
 		},
 	}, nil
 }
@@ -385,6 +423,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			dynInformers.ForResource(ksmhcp.ServiceMonitorGVRForGroup(o.MonitoringAPIGroup)).Informer(),
 			o.KSMImage,
 			o.MonitoringAPIGroup,
+			o.ksmResources,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
