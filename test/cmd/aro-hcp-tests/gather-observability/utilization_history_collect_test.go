@@ -80,6 +80,153 @@ func TestUtilizationRequestHistoryWorkspaceSumAndDedup(t *testing.T) {
 	if got := samples[1].Nodes[0].Requests; got.CPU == nil || *got.CPU != 0 {
 		t.Errorf("heartbeat-backed empty minute should be zero, not carry previous demand: %+v", got)
 	}
+	if got := samples[0].Nodes[0].Usage.Pods; got == nil || *got != 2 {
+		t.Fatalf("multiple containers and replicas must not multiply pod counts: %v", got)
+	}
+}
+
+func TestUtilizationHistoryPodCounts(t *testing.T) {
+	floatPointer := func(v float64) *float64 { return &v }
+	for _, tc := range []struct {
+		name string
+		want *float64
+	}{
+		{"dedup", floatPointer(1)}, {"init only", floatPointer(1)}, {"no requests", floatPointer(1)},
+		{"pending bound", floatPointer(1)}, {"pending unbound", floatPointer(0)},
+		{"succeeded", floatPointer(0)}, {"failed", floatPointer(0)}, {"unknown phase", floatPointer(1)},
+		{"missing phase", floatPointer(1)}, {"inactive terminal", floatPointer(1)},
+		{"phase conflict", floatPointer(1)}, {"terminating", floatPointer(1)}, {"two UIDs", floatPointer(2)},
+		{"two namespaces", floatPointer(2)}, {"scheduled false", floatPointer(1)},
+		{"node conflict", nil}, {"bound/unbound conflict", nil}, {"missing UID", nil}, {"missing info", nil},
+		{"empty HTTP", nil}, {"missing heartbeat", nil}, {"failed metadata", nil}, {"missing metadata", nil},
+		{"failed requests", floatPointer(1)}, {"empty covered", floatPointer(0)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, reverse := range []bool{false, true} {
+				samples, results := utilizationTestRequestHistory(2)
+				at := samples[0].Time
+				phase, node := "Running", "node"
+				switch tc.name {
+				case "pending bound", "pending unbound":
+					phase = "Pending"
+					if tc.name == "pending unbound" {
+						node = ""
+					}
+				case "succeeded", "failed", "unknown phase":
+					phase = map[string]string{"succeeded": "Succeeded", "failed": "Failed", "unknown phase": "Unknown"}[tc.name]
+				}
+				utilizationTestHistoryPod(results, 0, at, "pod", "uid", node, phase, 2)
+				switch tc.name {
+				case "dedup":
+					utilizationTestHistoryPod(results, 2, at, "pod", "uid", node, phase, 2)
+				case "init only", "no requests", "failed requests":
+					results[1].series = nil
+					if tc.name == "init only" {
+						results[0].series = slices.DeleteFunc(results[0].series, func(s promutil.Result) bool { return s.Metric["__name__"] == "kube_pod_container_info" })
+					}
+					if tc.name == "failed requests" {
+						results[1].err = errors.New("denied")
+					}
+				case "missing phase", "missing info":
+					metric := "kube_pod_status_phase"
+					if tc.name == "missing info" {
+						metric = "kube_pod_info"
+					}
+					results[0].series = slices.DeleteFunc(results[0].series, func(s promutil.Result) bool { return s.Metric["__name__"] == metric })
+				case "inactive terminal", "phase conflict":
+					value := 0.0
+					if tc.name == "phase conflict" {
+						value = 1
+					}
+					results[0].series = append(results[0].series, utilizationTestSeries(at, value, "__name__", "kube_pod_status_phase", "cluster", "mgmt", "namespace", "ns", "pod", "pod", "uid", "uid", "phase", "Succeeded"))
+				case "terminating":
+					results[0].series = append(results[0].series, utilizationTestSeries(at, 123, "__name__", "kube_pod_deletion_timestamp", "cluster", "mgmt", "namespace", "ns", "pod", "pod", "uid", "uid"))
+				case "two UIDs":
+					utilizationTestHistoryPod(results, 2, at, "pod", "other-uid", node, phase, 2)
+				case "two namespaces":
+					utilizationTestHistoryPod(results, 2, at, "pod", "uid", node, phase, 2)
+					for _, series := range results[2].series {
+						series.Metric["namespace"] = "other"
+					}
+					results[3].series = nil
+				case "scheduled false":
+					results[0].series = append(results[0].series, utilizationTestSeries(at, 1, "__name__", "kube_pod_status_scheduled", "cluster", "mgmt", "namespace", "ns", "pod", "pod", "uid", "uid", "condition", "false"))
+				case "node conflict", "bound/unbound conflict":
+					other := "other"
+					if tc.name == "bound/unbound conflict" {
+						other = ""
+					}
+					utilizationTestHistoryPod(results, 2, at, "pod", "uid", other, phase, 2)
+				case "missing UID":
+					for _, s := range results[0].series {
+						delete(s.Metric, "uid")
+					}
+				case "empty HTTP":
+					for i := range results {
+						results[i].series = nil
+					}
+				case "missing heartbeat":
+					results[2].series, results[0].series = results[0].series[2:], nil
+				case "failed metadata":
+					results[2].err = errors.New("denied")
+				case "missing metadata":
+					results = results[:2]
+				case "empty covered":
+					results[0].series = results[0].series[:2]
+					results[1].series = nil
+				}
+				for i := range results {
+					results[i].series = append(results[i].series, results[i].series...)
+					if reverse {
+						slices.Reverse(results[i].series)
+					}
+				}
+				if reverse {
+					slices.Reverse(results)
+				}
+				utilizationBuildRequestHistory(samples, results, []string{"mgmt"})
+				got := samples[0].Nodes[0].Usage.Pods
+				if (got == nil) != (tc.want == nil) || got != nil && *got != *tc.want {
+					t.Fatalf("reverse=%v: pods=%v want=%v; warnings=%v", reverse, got, tc.want, samples[0].Warnings)
+				}
+				if tc.want == nil && len(samples[0].Warnings) == 0 {
+					t.Fatal("unknown counts must be diagnosed")
+				}
+			}
+		})
+	}
+}
+
+func TestUtilizationHistoryPodCapacityAndIdentity(t *testing.T) {
+	results := utilizationTestHistory([]string{"mgmt", "other"}, 2)
+	for i, cluster := range []string{"mgmt", "other"} {
+		for j, metric := range []string{"kube_node_status_capacity", "kube_node_status_allocatable"} {
+			for _, replica := range []string{"a", "b"} {
+				results[1].series = append(results[1].series, utilizationTestSeries(utilizationTestTime, float64(100+i*20-j*10), "__name__", metric, "cluster", cluster, "node", "node", "resource", "pods", "replica", replica))
+			}
+		}
+	}
+	end := utilizationTestTime.Add(time.Minute)
+	history, _ := utilizationBuildHistory(results, utilizationTestTime, end)
+	samples := utilizationRetainHistory(history, utilizationTestTime, end, nil)
+	_, pods := utilizationTestRequestHistory(2)
+	utilizationTestHistoryPod(pods, 0, utilizationTestTime, "pod", "uid", "node", "Running", 2)
+	for _, series := range slices.Clone(pods[0].series) {
+		series.Metric = maps.Clone(series.Metric)
+		series.Metric["cluster"] = "other"
+		pods[0].series = append(pods[0].series, series)
+	}
+	utilizationBuildRequestHistory(samples, pods, []string{"mgmt", "other"})
+	for i, node := range samples[0].Nodes {
+		if node.Capacity.Pods == nil || *node.Capacity.Pods != float64(100+i*20) || node.Allocatable.Pods == nil || *node.Allocatable.Pods != float64(90+i*20) || node.Usage.Pods == nil || *node.Usage.Pods != 1 {
+			t.Fatalf("cluster-local counts/capacity incorrect: %+v", node)
+		}
+	}
+	for _, node := range samples[1].Nodes {
+		if node.Capacity.Pods != nil || node.Allocatable.Pods != nil || node.Usage.Pods == nil || *node.Usage.Pods != 0 {
+			t.Fatalf("missing capacity must remain unknown; covered empty inventory is zero: %+v", node)
+		}
+	}
 }
 
 func TestUtilizationRequestHistoryUnknownCoverage(t *testing.T) {
@@ -434,8 +581,11 @@ func TestUtilizationRequestHistoryWithoutPodInfo(t *testing.T) {
 			}
 			utilizationBuildRequestHistory(samples, results, []string{"mgmt"})
 			node := samples[0].Nodes[0]
-			if node.Requests.CPU == nil || *node.Requests.CPU != test.want || node.PartialRequests != (utilizationHistoryResources{}) || len(samples[0].Warnings) != 0 {
+			if node.Requests.CPU == nil || *node.Requests.CPU != test.want || node.PartialRequests != (utilizationHistoryResources{}) {
 				t.Errorf("missing pod info should not invalidate otherwise established placement: %+v warnings=%v", node, samples[0].Warnings)
+			}
+			if node.Usage.Pods != nil || len(samples[0].Warnings) != 1 || !strings.Contains(samples[0].Warnings[0], "assigned pod count unavailable") {
+				t.Errorf("request placement fallback must not invent kube_pod_info evidence: %+v warnings=%v", node, samples[0].Warnings)
 			}
 		})
 	}

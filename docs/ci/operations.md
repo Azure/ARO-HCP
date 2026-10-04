@@ -201,10 +201,10 @@ Synthetic-data desktop and mobile previews:
 
 The Resource History tab retains every evaluated minute, not just peak samples.
 Select the fleet, a cluster, pool, or historical node to inspect CPU, memory,
-and SWIFT-NIC resources. The three charts share time zoom, not hover. Hovering
+SWIFT-NIC resources, and pod counts. The charts share time zoom, not hover. Hovering
 a complete line shows its timestamp and value; legends remain visible. Partial
 requests have visible point markers and a tooltip explaining their coverage.
-Changing scope preserves the time window. Absolute units (cores, GiB, slots) are the
+Changing scope preserves the time window. Absolute units (cores, GiB, slots, pods) are the
 default; percentage mode divides aggregate quantities by aggregate capacity.
 Pool membership and node placement are evaluated at each sample, including
 nodes deleted before collection. Unknown pool labels are not inferred from names.
@@ -218,6 +218,23 @@ Management KSM requests now route to services even for HCP namespaces. Requests
 still combine the services and HCP workspaces without counting replicas twice
 to support historical data from before that routing change. Empty HCP results are legitimate when both workspace queries succeed
 and the shared KSM collector has inventory evidence in the services workspace.
+
+Pods plot only capacity, allocatable, and usage (assigned pods), never requests.
+Capacity and allocatable come from `kube_node_status_capacity` and
+`kube_node_status_allocatable` with `resource="pods"`. Usage reuses the historical
+`kube_pod_info` inventory: a nonempty `node` counts once per cluster, namespace,
+pod name and UID, deduplicated across scrapes and workspaces. Known Succeeded/Failed
+pods are excluded; bound Pending, Running, Unknown, and terminating pods count.
+Missing or conflicting phase evidence conservatively stays counted, not zero.
+Missing UID or conflicting info placement makes affected node counts unknown;
+missing metadata queries or shared collector coverage makes cluster counts unknown.
+Container requests and init-container state do not determine pod counts. This is
+a one-minute KSM approximation of scheduler-bound pod occupancy, not the scheduler's
+instantaneous cache (including assumed pods). Fleet and pool views sum counts,
+not average per-node percentages; aggregates can hide per-node saturation.
+Select an individual node to inspect its pod limit. Percent tooltips also retain
+exact counts. Optional `pods` fields preserve unknowns in older replay artifacts;
+reports without pod measurements hide the chart and explain the missing history.
 
 SWIFT-NIC plots advertised capacity, allocatable and assigned requested slots,
 not measured NIC usage or traffic. Missing or non-applicable capacity remains
