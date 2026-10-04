@@ -30,15 +30,46 @@ A self-managed Prometheus stack is deployed to service and management AKS cluste
 - **Workload Identity**: Uses Microsoft Entra Workload Identity with "Monitoring Metrics Publisher" role on DCRs
 
 **Dual Remote Write Architecture:**
-Self-managed Prometheus implements namespace-based routing to two Azure Monitor Workspaces:
+Self-managed Prometheus routes by metric source and HCP identity to two Azure Monitor Workspaces:
 
-1. **Service Monitoring Workspace** (`prometheusSpec.remoteWriteUrl`):
-   - Receives metrics from **all namespaces except** those matching `^ocm-<environment>.*`
-   - Handles infrastructure services, applications, and general cluster metrics
+**Service Monitoring Workspace** (`prometheusSpec.remoteWriteUrl`):
+- Receives metrics without an HCP namespace or `hostedcontrolplane` identity, including ordinary-namespace and unscoped KSM metrics.
+- Also receives the exact management KSM sizing/inventory allowlist below from HCP namespaces, only when `job="kube-state-metrics"` and `hostedcontrolplane` is empty or absent.
+- Management cAdvisor CPU/memory usage already goes here through Azure Managed Prometheus; that path is unchanged.
 
-2. **HCP Monitoring Workspace** (`prometheusSpec.hcpRemoteWriteUrl`):
-   - Receives metrics **only from** namespaces matching `^ocm-<environment>.*`  
-   - Handles Hosted Control Plane specific metrics (OCM-related components)
+**HCP Monitoring Workspace** (`prometheusSpec.hcpRemoteWriteUrl`):
+- Receives metrics whose `namespace` **or** `hostedcontrolplane` matches `^ocm-<environment>.*`, except for the narrow management KSM override.
+- Retains non-allowlisted HCP-namespace KSM, including `hostedClusterAPI_*`, `veleroBackup_*`, deployment/statefulset health, restarts, and termination reasons.
+- Guest KSM carries `hostedcontrolplane` and retains its existing routing, including when its exported namespace is a guest namespace.
+
+The services override matches these **exact metric names**, not prefixes:
+
+```text
+kube_pod_container_resource_requests
+kube_pod_init_container_resource_requests
+kube_pod_container_info
+kube_pod_init_container_info
+kube_pod_owner
+kube_replicaset_owner
+kube_job_owner
+kube_replicationcontroller_owner
+kube_pod_info
+kube_pod_status_phase
+kube_pod_status_scheduled
+kube_pod_container_resource_limits
+kube_namespace_labels
+```
+
+The first twelve families provide requests, limits, and compact per-replica sizing
+inventory. The thirteenth, `kube_namespace_labels`, is a compact inventory
+dependency of the existing management HCP-capacity alerts. Its namespace-level
+cardinality is negligible compared with container metrics and avoids splitting
+those alerts across workspaces.
+
+This is a partial routing override, not a global metric drop or a migration of all
+management KSM. Both remote-write destinations use the same classifier so each
+sample goes to one workspace when both destinations and the environment are
+configured. Non-allowlisted metrics retain their original namespace/identity route.
 
 **Deployment:**
 The Prometheus stack is deployed via `dev-infrastructure/mgmt-pipeline.yaml` and `dev-infrastructure/svc-pipeline.yaml` pipelines.
@@ -63,7 +94,7 @@ Each **Hosted Control Plane** will have multiple `ServiceMonitor` and `PodMonito
 
 ### HCP Worker Node Metrics
 
-HCP worker nodes are only visible to the HCP's own API server, not the management cluster's. To monitor their health, the mgmt-agent deploys a [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics) instance per HCP that scrapes node metrics directly from the HCP API server. These metrics are routed to the HCP Monitoring Workspace via the existing namespace-based remote write filter.
+HCP worker nodes are only visible to the HCP's own API server, not the management cluster's. To monitor their health, the mgmt-agent deploys a [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics) instance per HCP that scrapes node metrics directly from the HCP API server. These metrics carry the HCP identity and remain routed to the HCP Monitoring Workspace, including when the exported namespace is promoted to a guest namespace.
 
 See [`mgmt-agent/pkg/controller/ksmhcp/README.md`](../mgmt-agent/pkg/controller/ksmhcp/README.md) for implementation details.
 
@@ -76,18 +107,42 @@ ARO-HCP implements two Azure Monitor Workspace to separate metrics based on thei
 **1. Service Monitoring Workspace (Primary)**
 - **Scope**: Infrastructure services, applications, and general cluster metrics
 - **Sources**: Azure Managed Prometheus (infrastructure) + Self-managed Prometheus (applications)
-- **Namespace Filter**: All namespaces **except** `ocm-<environment>.*`
+- **Routing**: Non-HCP samples plus the exact management KSM sizing/inventory allowlist
 - **Data Flow**: 
   - Azure Managed Prometheus → Direct ingestion
-  - Self-managed Prometheus → Remote write with namespace filtering
+  - Self-managed Prometheus → Remote write with source/HCP-identity classification
 
 **2. HCP Monitoring Workspace (Hosted Control Planes)**
 - **Scope**: Hosted Control Plane specific metrics
 - **Sources**: Self-managed Prometheus only
-- **Namespace Filter**: **Only** namespaces matching `ocm-<environment>.*`
-- **Data Flow**: Self-managed Prometheus → Remote write with namespace filtering
+- **Routing**: HCP namespace or `hostedcontrolplane` identity, excluding only the management KSM allowlist override
+- **Data Flow**: Self-managed Prometheus → Remote write with source/HCP-identity classification
 
-This separation ensures clean metric isolation between platform infrastructure/services and customer data.
+This transitional split keeps sizing dependencies beside infrastructure usage
+without moving all HCP-namespace KSM into the services workspace.
+
+### Management KSM Routing Migration
+
+Only the sizing/inventory allowlist is routed to services. KAS custom
+`hostedClusterAPI_*` metrics, their availability recording rules, and RP availability
+alerts evaluate in HCPs. Management-capacity alerts stay in the DEV notification
+queue and evaluate in services using the namespace-label exception. API-server
+latency, etcd, and guest-health routing are unchanged.
+
+The management-capacity dashboard counts requests once from services and uses
+services `kube_pod_info` for density. The HCP namespace deep-dive uses services
+for requests and pod phase, but HCPs for restarts and termination/OOM reasons.
+KAS dashboards use HCPs for availability.
+
+Deploy the Prometheus routing, recording/alert rule registrations, and dashboard
+datasource updates together. Existing samples and recordings in either workspace
+are not moved or backfilled. If the earlier broad KSM routing was deployed,
+returning KAS recordings to HCPs requires availability/SLI warm-up, including
+long-window records; plan overlap/backfill separately if uninterrupted historical
+SLA evaluation is required. The override is deliberately narrow because services
+ingestion is capacity-constrained; validate ingestion capacity during rollout.
+Historical analysis tools continue querying both workspaces so pre-migration
+evidence remains accessible.
 
 ### Global Grafana
 
