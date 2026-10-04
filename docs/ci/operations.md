@@ -45,6 +45,9 @@ run's bounded time window from the regional Azure Monitor workspaces.
   and Resource History tabs, including minute-by-minute node resources,
   selected peak minutes, node capacity, workload demand, and
   completeness warnings. It can be rendered again without Azure access.
+- The **Right-Sizing** tab and standalone `right-sizing.html` show per-container
+  request suggestions derived from `replica-peaks.json`; `right-sizing.json` is
+  the machine-readable input for the offline request updater described below.
 - `junit_alerts.xml` records unexpected fired alerts as test failures for Prow.
 
 Known alert firings can be temporarily excluded from this CI gate in
@@ -211,8 +214,9 @@ regular-container requests. Both capacity lines use Kubernetes node resources;
 in particular, history memory capacity differs from the peak view's node-exporter
 MemTotal denominator. Usage still uses the same two-minute CPU rates and
 one-minute averages of host total-minus-available memory as the peak view.
-Requests combine the services and HCP workspaces without counting replicas
-twice. Empty HCP results are legitimate when both workspace queries succeed
+Management KSM requests now route to services even for HCP namespaces. Requests
+still combine the services and HCP workspaces without counting replicas twice
+to support historical data from before that routing change. Empty HCP results are legitimate when both workspace queries succeed
 and the shared KSM collector has inventory evidence in the services workspace.
 
 SWIFT-NIC plots advertised capacity, allocatable and assigned requested slots,
@@ -319,7 +323,9 @@ evidence for a shared container request. CPU and memory peaks may occur at
 different times. Summing independent container or replica maxima does not yield
 a measured simultaneous peak, and a low observed peak alone is not a safe
 production request recommendation. Request changes, CPU throttling, startup,
-missing telemetry, and unobserved load still require investigation. Collecting scheduling constraints and simulating placement remain separate steps.
+missing telemetry, and unobserved load still require investigation. The
+Right-Sizing report below proposes requests; collecting scheduling constraints
+and simulating placement remain separate steps.
 
 Collection has a three-minute total budget, 30-second HTTP timeouts, and at most
 two in-flight queries. Each cluster is queried separately with one evaluation
@@ -327,6 +333,138 @@ per request; full workload histories are neither downloaded nor persisted.
 Query failures and Prometheus warning responses are reported as unavailable
 evidence without failing alert/JUnit checks. An artifact-write failure remains
 fatal.
+
+### Right-Sizing Requests
+
+Desktop and mobile previews replaying job `2103929857506283520` with ten-minute
+CPU evidence and grouped HCP workloads:
+
+![Right-sizing stack ranks on desktop](images/right-sizing-desktop.png)
+
+![Right-sizing filters at a 390px mobile viewport](images/right-sizing-mobile.png)
+
+For HCP components, the updater also accepts `--sizing-template` and an explicit
+`--namespace-prefix`. This edits only existing `e2e_minimal` request entries in
+the `limitClusterSizes=true` branch of the Hypershift Helm template, not ordinary
+service config. The unrestricted branch and other size classes remain unchanged.
+See [the HCP sizing workflow](../../tooling/rightsize-requests/README.md) for
+scope and evidence requirements; incomplete HCP measurements block updates.
+
+The **Right-Sizing** tab has five columns: kind/namespace/name, requests, usage,
+suggested request, and samples. It groups the same owning workload and container
+across clusters and treats namespaces starting with `ocm-arohcp` as `ocm-arohcp*`.
+Selecting a cluster filters before grouping. Requests show the observed range;
+usage and suggestions use the maximum across instances, never a sum of peaks.
+The raw JSON retains exact clusters and namespaces for safe updater matching.
+
+**Editable workloads only** and **Changes only** are enabled by default. The
+shared catalog in `tooling/rightsize-requests/pkg/targets` contains 13 service
+targets and seven minimal-HCP targets; managed and unmapped workloads are hidden.
+Editable means a supported mapping, not sufficient evidence or permission to edit.
+Changes compare the grouped suggestion, not raw usage peaks, against both observed
+request endpoints using the deadband; matching requests are not changes. Uncheck
+the filters to inspect all rows, including ineligible evidence. JSON retains them
+regardless of display filters.
+
+CPU sizing uses the maximum ten-minute rate; its two-minute burst peak is available
+in the usage tooltip. Memory uses peak working set. Neither adds extra headroom.
+Samples are a conservative lower bound of distinct replica-minute usage
+observations, summed across known replicas after overlapping runtime/exporter
+observations are deduplicated. Unknown counts remain unknown. The optional
+`samples` field is optional in the version-3 JSON contract; reports
+without it still load, and replaying the original peaks computes the counts.
+Amounts remain **per container**, not workload totals or concurrent demand.
+Policy and collection details are collapsed; an asterisk marks row warnings and
+the Details label always shows the report-level warning count when nonzero.
+
+Suggestions round up (ceil) to 10m CPU or 10Mi memory, with a minimum
+of one step. For `unit = 0.01` cores or `10 * 1024 * 1024` bytes:
+
+```text
+suggested = max(1, ceil(peak / unit)) * unit
+```
+
+Ceiling covers the measured peak without an extra multiplier. For example, a CPU
+peak of 0.1875 cores suggests 0.19 cores (190m). The default deadband
+suppresses changes **at or below 10%** of the current request. `--change-threshold`
+accepts finite fractions from 0 through 1; 0 disables it. A measured sizing peak
+above 120% of current bypasses the deadband, not other safety checks.
+The report compares against observed `requestMin`; the updater recomputes against
+effective current config rather than trusting report `actionable`/`alertRisk` flags.
+
+Eligibility requires an exact pod-UID owner chain and, for **every observed
+replica**, both usage and request evidence with at least 10 grid points covering
+at least 90% of each signal's own first-to-last observation span. Missing,
+conflicting, or failed evidence is not zero and can make a row ineligible.
+This is **not proof of actual full-lifetime coverage or absence of ingestion
+loss**: wholly unobserved replicas and missing leading/trailing samples can escape
+these checks. Old collected artifacts without `sizingCPUWindow` use the legacy
+two-minute CPU peak with an explicit fallback warning. New artifacts declaring
+ten-minute sizing never fall back when `cpuSustained` evidence is missing.
+
+The actual `ServiceCPUDrift` and `ServiceMemoryDrift` alerts use a **30-minute
+average usage/request ratio >1.2 for 5 minutes**, with CPU based on a **five-minute
+rate**. These differ from sizing peaks; neither the risk check nor applying suggestions
+guarantees alert clearance. Investigate throttling, startup and unobserved load
+before accepting changes.
+
+The peak-only ceil policy is the **version 3** `right-sizing.json` contract, with
+`headroom: 1` and no new rounding field. Persisted version 1 sizing reports used
+nearest rounding, and version 2 reports added 20% headroom. Both are rejected;
+regenerate them from their original `replica-peaks.json`, not
+by changing their version number. Raw replica-peak reports remain version 1.
+Rebuild both right-sizing artifacts offline, without Azure credentials or rendered
+configuration:
+
+```bash
+./test/aro-hcp-tests gather-observability render-right-sizing \
+  --input replica-peaks.json --output DIR --change-threshold .1
+```
+
+Optionally add `--utilization-input utilization.json` from the same run to rebuild
+the **Estimated request savings** summary; live collection adds it automatically
+when a usable snapshot exists. It selects the highest pod count among retained
+utilization snapshots within the report window, with the earlier snapshot winning
+ties, not a full-run concurrent pod peak. Known regular-container requests are
+compared before and after applying the global maximum suggestion per shared target.
+Historical replica counts are never used as multipliers.
+
+Change estimates exclude multi-pod placement aggregates, missing or ineligible
+evidence, stale requests, and uncertain or exceeded limits. Known excluded requests
+stay unchanged; unknown requests are omitted from both totals, making them lower
+bounds. The summary follows cluster selection, not table filters. It assumes
+decreases and dev/minimal-HCP applicability, not a proven HCP size class or actual
+CLI edit plan: current repository stale/limit checks still apply. These are request
+estimates, not node or cost savings. Version 3 reports may omit `savings`;
+reports still load without a summary, and CLI decisions remain based on
+recommendations, not savings.
+
+Review `DIR/right-sizing.html`, then use `DIR/right-sizing.json` as the updater's
+input. From the repository root (below, `right-sizing.json` is the downloaded report):
+
+```bash
+go run ./tooling/rightsize-requests --input right-sizing.json \
+  --config config/config.yaml --allow-decrease --dry-run
+# After reviewing the preview, apply to the local config:
+go run ./tooling/rightsize-requests --input right-sizing.json \
+  --config config/config.yaml --allow-decrease
+```
+
+JSON input mode uses a fixed, explicit `(namespace, container)` mapping and writes
+only `clouds.dev.defaults.*.resources.requests.cpu`/`.memory`. It takes the maximum
+suggestion across all cluster/workload records mapping to each resource, never
+sums them. Unknown mappings are skipped; an ineligible, unknown-owner, init-container
+or incomplete mapped row blocks that mapped resource. CPU and memory are independent.
+Stale protection requires effective current config to lie in at least one contributing
+observed request range (not a gap between ranges), unless already equal to the
+suggestion. Decreases require `--allow-decrease`. Limits stay unchanged; suggestions
+exceeding an effective limit are skipped. The updater's own `--change-threshold`
+(default `.1`) controls its decisions independently of the report's threshold.
+This mode obtains no credentials, makes no network queries, and neither renders
+configuration nor commits. Review the diff and follow the normal configuration
+materialization workflow separately. See the
+[updater reference](../../tooling/rightsize-requests/README.md#offline-input)
+for validation and mapping details.
 
 ## Modifying CI Configuration
 

@@ -214,7 +214,10 @@ upstream control and is not automatically seeded.
 
 Every target must produce a valid Kubernetes qualified annotation name:
 `resource-request-override.hypershift.openshift.io/<deployment>.<container>`.
-The `deployment.container` suffix is limited to 63 characters. The chart rejects overlong suffixes even if neither quantity is supplied.
+The `deployment.container` suffix is limited to 63 characters. The CLI rejects
+configured invalid keys and experimental seeds; the experimental runner skips
+invalid catalog targets with a diagnostic before planning. The chart rejects
+overlong suffixes even if neither quantity is supplied.
 
 The policy source for every row below is the upstream control-plane component
 request override, wired through the Helm helper. Its audited allowlist is
