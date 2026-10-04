@@ -2327,7 +2327,7 @@ clouds:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               systemPoolOnly: true
               systemAgentPool:
-                minCount: 3
+                minCount: 2
                 maxCount: 5
                 vmSize: Standard_D4ds_v6
               userAgentPool:
@@ -2435,7 +2435,7 @@ clouds:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               systemPoolOnly: true
               systemAgentPool:
-                minCount: 3
+                minCount: 2
                 maxCount: 5
                 vmSize: Standard_D4ds_v6
               userAgentPool:
