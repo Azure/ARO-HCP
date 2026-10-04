@@ -676,8 +676,8 @@ data:
               - name: operator
                 resources:
                   requests:
-                    cpu: "10m"
-                    memory: "150Mi"
+                    cpu: "1690m"
+                    memory: "640Mi"
 ---
 # Source: aro-hcp-hypershift-operator/templates/sre-metrics-set.configmap.yaml
 apiVersion: v1

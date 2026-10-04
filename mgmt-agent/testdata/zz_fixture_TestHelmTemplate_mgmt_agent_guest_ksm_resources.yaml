@@ -572,7 +572,7 @@ spec:
         resources:
           requests:
             cpu: 350m
-            memory: 768Mi
+            memory: 480Mi
         volumeMounts: []
       volumes: []
       serviceAccountName: mgmt-agent

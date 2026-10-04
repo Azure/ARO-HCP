@@ -1677,6 +1677,11 @@ clouds:
         server:
           certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           certCN: 'server.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
+          k8s:
+            resources:
+              requests:
+                cpu: 140m
+                memory: 100Mi
         agent:
           certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
@@ -1688,6 +1693,7 @@ clouds:
           resources:
             requests:
               cpu: 630m
+              memory: 170Mi
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
@@ -1697,16 +1703,30 @@ clouds:
       # Hypershift Operator
       hypershift:
         limitClusterSizes: true
+        operatorResources:
+          requests:
+            cpu: 1690m
+            memory: 640Mi
       # Admin API
       adminApi:
         cert:
           san: 'admin.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 30Mi
       # Sessiongate
       sessiongate:
         cert:
           san: 'sessiongate.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 30Mi
       # Frontend
       frontend:
         cert:
@@ -1714,6 +1734,11 @@ clouds:
           issuer: Self
         clusterScopedIdentitiesConfig:
           roleSetName: dev
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 30Mi
       # Backend
       backend:
         k8s:
@@ -1737,6 +1762,7 @@ clouds:
           resources:
             requests:
               cpu: 350m
+              memory: 480Mi
       # Image Sync
       imageSync:
         ocMirror:
@@ -1759,7 +1785,7 @@ clouds:
           forwarder:
             resources:
               requests:
-                cpu: 450m
+                cpu: 350m
                 memory: 472Mi
         subscription:
           key: ARO Hosted Control Planes (EA Subscription 1)
@@ -1781,7 +1807,7 @@ clouds:
           forwarder:
             resources:
               requests:
-                cpu: 450m
+                cpu: 590m
                 memory: 472Mi
         stampIdentifier: '{{ .ctx.stamp }}'
         subscription:
@@ -1868,6 +1894,59 @@ clouds:
           certificate:
             issuer: Self
             san: genevaAction.hcp-global.osadev.cloud
+      customExporter:
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 30Mi
+      fleet:
+        k8s:
+          resources:
+            requests:
+              cpu: 60m
+              memory: 60Mi
+      kubeEvents:
+        k8s:
+          resources:
+            requests:
+              cpu: 150m
+              memory: 70Mi
+      acm:
+        resources:
+          backplaneOperator:
+            requests:
+              cpu: 20m
+              memory: 180Mi
+          klusterletAddonController:
+            requests:
+              cpu: 20m
+              memory: 30Mi
+          policyAddonController:
+            requests:
+              cpu: 70m
+          policyPropagator:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+      acrPull:
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+      secretSyncController:
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+      velero:
+        server:
+          resources:
+            requests:
+              cpu: 30m
+              memory: 190Mi
     environments:
       dev:
         # this is the integrated DEV environment

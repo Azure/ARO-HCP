@@ -15,8 +15,8 @@ acm:
         cpu: 100m
         memory: 2Gi
       requests:
-        cpu: 100m
-        memory: 20Mi
+        cpu: 20m
+        memory: 180Mi
     configPolicyController:
       limits:
         cpu: NONE
@@ -50,22 +50,22 @@ acm:
         cpu: NONE
         memory: NONE
       requests:
-        cpu: 50m
-        memory: 96Mi
+        cpu: 20m
+        memory: 30Mi
     policyAddonController:
       limits:
         cpu: NONE
         memory: NONE
       requests:
-        cpu: 25m
+        cpu: 70m
         memory: 64Mi
     policyPropagator:
       limits:
         cpu: NONE
         memory: NONE
       requests:
-        cpu: 25m
-        memory: 64Mi
+        cpu: 10m
+        memory: 50Mi
     workManager:
       limits:
         cpu: NONE
@@ -109,8 +109,8 @@ acrPull:
         cpu: 100m
         memory: 1Gi
       requests:
-        cpu: 100m
-        memory: 20Mi
+        cpu: 10m
+        memory: 50Mi
 adminApi:
   audit:
     connectSocket: false
@@ -138,8 +138,8 @@ adminApi:
       limits:
         memory: unlimited
       requests:
-        cpu: 200m
-        memory: 512Mi
+        cpu: 10m
+        memory: 30Mi
     serviceAccountName: admin-api
   managedIdentityName: admin-api
 administration:
@@ -280,7 +280,7 @@ clustersService:
         memory: unlimited
       requests:
         cpu: 630m
-        memory: 150Mi
+        memory: 170Mi
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
   postgres:
@@ -325,8 +325,8 @@ customExporter:
       limits:
         memory: unlimited
       requests:
-        cpu: 100m
-        memory: 128Mi
+        cpu: 10m
+        memory: 30Mi
     serviceAccountName: aro-hcp-exporter
   managedIdentityName: aro-hcp-exporter
 cxKeyVault:
@@ -376,8 +376,8 @@ fleet:
       limits:
         memory: 1Gi
       requests:
-        cpu: 200m
-        memory: 512Mi
+        cpu: 60m
+        memory: 60Mi
     serviceAccountName: fleet
   managedIdentityName: fleet
   nodePoolPlanning:
@@ -426,8 +426,8 @@ frontend:
       limits:
         memory: unlimited
       requests:
-        cpu: 100m
-        memory: 512Mi
+        cpu: 10m
+        memory: 30Mi
     serviceAccountName: frontend
   logVerbosity: 0
   managedIdentityName: frontend
@@ -592,8 +592,8 @@ hypershift:
   namespace: hypershift
   operatorResources:
     requests:
-      cpu: 10m
-      memory: 150Mi
+      cpu: 1690m
+      memory: 640Mi
   sharedIngressIPTag: ""
   sharedIngressImage:
     digest: sha256:5e22710fe440869655329ecc0ef57b4ae15f4ef96e74a8904b1e6fafc0d87678
@@ -648,8 +648,8 @@ kubeEvents:
       limits:
         memory: unlimited
       requests:
-        cpu: 200m
-        memory: 512Mi
+        cpu: 150m
+        memory: 70Mi
     serviceAccountName: ke-serviceaccount
 kusto:
   adminGroups: ""
@@ -763,8 +763,8 @@ maestro:
         limits:
           memory: unlimited
         requests:
-          cpu: 200m
-          memory: 512Mi
+          cpu: 140m
+          memory: 100Mi
       serviceAccountName: maestro
     loglevel: 2
     managedIdentityName: maestro-server
@@ -842,7 +842,7 @@ mgmt:
         limits:
           memory: 1248Mi
         requests:
-          cpu: 450m
+          cpu: 590m
           memory: 472Mi
   defaultStorageClassSkuName: PremiumV2_LRS
   hcpBackups:
@@ -995,7 +995,7 @@ mgmtAgent:
     resources:
       requests:
         cpu: 350m
-        memory: 768Mi
+        memory: 480Mi
     serviceAccountName: mgmt-agent
   managedIdentityName: mgmt-agent
   nodeHealth:
@@ -1177,8 +1177,8 @@ secretSyncController:
         cpu: NONE
         memory: unlimited
       requests:
-        cpu: 50m
-        memory: 100Mi
+        cpu: 10m
+        memory: 20Mi
     serviceAccountName: secrets-store-sync-controller-manager
   providerImage:
     digest: sha256:519f3891316ae4e00900b0ff0b67885ee9295c126f4cd79f38018b1747d3ea5f
@@ -1219,8 +1219,8 @@ sessiongate:
     replicas: 2
     resources:
       requests:
-        cpu: 250m
-        memory: 512Mi
+        cpu: 10m
+        memory: 30Mi
     serviceAccountName: sessiongate
   managedIdentityName: sessiongate
 stgGlobalV2:
@@ -1291,7 +1291,7 @@ svc:
         limits:
           memory: 1248Mi
         requests:
-          cpu: 450m
+          cpu: 350m
           memory: 472Mi
   istio:
     ingressGatewayIPAddressIPTags: ""
@@ -1501,5 +1501,5 @@ velero:
         cpu: NONE
         memory: NONE
       requests:
-        cpu: 1000m
-        memory: 1024Mi
+        cpu: 30m
+        memory: 190Mi
