@@ -38,11 +38,38 @@ resourceGroups:
     template: ../../templates/createdat-rg-tag-policy.bicep
     parameters: ../../configurations/createdat-rg-tag-policy.tmpl.bicepparam
     deploymentLevel: Subscription
+  # The sibling provider-registration service group does not include the E2E
+  # infrastructure subscription and has no ordering guarantee with this group.
+  - name: global-identity
+    action: ARM
+    template: ../../templates/output-opstool-global-identity.bicep
+    parameters: ../../configurations/output-opstool-global-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: register-costmanagement
+    action: Shell
+    command: ./e2e-register-providers.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: grants
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: ENV_NAME
+      value: dev-cost-management
+    - name: SUBSCRIPTION_IDS
+      value: '{{ range .ci.dev.e2eSubscriptions }}{{ .id }} {{ end }}{{ range .ci.dev.infrastructureSubscriptions }}{{ if index . "costTagInheritance" }}{{ .id }} {{ end }}{{ end }}'
+    - name: PROVIDER_NAMESPACES
+      value: Microsoft.CostManagement
   - name: cost-tag-inheritance
     action: ARM
     template: ../../templates/cost-tag-inheritance.bicep
     parameters: ../../configurations/cost-tag-inheritance.tmpl.bicepparam
     deploymentLevel: Subscription
+    dependsOn:
+    - resourceGroup: grants
+      step: register-costmanagement
 # Mock identity Entra apps/SPs plus their subscription-scoped RBAC. The rbac
 # steps create custom role definitions and role assignments (including the
 # privileged `Role Based Access Control Administrator` grant to the arm-helper

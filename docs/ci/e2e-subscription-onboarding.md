@@ -97,6 +97,7 @@ A brand-new subscription typically has no Azure resource providers registered be
    - In a normal onboarding flow, `homeSubscription`, `sharedPrincipals`, and `msiMockPool.principals` should not need to change.
    - Apply the **privileged** customer-subscription grants, createdAt tag policy, and Cost Management tag inheritance. The rollout requires **Owner** for subscription-scoped RBAC; its operator also needs permission to edit Cost Management settings on every target subscription (Cost Management Contributor). It is **not** run by the `dev-ci` postsubmit — ask an OWNERS-group member with the required access to run it from the repo root:
      - `make dev-ci-privileged-local-run`
+   - Before deploying the billing setting, the pipeline registers `Microsoft.CostManagement` on the same hosted-cluster and opted-in infrastructure subscriptions and waits for `Registered`. The sibling general-provider branch does not cover the E2E infrastructure subscription or order itself before the billing deployment.
 
 7. Validate the end-to-end path.
    - Read back `GET /subscriptions/<id>/providers/Microsoft.CostManagement/settings/taginheritance?api-version=2025-03-01` for each target subscription. Confirm `kind: taginheritance` and `properties.preferContainerTags: false`; a missing setting or failed readback means onboarding is incomplete. Inherited tags appear in Cost Management usage records, not on the Azure resources themselves; usage records can take 8–24 hours to update.
