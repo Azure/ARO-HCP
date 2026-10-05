@@ -177,7 +177,7 @@ spec:
         - "--backup-schedule-cadence"
         - "production"
         - "--backup-schedule-state"
-        - "Enabled"
+        - "Disabled"
         - "--azure-first-party-application-certificate-bundle-path"
         - "/secrets/backend-service-key-vault/fpa-cert-bundle"
         - "--azure-first-party-application-client-id"

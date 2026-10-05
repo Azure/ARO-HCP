@@ -893,7 +893,7 @@ defaults:
     maestro:
       sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
     backupCadenceProfile: production
-    backupScheduleState: Enabled
+    backupScheduleState: Disabled
     exitOnPanic: true
     logVerbosity: 4
     clusterScopedIdentitiesConfig:
