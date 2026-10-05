@@ -557,6 +557,14 @@ func setupCli() *cobra.Command {
 		TestTimeout:   &stageTestTimeout,
 		ResourcePools: miPools,
 	})
+	ext.AddSuite(e.Suite{
+		Name:       "stage/parallel/all",
+		Qualifiers: []string{stageQuery},
+		// Keep the same resource limits as the existing Stage suites.
+		Parallelism:   parallelism(34),
+		TestTimeout:   &stageTestTimeout,
+		ResourcePools: miPools,
+	})
 
 	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
 	prodTestTimeout := 150 * time.Minute
