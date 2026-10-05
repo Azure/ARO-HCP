@@ -304,7 +304,6 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20260630(ctx
 	infraParameters map[string]interface{},
 	artifactsFS embed.FS,
 	rbacScope RBACScope,
-	enableAutoNode bool,
 ) (ClusterParams20260630, error) {
 	startTime := time.Now()
 	defer func() {
@@ -343,11 +342,10 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20260630(ctx
 		WithDeploymentName(managedIdentitiesDeploymentName),
 		WithClusterResourceGroup(*resourceGroup.Name),
 		WithParameters(map[string]interface{}{
-			"nsgName":        clusterParams.NsgName,
-			"vnetName":       clusterParams.VnetName,
-			"subnetName":     clusterParams.SubnetName,
-			"keyVaultName":   clusterParams.KeyVaultName,
-			"enableAutoNode": enableAutoNode,
+			"nsgName":      clusterParams.NsgName,
+			"vnetName":     clusterParams.VnetName,
+			"subnetName":   clusterParams.SubnetName,
+			"keyVaultName": clusterParams.KeyVaultName,
 		}),
 	)
 
