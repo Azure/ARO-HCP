@@ -183,7 +183,13 @@ func TestAutoNodeSyncer_SyncOnce_NotReady(t *testing.T) {
 			clusters: nil,
 		},
 		{
-			name: "cluster being deleted",
+			// A management cluster was never assigned, so nothing could have
+			// been delivered (creation is gated on ManagementClusterResourceID
+			// != nil) - this must stay a no-op even though the cluster is
+			// deleting. Contrast with
+			// TestAutoNodeSyncer_SyncOnce_TearsDownOnDeletion, which covers the
+			// case where a desire was actually created before deletion.
+			name: "cluster being deleted before a management cluster was assigned",
 			clusters: []*coreapi.Cluster{newTestCluster(
 				withExperimentalAutoNode,
 				withAutoNodeIdentity,
@@ -193,7 +199,19 @@ func TestAutoNodeSyncer_SyncOnce_NotReady(t *testing.T) {
 			)},
 			serviceProviderClusters: []*coreapi.ServiceProviderCluster{newTestServiceProviderCluster(
 				withResolvedAutoNodeClientID(testResolvedClientID),
+				func(spc *coreapi.ServiceProviderCluster) {
+					spc.Status.ManagementClusterResourceID = nil
+				},
 			)},
+		},
+		{
+			name: "cluster being deleted where AutoNode was never enabled",
+			clusters: []*coreapi.Cluster{newTestCluster(
+				func(c *coreapi.Cluster) {
+					c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+				},
+			)},
+			serviceProviderClusters: []*coreapi.ServiceProviderCluster{newTestServiceProviderCluster()},
 		},
 		{
 			name:                    "ServiceProviderCluster not found",
@@ -335,6 +353,175 @@ func TestAutoNodeSyncer_SyncOnce_CreatesApplyDesire(t *testing.T) {
 	again, err := applyDesireCRUD.Get(ctx, autoNodeApplyDesireName)
 	require.NoError(t, err)
 	assert.Equal(t, applyDesire.Spec, again.Spec)
+}
+
+// TestAutoNodeSyncer_SyncOnce_TearsDownOnDeletion pins the fix for the
+// cluster-deletion deadlock: once an AutoNode ApplyDesire has been created,
+// setting DeletionTimestamp must purge it in a single SyncOnce call. Reaching
+// NotFound after exactly one call is itself the regression guard against the
+// Type=Delete-flip hazard: kubeapplierhelpers.EnsureApplyDesireRemoved
+// provably needs >=2 syncs to reach purge (it returns (false, nil) on the
+// first, flip-only call - see desire_deletion.go), so a single-call purge
+// proves PurgeApplyDesire (a plain document delete) was used instead.
+func TestAutoNodeSyncer_SyncOnce_TearsDownOnDeletion(t *testing.T) {
+	setup := func(t *testing.T) (*autoNodeSyncer, *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, context.Context) {
+		t.Helper()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		mockKubeApplier := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+		mockClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+		mockClients.Register(testMgmtClusterResourceID(), mockKubeApplier)
+		seedHostedClusterReadDesire(t, ctx, mockKubeApplier)
+
+		syncer := newTestSyncer(
+			[]*coreapi.Cluster{newTestCluster(withExperimentalAutoNode, withAutoNodeIdentity)},
+			[]*coreapi.ServiceProviderCluster{newTestServiceProviderCluster(withResolvedAutoNodeClientID(testClientID))},
+			mockClients,
+		)
+		require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+
+		applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testSub, testRG, testClusterName)
+		require.NoError(t, err)
+		_, err = applyDesireCRUD.Get(ctx, autoNodeApplyDesireName)
+		require.NoError(t, err, "precondition: ApplyDesire must exist before exercising teardown")
+
+		return syncer, mockKubeApplier, ctx
+	}
+
+	assertPurged := func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+		t.Helper()
+		applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testSub, testRG, testClusterName)
+		require.NoError(t, err)
+		_, err = applyDesireCRUD.Get(ctx, autoNodeApplyDesireName)
+		assert.Error(t, err, "ApplyDesire should have been purged")
+
+		// Belt-and-braces: confirm no document was ever left as Type=Delete
+		// (which would indicate EnsureApplyDesireRemoved's flip step ran).
+		docs := mockKubeApplier.GetAllDocuments()
+		for name, raw := range docs {
+			var desire kubeapplierapi.ApplyDesire
+			if err := json.Unmarshal(raw, &desire); err != nil {
+				continue // not an ApplyDesire document (e.g. a ReadDesire)
+			}
+			assert.NotEqual(t, kubeapplierapi.ApplyDesireTypeDelete, desire.Spec.Type,
+				"document %s should never be flipped to Type=Delete", name)
+		}
+	}
+
+	t.Run("purges in a single SyncOnce after DeletionTimestamp is set", func(t *testing.T) {
+		syncer, mockKubeApplier, ctx := setup(t)
+
+		syncer.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestCluster(
+			withExperimentalAutoNode,
+			withAutoNodeIdentity,
+			func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+			},
+		)}}
+
+		require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+		assertPurged(t, ctx, mockKubeApplier)
+
+		// Idempotency: a second sync after the purge must not error (NotFound
+		// is a no-op).
+		require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+	})
+
+	// The following cases are the actual regression guard the gate-reordering
+	// in SyncOnce exists to protect: each simulates a gate that has gone false
+	// after the desire was created, and asserts teardown still proceeds.
+	t.Run("purges even when ClusterServiceID has been cleared", func(t *testing.T) {
+		syncer, mockKubeApplier, ctx := setup(t)
+
+		syncer.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestCluster(
+			withExperimentalAutoNode,
+			withAutoNodeIdentity,
+			func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+				c.ServiceProviderProperties.ClusterServiceID = nil
+			},
+		)}}
+
+		require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+		assertPurged(t, ctx, mockKubeApplier)
+	})
+
+	t.Run("purges even when the HostedCluster ReadDesire has already been reaped", func(t *testing.T) {
+		syncer, mockKubeApplier, ctx := setup(t)
+
+		// Simulate the ReadDesire being gone by pointing the syncer at a fresh
+		// mock client registry with no seeded ReadDesire, while the ApplyDesire
+		// created during setup remains in the original registry.
+		mockClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+		mockClients.Register(testMgmtClusterResourceID(), mockKubeApplier)
+		mcLister := syncer.readDesireLister.(*kubeapplierlistertesting.DBReadDesireLister).Lister
+		syncer.readDesireLister = &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister}
+
+		readDesireCRUD, err := mockKubeApplier.ReadDesiresForCluster(testSub, testRG, testClusterName)
+		require.NoError(t, err)
+		require.NoError(t, readDesireCRUD.Delete(ctx, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster))
+
+		syncer.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestCluster(
+			withExperimentalAutoNode,
+			withAutoNodeIdentity,
+			func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+			},
+		)}}
+
+		require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+		assertPurged(t, ctx, mockKubeApplier)
+	})
+
+	t.Run("purges even when the resolved client ID has been cleared with a RetrievalError", func(t *testing.T) {
+		syncer, mockKubeApplier, ctx := setup(t)
+
+		syncer.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestCluster(
+			withExperimentalAutoNode,
+			withAutoNodeIdentity,
+			func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+			},
+		)}}
+		syncer.serviceProviderClusterLister = &corelistertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{newTestServiceProviderCluster(
+				func(spc *coreapi.ServiceProviderCluster) {
+					spc.Status.DataPlaneOperatorsManagedIdentities.Identities = map[string]*coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity{
+						strings.ToLower(testAutoNodeIdentityResourceID().String()): {
+							ResourceID:     testAutoNodeIdentityResourceID(),
+							RetrievalError: ptr.To("failed to get identity"),
+						},
+					}
+				},
+			)},
+		}
+
+		require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+		assertPurged(t, ctx, mockKubeApplier)
+	})
+
+	t.Run("does not purge a deleting cluster's ApplyDesire when AutoNode was never enabled on it", func(t *testing.T) {
+		syncer, mockKubeApplier, ctx := setup(t)
+
+		// A cluster without AutoNode enabled should never have had an
+		// AutoNode ApplyDesire delivered in the first place, but the
+		// pre-existing desire from setup() stands in for one left behind by
+		// a prior, unrelated controller run. needsDeletionWork must not key
+		// off DeletionTimestamp + ManagementClusterResourceID alone, or it
+		// would purge indiscriminately on every deleting cluster fleet-wide.
+		syncer.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestCluster(
+			withAutoNodeIdentity,
+			func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+			},
+		)}}
+
+		require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+
+		applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testSub, testRG, testClusterName)
+		require.NoError(t, err)
+		_, err = applyDesireCRUD.Get(ctx, autoNodeApplyDesireName)
+		require.NoError(t, err, "ApplyDesire should not have been purged for a non-AutoNode cluster")
+	})
 }
 
 const testResolvedClientID = "33333333-3333-3333-3333-333333333333"
