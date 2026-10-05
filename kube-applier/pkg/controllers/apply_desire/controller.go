@@ -41,6 +41,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
@@ -75,19 +76,59 @@ const ApplyDesireControllerName = "ApplyDesireController"
 // after this duration so drift from the desired state is detected.
 const DefaultResyncPeriod = 10 * time.Minute
 
+// DefaultMinDeletionPollPeriod and DefaultMaxDeletionPollPeriod bound how
+// quickly the controller re-checks a target whose deletion it is waiting out.
+//
+// Nothing else will tell it the target is gone. The informer is fed by the
+// Cosmos change feed, so it sees desire changes the moment they land but is
+// structurally blind to the management cluster: a finalizer completing there
+// changes no document and produces no event. Left to the informer alone, a
+// desire would sit on WaitingForDeletion for up to DefaultResyncPeriod after
+// its object had already disappeared — and the backend's teardown chain runs
+// its steps strictly in order, so every step would pay that toll in turn.
+// DefaultResyncPeriod remains the right timer for detecting drift; it is the
+// wrong one for actively waiting on a finalizer.
+const (
+	DefaultMinDeletionPollPeriod = 5 * time.Second
+	DefaultMaxDeletionPollPeriod = 30 * time.Second
+)
+
 // Config tunes the ApplyDesireController's resync behavior. Zero-valued
 // fields take the Default* constants below; tests pass shorter durations.
 type Config struct {
 	// ResyncPeriod is the maximum time between two reconciles of an
 	// unchanged desire. See DefaultResyncPeriod for the rationale.
 	ResyncPeriod time.Duration
+
+	// MinDeletionPollPeriod and MaxDeletionPollPeriod bound the re-check the
+	// controller schedules for itself while a target is still terminating.
+	// See deletionPollPeriod.
+	MinDeletionPollPeriod time.Duration
+	MaxDeletionPollPeriod time.Duration
 }
 
 func (c Config) withDefaults() Config {
 	if c.ResyncPeriod == 0 {
 		c.ResyncPeriod = DefaultResyncPeriod
 	}
+	if c.MinDeletionPollPeriod == 0 {
+		c.MinDeletionPollPeriod = DefaultMinDeletionPollPeriod
+	}
+	if c.MaxDeletionPollPeriod == 0 {
+		c.MaxDeletionPollPeriod = DefaultMaxDeletionPollPeriod
+	}
 	return c
+}
+
+// deletionPollPeriod returns how long to wait before re-checking a target that
+// still carries a deletion timestamp. The interval scales with how long the
+// deletion has already been in flight, so a finalizer that completes in
+// seconds is noticed almost at once while one that drags on for half an hour
+// settles at MaxDeletionPollPeriod instead of being hammered. Deriving it from
+// the deletion timestamp keeps the controller stateless: there is no per-key
+// attempt counter to maintain, reset, or leak.
+func (c Config) deletionPollPeriod(terminatingFor time.Duration) time.Duration {
+	return min(max(terminatingFor/4, c.MinDeletionPollPeriod), c.MaxDeletionPollPeriod)
 }
 
 // ApplyDesireController reconciles ApplyDesires by SSA-applying spec.kubeContent.
@@ -98,6 +139,9 @@ func (c Config) withDefaults() Config {
 //   - The informer's ResyncPeriod (set to cfg.ResyncPeriod) controls how
 //     often unchanged items are re-delivered, guaranteeing periodic
 //     reconciliation.
+//   - A Type=Delete desire waiting on its target's finalizers re-queues
+//     itself after deletionPollPeriod, because the disappearance it is
+//     waiting for produces no informer event.
 //   - On error the workqueue's rate limiter requeues the key with backoff.
 type ApplyDesireController struct {
 	name                string
@@ -268,8 +312,18 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 			d.Status.AppliedKubeGeneration = appliedKubeGeneration
 		})
 	case kubeapplierapi.ApplyDesireTypeDelete:
-		mutate := c.evaluateDelete(ctx, desire)
-		return c.writer.UpdateStatus(ctx, key, mutate)
+		evaluation := c.evaluateDelete(ctx, desire)
+		if err := c.writer.UpdateStatus(ctx, key, evaluation.mutate); err != nil {
+			return err
+		}
+		// The status now matches the cluster, so this write changes nothing in
+		// Cosmos on subsequent passes and no further event is coming: the
+		// target's disappearance happens on the management cluster, which the
+		// change-feed informer cannot see. Schedule the re-check ourselves.
+		if evaluation.requeueAfter > 0 {
+			c.queue.AddAfter(key, evaluation.requeueAfter)
+		}
+		return nil
 	default:
 		syncErr := conditions.NewPreCheckError(fmt.Errorf("unknown desire type %q", desire.Spec.Type))
 		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ApplyDesire) {
@@ -329,26 +383,57 @@ func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier
 	return result, nil
 }
 
+// deleteEvaluation is the outcome of one evaluateDelete pass: the status
+// mutation to persist, plus — while the target is still terminating — how long
+// to wait before looking again.
+type deleteEvaluation struct {
+	// mutate records the outcome on the desire's status conditions.
+	mutate desirestatuswriter.MutateFunc[kubeapplierapi.ApplyDesire]
+
+	// requeueAfter is zero for every terminal outcome. A non-zero value asks
+	// the caller to re-reconcile the key after that delay.
+	requeueAfter time.Duration
+}
+
+// deletionSettled records a terminal outcome: err == nil means the target is
+// gone, anything else means the attempt failed and why.
+func deletionSettled(err error) deleteEvaluation {
+	return deleteEvaluation{mutate: func(d *kubeapplierapi.ApplyDesire) {
+		conditions.SetSuccessfullyDeleted(&d.Status.Conditions, err)
+		conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
+	}}
+}
+
+// deletionInFlight records that the target still exists with a deletion
+// timestamp, and schedules the re-check that will notice it disappearing.
+func (c *ApplyDesireController) deletionInFlight(deletionTime metav1.Time, uid types.UID) deleteEvaluation {
+	return deleteEvaluation{
+		mutate: func(d *kubeapplierapi.ApplyDesire) {
+			conditions.SetWaitingForDeletion(&d.Status.Conditions, deletionTime, uid)
+			conditions.SetDegraded(&d.Status.Conditions, nil)
+		},
+		requeueAfter: c.cfg.deletionPollPeriod(time.Since(deletionTime.Time)),
+	}
+}
+
 // evaluateDelete runs the state machine for one ApplyDesire with Type=Delete
-// and returns the status mutation function that records the outcome.
+// and returns the status mutation that records the outcome, along with the
+// re-check delay when the deletion is still in flight.
 //
 // State machine:
 //
 //	get target
 //	  not found             -> SuccessfullyDeleted=True
-//	  has deletion timestamp -> WaitingForDeletion
+//	  has deletion timestamp -> WaitingForDeletion, re-check later
 //	  no deletion timestamp -> issue Delete; on error -> KubeAPIError
 //	                           re-issue get
 //	                             not found              -> SuccessfullyDeleted=True
-//	                             has deletion timestamp  -> WaitingForDeletion
-func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeapplierapi.ApplyDesire) desirestatuswriter.MutateFunc[kubeapplierapi.ApplyDesire] {
+//	                             has deletion timestamp  -> WaitingForDeletion, re-check later
+func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeapplierapi.ApplyDesire) deleteEvaluation {
 	target := d.Spec.TargetItem
 	if len(target.Resource) == 0 || len(target.Version) == 0 || len(target.Name) == 0 {
-		err := conditions.NewPreCheckError(errors.New("spec.targetItem requires version, resource, and name"))
-		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessfullyDeleted(&d.Status.Conditions, err)
-			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
-		}
+		return deletionSettled(conditions.NewPreCheckError(
+			errors.New("spec.targetItem requires version, resource, and name")))
 	}
 
 	gvr := schema.GroupVersionResource{Group: target.Group, Version: target.Version, Resource: target.Resource}
@@ -360,67 +445,43 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 
 	got, getErr := kubeResourceAccessor.Get(ctx, target.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(getErr) {
-		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessfullyDeleted(&d.Status.Conditions, nil)
-			conditions.SetDegraded(&d.Status.Conditions, nil)
-		}
+		return deletionSettled(nil)
 	}
 	if getErr != nil {
-		err := fmt.Errorf("get target: %w", getErr)
-		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessfullyDeleted(&d.Status.Conditions, err)
-			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
-		}
+		return deletionSettled(fmt.Errorf("get target: %w", getErr))
 	}
 
 	if dt := got.GetDeletionTimestamp(); dt != nil {
-		uid := got.GetUID()
-		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetWaitingForDeletion(&d.Status.Conditions, *dt, uid)
-			conditions.SetDegraded(&d.Status.Conditions, nil)
-		}
+		return c.deletionInFlight(*dt, got.GetUID())
 	}
 
 	if delErr := kubeResourceAccessor.Delete(ctx, target.Name, metav1.DeleteOptions{}); delErr != nil {
 		if apierrors.IsNotFound(delErr) {
-			return func(d *kubeapplierapi.ApplyDesire) {
-				conditions.SetSuccessfullyDeleted(&d.Status.Conditions, nil)
-				conditions.SetDegraded(&d.Status.Conditions, nil)
-			}
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("successfully deleted target resource",
+				"group", target.Group, "version", target.Version, "resource", target.Resource,
+				"namespace", target.Namespace, "name", target.Name)
+
+			return deletionSettled(nil)
 		}
-		err := fmt.Errorf("delete target: %w", delErr)
-		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessfullyDeleted(&d.Status.Conditions, err)
-			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
-		}
+		return deletionSettled(fmt.Errorf("delete target: %w", delErr))
 	}
 
 	// Re-read post-delete to capture the deletion-timestamp + UID for the
 	// "waiting for finalizers" message.
 	post, postErr := kubeResourceAccessor.Get(ctx, target.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(postErr) {
-		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessfullyDeleted(&d.Status.Conditions, nil)
-			conditions.SetDegraded(&d.Status.Conditions, nil)
-		}
+		return deletionSettled(nil)
 	}
 	if postErr != nil {
-		err := fmt.Errorf("post-delete get: %w", postErr)
-		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessfullyDeleted(&d.Status.Conditions, err)
-			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
-		}
+		return deletionSettled(fmt.Errorf("post-delete get: %w", postErr))
 	}
 	dt := post.GetDeletionTimestamp()
-	uid := post.GetUID()
 	if dt == nil {
 		now := metav1.NewTime(time.Now())
 		dt = &now
 	}
-	return func(d *kubeapplierapi.ApplyDesire) {
-		conditions.SetWaitingForDeletion(&d.Status.Conditions, *dt, uid)
-		conditions.SetDegraded(&d.Status.Conditions, nil)
-	}
+	return c.deletionInFlight(*dt, post.GetUID())
 }
 
 // classifyAsDegraded picks which sync errors should bubble to the Degraded
