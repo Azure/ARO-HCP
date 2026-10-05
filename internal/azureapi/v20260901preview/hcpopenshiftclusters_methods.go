@@ -582,7 +582,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.Cluster) (*cor
 // preserveUnknownClusterFields copies customer-facing fields from existing that
 // this API version doesn't know about.
 func preserveUnknownClusterFields(from, to *coreapi.Cluster) {
-	// ContainerRegistry was added in v20261001preview.
+	// ContainerRegistry was added in v20261001.
 	to.CustomerProperties.Platform.ContainerRegistry = from.CustomerProperties.Platform.ContainerRegistry
 }
 

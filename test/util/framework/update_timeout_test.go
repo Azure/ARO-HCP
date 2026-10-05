@@ -34,7 +34,7 @@ import (
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
-	hcpsdk20261001preview "github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 func TestUpdateHelpersPreserveOmittedTags(t *testing.T) {
@@ -82,9 +82,9 @@ func TestUpdateHelpersPreserveOmittedTags(t *testing.T) {
 		{
 			name: "cluster 20261001", timeoutTag: metadataapi.TagClusterMaxUpdateDuration,
 			update: func(t *testing.T, options *azcorearm.ClientOptions, tags map[string]*string) error {
-				client, err := hcpsdk20261001preview.NewHcpOpenShiftClustersClient(fakeSubscriptionID, &azfake.TokenCredential{}, options)
+				client, err := hcpsdk20261001.NewHcpOpenShiftClustersClient(fakeSubscriptionID, &azfake.TokenCredential{}, options)
 				require.NoError(t, err)
-				_, err = UpdateHCPCluster20261001(t.Context(), client, "rg", "cluster", hcpsdk20261001preview.HcpOpenShiftCluster{Tags: tags}, 10*time.Minute)
+				_, err = UpdateHCPCluster20261001(t.Context(), client, "rg", "cluster", hcpsdk20261001.HcpOpenShiftCluster{Tags: tags}, 10*time.Minute)
 				return err
 			},
 		},

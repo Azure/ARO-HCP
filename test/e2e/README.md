@@ -20,7 +20,7 @@ Set `clusterParams.DisableSwift = false` explicitly for private API or private
 KMS scenarios, which always require VNet integration. Public SWIFT coverage is
 retained by the OCP-version install table (`2025-12-23-preview`), node-pool
 deletion (`2026-09-01-preview`), cluster/node-pool active versions
-(`2026-10-01-preview`), and the independent HyperShift presubmit test. The install
+(`2026-10-01`), and the independent HyperShift presubmit test. The install
 table covers each available OCP release line; entries without resolvable releases
 skip before creating a cluster. There is not yet a `2026-06-30-preview` creation
 test, and `2024-06-10-preview` cannot express SWIFT networking on creation.

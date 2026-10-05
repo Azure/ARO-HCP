@@ -632,7 +632,7 @@ func TestDeploymentPreflight(t *testing.T) {
 		metadataapi.APIVersionV20251223Preview,
 		metadataapi.APIVersionV20260630Preview,
 		metadataapi.APIVersionV20260901Preview,
-		metadataapi.APIVersionV20261001Preview,
+		metadataapi.APIVersionV20261001,
 	} {
 		for _, swift := range []struct {
 			name       string
