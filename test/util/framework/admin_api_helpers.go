@@ -632,14 +632,26 @@ type AlertProcessingRuleListResponse struct {
 
 // GetServicesAMWResourceID constructs the services Azure Monitor Workspace resource ID
 func (tc *perItOrDescribeTestContext) GetServicesAMWResourceID(ctx context.Context) (string, error) {
-	subscriptionID, err := tc.SubscriptionID(ctx)
-	if err != nil {
-		return "", err
-	}
-
 	serviceConfig, err := config.GetServiceConfig()
 	if err != nil {
 		return "", fmt.Errorf("failed to load service config: %w", err)
+	}
+
+	// The admin API's configured AMW lives in the regional/infrastructure
+	// subscription the service was deployed into, NOT the customer/hosted-clusters
+	// subscription returned by tc.SubscriptionID. Resolve that subscription by
+	// display name so the scope matches what the admin API was configured with.
+	clientFactory, err := tc.GetARMSubscriptionsClientFactory()
+	if err != nil {
+		return "", fmt.Errorf("failed to get ARM subscriptions client factory: %w", err)
+	}
+	svcSubscriptionName, err := config.GetStringByPath(serviceConfig, "svc.subscription.key")
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve svc.subscription.key: %w", err)
+	}
+	subscriptionID, err := GetSubscriptionID(ctx, clientFactory.NewClient(), svcSubscriptionName)
+	if err != nil {
+		return "", err
 	}
 
 	regionRG, err := config.GetStringByPath(serviceConfig, "regionRG")
