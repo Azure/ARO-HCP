@@ -103,3 +103,28 @@ spec:
             rate(cluster_autoscaler_errors_total[15m])
           )
         )
+    # Worker nodes the autoscaler has marked for deletion but not yet removed
+    # (scale-down in flight). Non-zero is normal during scale-down.
+    - record: nodes:cluster_autoscaler:pending_node_deletions
+      expr: |
+        sum by (cluster, namespace) (
+          max without (prometheus_replica) (
+            cluster_autoscaler_pending_node_deletions
+          )
+        )
+    # Rate of nodes added by scale-up.
+    - record: nodes:cluster_autoscaler:scaled_up:rate15m
+      expr: |
+        sum by (cluster, namespace) (
+          max without (prometheus_replica) (
+            rate(cluster_autoscaler_scaled_up_nodes_total[15m])
+          )
+        )
+    # Rate of nodes removed by scale-down.
+    - record: nodes:cluster_autoscaler:scaled_down:rate15m
+      expr: |
+        sum by (cluster, namespace) (
+          max without (prometheus_replica) (
+            rate(cluster_autoscaler_scaled_down_nodes_total[15m])
+          )
+        )
