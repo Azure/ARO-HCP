@@ -29,7 +29,16 @@ These are the global settings for the ContainerServices API.
 
 ``` yaml
 openapi-type: arm
-tag: package-2026-10-01
+tag: package-2027-03-30-preview
+```
+
+### Tag: package-2027-03-30-preview
+
+These settings apply only when `--tag=package-2027-03-30-preview` is specified on the command line.
+
+``` yaml $(tag) == 'package-2027-03-30-preview'
+input-file:
+  - preview/2027-03-30-preview/openapi.json
 ```
 
 ### Tag: package-2026-10-01
