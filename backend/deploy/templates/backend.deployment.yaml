@@ -105,6 +105,16 @@ spec:
         {{- end }}
         - "--azure-cluster-scoped-identities-role-set-name"
         - "{{ .Values.clusterScopedIdentitiesConfig.roleSetName }}"
+        # Personal-dev-only stopgap: see clusterautonode.ImageOverrides doc comment.
+        # Never set in CSPR/int/stage/prod. Will be removed once the new OCP images are ready.
+        {{- if .Values.autoNode.karpenterOperatorImageOverride }}
+        - "--auto-node-karpenter-operator-image-override"
+        - "{{ .Values.autoNode.karpenterOperatorImageOverride }}"
+        {{- end }}
+        {{- if .Values.autoNode.karpenterProviderAzureImageOverride }}
+        - "--auto-node-karpenter-provider-azure-image-override"
+        - "{{ .Values.autoNode.karpenterProviderAzureImageOverride }}"
+        {{- end }}
         env:
         - name: DB_NAME
           valueFrom:

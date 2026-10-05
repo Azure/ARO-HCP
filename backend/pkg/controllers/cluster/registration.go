@@ -20,6 +20,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	clusterautonode "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/autonode"
 	clusterazureresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
@@ -1081,6 +1082,43 @@ func instantiateIdentityRoleAssignmentsController(controllerContext controllerco
 	), nil
 }
 
+func registerAutoNodeEnablerController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateAutoNodeEnablerController, true),
+	}
+}
+
+func instantiateAutoNodeEnablerController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterautonode.NewAutoNodeEnablerController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.KubeApplierDBClients,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+		controllerContext.MaestroSourceEnvironmentIdentifier,
+		controllerContext.AutoNodeImageOverrides,
+	), nil
+}
+
+func registerAutoNodeStatusController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateAutoNodeStatusController, true),
+	}
+}
+
+func instantiateAutoNodeStatusController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
+	return clusterautonode.NewAutoNodeStatusController(
+		controllerContext.ResourcesDBClient,
+		serviceProviderClusterLister,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+		unionReadDesireLister,
+	), nil
+}
+
 func registerKeyRotationBackupController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1279,4 +1317,6 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusteridentity.FetchManagedIdentitiesInfoControllerName)] = registerFetchManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
+	registry[strings.ToLower(clusterautonode.AutoNodeEnablerControllerName)] = registerAutoNodeEnablerController()
+	registry[strings.ToLower(clusterautonode.AutoNodeStatusControllerName)] = registerAutoNodeStatusController()
 }

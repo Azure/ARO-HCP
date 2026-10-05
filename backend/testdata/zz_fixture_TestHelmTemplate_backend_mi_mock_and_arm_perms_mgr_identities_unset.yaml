@@ -188,6 +188,8 @@ spec:
         - "--log-verbosity=4"
         - "--azure-cluster-scoped-identities-role-set-name"
         - "dev"
+        # Personal-dev-only stopgap: see clusterautonode.ImageOverrides doc comment.
+        # Never set in CSPR/int/stage/prod. Will be removed once the new OCP images are ready.
         env:
         - name: DB_NAME
           valueFrom:

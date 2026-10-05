@@ -32,6 +32,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	clusterautonode "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/autonode"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
@@ -71,6 +72,12 @@ type BackendRootCmdFlags struct {
 	AzureClusterScopedIdentitiesRoleSetName                                                       string
 	BackupScheduleCadence                                                                         string
 	BackupScheduleState                                                                           string
+	// AutoNodeKarpenterOperatorImageOverride and
+	// AutoNodeKarpenterProviderAzureImageOverride are a personal-dev-only
+	// stopgap: see the doc comment on clusterautonode.ImageOverrides. Both
+	// default to empty, which sets no annotations at all.
+	AutoNodeKarpenterOperatorImageOverride      string
+	AutoNodeKarpenterProviderAzureImageOverride string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -235,6 +242,11 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		fmt.Sprintf("Backup schedule cadence. Accepted values: '%s', '%s',", backups.BackupCadenceProduction, backups.BackupCadenceTesting))
 	cmd.Flags().StringVar(&f.BackupScheduleState, "backup-schedule-state", f.BackupScheduleState,
 		fmt.Sprintf("Backup schedule state. Accepted values: %s, %s", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
+
+	cmd.Flags().StringVar(&f.AutoNodeKarpenterOperatorImageOverride, "auto-node-karpenter-operator-image-override", f.AutoNodeKarpenterOperatorImageOverride,
+		"Personal-dev-only override image for the standalone karpenter-operator, set as a HostedCluster annotation when AutoNode is enabled. Leave empty everywhere except personal dev.")
+	cmd.Flags().StringVar(&f.AutoNodeKarpenterProviderAzureImageOverride, "auto-node-karpenter-provider-azure-image-override", f.AutoNodeKarpenterProviderAzureImageOverride,
+		"Personal-dev-only override image for the karpenter-provider-azure operand, set as a HostedCluster annotation when AutoNode is enabled. Leave empty everywhere except personal dev.")
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
@@ -562,6 +574,10 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		CloudEnvironment:              azureConfig.CloudEnvironment,
 		MetricsRegisterer:             legacyregistry.Registerer(),
 		MetricsGatherer:               legacyregistry.DefaultGatherer,
+		AutoNodeImageOverrides: clusterautonode.ImageOverrides{
+			KarpenterOperatorImage:      f.AutoNodeKarpenterOperatorImageOverride,
+			KarpenterProviderAzureImage: f.AutoNodeKarpenterProviderAzureImageOverride,
+		},
 	}
 
 	return backendOptions, nil

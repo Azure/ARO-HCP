@@ -93,3 +93,8 @@ exitOnPanic: {{ .backend.exitOnPanic }}
 logVerbosity: {{ .backend.logVerbosity }}
 clusterScopedIdentitiesConfig:
   roleSetName: "{{ .backend.clusterScopedIdentitiesConfig.roleSetName }}"
+# AutoNode image overrides. Personal-dev-only stopgap: both must stay empty in
+# every environment except pers. See clusterautonode.ImageOverrides doc comment.
+autoNode:
+  karpenterOperatorImageOverride: "{{ .backend.autoNode.karpenterOperatorImageOverride }}"
+  karpenterProviderAzureImageOverride: "{{ .backend.autoNode.karpenterProviderAzureImageOverride }}"

@@ -52,6 +52,7 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 
 	return ControllerContext{
 		AzureLocation:                     b.options.AzureLocation,
+		AutoNodeImageOverrides:            b.options.AutoNodeImageOverrides,
 		BackendIdentityAzureCachedReaders: b.options.BackendIdentityAzureCachedReaders,
 		BackupConfig:                      b.options.BackupConfig,
 		CheckAccessV2ClientBuilder:        b.options.CheckAccessV2ClientBuilder,

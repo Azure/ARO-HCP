@@ -129,6 +129,9 @@ automationDryRun: false
 azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 3
 backend:
+  autoNode:
+    karpenterOperatorImageOverride: arohcpsvcdev.azurecr.io/asampaio-karpenter-operator:demo
+    karpenterProviderAzureImageOverride: arohcpsvcdev.azurecr.io/asampaio-karpenter-azure
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   backupCadenceProfile: production

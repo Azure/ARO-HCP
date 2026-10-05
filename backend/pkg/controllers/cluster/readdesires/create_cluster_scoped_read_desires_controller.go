@@ -169,7 +169,7 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	}
 
 	desiredReadDesires := []desiredReadDesire{
-		{readDesireNameReadonlyHostedCluster, hostedClusterTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix)},
+		{readDesireNameReadonlyHostedCluster, controllerutils.HostedClusterTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix)},
 		{kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler, clusterAutoscalerTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix)},
 	}
 
@@ -234,22 +234,6 @@ type desiredReadDesire struct {
 // MaestroBundleInternalName in lowercase so the downstream
 // ManagementClusterContent document path stays stable across the migration.
 var readDesireNameReadonlyHostedCluster = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
-
-// hostedClusterTarget builds the ResourceReference that points at the
-// cluster's HostedCluster object in the management cluster. The naming
-// rules (namespace = "ocm-<env>-<csClusterID>", name = csClusterDomainPrefix)
-// match what CS itself uses; see the corresponding pre-migration code in
-// createClusterScopedMaestroReadonlyBundlesSyncer.buildClusterEmptyHostedCluster
-// for the original derivation.
-func hostedClusterTarget(envIdentifier, csClusterID, csClusterDomainPrefix string) kubeapplierapi.ResourceReference {
-	return kubeapplierapi.ResourceReference{
-		Group:     hsv1beta1.SchemeGroupVersion.Group,
-		Version:   hsv1beta1.SchemeGroupVersion.Version,
-		Resource:  "hostedclusters",
-		Namespace: controllerutils.HostedClusterNamespace(envIdentifier, csClusterID),
-		Name:      csClusterDomainPrefix,
-	}
-}
 
 // clusterAutoscalerTarget builds the ResourceReference for the cluster-autoscaler
 // ControlPlaneComponent in the HCP control plane namespace.

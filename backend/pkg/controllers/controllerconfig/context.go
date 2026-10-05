@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
+	clusterautonode "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/autonode"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/controllerregistry"
@@ -39,6 +40,7 @@ import (
 
 type ControllerContext struct {
 	AzureLocation                                       string
+	AutoNodeImageOverrides                              clusterautonode.ImageOverrides
 	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
 	BackupConfig                                        *clusterbackups.BackupConfig
 	BillingDBClient                                     billingcosmosstorage.BillingDBClient

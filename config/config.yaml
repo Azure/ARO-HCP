@@ -898,6 +898,13 @@ defaults:
     logVerbosity: 4
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
+    autoNode:
+      # Personal-dev-only stopgap overrides for the standalone
+      # karpenter-operator/karpenter-provider-azure images. Must stay empty
+      # here; only the pers environment overrides these (see
+      # clouds.dev.environments.pers.defaults.backend.autoNode below).
+      karpenterOperatorImageOverride: ""
+      karpenterProviderAzureImageOverride: ""
   # Fleet
   fleet:
     managedIdentityName: fleet
@@ -1739,6 +1746,17 @@ clouds:
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+          # Backend
+          backend:
+            # Personal-dev-only stopgap: the standalone karpenter-operator
+            # component in this environment's hypershift fork can't resolve
+            # its own image or the karpenter-provider-azure operand image
+            # without these annotations (see clusterautonode.ImageOverrides
+            # doc comment). Remove once the fork (or its upstream equivalent)
+            # resolves both without annotations.
+            autoNode:
+              karpenterOperatorImageOverride: "arohcpsvcdev.azurecr.io/asampaio-karpenter-operator:demo"
+              karpenterProviderAzureImageOverride: "arohcpsvcdev.azurecr.io/asampaio-karpenter-azure"
           # Frontend
           frontend:
             audit:
