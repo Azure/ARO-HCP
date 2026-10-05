@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -214,6 +215,118 @@ func TestEnsureApplyDesireTagsDrift(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, desire.Tags, got.Tags, "tags drift must be persisted onto the stored desire")
 	assert.Empty(t, got.Status.Conditions, "status should be cleared on replace triggered by tags drift")
+}
+
+// TestReplaceApplyDesireFromSnapshot shows that the helper writes only the
+// validated snapshot. It never creates a desire. It does not overwrite a desire
+// that changed after the snapshot.
+func TestReplaceApplyDesireFromSnapshot(t *testing.T) {
+	desireName := "test-apply-desire-snapshot"
+	type crudType = cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire]
+
+	testCases := []struct {
+		name string
+		// afterSnapshot changes the stored state after the caller reads the snapshot.
+		afterSnapshot func(t *testing.T, ctx context.Context, crud crudType, snapshot *kubeapplierapi.ApplyDesire)
+		desire        func(t *testing.T) *kubeapplierapi.ApplyDesire
+		expectError   bool
+		// expectReplaced is true when the stored desire must have the desired spec and a new ETag.
+		// Otherwise all stored documents must stay byte-identical to the state before the call.
+		expectReplaced bool
+		expectAbsent   bool
+	}{
+		{
+			name: "equal spec and tags do not write",
+			desire: func(t *testing.T) *kubeapplierapi.ApplyDesire {
+				return buildTestApplyDesire(t, desireName, testCSR(t))
+			},
+		},
+		{
+			name: "changed spec replaces the snapshot",
+			desire: func(t *testing.T) *kubeapplierapi.ApplyDesire {
+				return buildTestApplyDesire(t, desireName, systemadmincredential.BuildCSR(testOwnerResourceID, testCredentialName, "new-namespace", []byte("new-csr")))
+			},
+			expectReplaced: true,
+		},
+		{
+			name: "desire replaced after the snapshot is not overwritten",
+			afterSnapshot: func(t *testing.T, ctx context.Context, crud crudType, snapshot *kubeapplierapi.ApplyDesire) {
+				newer := snapshot.DeepCopy()
+				newer.Tags = map[string]string{kubeapplierapi.TagControllerName: "other"}
+				_, err := crud.Replace(ctx, newer, nil)
+				require.NoError(t, err)
+			},
+			desire: func(t *testing.T) *kubeapplierapi.ApplyDesire {
+				return buildTestApplyDesire(t, desireName, systemadmincredential.BuildCSR(testOwnerResourceID, testCredentialName, "new-namespace", []byte("new-csr")))
+			},
+		},
+		{
+			name: "desire deleted after the snapshot is not created again",
+			afterSnapshot: func(t *testing.T, ctx context.Context, crud crudType, snapshot *kubeapplierapi.ApplyDesire) {
+				require.NoError(t, crud.Delete(ctx, desireName))
+			},
+			desire: func(t *testing.T) *kubeapplierapi.ApplyDesire {
+				return buildTestApplyDesire(t, desireName, systemadmincredential.BuildCSR(testOwnerResourceID, testCredentialName, "new-namespace", []byte("new-csr")))
+			},
+			expectAbsent: true,
+		},
+		{
+			name: "missing controller tag is an error",
+			desire: func(t *testing.T) *kubeapplierapi.ApplyDesire {
+				d := buildTestApplyDesire(t, desireName, testCSR(t))
+				d.Tags = map[string]string{}
+				return d
+			},
+			expectError: true,
+		},
+		{
+			name: "resource ID mismatch is an error",
+			desire: func(t *testing.T) *kubeapplierapi.ApplyDesire {
+				return buildTestApplyDesire(t, "other-desire", testCSR(t))
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			mockDB, _, _ := newMockDBAndListers(ctx, t, []any{buildTestApplyDesire(t, desireName, testCSR(t))})
+			crud, err := mockDB.ApplyDesiresForSystemAdminCredentialRequest(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName)
+			require.NoError(t, err)
+
+			snapshot, err := crud.Get(ctx, desireName)
+			require.NoError(t, err)
+			if tc.afterSnapshot != nil {
+				tc.afterSnapshot(t, ctx, crud, snapshot)
+			}
+			before := mockDB.GetAllDocuments()
+
+			desire := tc.desire(t)
+			err = ReplaceApplyDesireFromSnapshot(ctx, crud, snapshot, desire)
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Equal(t, before, mockDB.GetAllDocuments(), "a rejected call must not change the stored documents")
+				return
+			}
+			require.NoError(t, err)
+
+			switch {
+			case tc.expectAbsent:
+				_, err := crud.Get(ctx, desireName)
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err), "the helper must not create a deleted desire again: %v", err)
+				assert.Equal(t, before, mockDB.GetAllDocuments(), "the helper must not write when the desire is deleted")
+			case tc.expectReplaced:
+				got, err := crud.Get(ctx, desireName)
+				require.NoError(t, err)
+				assert.Equal(t, desire.Spec.TargetItem, got.Spec.TargetItem, "the stored spec must have the desired target")
+				assert.JSONEq(t, string(desire.Spec.ServerSideApply.KubeContent.Raw), string(got.Spec.ServerSideApply.KubeContent.Raw), "the stored spec must have the desired content")
+				assert.NotEqual(t, snapshot.CosmosETag, got.CosmosETag, "a replace must give a new ETag")
+			default:
+				assert.Equal(t, before, mockDB.GetAllDocuments(), "the stored documents must not change")
+			}
+		})
+	}
 }
 
 func TestEnsureReadDesire(t *testing.T) {
