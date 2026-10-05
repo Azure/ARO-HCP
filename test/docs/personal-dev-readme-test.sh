@@ -53,6 +53,26 @@ test_start() {
     log_info "Test ${TESTS_RUN}: $1"
 }
 
+# Print the target of every markdown link in a file, one per line.
+#
+# Uses awk rather than grep because the obvious greedy pattern
+# (grep -o '\[.*\](.*)') collapses every link on a line into a single match and
+# then yields only the last one, and the non-greedy alternative needs grep -P,
+# which BSD grep on macOS does not provide. awk's match() is POSIX and advances
+# past each match, so lines carrying several links report all of them.
+extract_link_targets() {
+    awk '{
+        rest = $0
+        while (match(rest, /\[[^]]*\]\([^)]*\)/)) {
+            link = substr(rest, RSTART, RLENGTH)
+            sub(/^\[[^]]*\]\(/, "", link)
+            sub(/\)$/, "", link)
+            print link
+            rest = substr(rest, RSTART + RLENGTH)
+        }
+    }' "$1"
+}
+
 test_pass() {
     TESTS_PASSED=$((TESTS_PASSED + 1))
     log_info "✓ PASS"
@@ -195,37 +215,39 @@ test_cleanup_command() {
 }
 
 # Test 11: Check for broken internal links
+#
+# Offline by design: link targets carrying a URI scheme (http:, https:, mailto:, ...)
+# are skipped rather than fetched, so this suite never needs network access.
 test_internal_links() {
-    test_start "Internal documentation links are valid"
+    test_start "Internal documentation links resolve on disk"
 
     local all_valid=true
+    local checked=0
+    local skipped=0
 
-    # Extract markdown links (macOS compatible)
-    while IFS= read -r link; do
-        # Extract the file path
-        local file_path
-        file_path=$(echo "${link}" | sed -n 's/.*(\(.*\))/\1/p' | cut -d'#' -f1)
+    # Links are written relative to the directory holding the file under test.
+    local base_dir
+    base_dir="$(cd "$(dirname "${README_FILE}")" &>/dev/null && pwd)"
 
-        # Skip external links
-        if [[ "${file_path}" =~ ^http ]]; then
+    while IFS= read -r target; do
+        # Drop any "#anchor" suffix; a bare "#anchor" link leaves an empty path.
+        local file_path="${target%%#*}"
+
+        # Same-page anchor, or a link with a URI scheme we deliberately do not follow.
+        if [[ -z "${file_path}" ]] || [[ "${file_path}" =~ ^[a-zA-Z][a-zA-Z0-9+.-]*: ]]; then
+            skipped=$((skipped + 1))
             continue
         fi
 
-        # Skip empty links
-        if [[ -z "${file_path}" ]]; then
-            continue
-        fi
-
-        # Resolve relative path
-        local full_path="${REPO_ROOT}/docs/${file_path}"
-
-        if [[ ! -f "${full_path}" ]] && [[ ! -f "${REPO_ROOT}/${file_path}" ]]; then
+        checked=$((checked + 1))
+        if [[ ! -e "${base_dir}/${file_path}" ]]; then
             log_error "  Broken link: ${file_path}"
             all_valid=false
         fi
-    done < <(grep -o '\[.*\](.*\.md[^)]*)' "${README_FILE}" || true)
+    done < <(extract_link_targets "${README_FILE}")
 
     if ${all_valid}; then
+        log_info "  ${checked} local link(s) resolved, ${skipped} external/anchor link(s) skipped"
         test_pass
     else
         test_fail "Some internal links are broken"

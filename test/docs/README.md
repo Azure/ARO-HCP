@@ -119,9 +119,17 @@ markdownlint '**/*.md' --fix
 
 ## Link Checking
 
-Broken links are detected using `markdown-link-check`.
+Link checking is **offline**. The suite resolves every markdown link against the
+filesystem and never issues a network request, so it gives the same result on a
+laptop with no connectivity as it does in CI.
 
-Configuration: `.markdown-link-check.json`
+Link targets are skipped — not fetched — when they carry a URI scheme
+(`http:`, `https:`, `mailto:`, ...) or are a same-page `#anchor`. Everything else is
+resolved relative to the directory holding the file under test and must exist on disk.
+
+The trade-off is deliberate: a dead external URL will not be caught. In exchange the
+suite is hermetic and cannot fail because a third-party site is slow, rate-limiting,
+or behind a login.
 
 ## Troubleshooting
 
