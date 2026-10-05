@@ -72,7 +72,7 @@ var autoNodeTestMarketplaceImage = framework.KarpenterMarketplaceImage{
 // framework.RunKarpenterNodeCSRApprover's doc comment) - a passing run here is
 // not evidence that gap is closed.
 var _ = Describe("Customer", func() {
-	It("should be able to enable AutoNode via the typed properties.autoNode.mode field for a cluster with version >= 4.22 and provision a real node via Karpenter",
+	It("should be able to create a cluster with autonode enabled on OCP version >= 4.22 and run a web app on the Karpenter-provisioned node",
 		labels.RequireNothing, labels.Medium, labels.Slow, labels.Positive, labels.AroRpApiCompatible, labels.CreateCluster,
 		labels.MIContainers(0),
 		func(ctx context.Context) {
@@ -258,6 +258,7 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyAKSNodeClassReady(karpenterResourceName, 5*time.Minute).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "AKSNodeClass %q did not become ready", karpenterResourceName)
 
+			// Deploy workload
 			nodeSelector := map[string]string{
 				"autonode":                       "true",
 				framework.KarpenterNodePoolLabel: karpenterResourceName,
@@ -315,6 +316,10 @@ var _ = Describe("Customer", func() {
 				g.Expect(pods.Items[0].Status.Phase).To(Equal(corev1.PodRunning), "expected workload pod to reach Running once Karpenter provisioned a node")
 			}, 5*time.Minute, 10*time.Second).Should(Succeed(), "workload pod never reached Running phase on the Karpenter-provisioned node")
 
+			By("verifying a simple web app can run on the Karpenter-provisioned node")
+			err = verifiers.VerifySimpleWebApp(nodeSelector).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on cluster %q", clusterName)
+
 			By("scaling the workload back down and deleting the NodePool/AKSNodeClass, verifying Karpenter actually deprovisions the node")
 			err = framework.ScaleDeployment(ctx, adminRESTConfig, workloadNamespace, workloadName, 0)
 			Expect(err).NotTo(HaveOccurred(), "failed to scale workload %q back to 0 replicas", workloadName)
@@ -327,6 +332,12 @@ var _ = Describe("Customer", func() {
 			// Consolidation itself is not the bottleneck - Karpenter's default
 			// consolidateAfter is 0s when the NodePool doesn't set spec.disruption
 			// (confirmed against karpenter.sh_nodepools.yaml).
+			//
+			// Without the regular worker node pool above, draining this node can
+			// get stuck behind router-default's PodDisruptionBudget, since that's
+			// the only other place for it to go once evicted. Observed events:
+			//   Normal  DisruptionBlocked  4m57s  karpenter  Pdb prevents pod evictions (PodDisruptionBudget=[openshift-ingress/router-default])
+			//   Normal  DisruptionBlocked  57s (x2 over 2m57s)  karpenter  Node is deleting or marked for deletion
 			err = verifiers.VerifyKarpenterDeprovisioned(karpenterResourceName, 10*time.Minute).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "Karpenter did not deprovision the Node/NodeClaim for NodePool %q; a VM may have leaked", karpenterResourceName)
 
