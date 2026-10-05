@@ -49,6 +49,33 @@ func (a *APIProfile) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaller interface for type AutoNodeProfile.
+func (a AutoNodeProfile) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "mode", a.Mode)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type AutoNodeProfile.
+func (a *AutoNodeProfile) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %s", a, err.Error())
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "mode":
+			err = unpopulate(val, "Mode", &a.Mode)
+			delete(rawMsg, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %s", a, err.Error())
+		}
+	}
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaller interface for type ClusterActiveVersion.
 func (c ClusterActiveVersion) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
@@ -814,6 +841,7 @@ func (h *HcpOpenShiftClusterListResult) UnmarshalJSON(data []byte) error {
 func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "api", h.API)
+	populate(objectMap, "autoNode", h.AutoNode)
 	populate(objectMap, "autoscaling", h.Autoscaling)
 	populate(objectMap, "clusterImageRegistry", h.ClusterImageRegistry)
 	populate(objectMap, "console", h.Console)
@@ -842,6 +870,9 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "api":
 			err = unpopulate(val, "API", &h.API)
+			delete(rawMsg, key)
+		case "autoNode":
+			err = unpopulate(val, "AutoNode", &h.AutoNode)
 			delete(rawMsg, key)
 		case "autoscaling":
 			err = unpopulate(val, "Autoscaling", &h.Autoscaling)

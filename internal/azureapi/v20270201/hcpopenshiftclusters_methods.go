@@ -15,6 +15,7 @@
 package v20270201
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -389,6 +390,14 @@ func newImageDigestMirrors(from []coreapi.ImageDigestMirror) []*generated.ImageD
 	return out
 }
 
+// newAutoNodeProfile omits inactive AutoNode state from responses.
+func newAutoNodeProfile(autoNode coreapi.AutoNodeMode) *generated.AutoNodeProfile {
+	if autoNode != coreapi.AutoNode {
+		return nil
+	}
+	return &generated.AutoNodeProfile{Mode: ptr.To(generated.AutoNodeModeEnabled)}
+}
+
 func newOperatorsAuthenticationProfile(from *coreapi.OperatorsAuthenticationProfile) generated.OperatorsAuthenticationProfile {
 	if from == nil {
 		return generated.OperatorsAuthenticationProfile{}
@@ -475,6 +484,7 @@ func (v version) NewCluster(from *coreapi.Cluster) coreapi.VersionedCluster {
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
 				Status:                  newClusterResourceStatus(&from.Status),
 				CryptoRestrictions:      metadataapihelpers.PtrOrNil(generated.CryptoRestrictions(from.CustomerProperties.CryptoRestrictions)),
+				AutoNode:                newAutoNodeProfile(from.ServiceProviderProperties.ExperimentalFeatures.AutoNode),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},
@@ -605,6 +615,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.Cluster) (*cor
 		if c.Properties.CryptoRestrictions != nil {
 			normalizeCryptoRestrictions(c.Properties.CryptoRestrictions, &out.CustomerProperties.CryptoRestrictions)
 		}
+		if c.Properties.AutoNode != nil {
+			errs = append(errs, normalizeAutoNode(c.Properties.AutoNode, existing, out)...)
+		}
 	}
 
 	if existing != nil {
@@ -676,6 +689,49 @@ func normalizeIngress(p *generated.IngressProfile, out *coreapi.CustomerIngressP
 
 func normalizeCryptoRestrictions(p *generated.CryptoRestrictions, out *metadataapi.CryptoRestrictions) {
 	*out = metadataapi.CryptoRestrictions(metadataapihelpers.Deref(p))
+}
+
+// normalizeAutoNode maps the typed mode to the tag used by admission.
+// Admission applies feature gating and rejects changes after creation.
+func normalizeAutoNode(p *generated.AutoNodeProfile, existing *coreapi.Cluster, out *coreapi.Cluster) field.ErrorList {
+	if p.Mode == nil {
+		return nil
+	}
+
+	var requested coreapi.AutoNodeMode
+	switch *p.Mode {
+	case generated.AutoNodeModeEnabled:
+		requested = coreapi.AutoNode
+	case generated.AutoNodeModeDisabled:
+		requested = coreapi.DefaultAutoNodeMode
+	default:
+		return field.ErrorList{field.Invalid(
+			field.NewPath("properties", "autoNode", "mode"), *p.Mode,
+			fmt.Sprintf("must be %q or %q", generated.AutoNodeModeEnabled, generated.AutoNodeModeDisabled),
+		)}
+	}
+
+	var inherited coreapi.AutoNodeMode
+	if existing != nil {
+		inherited = existing.ServiceProviderProperties.ExperimentalFeatures.AutoNode
+	}
+	if requested == coreapi.AutoNode {
+		// Restore the tag when enablement or a replacement tags map requires it.
+		if requested != inherited || out.Tags != nil {
+			if out.Tags == nil {
+				out.Tags = map[string]string{}
+			}
+			out.Tags[metadataapi.TagClusterAutoNode] = string(coreapi.AutoNode)
+		}
+		return nil
+	}
+	if requested == inherited {
+		return nil
+	}
+	return field.ErrorList{field.Invalid(
+		field.NewPath("properties", "autoNode", "mode"), *p.Mode,
+		"AutoNode cannot be changed after cluster creation",
+	)}
 }
 
 func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *coreapi.CustomerPlatformProfile, out2 *coreapi.ServiceProviderPlatformProfile) field.ErrorList {

@@ -67,7 +67,7 @@ type ExperimentalFeatures struct {
 
 	// AutoNode enables dynamic node provisioning (implemented via Karpenter)
 	// when set to AutoNode="Karpenter". Written either directly (the legacy
-	// experimental tag) or via API version 2027-03-30-preview's typed
+	// experimental tag) or via API version 2027-02-01's typed
 	// properties.autoNode.mode field, which a version's Normalize translates
 	// into this same tag before admission runs — see that version's
 	// normalizeAutoNode. Both paths share the exact same admission enforcement.

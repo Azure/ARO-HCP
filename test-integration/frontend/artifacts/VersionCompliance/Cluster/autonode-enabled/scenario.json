@@ -1,0 +1,7 @@
+{
+	"createVersion": "2027-02-01",
+	"description": "Create an AutoNode-enabled cluster and verify GET and List across API versions.",
+	"id": "70df3692-6479-5847-b31d-7bec58736c26",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/vc-autonode",
+	"resourceType": "cluster"
+}
