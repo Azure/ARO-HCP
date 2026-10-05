@@ -129,28 +129,3 @@ build-cli: $(CLI_BINARY)
 
 $(CLI_BINARY): $(CLI_SOURCES)
 	cd client && go build $(LDFLAGS) -o ../$(CLI_BINARY) .
-
-run-hello-world-test: $(CLI_BINARY)
-	./${CLI_BINARY} hello-world \
-		--ga-auth-cert-kv ${GA_AUTH_CERT_KV} \
-		--ga-auth-cert-secret ${GA_AUTH_CERT_SECRET} \
-		--ga-auth-tenant-id ${GA_AUTH_TENANT_ID} \
-		--ga-auth-client-id ${GA_AUTH_CLIENT_ID} \
-		--ga-auth-scopes ${GA_AUTH_SCOPES} \
-		--host ${ADMIN_API_HOST} \
-		--admin-api-endpoint ${ADMIN_API_ENDPOINT_BASE} \
-		--insecure-skip-verify
-.PHONY: run-hello-world-test
-
-run-hello-world-test-with-port-forward: $(CLI_BINARY) $(HCPCTL)
-	HCPCTL=$(HCPCTL) ./hack/run-with-port-forward.sh "${SVC_CLUSTER}" "${ISTIO_PORT_FORWARD_SPEC}" \
-		./${CLI_BINARY} hello-world \
-			--ga-auth-cert-kv "${GA_AUTH_CERT_KV}" \
-			--ga-auth-cert-secret "${GA_AUTH_CERT_SECRET}" \
-			--ga-auth-tenant-id "${GA_AUTH_TENANT_ID}" \
-			--ga-auth-client-id "${GA_AUTH_CLIENT_ID}" \
-			--ga-auth-scopes "${GA_AUTH_SCOPES}" \
-			--host "${ADMIN_API_HOST}" \
-			--admin-api-endpoint "https://localhost:$(PORT_FORWARD_LOCAL_PORT)" \
-			--insecure-skip-verify
-.PHONY: run-with-sc-integration

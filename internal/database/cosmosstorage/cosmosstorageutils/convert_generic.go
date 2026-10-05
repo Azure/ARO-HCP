@@ -156,6 +156,7 @@ type Defaulter interface {
 // the iteration falls through to the next candidate.
 var objectPartitionKeyDerivers = []PartitionKeyDeriver{
 	KubeApplierPartitionKeyDeriver{},
+	ProviderNamespacePartitionKeyDeriver{},
 	FleetPartitionKeyDeriver{},
 	SubscriptionPartitionKeyDeriver{},
 }

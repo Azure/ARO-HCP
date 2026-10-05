@@ -187,6 +187,7 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.ClientOptions {
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
 	clientOpts.Retry = azureRetryOptions
+	clientOpts.PerRetryPolicies = []policy.Policy{&requestAttemptTrackerPolicy{}}
 	clientOpts.PerCallPolicies = []policy.Policy{
 		azclient.NewLROPollerRetryPolicy(nil),
 		&sanitizeAuthHeaderPolicy{},
@@ -218,6 +219,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
 	clientOpts.Retry = azureRetryOptions
+	clientOpts.PerRetryPolicies = []policy.Policy{&requestAttemptTrackerPolicy{}}
 	if tc.resourceManagerEndpoint != "" {
 		clientOpts.Cloud = cloud.Configuration{
 			ActiveDirectoryAuthorityHost: cloud.AzurePublic.ActiveDirectoryAuthorityHost,

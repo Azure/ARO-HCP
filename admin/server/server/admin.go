@@ -32,7 +32,6 @@ import (
 
 	"github.com/Azure/azure-kusto-go/kusto"
 
-	"github.com/Azure/ARO-HCP/admin/server/handlers"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	breakglasshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp/breakglass"
@@ -85,10 +84,12 @@ func NewAdminAPI(
 	maxSessionTTL time.Duration,
 	allowedBreakglassGroups set.Set[string],
 	gatherer prometheus.Gatherer,
+	metricsRegisterer prometheus.Registerer,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 ) *AdminAPI {
 	// Pre-mux middleware (runs on all admin routes before pattern matching)
 	middlewareMux := middleware.NewMiddlewareMux(
+		middleware.NewMiddlewareMetrics(metricsRegisterer).HandleRequest,
 		middleware.MiddlewareLogger,
 		middleware.MiddlewareLowercase,
 		middleware.NewMiddlewareAudit(auditClient).HandleRequest,
@@ -98,14 +99,6 @@ func NewAdminAPI(
 	// HCP resource routes
 	hcpMiddleware := middleware.NewMiddleware(
 		middleware.MiddlewareHCPResourceID,
-	)
-	middlewareMux.Handle(
-		middleware.V1HCPResourcePattern("GET", "/helloworld"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPHelloWorldHandler(resourcesDBClient, clustersServiceClient).ServeHTTP)),
-	)
-	middlewareMux.Handle(
-		middleware.V1HCPResourcePattern("GET", "/hellworld/lbs"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDemoListLoadbalancersHandler(resourcesDBClient, clustersServiceClient, fpaCredentialRetriever).ServeHTTP)),
 	)
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("POST", "/breakglass"),
@@ -143,9 +136,6 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("GET", "/backups"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPGetOnDemandBackupsHandler(resourcesDBClient, kubeApplierDBClients).ServeHTTP)),
 	)
-
-	// Non-HCP admin routes
-	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
 
 	// Stamp management routes
 	middlewareMux.Handle("GET /admin/v1/stamps",

@@ -114,7 +114,7 @@ spec:
       - name: aro-hcp-frontend
         image: 'arohcpsvcdev.azurecr.io/arohcpfrontend@sha256:1234567890'
         imagePullPolicy: Always
-        args: ["--clusters-service-url", "http://clusters-service.clusters-service.svc.cluster.local:8000", "--exit-on-panic=true", "--log-verbosity=0"]
+        args: ["--clusters-service-url", "http://clusters-service.clusters-service.svc.cluster.local:8000", "--exit-on-panic=true", "--log-verbosity=0", "--azure-cluster-scoped-identities-role-set-name=dev"]
         env:
         - name: DB_NAME
           valueFrom:

@@ -136,6 +136,14 @@ type NodePoolServiceProviderProperties struct {
 	// The operation node pool create controller uses this value to decide about marking the install as failed.
 	// The e2e tests set this value to one minute less than the default timeout.
 	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
+
+	// UpdateOperationCompletionDeadline is the time by which the current node pool update must complete.
+	// Admission resets it on each update to 60 minutes from the request, unless overridden
+	// by the experimental max-update-duration tag (requires ExperimentalReleaseFeatures).
+	// The update operation controller fails pending operations after this deadline,
+	// including the current pending reasons in the returned error.
+	// Written by: Frontend PUT/PATCH NodePool (via admission)
+	UpdateOperationCompletionDeadline *metav1.Time `json:"updateOperationCompletionDeadline,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

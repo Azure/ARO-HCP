@@ -31,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -69,6 +70,7 @@ type subInformer struct {
 // the plain AddEventHandler API on the sub-informer.
 type handlerEntry struct {
 	handler      cache.ResourceEventHandler
+	removed      chan struct{}
 	resyncPeriod time.Duration         // 0 means don't use AddEventHandlerWithResyncPeriod
 	options      *cache.HandlerOptions // nil means don't use AddEventHandlerWithOptions
 }
@@ -78,11 +80,34 @@ type handlerEntry struct {
 // handler reports HasSynced. With no sub-informers, the handler is vacuously
 // synced.
 type unionHandlerRegistration struct {
-	owner *UnionDesireInformer
-	entry *handlerEntry
+	owner    *UnionDesireInformer
+	entry    *handlerEntry
+	syncOnce sync.Once
+	synced   chan struct{}
 }
 
 var _ cache.ResourceEventHandlerRegistration = &unionHandlerRegistration{}
+
+func (registration *unionHandlerRegistration) HasSyncedChecker() cache.DoneChecker {
+	return registration
+}
+
+func (registration *unionHandlerRegistration) Name() string {
+	return "union desire informer handler"
+}
+
+func (registration *unionHandlerRegistration) Done() <-chan struct{} {
+	registration.syncOnce.Do(func() {
+		registration.synced = make(chan struct{})
+		go func() {
+			defer utilruntime.HandleCrash()
+			if cache.WaitForCacheSync(registration.entry.removed, registration.HasSynced) {
+				close(registration.synced)
+			}
+		}()
+	})
+	return registration.synced
+}
 
 func (r *unionHandlerRegistration) HasSynced() bool {
 	r.owner.mu.RLock()
@@ -208,6 +233,7 @@ func (u *UnionDesireInformer) AddEventHandlerWithOptions(
 func (u *UnionDesireInformer) addHandler(h *handlerEntry) (cache.ResourceEventHandlerRegistration, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+	h.removed = make(chan struct{})
 
 	// Install on every current sub. If any install fails, roll back the
 	// installs we already did and report the error — the handler is not
@@ -246,6 +272,7 @@ func (u *UnionDesireInformer) RemoveEventHandler(reg cache.ResourceEventHandlerR
 		return nil
 	}
 	delete(u.handlers, r.entry)
+	close(r.entry.removed)
 	var firstErr error
 	for _, sub := range u.subs {
 		if subReg, ok := sub.regs[r.entry]; ok {

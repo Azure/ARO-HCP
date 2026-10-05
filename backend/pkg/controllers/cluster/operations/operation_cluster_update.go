@@ -25,8 +25,6 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
@@ -57,6 +55,8 @@ type operationClusterUpdate struct {
 	notificationClient              *http.Client
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
+
+const OperationClusterUpdateControllerName = "OperationClusterUpdate"
 
 // NewOperationClusterUpdateController returns a new Controller instance that
 // follows an asynchronous cluster update operation to completion and updates
@@ -98,7 +98,7 @@ func NewOperationClusterUpdateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationClusterUpdate",
+		OperationClusterUpdateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -169,6 +169,28 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 		persistErr = &coreapi.CloudErrorBody{
 			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
+		}
+	}
+
+	if !operationalState.ProvisioningState.IsTerminal() &&
+		existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline != nil &&
+		c.clock.Now().After(existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time) {
+
+		message := operationbase.DeadlineExceededMessage(
+			"cluster update did not complete before the deadline",
+			operationalState.Message,
+		)
+		logger.Info("update operation deadline exceeded, marking as failed",
+			"deadline", existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time,
+			"message", message)
+		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
+		code := operationalState.CloudErrorCode
+		if code == coreapi.CloudErrorCodeInternalServerError {
+			code = coreapi.CloudErrorCodeDeadlineExceeded
+		}
+		persistErr = &coreapi.CloudErrorBody{
+			Code:    code,
+			Message: message,
 		}
 	}
 
@@ -248,62 +270,52 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	return picked, nil
 }
 
-func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *coreapi.Operation, existingCluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
-	resultingDesiredVersion := spc.Spec.ControlPlaneVersion.DesiredVersion
-	if resultingDesiredVersion == nil {
-		return nil, utils.TrackError(fmt.Errorf("service provider cluster has no desired version"))
-	}
-
+func (c *operationClusterUpdate) desiredVersionResolutionOperationState(_ context.Context, operation *coreapi.Operation, existingCluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
 	customerDesiredVersion, err := semver.ParseTolerant(existingCluster.CustomerProperties.Version.ID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
-	if customerDesiredVersion.Major == resultingDesiredVersion.Major &&
+	// Forced assignment takes precedence over initial, minor, and normal rollout
+	// assignment. Report an incompatible override directly instead of waiting
+	// for a resolution that the normal controllers intentionally will not make.
+	forced := spc.Spec.PinnedVersion.ExactVersion
+	if forced == nil {
+		forced = existingCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+	}
+	if forced != nil && (customerDesiredVersion.Major != forced.Major || customerDesiredVersion.Minor != forced.Minor) {
+		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
+		return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInvalidRequestContent,
+			fmt.Sprintf("requested cluster version %s conflicts with forced control plane version %s", existingCluster.CustomerProperties.Version.ID, forced), nil), nil
+	}
+
+	resultingDesiredVersion := spc.Spec.ControlPlaneVersion.DesiredVersion
+	if resultingDesiredVersion != nil &&
+		customerDesiredVersion.Major == resultingDesiredVersion.Major &&
 		customerDesiredVersion.Minor == resultingDesiredVersion.Minor {
 		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
-	clusterKey := controllerutils.HCPClusterKey{
-		SubscriptionID:    operation.ExternalID.SubscriptionID,
-		ResourceGroupName: operation.ExternalID.ResourceGroupName,
-		HCPClusterName:    operation.ExternalID.Name,
+
+	// Initial and minor rollout assignment resolve the version on the SPC.
+	// The removed ControlPlaneDesiredVersion controller no longer produces
+	// IntentFailed; reading or creating its status document cannot report
+	// progress. Bound the wait for the current assignment controllers instead.
+	pending := operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")
+	firstSeen, ok := c.desiredVersionMismatchFirstSeen.Get(operation.ResourceID.String())
+	if !ok {
+		c.desiredVersionMismatchFirstSeen.Add(operation.ResourceID.String(), c.clock.Now())
+		return pending, nil
 	}
-	controllerDoc, getControllerErr := controllerutils.GetOrCreateController(
-		ctx,
-		c.resourcesDBClient,
-		operation.ExternalID,
-		"ControlPlaneDesiredVersion",
-		clusterKey.InitialController,
+	if c.clock.Since(firstSeen.(time.Time)) <= 129*time.Second {
+		return pending, nil
+	}
+	msg := fmt.Sprintf(
+		"timed out after 129s waiting for resolution of desired version from '%s' cluster version",
+		existingCluster.CustomerProperties.Version.ID,
 	)
-	if getControllerErr != nil {
-		return nil, utils.TrackError(getControllerErr)
-	}
-	intentFailedCondition := apimeta.FindStatusCondition(controllerDoc.Status.Conditions, coreapi.ControllerConditionTypeIntentFailed)
-	if intentFailedCondition == nil || intentFailedCondition.Status != metav1.ConditionTrue || intentFailedCondition.Reason != coreapi.VersionUpgradeNotAcceptedReason {
-		// Customer desired minor differs from the service provider resolved version, and the
-		// ControlPlaneDesiredVersion controller has not yet set IntentFailed (VersionUpgradeNotAccepted).
-		// Stay Accepted while resolution runs; fail once elapsed exceeds 129s from the first
-		// time this process observed the mismatch for this operation, so a
-		// controller restart does not immediately fail long-running operations.
-		pending := operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")
-		firstSeen, ok := c.desiredVersionMismatchFirstSeen.Get(operation.ResourceID.String())
-		if !ok {
-			c.desiredVersionMismatchFirstSeen.Add(operation.ResourceID.String(), c.clock.Now())
-			return pending, nil
-		}
-		if c.clock.Since(firstSeen.(time.Time)) <= 129*time.Second {
-			return pending, nil
-		}
-		msg := fmt.Sprintf(
-			"timed out after 129s waiting for resolution of desired version from '%s' cluster version",
-			existingCluster.CustomerProperties.Version.ID,
-		)
-		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-		return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInternalServerError, msg, nil), nil
-	}
 	c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-	return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInternalServerError, intentFailedCondition.Message, nil), nil
+	return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInternalServerError, msg, nil), nil
 }
 
 func (c *operationClusterUpdate) clusterServiceClusterStatusOperationState(ctx context.Context, operation *coreapi.Operation, existingCSClusterStatus *arohcpv1alpha1.ClusterStatus, clusterServiceID metadataapi.InternalID) (*operationbase.OperationState, error) {
@@ -314,7 +326,7 @@ func (c *operationClusterUpdate) clusterServiceClusterStatusOperationState(ctx c
 		return nil, utils.TrackError(err)
 	}
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
-	state := operationbase.NewOperationState(newOperationStatus, "")
+	state := operationbase.NewOperationState(newOperationStatus, operationbase.ClusterServiceOperationMessage(existingCSClusterStatus, opError))
 	if opError != nil {
 		state.Message = opError.Message
 		state.WithCloudErrorCode(opError.Code)

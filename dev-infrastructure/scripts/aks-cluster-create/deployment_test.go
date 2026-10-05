@@ -48,6 +48,7 @@ import (
 
 // Decode the wire template, rather than relying on its Go representation.
 type deployedTestResource struct {
+	APIVersion string                     `json:"apiVersion"`
 	Type       string                     `json:"type"`
 	Name       string                     `json:"name"`
 	DependsOn  []string                   `json:"dependsOn"`
@@ -67,6 +68,7 @@ func deploymentResources(t *testing.T, deployment armdeployments.Deployment) map
 	require.NoError(t, json.Unmarshal(body, &template))
 	resources := make(map[string]deployedTestResource, len(template.Resources))
 	for _, resource := range template.Resources {
+		require.Equal(t, "2026-04-02-preview", resource.APIVersion)
 		require.NotContains(t, resources, resource.Name, "a pool cannot be deployed twice")
 		resources[resource.Name] = resource
 	}

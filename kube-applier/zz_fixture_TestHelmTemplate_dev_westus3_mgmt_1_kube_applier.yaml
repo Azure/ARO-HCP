@@ -327,7 +327,7 @@ spec:
             type: RuntimeDefault
         resources:
           requests:
-            cpu: 231m
+            cpu: 260m
             memory: 224Mi
       restartPolicy: Always
       terminationGracePeriodSeconds: 30

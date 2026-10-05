@@ -75,11 +75,23 @@ const (
 	// "<major>.<minor>" release line.
 	TagClusterControlPlaneExactVersion = ExperimentalClusterTagPrefix + "control-plane-exact-version"
 
+	// TagClusterZStreamUpdatePolicy controls automatic z-stream rollout when the
+	// ExperimentalReleaseFeatures AFEC is registered. The only valid value is
+	// "Immediate", which follows the channel's best version without waiting for
+	// canary progress. Production e2e tests need this to exercise automatic
+	// z-stream upgrades reliably, independently of the rest of the fleet.
+	TagClusterZStreamUpdatePolicy = ExperimentalClusterTagPrefix + "z-stream-update-policy"
+
 	// TagClusterMaxCreationDuration is the ARM resource tag that overrides
 	// the default cluster creation deadline (60 minutes) when the
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
 	// The value must be a valid Go time.Duration string (e.g. "19m", "30m").
 	TagClusterMaxCreationDuration = ExperimentalClusterTagPrefix + "max-creation-duration"
+
+	// TagClusterMaxUpdateDuration overrides the default 60-minute update deadline.
+	// Only honored when ExperimentalReleaseFeatures is registered. The value must
+	// be a valid Go duration of at least one minute.
+	TagClusterMaxUpdateDuration = ExperimentalClusterTagPrefix + "max-update-duration"
 
 	// TagClusterMaxDeletionDuration is the ARM resource tag that overrides
 	// the default cluster deletion deadline (60 minutes) when the
@@ -99,4 +111,9 @@ const (
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
 	// The value must be a valid Go time.Duration string (e.g. "19m", "30m").
 	TagNodePoolMaxCreationDuration = ExperimentalNodePoolTagPrefix + "max-creation-duration"
+
+	// TagNodePoolMaxUpdateDuration overrides the default 60-minute update deadline.
+	// Only honored when ExperimentalReleaseFeatures is registered. The value must
+	// be a valid Go duration of at least one minute.
+	TagNodePoolMaxUpdateDuration = ExperimentalNodePoolTagPrefix + "max-update-duration"
 )

@@ -14,18 +14,19 @@
 
 package informerutils
 
-import "context"
+import (
+	"context"
 
-type informerNameKey struct{}
+	"github.com/Azure/ARO-HCP/internal/utils"
+)
 
 // ContextWithInformerName associates a stable informer name with the context.
 // The derived context retains the parent's values, deadline, and cancellation.
 func ContextWithInformerName(ctx context.Context, name string) context.Context {
-	return context.WithValue(ctx, informerNameKey{}, name)
+	return utils.ContextWithInformerName(ctx, name)
 }
 
 // InformerNameFromContext returns the informer name, if present.
 func InformerNameFromContext(ctx context.Context) (string, bool) {
-	name, ok := ctx.Value(informerNameKey{}).(string)
-	return name, ok
+	return utils.InformerNameFromContext(ctx)
 }

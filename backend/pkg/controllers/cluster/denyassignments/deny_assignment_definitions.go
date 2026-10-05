@@ -44,7 +44,6 @@ const (
 	denyAssignmentSuffixKeyVault                 = "keyvault-deny-assignment"
 	denyAssignmentSuffixContainerService         = "containerservice-deny-assignment"
 	denyAssignmentSuffixNetworkVnetMgmt          = "network-vnet-mgmt-deny-assignment"
-	denyAssignmentSuffixNetworkVnetRead          = "network-vnet-read-deny-assignment"
 	denyAssignmentSuffixNetworkVnetJoin          = "network-vnet-join-deny-assignment"
 	denyAssignmentSuffixNetworkLoadBalancing     = "network-loadbalancing-deny-assignment"
 	denyAssignmentSuffixNetworkPrivateConn       = "network-privateconn-deny-assignment"
@@ -132,13 +131,6 @@ func denyAssignmentDefinitions(cluster *coreapi.Cluster) []denyAssignmentDefinit
 			dataPlaneOperators:      []string{operatorFileCSIDriver},
 			includeServiceManagedID: true,
 			actions:                 networkVirtualNetworksManagementActions(),
-		},
-		{
-			denyAssignmentType:      denyAssignmentSuffixNetworkVnetRead,
-			controlPlaneOperators:   []string{operatorClusterAPIAzure, operatorCloudControllerManager, operatorControlPlane, operatorImageRegistry, operatorIngress, operatorFileCSIDriver, operatorCloudNetworkConfig},
-			dataPlaneOperators:      []string{operatorImageRegistry, operatorFileCSIDriver},
-			includeServiceManagedID: true,
-			actions:                 networkVirtualNetworksReadActions(),
 		},
 		{
 			denyAssignmentType:    denyAssignmentSuffixNetworkVnetJoin,

@@ -26,7 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 )
 
@@ -176,12 +177,9 @@ func (o *ValidatedRegisterOptions) Complete(ctx context.Context) (*RegisterOptio
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentFleet)
 	clientOpts.Cloud = o.cloudConfiguration
 
-	dbClient, err := corecosmosstorage.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CosmosDB client: %w", err)
-	}
-
-	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(dbClient)
+	storageOptions := cosmosclient.Options{ClientOptions: clientOpts}
+	bucket := cosmosratelimit.NewUnlimitedTokenBucket("fleet-register")
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(o.CosmosURL, o.CosmosName, storageOptions, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fleet DB client: %w", err)
 	}

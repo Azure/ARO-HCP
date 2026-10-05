@@ -1,0 +1,7 @@
+{
+	"id": "7853f986-096a-5cb4-ab9e-d704751fb234",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/update-reject-cluster-version-skew/nodePools/workers/serviceProviderNodePools/default",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/serviceprovidernodepools"
+}

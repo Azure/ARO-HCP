@@ -40,7 +40,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -49,6 +51,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -99,10 +102,12 @@ func TestOperationsList(t *testing.T) {
 		reg,
 		reg,
 		mockResourcesDBClient,
+		newTestFrontendInformers(t, mockResourcesDBClient),
 		nil,
 		newNoopAuditClient(t),
 		coreapitesting.TestLocation,
 		true,
+		azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 	)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
@@ -202,10 +207,12 @@ func TestSubscriptionsGET(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
+				newTestFrontendInformers(t, mockResourcesDBClient),
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
 			// Pre-populate subscription in the mock database
@@ -351,10 +358,12 @@ func TestSubscriptionsPUT(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
+				newTestFrontendInformers(t, mockResourcesDBClient),
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
 			body, err := json.Marshal(&test.subscription)
@@ -420,6 +429,26 @@ func TestDeploymentPreflight(t *testing.T) {
 			"platform": map[string]any{
 				"subnetId":               coreapitesting.TestSubnetResourceID,
 				"networkSecurityGroupId": coreapitesting.TestNetworkSecurityGroupResourceID,
+				"operatorsAuthentication": map[string]any{
+					"userAssignedIdentities": map[string]any{
+						"controlPlaneOperators": map[string]any{
+							"cluster-api-azure":        coreapitesting.NewTestOperatorUserAssignedIdentity("cluster-api-azure").String(),
+							"control-plane":            coreapitesting.NewTestOperatorUserAssignedIdentity("control-plane").String(),
+							"cloud-controller-manager": coreapitesting.NewTestOperatorUserAssignedIdentity("cloud-controller-manager").String(),
+							"ingress":                  coreapitesting.NewTestOperatorUserAssignedIdentity("ingress").String(),
+							"disk-csi-driver":          coreapitesting.NewTestOperatorUserAssignedIdentity("disk-csi-driver").String(),
+							"file-csi-driver":          coreapitesting.NewTestOperatorUserAssignedIdentity("file-csi-driver").String(),
+							"image-registry":           coreapitesting.NewTestOperatorUserAssignedIdentity("image-registry").String(),
+							"cloud-network-config":     coreapitesting.NewTestOperatorUserAssignedIdentity("cloud-network-config").String(),
+							"kms":                      coreapitesting.NewTestOperatorUserAssignedIdentity("kms").String(),
+						},
+						"dataPlaneOperators": map[string]any{
+							"disk-csi-driver": coreapitesting.NewTestOperatorUserAssignedIdentity("dp-disk-csi-driver").String(),
+							"file-csi-driver": coreapitesting.NewTestOperatorUserAssignedIdentity("dp-file-csi-driver").String(),
+							"image-registry":  coreapitesting.NewTestOperatorUserAssignedIdentity("dp-image-registry").String(),
+						},
+					},
+				},
 			},
 			"etcd": map[string]any{
 				"dataEncryption": map[string]any{
@@ -436,6 +465,20 @@ func TestDeploymentPreflight(t *testing.T) {
 						},
 					},
 				},
+			},
+		},
+		"identity": map[string]any{
+			"type": "UserAssigned",
+			"userAssignedIdentities": map[string]any{
+				coreapitesting.NewTestOperatorUserAssignedIdentity("cluster-api-azure").String():        map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("control-plane").String():            map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("cloud-controller-manager").String(): map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("ingress").String():                  map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("disk-csi-driver").String():          map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("file-csi-driver").String():          map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("image-registry").String():           map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("cloud-network-config").String():     map[string]any{},
+				coreapitesting.NewTestOperatorUserAssignedIdentity("kms").String():                      map[string]any{},
 			},
 		},
 	}
@@ -461,8 +504,14 @@ func TestDeploymentPreflight(t *testing.T) {
 			expectStatus: coreapi.DeploymentPreflightStatusSucceeded,
 		},
 		{
-			name:         "Well-formed cluster resource returns no error",
-			resource:     wellFormedClusterResource,
+			name:     "Well-formed cluster resource returns no error",
+			resource: wellFormedClusterResource,
+			mutateResource: func(resource map[string]any) {
+				// TestAPIVersion has no kms.visibility. Leaving it in fails strict unmarshal, and
+				// the handler then skips the resource instead of validating it.
+				kms := resource["properties"].(map[string]any)["etcd"].(map[string]any)["dataEncryption"].(map[string]any)["customerManaged"].(map[string]any)["kms"].(map[string]any)
+				delete(kms, "visibility")
+			},
 			expectStatus: coreapi.DeploymentPreflightStatusSucceeded,
 		},
 		{
@@ -665,10 +714,12 @@ func TestDeploymentPreflight(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
+				newTestFrontendInformers(t, mockResourcesDBClient),
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
 			subs := map[string]*coreapi.Subscription{
@@ -805,10 +856,12 @@ func TestRequestAdminCredential(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
+				newTestFrontendInformers(t, mockResourcesDBClient),
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
 			// Pre-populate the mock database with cluster and subscription
@@ -921,10 +974,12 @@ func TestRequestAdminCredentialRequiresCSR(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
+				newTestFrontendInformers(t, mockResourcesDBClient),
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
@@ -1048,10 +1103,12 @@ func TestRevokeCredentials(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
+				newTestFrontendInformers(t, mockResourcesDBClient),
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
 				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
 			// Pre-populate the mock database with cluster
@@ -1128,6 +1185,195 @@ func TestRevokeCredentials(t *testing.T) {
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				fmt.Println(string(body))
+			}
+		})
+	}
+}
+
+func TestDeleteCluster(t *testing.T) {
+	type testCase struct {
+		name                           string
+		clusterExists                  bool
+		clusterProvisioningState       coreapi.ProvisioningState
+		usesNewClusterDeletionApproach bool
+		hasDeletionTimestamp           bool
+		expectedStatusCode             int
+		expectedErrorMessage           string
+		expectDeletionTimestampSet     bool
+		expectDeadlineInFuture         bool
+	}
+
+	tests := []testCase{
+		{
+			name:                           "Legacy cluster stuck in Deleting - no timestamp, bypass conflict check",
+			clusterExists:                  true,
+			clusterProvisioningState:       coreapi.ProvisioningStateDeleting,
+			usesNewClusterDeletionApproach: false,
+			hasDeletionTimestamp:           false, // Legacy approach doesn't set timestamp
+			expectedStatusCode:             http.StatusAccepted,
+			expectDeletionTimestampSet:     true,
+			expectDeadlineInFuture:         true,
+		},
+		{
+			name:                           "Failed backend deletion - fresh monitoring deadline",
+			clusterExists:                  true,
+			clusterProvisioningState:       coreapi.ProvisioningStateFailed,
+			usesNewClusterDeletionApproach: true,
+			hasDeletionTimestamp:           true,
+			expectedStatusCode:             http.StatusAccepted,
+			expectDeadlineInFuture:         true,
+		},
+		{
+			name:                     "Legacy deletion with timestamp - initialize backend deletion",
+			clusterExists:            true,
+			clusterProvisioningState: coreapi.ProvisioningStateDeleting,
+			hasDeletionTimestamp:     true,
+			expectedStatusCode:       http.StatusAccepted,
+			expectDeadlineInFuture:   true,
+		},
+		{
+			name:                           "New approach cluster already deleting - conflict",
+			clusterExists:                  true,
+			clusterProvisioningState:       coreapi.ProvisioningStateDeleting,
+			usesNewClusterDeletionApproach: true,
+			hasDeletionTimestamp:           true, // New approach sets timestamp
+			expectedStatusCode:             http.StatusConflict,
+			expectedErrorMessage:           "Resource is already deleting",
+		},
+		{
+			name:                           "Succeeded cluster - normal deletion",
+			clusterExists:                  true,
+			clusterProvisioningState:       coreapi.ProvisioningStateSucceeded,
+			usesNewClusterDeletionApproach: false,
+			hasDeletionTimestamp:           false,
+			expectedStatusCode:             http.StatusAccepted,
+			expectDeletionTimestampSet:     true,
+			expectDeadlineInFuture:         true,
+		},
+		{
+			name:               "Non-existent cluster - idempotent delete",
+			clusterExists:      false,
+			expectedStatusCode: http.StatusNoContent,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clusterResourceID := newClusterResourceID(t)
+			clusterInternalID := newClusterInternalID(t)
+
+			reg := prometheus.NewRegistry()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+
+			f := NewFrontend(
+				testr.New(t),
+				nil,
+				nil,
+				reg,
+				reg,
+				mockResourcesDBClient,
+				newTestFrontendInformers(t, mockResourcesDBClient),
+				nil,
+				newNoopAuditClient(t),
+				coreapitesting.TestLocation,
+				true,
+				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
+			)
+
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+
+			// Pre-populate the mock database with cluster if it should exist
+			now := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+			f.clock = clocktesting.NewFakeClock(now)
+			oldTimestamp := metav1.NewTime(now.Add(-25 * time.Hour))
+			var originalCluster *coreapi.Cluster
+			if test.clusterExists {
+				cluster := &coreapi.Cluster{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID:   clusterResourceID,
+						PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
+					},
+					TrackedResource: coreapi.TrackedResource{
+						Resource: coreapi.Resource{
+							ID: clusterResourceID,
+						},
+					},
+					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
+						ProvisioningState:              test.clusterProvisioningState,
+						ClusterServiceID:               &clusterInternalID,
+						UsesNewClusterDeletionApproach: test.usesNewClusterDeletionApproach,
+					},
+				}
+				// Set DeletionTimestamp only if test specifies it should have one
+				if test.hasDeletionTimestamp {
+					cluster.ServiceProviderProperties.DeletionTimestamp = &oldTimestamp
+					deadline := metav1.NewTime(oldTimestamp.Add(12 * time.Hour))
+					cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = &deadline
+				}
+				var err error
+				originalCluster, err = mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
+				require.NoError(t, err)
+			}
+
+			subs := map[string]*coreapi.Subscription{
+				coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
+			}
+			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
+
+			url := ts.URL + clusterResourceID.String() + "?api-version=" + coreapitesting.TestAPIVersion
+			req, err := http.NewRequest(http.MethodDelete, url, nil)
+			require.NoError(t, err)
+
+			resp, err := ts.Client().Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			if !assert.Equal(t, test.expectedStatusCode, resp.StatusCode) {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				fmt.Println(string(body))
+			}
+
+			// For conflict cases, verify error message
+			if test.expectedStatusCode == http.StatusConflict && test.expectedErrorMessage != "" {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				assert.Contains(t, string(body), test.expectedErrorMessage)
+				unchangedCluster, err := mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
+				require.NoError(t, err)
+				assert.Equal(t, originalCluster, unchangedCluster, "rejected DELETE must not modify deletion state or deadline")
+			}
+
+			// For accepted cases, verify cluster state was updated correctly
+			if test.expectedStatusCode == http.StatusAccepted && test.clusterExists {
+				updatedCluster, err := mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
+				require.NoError(t, err)
+
+				// Verify ProvisioningState is set to Deleting
+				assert.Equal(t, coreapi.ProvisioningStateDeleting, updatedCluster.ServiceProviderProperties.ProvisioningState)
+
+				// Verify UsesNewClusterDeletionApproach is set to true
+				assert.True(t, updatedCluster.ServiceProviderProperties.UsesNewClusterDeletionApproach, "UsesNewClusterDeletionApproach should be set to true after DELETE")
+
+				// Verify ActiveOperationID is set
+				assert.NotEmpty(t, updatedCluster.ServiceProviderProperties.ActiveOperationID, "ActiveOperationID should be set")
+
+				// Verify DeletionTimestamp is set if expected
+				if test.expectDeletionTimestampSet {
+					require.NotNil(t, updatedCluster.ServiceProviderProperties.DeletionTimestamp, "DeletionTimestamp should be set")
+
+					assert.WithinDuration(t, now, updatedCluster.ServiceProviderProperties.DeletionTimestamp.Time, 0)
+				}
+				if test.hasDeletionTimestamp {
+					assert.True(t, oldTimestamp.Equal(updatedCluster.ServiceProviderProperties.DeletionTimestamp), "existing deletion intent must be preserved")
+				}
+
+				// Verify DeleteOperationCompletionDeadline is in the future if expected
+				if test.expectDeadlineInFuture {
+					require.NotNil(t, updatedCluster.ServiceProviderProperties.DeleteOperationCompletionDeadline, "DeleteOperationCompletionDeadline should be set")
+
+					assert.WithinDuration(t, now.Add(12*time.Hour), updatedCluster.ServiceProviderProperties.DeleteOperationCompletionDeadline.Time, 0)
+				}
 			}
 		})
 	}

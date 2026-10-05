@@ -48,6 +48,8 @@ type operationNodePoolCreate struct {
 	notificationClient     *http.Client
 }
 
+const OperationNodePoolCreateControllerName = "OperationNodePoolCreate"
+
 // NewOperationNodePoolCreateController returns a new Controller instance that
 // follows an asynchronous node pool creation operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -85,7 +87,7 @@ func NewOperationNodePoolCreateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationNodePoolCreate",
+		OperationNodePoolCreateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -167,8 +169,12 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 			"deadline", nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
 			"message", message)
 		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
+		code := operationalState.CloudErrorCode
+		if code == coreapi.CloudErrorCodeInternalServerError {
+			code = coreapi.CloudErrorCodeDeadlineExceeded
+		}
 		persistErr = &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeDeadlineExceeded,
+			Code:    code,
 			Message: message,
 		}
 	}

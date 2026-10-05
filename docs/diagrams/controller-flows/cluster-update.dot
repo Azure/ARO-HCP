@@ -2,9 +2,9 @@ digraph cluster_update {
   graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Cluster update · configuration and version feedback", dpi=110];
   node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
-  put [label="Frontend PUT / PATCH cluster\nreplace desired state + Update Operation", fillcolor="#eee7fb", color="#7b59a4"];
+  put [label="Frontend PUT / PATCH cluster\nadmission: all cached pools (including deleting) + SPC/SPNP\nmissing provider state: internal error, no live fallback\nreset update deadline (default 60m)\nthen replace desired state + Update Operation", fillcolor="#eee7fb", color="#7b59a4"];
   dispatch [label="ClusterClusterServiceUpdate\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
-  desired [label="ControlPlaneDesiredVersion", fillcolor="#e6f0fa", color="#35648a"];
+  desired [label="MinorUpgradeNormalClusterDesiredVersion\nZStreamProgressiveDesiredVersionRollout / ForcedClusterDesiredVersion\nSee version-rollout panel", fillcolor="#e6f0fa", color="#35648a"];
   upgrade [label="TriggerControlPlaneUpgrade", fillcolor="#e6f0fa", color="#35648a"];
   cs [label="Cluster Service\nconfiguration / upgrade policy", fillcolor="#fff0da", color="#b27624"];
   kube [label="ClusterResources → ApplyDesireController\nKubernetes / HyperShift convergence", fillcolor="#fff0da", color="#b27624"];
@@ -16,19 +16,21 @@ digraph cluster_update {
   put -> dispatch [label="changed dispatchable\nconfiguration"];
   put -> desired [label="requested version / channel"];
   desired -> upgrade [label="desired exact version"];
+  desired -> op [label="resolved major.minor\nversus requested version"];
   dispatch -> cs [label="PATCH"];
   upgrade -> cs [label="submit upgrade policy"];
   cs -> kube [label="desired manifests"];
   kube -> mirror [label="observed HostedCluster"];
   mirror -> active [label="version history"];
+  put -> op [label="UpdateOperationCompletionDeadline"];
   cs -> op [label="Cluster Service state"];
   mirror -> op [label="observed readiness / version"];
   upgrade -> op [label="upgrade intent failure, if\nrejected"];
   validation -> op [label="False: Provisioning + InvalidResource;\nfailure and operation each >= 5m: Failed;\nall True: ready"];
-  op -> done [label="completion or failure checks"];
+  op -> done [label="completion / failure checks;\npending past deadline: selected code + reasons;\nonly InternalServerError becomes DeadlineExceeded"];
   observed [label="Customer resource Status.ActiveVersions\nmajor.minor versions", fillcolor="#e4f2e5", color="#4c8053"];
   active -> observed [label="separate Cosmos replace"];
   active -> upgrade [label="active versus desired", style=dashed, color="#857456", constraint=false];
-  active -> desired [label="observed versions constrain\nnext selection", style=dashed, color="#857456", constraint=false];
+  active -> desired [label="completed history + ages\nfeed rollout decisions", style=dashed, color="#857456", constraint=false];
   op -> op [label="still progressing: poll again", style=dashed, color="#857456", constraint=false];
 }

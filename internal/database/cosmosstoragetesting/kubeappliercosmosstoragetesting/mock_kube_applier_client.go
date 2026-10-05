@@ -296,11 +296,7 @@ func (m *MockKubeApplierDBClient) UntypedCRUD(parentResourceID azcorearm.Resourc
 }
 
 func (m *MockKubeApplierDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
-	var continuation string
-	if options != nil && options.Continuation != nil {
-		continuation = *options.Continuation
-	}
-	items, nextToken, hasNew := m.changeFeed.Read(continuation)
+	items, nextToken, hasNew := m.changeFeed.Read(options)
 	return corecosmosstoragetesting.BuildMockChangeFeedResponse(items, nextToken, hasNew), nil
 }
 

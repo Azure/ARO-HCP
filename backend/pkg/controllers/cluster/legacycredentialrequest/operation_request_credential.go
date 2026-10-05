@@ -43,6 +43,8 @@ type operationRequestCredential struct {
 	notificationClient    *http.Client
 }
 
+const OperationRequestCredentialControllerName = "OperationRequestCredential"
+
 // NewOperationRequestCredentialController returns a new Controller instance that
 // follows an asynchronous admin credential request operation to completion and
 // updates the corresponding operation document in Cosmos DB.
@@ -73,7 +75,7 @@ func NewOperationRequestCredentialController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationRequestCredential",
+		OperationRequestCredentialControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

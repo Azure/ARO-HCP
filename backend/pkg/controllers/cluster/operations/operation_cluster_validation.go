@@ -29,7 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const clusterValidationFailureTimeout = 5 * time.Minute
+const clusterValidationFailureTimeout = 10 * time.Minute
 
 func (c *operationClusterCreate) clusterValidation(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
@@ -47,7 +47,7 @@ func (c *operationClusterUpdate) clusterValidation(operation *coreapi.Operation,
 }
 
 // clusterValidationOperationState waits for validations to pass, allowing each
-// failed validation and the operation itself at least five minutes before failing.
+// failed validation and the operation itself at least ten minutes before failing.
 // Unknown conditions remain pending and do not imply an invalid resource.
 func clusterValidationOperationState(serviceProviderCluster *coreapi.ServiceProviderCluster, operationStartTime, now time.Time) *operationbase.OperationState {
 	state := operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, "")

@@ -1,0 +1,43 @@
+rule_files:
+- kubernetesControlPlane-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+- name: Terminating not-ready pod does not alert
+  interval: 1m
+  input_series:
+  - series: 'kube_pod_status_phase{namespace="hcp",pod="kube-apiserver",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Failed"}'
+    values: "1+0x10"
+  - series: 'kube_pod_owner{namespace="hcp",pod="kube-apiserver",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x10"
+  - series: 'kube_pod_deletion_timestamp{namespace="hcp",pod="kube-apiserver",cluster="mgmt-1",job="kube-state-metrics"}'
+    values: "1000+0x10"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: KubePodNotReady
+    exp_alerts: []
+- name: Non-terminating not-ready pod still alerts despite deletion in another cluster
+  interval: 1m
+  input_series:
+  - series: 'kube_pod_status_phase{namespace="hcp",pod="kube-apiserver",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Failed"}'
+    values: "1+0x10"
+  - series: 'kube_pod_owner{namespace="hcp",pod="kube-apiserver",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x10"
+  - series: 'kube_pod_deletion_timestamp{namespace="hcp",pod="kube-apiserver",cluster="mgmt-2",job="kube-state-metrics"}'
+    values: "1000+0x10"
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: KubePodNotReady
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: KubePodNotReady
+    exp_alerts:
+    - exp_labels:
+        namespace: hcp
+        pod: kube-apiserver
+        cluster: mgmt-1
+        component: kubernetes-infrastructure
+        severity: warning
+      exp_annotations:
+        description: Pod hcp/kube-apiserver has been in a non-ready state for longer than 5 minutes.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready
+        summary: Pod hcp/kube-apiserver has been in a non-ready state for more than 5 minutes.

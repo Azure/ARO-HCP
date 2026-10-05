@@ -1,7 +1,8 @@
 ARG PLATFORM
 
 # Builder image installs tools needed to build kube-applier
-FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS builder
+ENV GOTOOLCHAIN=local
 COPY internal/go.mod internal/go.sum internal/
 COPY kube-applier/go.mod kube-applier/go.sum kube-applier/
 RUN cd kube-applier && go mod download

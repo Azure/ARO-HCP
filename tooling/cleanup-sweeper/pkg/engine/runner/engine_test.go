@@ -81,6 +81,21 @@ func TestEngineRun(t *testing.T) {
 
 	testCases := []testCase{
 		{
+			name: "already absent target is not retried",
+			step: &fakeStep{
+				name: "absent-step", targets: []Target{{ID: "x"}},
+				deleteErrByID: map[string]error{"x": fmt.Errorf("%w: missing assignment", ErrTargetAbsent)},
+				retryLimit:    3,
+			},
+			parallelism: 1,
+			assertions: func(t *testing.T, err error, step *fakeStep, _ bool) {
+				t.Helper()
+				if err != nil || step.deleteCalls != 1 || step.verifyCalls != 1 {
+					t.Fatalf("absent target must finish successfully without retries: err=%v deletes=%d verifies=%d", err, step.deleteCalls, step.verifyCalls)
+				}
+			},
+		},
+		{
 			name: "dry-run skips delete and verify",
 			step: &fakeStep{
 				name:    "dry-run-step",

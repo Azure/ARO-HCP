@@ -33,6 +33,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 const (
@@ -506,8 +507,8 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 }
 
 var (
-	toVersionID = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ID }
-	//	toChannelGroup = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ChannelGroup }
+	toVersionID           = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ID }
+	toVersionChannelGroup = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ChannelGroup }
 )
 
 // Version                 VersionProfile              `json:"version,omitempty"`
@@ -520,7 +521,9 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	if oldObj == nil || len(oldObj.ID) > 0 {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 
-		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
+		// Only the major.minor version can be specified for the control plane version
+		// so we only need to check if it meets the minimum required major.minor version
+		errs = append(errs, VersionMustBeAtLeastMajorMinor(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
 
 		errs = append(errs, VersionMayNotDecrease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 		errs = append(errs, OpenshiftVersionAtMostOneMinorSkewWithField(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
@@ -548,6 +551,7 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 		// TODO I think everyone should be able to do this, but we'll need to notify first
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, metadataapi.AllowedChannelGroupsWithExperimentalFlag, nil)...)
 	}
+	errs = append(errs, rejectUnsupportedChannelGroupUpdate(op, fldPath, newObj.ChannelGroup, safe.Field(oldObj, toVersionChannelGroup))...)
 
 	return errs
 }
@@ -1140,6 +1144,9 @@ func validateImageDigestMirror(ctx context.Context, op operation.Operation, fldP
 	// is more permissive than what we allow (e.g. casing of letters) but acts
 	// as a final check to make sure OpenShift will accept it.
 	errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("source"), &newObj.Source, safe.Field(oldObj, toImageDigestMirrorSource), imageDigestSourceRegistryRegex, imageDigestSourceRegistryErrorString)...)
+	if apihelpers.IsPlatformImageContentSource(newObj.Source) {
+		errs = append(errs, field.Invalid(fldPath.Child("source"), newObj.Source, "source registry is managed by the platform and cannot be used as an image digest mirror source"))
+	}
 
 	//Mirrors []string `json:"mirrors,omitempty"`
 	errs = append(errs, MinItems(ctx, op, fldPath.Child("mirrors"), newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors), 1)...)

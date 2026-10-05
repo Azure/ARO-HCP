@@ -254,12 +254,14 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 // ServiceProviderCluster and the list of node pools (plus their service-provider
 // records) so admission can validate version skew without hitting the DB itself.
 // On CREATE pass a nil clusterResourceID — no prior state exists to prefetch.
+// Inventories and service-provider records are read-only, eventually consistent
+// cache data. Missing required provider state fails admission setup.
 //
 // Architectural rule: the frontend must NEVER reach the management cluster
 // directly (no kube-applier, no ReadDesireLister, no Maestro, no HostedCluster
 // Kubernetes API). Everything admission needs about management-cluster state
 // must be mirrored by the backend onto the ServiceProviderCluster document and
-// prefetched here from Cosmos. For example, the observed HostedCluster's
+// prefetched here from the cache. For example, the observed HostedCluster's
 // status.version.desired.channels is mirrored onto
 // ServiceProviderCluster.Status.DesiredVersionChannels by the backend and read
 // from there by admission — the frontend never talks to the management cluster
@@ -273,33 +275,26 @@ func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.
 	}
 
 	admissionContext := &admission.ClusterAdmissionContext{
-		Clock:           f.clock,
-		Subscription:    subscription,
-		OriginalCluster: originalCluster.DeepCopy(),
+		Clock:                         f.clock,
+		Subscription:                  subscription,
+		OriginalCluster:               originalCluster.DeepCopy(),
+		ClusterScopedIdentitiesConfig: f.clusterScopedIdentitiesConfig,
 	}
 
 	if op.Type == operation.Create {
 		subscriptionID := originalCluster.ID.SubscriptionID
-		clusterIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+		clusters, err := f.clusterLister.ListForSubscription(ctx, subscriptionID)
 		if err != nil {
 			return nil, fmt.Errorf("cannot list clusters for cluster admission: %w", err)
 		}
-		for _, cluster := range clusterIterator.Items(ctx) {
+		for _, cluster := range clusters {
 			admissionContext.SubscriptionClusters = append(admissionContext.SubscriptionClusters, cluster)
 
-			nodePoolIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
+			nodePools, err := f.nodePoolLister.ListForCluster(ctx, subscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
 			if err != nil {
 				return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
 			}
-			for _, nodePool := range nodePoolIterator.Items(ctx) {
-				admissionContext.SubscriptionNodePools = append(admissionContext.SubscriptionNodePools, nodePool)
-			}
-			if err := nodePoolIterator.GetError(); err != nil {
-				return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
-			}
-		}
-		if err := clusterIterator.GetError(); err != nil {
-			return nil, fmt.Errorf("cannot list clusters for cluster admission: %w", err)
+			admissionContext.SubscriptionNodePools = append(admissionContext.SubscriptionNodePools, nodePools...)
 		}
 		return admissionContext, nil
 	}
@@ -312,28 +307,27 @@ func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.
 		return nil, fmt.Errorf("clusterResourceID is required for UPDATE operations")
 	}
 
-	spCluster, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, f.resourcesDBClient, clusterResourceID)
+	serviceProviderCluster, err := f.serviceProviderClusterLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
 	if err != nil {
-		return nil, err
+		// Do not expose a missing admission dependency as an ARM target 404.
+		return nil, fmt.Errorf("cannot load service provider cluster %s for cluster admission: %v", clusterResourceID, err)
 	}
-	admissionContext.ServiceProviderCluster = spCluster
+	admissionContext.ServiceProviderCluster = serviceProviderCluster
 
-	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).NodePools(clusterResourceID.Name).List(ctx, nil)
+	nodePools, err := f.nodePoolLister.ListForCluster(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
 	if err != nil {
 		return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
 	}
-	for _, nodePool := range nodePoolIterator.Items(ctx) {
-		spNodePool, err := corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, f.resourcesDBClient, nodePool.ID)
+	for _, nodePool := range nodePools {
+		nodePoolID := nodePool.ID
+		serviceProviderNodePool, err := f.serviceProviderNodePoolLister.Get(ctx, nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName, nodePoolID.Parent.Name, nodePoolID.Name)
 		if err != nil {
-			return nil, fmt.Errorf("cannot load service provider node pool %s: %w", nodePool.ID, err)
+			return nil, fmt.Errorf("cannot load service provider node pool %s for cluster admission: %v", nodePoolID, err)
 		}
 		admissionContext.ClusterNodePools = append(admissionContext.ClusterNodePools, admission.ClusterAdmissionNodePool{
 			NodePool:                nodePool,
-			ServiceProviderNodePool: spNodePool,
+			ServiceProviderNodePool: serviceProviderNodePool,
 		})
-	}
-	if err := nodePoolIterator.GetError(); err != nil {
-		return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
 	}
 
 	return admissionContext, nil
@@ -739,8 +733,17 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
-	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
-		return utils.TrackError(err)
+	// TODO: TEMPORARY - Allow re-submitting DELETE for clusters stuck in legacy deletion.
+	// Remove once all legacy deletion clusters are cleaned up.
+	if cluster.ServiceProviderProperties.ProvisioningState == coreapi.ProvisioningStateDeleting && !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
+		logger.Info("allowing repeated DELETE for cluster stuck in legacy deletion approach",
+			"cluster", cluster.ID,
+			"provisioningState", cluster.ServiceProviderProperties.ProvisioningState,
+			"usesNewClusterDeletionApproach", cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach)
+	} else {
+		if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+			return utils.TrackError(err)
+		}
 	}
 
 	logger.Info(fmt.Sprintf("deleting resource %s", cluster.ID))
@@ -759,6 +762,7 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 	return nil
 }
 
+// Adds a cluster delete operation and initializes child deletion when needed.
 func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction cosmosstorageutils.DBTransaction, cluster *coreapi.Cluster) error {
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
@@ -805,8 +809,9 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
+	now := f.clock.Now().UTC()
 	if cluster.ServiceProviderProperties.DeletionTimestamp == nil {
-		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: f.clock.Now().UTC()}
+		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
 	}
 	cluster.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	cluster.ServiceProviderProperties.ProvisioningState = operationDoc.Status
@@ -814,7 +819,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 	// permanent environments, for all regions.
 	cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = true
 
-	cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = computeDeleteOperationCompletionDeadline(cluster)
+	cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = computeDeleteOperationCompletionDeadline(cluster, now)
 
 	_, err = f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).
 		AddReplaceToTransaction(ctx, transaction, cluster, nil)
@@ -822,37 +827,53 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
-	// recurse down to delete children
+	// Preserve initialized child deletions, but include children created while
+	// parent monitoring was Failed or admitted concurrently with deletion.
 	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	for _, nodePool := range nodePoolIterator.Items(ctx) {
+		if nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
+			nodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach {
+			continue
+		}
 		// don't include the writer/request so that we don't have conflicting notificationURIs
 		if err := f.addDeleteNodePoolToTransaction(ctx, nil, nil, transaction, nodePool); err != nil {
 			return utils.TrackError(err)
 		}
+	}
+	if err := nodePoolIterator.GetError(); err != nil {
+		return utils.TrackError(err)
 	}
 	externalAuthIterator, err := f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(cluster.ID.Name).List(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	for _, externalAuth := range externalAuthIterator.Items(ctx) {
+		if externalAuth.ServiceProviderProperties.DeletionTimestamp != nil &&
+			externalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach {
+			continue
+		}
 		// don't include the writer/request so that we don't have conflicting notificationURIs
 		if err := f.addDeleteExternalAuthToTransaction(ctx, nil, nil, transaction, externalAuth); err != nil {
 			return utils.TrackError(err)
 		}
 	}
+	if err := externalAuthIterator.GetError(); err != nil {
+		return utils.TrackError(err)
+	}
 
 	return nil
 }
 
-func computeDeleteOperationCompletionDeadline(cluster *coreapi.Cluster) *metav1.Time {
+// Computes the monitoring deadline for an accepted delete attempt.
+func computeDeleteOperationCompletionDeadline(cluster *coreapi.Cluster, now time.Time) *metav1.Time {
 	duration := admission.DefaultDeleteOperationCompletionDeadlineDuration
 	if cluster.ServiceProviderProperties.DeleteOperationCompletionTimeout != nil {
 		duration = *cluster.ServiceProviderProperties.DeleteOperationCompletionTimeout
 	}
-	deadline := metav1.NewTime(cluster.ServiceProviderProperties.DeletionTimestamp.Add(duration))
+	deadline := metav1.NewTime(now.Add(duration))
 	return &deadline
 }
 
