@@ -27,20 +27,21 @@ Validates the [personal-dev.md](../../docs/personal-dev.md) documentation.
 - Resource group naming patterns are documented
 - Azure tenant/subscription IDs are valid GUIDs
 - Internal documentation links are not broken
-- Required tools (az, kubectl) are available
+- Required tools (az, kubectl) are available (`full` mode only)
 
 **Running locally:**
 ```bash
-# Dry-run mode (CI safe, no Azure access needed)
-./test/docs/personal-dev-readme-test.sh
+./test/docs/personal-dev-readme-test.sh   # dry-run (default)
+make test-docs                            # same thing
 
-# Or via make
-make test-docs
+TEST_MODE=full ./test/docs/personal-dev-readme-test.sh
 ```
 
 **Test modes:**
-- `dry-run` (default): Validates syntax without executing commands
-- `full`: Requires Azure access, tests actual connectivity
+- `dry-run` (default): docs assertions only. No tooling, no network, no Azure access.
+- `full`: adds checks that `az` and `kubectl` are installed locally.
+
+An unrecognised `TEST_MODE` exits 2 rather than silently falling back.
 
 ## CI Integration
 
@@ -119,17 +120,12 @@ markdownlint '**/*.md' --fix
 
 ## Link Checking
 
-Link checking is **offline**. The suite resolves every markdown link against the
-filesystem and never issues a network request, so it gives the same result on a
-laptop with no connectivity as it does in CI.
+Offline. Targets with a URI scheme (`http:`, `https:`, `mailto:`, ...) and same-page
+`#anchor` links are skipped, never fetched; everything else is resolved on disk,
+relative to the directory holding the file under test.
 
-Link targets are skipped — not fetched — when they carry a URI scheme
-(`http:`, `https:`, `mailto:`, ...) or are a same-page `#anchor`. Everything else is
-resolved relative to the directory holding the file under test and must exist on disk.
-
-The trade-off is deliberate: a dead external URL will not be caught. In exchange the
-suite is hermetic and cannot fail because a third-party site is slow, rate-limiting,
-or behind a login.
+The trade-off is deliberate: dead external URLs are not caught, but the suite can
+never fail because a third-party site is slow, rate-limiting, or behind a login.
 
 ## Troubleshooting
 
@@ -143,12 +139,11 @@ brew install gnu-sed  # GNU sed
 
 ### kubectl warnings during tests
 
-This is expected when running without a kubeconfig. The tests validate command syntax, not execution.
+Expected when running without a kubeconfig. The tests check that the tool exists,
+never that it can reach a cluster.
 
 ### Make targets not found
 
-Ensure you're running from the repository root:
-```bash
-cd /path/to/ARO-HCP
-./test/docs/personal-dev-readme-test.sh
-```
+A real failure: the suite resolves the repo root from its own location, so the
+working directory does not matter. A documented target no longer exists, or no
+longer resolves under `make -n`. Fix the docs, or the `targets` list in the script.

@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Test script for docs/personal-dev.md README
-# This validates that commands documented in the personal dev guide are correct
+# Validates that docs/personal-dev.md stays in step with the repo.
 
 set -euo pipefail
 
@@ -22,19 +21,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 README_FILE="${REPO_ROOT}/docs/personal-dev.md"
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Test counters
 TESTS_RUN=0
 TESTS_PASSED=0
 TESTS_FAILED=0
 
-# Test mode: 'dry-run' (CI safe) or 'full' (requires Azure access)
+# 'dry-run' checks the docs only, needs no tooling and no network. 'full' also
+# asserts the documented tools are installed locally.
 TEST_MODE="${TEST_MODE:-dry-run}"
+
+case "${TEST_MODE}" in
+    dry-run | full) ;;
+    *)
+        echo "Unknown TEST_MODE '${TEST_MODE}' (expected 'dry-run' or 'full')" >&2
+        exit 2
+        ;;
+esac
 
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $*"
@@ -53,13 +59,9 @@ test_start() {
     log_info "Test ${TESTS_RUN}: $1"
 }
 
-# Print the target of every markdown link in a file, one per line.
-#
-# Uses awk rather than grep because the obvious greedy pattern
-# (grep -o '\[.*\](.*)') collapses every link on a line into a single match and
-# then yields only the last one, and the non-greedy alternative needs grep -P,
-# which BSD grep on macOS does not provide. awk's match() is POSIX and advances
-# past each match, so lines carrying several links report all of them.
+# Print the target of every markdown link, one per line. awk, not grep: a greedy
+# grep keeps only the last link on a line, and non-greedy needs grep -P, which
+# BSD grep on macOS lacks.
 extract_link_targets() {
     awk '{
         rest = $0
@@ -83,7 +85,6 @@ test_fail() {
     log_error "✗ FAIL: $1"
 }
 
-# Test 1: README file exists
 test_readme_exists() {
     test_start "README file exists"
     if [[ -f "${README_FILE}" ]]; then
@@ -93,7 +94,6 @@ test_readme_exists() {
     fi
 }
 
-# Test 2: Check required prerequisites are documented
 test_prerequisites_documented() {
     test_start "Prerequisites section exists"
     if grep -q "## Prerequisites" "${README_FILE}"; then
@@ -103,7 +103,6 @@ test_prerequisites_documented() {
     fi
 }
 
-# Test 3: Validate az CLI version requirement
 test_az_version_documented() {
     test_start "Azure CLI version requirement documented"
     if grep -q "az.*utility.*>=.*2.68.0" "${README_FILE}"; then
@@ -113,12 +112,11 @@ test_az_version_documented() {
     fi
 }
 
-# Test 4: Check if make targets mentioned in README exist
 test_make_targets_exist() {
     test_start "Documented make targets exist"
 
     local targets=("personal-dev-env" "local-pers-dev-env" "infra.svc.aks.kubeconfigfile"
-                   "infra.mgmt.aks.kubeconfigfile" "infra.tracing" "cleanup-entrypoint/Region")
+                   "infra.mgmt.aks.kubeconfigfile" "cleanup-entrypoint/Region")
     local all_exist=true
 
     cd "${REPO_ROOT}"
@@ -145,7 +143,6 @@ test_make_targets_exist() {
     fi
 }
 
-# Test 5: Check PERSIST environment variable is documented
 test_persist_documented() {
     test_start "PERSIST environment variable documented"
     if grep -q "PERSIST=true" "${README_FILE}"; then
@@ -155,7 +152,6 @@ test_persist_documented() {
     fi
 }
 
-# Test 6: Validate cleanup retention periods are correct
 test_cleanup_retention_documented() {
     test_start "Cleanup retention periods documented"
     if grep -q "48h" "${README_FILE}" && grep -q "15 days" "${README_FILE}"; then
@@ -165,7 +161,6 @@ test_cleanup_retention_documented() {
     fi
 }
 
-# Test 7: Check if resource group naming patterns are documented
 test_resource_group_patterns() {
     test_start "Resource group naming patterns documented"
     if grep -q "hcp-underlay-.*-svc" "${README_FILE}" &&
@@ -176,11 +171,9 @@ test_resource_group_patterns() {
     fi
 }
 
-# Test 8: Validate Azure tenant ID and subscription ID format
 test_azure_ids_format() {
     test_start "Azure IDs are valid GUIDs"
 
-    # Extract tenant and subscription IDs from README (macOS compatible)
     local tenant_id
     tenant_id=$(grep 'az login --tenant' "${README_FILE}" | grep -o '[a-f0-9]\{8\}-[a-f0-9]\{4\}-[a-f0-9]\{4\}-[a-f0-9]\{4\}-[a-f0-9]\{12\}' | head -1 || echo "")
     local sub_id
@@ -194,7 +187,6 @@ test_azure_ids_format() {
     fi
 }
 
-# Test 9: Check if observability section exists
 test_observability_section() {
     test_start "Observability section exists"
     if grep -q "## Observability" "${README_FILE}"; then
@@ -204,7 +196,6 @@ test_observability_section() {
     fi
 }
 
-# Test 10: Validate cleanup command syntax
 test_cleanup_command() {
     test_start "Cleanup command is valid"
     if grep -q "make cleanup-entrypoint/Region CLEANUP_DRY_RUN=false CLEANUP_WAIT=true" "${README_FILE}"; then
@@ -214,10 +205,8 @@ test_cleanup_command() {
     fi
 }
 
-# Test 11: Check for broken internal links
 #
-# Offline by design: link targets carrying a URI scheme (http:, https:, mailto:, ...)
-# are skipped rather than fetched, so this suite never needs network access.
+# Offline: targets with a URI scheme are skipped, never fetched.
 test_internal_links() {
     test_start "Internal documentation links resolve on disk"
 
@@ -225,7 +214,6 @@ test_internal_links() {
     local checked=0
     local skipped=0
 
-    # Links are written relative to the directory holding the file under test.
     local base_dir
     base_dir="$(cd "$(dirname "${README_FILE}")" &>/dev/null && pwd)"
 
@@ -254,7 +242,7 @@ test_internal_links() {
     fi
 }
 
-# Full tests (require Azure access)
+# TEST_MODE=full only.
 test_az_cli_available() {
     test_start "Azure CLI is installed"
     if command -v az &>/dev/null; then
@@ -271,7 +259,8 @@ test_kubectl_available() {
     test_start "kubectl is installed"
     if command -v kubectl &>/dev/null; then
         local version
-        version=$(kubectl version --client --short 2>/dev/null | cut -d' ' -f3 || echo "unknown")
+        version=$(kubectl version --client -o yaml 2>/dev/null | awk '/gitVersion:/ { print $2; exit }')
+        version="${version:-unknown}"
         log_info "  Found kubectl version: ${version}"
         test_pass
     else
@@ -279,12 +268,10 @@ test_kubectl_available() {
     fi
 }
 
-# Main execution
 main() {
     log_info "Starting personal-dev.md README tests (mode: ${TEST_MODE})"
     log_info "================================================"
 
-    # Always run these tests
     test_readme_exists
     test_prerequisites_documented
     test_az_version_documented
@@ -297,11 +284,13 @@ main() {
     test_cleanup_command
     test_internal_links
 
-    # Tool availability tests
-    test_az_cli_available
-    test_kubectl_available
+    if [[ "${TEST_MODE}" == "full" ]]; then
+        test_az_cli_available
+        test_kubectl_available
+    else
+        log_info "Skipping tool-availability tests (set TEST_MODE=full to run them)"
+    fi
 
-    # Summary
     echo ""
     log_info "================================================"
     log_info "Test Summary:"

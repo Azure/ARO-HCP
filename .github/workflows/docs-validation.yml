@@ -44,15 +44,7 @@ jobs:
         with:
           go-version-file: go.work
 
-      - name: Install Azure CLI
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-      - name: Install kubectl
-        run: |
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-
+      # dry-run asserts only on the docs, so no az/kubectl install is needed.
       - name: Run personal-dev README tests
         run: |
           test/docs/personal-dev-readme-test.sh
