@@ -48,6 +48,14 @@ swagger: fmt
 
 .PHONY: models
 models: $(GOIMPORTS)
+	# Seed a placeholder go.mod so the emitter discovers the intended module
+	# identity directly instead of walking up to a parent go.mod (e.g.
+	# ../internal/go.mod), which would otherwise rename the generated
+	# package from "generated" to the parent module's base name.
+	mkdir -p $(TYPESPEC_GO_OUTPUT_DIR)
+	echo "module github.com/Azure/ARO-HCP/internal/azureapi/$(VERSION)/generated" > ${TYPESPEC_GO_OUTPUT_DIR}/go.mod
+	echo "" >> ${TYPESPEC_GO_OUTPUT_DIR}/go.mod
+	echo "go 1.26.0" >> ${TYPESPEC_GO_OUTPUT_DIR}/go.mod
 	npx tsp compile $(SPEC_BASE_DIR) \
 		--warn-as-error \
 		--emit @azure-tools/typespec-go \
