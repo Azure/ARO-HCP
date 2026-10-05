@@ -249,6 +249,19 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		identities = NewDefaultIdentitiesWithSuffix(clusterName)
 	}
 
+	enableAutoNode, _ := cfg.parameters["enableAutoNode"].(bool)
+	if usePooled && enableAutoNode {
+		subscriptionID, err := tc.SubscriptionID(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get subscription for AutoNode identity: %w", err)
+		}
+		identityID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s",
+			subscriptionID, msiRGName, identities.DpAutoNodeMiName)
+		if _, err := tc.GetUserAssignedIdentityPrincipalID(ctx, identityID); err != nil {
+			return nil, fmt.Errorf("AutoNode requires identity %q in leased container %q; verify the identity pool rollout: %w", identities.DpAutoNodeMiName, msiRGName, err)
+		}
+	}
+
 	parameters := map[string]interface{}{
 		"nsgName":                  cfg.parameters["nsgName"],
 		"vnetName":                 cfg.parameters["vnetName"],
@@ -260,6 +273,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		"identities":               identities,
 		"rbacScope":                rbacScope,
 		"clusterName":              clusterName,
+		"enableAutoNode":           enableAutoNode,
 	}
 
 	deploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
@@ -697,7 +711,8 @@ func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainerFICs(
 	resourceGroup string,
 ) error {
 
-	identities := NewDefaultIdentities().ToSlice()
+	optionalIdentities := OptionalIdentityNames()
+	identities := append(NewDefaultIdentities().ToSlice(), optionalIdentities...)
 
 	wg := sync.WaitGroup{}
 	errCh := make(chan error, len(identities))
@@ -706,30 +721,8 @@ func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainerFICs(
 		go func(ctx context.Context, identityName string) {
 			defer wg.Done()
 
-			var errs []error
-
-			pager := ficsClient.NewListPager(resourceGroup, identityName, nil)
-			for pager.More() {
-				page, err := pager.NextPage(ctx)
-				if err != nil {
-					errs = append(errs, fmt.Errorf("failed to list FICs for identity %q in resource group %q: %w", identityName, resourceGroup, err))
-					break
-				}
-
-				for _, fic := range page.Value {
-					_, err := ficsClient.Delete(ctx, resourceGroup, identityName, *fic.Name, nil)
-					if err != nil {
-						var respErr *azcore.ResponseError
-						if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-							continue
-						}
-						errs = append(errs, fmt.Errorf("failed to delete FIC %q in resource group %q: %w", *fic.Name, resourceGroup, err))
-					}
-				}
-			}
-
-			if len(errs) > 0 {
-				errCh <- fmt.Errorf("failed to cleanup FICs for identity: %w", errors.Join(errs...))
+			if err := cleanupIdentityFICs(ctx, ficsClient, resourceGroup, identityName, slices.Contains(optionalIdentities, identityName)); err != nil {
+				errCh <- err
 			}
 		}(ctx, identityName)
 	}
@@ -745,6 +738,32 @@ func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainerFICs(
 		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
 	}
 	return nil
+}
+
+func cleanupIdentityFICs(ctx context.Context, client *armmsi.FederatedIdentityCredentialsClient, resourceGroup, identityName string, optional bool) error {
+	var errs []error
+	pager := client.NewListPager(resourceGroup, identityName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			var responseError *azcore.ResponseError
+			if optional && errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
+				break
+			}
+			errs = append(errs, fmt.Errorf("failed to list FICs for identity %q in resource group %q: %w", identityName, resourceGroup, err))
+			break
+		}
+		for _, fic := range page.Value {
+			if _, err := client.Delete(ctx, resourceGroup, identityName, *fic.Name, nil); err != nil {
+				var responseError *azcore.ResponseError
+				if errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
+					continue
+				}
+				errs = append(errs, fmt.Errorf("failed to delete FIC %q for identity %q in resource group %q: %w", *fic.Name, identityName, resourceGroup, err))
+			}
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // trackRoleAssignment tracks a role assignment ID for cleanup.
