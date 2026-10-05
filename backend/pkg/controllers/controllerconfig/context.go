@@ -50,6 +50,7 @@ type ControllerContext struct {
 	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
 	FleetDBClient                                       fleetcosmosstorage.FleetDBClient
 	HasRealFPA                                          bool
+	HardcodedIdentity                                   *azureclient.HardcodedIdentity
 	KubeApplierDBClients                                kubeappliercosmosstorage.KubeApplierDBClients
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	MaestroSourceEnvironmentIdentifier                  string
