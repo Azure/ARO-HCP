@@ -18,6 +18,12 @@ type APIProfile struct {
 	AuthorizedCIDRs []*string
 }
 
+// AutoNodeProfile - AutoNode dynamic node provisioning configuration.
+type AutoNodeProfile struct {
+	// Whether AutoNode dynamic node provisioning is enabled.
+	Mode *AutoNodeMode
+}
+
 // ClusterActiveVersion represents a version of a resource.
 type ClusterActiveVersion struct {
 	// READ-ONLY; The version of the resource. Specified in major.minor, same as the input
@@ -317,6 +323,9 @@ type HcpOpenShiftClusterProperties struct {
 
 	// Shows the cluster API server profile
 	API *APIProfile
+
+	// AutoNode dynamic node provisioning configuration. Changes after cluster creation are not supported.
+	AutoNode *AutoNodeProfile
 
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile

@@ -175,6 +175,16 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 		clusterPUTRoundTripTests(),
 		clusterPATCHRoundTripTests()...,
 	), nodepoolExternalAuthRoundTripTests()...)
+	for _, updateVersion := range []string{v20240610, v20251223, v20260630, v20260901, v20261001, v20270201} {
+		for _, operation := range []string{"PUT", "PATCH"} {
+			tests = append(tests, crossVersionTestEntry{
+				name: "Cluster/AutoNode/" + operation + "/" + updateVersion,
+				fn: func(t *testing.T, ti *integrationutils.IntegrationTestInfo, sub string) {
+					runAutoNodeCrossVersionUpdate(t, ti, sub, updateVersion, operation)
+				},
+			})
+		}
+	}
 	var slots chan struct{}
 	if withMock {
 		slots = make(chan struct{}, maxParallelMockCases)
@@ -737,6 +747,40 @@ func runClusterCrossVersionPATCH(
 		t.Logf("after (%s GET after %s PATCH):\n%s", createVersion, patchVersion, prettyJSON(t, afterMap))
 		t.Errorf("cross-version PATCH data loss: %s PATCH lost %s fields:\n%s", patchVersion, createVersion, diff)
 	}
+}
+
+func runAutoNodeCrossVersionUpdate(t *testing.T, ti *integrationutils.IntegrationTestInfo, subscriptionID, updateVersion, operation string) {
+	t.Helper()
+	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
+	const scenarioDir = "artifacts/VersionCompliance/Cluster/autonode-enabled/"
+	subscriptionJSON := metadataapi.Must(artifacts.ReadFile(scenarioDir + "subscription.json"))
+	stable := databasemutationhelpers.NewVersionedHTTPTestAccessor(ti.FrontendURL, v20270201)
+	require.NoError(t, stable.CreateOrUpdate(ctx, "/subscriptions/"+subscriptionID, subscriptionJSON))
+	require.NoError(t, ti.WaitForFrontendCaches(ctx))
+	const clusterName = "vc-autonode"
+	resourceID := clusterResourceID(clusterName)
+	request := metadataapi.Must(artifacts.ReadFile(scenarioDir + "request.json"))
+	require.NoError(t, stable.CreateOrUpdate(ctx, resourceID, request))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, ti.ResourcesDBClient(), subscriptionID, clusterName))
+	createServiceProviderClusterForTesting(t, ctx, ti, clusterName, "4.22.0")
+	require.NoError(t, ti.WaitForFrontendCaches(ctx))
+	_, before := getResourceResponse(t, ctx, ti, v20270201, resourceID)
+	body, old := getResourceResponse(t, ctx, ti, updateVersion, resourceID)
+	if updateVersion != v20270201 {
+		require.NotContains(t, old["properties"], "autoNode", "older APIs must omit the typed AutoNode field")
+	}
+	updater := databasemutationhelpers.NewVersionedHTTPTestAccessor(ti.FrontendURL, updateVersion)
+	if operation == "PUT" {
+		require.NoError(t, updater.CreateOrUpdate(ctx, resourceID, body))
+	} else {
+		tags := old["tags"].(map[string]any)
+		tags["updated"] = "true"
+		patch := metadataapi.Must(json.Marshal(map[string]any{"tags": tags}))
+		require.NoError(t, updater.Patch(ctx, resourceID, patch))
+	}
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, ti.ResourcesDBClient(), subscriptionID, clusterName))
+	_, after := getResourceResponse(t, ctx, ti, v20270201, resourceID)
+	require.Equal(t, before["properties"].(map[string]any)["autoNode"], after["properties"].(map[string]any)["autoNode"])
 }
 
 func nodePoolCreatePayload(nodePoolName, apiVersion string) []byte {

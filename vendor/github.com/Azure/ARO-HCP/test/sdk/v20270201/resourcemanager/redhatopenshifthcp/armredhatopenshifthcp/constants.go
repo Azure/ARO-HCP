@@ -23,6 +23,24 @@ func PossibleActionTypeValues() []ActionType {
 	}
 }
 
+// AutoNodeMode - Whether AutoNode dynamic node provisioning is enabled.
+type AutoNodeMode string
+
+const (
+	// AutoNodeModeDisabled - AutoNode is disabled.
+	AutoNodeModeDisabled AutoNodeMode = "Disabled"
+	// AutoNodeModeEnabled - AutoNode is enabled.
+	AutoNodeModeEnabled AutoNodeMode = "Enabled"
+)
+
+// PossibleAutoNodeModeValues returns the possible values for the AutoNodeMode const type.
+func PossibleAutoNodeModeValues() []AutoNodeMode {
+	return []AutoNodeMode{
+		AutoNodeModeDisabled,
+		AutoNodeModeEnabled,
+	}
+}
+
 // ClusterImageRegistryState - The desired state of the ImageStream-backed cluster image registry
 type ClusterImageRegistryState string
 

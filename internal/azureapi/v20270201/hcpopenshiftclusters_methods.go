@@ -15,6 +15,8 @@
 package v20270201
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -389,6 +391,14 @@ func newImageDigestMirrors(from []coreapi.ImageDigestMirror) []*generated.ImageD
 	return out
 }
 
+// newAutoNodeProfile omits inactive AutoNode state from responses.
+func newAutoNodeProfile(autoNode coreapi.AutoNodeMode) *generated.AutoNodeProfile {
+	if autoNode != coreapi.AutoNode {
+		return nil
+	}
+	return &generated.AutoNodeProfile{Mode: ptr.To(generated.AutoNodeModeEnabled)}
+}
+
 func newOperatorsAuthenticationProfile(from *coreapi.OperatorsAuthenticationProfile) generated.OperatorsAuthenticationProfile {
 	if from == nil {
 		return generated.OperatorsAuthenticationProfile{}
@@ -475,6 +485,7 @@ func (v version) NewCluster(from *coreapi.Cluster) coreapi.VersionedCluster {
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
 				Status:                  newClusterResourceStatus(&from.Status),
 				CryptoRestrictions:      metadataapihelpers.PtrOrNil(generated.CryptoRestrictions(from.CustomerProperties.CryptoRestrictions)),
+				AutoNode:                newAutoNodeProfile(from.ServiceProviderProperties.ExperimentalFeatures.AutoNode),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},
@@ -605,6 +616,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.Cluster) (*cor
 		if c.Properties.CryptoRestrictions != nil {
 			normalizeCryptoRestrictions(c.Properties.CryptoRestrictions, &out.CustomerProperties.CryptoRestrictions)
 		}
+		if c.Properties.AutoNode != nil {
+			errs = append(errs, normalizeAutoNode(c.Properties.AutoNode, existing, out)...)
+		}
 	}
 
 	if existing != nil {
@@ -676,6 +690,86 @@ func normalizeIngress(p *generated.IngressProfile, out *coreapi.CustomerIngressP
 
 func normalizeCryptoRestrictions(p *generated.CryptoRestrictions, out *metadataapi.CryptoRestrictions) {
 	*out = metadataapi.CryptoRestrictions(metadataapihelpers.Deref(p))
+}
+
+// normalizeAutoNode maps the typed mode to the tag used by admission.
+// Admission applies feature gating and rejects changes after creation.
+func normalizeAutoNode(p *generated.AutoNodeProfile, existing *coreapi.Cluster, out *coreapi.Cluster) field.ErrorList {
+	if p.Mode == nil {
+		return nil
+	}
+
+	var requested coreapi.AutoNodeMode
+	switch *p.Mode {
+	case generated.AutoNodeModeEnabled:
+		requested = coreapi.AutoNode
+	case generated.AutoNodeModeDisabled:
+		requested = coreapi.DefaultAutoNodeMode
+	default:
+		return field.ErrorList{field.Invalid(
+			field.NewPath("properties", "autoNode", "mode"), *p.Mode,
+			fmt.Sprintf("must be %q or %q", generated.AutoNodeModeEnabled, generated.AutoNodeModeDisabled),
+		)}
+	}
+
+	var inherited coreapi.AutoNodeMode
+	if existing != nil {
+		inherited = existing.ServiceProviderProperties.ExperimentalFeatures.AutoNode
+	}
+	if requested == coreapi.AutoNode {
+		// Check for conflicts before any tag change. An empty value or the
+		// enabled value does not conflict.
+		if errs := autoNodeTagConflicts(*p.Mode, out.Tags, func(v string) bool {
+			return v == "" || v == string(coreapi.AutoNode)
+		}); len(errs) > 0 {
+			return errs
+		}
+		// Restore the tag when enablement or a replacement tags map requires it.
+		// Remove all case variants of the tag key, so that admission reads only
+		// the canonical key.
+		if requested != inherited || out.Tags != nil {
+			if out.Tags == nil {
+				out.Tags = map[string]string{}
+			}
+			for k := range out.Tags {
+				if strings.EqualFold(k, metadataapi.TagClusterAutoNode) {
+					delete(out.Tags, k)
+				}
+			}
+			out.Tags[metadataapi.TagClusterAutoNode] = string(coreapi.AutoNode)
+		}
+		return nil
+	}
+	if requested != inherited {
+		return field.ErrorList{field.Invalid(
+			field.NewPath("properties", "autoNode", "mode"), *p.Mode,
+			"AutoNode cannot be changed after cluster creation",
+		)}
+	}
+	// Disabled must not keep a legacy tag that enables AutoNode. Only an empty
+	// value does not conflict.
+	return autoNodeTagConflicts(*p.Mode, out.Tags, func(v string) bool { return v == "" })
+}
+
+// autoNodeTagConflicts returns one error for each AutoNode tag key, in any
+// letter case, that has a value that allowed does not accept. It does not
+// change tags.
+func autoNodeTagConflicts(mode generated.AutoNodeMode, tags map[string]string, allowed func(string) bool) field.ErrorList {
+	var keys []string
+	for k := range tags {
+		if strings.EqualFold(k, metadataapi.TagClusterAutoNode) && !allowed(tags[k]) {
+			keys = append(keys, k)
+		}
+	}
+	slices.Sort(keys)
+	var errs field.ErrorList
+	for _, k := range keys {
+		errs = append(errs, field.Invalid(
+			field.NewPath("properties", "autoNode", "mode"), mode,
+			fmt.Sprintf("conflicts with tags[%s]=%s", k, tags[k]),
+		))
+	}
+	return errs
 }
 
 func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *coreapi.CustomerPlatformProfile, out2 *coreapi.ServiceProviderPlatformProfile) field.ErrorList {

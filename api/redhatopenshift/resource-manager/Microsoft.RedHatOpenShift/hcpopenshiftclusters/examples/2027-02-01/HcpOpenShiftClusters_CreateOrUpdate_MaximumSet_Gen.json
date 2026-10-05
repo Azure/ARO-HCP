@@ -88,7 +88,10 @@
         "clusterImageRegistry": {
           "state": "Enabled"
         },
-        "cryptoRestrictions": "None"
+        "cryptoRestrictions": "None",
+        "autoNode": {
+          "mode": "Enabled"
+        }
       },
       "identity": {
         "type": "UserAssigned",
@@ -204,6 +207,9 @@
                 "version": "4.12"
               }
             ]
+          },
+          "autoNode": {
+            "mode": "Enabled"
           }
         },
         "identity": {
@@ -338,6 +344,9 @@
                 "version": "4.12"
               }
             ]
+          },
+          "autoNode": {
+            "mode": "Enabled"
           }
         },
         "identity": {

@@ -150,7 +150,7 @@ func toSPExperimentalFeatures(oldObj *coreapi.ClusterServiceProviderProperties) 
 // attempt to change it is rejected, because BuildCSCluster only sends AutoNode
 // to Cluster Service on CREATE (see its comment) — CS has no update path to
 // reconcile a later drift. The typed properties.autoNode.mode field (API
-// version 2027-03-30-preview+) is translated into this same tag by that
+// version 2027-02-01+) is translated into this same tag by that
 // version's Normalize (see normalizeAutoNode) before admission runs, so it's
 // covered here without this function knowing it exists.
 func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, _ *field.Path, newObj, oldObj *coreapi.ExperimentalFeatures) field.ErrorList {
@@ -158,7 +158,6 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	if op.Type == operation.Update && oldObj != nil {
 		inheritedAutoNode = oldObj.AutoNode
 	}
-
 
 	subscription := admissionContext.Subscription
 	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {

@@ -90,7 +90,11 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 			// Register subscription
 			subscriptionID := metadataapi.Must(azcorearm.ParseResourceID(scenario.ResourceID)).SubscriptionID
 			subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(subscriptionID))
-			subscriptionJSON := metadataapi.Must(artifacts.ReadFile("artifacts/VersionCompliance/subscription.json"))
+			subscriptionJSON, err := artifacts.ReadFile(scenario.dir + "/subscription.json")
+			if err != nil {
+				require.ErrorIs(t, err, fs.ErrNotExist)
+				subscriptionJSON = metadataapi.Must(artifacts.ReadFile("artifacts/VersionCompliance/subscription.json"))
+			}
 			subscriptionAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, scenario.CreateVersion)
 			require.NoError(t, subscriptionAccessor.CreateOrUpdate(ctx, subscriptionResourceID.String(), subscriptionJSON))
 
