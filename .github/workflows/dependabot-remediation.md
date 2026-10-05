@@ -184,6 +184,119 @@ safe-outputs:
         - pnpm-lock.yaml
   # Mutations require a fresh ownership and head-SHA check with the App token.
   jobs:
+    repair-owned-pr:
+      description: Apply a verified dependency repair to an owned agentic Dependabot PR
+      runs-on: ubuntu-latest
+      if: needs.detection.result == 'success'
+      inputs:
+        pull_request_number:
+          description: Number of the owned PR to repair
+          required: true
+          type: string
+        expected_head_sha:
+          description: Current 40-character head SHA from the PR inventory
+          required: true
+          type: string
+        patch:
+          description: Unified diff against that PR's head commit, limited to dependency files and Go source
+          required: true
+          type: string
+      steps:
+        - name: Mint App token to repair owned PRs
+          id: write-token
+          uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+          with:
+            client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
+            private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
+            owner: ${{ github.repository_owner }}
+            repositories: ${{ github.event.repository.name }}
+            permission-contents: write
+            permission-pull-requests: read
+        - name: Checkout repository
+          uses: actions/checkout@v7.0.1
+          with:
+            persist-credentials: false
+        - name: Verify and apply repair
+          env:
+            GH_TOKEN: ${{ steps.write-token.outputs.token }}
+            REPO: ${{ github.repository }}
+          run: |
+            set -euo pipefail
+            jq -e '
+              .items | type == "array"
+            ' "$GH_AW_AGENT_OUTPUT" >/dev/null
+            jq -e '
+              . as $output |
+              [$output.items[] | select(.type == "repair_owned_pr")] as $repairs |
+              ($repairs | length) <= 1 and
+              all($repairs[];
+                (.pull_request_number | type == "string" and test("^[1-9][0-9]*$")) and
+                (.expected_head_sha | type == "string" and test("^[0-9a-fA-F]{40}$")) and
+                (.patch | type == "string" and length > 0 and (contains("\u0000") | not))
+              ) and
+              all($repairs[];
+                .pull_request_number as $n |
+                [$output.items[] | select(.type == "reconcile_owned_pr" and .pull_request_number == $n)] | length == 0
+              )
+            ' "$GH_AW_AGENT_OUTPUT" >/dev/null || {
+              echo "Repair requires one valid PR, patch, and no conflicting reconciliation" >&2
+              exit 1
+            }
+            if ! jq -e 'any(.items[]; .type == "repair_owned_pr")' "$GH_AW_AGENT_OUTPUT" >/dev/null; then
+              exit 0
+            fi
+            n=$(jq -r '.items[] | select(.type == "repair_owned_pr") | .pull_request_number' "$GH_AW_AGENT_OUTPUT")
+            sha=$(jq -r '.items[] | select(.type == "repair_owned_pr") | .expected_head_sha' "$GH_AW_AGENT_OUTPUT")
+            patch="$RUNNER_TEMP/owned-pr-repair.patch"
+            jq -r '.items[] | select(.type == "repair_owned_pr") | .patch' "$GH_AW_AGENT_OUTPUT" > "$patch"
+            if (( $(wc -c < "$patch") > 131072 )); then
+              echo "Repair patch exceeds 128 KiB" >&2
+              exit 1
+            fi
+            pr=$(gh api "repos/$REPO/pulls/$n")
+            jq -e --arg sha "$sha" --arg repo "$REPO" '
+              .state == "open" and .user.login == "aro-hcp-robot[bot]" and
+              .head.repo.full_name == $repo and .base.ref == "main" and
+              (.title | startswith("fix(deps): ")) and
+              any(.labels[]; .name == "agentic-dependabot") and
+              .head.sha == $sha
+            ' <<< "$pr" >/dev/null || { echo "PR $n is not an owned PR at the expected head" >&2; exit 1; }
+            head=$(jq -r '.head.ref' <<< "$pr")
+            git check-ref-format "refs/heads/$head"
+            git fetch --no-tags origin "$sha"
+            git switch --detach "$sha"
+            git apply --check --index "$patch"
+            git apply --index "$patch"
+            if [[ -n "$(git diff --cached --summary)" ]]; then
+              echo "Repair cannot create, delete, rename, or change modes of files" >&2
+              exit 1
+            fi
+            git diff --cached --name-only -z | while IFS= read -r -d '' file; do
+              case "$file" in
+                .github/*|*/.github/*) echo "Protected path: $file" >&2; exit 1 ;;
+                go.work|go.work.sum|go.mod|go.sum|*/go.mod|*/go.sum|package.json|*/package.json|package-lock.json|*/package-lock.json|yarn.lock|*/yarn.lock|pnpm-lock.yaml|*/pnpm-lock.yaml|*.go) ;;
+                *) echo "Unexpected repair path: $file" >&2; exit 1 ;;
+              esac
+            done
+            git diff --cached --quiet && { echo "Repair patch has no changes" >&2; exit 1; }
+            git diff --cached --check
+            if [[ "${GH_AW_SAFE_OUTPUTS_STAGED:-false}" == true ]]; then
+              echo "Staged repair for verified PR $n"
+              exit 0
+            fi
+            gh api "repos/$REPO/pulls/$n" | jq -e --arg sha "$sha" --arg repo "$REPO" '
+              .state == "open" and .user.login == "aro-hcp-robot[bot]" and
+              .head.repo.full_name == $repo and .base.ref == "main" and
+              (.title | startswith("fix(deps): ")) and
+              any(.labels[]; .name == "agentic-dependabot") and
+              .head.sha == $sha
+            ' >/dev/null || { echo "PR $n changed before repair could be pushed" >&2; exit 1; }
+            git config user.name "aro-hcp-robot[bot]"
+            git config user.email "aro-hcp-robot[bot]@users.noreply.github.com"
+            git commit -m "fix(deps): repair agentic dependency PR"
+            gh auth setup-git
+            git push origin "HEAD:refs/heads/$head"
+            git rev-parse HEAD | grep -Fx "$(gh api "repos/$REPO/pulls/$n" --jq '.head.sha')"
     reconcile-owned-pr:
       description: Update the base or post an evidenced Prow command on an owned agentic Dependabot PR
       runs-on: ubuntu-latest
@@ -280,18 +393,18 @@ The currently open pull requests have been fetched into `open-pull-requests.json
 
 First classify each open PR by who owns it, because that decides what you may do with it:
 
-- **Your own PRs** must have the `agentic-dependabot` label, author `aro-hcp-robot[bot]`, title prefix `fix(deps): `, `head_repo` equal to `Azure/ARO-HCP`, and `base` equal to `main`. Only these may receive a branch update. A label alone never grants permission to change someone else's PR.
+- **Your own PRs** must have the `agentic-dependabot` label, author `aro-hcp-robot[bot]`, title prefix `fix(deps): `, `head_repo` equal to `Azure/ARO-HCP`, and `base` equal to `main`. Only these may receive a branch update or a code repair. A label alone never grants permission to change someone else's PR.
 - **Native Dependabot PRs** and **human PRs** are not yours. Never mutate them. If one of your PRs supersedes a native Dependabot PR for the same package, reference it without a closing keyword and leave it for Prow-managed closure after the replacement merges.
 
 Walk **every** open `agentic-dependabot` PR, even if its alert has disappeared. Record its number, alerts covered, CI/check failure evidence, merge state, review decision, unresolved threads, and next action. Do not confuse a required review or Tide's `blocked` state with a failing check. Do not merge or approve PRs: human reviews and repository merge policy still apply.
 
 - **Passing or pending checks**: keep the existing PR; wait for outstanding checks and human approvals. If a check is pending or its evidence is missing, never call the PR healthy or replace it on speculation. If an actionable review thread identifies an incomplete dependency fix, address it as described below.
 - **Behind base**: for an owned, still-needed PR with no conflicting dependency change, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, and `action: update-branch`. The guarded output merges current `main` into that PR branch after rechecking ownership and SHA; check the new SHA and CI on a later run. It cannot resolve conflicts or change dependency files. Do not request repeated updates for a PR already waiting on CI at its current SHA.
-- **Failing CI or merge conflict**: follow the failed check's URL and the PR diff to identify the cause. Compare the same job on `main` and other PRs before calling a failure transient. If it is a proven one-off infrastructure failure, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, `action: retest`, and a short evidence sentence in `body` (no slash commands); the guarded job appends `/retest-required`. On a later run verify a new check started. Check existing PR comments first and do not repeat a retest request for the same head and failure without new evidence. If the failure is fleet-wide, report it rather than blindly retesting. If the dependency fix is demonstrably incomplete or incompatible, make one corrected, dependency-only replacement from current `main`, with the original PR number in its body. Keep the existing PR open until the replacement is actually created and its checks pass; a safe-output request to create a PR is not proof of creation. On later runs, recognize that replacement and do not generate another one for the same package/version while it is pending.
+- **Failing CI or merge conflict**: follow the failed check's URL and the PR diff to identify the cause. Compare the same job on `main` and other PRs before calling a failure transient. If it is a proven one-off infrastructure failure, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, `action: retest`, and a short evidence sentence in `body` (no slash commands); the guarded job appends `/retest-required`. On a later run verify a new check started. Check existing PR comments first and do not repeat a retest request for the same head and failure without new evidence. If the failure is fleet-wide, report it rather than blindly retesting. If the fix is incomplete or incompatible, repair the existing owned PR with `repair_owned_pr` rather than opening a replacement. Fetch its exact head SHA, check out that commit, make and validate the smallest correction, and pass a unified `git diff` against that head as `patch` with its PR number and `expected_head_sha`. The guarded job applies only a clean patch to that same head and pushes a fast-forward commit. It rejects changes outside Go dependencies, npm dependencies, and Go source; changes to `.github/` are never allowed. Keep repairs under 128 KiB and limited to existing files. Do not request both repair and reconciliation for the same PR. On the next run verify the new head and CI. If the fix requires a larger patch, non-Go source, or an unresolvable merge conflict, report the blocker instead of creating a replacement for the same group.
 - **Review feedback**: act only on an unresolved thread about a missing or incorrect dependency fix (section 5b). Do not dismiss or resolve threads on behalf of a reviewer. If review approval is missing, leave it for a human.
 - **No open alert**: do not infer the PR is obsolete just from the alert disappearing. Inspect its actual changes and whether they still provide a needed dependency fix. Never open a replacement solely for an orphaned PR. If the change is proven unnecessary on `main`, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, `action: close`, and the evidence in `body` (no slash commands); the guarded job appends `/close`. For a superseded PR, request closure only after verifying the replacement is merged and covers the same fixes. On the next run verify Prow actually closed the PR; never use the GitHub PR-state API or a closing keyword.
 
-Do not use `push_to_pull_request_branch` here: this is a scheduled or manual run with no triggering PR, so that output cannot reliably push to an arbitrary existing head. If no safe automated change is justified, report the blocker with its PR and evidence rather than opening another PR.
+Do not use `push_to_pull_request_branch` here: this is a scheduled or manual run with no triggering PR, so that output cannot reliably push to an arbitrary existing head. Use the guarded `repair_owned_pr` job instead. If no safe automated change is justified, report the blocker with its PR and evidence rather than opening another PR.
 
 ## 2. Group the alerts
 
@@ -322,6 +435,8 @@ Work on a fresh branch per group, off the default branch. For each group:
 
 Every PR must contain **only** dependency-management changes: for Go groups `go.mod`, `go.sum`, `go.work`, `go.work.sum` and any regenerated license metadata; for npm groups `package.json` and the lockfile. This includes the full cascade across every module that the tidy ritual touched, not just the module you bumped. Do **not** revert a `go.mod`/`go.sum`/`go.work.sum` change that `make all-tidy` produced thinking it is "unrelated churn"; those cross-module updates are the workspace sync and CI will fail without them. Only revert actual source-code edits (`.go` files, generated code) or the `dependabot-alerts.json` / `open-pull-requests.json` scratch files, which must never be committed. If in doubt, the rule is simple: running `make all-tidy` on the final branch must produce no diff.
 
+An existing owned PR may also need a small Go source correction when the dependency upgrade breaks an API or lint check. Include only the required fix, validate it, and send it through `repair_owned_pr`. New dependency PRs remain dependency-only.
+
 ## 5. Open the pull requests
 
 For each group, open one pull request via the create-pull-request safe output. The PR must:
@@ -336,7 +451,7 @@ Follow the repository conventions: plain, human wording, no em-dashes. Do not ad
 
 When reconciling an already-open PR (section 1b), sort each unresolved review comment into act vs decline:
 
-- **Act** on comments that mean the fix is incomplete or wrong, then re-run the ritual and the checks on a corrected replacement branch: a coordinated sibling module left behind (section 2 lockstep), a go.sum/go.mod inconsistency (an incomplete tidy), a vulnerable npm range still flagged by `npm audit`, or a wrong / too-low target version. The scheduled workflow cannot push code to the existing PR branch. Do not request a second replacement when one is already open for that same fix.
+- **Act** on comments that mean the fix is incomplete or wrong, then repair the owned PR with the guarded `repair_owned_pr` job after re-running the ritual and checks: a coordinated sibling module left behind (section 2 lockstep), a go.sum/go.mod inconsistency (an incomplete tidy), a vulnerable npm range still flagged by `npm audit`, or a wrong / too-low target version. Do not open a replacement when an owned PR for that fix is still open.
 - **Decline** scope-expanding suggestions that go beyond clearing the vulnerability, because acting on them would break the dependency-only rule: consolidating transitive major versions that legitimately coexist (for example a graph pulling both `yaml.v2` and `yaml.v3`), refactors, or style changes. These stay out of the PR; the PR is intentionally dependency-only.
 
 ## 6. If you cannot fix a group
