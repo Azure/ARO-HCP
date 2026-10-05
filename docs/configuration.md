@@ -177,14 +177,14 @@ param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }} // ... but not boolea
 ## Management Controller Scheduling
 
 `mgmt.scheduling.role` selects the `aro-hcp.azure.com/role` node label for
-`mgmt-agent` and `kube-applier`. The scalar fields `tolerationKey`,
-`tolerationOperator`, `tolerationValue`, and `tolerationEffect` under
-`mgmt.scheduling` configure their single pod toleration. The defaults are role
-`infra` and toleration `infra=true:NoSchedule` with operator `Equal`.
+`mgmt-agent` and `kube-applier`. Supported roles are `infra` (the default) and
+`system`. Helm derives their single pod toleration from the role: `infra` uses
+`infra=true:NoSchedule`, and `system` uses `CriticalAddonsOnly=true:NoSchedule`.
+The operator is always `Equal`, the value `"true"`, and the effect `NoSchedule`.
 
-When overriding the role, also configure the toleration matching the target nodes'
-taint. For example, use role `system` and toleration key `CriticalAddonsOnly`,
-operator `Equal`, value `"true"`, and effect `NoSchedule` for system nodes.
+The optional `mgmt.scheduling.tolerationKey` defaults to an empty string. Set it
+to a non-empty Kubernetes qualified name to override the derived key when the
+target pool uses a different taint key.
 These settings do not change node pools or the scheduling of other workloads.
 
 ## Schema

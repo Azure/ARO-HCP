@@ -3149,51 +3149,25 @@
           "properties": {
             "role": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 63,
-              "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$"
+              "enum": [
+                "infra",
+                "system"
+              ],
+              "default": "infra"
             },
             "tolerationKey": {
               "type": "string",
-              "minLength": 1,
+              "default": "",
               "maxLength": 317,
-              "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[a-zA-Z0-9]([-a-zA-Z0-9_.]{0,61}[a-zA-Z0-9])?$"
-            },
-            "tolerationOperator": {
-              "type": "string",
-              "enum": [
-                "Equal",
-                "Exists"
-              ]
-            },
-            "tolerationValue": {
-              "type": "string",
-              "maxLength": 63,
-              "pattern": "^([a-zA-Z0-9]([-a-zA-Z0-9_.]*[a-zA-Z0-9])?)?$"
-            },
-            "tolerationEffect": {
-              "type": "string",
-              "enum": [
-                "NoSchedule",
-                "PreferNoSchedule",
-                "NoExecute"
-              ]
+              "pattern": "^(([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[a-zA-Z0-9]([-a-zA-Z0-9_.]{0,61}[a-zA-Z0-9])?)?$"
             }
           },
           "required": [
-            "role",
-            "tolerationKey",
-            "tolerationOperator",
-            "tolerationValue",
-            "tolerationEffect"
+            "role"
           ],
           "x-cel-validations": [
             {
-              "rule": "self.tolerationOperator != 'Exists' || self.tolerationValue == ''",
-              "message": "Exists tolerations must have an empty value"
-            },
-            {
-              "rule": "!self.tolerationKey.matches('^[^/]{254,}/')",
+              "rule": "!has(self.tolerationKey) || !self.tolerationKey.matches('^[^/]{254,}/')",
               "message": "Toleration key DNS prefixes must not exceed 253 characters"
             }
           ]

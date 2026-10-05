@@ -1,8 +1,5 @@
 schedulingRole: "{{ .mgmt.scheduling.role }}"
-tolerationKey: "{{ .mgmt.scheduling.tolerationKey }}"
-tolerationOperator: "{{ .mgmt.scheduling.tolerationOperator }}"
-tolerationValue: "{{ .mgmt.scheduling.tolerationValue }}"
-tolerationEffect: "{{ .mgmt.scheduling.tolerationEffect }}"
+schedulingTolerationKey: "{{ .mgmt.scheduling.tolerationKey }}"
 pullBinding:
   registry: "{{ .acr.svc.name }}.azurecr.io"
   scope: "repository:{{ .kubeApplier.image.repository }}:pull"

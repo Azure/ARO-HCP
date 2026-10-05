@@ -714,10 +714,7 @@ defaults:
   mgmt:
     scheduling:
       role: infra
-      tolerationKey: infra
-      tolerationOperator: Equal
-      tolerationValue: "true"
-      tolerationEffect: NoSchedule
+      tolerationKey: ""
     stamps:
       count: 1
     defaultStorageClassSkuName: "PremiumV2_LRS"

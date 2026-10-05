@@ -272,9 +272,9 @@ spec:
                 - "system"
       tolerations:
       - key: "CriticalAddonsOnly"
-        operator: "Equal"
+        operator: Equal
         value: "true"
-        effect: "NoSchedule"
+        effect: NoSchedule
       topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: 'topology.kubernetes.io/zone'
