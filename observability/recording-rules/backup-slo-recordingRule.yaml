@@ -1,0 +1,150 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: backup-slo-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # HCP Backup and Restore User Journey SLO Recording Rules
+  # ========================================
+  # ARO-26261 / ARO-29946. Baseline SLIs per the ARO HCP Alerting Recommendation
+  # ADR, scoped per management cluster (Velero runs on the MC, one Schedule per
+  # HostedCluster namespace per cadence). "Per cluster" here means per
+  # management cluster, fleet-aggregated across every HostedCluster/schedule on
+  # it - each MC hosts many HCs each with hourly/daily/weekly schedules on
+  # independently-offset crons, so attempts/failures/duration trickle
+  # continuously across any 5m window at this scope (unlike a single HC's own
+  # hourly cron, which does not).
+  #
+  # Metrics: velero_backup_{attempt,success,failure,partial_failure,
+  # validation_failure}_total, velero_backup_last_successful_timestamp,
+  # velero_backup_last_status, velero_backup_duration_seconds_bucket,
+  # velerobackup_phase - all confirmed live in observability/grafana-dashboards/
+  # velero/velero.json. HA scrapes deduped with max without (prometheus_replica),
+  # same pattern as every other SLI file in this directory.
+  #
+  # Freshness (Availability) is intentionally NOT fleet-aggregated like the
+  # others - see userJourneyBackupAvailability* in backup-slo-prometheusRule.yaml
+  # for why it stays per-namespace (per-HostedCluster) and is computed directly
+  # off velero_backup_last_successful_timestamp rather than from these ratios.
+  - name: arohcp_backup_slo_recording_rules
+    interval: 1m
+    rules:
+    # Errors SLI: failed attempts / total attempts (ratio in [0,1]), fleet-wide
+    # per management cluster. "Failed" = failure + partial_failure +
+    # validation_failure (any attempt that did not cleanly complete).
+    # `or 0 * total` keeps errors=0 when there is attempt volume but no failure
+    # series yet (matches the frontend SLI pattern - avoids NaN, not a silent 0).
+    - record: errors:backup:ratio:rate5m
+      expr: |
+        (
+          (
+            sum by (cluster) (
+              max without (prometheus_replica) (rate(velero_backup_failure_total[5m]))
+            )
+            +
+            sum by (cluster) (
+              max without (prometheus_replica) (rate(velero_backup_partial_failure_total[5m]))
+            )
+            +
+            sum by (cluster) (
+              max without (prometheus_replica) (rate(velero_backup_validation_failure_total[5m]))
+            )
+          )
+          or
+          0 * sum by (cluster) (
+            max without (prometheus_replica) (rate(velero_backup_attempt_total[5m]))
+          )
+        )
+        /
+        sum by (cluster) (
+          max without (prometheus_replica) (rate(velero_backup_attempt_total[5m]))
+        )
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (rate(velero_backup_attempt_total[5m]))
+          )
+          > 0
+        )
+    # Traffic SLI: absolute backup attempt rate per management cluster.
+    # Used both as the Traffic baseline-drop alert input and as the ">0" gate
+    # for every other ratio SLI above/below.
+    - record: traffic:backup:attempt_rate:rate5m
+      expr: |
+        sum by (cluster) (
+          max without (prometheus_replica) (rate(velero_backup_attempt_total[5m]))
+        )
+    # Latency SLI: p99 backup duration in seconds, fleet-wide per management
+    # cluster. velero_backup_duration_seconds only populates on completion
+    # (success or failure), so this reflects completed-backup duration, not
+    # stuck/in-progress backups (those are covered by the RepoMaintenance
+    # saturation proxy below).
+    - record: sli:backup:latency_p99:rate5m
+      expr: |
+        histogram_quantile(
+          0.99,
+          sum by (cluster, le) (
+            max without (prometheus_replica) (rate(velero_backup_duration_seconds_bucket[5m]))
+          )
+        )
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (rate(velero_backup_duration_seconds_count[5m]))
+          )
+          > 0
+        )
+    # Storage availability PROXY: fraction of schedules whose most recent run
+    # did not succeed, fleet-wide per management cluster. This is a stand-in
+    # for a direct BackupStorageLocation phase metric, which does not exist
+    # yet (needs ARO-29949 - kube-state-metrics custom-resource-state for
+    # velero.io CRs, not shipped). A real BSL outage should fail uploads for
+    # every schedule on the MC near-simultaneously, which this approximates;
+    # it will also fire for unrelated fleet-wide failure causes (e.g. a bad
+    # Velero image rollout) - see userJourneyBackupStorageAvailability's
+    # description for the same caveat. Replace with a direct BSL phase metric
+    # once ARO-29949 lands.
+    - record: sli:backup:last_run_failure:ratio5m
+      expr: |
+        count by (cluster) (
+          max without (prometheus_replica) (velero_backup_last_status{schedule!=""}) == 0
+        )
+        /
+        count by (cluster) (
+          max without (prometheus_replica) (velero_backup_last_status{schedule!=""})
+        )
+    # Schedule count SLI - minimum-sample guard for the proxy above (and for
+    # not alerting off a management cluster with only one or two HCs, where
+    # one bad backup looks identical to a fleet-wide outage).
+    - record: backup:schedule_count:count
+      expr: |
+        count by (cluster) (
+          max without (prometheus_replica) (velero_backup_last_status{schedule!=""})
+        )
+    # RepoMaintenance saturation PROXY: count of backups currently stuck in a
+    # non-terminal phase, fleet-wide per management cluster. There is no
+    # direct metric for Velero's BackupRepository/node-agent (kopia) repo
+    # maintenance queue depth or duration (same ARO-29949 gap as above).
+    # ARO-29757 ("Staging HCP backup failures due to BackupRepository
+    # controller saturation, 92.9% success rate") showed repo contention
+    # surfaces as a pile-up of non-completing backups, which this counts
+    # directly from velerobackup_phase. Replace with a direct repo-maintenance
+    # metric once one exists.
+    # No "or vector(0)" fallback here: the alert only checks `> 5`, and an
+    # absent series (zero backups currently in a non-terminal phase on that
+    # cluster) is already equivalent to false for that comparison - adding a
+    # synthetic always-on {} series would just create an unlabeled orphan.
+    - record: backup:in_progress:count
+      expr: |
+        count by (cluster) (
+          max without (prometheus_replica) (
+            velerobackup_phase{phase=~"InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed"}
+          ) == 1
+        )

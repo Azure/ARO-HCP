@@ -1,0 +1,119 @@
+rule_files:
+- backup-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Errors ratio: 10 failures / 100 attempts per minute = 10% error share.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0+100x10"
+  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0+10x10"
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0x10"
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0x10"
+  promql_expr_test:
+  - expr: errors:backup:ratio:rate5m{cluster="mgmt-1"}
+    eval_time: 8m
+    exp_samples:
+    - labels: '{__name__="errors:backup:ratio:rate5m", cluster="mgmt-1"}'
+      # 10/100 is not exact in binary floating point - promtool requires the
+      # precise computed value here, matching the established pattern in
+      # frontend-slo-recordingRule_test.yaml (e.g. its 0.9639999999999997).
+      value: 0.09999999999999999
+  - expr: traffic:backup:attempt_rate:rate5m{cluster="mgmt-1"}
+    eval_time: 8m
+    exp_samples:
+    - labels: '{__name__="traffic:backup:attempt_rate:rate5m", cluster="mgmt-1"}'
+      value: 1.6666666666666667
+# ========================================
+# Errors ratio guard: zero attempt volume must emit no sample (not NaN or 0) -
+# avoids a quiet/decommissioned cluster looking like a perfect-or-silent SLI.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_attempt_total{cluster="mgmt-quiet", schedule="ns-a-hourly"}'
+    values: "0x10"
+  - series: 'velero_backup_failure_total{cluster="mgmt-quiet", schedule="ns-a-hourly"}'
+    values: "0x10"
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-quiet", schedule="ns-a-hourly"}'
+    values: "0x10"
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-quiet", schedule="ns-a-hourly"}'
+    values: "0x10"
+  promql_expr_test:
+  - expr: errors:backup:ratio:rate5m{cluster="mgmt-quiet"}
+    eval_time: 8m
+    exp_samples: []
+# ========================================
+# Latency p99: all observations land in (300,600] - histogram_quantile
+# interpolates a concrete estimate inside that finite bucket.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-hourly", le="300"}'
+    values: "0x10"
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-hourly", le="600"}'
+    values: "0+2x10"
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-hourly", le="+Inf"}'
+    values: "0+2x10"
+  - series: 'velero_backup_duration_seconds_count{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0+2x10"
+  promql_expr_test:
+  - expr: sli:backup:latency_p99:rate5m{cluster="mgmt-1"}
+    eval_time: 8m
+    exp_samples:
+    - labels: '{__name__="sli:backup:latency_p99:rate5m", cluster="mgmt-1"}'
+      value: 597
+# ========================================
+# Storage/schedule-count proxies: 3 schedules, 2 with a failed last run.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-b-hourly"}'
+    values: "0+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-c-hourly"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: sli:backup:last_run_failure:ratio5m{cluster="mgmt-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:backup:last_run_failure:ratio5m", cluster="mgmt-1"}'
+      value: 0.6666666666666666
+  - expr: backup:schedule_count:count{cluster="mgmt-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="backup:schedule_count:count", cluster="mgmt-1"}'
+      value: 3
+# ========================================
+# RepoMaintenance proxy: 2 backups non-terminal (InProgress, Finalizing),
+# 1 Completed - Completed must not count.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-a-hourly", phase="InProgress"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-b-hourly", phase="Finalizing"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-c-hourly", phase="Completed"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: backup:in_progress:count{cluster="mgmt-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="backup:in_progress:count", cluster="mgmt-1"}'
+      value: 2
+# No non-terminal backups anywhere - absent series, not a spurious 0 (see the
+# recording rule's comment on why there is no "or vector(0)" fallback here).
+- interval: 1m
+  input_series:
+  - series: 'velerobackup_phase{cluster="mgmt-2", schedule="ns-a-hourly", phase="Completed"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: backup:in_progress:count{cluster="mgmt-2"}
+    eval_time: 5m
+    exp_samples: []
