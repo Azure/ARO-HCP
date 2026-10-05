@@ -243,7 +243,7 @@ safe-outputs:
                 .head.sha == $sha
               ' <<< "$pr" >/dev/null || { echo "PR $n is not an owned PR at the expected head" >&2; exit 1; }
               if [[ "$action" != update-branch ]]; then
-                evidence=$(jq -er '.body | select(type == "string" and length > 0 and length <= 4096 and (contains("\r") | not) and (test("(?m)^[[:space:]]*/") | not))' <<< "$item")
+                evidence=$(jq -er '.body | select(type == "string" and length > 0 and length <= 4096 and (contains("\r") | not) and (contains("\u0000") | not) and (test("(?m)^[[:space:]]*/") | not))' <<< "$item")
               fi
               if [[ "${GH_AW_SAFE_OUTPUTS_STAGED:-false}" == true ]]; then
                 echo "Staged $action for verified PR $n"
