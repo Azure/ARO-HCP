@@ -586,9 +586,9 @@ spec:
                 - "system"
       tolerations:
       - key: "CriticalAddonsOnly"
-        operator: "Equal"
+        operator: Equal
         value: "true"
-        effect: "NoSchedule"
+        effect: NoSchedule
 ---
 # Source: mgmt-agent/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

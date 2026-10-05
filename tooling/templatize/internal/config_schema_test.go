@@ -156,32 +156,27 @@ func TestMgmtSchedulingConfigSchema(t *testing.T) {
 	}{
 		{name: "default infra", mutate: func(scheduling map[string]any) {
 			require.Equal(t, "infra", scheduling["role"])
-			require.Equal(t, "infra", scheduling["tolerationKey"])
-			require.Equal(t, "Equal", scheduling["tolerationOperator"])
-			require.Equal(t, "true", scheduling["tolerationValue"])
-			require.Equal(t, "NoSchedule", scheduling["tolerationEffect"])
+			require.Equal(t, "", scheduling["tolerationKey"])
+			require.Len(t, scheduling, 2)
 		}},
 		{name: "system override", mutate: func(scheduling map[string]any) {
 			scheduling["role"] = "system"
-			scheduling["tolerationKey"] = "CriticalAddonsOnly"
 		}},
 		{name: "missing role", wantError: true, mutate: func(scheduling map[string]any) { delete(scheduling, "role") }},
 		{name: "empty role", wantError: true, mutate: func(scheduling map[string]any) { scheduling["role"] = "" }},
+		{name: "invalid role", wantError: true, mutate: func(scheduling map[string]any) { scheduling["role"] = "worker" }},
 		{name: "invalid role type", wantError: true, mutate: func(scheduling map[string]any) { scheduling["role"] = true }},
 		{name: "unknown scheduling field", wantError: true, mutate: func(scheduling map[string]any) { scheduling["unknown"] = true }},
-		{name: "missing key", wantError: true, mutate: func(scheduling map[string]any) { delete(scheduling, "tolerationKey") }},
-		{name: "missing operator", wantError: true, mutate: func(scheduling map[string]any) { delete(scheduling, "tolerationOperator") }},
-		{name: "missing value", wantError: true, mutate: func(scheduling map[string]any) { delete(scheduling, "tolerationValue") }},
-		{name: "missing effect", wantError: true, mutate: func(scheduling map[string]any) { delete(scheduling, "tolerationEffect") }},
-		{name: "empty key", wantError: true, mutate: func(scheduling map[string]any) { scheduling["tolerationKey"] = "" }},
+		{name: "missing key", mutate: func(scheduling map[string]any) { delete(scheduling, "tolerationKey") }},
+		{name: "empty key", mutate: func(scheduling map[string]any) { scheduling["tolerationKey"] = "" }},
 		{name: "invalid key type", wantError: true, mutate: func(scheduling map[string]any) { scheduling["tolerationKey"] = []any{"infra"} }},
 		{name: "legacy tolerations list", wantError: true, mutate: func(scheduling map[string]any) { scheduling["tolerations"] = []any{} }},
-		{name: "invalid operator", wantError: true, mutate: func(scheduling map[string]any) { scheduling["tolerationOperator"] = "invalid" }},
-		{name: "boolean value", wantError: true, mutate: func(scheduling map[string]any) {
-			scheduling["tolerationValue"] = true
+		{name: "removed operator", wantError: true, mutate: func(scheduling map[string]any) { scheduling["tolerationOperator"] = "Equal" }},
+		{name: "removed value", wantError: true, mutate: func(scheduling map[string]any) {
+			scheduling["tolerationValue"] = "true"
 		}},
-		{name: "invalid effect", wantError: true, mutate: func(scheduling map[string]any) {
-			scheduling["tolerationEffect"] = "invalid"
+		{name: "removed effect", wantError: true, mutate: func(scheduling map[string]any) {
+			scheduling["tolerationEffect"] = "NoSchedule"
 		}},
 		{name: "key with spaces", wantError: true, mutate: func(scheduling map[string]any) {
 			scheduling["tolerationKey"] = "invalid key"
@@ -197,19 +192,6 @@ func TestMgmtSchedulingConfigSchema(t *testing.T) {
 		}},
 		{name: "qualified key", mutate: func(scheduling map[string]any) {
 			scheduling["tolerationKey"] = "example.com/Node_role"
-		}},
-		{name: "value with spaces", wantError: true, mutate: func(scheduling map[string]any) {
-			scheduling["tolerationValue"] = "invalid value"
-		}},
-		{name: "long value", wantError: true, mutate: func(scheduling map[string]any) {
-			scheduling["tolerationValue"] = strings.Repeat("a", 64)
-		}},
-		{name: "Exists with value", wantError: true, mutate: func(scheduling map[string]any) {
-			scheduling["tolerationOperator"] = "Exists"
-		}},
-		{name: "valid Exists", mutate: func(scheduling map[string]any) {
-			scheduling["tolerationOperator"] = "Exists"
-			scheduling["tolerationValue"] = ""
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {

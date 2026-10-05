@@ -1,8 +1,5 @@
 schedulingRole: "{{ .mgmt.scheduling.role }}"
-tolerationKey: "{{ .mgmt.scheduling.tolerationKey }}"
-tolerationOperator: "{{ .mgmt.scheduling.tolerationOperator }}"
-tolerationValue: "{{ .mgmt.scheduling.tolerationValue }}"
-tolerationEffect: "{{ .mgmt.scheduling.tolerationEffect }}"
+schedulingTolerationKey: "{{ .mgmt.scheduling.tolerationKey }}"
 monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 image:
   registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"

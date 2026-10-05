@@ -53,6 +53,7 @@ func TestMgmtScheduling(t *testing.T) {
 			for _, test := range []struct {
 				name        string
 				role        string
+				keyOverride string
 				tolerations []corev1.Toleration
 				override    bool
 			}{
@@ -65,36 +66,22 @@ func TestMgmtScheduling(t *testing.T) {
 					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
 				},
 				{
-					name: "Exists toleration", role: "system", override: true,
-					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute}},
+					name: "custom infra key", role: "infra", keyOverride: "example.com/custom", override: true,
+					tolerations: []corev1.Toleration{{Key: "example.com/custom", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
 				},
 				{
-					name: "boolean role", role: "true", override: true,
-					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
-				},
-				{
-					name: "null role", role: "null", override: true,
-					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
-				},
-				{
-					name: "on role", role: "on", override: true,
-					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
-				},
-				{
-					name: "numeric role", role: "123", override: true,
-					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
+					name: "custom system key", role: "system", keyOverride: "example.com/custom", override: true,
+					tolerations: []corev1.Toleration{{Key: "example.com/custom", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
 				},
 			} {
 				t.Run(test.name, func(t *testing.T) {
 					var cfg types.Configuration
 					require.NoError(t, yaml.Unmarshal(raw, &cfg))
 					if test.override {
-						toleration := test.tolerations[0]
 						cfg = types.MergeConfiguration(cfg, map[string]any{
 							"mgmt": map[string]any{"scheduling": map[string]any{
 								"role":          test.role,
-								"tolerationKey": toleration.Key, "tolerationOperator": string(toleration.Operator),
-								"tolerationValue": toleration.Value, "tolerationEffect": string(toleration.Effect),
+								"tolerationKey": test.keyOverride,
 							}},
 						})
 					}

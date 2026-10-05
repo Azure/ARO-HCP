@@ -5,7 +5,3 @@ testData:
   mgmt:
     scheduling:
       role: system
-      tolerationKey: CriticalAddonsOnly
-      tolerationOperator: Equal
-      tolerationValue: "true"
-      tolerationEffect: NoSchedule
