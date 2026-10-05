@@ -1,4 +1,11 @@
-schedulingRole: infra
+schedulingRole: "{{ .mgmt.scheduling.role }}"
+tolerations:
+# {{ range .mgmt.scheduling.tolerations }}
+- key: {{ printf "%q" .key }}
+  operator: {{ printf "%q" .operator }}
+  value: {{ printf "%q" .value }}
+  effect: {{ printf "%q" .effect }}
+# {{ end }}
 pullBinding:
   registry: "{{ .acr.svc.name }}.azurecr.io"
   scope: "repository:{{ .kubeApplier.image.repository }}:pull"

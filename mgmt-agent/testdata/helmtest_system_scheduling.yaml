@@ -1,0 +1,12 @@
+values: ../values.yaml
+name: helmtest-mgmt-agent-system
+namespace: mgmt-agent
+testData:
+  mgmt:
+    scheduling:
+      role: system
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Equal
+        value: "true"
+        effect: NoSchedule

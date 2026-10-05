@@ -128,3 +128,96 @@ func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 		})
 	}
 }
+
+func TestMgmtSchedulingConfigSchema(t *testing.T) {
+	provider, err := config.NewConfigProvider(filepath.Join(repoRootDir, "config/config.yaml"))
+	require.NoError(t, err)
+	ev2, err := ev2config.ResolveConfig("public", "westus3")
+	require.NoError(t, err)
+	resolver, err := provider.GetResolver(&config.ConfigReplacements{
+		CloudReplacement:       "dev",
+		EnvironmentReplacement: "pers",
+		RegionReplacement:      "westus3",
+		RegionShortReplacement: "usw3",
+		StampReplacement:       "1",
+		Ev2Config:              ev2,
+	})
+	require.NoError(t, err)
+	baseline, err := resolver.GetRegionConfiguration("westus3")
+	require.NoError(t, err)
+	require.NoError(t, resolver.ValidateSchema(baseline))
+	baselineJSON, err := json.Marshal(baseline)
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		name      string
+		mutate    func(map[string]any)
+		wantError bool
+	}{
+		{name: "default infra", mutate: func(scheduling map[string]any) {
+			require.Equal(t, "infra", scheduling["role"])
+			require.Equal(t, []any{map[string]any{"key": "infra", "operator": "Equal", "value": "true", "effect": "NoSchedule"}}, scheduling["tolerations"])
+		}},
+		{name: "system override", mutate: func(scheduling map[string]any) {
+			scheduling["role"] = "system"
+			scheduling["tolerations"] = []any{map[string]any{"key": "CriticalAddonsOnly", "operator": "Equal", "value": "true", "effect": "NoSchedule"}}
+		}},
+		{name: "missing role", wantError: true, mutate: func(scheduling map[string]any) { delete(scheduling, "role") }},
+		{name: "empty role", wantError: true, mutate: func(scheduling map[string]any) { scheduling["role"] = "" }},
+		{name: "invalid role type", wantError: true, mutate: func(scheduling map[string]any) { scheduling["role"] = true }},
+		{name: "unknown scheduling field", wantError: true, mutate: func(scheduling map[string]any) { scheduling["unknown"] = true }},
+		{name: "missing tolerations", wantError: true, mutate: func(scheduling map[string]any) { delete(scheduling, "tolerations") }},
+		{name: "empty tolerations", wantError: true, mutate: func(scheduling map[string]any) { scheduling["tolerations"] = []any{} }},
+		{name: "invalid tolerations type", wantError: true, mutate: func(scheduling map[string]any) { scheduling["tolerations"] = "infra" }},
+		{name: "boolean value", wantError: true, mutate: func(scheduling map[string]any) {
+			scheduling["tolerations"].([]any)[0].(map[string]any)["value"] = true
+		}},
+		{name: "invalid effect", wantError: true, mutate: func(scheduling map[string]any) {
+			scheduling["tolerations"].([]any)[0].(map[string]any)["effect"] = "invalid"
+		}},
+		{name: "key with spaces", wantError: true, mutate: func(scheduling map[string]any) {
+			scheduling["tolerations"].([]any)[0].(map[string]any)["key"] = "invalid key"
+		}},
+		{name: "long key name", wantError: true, mutate: func(scheduling map[string]any) {
+			scheduling["tolerations"].([]any)[0].(map[string]any)["key"] = strings.Repeat("a", 64)
+		}},
+		{name: "invalid DNS prefix", wantError: true, mutate: func(scheduling map[string]any) {
+			scheduling["tolerations"].([]any)[0].(map[string]any)["key"] = "Invalid.example/role"
+		}},
+		{name: "long DNS prefix", wantError: true, mutate: func(scheduling map[string]any) {
+			scheduling["tolerations"].([]any)[0].(map[string]any)["key"] = strings.Repeat("a", 254) + "/role"
+		}},
+		{name: "qualified key", mutate: func(scheduling map[string]any) {
+			scheduling["tolerations"].([]any)[0].(map[string]any)["key"] = "example.com/Node_role"
+		}},
+		{name: "value with spaces", wantError: true, mutate: func(scheduling map[string]any) {
+			scheduling["tolerations"].([]any)[0].(map[string]any)["value"] = "invalid value"
+		}},
+		{name: "long value", wantError: true, mutate: func(scheduling map[string]any) {
+			scheduling["tolerations"].([]any)[0].(map[string]any)["value"] = strings.Repeat("a", 64)
+		}},
+		{name: "unknown toleration field", wantError: true, mutate: func(scheduling map[string]any) {
+			scheduling["tolerations"].([]any)[0].(map[string]any)["unknown"] = true
+		}},
+		{name: "Exists with value", wantError: true, mutate: func(scheduling map[string]any) {
+			scheduling["tolerations"].([]any)[0].(map[string]any)["operator"] = "Exists"
+		}},
+		{name: "valid Exists", mutate: func(scheduling map[string]any) {
+			toleration := scheduling["tolerations"].([]any)[0].(map[string]any)
+			toleration["operator"] = "Exists"
+			toleration["value"] = ""
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var mutated configtypes.Configuration
+			require.NoError(t, json.Unmarshal(baselineJSON, &mutated))
+			test.mutate(mutated["mgmt"].(map[string]any)["scheduling"].(map[string]any))
+			err := resolver.ValidateSchema(mutated)
+			if test.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
