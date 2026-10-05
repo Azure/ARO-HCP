@@ -136,7 +136,7 @@ backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   backupCadenceProfile: production
-  backupScheduleState: Enabled
+  backupScheduleState: Disabled
   clusterScopedIdentitiesConfig:
     roleSetName: dev
   exitOnPanic: true
@@ -206,9 +206,9 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:a20e5fca3db5308ebe93cf442a9ba0f55c1a7436c5261bda2e9d8d05aee94254
-    registry: arohcpsvcdev.azurecr.io
-    repository: cluster-service/aro-hcp-clusters-service-asampaio
+    digest: sha256:f5c2796a33dd0f72258b4a5545263083d841451d9abca3ff70dccf66e82ec273
+    registry: quay.io
+    repository: app-sre/aro-hcp-clusters-service
   k8s:
     deploymentStrategy:
       rollingUpdate:
@@ -508,7 +508,7 @@ hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration --tech-preview-no-upgrade=true
     --enable-standalone-karpenter-operator=true
   image:
-    digest: sha256:8598aac54e0c6487d567ac0880d5c26df052f195d16adf2b32b5eb5d1cba4d21
+    digest: sha256:b6d8c1824912d25c4410d88b19bf5bea4f0e0a995cd3a67d8438e951cb936fbc
     registry: arohcpsvcdev.azurecr.io
     repository: asampaio-hypershift:karpenter
   limitClusterSizes: true

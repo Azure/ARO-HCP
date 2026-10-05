@@ -131,12 +131,12 @@ azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 3
 backend:
   autoNode:
-    karpenterOperatorImageOverride: arohcpsvcdev.azurecr.io/asampaio-karpenter-operator:demo
-    karpenterProviderAzureImageOverride: arohcpsvcdev.azurecr.io/asampaio-karpenter-azure
+    karpenterOperatorImageOverride: arohcpsvcdev.azurecr.io/karpenter-operator:asampaio@sha256:990047d3a8cb7130ffafdf74138929ea5a1493c5d7d45b804a6f52aaed5408f9
+    karpenterProviderAzureImageOverride: arohcpsvcdev.azurecr.io/karpenter-provider-azure:asampaio@sha256:cf8d2a40dcb710fcfa1a8b87d2352f5f5bd18c0a3bbf7983e428b0e7ea5bf00d
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   backupCadenceProfile: production
-  backupScheduleState: Enabled
+  backupScheduleState: Disabled
   clusterScopedIdentitiesConfig:
     roleSetName: dev
   exitOnPanic: true
@@ -206,9 +206,9 @@ clustersService:
   deployDebugJobs: false
   environment: arohcppers
   image:
-    digest: sha256:a20e5fca3db5308ebe93cf442a9ba0f55c1a7436c5261bda2e9d8d05aee94254
-    registry: arohcpsvcdev.azurecr.io
-    repository: cluster-service/aro-hcp-clusters-service-asampaio
+    digest: sha256:f5c2796a33dd0f72258b4a5545263083d841451d9abca3ff70dccf66e82ec273
+    registry: quay.io
+    repository: app-sre/aro-hcp-clusters-service
   k8s:
     deploymentStrategy:
       rollingUpdate:
@@ -508,7 +508,7 @@ hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration --tech-preview-no-upgrade=true
     --enable-standalone-karpenter-operator=true
   image:
-    digest: sha256:8598aac54e0c6487d567ac0880d5c26df052f195d16adf2b32b5eb5d1cba4d21
+    digest: sha256:b6d8c1824912d25c4410d88b19bf5bea4f0e0a995cd3a67d8438e951cb936fbc
     registry: arohcpsvcdev.azurecr.io
     repository: asampaio-hypershift:karpenter
   limitClusterSizes: true

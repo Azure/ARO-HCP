@@ -451,7 +451,7 @@ defaults:
       # digest: sha256:22e41393c0b5ed3c36a5a72572ae511b0834081344f367dbd7e5a3ef04c6f7e7 # 1b72ba5ab18b58009ea31ccfde3744009476189a (2026-11-05 19:37)
       registry: arohcpsvcdev.azurecr.io
       repository: asampaio-hypershift:karpenter
-      digest: sha256:8598aac54e0c6487d567ac0880d5c26df052f195d16adf2b32b5eb5d1cba4d21
+      digest: sha256:b6d8c1824912d25c4410d88b19bf5bea4f0e0a995cd3a67d8438e951cb936fbc
     namespace: hypershift
     # cd tooling/helmtest && UPDATE_NODE_ROLLOUT_FIXTURE=true go test -run TestNodeRolloutConfig -count=1 ./...
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration --tech-preview-no-upgrade=true --enable-standalone-karpenter-operator=true'
@@ -900,7 +900,7 @@ defaults:
     maestro:
       sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
     backupCadenceProfile: production
-    backupScheduleState: Enabled
+    backupScheduleState: Disabled
     exitOnPanic: true
     logVerbosity: 4
     orphanedMRGCleanupTargetSubscriptionAFECFlags: ""
@@ -908,10 +908,10 @@ defaults:
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
     autoNode:
-      # Personal-dev-only stopgap overrides for the standalone
-      # karpenter-operator/karpenter-provider-azure images. Must stay empty
-      # here; only the pers environment overrides these (see
-      # clouds.dev.environments.pers.defaults.backend.autoNode below).
+      # Personal-dev-only image overrides. Keep both defaults empty.
+      # The operator image uses a HostedCluster annotation mirrored to HCP.
+      # The provider image uses the HCP autoscaling.openshift.io/karpenter-image
+      # annotation. Only pers sets these; see clusterautonode.ImageOverrides.
       karpenterOperatorImageOverride: ""
       karpenterProviderAzureImageOverride: ""
   # Fleet
@@ -1174,14 +1174,9 @@ defaults:
   # Cluster Service
   clustersService:
     image:
-      # make pipeline/ClusterService DEPLOY_ENV=pers \
-      #  OVERRIDE_CONFIG_FILE=/tmp/cs-override.yaml STEP_CACHE_DIR=""
-      registry: arohcpsvcdev.azurecr.io
-      repository: cluster-service/aro-hcp-clusters-service-asampaio
-      digest: sha256:a20e5fca3db5308ebe93cf442a9ba0f55c1a7436c5261bda2e9d8d05aee94254 # working CS d1fcf12
-      # the latest CS image is not working due to a mismatch between the hostedCluster CR its using
-      # and the same CR on the hacked hypershift+karpenter. The working digest is pinned above.
-      # digest: sha256:cd35833adafd2c1048c26b668397c6e72313ec895a4a5baecdf612bc7b6a5fd2 # not working c9df6f475
+      registry: quay.io
+      repository: app-sre/aro-hcp-clusters-service
+      digest: sha256:f5c2796a33dd0f72258b4a5545263083d841451d9abca3ff70dccf66e82ec273 # a7acf8c44ea2737f285fc3a2c00056ab7bd1e91b (2026-11-03 09:46)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1690,15 +1685,13 @@ clouds:
               certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # Backend
           backend:
-            # Personal-dev-only stopgap: the standalone karpenter-operator
-            # component in this environment's hypershift fork can't resolve
-            # its own image or the karpenter-provider-azure operand image
-            # without these annotations (see clusterautonode.ImageOverrides
-            # doc comment). Remove once the fork (or its upstream equivalent)
-            # resolves both without annotations.
+            # Personal-dev-only image pins. The backend sets the operator image
+            # on HostedCluster. It sets the provider image directly on HCP with
+            # autoscaling.openshift.io/karpenter-image. Keep these empty outside
+            # pers. See clusterautonode.ImageOverrides for delivery and withdrawal.
             autoNode:
-              karpenterOperatorImageOverride: "arohcpsvcdev.azurecr.io/asampaio-karpenter-operator:demo"
-              karpenterProviderAzureImageOverride: "arohcpsvcdev.azurecr.io/asampaio-karpenter-azure"
+              karpenterOperatorImageOverride: "arohcpsvcdev.azurecr.io/karpenter-operator:asampaio@sha256:990047d3a8cb7130ffafdf74138929ea5a1493c5d7d45b804a6f52aaed5408f9"
+              karpenterProviderAzureImageOverride: "arohcpsvcdev.azurecr.io/karpenter-provider-azure:asampaio@sha256:cf8d2a40dcb710fcfa1a8b87d2352f5f5bd18c0a3bbf7983e428b0e7ea5bf00d"
           # Frontend
           frontend:
             audit:
