@@ -273,9 +273,17 @@ func testControlPlaneOperatorIdentities() map[string]*arohcpv1alpha1.AzureContro
 	return identities
 }
 
+// testDataPlaneOperatorIdentities mirrors the fixture built by
+// coreapitesting.MinimumValidClusterTestCase, which only supplies an identity for operators
+// supported at the fixture's version: unlike control plane operators, some data plane operators
+// (e.g. autonode) have a MinVersionInclusive above the fixture's default version.
 func testDataPlaneOperatorIdentities() map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder {
+	version := metadataapi.Must(semver.ParseTolerant(coreapitesting.MinimumValidClusterTestCase().CustomerProperties.Version.ID))
 	identities := map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder{}
-	for operatorName := range azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev).DataPlaneOperatorsIdentities {
+	for operatorName, identity := range azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev).DataPlaneOperatorsIdentities {
+		if !identity.IsSupportedForOpenshiftVersion(&version) {
+			continue
+		}
 		identities[string(operatorName)] = arohcpv1alpha1.NewAzureDataPlaneManagedIdentity().
 			ResourceID(coreapitesting.NewTestOperatorUserAssignedIdentity(string(operatorName) + "-dataplane-identity").String())
 	}
@@ -1464,6 +1472,47 @@ func TestBuildCSCluster(t *testing.T) {
 						))),
 		},
 		{
+			name: "CREATE - sets AutoNode when enabled",
+			cluster: &coreapi.Cluster{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
+					ExperimentalFeatures: coreapi.ExperimentalFeatures{
+						AutoNode: coreapi.AutoNode,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				AutoNode(arohcpv1alpha1.NewClusterAutoNode().Mode(csAutoNodeModeEnabled)),
+		},
+		{
+			name: "CREATE - does not set AutoNode by default",
+			cluster: &coreapi.Cluster{
+				CustomerProperties: coreapi.ClusterCustomerProperties{
+					API: coreapi.CustomerAPIProfile{
+						AuthorizedCIDRs: nil,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false),
+		},
+		{
+			name: "UPDATE - never sets AutoNode, even when the RP-side flag is enabled",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			cluster: &coreapi.Cluster{
+				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
+					ExperimentalFeatures: coreapi.ExperimentalFeatures{
+						AutoNode: coreapi.AutoNode,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true),
+		},
+		{
 			name: "UPDATE - sets ACR pull managed identity",
 			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
 				c, err := arohcpv1alpha1.NewCluster().Build()
@@ -2137,6 +2186,73 @@ func TestConvertKmsKeyVaultTypeRPToCS(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestIsOCMErrorTerminal(t *testing.T) {
+	ocmErrorWithStatus := func(status int) error {
+		e, err := ocmerrors.NewError().Status(status).Reason("test reason").Build()
+		require.NoError(t, err)
+		return e
+	}
+
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error is not terminal",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "non-OCM error is not terminal",
+			err:      errors.New("some other error"),
+			expected: false,
+		},
+		{
+			name:     "400 Bad Request is terminal",
+			err:      ocmErrorWithStatus(http.StatusBadRequest),
+			expected: true,
+		},
+		{
+			name:     "403 Forbidden is terminal",
+			err:      ocmErrorWithStatus(http.StatusForbidden),
+			expected: true,
+		},
+		{
+			name:     "404 Not Found is terminal",
+			err:      ocmErrorWithStatus(http.StatusNotFound),
+			expected: true,
+		},
+		{
+			name:     "408 Request Timeout is not terminal",
+			err:      ocmErrorWithStatus(http.StatusRequestTimeout),
+			expected: false,
+		},
+		{
+			name:     "429 Too Many Requests is not terminal",
+			err:      ocmErrorWithStatus(http.StatusTooManyRequests),
+			expected: false,
+		},
+		{
+			name:     "500 Internal Server Error is not terminal",
+			err:      ocmErrorWithStatus(http.StatusInternalServerError),
+			expected: false,
+		},
+		{
+			name:     "503 Service Unavailable is not terminal",
+			err:      ocmErrorWithStatus(http.StatusServiceUnavailable),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, IsOCMErrorTerminal(tt.err))
 		})
 	}
 }

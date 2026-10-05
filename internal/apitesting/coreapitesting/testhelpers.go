@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"dario.cat/mergo"
+	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/utils/ptr"
@@ -152,9 +153,17 @@ func MinimumValidClusterTestCase() *coreapi.Cluster {
 		UserAssignedIdentities: assignedIdentities,
 	}
 	// Data plane operator identities are required too, but must NOT be assigned to the cluster
-	// resource -- validateOperatorAuthenticationAgainstIdentities rejects that.
+	// resource -- validateOperatorAuthenticationAgainstIdentities rejects that. Only include
+	// operators supported at this fixture's version: unlike control plane operators, some data
+	// plane operators (e.g. autonode) have a MinVersionInclusive above this fixture's default
+	// version, and admitOperatorIdentityNames rejects a supplied identity the version doesn't
+	// support.
+	baseVersion := metadataapi.Must(semver.ParseTolerant(resource.CustomerProperties.Version.ID))
 	dataPlaneOperators := make(map[string]*azcorearm.ResourceID, len(clusterScopedIdentities.DataPlaneOperatorsIdentities))
-	for operatorName := range clusterScopedIdentities.DataPlaneOperatorsIdentities {
+	for operatorName, identity := range clusterScopedIdentities.DataPlaneOperatorsIdentities {
+		if !identity.IsSupportedForOpenshiftVersion(&baseVersion) {
+			continue
+		}
 		dataPlaneOperators[string(operatorName)] = NewTestOperatorUserAssignedIdentity(string(operatorName) + "-dataplane-identity")
 	}
 	resource.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = dataPlaneOperators

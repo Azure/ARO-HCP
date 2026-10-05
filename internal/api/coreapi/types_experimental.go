@@ -53,6 +53,14 @@ type ExperimentalFeatures struct {
 	// and ControlPlaneExactVersion take precedence; unset uses normal rollout.
 	// Written by: Frontend PUT/PATCH Cluster (admission)
 	ZStreamUpdatePolicy ZStreamUpdatePolicy `json:"zStreamUpdatePolicy,omitempty"`
+
+	// AutoNode enables dynamic node provisioning (implemented via Karpenter)
+	// when set to AutoNode="Karpenter". Written either directly (the legacy
+	// experimental tag) or via API version 2027-03-30-preview's typed
+	// properties.autoNode.mode field, which a version's Normalize translates
+	// into this same tag before admission runs — see that version's
+	// normalizeAutoNode. Both paths share the exact same admission enforcement.
+	AutoNode AutoNodeMode `json:"autoNode,omitempty"`
 }
 
 // ZStreamUpdatePolicy controls how automatic z-stream updates are assigned.
@@ -74,4 +82,12 @@ type ControlPlanePodSizing string
 const (
 	DefaultControlPlanePodSizing ControlPlanePodSizing = ""
 	MinimalControlPlanePodSizing ControlPlanePodSizing = "Minimal"
+)
+
+// AutoNodeMode controls whether dynamic node provisioning is enabled for a cluster.
+type AutoNodeMode string
+
+const (
+	DefaultAutoNodeMode AutoNodeMode = ""
+	AutoNode            AutoNodeMode = "Karpenter"
 )

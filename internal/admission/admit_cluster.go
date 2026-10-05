@@ -227,10 +227,23 @@ func toSPExperimentalFeatures(oldObj *coreapi.ClusterServiceProviderProperties) 
 // Without AFEC registration ExperimentalFeatures is zeroed and tags are
 // ignored; with AFEC registered, unrecognized experimental tags and invalid
 // values are rejected.
-func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, _ *field.Path, newObj, _ *coreapi.ExperimentalFeatures) field.ErrorList {
+//
+// AutoNode is sticky: it is always inherited from oldObj, and any UPDATE
+// attempt to change it is rejected, because BuildCSCluster only sends AutoNode
+// to Cluster Service on CREATE (see its comment) — CS has no update path to
+// reconcile a later drift. The typed properties.autoNode.mode field (API
+// version 2027-03-30-preview+) is translated into this same tag by that
+// version's Normalize (see normalizeAutoNode) before admission runs, so it's
+// covered here without this function knowing it exists.
+func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, _ *field.Path, newObj, oldObj *coreapi.ExperimentalFeatures) field.ErrorList {
+	var inheritedAutoNode coreapi.AutoNodeMode
+	if op.Type == operation.Update && oldObj != nil {
+		inheritedAutoNode = oldObj.AutoNode
+	}
+
 	subscription := admissionContext.Subscription
 	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
-		*newObj = coreapi.ExperimentalFeatures{}
+		*newObj = coreapi.ExperimentalFeatures{AutoNode: inheritedAutoNode}
 		return nil
 	}
 
@@ -244,7 +257,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterZStreamUpdatePolicy, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxUpdateDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift)
+	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterZStreamUpdatePolicy, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxUpdateDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift, metadataapi.TagClusterAutoNode)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -288,6 +301,31 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 			tagsPath.Key(metadataapi.TagClusterSizeOverride), sizeOverrideValue,
 			fmt.Sprintf("must be %q or empty", coreapi.MinimalControlPlanePodSizing),
 		))
+	}
+
+	autoNodeValue := lookupTag(tags, metadataapi.TagClusterAutoNode)
+	switch coreapi.AutoNodeMode(autoNodeValue) {
+	case coreapi.AutoNode:
+		experimentalFeatures.AutoNode = coreapi.AutoNode
+	case coreapi.DefaultAutoNodeMode:
+		// absent or empty
+	default:
+		errs = append(errs, field.Invalid(
+			tagsPath.Key(metadataapi.TagClusterAutoNode), autoNodeValue,
+			fmt.Sprintf("must be %q or empty", coreapi.AutoNode),
+		))
+	}
+
+	if op.Type == operation.Update {
+		if experimentalFeatures.AutoNode != inheritedAutoNode {
+			errs = append(errs, field.Invalid(
+				tagsPath.Key(metadataapi.TagClusterAutoNode), autoNodeValue,
+				"AutoNode cannot be changed after cluster creation",
+			))
+		}
+		// Sticky regardless of the tag (see the function doc comment). A no-op
+		// given the check above already passed (or the whole request fails).
+		experimentalFeatures.AutoNode = inheritedAutoNode
 	}
 
 	cpoImageValue := lookupTag(tags, metadataapi.TagClusterCPOImageOverride)
@@ -477,19 +515,19 @@ func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext
 	errs := field.ErrorList{}
 
 	// CustomerProperties ClusterCustomerProperties `json:"customerProperties,omitempty"`
-	errs = append(errs, admitClusterCustomerProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.CustomerProperties, safe.Field(oldObj, validation.ToClusterCustomerProperties))...)
+	errs = append(errs, admitClusterCustomerProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.CustomerProperties, safe.Field(oldObj, validation.ToClusterCustomerProperties), &newObj.ServiceProviderProperties.ExperimentalFeatures)...)
 
 	return errs
 }
 
 // admitClusterCustomerProperties drills down into the customer-facing portion
 // of the cluster.
-func admitClusterCustomerProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterCustomerProperties) field.ErrorList {
+func admitClusterCustomerProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterCustomerProperties, experimentalFeatures *coreapi.ExperimentalFeatures) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitClusterVersionProfile(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToClusterCustomerPropertiesVersion))...)
 	errs = append(errs, admitClusterEtcdKmsKeyVersionChange(ctx, admissionContext, op, fldPath.Child("etcd", "dataEncryption", "customerManaged", "kms", "activeKey", "version"), newObj, oldObj)...)
-	errs = append(errs, admitClusterPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform, newObj)...)
+	errs = append(errs, admitClusterPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform, newObj, experimentalFeatures)...)
 
 	return errs
 }
@@ -521,10 +559,37 @@ var conditionallyRequiredControlPlaneOperatorIdentities = []conditionallyRequire
 	},
 }
 
+// conditionallyRequiredDataPlaneOperatorIdentity is the data plane counterpart of
+// conditionallyRequiredControlPlaneOperatorIdentity. The feature it gates lives on
+// ExperimentalFeatures rather than ClusterCustomerProperties, since AutoNode is
+// service-provider internal state, not a customer-facing field.
+type conditionallyRequiredDataPlaneOperatorIdentity struct {
+	operatorName string
+	isEnabled    func(experimentalFeatures *coreapi.ExperimentalFeatures) bool
+	// enabledBy names the configuration that made the identity required, using the
+	// customer-facing field path rather than the internal one.
+	enabledBy string
+}
+
+// Only checked on CREATE: userAssignedIdentities and AutoNode are both immutable after create
+// (see immutableByReflect in internal/validation and the AutoNode-sticky comment on
+// mutateClusterExperimentalFeatures), so checking on UPDATE as well would only ever re-reject a
+// cluster that was already rejected at create time — or, for a cluster that predates this check,
+// permanently block unrelated UPDATEs with no way to remediate an immutable field.
+var conditionallyRequiredDataPlaneOperatorIdentities = []conditionallyRequiredDataPlaneOperatorIdentity{
+	{
+		operatorName: string(azure.ClusterOperatorIdentifierAutoNode),
+		isEnabled: func(experimentalFeatures *coreapi.ExperimentalFeatures) bool {
+			return experimentalFeatures.AutoNode == coreapi.AutoNode
+		},
+		enabledBy: "the AutoNode experimental feature is enabled",
+	},
+}
+
 // admitRequiredOperatorIdentities rejects a cluster that does not supply a user-assigned identity
 // for every operator it needs: those the role set config marks as always required for the cluster's
 // OpenShift version, plus those that become required once the feature using them is enabled.
-func admitRequiredOperatorIdentities(admissionContext *ClusterAdmissionContext, fldPath *field.Path, newObj *coreapi.UserAssignedIdentitiesProfile, clusterProperties *coreapi.ClusterCustomerProperties) field.ErrorList {
+func admitRequiredOperatorIdentities(op operation.Operation, admissionContext *ClusterAdmissionContext, fldPath *field.Path, newObj *coreapi.UserAssignedIdentitiesProfile, clusterProperties *coreapi.ClusterCustomerProperties, experimentalFeatures *coreapi.ExperimentalFeatures) field.ErrorList {
 	// An unparseable version is already rejected by the version validation, so skip rather than
 	// guess which operators a version we cannot interpret would require.
 	version, err := semver.ParseTolerant(clusterProperties.Version.ID)
@@ -579,6 +644,27 @@ func admitRequiredOperatorIdentities(admissionContext *ClusterAdmissionContext, 
 			continue
 		}
 		errs = append(errs, field.Required(controlPlanePath.Key(operator.operatorName), fmt.Sprintf("a user-assigned identity for the %q control plane operator is required when %s", operator.operatorName, operator.enabledBy)))
+	}
+
+	// See the comment on conditionallyRequiredDataPlaneOperatorIdentities for why this only runs
+	// on CREATE.
+	if op.Type == operation.Create {
+		for _, operator := range conditionallyRequiredDataPlaneOperatorIdentities {
+			// The identity is only needed once the feature that uses it is turned on.
+			if !operator.isEnabled(experimentalFeatures) {
+				continue
+			}
+			// This version has no such operator, so requiring an identity for it would be
+			// unsatisfiable. Also covers a table entry naming an operator the config does not define.
+			if !dataPlaneOperatorSupportedForVersion(config, operator.operatorName, &version) {
+				continue
+			}
+			// The requirement is already met.
+			if operatorIdentitySupplied(dataPlaneSupplied, operator.operatorName) {
+				continue
+			}
+			errs = append(errs, field.Required(dataPlanePath.Key(operator.operatorName), fmt.Sprintf("a user-assigned identity for the %q data plane operator is required when %s", operator.operatorName, operator.enabledBy)))
+		}
 	}
 
 	return errs
@@ -695,28 +781,29 @@ func operatorIdentitySupplied(operators map[string]*azcorearm.ResourceID, operat
 	return ok && identity != nil
 }
 
-func admitClusterPlatform(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile, clusterProperties *coreapi.ClusterCustomerProperties) field.ErrorList {
+func admitClusterPlatform(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile, clusterProperties *coreapi.ClusterCustomerProperties, experimentalFeatures *coreapi.ExperimentalFeatures) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitClusterManagedResourceGroupName(ctx, admissionContext, op, fldPath, newObj)...)
 	errs = append(errs, admitClusterSubnetResourceID(ctx, admissionContext, op, fldPath, newObj)...)
 	errs = append(errs, admitClusterNetworkSecurityGroupResourceID(ctx, admissionContext, op, fldPath, newObj)...)
 	errs = append(errs, admitClusterContainerRegistryPullManagedIdentity(ctx, admissionContext, op, fldPath.Child("containerRegistry", "managedIdentity"), &newObj.ContainerRegistry)...)
-	errs = append(errs, admitClusterOperatorsAuthentication(admissionContext, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, clusterProperties)...)
+	errs = append(errs, admitClusterOperatorsAuthentication(op, admissionContext, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, clusterProperties, experimentalFeatures)...)
 	return errs
 }
 
 // admitClusterOperatorsAuthentication drills into the operator identity configuration. It takes
 // clusterProperties because the required identity set depends on the cluster version, and the kms
-// identity on the etcd encryption mode, neither of which live under platform.
-func admitClusterOperatorsAuthentication(admissionContext *ClusterAdmissionContext, fldPath *field.Path, newObj *coreapi.OperatorsAuthenticationProfile, clusterProperties *coreapi.ClusterCustomerProperties) field.ErrorList {
-	return admitClusterUserAssignedIdentities(admissionContext, fldPath.Child("userAssignedIdentities"), &newObj.UserAssignedIdentities, clusterProperties)
+// identity on the etcd encryption mode, neither of which live under platform. experimentalFeatures
+// is needed the same way for the AutoNode data plane identity.
+func admitClusterOperatorsAuthentication(op operation.Operation, admissionContext *ClusterAdmissionContext, fldPath *field.Path, newObj *coreapi.OperatorsAuthenticationProfile, clusterProperties *coreapi.ClusterCustomerProperties, experimentalFeatures *coreapi.ExperimentalFeatures) field.ErrorList {
+	return admitClusterUserAssignedIdentities(op, admissionContext, fldPath.Child("userAssignedIdentities"), &newObj.UserAssignedIdentities, clusterProperties, experimentalFeatures)
 }
 
-func admitClusterUserAssignedIdentities(admissionContext *ClusterAdmissionContext, fldPath *field.Path, newObj *coreapi.UserAssignedIdentitiesProfile, clusterProperties *coreapi.ClusterCustomerProperties) field.ErrorList {
+func admitClusterUserAssignedIdentities(op operation.Operation, admissionContext *ClusterAdmissionContext, fldPath *field.Path, newObj *coreapi.UserAssignedIdentitiesProfile, clusterProperties *coreapi.ClusterCustomerProperties, experimentalFeatures *coreapi.ExperimentalFeatures) field.ErrorList {
 	errs := field.ErrorList{}
 
-	errs = append(errs, admitRequiredOperatorIdentities(admissionContext, fldPath, newObj, clusterProperties)...)
+	errs = append(errs, admitRequiredOperatorIdentities(op, admissionContext, fldPath, newObj, clusterProperties, experimentalFeatures)...)
 	errs = append(errs, admitOperatorIdentityNames(admissionContext, fldPath, newObj, clusterProperties)...)
 
 	return errs
