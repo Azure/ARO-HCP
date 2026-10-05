@@ -1,0 +1,335 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: backup-slo-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # HCP Backup and Restore SLO Alerts (ARO-26261 / ARO-29946)
+  # ========================================
+  # Driven by the recording rules in recording-rules/backup-slo-recordingRule.yaml.
+  # Naming: {Scope}{Subject}{Metric}{BurnRateTier} per the ARO HCP Alerting
+  # Recommendation ADR (architecture#79). Scope = per management cluster
+  # (fleet-aggregated across every HostedCluster/schedule on it), except
+  # Availability (freshness), which is per-namespace - see that group's header.
+  #
+  # Severity: all Sev 4 per the ADR's CEN mapping - there is no current
+  # customer-facing impact from a backup gap on its own (open question: revisit
+  # if the epic decides otherwise - see ARO-29946 open questions).
+  #
+  # KNOWN GAPS (do not treat these two alert families as fully SLO-proven):
+  #   - userJourneyBackupStorageAvailability and
+  #     userJourneyBackupRepoMaintenanceSaturation use PROXIES (see the
+  #     recording-rule comments) because there is no direct
+  #     BackupStorageLocation-phase or repo-maintenance metric yet. Both need
+  #     ARO-29949 (kube-state-metrics for velero.io CR statuses) before they can
+  #     be made precise. Ship with that caveat called out in review.
+  #   - userJourneyBackupAvailability (freshness) cannot yet exclude
+  #     individually-paused schedules (no "is this schedule paused" metric
+  #     exists either, same ARO-29949 gap) - a long-paused HC will look
+  #     identical to a stuck one until that lands. Flagged, not silently
+  #     swallowed.
+  #
+  # runbook_url points at aka.ms/arohcp-runbook-backups - this short link does
+  # not exist yet and needs to be created (see ARO-26261 description: create at
+  # aka.ms, coordinate with a lead in #forum-aro-team or #external-wg-aro-hcp)
+  # pointing at the backup-and-restore.md runbook before this merges.
+  - name: arohcp_backup_slo_availability_alerts
+    labels:
+      component: slo
+    rules:
+    # Availability (freshness): per-namespace, NOT fleet-aggregated like every
+    # other alert in this file. Freshness is inherently a per-HostedCluster
+    # question (customer X's last good hourly backup is stale) - averaging it
+    # across a whole management cluster would hide a single stuck HC behind
+    # every other healthy one on the same MC. hosted_cluster_namespace is
+    # derived from the schedule name (`{namespace}-{cadence}`, see
+    # backup_controller_utils.go / schedule.go) via label_replace, matching the
+    # ticket's "correlationId per namespace (derived from schedule)" guidance.
+    #
+    # Lag (seconds since last success) is monotonic between successes, so a
+    # classic MWMBR dual-window check (long window AND short window both
+    # breaching) is mathematically redundant here - both windows would always
+    # read the same current lag value. Unlike Errors/Latency/Traffic (real
+    # ratios/rates that fluctuate and benefit from the two-sample confirmation),
+    # staleness only ever goes up until the next success resets it to ~0. The
+    # three tiers below are kept for naming/severity consistency with the ADR
+    # convention, differentiated by threshold + `for:`, not by a real second
+    # window - long_window/short_window labels are descriptive only.
+    - alert: userJourneyBackupAvailability1h5m
+      expr: |
+        (
+          time()
+          -
+          max by (cluster, hosted_cluster_namespace) (
+            label_replace(
+              max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}),
+              "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"
+            )
+          )
+        )
+        > 2 * 3600
+      for: 2m
+      labels:
+        severity: "4"
+        slo: backup-availability
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "{{ $labels.cluster }}: no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 2h"
+        description: "No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 2 hours (hourly cadence is 1h; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further."
+        runbook_url: "https://aka.ms/arohcp-runbook-backups"
+        correlationId: "userJourneyBackupAvailability1h5m/{{ $labels.cluster }}/{{ $labels.hosted_cluster_namespace }}"
+    - alert: userJourneyBackupAvailability6h30m
+      expr: |
+        (
+          time()
+          -
+          max by (cluster, hosted_cluster_namespace) (
+            label_replace(
+              max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}),
+              "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"
+            )
+          )
+        )
+        > 6 * 3600
+      for: 15m
+      labels:
+        severity: "4"
+        slo: backup-availability
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "{{ $labels.cluster }}: no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 6h"
+        description: "No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 6 hours. No recent restore point for this HC; investigate before this ages further."
+        runbook_url: "https://aka.ms/arohcp-runbook-backups"
+        correlationId: "userJourneyBackupAvailability6h30m/{{ $labels.cluster }}/{{ $labels.hosted_cluster_namespace }}"
+    - alert: userJourneyBackupAvailability3d6h
+      expr: |
+        (
+          time()
+          -
+          max by (cluster, hosted_cluster_namespace) (
+            label_replace(
+              max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}),
+              "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"
+            )
+          )
+        )
+        > 24 * 3600
+      for: 1h
+      labels:
+        severity: "4"
+        slo: backup-availability
+        long_window: 3d
+        short_window: 6h
+      annotations:
+        summary: "{{ $labels.cluster }}: no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 24h"
+        description: "No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 24 hours. Daily and weekly tiers on this HC are also at risk once their own cadences lapse."
+        runbook_url: "https://aka.ms/arohcp-runbook-backups"
+        correlationId: "userJourneyBackupAvailability3d6h/{{ $labels.cluster }}/{{ $labels.hosted_cluster_namespace }}"
+  - name: arohcp_backup_slo_error_alerts
+    labels:
+      component: slo
+    rules:
+    # Errors (MWMBR, per management cluster). SLO target 99.5% success
+    # (0.5% error budget) - a looser budget than Frontend's 99.95%, since a
+    # single failed backup attempt is recovered by the next cadence tick, not
+    # an immediate customer-visible failure.
+    #   Fast (14.4x):  14.4 * 0.005 = 7.2% failed-attempt share
+    #   Medium (6x):   6    * 0.005 = 3.0%
+    #   Slow (1x):     1    * 0.005 = 0.5%
+    - alert: userJourneyBackupErrors1h5m
+      expr: |
+        (
+          avg_over_time(errors:backup:ratio:rate5m[1h]) > 0.072
+          and
+          avg_over_time(errors:backup:ratio:rate5m[5m]) > 0.072
+        )
+      for: 2m
+      labels:
+        severity: "4"
+        slo: backup-errors
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "{{ $labels.cluster }}: Velero backup failure rate critically high (>7.2%)"
+        description: "Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above 7.2% on both the 1h and 5m windows (14.4x burn of the 99.5% success / 0.5% error budget)."
+        runbook_url: "https://aka.ms/arohcp-runbook-backups"
+    - alert: userJourneyBackupErrors6h30m
+      expr: |
+        (
+          avg_over_time(errors:backup:ratio:rate5m[6h]) > 0.03
+          and
+          avg_over_time(errors:backup:ratio:rate5m[30m]) > 0.03
+        )
+      for: 15m
+      labels:
+        severity: "4"
+        slo: backup-errors
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "{{ $labels.cluster }}: Velero backup failure rate elevated (>3.0%)"
+        description: "Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above 3.0% on both the 6h and 30m windows (6x burn)."
+        runbook_url: "https://aka.ms/arohcp-runbook-backups"
+    - alert: userJourneyBackupErrors3d6h
+      expr: |
+        (
+          avg_over_time(errors:backup:ratio:rate5m[3d]) > 0.005
+          and
+          avg_over_time(errors:backup:ratio:rate5m[6h]) > 0.005
+        )
+      for: 1h
+      labels:
+        severity: "4"
+        slo: backup-errors
+        long_window: 3d
+        short_window: 6h
+      annotations:
+        summary: "{{ $labels.cluster }}: Velero backup failure rate exceeds SLO (>0.5%)"
+        description: "Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above the 0.5% SLO boundary on both the 3d and 6h windows (1x burn)."
+        runbook_url: "https://aka.ms/arohcp-runbook-backups"
+  - name: arohcp_backup_slo_latency_alerts
+    labels:
+      component: slo
+    rules:
+    # Latency (MWMBR, two tiers only - no Fast/1h5m tier per the ticket).
+    # SLO: p99 backup duration < 20m. CSISnapshotTimeout is 10m and
+    # ItemOperationTimeout is 15m (internal/backup/backup.go), so a healthy
+    # backup should complete well inside 20m; both tiers use the same
+    # threshold, same as Frontend's Medium/Slow Latency pattern - they differ
+    # only in how long the breach must sustain.
+    - alert: userJourneyBackupLatency6h30m
+      expr: |
+        (
+          avg_over_time(sli:backup:latency_p99:rate5m[6h]) > 1200
+          and
+          avg_over_time(sli:backup:latency_p99:rate5m[30m]) > 1200
+        )
+      for: 15m
+      labels:
+        severity: "4"
+        slo: backup-latency
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "{{ $labels.cluster }}: Velero backup p99 duration above SLO (>20m)"
+        description: "Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes on both the 6h and 30m windows (SLO: p99 < 20m, inside the 10m CSI snapshot / 15m item-operation timeouts)."
+        runbook_url: "https://aka.ms/arohcp-runbook-backups"
+    - alert: userJourneyBackupLatency3d6h
+      expr: |
+        (
+          avg_over_time(sli:backup:latency_p99:rate5m[3d]) > 1200
+          and
+          avg_over_time(sli:backup:latency_p99:rate5m[6h]) > 1200
+        )
+      for: 1h
+      labels:
+        severity: "4"
+        slo: backup-latency
+        long_window: 3d
+        short_window: 6h
+      annotations:
+        summary: "{{ $labels.cluster }}: Velero backup p99 duration above SLO (>20m)"
+        description: "Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes on both the 3d and 6h windows (1x burn of the p99 < 20m SLO)."
+        runbook_url: "https://aka.ms/arohcp-runbook-backups"
+  # Traffic: absolute attempt-rate drop, fleet-wide per management cluster.
+  # Same pattern as Frontend's traffic-drop alert: a 1d-baseline noise floor so
+  # a quiet/low-HC-count MC does not false-positive on normal variance.
+  - name: arohcp_backup_slo_traffic_alerts
+    labels:
+      component: slo
+    rules:
+    - alert: userJourneyBackupTraffic
+      expr: |
+        (
+          avg_over_time(traffic:backup:attempt_rate:rate5m[15m])
+          < 0.1 * avg_over_time(traffic:backup:attempt_rate:rate5m[1d])
+        )
+        and
+        avg_over_time(traffic:backup:attempt_rate:rate5m[1d]) > 0
+      for: 30m
+      labels:
+        severity: "4"
+        slo: backup-traffic
+      annotations:
+        summary: "{{ $labels.cluster }}: Velero backup attempts collapsed below 10% of 1d baseline"
+        description: "Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average for 30m. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC's problem."
+        runbook_url: "https://aka.ms/arohcp-runbook-backups"
+  - name: arohcp_backup_slo_storage_availability_alerts
+    labels:
+      component: slo
+    rules:
+    # PROXY alert - see the KNOWN GAPS note at the top of this file and the
+    # recording-rule comments for sli:backup:last_run_failure:ratio5m. Guarded
+    # by a minimum schedule count so a management cluster with only 1-2 HCs
+    # does not treat a single bad backup as a fleet-wide storage outage.
+    - alert: userJourneyBackupStorageAvailability
+      expr: |
+        (
+          sli:backup:last_run_failure:ratio5m > 0.8
+          and
+          backup:schedule_count:count >= 3
+        )
+      for: 15m
+      labels:
+        severity: "4"
+        slo: backup-storage-availability
+      annotations:
+        summary: "{{ $labels.cluster }}: Velero backups failing fleet-wide - possible storage location outage"
+        description: "Over 80% of Velero schedules on management cluster {{ $labels.cluster }} had a failed last run, sustained for 15m, across {{ $labels.cluster }}'s active schedules. PROXY signal for a BackupStorageLocation outage (no direct BSL-phase metric exists yet - see ARO-29949); also fires for other fleet-wide causes (e.g. a bad Velero/plugin rollout) - check `kubectl get backupstoragelocation -n velero` on the MC before assuming it is specifically storage."
+        runbook_url: "https://aka.ms/arohcp-runbook-backups"
+  - name: arohcp_backup_slo_saturation_alerts
+    labels:
+      component: slo
+    rules:
+    # PROXY alert - see the KNOWN GAPS note at the top of this file and the
+    # recording-rule comments for backup:in_progress:count. Absolute-count
+    # threshold, not a ratio: a sustained pile-up of non-terminal backups on
+    # one MC is the observable symptom of the repo-maintenance/BackupRepository
+    # contention seen in ARO-29757, even without a metric for the repo queue
+    # itself.
+    - alert: userJourneyBackupRepoMaintenanceSaturation
+      expr: |
+        backup:in_progress:count > 5
+      for: 30m
+      labels:
+        severity: "4"
+        slo: backup-repo-maintenance-saturation
+      annotations:
+        summary: "{{ $labels.cluster }}: {{ $value }} Velero backups stuck non-terminal for 30+ minutes"
+        description: "{{ $value }} Velero backups on management cluster {{ $labels.cluster }} have been in a non-terminal phase (InProgress/WaitingForPluginOperations/Finalizing) for over 30 minutes. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757's staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC."
+        runbook_url: "https://aka.ms/arohcp-runbook-backups"
+  - name: arohcp_backup_slo_metrics_absent_alerts
+    labels:
+      component: slo
+    rules:
+    # Canary carried over from the canceled Azure/ARO-HCP#6664 ("Add Velero
+    # backup monitoring alerts"): every other alert in this file is a
+    # `velero_backup_*` PromQL expression, which is silently vacuous (no time
+    # series, no alert) if Velero itself stops reporting - metrics-shaped
+    # alerts cannot ever detect their own metric going away. This compares the
+    # authoritative "should be running" inventory (`underlay_clusters`, see
+    # docs/alerts.md) against live Velero attempts, scoped to management
+    # clusters only ({env}-{region}-mgmt-{stamp} naming) since service
+    # clusters never run Velero/HostedCluster backups.
+    - alert: userJourneyBackupMetricsAbsent
+      expr: |
+        group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})
+        unless on (cluster)
+        group by (cluster) (velero_backup_attempt_total)
+      for: 15m
+      labels:
+        severity: "4"
+        slo: backup-metrics-absent
+      annotations:
+        summary: "{{ $labels.cluster }}: no Velero backup metrics reported at all"
+        description: "Management cluster {{ $labels.cluster }} is in the underlay-cluster inventory but has reported zero velero_backup_attempt_total samples for 15m. Every other backup alert in this file depends on this metric existing; its absence means Velero itself, its ServiceMonitor, or the whole cluster's metrics pipeline may be down, not just an individual backup failing."
+        runbook_url: "https://aka.ms/arohcp-runbook-backups"
