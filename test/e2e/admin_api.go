@@ -473,8 +473,9 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get services AMW resource ID")
 
 			By("creating an alert processing rule")
-			startTime := time.Now().Add(-time.Hour).Format("2006-01-02T15:04:05")
-			endTime := time.Now().Add(time.Hour).Format("2006-01-02T15:04:05")
+			now := time.Now().UTC()
+			startTime := now.Add(-time.Hour).Format("2006-01-02T15:04:05")
+			endTime := now.Add(time.Hour).Format("2006-01-02T15:04:05")
 
 			createReq := framework.AlertProcessingRuleRequest{
 				AlertRuleName: "TestAlertRule",
