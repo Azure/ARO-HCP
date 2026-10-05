@@ -65,6 +65,52 @@ func TestAcquireAdmissionFlagAndEnvironment(t *testing.T) {
 	}
 }
 
+func TestAcquireAdmissionTimeoutFlagAndEnvironment(t *testing.T) {
+	for _, tc := range []struct {
+		name, env string
+		flags     []string
+		want      time.Duration
+		wantError bool
+	}{
+		{name: "default", want: 10 * time.Minute},
+		{name: "environment", env: " 25m ", want: 25 * time.Minute},
+		{name: "flag", flags: []string{"--admission-timeout=30m"}, want: 30 * time.Minute},
+		{name: "flag overrides environment", env: "25m", flags: []string{"--admission-timeout=12m"}, want: 12 * time.Minute},
+		{name: "flag overrides invalid environment", env: "bad", flags: []string{"--admission-timeout=12m"}, want: 12 * time.Minute},
+		{name: "empty flag resets default", env: "25m", flags: []string{"--admission-timeout="}, want: 10 * time.Minute},
+		{name: "zero", flags: []string{"--admission-timeout=0s"}, wantError: true},
+		{name: "negative", flags: []string{"--admission-timeout=-1m"}, wantError: true},
+		{name: "missing unit", flags: []string{"--admission-timeout=20"}, wantError: true},
+		{name: "invalid environment", env: "bad", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("ARO_HCP_ADMISSION_TIMEOUT", tc.env)
+			options := DefaultAcquireOptions()
+			options.ClusterProfileDir = "unused-profile"
+			options.Environment = "dev"
+			options.SharedDir = t.TempDir()
+			options.LeaseProxyServerURL = "http://unused.invalid"
+			command := &cobra.Command{}
+			if err := BindAcquireOptions(options, command); err != nil {
+				t.Fatal(err)
+			}
+			if err := command.ParseFlags(tc.flags); err != nil {
+				t.Fatal(err)
+			}
+			validated, err := options.Validate()
+			if tc.wantError {
+				if err == nil || !strings.Contains(err.Error(), "--admission-timeout") {
+					t.Fatalf("expected timeout validation failure before leasing, got %v", err)
+				}
+				return
+			}
+			if err != nil || validated.admissionTimeout != tc.want {
+				t.Fatalf("expected timeout %v, got options=%+v error=%v", tc.want, validated, err)
+			}
+		})
+	}
+}
+
 func TestResolveLeasedSlot(t *testing.T) {
 	t.Parallel()
 

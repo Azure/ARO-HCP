@@ -79,6 +79,7 @@ type lifecycleHandler struct {
 	calls            *[]string
 	fail             string
 	before           func(string, assets.LeaseRequest)
+	admit            func(context.Context) error
 	assetInventories *[]slots.AssetInventory
 	poolRequests     *[]assets.PoolRequest
 }
@@ -132,7 +133,12 @@ func (h *lifecycleHandler) ApplyPools(_ context.Context, request assets.PoolRequ
 func (h *lifecycleHandler) ValidatePools(ctx context.Context, request assets.PoolRequest) error {
 	return h.ApplyPools(ctx, request)
 }
-func (h *lifecycleHandler) AdmitLease(_ context.Context, request assets.LeaseRequest) error {
+func (h *lifecycleHandler) AdmitLease(ctx context.Context, request assets.LeaseRequest) error {
+	if h.admit != nil {
+		if err := h.admit(ctx); err != nil {
+			return err
+		}
+	}
 	return h.call("admit", request)
 }
 func (h *lifecycleHandler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
@@ -160,6 +166,85 @@ func lifecycleOptions(t *testing.T, catalog, server string, registry *assets.Reg
 				Infrastructure: slots.ResolvedSubscription{Name: "dev-infra", ID: "infra-id"},
 			}, nil
 		},
+	}
+}
+
+func TestAcquireAdmissionDeadlineAndRollback(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []string{"default", "extended", "expired", "expired without handler error"} {
+		t.Run(scenario, func(t *testing.T) {
+			var calls []string
+			var firstDeadline time.Time
+			wantTimeout := DefaultAdmissionTimeout
+			if scenario == "extended" {
+				wantTimeout = 30 * time.Minute
+			}
+			expires := strings.HasPrefix(scenario, "expired")
+			if expires {
+				wantTimeout = 20 * time.Millisecond
+			}
+			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
+			infra := &lifecycleHandler{kind: slots.KindInfrastructureIdentities, calls: &calls}
+			e2e.admit = func(ctx context.Context) error {
+				deadline, ok := ctx.Deadline()
+				if !ok || time.Until(deadline) > wantTimeout || (!expires && time.Until(deadline) < wantTimeout-time.Second) {
+					t.Fatalf("handler received incorrect deadline: %v, expected budget %v", deadline, wantTimeout)
+				}
+				firstDeadline = deadline
+				return nil
+			}
+			infra.admit = func(ctx context.Context) error {
+				deadline, ok := ctx.Deadline()
+				if !ok || !deadline.Equal(firstDeadline) {
+					t.Fatal("all handlers must share one admission deadline")
+				}
+				if expires {
+					<-ctx.Done()
+					if scenario == "expired" {
+						return ctx.Err()
+					}
+				}
+				return nil
+			}
+			registry, err := assets.NewRegistry(e2e, infra)
+			if err != nil {
+				t.Fatal(err)
+			}
+			server, _, released := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+				"aro-hcp-dev-shard0-slot": {successAcquireReply("aro-hcp-dev-shard0-slot-00")},
+				"bundle-type":             {successAcquireReply("bundle-00"), successAcquireReply("bundle-01")},
+			})
+			defer server.Close()
+			options := lifecycleOptions(t, lifecycleCatalog, server.URL, registry)
+			if scenario != "default" {
+				options.AdmissionTimeout = wantTimeout.String()
+			}
+			err = Acquire(t.Context(), options)
+			if expires {
+				if !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatalf("expected admission deadline failure, got %v", err)
+				}
+				for _, call := range calls {
+					if strings.HasPrefix(call, "publish:") {
+						t.Fatalf("published after expired admission: %v", calls)
+					}
+				}
+				env, _ := slots.EnvFile(options.SharedDir)
+				if _, err := os.Stat(env); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("runtime exports exist after timeout: %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("successful admission must still publish after cancelling its own context: %v", err)
+				}
+				if err := Release(t.Context(), &RawReleaseOptions{SharedDir: options.SharedDir, LeaseProxyServerURL: server.URL, LeaseProxyTimeout: time.Second}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if t.Context().Err() != nil || len(*released) != 3 || (*released)[2] != "aro-hcp-dev-shard0-slot-00" {
+				t.Fatalf("admission must not cancel its parent or prevent lease return: %v, %v", t.Context().Err(), *released)
+			}
+		})
 	}
 }
 
