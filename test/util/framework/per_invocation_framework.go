@@ -367,7 +367,25 @@ func msiPoolStateFilePath() string {
 	return filepath.Join(artifactDir(), "identities-pool-state.yaml")
 }
 
+// DO NOT MERGE: the stage/parallel run of this PR creates a canary cluster that must
+// survive the STG rollout. Only that suite is affected; dev e2e-parallel runs unchanged.
+func stageRolloutCanary() bool {
+	return os.Getenv("ARO_HCP_SUITE_NAME") == "stage/parallel"
+}
+
+// resourceGroupExpiration keeps the canary resource group out of the expired-RG sweeper
+// for the duration of the rollout.
+func resourceGroupExpiration() time.Duration {
+	if stageRolloutCanary() {
+		return 7 * 24 * time.Hour
+	}
+	return StandardResourceGroupExpiration
+}
+
 func skipCleanup() bool {
+	if stageRolloutCanary() {
+		return true
+	}
 	ret, _ := strconv.ParseBool(os.Getenv("ARO_E2E_SKIP_CLEANUP"))
 	return ret
 }
@@ -379,6 +397,11 @@ func artifactDir() string {
 }
 
 func pooledIdentities() bool {
+	// The next lease of a pooled identity slot deletes every role assignment of its
+	// identities, which would break a cluster that outlives this job.
+	if stageRolloutCanary() {
+		return false
+	}
 	b, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv(UsePooledIdentitiesEnvvar)))
 	return b
 }

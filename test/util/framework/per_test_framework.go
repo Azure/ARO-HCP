@@ -505,7 +505,7 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 		}
 	}
 
-	resourceGroup, err := CreateResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, location, StandardResourceGroupExpiration, 20*time.Minute)
+	resourceGroup, err := CreateResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, location, resourceGroupExpiration(), 20*time.Minute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource group %q: %w", resourceGroupName, err)
 	}
