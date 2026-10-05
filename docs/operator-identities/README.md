@@ -41,7 +41,7 @@ both** a control plane identity and a separate data plane identity:
 | `disk-csi-driver` | Azure Disk CSI Driver Operator | Control plane + Data plane | Always | [disk-csi-driver.md](disk-csi-driver.md) |
 | `file-csi-driver` | Azure File CSI Driver Operator | Control plane + Data plane | Always | [file-csi-driver.md](file-csi-driver.md) |
 | `image-registry` | Cluster Image Registry Operator | Control plane + Data plane | Always | [image-registry.md](image-registry.md) |
-| `cloud-network-config` | Cloud Network Config Controller (Network Operator) | Control plane | Always | |
+| `cloud-network-config` | Cloud Network Config Controller (Network Operator) | Control plane | Always | [cloud-network-config.md](cloud-network-config.md) |
 | `kms` | KMS Plugin (etcd encryption) | Control plane | OnEnablement |  |
 
 `Requirement` reflects whether the identity is always assigned to a cluster
