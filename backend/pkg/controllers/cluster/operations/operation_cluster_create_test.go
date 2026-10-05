@@ -17,6 +17,7 @@ package operations
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -1382,6 +1383,150 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
 			if tt.wantMsgSubstr != "" {
 				assert.Contains(t, result.Message, tt.wantMsgSubstr)
+			}
+		})
+	}
+}
+
+func TestDataPlaneOIDCFederationOperationStatus(t *testing.T) {
+	fixture := operationtesting.NewClusterTestFixture()
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+
+	identityResourceID := func(name string) *azcorearm.ResourceID {
+		return metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/identity-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/" + name))
+	}
+	const diskCSIOperator = "disk-csi-driver"
+	const fileCSIOperator = "file-csi-driver"
+	diskCSIIdentity := identityResourceID("disk-csi-identity")
+	fileCSIIdentity := identityResourceID("file-csi-identity")
+
+	cluster := fixture.NewCluster(nil)
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]*azcorearm.ResourceID{
+		diskCSIOperator: diskCSIIdentity,
+		fileCSIOperator: fileCSIIdentity,
+	}
+
+	// fullyEnsuredAssignment builds a (key, status) pair reporting the
+	// operator's identity as ensured with at least one confirmed FIC and
+	// nothing pending.
+	fullyEnsuredAssignment := func(identity *azcorearm.ResourceID, operatorName string) (coreapi.DataplaneOIDCFederationAssignmentKey, *coreapi.DataplaneOIDCFederationAssignmentStatus) {
+		identityResourceIDStr := strings.ToLower(identity.String())
+		target := coreapi.DataplaneOIDCFederationIdentityInstance{
+			ClientID:    identityResourceIDStr + "-client",
+			PrincipalID: identityResourceIDStr + "-principal",
+			TenantID:    identityResourceIDStr + "-tenant",
+		}
+		return coreapi.DataplaneOIDCFederationAssignmentKey{IdentityResourceID: identityResourceIDStr, OperatorName: operatorName},
+			&coreapi.DataplaneOIDCFederationAssignmentStatus{
+				TargetIdentity:  target,
+				EnsuredIdentity: &target,
+				AzureResources: []*azcorearm.ResourceID{
+					metadataapi.Must(azcorearm.ParseResourceID(identity.String() + "/federatedIdentityCredentials/00000000-0000-0000-0000-000000000001")),
+				},
+			}
+	}
+
+	spcLister := func(federation map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus) corelisters.ServiceProviderClusterLister {
+		return &corelistertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
+				{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: metadataapi.Must(azcorearm.ParseResourceID(
+							fixture.ClusterResourceID.String() + "/" +
+								coreapi.ServiceProviderClusterResourceTypeName + "/" +
+								coreapi.ServiceProviderClusterResourceName)),
+					},
+					Status: coreapi.ServiceProviderClusterStatus{
+						ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation: federation,
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name           string
+		federation     map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus
+		expectedState  coreapi.ProvisioningState
+		wantMsgSubstrs []string
+	}{
+		{
+			name: "both operators fully ensured → Succeeded",
+			federation: func() map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus {
+				m := map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{}
+				k, v := fullyEnsuredAssignment(diskCSIIdentity, diskCSIOperator)
+				m[k] = v
+				k, v = fullyEnsuredAssignment(fileCSIIdentity, fileCSIOperator)
+				m[k] = v
+				return m
+			}(),
+			expectedState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name:          "no assignments at all → Provisioning naming every pending operator",
+			federation:    nil,
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstrs: []string{
+				"2 operator(s)",
+				diskCSIOperator,
+				fileCSIOperator,
+			},
+		},
+		{
+			name: "one of two fully ensured, the other entirely missing → Provisioning naming only the missing one",
+			federation: func() map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus {
+				m := map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{}
+				k, v := fullyEnsuredAssignment(diskCSIIdentity, diskCSIOperator)
+				m[k] = v
+				return m
+			}(),
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstrs: []string{
+				"1 operator(s)",
+				fileCSIOperator,
+			},
+		},
+		{
+			name: "one fully ensured, the other has a freshly created entry with no FIC confirmed yet → Provisioning naming only that one",
+			federation: func() map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus {
+				m := map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{}
+				k, v := fullyEnsuredAssignment(diskCSIIdentity, diskCSIOperator)
+				m[k] = v
+				// The intent controller has resolved the identity and written
+				// TargetIdentity, but the executor hasn't ensured anything yet:
+				// EnsuredIdentity is nil. This must not be mistaken for
+				// "nothing to do".
+				m[coreapi.DataplaneOIDCFederationAssignmentKey{IdentityResourceID: strings.ToLower(fileCSIIdentity.String()), OperatorName: fileCSIOperator}] = &coreapi.DataplaneOIDCFederationAssignmentStatus{
+					TargetIdentity: coreapi.DataplaneOIDCFederationIdentityInstance{
+						ClientID:    "client",
+						PrincipalID: "principal",
+						TenantID:    "tenant",
+					},
+				}
+				return m
+			}(),
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstrs: []string{
+				"1 operator(s)",
+				fileCSIOperator,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			controller := &operationClusterCreate{
+				serviceProviderClusterLister: spcLister(tt.federation),
+			}
+
+			result, err := controller.dataPlaneOIDCFederationOperationStatus(ctx, operation, cluster)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.expectedState, result.ProvisioningState)
+			for _, substr := range tt.wantMsgSubstrs {
+				assert.Contains(t, result.Message, substr)
 			}
 		})
 	}
