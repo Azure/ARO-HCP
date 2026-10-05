@@ -80,3 +80,40 @@ tests:
     exp_samples:
     - labels: 'health:cluster_autoscaler:seconds_since_last_activity{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
       value: 1200
+# ========================================
+# Pending deletions + scale up/down rates. Two prometheus_replica series per
+# metric exercise the dedup (max without (prometheus_replica)) — results must
+# NOT double-count across replicas.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_pending_node_deletions{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01", prometheus_replica="prometheus-0"}'
+    values: "2x30"
+  - series: 'cluster_autoscaler_pending_node_deletions{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01", prometheus_replica="prometheus-1"}'
+    values: "2x30"
+  - series: 'cluster_autoscaler_scaled_up_nodes_total{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01", prometheus_replica="prometheus-0"}'
+    values: "0+2x30"
+  - series: 'cluster_autoscaler_scaled_up_nodes_total{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01", prometheus_replica="prometheus-1"}'
+    values: "0+2x30"
+  - series: 'cluster_autoscaler_scaled_down_nodes_total{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01", prometheus_replica="prometheus-0"}'
+    values: "0+1x30"
+  - series: 'cluster_autoscaler_scaled_down_nodes_total{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01", prometheus_replica="prometheus-1"}'
+    values: "0+1x30"
+  promql_expr_test:
+  # two replicas each reporting 2 must dedup to 2 (not sum to 4)
+  - expr: nodes:cluster_autoscaler:pending_node_deletions
+    eval_time: 20m
+    exp_samples:
+    - labels: 'nodes:cluster_autoscaler:pending_node_deletions{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+      value: 2
+  # rates are non-integer (per-second); assert strictly positive rather than an exact float.
+  - expr: nodes:cluster_autoscaler:scaled_up:rate15m > bool 0
+    eval_time: 20m
+    exp_samples:
+    - labels: '{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+      value: 1
+  - expr: nodes:cluster_autoscaler:scaled_down:rate15m > bool 0
+    eval_time: 20m
+    exp_samples:
+    - labels: '{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+      value: 1

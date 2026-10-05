@@ -23,7 +23,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### Cluster Autoscaler SLO Dashboard\n\nHealth and capacity of the HyperShift per-hosted-cluster cluster-autoscaler.\n\n- **cluster** = management cluster, **namespace** = hosted control plane (`ocm-*`).\n- Series exist **only for hosted clusters with at least one autoscaling-enabled NodePool** — HyperShift scales the autoscaler to zero otherwise, so an empty dashboard for a cluster is expected, not a fault.\n\n**Metrics source:** raw upstream `cluster_autoscaler_*` metrics from the HCP Azure Monitor Workspace, queried directly. Each series is de-duplicated across the two Prometheus agent replicas with `max without (prometheus_replica) (...)` before aggregation. The `UJClusterAutoscaler*` alerts use the equivalent recording rules.\n\n**Runbook:** https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md",
+        "content": "### Cluster Autoscaler SLO Dashboard\n\nHealth and capacity of the HyperShift per-hosted-cluster cluster-autoscaler.\n\n- **cluster** = management cluster, **namespace** = hosted control plane (`ocm-*`).\n- Series exist **only for hosted clusters with at least one autoscaling-enabled NodePool** — HyperShift scales the autoscaler to zero otherwise, so an empty dashboard for a cluster is expected, not a fault.\n\n**Metrics source:** the `nodes:/pods:/health:/errors:cluster_autoscaler:*` recording rules (the dedup across Prometheus agent replicas and the `(cluster, namespace)` aggregation are done in the rules), shared with the `UserJourneyClusterAutoscaler*` alerts. Requires the recording rules to be deployed and evaluated in the target HCP Azure Monitor Workspace.\n\n**Runbook:** https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -58,7 +58,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "min(max without (prometheus_replica) (cluster_autoscaler_cluster_safe_to_autoscale{cluster=~\"$cluster\", namespace=~\"$namespace\"}))",
+          "expr": "min(health:cluster_autoscaler:safe_to_autoscale{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "instant": true,
           "legendFormat": "Safe",
           "refId": "A"
@@ -86,7 +86,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum(max without (prometheus_replica) (cluster_autoscaler_nodes_count{state=\"ready\", cluster=~\"$cluster\", namespace=~\"$namespace\"}))",
+          "expr": "sum(nodes:cluster_autoscaler:ready_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "instant": true,
           "legendFormat": "Ready nodes",
           "refId": "A"
@@ -114,7 +114,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum(max without (prometheus_replica) (cluster_autoscaler_max_nodes_count{cluster=~\"$cluster\", namespace=~\"$namespace\"}))",
+          "expr": "sum(nodes:cluster_autoscaler:max_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "instant": true,
           "legendFormat": "Max nodes",
           "refId": "A"
@@ -152,7 +152,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "max(\n  sum by (cluster, namespace) (max without (prometheus_replica) (cluster_autoscaler_nodes_count{state=\"ready\", cluster=~\"$cluster\", namespace=~\"$namespace\"}))\n  /\n  clamp_min(sum by (cluster, namespace) (max without (prometheus_replica) (cluster_autoscaler_max_nodes_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})), 1)\n)",
+          "expr": "max(nodes:cluster_autoscaler:capacity_ratio{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "instant": true,
           "legendFormat": "Capacity",
           "refId": "A"
@@ -180,7 +180,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum(max without (prometheus_replica) (cluster_autoscaler_unschedulable_pods_count{cluster=~\"$cluster\", namespace=~\"$namespace\"}))",
+          "expr": "sum(pods:cluster_autoscaler:unschedulable_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "instant": true,
           "legendFormat": "Unschedulable",
           "refId": "A"
@@ -208,7 +208,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum(max without (prometheus_replica) (cluster_autoscaler_pending_node_deletions{cluster=~\"$cluster\", namespace=~\"$namespace\"}))",
+          "expr": "sum(nodes:cluster_autoscaler:pending_node_deletions{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "instant": true,
           "legendFormat": "Pending deletions",
           "refId": "A"
@@ -229,14 +229,14 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum by (namespace) (max without (prometheus_replica) (cluster_autoscaler_nodes_count{state=\"ready\", cluster=~\"$cluster\", namespace=~\"$namespace\"}))",
+          "expr": "sum by (namespace) (nodes:cluster_autoscaler:ready_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "legendFormat": "ready — {{namespace}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "max by (namespace) (max without (prometheus_replica) (cluster_autoscaler_max_nodes_count{cluster=~\"$cluster\", namespace=~\"$namespace\"}))",
+          "expr": "max by (namespace) (nodes:cluster_autoscaler:max_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "legendFormat": "max — {{namespace}}",
           "refId": "B"
         }
@@ -256,7 +256,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum by (namespace) (max without (prometheus_replica) (cluster_autoscaler_unschedulable_pods_count{cluster=~\"$cluster\", namespace=~\"$namespace\"}))",
+          "expr": "sum by (namespace) (pods:cluster_autoscaler:unschedulable_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "legendFormat": "{{namespace}}",
           "refId": "A"
         }
@@ -266,7 +266,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "$datasource" },
-      "description": "Scale-up and scale-down node events (per-second rate) driven by the autoscaler.",
+      "description": "Scale-up and scale-down node events (per-second rate, 15m window) driven by the autoscaler.",
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
       "id": 10,
@@ -276,14 +276,14 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum by (namespace) (max without (prometheus_replica) (rate(cluster_autoscaler_scaled_up_nodes_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
+          "expr": "sum by (namespace) (nodes:cluster_autoscaler:scaled_up:rate15m{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "legendFormat": "scale up — {{namespace}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "-sum by (namespace) (max without (prometheus_replica) (rate(cluster_autoscaler_scaled_down_nodes_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
+          "expr": "-sum by (namespace) (nodes:cluster_autoscaler:scaled_down:rate15m{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "legendFormat": "scale down — {{namespace}}",
           "refId": "B"
         }
@@ -293,7 +293,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "$datasource" },
-      "description": "Failed scale-up attempts and internal autoscaler errors (per-second rate). Non-zero means the autoscaler cannot satisfy demand.",
+      "description": "Failed scale-up attempts and internal autoscaler errors (per-second rate, 15m window). Non-zero means the autoscaler cannot satisfy demand.",
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
       "id": 11,
@@ -303,14 +303,14 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum by (namespace) (max without (prometheus_replica) (rate(cluster_autoscaler_failed_scale_ups_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
+          "expr": "sum by (namespace) (errors:cluster_autoscaler:failed_scale_ups:rate15m{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "legendFormat": "failed scale-ups — {{namespace}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum by (namespace) (max without (prometheus_replica) (rate(cluster_autoscaler_errors_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
+          "expr": "sum by (namespace) (errors:cluster_autoscaler:errors:rate15m{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "legendFormat": "errors — {{namespace}}",
           "refId": "B"
         }
@@ -338,7 +338,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "max by (namespace) (time() - max without (prometheus_replica) (cluster_autoscaler_last_activity{activity=\"main\", cluster=~\"$cluster\", namespace=~\"$namespace\"}))",
+          "expr": "max by (namespace) (health:cluster_autoscaler:seconds_since_last_activity{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "legendFormat": "{{namespace}}",
           "refId": "A"
         }
@@ -368,7 +368,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum by (namespace) (max without (prometheus_replica) (cluster_autoscaler_nodes_count{state=\"ready\", cluster=~\"$cluster\", namespace=~\"$namespace\"}))\n/\nclamp_min(max by (namespace) (max without (prometheus_replica) (cluster_autoscaler_max_nodes_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})), 1)",
+          "expr": "nodes:cluster_autoscaler:capacity_ratio{cluster=~\"$cluster\", namespace=~\"$namespace\"}",
           "legendFormat": "{{namespace}}",
           "refId": "A"
         }
@@ -391,10 +391,10 @@
       "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
       "pluginVersion": "11.6.9",
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "sum by (cluster, namespace) (max without (prometheus_replica) (cluster_autoscaler_nodes_count{state=\"ready\", cluster=~\"$cluster\", namespace=~\"$namespace\"}))", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Ready" },
-        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "max by (cluster, namespace) (max without (prometheus_replica) (cluster_autoscaler_max_nodes_count{cluster=~\"$cluster\", namespace=~\"$namespace\"}))", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Max" },
-        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "sum by (cluster, namespace) (max without (prometheus_replica) (cluster_autoscaler_unschedulable_pods_count{cluster=~\"$cluster\", namespace=~\"$namespace\"}))", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Unschedulable" },
-        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "min by (cluster, namespace) (max without (prometheus_replica) (cluster_autoscaler_cluster_safe_to_autoscale{cluster=~\"$cluster\", namespace=~\"$namespace\"}))", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Safe" }
+        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "nodes:cluster_autoscaler:ready_count{cluster=~\"$cluster\", namespace=~\"$namespace\"}", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Ready" },
+        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "nodes:cluster_autoscaler:max_count{cluster=~\"$cluster\", namespace=~\"$namespace\"}", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Max" },
+        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "pods:cluster_autoscaler:unschedulable_count{cluster=~\"$cluster\", namespace=~\"$namespace\"}", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Unschedulable" },
+        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "health:cluster_autoscaler:safe_to_autoscale{cluster=~\"$cluster\", namespace=~\"$namespace\"}", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Safe" }
       ],
       "title": "Per-Hosted-Cluster State",
       "transformations": [
@@ -438,7 +438,7 @@
         "includeAll": true,
         "multi": true,
         "name": "cluster",
-        "query": { "qryType": 1, "query": "label_values(cluster_autoscaler_cluster_safe_to_autoscale, cluster)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "query": { "qryType": 1, "query": "label_values(health:cluster_autoscaler:safe_to_autoscale, cluster)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
         "refresh": 2,
         "sort": 1,
         "type": "query"
@@ -449,7 +449,7 @@
         "includeAll": true,
         "multi": true,
         "name": "namespace",
-        "query": { "qryType": 1, "query": "label_values(cluster_autoscaler_cluster_safe_to_autoscale{cluster=~\"$cluster\"}, namespace)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "query": { "qryType": 1, "query": "label_values(health:cluster_autoscaler:safe_to_autoscale{cluster=~\"$cluster\"}, namespace)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
         "refresh": 2,
         "sort": 1,
         "type": "query"
