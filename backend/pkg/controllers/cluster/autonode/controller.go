@@ -12,28 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package autonode implements the backend controller that turns a cluster's
-// AutoNode enablement into a kube-applier ApplyDesire that server-side-applies
-// spec.autoNode onto the cluster's existing HostedCluster object, triggering
-// the hypershift-operator to deploy the karpenter-operator.
-//
-// The trigger is Cluster.ServiceProviderProperties.ExperimentalFeatures.AutoNode,
-// the sticky/immutable-post-create AFEC-gated feature flag. A cluster's
-// AutoNode enablement DECISION is create-time and immutable: it is set once
-// (via admission) and never changes for the life of the cluster, which is
-// why there is no coded disable path here - there is nothing to disable.
-//
-// The DELIVERY MECHANISM this decision drives is, mechanically, an ordinary
-// day-2 controller: it waits for the HostedCluster to actually exist (via the
-// ReadDesire mirror) before it can SSA anything onto it, and it re-applies on
-// every relevant resync - the same shape as autoscaler config or any other
-// post-create HostedCluster field. Do not confuse "the decision is
-// create-time-immutable" with "the write only ever happens once"; only the
-// former is true.
+// Package autonode enables AutoNode on clusters that requested it at creation.
+// The controller applies HostedCluster configuration and an optional HCP image
+// annotation through separate desires. It purges both during cluster deletion.
 package autonode
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -41,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -52,11 +39,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// AutoNodeEnablerControllerName is the controller name, recorded on the
-// ApplyDesire this controller authors via kubeapplierapi.TagControllerName.
 const AutoNodeEnablerControllerName = "AutoNodeEnabler"
 
-// autoNodeSyncer reconciles the single AutoNode ApplyDesire for a cluster.
 type autoNodeSyncer struct {
 	clusterLister                       corelisters.ClusterLister
 	serviceProviderClusterLister        corelisters.ServiceProviderClusterLister
@@ -69,11 +53,6 @@ type autoNodeSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*autoNodeSyncer)(nil)
 
-// NewAutoNodeEnablerController wires the AutoNode ApplyDesire reconciler.
-// It follows the same NewClusterWatchingController wiring as the other
-// cluster-scoped kube-applier-writing controllers (e.g. backups) so its
-// resync cadence and ReadDesire-triggered requeue behavior match the rest
-// of the pipeline.
 func NewAutoNodeEnablerController(
 	cosmosClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
@@ -106,24 +85,16 @@ func NewAutoNodeEnablerController(
 		syncer,
 	)
 
-	if kubeApplierInformers != nil {
-		// React to ApplyDesire updates directly (e.g. an out-of-band edit)
-		// so drift is corrected promptly rather than waiting for the next
-		// resync cycle. Mirrors the backup-schedule controller's wiring.
-		if err := controller.QueueForInformers(5*time.Minute, applyDesireInformer); err != nil {
-			panic(err) // coding error
-		}
+	// Reconcile ApplyDesire changes immediately instead of waiting for resync.
+	if err := controller.QueueForInformers(5*time.Minute, applyDesireInformer); err != nil {
+		panic(err) // coding error
 	}
 
 	return controller
 }
 
 func (s *autoNodeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.
-		AddSubscriptionID(key.SubscriptionID).
-		AddResourceGroup(key.ResourceGroupName).
-		AddHCPClusterName(key.HCPClusterName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
+	logger := utils.LoggerFromContext(ctx)
 
 	existingCluster, err := s.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -131,13 +102,6 @@ func (s *autoNodeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPCl
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cached Cluster: %w", err))
-	}
-	// No coded disable/teardown path: once a cluster starts deleting, stop
-	// touching it. Any existing ApplyDesire is swept by normal cluster-child
-	// cleanup like the rest of the cluster-scoped kube-applier documents (to
-	// be verified per the manual retirement runbook, not assumed here).
-	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
 	}
 
 	serviceProviderCluster, err := s.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -148,25 +112,19 @@ func (s *autoNodeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPCl
 		return utils.TrackError(fmt.Errorf("failed to get cached ServiceProviderCluster: %w", err))
 	}
 
-	// Trigger: the sticky, AFEC-gated, create-time-immutable experimental
-	// feature.
-	autoNodeRequested := existingCluster.ServiceProviderProperties.ExperimentalFeatures.AutoNode == coreapi.AutoNode
-	if !autoNodeRequested {
+	// Clean up first because fields required below may already be gone during
+	// deletion. A leftover ApplyDesire would block cluster deletion.
+	if needsDeletionWork(*existingCluster, *serviceProviderCluster) {
+		return s.syncDeletion(ctx, key, serviceProviderCluster)
+	}
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		// No deletion work means no desire could have been delivered.
 		return nil
 	}
 
-	// ClientID is resolved from the cluster's own "autonode" data-plane
-	// identity: it's the authoritative source, and can never go stale
-	// relative to the identity actually federated for the cluster.
-	clientID, ok := autoNodeKarpenterClientID(existingCluster, serviceProviderCluster)
-	if !ok {
-		// AutoNode is requested but the Azure managed-identity client ID
-		// hasn't been resolved yet. hypershift's KarpenterAzureConfig.ClientID
-		// is a required field once platform=Azure, so applying without it
-		// would either be rejected by the kube-apiserver's CRD validation or
-		// leave the karpenter-operator hard-erroring. Wait rather than
-		// applying a doomed-to-fail desire.
-		logger.Info("AutoNode enabled but no Karpenter Azure client ID resolved yet; waiting")
+	// Existing clusters are unaffected unless they requested AutoNode at creation.
+	autoNodeRequested := existingCluster.ServiceProviderProperties.ExperimentalFeatures.AutoNode == coreapi.AutoNode
+	if !autoNodeRequested {
 		return nil
 	}
 
@@ -185,12 +143,8 @@ func (s *autoNodeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPCl
 		return nil
 	}
 
-	// Precondition (per the design's debate-hardened guardrails): only
-	// attempt to SSA a field onto the HostedCluster once we've observed
-	// that the live object actually exists. GetCachedHostedClusterForCluster
-	// returns (nil, nil) for both "ReadDesire not created yet" and
-	// "ReadDesire exists but not yet observed" — both mean "not ready",
-	// not an error.
+	// Wait until the HostedCluster has been observed. A nil result means it is
+	// not ready yet, whether the ReadDesire is absent or still unobserved.
 	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx, s.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 	)
@@ -206,10 +160,7 @@ func (s *autoNodeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPCl
 		return utils.TrackError(fmt.Errorf("failed to get kube-applier client for management cluster %s: %w", mcResourceID, err))
 	}
 	if kubeApplierClient == nil {
-		// Registry doesn't have an entry yet for this MC (e.g. the fleet
-		// lister hasn't caught up). Skip and rely on retrigger. When the MC
-		// document is registered but misconfigured (e.g. missing its
-		// kube-applier container name), For() surfaces that loudly.
+		// The management cluster registry may still be catching up.
 		return nil
 	}
 	applyDesireCRUD, err := kubeApplierClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -217,39 +168,94 @@ func (s *autoNodeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPCl
 		return utils.TrackError(fmt.Errorf("get ApplyDesire CRUD: %w", err))
 	}
 
-	// This SSA relies on two facts verified against real hypershift/CS
-	// source, not assumed - re-verify both on any future hypershift/api
-	// bump in this repo, or a bump to the pinned version CS uses:
-	//   (a) hypershift-operator copies HostedCluster.spec.autoNode onto
-	//       HostedControlPlane.spec.autoNode on every reconcile, not only at
-	//       creation, so applying to an already-existing HostedCluster takes
-	//       effect the same as applying at creation time.
-	//   (b) every ARO-HCP HostedCluster already has Azure SubnetID and
-	//       ResourceGroupName populated unconditionally (CS sets both as
-	//       part of the mandatory Azure platform block), which the
-	//       karpenter-operator's CPO adapter hard-requires once a Karpenter
-	//       ClientID is set - so no additional guard for those fields is
-	//       needed here.
-	target := controllerutils.HostedClusterTarget(s.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix)
-	desire, err := buildAutoNodeApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, mcResourceID, target, clientID, s.imageOverrides)
+	// Hypershift propagates spec.autoNode on every reconcile, so applying it
+	// after creation is supported. Cluster Service already sets the Azure
+	// subnet and resource group required by Karpenter.
+	if clientID, ok := autoNodeKarpenterClientID(existingCluster, serviceProviderCluster); ok {
+		target := controllerutils.HostedClusterTarget(s.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix)
+		desire, err := buildAutoNodeApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, mcResourceID, target, clientID, s.imageOverrides)
+		if err != nil {
+			return err
+		}
+		if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyDesireCRUD, s.applyDesireLister, desire); err != nil {
+			return err
+		}
+	} else {
+		logger.Info("AutoNode enabled but no Karpenter Azure client ID resolved yet; waiting")
+	}
+
+	target := kubeapplierapi.ResourceReference{
+		Group: "hypershift.openshift.io", Version: "v1beta1",
+		Resource: "hostedcontrolplanes", Namespace: serviceProviderCluster.Status.ControlPlaneNamespace, Name: hostedCluster.Name,
+	}
+	if s.imageOverrides.KarpenterProviderAzureImage == "" {
+		existing, err := applyDesireCRUD.Get(ctx, strings.ToLower(autoNodeOperandImageApplyDesireName))
+		if cosmosstorageutils.IsNotFoundError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("get HCP operand image desire: %w", err))
+		}
+		if existing.Tags[kubeapplierapi.TagControllerName] != AutoNodeEnablerControllerName {
+			return utils.TrackError(fmt.Errorf("HCP operand image desire has an unexpected controller owner"))
+		}
+		if (target.Namespace != "" && existing.Spec.TargetItem.Namespace != target.Namespace) ||
+			(target.Name != "" && existing.Spec.TargetItem.Name != target.Name) {
+			return utils.TrackError(fmt.Errorf("HCP operand image desire has an unexpected target"))
+		}
+		// Keep the stored target when status fields are no longer available.
+		target = existing.Spec.TargetItem
+	} else if target.Namespace == "" || target.Name == "" {
+		return nil
+	}
+	desire, err := buildAutoNodeOperandImageApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		mcResourceID, target, s.imageOverrides.KarpenterProviderAzureImage)
 	if err != nil {
 		return err
 	}
+	return kubeapplierhelpers.EnsureApplyDesire(ctx, applyDesireCRUD, s.applyDesireLister, desire)
+}
 
-	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyDesireCRUD, s.applyDesireLister, desire); err != nil {
-		return err
+// needsDeletionWork reports whether an AutoNode ApplyDesire may need cleanup.
+func needsDeletionWork(existingCluster coreapi.Cluster, serviceProviderCluster coreapi.ServiceProviderCluster) bool {
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp == nil {
+		return false
+	}
+	if existingCluster.ServiceProviderProperties.ExperimentalFeatures.AutoNode != coreapi.AutoNode {
+		return false
+	}
+	return serviceProviderCluster.Status.ManagementClusterResourceID != nil
+}
+
+// syncDeletion purges both desires without deleting their foreign-owned targets.
+func (s *autoNodeSyncer) syncDeletion(ctx context.Context, key controllerutils.HCPClusterKey, serviceProviderCluster *coreapi.ServiceProviderCluster) error {
+	kubeApplierClient, err := s.kubeApplierDBClients.For(ctx, serviceProviderCluster.Status.ManagementClusterResourceID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get kube-applier client for management cluster %s: %w", serviceProviderCluster.Status.ManagementClusterResourceID, err))
+	}
+	if kubeApplierClient == nil {
+		// The management cluster registry may still be catching up.
+		return nil
+	}
+	applyDesireCRUD, err := kubeApplierClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("get ApplyDesire CRUD: %w", err))
 	}
 
-	return nil
+	var errs []error
+	for _, name := range []string{autoNodeApplyDesireName, autoNodeOperandImageApplyDesireName} {
+		if err := kubeapplierhelpers.PurgeApplyDesire(ctx, name, applyDesireCRUD); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		utils.LoggerFromContext(ctx).Info("ensured AutoNode desire is absent for deleting cluster", "desire", name)
+	}
+	return errors.Join(errs...)
 }
 
 // autoNodeKarpenterClientID returns the resolved Azure client ID for the
-// cluster's "autonode" data-plane operator identity, looked up on the
-// ServiceProviderCluster status by the lowercased identity resource ID. The
-// bool is false when the identity isn't configured on the cluster yet, or
-// its client ID hasn't been resolved yet, or the most recent resolution
-// attempt failed (RetrievalError set). Mirrors
-// roleassignments.dataPlaneOperatorPrincipalID's lookup pattern.
+// cluster's AutoNode identity. The bool is false while the identity is
+// missing, unresolved, or in an error state.
 func autoNodeKarpenterClientID(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (string, bool) {
 	identityResourceID, ok := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[string(azure.ClusterOperatorIdentifierAutoNode)]
 	if !ok || identityResourceID == nil {

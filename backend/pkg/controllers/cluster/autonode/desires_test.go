@@ -14,6 +14,8 @@
 package autonode
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -83,12 +85,73 @@ func TestBuildAutoNodePayload_SetsImageOverrideAnnotations(t *testing.T) {
 		`"name":"test-domain-prefix",` +
 		`"namespace":"ocm-test-env-clu123",` +
 		`"annotations":{` +
-		`"hypershift.openshift.io/karpenter-operator-image":"example.azurecr.io/karpenter-operator:demo",` +
-		`"hypershift.openshift.io/karpenter-provider-azure-image":"example.azurecr.io/karpenter-azure:demo"` +
+		`"hypershift.openshift.io/karpenter-operator-image":"example.azurecr.io/karpenter-operator:demo"` +
 		`}` +
 		`},` +
 		`"spec":{"autoNode":{"provisionerConfig":{"name":"Karpenter","karpenter":{"platform":"Azure","azure":{"clientID":"11111111-2222-3333-4444-555555555555"}}}}}` +
 		`}`
 
 	assert.JSONEq(t, golden, string(raw))
+}
+
+func TestBuildAutoNodePayload_ProviderOnly(t *testing.T) {
+	raw, err := buildAutoNodePayload(kubeapplierapi.ResourceReference{}, testClientID,
+		ImageOverrides{KarpenterProviderAzureImage: "example/provider:pinned"})
+	require.NoError(t, err)
+	var obj map[string]any
+	require.NoError(t, json.Unmarshal(raw, &obj))
+	assert.NotContains(t, obj["metadata"], "annotations", "provider overrides must not be written to HC")
+}
+
+func testOperandTarget() kubeapplierapi.ResourceReference {
+	return kubeapplierapi.ResourceReference{
+		Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "hostedcontrolplanes",
+		Namespace: "observed-control-plane-namespace", Name: testDomainPrefix,
+	}
+}
+
+func TestBuildAutoNodeOperandImageApplyDesire(t *testing.T) {
+	for _, image := range []string{"example/provider@sha256:1234", ""} {
+		t.Run("image="+image, func(t *testing.T) {
+			target := testOperandTarget()
+			desire, err := buildAutoNodeOperandImageApplyDesire(testSub, testRG, testClusterName, testMgmtClusterResourceID(), target, image)
+			require.NoError(t, err)
+			assert.Equal(t, autoNodeOperandImageApplyDesireName, desire.ResourceID.Name)
+			assert.True(t, strings.EqualFold(testClusterResourceID().String(), desire.ResourceID.Parent.String()), "desire must be a direct child of the cluster")
+			assert.Equal(t, strings.ToLower(testMgmtClusterResourceID().String()), desire.PartitionKey)
+			assert.Equal(t, testMgmtClusterResourceID(), desire.Spec.ManagementCluster)
+			assert.Equal(t, target, desire.Spec.TargetItem)
+			assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, desire.Spec.Type)
+			assert.Equal(t, AutoNodeEnablerControllerName, desire.Tags[kubeapplierapi.TagControllerName])
+			require.NotNil(t, desire.Spec.ServerSideApply)
+			require.NotNil(t, desire.Spec.ServerSideApply.FieldManager)
+			assert.Equal(t, autoNodeFieldManager, *desire.Spec.ServerSideApply.FieldManager)
+			annotations := map[string]any{}
+			if image != "" {
+				annotations[karpenterOperandImageAnnotation] = image
+			}
+			want := map[string]any{
+				"apiVersion": "hypershift.openshift.io/v1beta1", "kind": "HostedControlPlane",
+				"metadata": map[string]any{"name": target.Name, "namespace": target.Namespace, "annotations": annotations},
+			}
+			var got map[string]any
+			require.NoError(t, json.Unmarshal(desire.Spec.ServerSideApply.KubeContent.Raw, &got))
+			assert.Equal(t, want, got, "the HCP payload must contain only identifying metadata and our annotation")
+		})
+	}
+}
+
+func TestBuildAutoNodeOperandImageApplyDesire_InvalidTarget(t *testing.T) {
+	for _, change := range []func(*kubeapplierapi.ResourceReference){
+		func(target *kubeapplierapi.ResourceReference) { target.Namespace = "" },
+		func(target *kubeapplierapi.ResourceReference) { target.Name = "" },
+		func(target *kubeapplierapi.ResourceReference) { target.Resource = "hostedclusters" },
+		func(target *kubeapplierapi.ResourceReference) { target.Group = "other" },
+		func(target *kubeapplierapi.ResourceReference) { target.Version = "v1" },
+	} {
+		target := testOperandTarget()
+		change(&target)
+		_, err := buildAutoNodeOperandImageApplyDesire(testSub, testRG, testClusterName, testMgmtClusterResourceID(), target, "image")
+		require.Error(t, err, "invalid HCP targets must be rejected")
+	}
 }

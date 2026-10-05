@@ -32,11 +32,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// autoNodeApplyDesireName is the well-known, single ApplyDesire name this
-// controller writes per cluster. There is only ever one: this controller
-// sets a single field (spec.autoNode) on the existing HostedCluster, not a
-// family of desires like the backup schedules.
+// autoNodeApplyDesireName identifies the required HostedCluster configuration.
+// A second cluster-scoped desire can set or withdraw the HCP operand image.
 const autoNodeApplyDesireName = "autonode-karpenter-poc"
+
+const autoNodeOperandImageApplyDesireName = "autonode-karpenter-operand-image"
 
 // autoNodeFieldManager is a dedicated, non-default field manager for this
 // controller's server-side-apply writes. Using a distinct manager (rather
@@ -67,41 +67,28 @@ type partialObjectMeta struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
-// karpenterOperatorImageAnnotation and karpenterProviderAzureImageAnnotation
-// mirror hyperkarpenterv1.KarpenterOperatorImage /
-// hyperkarpenterv1.KarpenterProviderAzureImage from the personal hypershift
-// fork this environment runs (~/Coding/tmp-karpenter/hypershift, branch
-// enable-standalone-karpenter-operator-azure) - not available to import for
-// the same reason as autoNodeSpec above (unpublished branch, no go.mod pin).
-// These annotations exist ONLY as a stopgap because that fork's
-// karpenter-operator component cannot otherwise resolve its own image or the
-// karpenter-provider-azure operand image (unlike upstream, which resolves the
-// Azure provider image from the release payload - see
-// control-plane-operator/controllers/hostedcontrolplane/v2/karpenteroperator/deployment.go
-// in that fork). Remove this whole ImageOverrides mechanism once the fork (or
-// its upstream equivalent) can resolve both images without annotations.
+// HyperShift mirrors the operator image from HostedCluster to HostedControlPlane.
+// The standalone operator reads the operand image directly from HostedControlPlane.
+// The old hypershift.openshift.io/karpenter-provider-azure-image HC key has no reader.
 const (
-	karpenterOperatorImageAnnotation      = "hypershift.openshift.io/karpenter-operator-image"
-	karpenterProviderAzureImageAnnotation = "hypershift.openshift.io/karpenter-provider-azure-image"
+	karpenterOperatorImageAnnotation = "hypershift.openshift.io/karpenter-operator-image"
+	karpenterOperandImageAnnotation  = "autoscaling.openshift.io/karpenter-image"
 )
 
 // ImageOverrides carries personal-dev-only image references for the
 // standalone karpenter-operator and its karpenter-provider-azure operand.
-// Both fields are optional; a zero-valued ImageOverrides sets no annotations
-// at all, which is required in every environment except personal dev (see
-// the const block above for why these annotations exist only as a stopgap).
+// Both fields must stay empty outside personal dev. The config field
+// karpenterProviderAzureImageOverride sets the supported HCP operand annotation
+// through a separate desire. A cleared override withdraws our previous annotation.
 type ImageOverrides struct {
 	KarpenterOperatorImage      string
 	KarpenterProviderAzureImage string
 }
 
-func (o ImageOverrides) annotations() map[string]string {
+func (o ImageOverrides) hostedClusterAnnotations() map[string]string {
 	annotations := map[string]string{}
 	if o.KarpenterOperatorImage != "" {
 		annotations[karpenterOperatorImageAnnotation] = o.KarpenterOperatorImage
-	}
-	if o.KarpenterProviderAzureImage != "" {
-		annotations[karpenterProviderAzureImageAnnotation] = o.KarpenterProviderAzureImage
 	}
 	if len(annotations) == 0 {
 		return nil
@@ -174,7 +161,7 @@ func buildAutoNodePayload(target kubeapplierapi.ResourceReference, clientID stri
 		Metadata: partialObjectMeta{
 			Name:        target.Name,
 			Namespace:   target.Namespace,
-			Annotations: imageOverrides.annotations(),
+			Annotations: imageOverrides.hostedClusterAnnotations(),
 		},
 		Spec: partialHostedClusterSpec{
 			AutoNode: autoNodeSpec{
@@ -199,7 +186,7 @@ func buildAutoNodePayload(target kubeapplierapi.ResourceReference, clientID stri
 	return raw, nil
 }
 
-// buildAutoNodeApplyDesire builds the single cluster-scoped ApplyDesire that
+// buildAutoNodeApplyDesire builds the cluster-scoped ApplyDesire that
 // server-side-applies spec.autoNode onto the cluster's existing HostedCluster.
 func buildAutoNodeApplyDesire(
 	subscriptionID, resourceGroupName, clusterName string,
@@ -238,5 +225,55 @@ func buildAutoNodeApplyDesire(
 		Tags: map[string]string{
 			kubeapplierapi.TagControllerName: AutoNodeEnablerControllerName,
 		},
+	}, nil
+}
+
+// buildAutoNodeOperandImageApplyDesire manages only the HCP operand annotation.
+// An empty image produces an explicit empty map to withdraw our owned key.
+// An absent HCP can reject this partial manifest. Kube-applier retries on resync.
+func buildAutoNodeOperandImageApplyDesire(
+	subscriptionID, resourceGroupName, clusterName string,
+	managementClusterResourceID *azcorearm.ResourceID,
+	target kubeapplierapi.ResourceReference,
+	image string,
+) (*kubeapplierapi.ApplyDesire, error) {
+	if target.Namespace == "" || target.Name == "" || target.Group != hsv1beta1.SchemeGroupVersion.Group ||
+		target.Version != hsv1beta1.SchemeGroupVersion.Version || target.Resource != "hostedcontrolplanes" {
+		return nil, utils.TrackError(fmt.Errorf("invalid HostedControlPlane target: %+v", target))
+	}
+	annotations := map[string]string{}
+	if image != "" {
+		annotations[karpenterOperandImageAnnotation] = image
+	}
+	obj := map[string]any{
+		"apiVersion": hsv1beta1.SchemeGroupVersion.String(),
+		"kind":       "HostedControlPlane",
+		"metadata": map[string]any{
+			"name": target.Name, "namespace": target.Namespace, "annotations": annotations,
+		},
+	}
+	raw, err := json.Marshal(obj)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("marshal HCP operand image payload: %w", err))
+	}
+	resourceID, err := azcorearm.ParseResourceID(kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, autoNodeOperandImageApplyDesireName,
+	))
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("parse HCP operand image desire ID: %w", err))
+	}
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String()),
+		},
+		Spec: kubeapplierapi.ApplyDesireSpec{
+			ManagementCluster: managementClusterResourceID,
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			TargetItem:        target,
+			ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
+				FieldManager: ptr.To(autoNodeFieldManager), KubeContent: &runtime.RawExtension{Raw: raw},
+			},
+		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: AutoNodeEnablerControllerName},
 	}, nil
 }

@@ -80,7 +80,8 @@ type BackendRootCmdFlags struct {
 	// AutoNodeKarpenterOperatorImageOverride and
 	// AutoNodeKarpenterProviderAzureImageOverride are a personal-dev-only
 	// stopgap: see the doc comment on clusterautonode.ImageOverrides. Both
-	// default to empty, which sets no annotations at all.
+	// default to empty. The operator override uses an HC annotation. The
+	// provider override uses an HCP annotation and supports withdrawal.
 	AutoNodeKarpenterOperatorImageOverride      string
 	AutoNodeKarpenterProviderAzureImageOverride string
 }
@@ -258,7 +259,7 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.AutoNodeKarpenterOperatorImageOverride, "auto-node-karpenter-operator-image-override", f.AutoNodeKarpenterOperatorImageOverride,
 		"Personal-dev-only override image for the standalone karpenter-operator, set as a HostedCluster annotation when AutoNode is enabled. Leave empty everywhere except personal dev.")
 	cmd.Flags().StringVar(&f.AutoNodeKarpenterProviderAzureImageOverride, "auto-node-karpenter-provider-azure-image-override", f.AutoNodeKarpenterProviderAzureImageOverride,
-		"Personal-dev-only override image for the karpenter-provider-azure operand, set as a HostedCluster annotation when AutoNode is enabled. Leave empty everywhere except personal dev.")
+		"Personal-dev-only override image for the karpenter-provider-azure operand, set as the HostedControlPlane autoscaling.openshift.io/karpenter-image annotation when AutoNode is enabled. Leave empty everywhere except personal dev.")
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
