@@ -749,7 +749,6 @@ mgmt:
   rg: hcp-underlay-pers-usw3test-mgmt-1
   scheduling:
     role: infra
-    tolerationKey: ""
   stampIdentifier: "1"
   stamps:
     count: 1

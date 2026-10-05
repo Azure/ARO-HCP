@@ -182,9 +182,6 @@ param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }} // ... but not boolea
 `infra=true:NoSchedule`, and `system` uses `CriticalAddonsOnly=true:NoSchedule`.
 The operator is always `Equal`, the value `"true"`, and the effect `NoSchedule`.
 
-The optional `mgmt.scheduling.tolerationKey` defaults to an empty string. Set it
-to a non-empty Kubernetes qualified name to override the derived key when the
-target pool uses a different taint key.
 These settings do not change node pools or the scheduling of other workloads.
 
 ## Schema

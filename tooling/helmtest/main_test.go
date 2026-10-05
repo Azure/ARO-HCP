@@ -53,7 +53,6 @@ func TestMgmtScheduling(t *testing.T) {
 			for _, test := range []struct {
 				name        string
 				role        string
-				keyOverride string
 				tolerations []corev1.Toleration
 				override    bool
 			}{
@@ -65,14 +64,6 @@ func TestMgmtScheduling(t *testing.T) {
 					name: "system override", role: "system", override: true,
 					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
 				},
-				{
-					name: "custom infra key", role: "infra", keyOverride: "example.com/custom", override: true,
-					tolerations: []corev1.Toleration{{Key: "example.com/custom", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
-				},
-				{
-					name: "custom system key", role: "system", keyOverride: "example.com/custom", override: true,
-					tolerations: []corev1.Toleration{{Key: "example.com/custom", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
-				},
 			} {
 				t.Run(test.name, func(t *testing.T) {
 					var cfg types.Configuration
@@ -80,8 +71,7 @@ func TestMgmtScheduling(t *testing.T) {
 					if test.override {
 						cfg = types.MergeConfiguration(cfg, map[string]any{
 							"mgmt": map[string]any{"scheduling": map[string]any{
-								"role":          test.role,
-								"tolerationKey": test.keyOverride,
+								"role": test.role,
 							}},
 						})
 					}

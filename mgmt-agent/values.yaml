@@ -1,5 +1,4 @@
 schedulingRole: "{{ .mgmt.scheduling.role }}"
-schedulingTolerationKey: "{{ .mgmt.scheduling.tolerationKey }}"
 monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 image:
   registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"

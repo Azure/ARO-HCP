@@ -714,7 +714,6 @@ defaults:
   mgmt:
     scheduling:
       role: infra
-      tolerationKey: ""
     stamps:
       count: 1
     defaultStorageClassSkuName: "PremiumV2_LRS"

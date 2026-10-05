@@ -3154,22 +3154,10 @@
                 "system"
               ],
               "default": "infra"
-            },
-            "tolerationKey": {
-              "type": "string",
-              "default": "",
-              "maxLength": 317,
-              "pattern": "^(([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[a-zA-Z0-9]([-a-zA-Z0-9_.]{0,61}[a-zA-Z0-9])?)?$"
             }
           },
           "required": [
             "role"
-          ],
-          "x-cel-validations": [
-            {
-              "rule": "!has(self.tolerationKey) || !self.tolerationKey.matches('^[^/]{254,}/')",
-              "message": "Toleration key DNS prefixes must not exceed 253 characters"
-            }
           ]
         },
         "aks": {
