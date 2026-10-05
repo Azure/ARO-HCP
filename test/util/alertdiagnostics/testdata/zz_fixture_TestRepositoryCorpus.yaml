@@ -6206,6 +6206,93 @@
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_idms_mirror_slo_error_alerts
+  alert: userJourneyIDMSMirrorErrors1h5m
+  occurrence: 1
+  input: errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72
+  plan:
+    expression: errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72
+    conditions:
+      - expression: errors:backend_cluster_update:failed_1h >= 3
+        path: root/and:left
+        queries:
+          - expression: errors:backend_cluster_update:failed_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:backend_cluster_update:error_rate_1h > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_update:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_idms_mirror_slo_error_alerts
+  alert: userJourneyIDMSMirrorErrors3d
+  occurrence: 1
+  input: errors:backend_cluster_update:total_3d >= 10 and errors:backend_cluster_update:failed_3d >= 2 and errors:backend_cluster_update:error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_cluster_update:total_3d >= 10 and errors:backend_cluster_update:failed_3d >= 2 and errors:backend_cluster_update:error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_cluster_update:total_3d >= 10
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_update:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:backend_cluster_update:failed_3d >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_update:failed_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_cluster_update:error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_update:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_idms_mirror_slo_error_alerts
+  alert: userJourneyIDMSMirrorErrors6h30m
+  occurrence: 1
+  input: errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3
+  plan:
+    expression: errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3
+    conditions:
+      - expression: errors:backend_cluster_update:total_6h >= 5
+        path: root/and:left
+        queries:
+          - expression: errors:backend_cluster_update:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_update:error_rate_6h > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_update:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_saturation_alerts
   alert: UJNodePoolSaturationQueueDepth
   occurrence: 1
@@ -8104,6 +8191,104 @@
         thresholds:
           - operator: '>'
             value: 10800
+        unsupported: ""
+- source: observability/alerts/idms-mirror-slo-prometheusRule.yaml
+  group: arohcp_idms_mirror_slo_error_alerts
+  alert: userJourneyIDMSMirrorErrors1h5m
+  occurrence: 1
+  input: |
+    errors:backend_cluster_update:failed_1h >= 3
+    and
+    errors:backend_cluster_update:error_rate_1h > 0.72
+  plan:
+    expression: errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72
+    conditions:
+      - expression: errors:backend_cluster_update:failed_1h >= 3
+        path: root/and:left
+        queries:
+          - expression: errors:backend_cluster_update:failed_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:backend_cluster_update:error_rate_1h > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_update:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: observability/alerts/idms-mirror-slo-prometheusRule.yaml
+  group: arohcp_idms_mirror_slo_error_alerts
+  alert: userJourneyIDMSMirrorErrors3d
+  occurrence: 1
+  input: |
+    errors:backend_cluster_update:total_3d >= 10
+    and
+    errors:backend_cluster_update:failed_3d >= 2
+    and
+    errors:backend_cluster_update:error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_cluster_update:total_3d >= 10 and errors:backend_cluster_update:failed_3d >= 2 and errors:backend_cluster_update:error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_cluster_update:total_3d >= 10
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_update:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:backend_cluster_update:failed_3d >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_update:failed_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_cluster_update:error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_update:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: observability/alerts/idms-mirror-slo-prometheusRule.yaml
+  group: arohcp_idms_mirror_slo_error_alerts
+  alert: userJourneyIDMSMirrorErrors6h30m
+  occurrence: 1
+  input: |
+    errors:backend_cluster_update:total_6h >= 5
+    and
+    errors:backend_cluster_update:error_rate_6h > 0.30
+  plan:
+    expression: errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3
+    conditions:
+      - expression: errors:backend_cluster_update:total_6h >= 5
+        path: root/and:left
+        queries:
+          - expression: errors:backend_cluster_update:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_update:error_rate_6h > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_update:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
         unsupported: ""
 - source: observability/alerts/imageRegistryPolicy-prometheusRule.yaml
   group: image-registry-policy
