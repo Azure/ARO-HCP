@@ -222,6 +222,14 @@ safe-outputs:
             REPO: ${{ github.repository }}
           run: |
             set -euo pipefail
+            jq -e '
+              [.items[] | select(.type == "reconcile_owned_pr") | .pull_request_number] as $numbers |
+              all($numbers[]; type == "string" and test("^[1-9][0-9]*$")) and
+              ($numbers | unique | length) == ($numbers | length)
+            ' "$GH_AW_AGENT_OUTPUT" >/dev/null || {
+              echo "Reconciliation requires unique, valid PR numbers" >&2
+              exit 1
+            }
             jq -c '.items[] | select(.type == "reconcile_owned_pr")' "$GH_AW_AGENT_OUTPUT" | while read -r item; do
               n=$(jq -er '.pull_request_number | select(type == "string" and test("^[1-9][0-9]*$"))' <<< "$item")
               sha=$(jq -er '.expected_head_sha | select(type == "string" and test("^[0-9a-fA-F]{40}$"))' <<< "$item")
