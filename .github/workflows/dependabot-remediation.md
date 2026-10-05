@@ -49,9 +49,9 @@ network:
     - defaults
     - go
     - node
-    - https://prow.ci.openshift.org
-    - https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com
-    - https://gcs.ci.openshift.org
+    - prow.ci.openshift.org
+    - gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com
+    - gcs.ci.openshift.org
 
 # Runner setup before the agent starts:
 #  - check out the repo (persist-credentials:false is required by gh-aw strict mode),
@@ -111,11 +111,11 @@ steps:
           ms=$(gh api "/repos/$EXPR_GITHUB_REPOSITORY/pulls/$n" --jq '.mergeable_state')
           checks=$(GH_TOKEN="$CI_TOKEN" gh api --paginate "/repos/$EXPR_GITHUB_REPOSITORY/commits/$sha/check-runs?per_page=100&filter=latest" \
             --jq '.check_runs[] | {name, status, conclusion, details_url}' | jq -s '.')
-          st=$(GH_TOKEN="$CI_TOKEN" gh api "/repos/$EXPR_GITHUB_REPOSITORY/commits/$sha/status" \
-            --jq '[.statuses[] | select(.context | test("^tide$"; "i") | not) | {context, state, target_url}] | unique_by(.context)')
+          st=$(GH_TOKEN="$CI_TOKEN" gh api --paginate "/repos/$EXPR_GITHUB_REPOSITORY/commits/$sha/statuses?per_page=100" \
+            --jq '.[] | select(.context | test("^tide$"; "i") | not) | {context, state, target_url}' | jq -s 'unique_by(.context)')
           reviews=$(gh api graphql -F owner="${EXPR_GITHUB_REPOSITORY%/*}" -F name="${EXPR_GITHUB_REPOSITORY#*/}" -F number="$n" \
-            -f query='query($owner:String!, $name:String!, $number:Int!) { repository(owner:$owner, name:$name) { pullRequest(number:$number) { reviewDecision reviewThreads(first:100) { pageInfo { hasNextPage } nodes { isResolved comments(last:1) { nodes { url body } } } } } } }' \
-            --jq '.data.repository.pullRequest | {reviewDecision, reviewThreads: [.reviewThreads.nodes[] | select(.isResolved | not) | .comments.nodes[-1] | {url, body}], moreReviewThreads: .reviewThreads.pageInfo.hasNextPage}')
+            -f query='query($owner:String!, $name:String!, $number:Int!) { repository(owner:$owner, name:$name) { pullRequest(number:$number) { reviewDecision reviewThreads(first:100) { pageInfo { hasNextPage } nodes { isResolved firstComment: comments(first:1) { nodes { url body } } latestComment: comments(last:1) { nodes { url body } } } } } } }' \
+            --jq '.data.repository.pullRequest | {reviewDecision, reviewThreads: [.reviewThreads.nodes[] | select(.isResolved | not) | ((.firstComment.nodes + .latestComment.nodes) | unique_by(.url)[]) | {url, body}], moreReviewThreads: .reviewThreads.pageInfo.hasNextPage}')
           if printf '%s' "$reviews" | jq -e '.moreReviewThreads' >/dev/null; then
             echo "PR $n has more than 100 review threads; refusing incomplete triage" >&2
             exit 1
@@ -182,22 +182,69 @@ safe-outputs:
         - package-lock.json
         - yarn.lock
         - pnpm-lock.yaml
-  # A scheduled run can update the base of a numbered PR, but cannot push code
-  # fixes to that PR's head (push-to-pull-request-branch needs a triggering PR).
-  update-pull-request:
-    target: "*"
-    max: 25
-    title: false
-    body: false
-    update-branch: true
-    required-labels: [agentic-dependabot]
-    required-title-prefix: "fix(deps): "
-  add-comment:
-    target: "*"
-    max: 25
-    footer: false                   # keep Prow commands on their own line
-    required-labels: [agentic-dependabot]
-    required-title-prefix: "fix(deps): "
+  # Mutations require a fresh ownership and head-SHA check with the App token.
+  jobs:
+    reconcile-owned-pr:
+      description: Update the base or post an evidenced Prow command on an owned agentic Dependabot PR
+      runs-on: ubuntu-latest
+      if: needs.detection.result == 'success'
+      inputs:
+        pull_request_number:
+          description: Number of the owned PR to reconcile
+          required: true
+          type: string
+        expected_head_sha:
+          description: Current 40-character head SHA from the PR inventory
+          required: true
+          type: string
+        action:
+          description: Whether to update the branch or add a Prow comment
+          required: true
+          type: choice
+          options: [update-branch, add-comment]
+        body:
+          description: Evidence and a Prow command on its own line, for add-comment only
+          required: false
+          type: string
+      steps:
+        - name: Mint App token to reconcile owned PRs
+          id: write-token
+          uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+          with:
+            client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
+            private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
+            permission-contents: write
+            permission-pull-requests: write
+            permission-issues: write
+        - name: Verify ownership and reconcile
+          env:
+            GH_TOKEN: ${{ steps.write-token.outputs.token }}
+            REPO: ${{ github.repository }}
+          run: |
+            set -euo pipefail
+            jq -c '.items[] | select(.type == "reconcile_owned_pr")' "$GH_AW_AGENT_OUTPUT" | while read -r item; do
+              n=$(jq -er '.pull_request_number | select(type == "string" and test("^[1-9][0-9]*$"))' <<< "$item")
+              sha=$(jq -er '.expected_head_sha | select(type == "string" and test("^[0-9a-fA-F]{40}$"))' <<< "$item")
+              action=$(jq -er '.action | select(. == "update-branch" or . == "add-comment")' <<< "$item")
+              pr=$(gh api "repos/$REPO/pulls/$n")
+              jq -e --arg sha "$sha" --arg repo "$REPO" '
+                .state == "open" and .user.login == "aro-hcp-robot[bot]" and
+                .head.repo.full_name == $repo and .base.ref == "main" and
+                (.title | startswith("fix(deps): ")) and
+                any(.labels[]; .name == "agentic-dependabot") and
+                .head.sha == $sha
+              ' <<< "$pr" >/dev/null || { echo "PR $n is not an owned PR at the expected head" >&2; exit 1; }
+              if [[ "$action" == add-comment ]]; then
+                body=$(jq -er '.body | select(type == "string" and length > 0 and test("(?m)^/(retest-required|close)$"))' <<< "$item")
+              fi
+              if [[ "${GH_AW_SAFE_OUTPUTS_STAGED:-false}" == true ]]; then
+                echo "Staged $action for verified PR $n"
+              elif [[ "$action" == update-branch ]]; then
+                gh api -X PUT "repos/$REPO/pulls/$n/update-branch" -f expected_head_sha="$sha" --silent
+              else
+                gh api -X POST "repos/$REPO/issues/$n/comments" -f body="$body" --silent
+              fi
+            done
 
 ---
 
@@ -230,10 +277,10 @@ First classify each open PR by who owns it, because that decides what you may do
 Walk **every** open `agentic-dependabot` PR, even if its alert has disappeared. Record its number, alerts covered, CI/check failure evidence, merge state, review decision, unresolved threads, and next action. Do not confuse a required review or Tide's `blocked` state with a failing check. Do not merge or approve PRs: human reviews and repository merge policy still apply.
 
 - **Passing or pending checks**: keep the existing PR; wait for outstanding checks and human approvals. If a check is pending or its evidence is missing, never call the PR healthy or replace it on speculation. If an actionable review thread identifies an incomplete dependency fix, address it as described below.
-- **Behind base**: for an owned, still-needed PR with no conflicting dependency change, request `update_pull_request` with its `pull_request_number` and `update_branch: true`. The safe output merges current `main` into that PR branch; check the new SHA and CI on a later run. It cannot resolve conflicts or change dependency files. Do not request repeated updates for a PR already waiting on CI at its current SHA.
-- **Failing CI or merge conflict**: follow the failed check's URL and the PR diff to identify the cause. Compare the same job on `main` and other PRs before calling a failure transient. If it is a proven one-off infrastructure failure, request `add_comment` with `pr_number` set to the PR number and `/retest-required` on its own line in `body`, plus a short evidence sentence; on a later run verify a new check started. Check existing PR comments first and do not repeat a retest request for the same head and failure without new evidence. If the failure is fleet-wide, report it rather than blindly retesting. If the dependency fix is demonstrably incomplete or incompatible, make one corrected, dependency-only replacement from current `main`, with the original PR number in its body. Keep the existing PR open until the replacement is actually created and its checks pass; a safe-output request to create a PR is not proof of creation. On later runs, recognize that replacement and do not generate another one for the same package/version while it is pending.
+- **Behind base**: for an owned, still-needed PR with no conflicting dependency change, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, and `action: update-branch`. The guarded output merges current `main` into that PR branch after rechecking ownership and SHA; check the new SHA and CI on a later run. It cannot resolve conflicts or change dependency files. Do not request repeated updates for a PR already waiting on CI at its current SHA.
+- **Failing CI or merge conflict**: follow the failed check's URL and the PR diff to identify the cause. Compare the same job on `main` and other PRs before calling a failure transient. If it is a proven one-off infrastructure failure, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, `action: add-comment`, and `/retest-required` on its own line in `body`, plus a short evidence sentence; on a later run verify a new check started. Check existing PR comments first and do not repeat a retest request for the same head and failure without new evidence. If the failure is fleet-wide, report it rather than blindly retesting. If the dependency fix is demonstrably incomplete or incompatible, make one corrected, dependency-only replacement from current `main`, with the original PR number in its body. Keep the existing PR open until the replacement is actually created and its checks pass; a safe-output request to create a PR is not proof of creation. On later runs, recognize that replacement and do not generate another one for the same package/version while it is pending.
 - **Review feedback**: act only on an unresolved thread about a missing or incorrect dependency fix (section 5b). Do not dismiss or resolve threads on behalf of a reviewer. If review approval is missing, leave it for a human.
-- **No open alert**: do not infer the PR is obsolete just from the alert disappearing. Inspect its actual changes and whether they still provide a needed dependency fix. Never open a replacement solely for an orphaned PR. If the change is proven unnecessary on `main`, request `add_comment` with `pr_number` set to the PR number and the evidence and `/close` on its own line in `body`. For a superseded PR, request `/close` only after verifying the replacement is merged and covers the same fixes. On the next run verify Prow actually closed the PR; never use the GitHub PR-state API or a closing keyword.
+- **No open alert**: do not infer the PR is obsolete just from the alert disappearing. Inspect its actual changes and whether they still provide a needed dependency fix. Never open a replacement solely for an orphaned PR. If the change is proven unnecessary on `main`, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, `action: add-comment`, and the evidence and `/close` on its own line in `body`. For a superseded PR, request `/close` only after verifying the replacement is merged and covers the same fixes. On the next run verify Prow actually closed the PR; never use the GitHub PR-state API or a closing keyword.
 
 Do not use `push_to_pull_request_branch` here: this is a scheduled or manual run with no triggering PR, so that output cannot reliably push to an arbitrary existing head. If no safe automated change is justified, report the blocker with its PR and evidence rather than opening another PR.
 
