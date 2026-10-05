@@ -41,20 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// autoNodeTestOpenshiftVersion and autoNodeTestMarketplaceImage must be kept
-// in lockstep: the marketplace image is an RHCOS build tied to a specific
-// OpenShift minor version, and there is no API-level way to derive one from
-// the other. If autoNodeTestOpenshiftVersion changes, this image reference
-// must be re-verified (e.g. `az vm image list --all --publisher
-// azureopenshift --offer aro4 --sku aro_422-v2 -o table`) and updated too.
 const autoNodeTestOpenshiftVersion = "4.22"
-
-var autoNodeTestMarketplaceImage = framework.KarpenterMarketplaceImage{
-	Publisher: "azureopenshift",
-	Offer:     "aro4",
-	SKU:       "aro_422-v2",
-	Version:   "9.8.20260428",
-}
 
 // This test exercises: the enablement signal (properties.autoNode.mode,
 // translated into the same AFEC-gated experimental tag and projected onto
@@ -72,7 +59,7 @@ var autoNodeTestMarketplaceImage = framework.KarpenterMarketplaceImage{
 // framework.RunKarpenterNodeCSRApprover's doc comment) - a passing run here is
 // not evidence that gap is closed.
 var _ = Describe("Customer", func() {
-	It("should be able to enable AutoNode via the typed properties.autoNode.mode field for a cluster with version >= 4.22 and provision a real node via Karpenter",
+	It("should be able to create a cluster with autonode enabled on OCP version >= 4.22 and run a web app on the Karpenter-provisioned node",
 		labels.RequireNothing, labels.Medium, labels.Slow, labels.Positive, labels.AroRpApiCompatible, labels.CreateCluster,
 		labels.MIContainers(1),
 		func(ctx context.Context) {
@@ -244,20 +231,27 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyKarpenterCRDsInstalled(5*time.Minute).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "guest Karpenter CRDs are not installed on cluster %s", clusterName)
 
-			const karpenterResourceName = "default"
+			const karpenterResourceName = "autonode-e2e"
 			karpenterInstanceTypes := []string{"Standard_D4s_v3", "Standard_D4s_v5"}
+			err = framework.ValidateKarpenterInstanceTypes(karpenterInstanceTypes)
+			Expect(err).NotTo(HaveOccurred(), "invalid instance types for Karpenter NodePool %q", karpenterResourceName)
 
-			By("applying an AKSNodeClass and NodePool for Karpenter")
-			err = framework.ApplyAKSNodeClassAndNodePool(ctx, adminRESTConfig, karpenterResourceName, autoNodeTestMarketplaceImage, karpenterInstanceTypes)
-			Expect(err).NotTo(HaveOccurred(), "failed to apply AKSNodeClass and NodePool %q", karpenterResourceName)
+			By("creating a test-owned OpenShiftAzureNodeClass for Karpenter")
+			err = framework.ApplyOpenShiftAzureNodeClass(ctx, adminRESTConfig, karpenterResourceName)
+			Expect(err).NotTo(HaveOccurred(), "failed to create OpenShiftAzureNodeClass %q", karpenterResourceName)
 			DeferCleanup(func(ctx context.Context) {
-				_ = framework.DeleteAKSNodeClassAndNodePool(ctx, adminRESTConfig, karpenterResourceName)
+				_ = framework.DeleteOpenShiftAzureNodeClassAndNodePool(ctx, adminRESTConfig, karpenterResourceName)
 			})
 
-			By("waiting for the AKSNodeClass to become ready")
-			err = verifiers.VerifyAKSNodeClassReady(karpenterResourceName, 5*time.Minute).Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "AKSNodeClass %q did not become ready", karpenterResourceName)
+			By("waiting for the OpenShiftAzureNodeClass to become ready")
+			err = verifiers.VerifyOpenShiftAzureNodeClassReady(karpenterResourceName, 5*time.Minute).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "OpenShiftAzureNodeClass %q did not become ready", karpenterResourceName)
 
+			By("creating a Karpenter NodePool that references the ready NodeClass")
+			err = framework.ApplyKarpenterNodePool(ctx, adminRESTConfig, karpenterResourceName, karpenterInstanceTypes)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Karpenter NodePool %q", karpenterResourceName)
+
+			// Deploy workload
 			nodeSelector := map[string]string{
 				"autonode":                       "true",
 				framework.KarpenterNodePoolLabel: karpenterResourceName,
@@ -315,11 +309,15 @@ var _ = Describe("Customer", func() {
 				g.Expect(pods.Items[0].Status.Phase).To(Equal(corev1.PodRunning), "expected workload pod to reach Running once Karpenter provisioned a node")
 			}, 5*time.Minute, 10*time.Second).Should(Succeed(), "workload pod never reached Running phase on the Karpenter-provisioned node")
 
-			By("scaling the workload back down and deleting the NodePool/AKSNodeClass, verifying Karpenter actually deprovisions the node")
+			By("verifying a simple web app can run on the Karpenter-provisioned node")
+			err = verifiers.VerifySimpleWebApp(nodeSelector).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on cluster %q", clusterName)
+
+			By("scaling the workload back down and deleting the NodePool/OpenShiftAzureNodeClass, verifying Karpenter actually deprovisions the node")
 			err = framework.ScaleDeployment(ctx, adminRESTConfig, workloadNamespace, workloadName, 0)
 			Expect(err).NotTo(HaveOccurred(), "failed to scale workload %q back to 0 replicas", workloadName)
-			err = framework.DeleteAKSNodeClassAndNodePool(ctx, adminRESTConfig, karpenterResourceName)
-			Expect(err).NotTo(HaveOccurred(), "failed to delete AKSNodeClass/NodePool %q", karpenterResourceName)
+			err = framework.DeleteOpenShiftAzureNodeClassAndNodePool(ctx, adminRESTConfig, karpenterResourceName)
+			Expect(err).NotTo(HaveOccurred(), "failed to delete OpenShiftAzureNodeClass/NodePool %q", karpenterResourceName)
 			// 10m: an observed real run drained and deprovisioned in ~1m15s once
 			// cluster-infra pods had a regular worker node pool to live on instead
 			// of the Karpenter node (see the worker node pool step above), so 10m
@@ -327,8 +325,14 @@ var _ = Describe("Customer", func() {
 			// Consolidation itself is not the bottleneck - Karpenter's default
 			// consolidateAfter is 0s when the NodePool doesn't set spec.disruption
 			// (confirmed against karpenter.sh_nodepools.yaml).
+			//
+			// Without the regular worker node pool above, draining this node can
+			// get stuck behind router-default's PodDisruptionBudget, since that's
+			// the only other place for it to go once evicted. Observed events:
+			//   Normal  DisruptionBlocked  4m57s  karpenter  Pdb prevents pod evictions (PodDisruptionBudget=[openshift-ingress/router-default])
+			//   Normal  DisruptionBlocked  57s (x2 over 2m57s)  karpenter  Node is deleting or marked for deletion
 			err = verifiers.VerifyKarpenterDeprovisioned(karpenterResourceName, 10*time.Minute).Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "Karpenter did not deprovision the Node/NodeClaim for NodePool %q; a VM may have leaked", karpenterResourceName)
+			Expect(err).NotTo(HaveOccurred(), "Karpenter did not remove Nodes, NodeClaims, and both NodeClasses for NodePool %q; resources may remain", karpenterResourceName)
 
 			By("deleting the workload namespace")
 			err = framework.DeleteNamespace(ctx, adminRESTConfig, workloadNamespace)

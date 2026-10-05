@@ -16,11 +16,13 @@ package verifiers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -35,7 +37,7 @@ import (
 // installs unconditionally on startup (confirmed against
 // karpenter-operator/pkg/controllers/controllers.go and pkg/assets: CoreCRDs
 // contribute NodePool/NodeClaim, the Azure CloudProvider contributes
-// AKSNodeClass). Their absence means the karpenter-operator container itself
+// AKSNodeClass and OpenShiftAzureNodeClass). Their absence means the operator
 // is broken or never started - not a normal/expected timing state to work
 // around - so this is a hard precondition, not a build-them-ourselves fallback.
 //
@@ -47,9 +49,13 @@ var karpenterGuestCRDs = []schema.GroupVersionResource{
 	{Group: "karpenter.sh", Version: "v1", Resource: "nodepools"},
 	{Group: "karpenter.sh", Version: "v1", Resource: "nodeclaims"},
 	{Group: "karpenter.azure.com", Version: "v1beta1", Resource: "aksnodeclasses"},
+	{Group: "karpenter.hypershift.openshift.io", Version: "v1alpha1", Resource: "openshiftazurenodeclasses"},
 }
 
 var karpenterNodeClaimGVR = schema.GroupVersionResource{Group: "karpenter.sh", Version: "v1", Resource: "nodeclaims"}
+
+var openShiftAzureNodeClassGVR = schema.GroupVersionResource{Group: "karpenter.hypershift.openshift.io", Version: "v1alpha1", Resource: "openshiftazurenodeclasses"}
+var aksNodeClassGVR = schema.GroupVersionResource{Group: "karpenter.azure.com", Version: "v1beta1", Resource: "aksnodeclasses"}
 
 type verifyKarpenterCRDsInstalled struct {
 	timeout time.Duration
@@ -98,47 +104,85 @@ func (v verifyKarpenterCRDsInstalled) Verify(ctx context.Context, adminRESTConfi
 }
 
 // VerifyKarpenterCRDsInstalled asserts that the guest Karpenter CRDs
-// (NodePool, NodeClaim, AKSNodeClass) are served by the guest API server, as
+// (NodePool, NodeClaim, AKSNodeClass, OpenShiftAzureNodeClass) are served, as
 // a hard precondition before applying any Karpenter custom resource.
 func VerifyKarpenterCRDsInstalled(timeout time.Duration) HostedClusterVerifier {
 	return verifyKarpenterCRDsInstalled{timeout: timeout}
 }
 
-type verifyAKSNodeClassReady struct {
+type verifyOpenShiftAzureNodeClassReady struct {
 	name    string
 	timeout time.Duration
 }
 
-func (v verifyAKSNodeClassReady) Name() string {
-	return fmt.Sprintf("VerifyAKSNodeClassReady(name=%s)", v.name)
+func (v verifyOpenShiftAzureNodeClassReady) Name() string {
+	return fmt.Sprintf("VerifyOpenShiftAzureNodeClassReady(name=%s)", v.name)
 }
 
-func (v verifyAKSNodeClassReady) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
-	aksNodeClassGVR := schema.GroupVersionResource{Group: "karpenter.azure.com", Version: "v1beta1", Resource: "aksnodeclasses"}
-	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, nil, func(ctx context.Context) error {
-		dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
-		if err != nil {
-			return fmt.Errorf("failed to create dynamic client: %w", err)
-		}
-		obj, err := dynamicClient.Resource(aksNodeClassGVR).Get(ctx, v.name, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to get AKSNodeClass %q: %w", v.name, err)
-		}
-		status, ok := unstructuredConditionStatus(obj, "Ready")
-		if !ok {
-			return fmt.Errorf("AKSNodeClass %q has no Ready condition yet", v.name)
-		}
-		if status != "True" {
-			return fmt.Errorf("AKSNodeClass %q Ready condition is %q, not True", v.name, status)
-		}
-		return nil
-	})
+func (v verifyOpenShiftAzureNodeClassReady) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout,
+		func(ctx context.Context, _ *rest.Config) string {
+			return nodeClassDiagnostics(ctx, dynamicClient, v.name)
+		}, func(ctx context.Context) error {
+			obj, err := dynamicClient.Resource(openShiftAzureNodeClassGVR).Get(ctx, v.name, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get OpenShiftAzureNodeClass %q: %w", v.name, err)
+			}
+			status, ok := unstructuredConditionStatus(obj, "Ready")
+			if !ok {
+				return fmt.Errorf("OpenShiftAzureNodeClass %q has no Ready condition yet: %s", v.name, nodeClassStatus(obj))
+			}
+			if status != "True" {
+				return fmt.Errorf("OpenShiftAzureNodeClass %q Ready condition is %q, not True: %s", v.name, status, nodeClassStatus(obj))
+			}
+			return nil
+		})
 }
 
-// VerifyAKSNodeClassReady asserts that the named AKSNodeClass reports
-// Ready=True.
-func VerifyAKSNodeClassReady(name string, timeout time.Duration) HostedClusterVerifier {
-	return verifyAKSNodeClassReady{name: name, timeout: timeout}
+// VerifyOpenShiftAzureNodeClassReady checks canonical readiness, which includes
+// version resolution and provider readiness. Provider GETs are diagnostics only.
+func VerifyOpenShiftAzureNodeClassReady(name string, timeout time.Duration) HostedClusterVerifier {
+	return verifyOpenShiftAzureNodeClassReady{name: name, timeout: timeout}
+}
+
+func nodeClassStatus(obj *unstructured.Unstructured) string {
+	status, err := json.Marshal(obj.Object["status"])
+	if err != nil {
+		return fmt.Sprintf("cannot encode status: %v", err)
+	}
+	return string(status)
+}
+
+func nodeClassDiagnostics(ctx context.Context, client dynamic.Interface, name string) string {
+	var parts []string
+	for _, gvr := range []schema.GroupVersionResource{openShiftAzureNodeClassGVR, aksNodeClassGVR} {
+		obj, err := client.Resource(gvr).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			parts = append(parts, fmt.Sprintf("%s %q: %v", gvr.Resource, name, err))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s %q: status=%s deletionTimestamp=%v finalizers=%v",
+			gvr.Resource, name, nodeClassStatus(obj), obj.GetDeletionTimestamp(), obj.GetFinalizers()))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func verifyNodeClassesDeleted(ctx context.Context, client dynamic.Interface, name string) error {
+	for _, gvr := range []schema.GroupVersionResource{openShiftAzureNodeClassGVR, aksNodeClassGVR} {
+		obj, err := client.Resource(gvr).Get(ctx, name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("failed to check deletion of %s %q: %w", gvr.Resource, name, err)
+		}
+		return fmt.Errorf("%s %q remains: deletionTimestamp=%v finalizers=%v", gvr.Resource, name, obj.GetDeletionTimestamp(), obj.GetFinalizers())
+	}
+	return nil
 }
 
 type verifyKarpenterNodeProvisioned struct {
@@ -303,7 +347,7 @@ func (v verifyKarpenterDeprovisioned) Verify(ctx context.Context, adminRESTConfi
 			if err != nil {
 				return fmt.Sprintf("failed to list nodes for diagnostics: %v", err)
 			}
-			return fmt.Sprintf("%s; %s", nodeTerminationSummaries(nodes.Items), nodeClaimSummaries(ctx, dynamicClient, v.nodePoolName))
+			return fmt.Sprintf("%s; %s; %s", nodeTerminationSummaries(nodes.Items), nodeClaimSummaries(ctx, dynamicClient, v.nodePoolName), nodeClassDiagnostics(ctx, dynamicClient, v.nodePoolName))
 		},
 		func(ctx context.Context) error {
 			nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{LabelSelector: selector})
@@ -329,7 +373,7 @@ func (v verifyKarpenterDeprovisioned) Verify(ctx context.Context, adminRESTConfi
 				return fmt.Errorf("%d NodeClaim(s) with label %s still present: %s",
 					len(claims.Items), selector, nodeClaimSummaries(ctx, dynamicClient, v.nodePoolName))
 			}
-			return nil
+			return verifyNodeClassesDeleted(ctx, dynamicClient, v.nodePoolName)
 		})
 }
 
@@ -358,8 +402,7 @@ func nodeTerminationSummaries(nodes []corev1.Node) string {
 
 // VerifyKarpenterDeprovisioned asserts that no Node or NodeClaim carrying
 // framework.KarpenterNodePoolLabel=nodePoolName remains, for use during
-// teardown to confirm Karpenter actually deprovisioned what it created
-// (avoiding a leaked Azure VM going unnoticed).
+// teardown. It also requires both same-name NodeClasses to return NotFound.
 func VerifyKarpenterDeprovisioned(nodePoolName string, timeout time.Duration) HostedClusterVerifier {
 	return verifyKarpenterDeprovisioned{nodePoolName: nodePoolName, timeout: timeout}
 }

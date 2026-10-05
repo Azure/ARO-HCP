@@ -36,7 +36,7 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-// Karpenter/AKSNodeClass resource identity. These GVRs deliberately are not
+// Karpenter and OpenShiftAzureNodeClass resource identities. These GVRs are not
 // imported from sigs.k8s.io/karpenter or the karpenter-provider-azure fork:
 // neither is (or should become) a dependency of this test module for a
 // handful of unstructured object creates, so the group/version/resource is
@@ -44,7 +44,12 @@ import (
 // karpenter-operator/karpenter-provider-azure actually serves.
 var (
 	karpenterNodePoolGVR = schema.GroupVersionResource{Group: "karpenter.sh", Version: "v1", Resource: "nodepools"}
-	aksNodeClassGVR      = schema.GroupVersionResource{Group: "karpenter.azure.com", Version: "v1beta1", Resource: "aksnodeclasses"}
+	// The guest blocks direct AKSNodeClass writes with the
+	// karpenter.aksnodeclass.hypershift.io ValidatingAdmissionPolicy. Tests
+	// must create the OpenShiftAzureNodeClass instead; the
+	// karpenter-operator reconciles it into the AKSNodeClass of the same
+	// name and mirrors its conditions back.
+	openShiftAzureNodeClassGVR = schema.GroupVersionResource{Group: "karpenter.hypershift.openshift.io", Version: "v1alpha1", Resource: "openshiftazurenodeclasses"}
 )
 
 // KarpenterNodePoolLabel is the label Karpenter sets on every Node and
@@ -59,31 +64,18 @@ const KarpenterNodePoolLabel = "karpenter.sh/nodepool"
 // importing k8s.io/cloud-provider for one string constant.
 const NodeUninitializedTaint = "node.cloudprovider.kubernetes.io/uninitialized"
 
-// KarpenterMarketplaceImage identifies the Azure Marketplace RHCOS image an
-// AKSNodeClass should provision. This must be kept in lockstep with whatever
-// OpenShift version the calling test creates the cluster with — there is no
-// way to derive one from the other at the API level (the AKSNodeClass has no
-// notion of "match the cluster's version"), so callers own that consistency.
-type KarpenterMarketplaceImage struct {
-	Publisher string
-	Offer     string
-	SKU       string
-	Version   string
-}
-
-// ApplyAKSNodeClassAndNodePool creates the (cluster-scoped) AKSNodeClass and
-// NodePool this test needs to prove Karpenter provisions a real node. Both
-// resources are named `name`; the NodePool's pod template carries the label
-// `autonode: "true"`. It must not also set KarpenterNodePoolLabel: Karpenter
-// stamps that label onto every Node/NodeClaim it provisions itself, and
-// rejects NodePools that try to set it in spec.template.metadata.labels as
-// "restricted". Nodes provisioned by this NodePool still end up with
-// KarpenterNodePoolLabel=name automatically. instanceTypes must be non-empty.
-func ApplyAKSNodeClassAndNodePool(ctx context.Context, adminRESTConfig *rest.Config, name string, image KarpenterMarketplaceImage, instanceTypes []string) error {
+// ValidateKarpenterInstanceTypes checks requirements before any resource creation.
+func ValidateKarpenterInstanceTypes(instanceTypes []string) error {
 	if len(instanceTypes) == 0 {
 		return fmt.Errorf("instanceTypes must not be empty")
 	}
+	return nil
+}
 
+// ApplyOpenShiftAzureNodeClass creates a test-owned, cluster-scoped NodeClass.
+// The operator derives the image and user data from the cluster ignition pipeline.
+// Callers must wait for Ready before creating the associated NodePool.
+func ApplyOpenShiftAzureNodeClass(ctx context.Context, adminRESTConfig *rest.Config, name string) error {
 	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -91,28 +83,35 @@ func ApplyAKSNodeClassAndNodePool(ctx context.Context, adminRESTConfig *rest.Con
 
 	nodeClass := &unstructured.Unstructured{
 		Object: map[string]any{
-			"apiVersion": "karpenter.azure.com/v1beta1",
-			"kind":       "AKSNodeClass",
+			"apiVersion": "karpenter.hypershift.openshift.io/v1alpha1",
+			"kind":       "OpenShiftAzureNodeClass",
 			"metadata": map[string]any{
 				"name": name,
 			},
 			"spec": map[string]any{
-				"marketplaceImage": map[string]any{
-					"publisher": image.Publisher,
-					"offer":     image.Offer,
-					"sku":       image.SKU,
-					"version":   image.Version,
-				},
 				// vnetSubnetID intentionally omitted: Karpenter falls back to
 				// the HostedCluster's own subnet.
-				"osDiskSizeGB": int64(128),
+				"osDiskSizeGiB": int64(128),
 			},
 		},
 	}
-	if _, err := dynamicClient.Resource(aksNodeClassGVR).Create(ctx, nodeClass, metav1.CreateOptions{}); err != nil {
-		return fmt.Errorf("failed to create AKSNodeClass %q: %w", name, err)
+	if _, err := dynamicClient.Resource(openShiftAzureNodeClassGVR).Create(ctx, nodeClass, metav1.CreateOptions{}); err != nil {
+		return fmt.Errorf("failed to create OpenShiftAzureNodeClass %q: %w", name, err)
 	}
+	return nil
+}
 
+// ApplyKarpenterNodePool creates a NodePool that references the same-name
+// operator-owned AKSNodeClass. Instance types must not be empty. Karpenter adds
+// KarpenterNodePoolLabel to Nodes and NodeClaims; the template must not set it.
+func ApplyKarpenterNodePool(ctx context.Context, adminRESTConfig *rest.Config, name string, instanceTypes []string) error {
+	if err := ValidateKarpenterInstanceTypes(instanceTypes); err != nil {
+		return err
+	}
+	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client: %w", err)
+	}
 	instanceTypeValues := make([]any, 0, len(instanceTypes))
 	for _, it := range instanceTypes {
 		instanceTypeValues = append(instanceTypeValues, it)
@@ -156,11 +155,13 @@ func ApplyAKSNodeClassAndNodePool(ctx context.Context, adminRESTConfig *rest.Con
 	return nil
 }
 
-// DeleteAKSNodeClassAndNodePool deletes the NodePool then the AKSNodeClass
-// created by ApplyAKSNodeClassAndNodePool. Deleting the NodePool first lets
-// Karpenter deprovision any NodeClaims/Nodes it still owns before the
-// AKSNodeClass they reference disappears. Not-found is treated as success.
-func DeleteAKSNodeClassAndNodePool(ctx context.Context, adminRESTConfig *rest.Config, name string) error {
+// DeleteOpenShiftAzureNodeClassAndNodePool deletes the NodePool then the
+// OpenShiftAzureNodeClass. The operator deletes the same-name AKSNodeClass and
+// removes the OpenShiftAzureNodeClass finalizer after the provider object is gone.
+// Direct AKSNodeClass deletion is blocked by admission. Accepted DELETE requests
+// do not confirm node or NodeClass cleanup; callers must verify their absence.
+// Not-found is treated as success.
+func DeleteOpenShiftAzureNodeClassAndNodePool(ctx context.Context, adminRESTConfig *rest.Config, name string) error {
 	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -169,8 +170,8 @@ func DeleteAKSNodeClassAndNodePool(ctx context.Context, adminRESTConfig *rest.Co
 	if err := dynamicClient.Resource(karpenterNodePoolGVR).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete NodePool %q: %w", name, err)
 	}
-	if err := dynamicClient.Resource(aksNodeClassGVR).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("failed to delete AKSNodeClass %q: %w", name, err)
+	if err := dynamicClient.Resource(openShiftAzureNodeClassGVR).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete OpenShiftAzureNodeClass %q: %w", name, err)
 	}
 	return nil
 }
