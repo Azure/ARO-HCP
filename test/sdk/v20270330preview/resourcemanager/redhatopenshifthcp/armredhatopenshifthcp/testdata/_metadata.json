@@ -1,0 +1,6 @@
+{
+  "apiVersions": {
+    "Microsoft.RedHatOpenShift": "2027-03-30-preview"
+  },
+  "emitterVersion": "0.14.2"
+}
