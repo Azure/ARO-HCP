@@ -321,7 +321,7 @@ func (c *keyRotationBackupSyncer) syncDeletion(
 			continue
 		}
 		logger.Info("purging on-demand backup ApplyDesire for deleted cluster", "desire", applyDesire.ResourceID.Name)
-		if err := purgeApplyDesire(ctx, *applyDesire, applyDesireCRUD); err != nil {
+		if err := kubeapplierhelpers.PurgeApplyDesire(ctx, applyDesire.ResourceID.Name, applyDesireCRUD); err != nil {
 			return err
 		}
 	}
@@ -416,7 +416,7 @@ func (c *keyRotationBackupSyncer) purgeCompletedOnDemandApplyDesires(
 
 		logger.Info("purging on-demand backup ApplyDesire", "desire", applyDesire.ResourceID.Name, "reason", reason)
 		// Purge the Cosmos document directly, leaving the Velero Backup to expire at its TTL.
-		if err := purgeApplyDesire(ctx, *applyDesire, applyDesireCRUD); err != nil {
+		if err := kubeapplierhelpers.PurgeApplyDesire(ctx, applyDesire.ResourceID.Name, applyDesireCRUD); err != nil {
 			return false, err
 		}
 		return true, nil
