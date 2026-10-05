@@ -84,4 +84,7 @@ spec:
                 values:
                 - {{ .Values.schedulingRole | quote }}
       tolerations:
-      {{- toYaml .Values.tolerations | nindent 6 }}
+      - key: {{ .Values.tolerationKey | quote }}
+        operator: {{ .Values.tolerationOperator | quote }}
+        value: {{ .Values.tolerationValue | quote }}
+        effect: {{ .Values.tolerationEffect | quote }}
