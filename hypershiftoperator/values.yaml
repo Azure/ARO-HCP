@@ -11,5 +11,22 @@ operatorEnvVars:
   sharedIngressIPTag: "{{ .hypershift.sharedIngressIPTag }}"
   sharedIngressImage: "{{ .acr.ocp.name }}.{{ .acrDNSSuffix }}/{{ .hypershift.sharedIngressImage.repository }}@{{ .hypershift.sharedIngressImage.digest }}"
 limitClusterSizes: {{ .hypershift.limitClusterSizes }}
+additionalMinimalResourceRequests:{{ if not .hypershift.additionalMinimalResourceRequests }} {}{{ end }}
+{{- range $name, $request := .hypershift.additionalMinimalResourceRequests }}
+  {{ $name }}:
+    deploymentName: {{ printf "%q" $request.deploymentName }}
+    containerName: {{ printf "%q" $request.containerName }}
+    {{- if index $request "cpu" }}
+    cpu: {{ printf "%q" $request.cpu }}
+    {{- end }}
+    {{- if index $request "memory" }}
+    memory: {{ printf "%q" $request.memory }}
+    {{- end }}
+{{- end }}
+operatorResources:
+  requests:
+    cpu: "{{ .hypershift.operatorResources.requests.cpu }}"
+    memory: "{{ .hypershift.operatorResources.requests.memory }}"
+installJobImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
 metricsSet:
   performanceMetrics: {{ .hypershift.metricsSet.performanceMetrics }}

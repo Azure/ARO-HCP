@@ -1,3 +1,18 @@
 imageRegistry: "{{ .acr.svc.name }}.azurecr.io"
 imageRootRepository: acm-d-cache
 finalizeMceJobImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
+resources:
+  backplaneOperator:
+    requests:
+      cpu: "{{ .acm.resources.backplaneOperator.requests.cpu }}"
+      memory: "{{ .acm.resources.backplaneOperator.requests.memory }}"
+    limits:
+      cpu: "{{ .acm.resources.backplaneOperator.limits.cpu }}"
+      memory: "{{ .acm.resources.backplaneOperator.limits.memory }}"
+  finalize:
+    requests:
+      cpu: "{{ .acm.resources.finalize.requests.cpu }}"
+      memory: "{{ .acm.resources.finalize.requests.memory }}"
+    limits:
+      cpu: "{{ .acm.resources.finalize.limits.cpu }}"
+      memory: "{{ .acm.resources.finalize.limits.memory }}"

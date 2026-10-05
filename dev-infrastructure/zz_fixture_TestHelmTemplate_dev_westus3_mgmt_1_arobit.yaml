@@ -963,7 +963,7 @@ spec:
               drop: ['ALL']
           resources:
             requests:
-              cpu: 450m
+              cpu: 590m
               memory: 472Mi
             limits:
               memory: 1248Mi

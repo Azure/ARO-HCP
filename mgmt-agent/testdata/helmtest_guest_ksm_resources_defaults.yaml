@@ -1,0 +1,4 @@
+values: ../values.yaml
+name: mgmt-agent-guest-ksm-resources-defaults
+namespace: mgmt-agent
+testData: {}

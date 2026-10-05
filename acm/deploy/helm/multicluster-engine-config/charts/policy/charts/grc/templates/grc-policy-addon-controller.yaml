@@ -84,9 +84,7 @@ spec:
         imagePullPolicy: IfNotPresent
         name: manager
         resources:
-          requests:
-            cpu: 25m
-            memory: 64Mi
+          {{- include "acm.resources" .Values.resources.policyAddonController | nindent 10 }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

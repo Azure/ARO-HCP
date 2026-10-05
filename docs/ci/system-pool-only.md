@@ -11,8 +11,8 @@ In this mode the service-cluster Bicep deployment:
   Arobit can use the same nodes as AKS addons.
 - Does not deploy worker or infra pools. Their configuration remains available
   for deployments with the mode disabled.
-- Uses three `Standard_D4ds_v6` nodes initially, with autoscaling bounds of three
-  to five nodes. The minimum is 12 vCPUs instead of the previous 18. One pool
+- Uses two `Standard_D4ds_v6` nodes at minimum, with autoscaling bounds of two
+  to five nodes. The minimum is 8 vCPUs instead of the previous 18. One pool
   spanning the configured zones does not guarantee one node per zone.
 
 Service PrometheusAgent and Prometheus Operator affinity selects `system` in

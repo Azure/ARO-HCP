@@ -10,6 +10,8 @@ spec:
       component: capacity
     rules:
     # Management cluster HCP capacity monitoring
+    # kube_namespace_labels is allowlisted to services with compact sizing inventory;
+    # other HCP namespace KSM families retain their default HCP route.
     # Owner: Service Lifecycle team (hcp-sl)
     # Both alerts set to 'info' (Sev 4) as requested
     - alert: MgmtClusterHCPCapacityWarning

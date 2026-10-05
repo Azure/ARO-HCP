@@ -45,5 +45,8 @@ spec:
           fi
         image: "{{ .Values.unannotateJobImage }}"
         name: delete-sc
+        {{- with include "storage-class-hooks.resources" .Values.resources }}
+        {{- . | nindent 8 }}
+        {{- end }}
       restartPolicy: OnFailure
       serviceAccountName: annotator

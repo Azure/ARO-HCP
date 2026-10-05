@@ -53,12 +53,9 @@ spec:
         image: alpine
         imagePullPolicy: IfNotPresent
         name: apply-kubelet-parameters
-        resources:
-          requests:
-            cpu: 10m
-            memory: 32Mi
-          limits:
-            memory: 64Mi
+        {{- with include "kubelet-fixes.resources" .Values.initResources }}
+        {{- . | nindent 8 }}
+        {{- end }}
         securityContext:
           privileged: true
         terminationMessagePath: /dev/termination-log
@@ -94,9 +91,9 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 10
           failureThreshold: 1
-        resources:
-          requests:
-            cpu: 10m
+        {{- with include "kubelet-fixes.resources" .Values.resources }}
+        {{- . | nindent 8 }}
+        {{- end }}
         securityContext:
           privileged: true
       dnsPolicy: ClusterFirst

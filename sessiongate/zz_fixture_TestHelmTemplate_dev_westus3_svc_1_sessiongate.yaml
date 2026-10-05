@@ -521,8 +521,8 @@ spec:
           periodSeconds: 10
         resources:
           requests:
-            cpu: 250m
-            memory: 512Mi
+            cpu: 10m
+            memory: 30Mi
         volumeMounts: []
       volumes: []
       serviceAccountName: sessiongate

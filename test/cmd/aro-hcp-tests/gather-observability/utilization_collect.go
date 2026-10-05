@@ -55,6 +55,7 @@ type utilizationHistoryNode struct {
 	total, available                *float64
 	ksmMemory                       *float64
 	swiftCapacity, swiftAllocatable *float64
+	podCapacity, podAllocatable     *float64
 }
 type utilizationMinute struct {
 	nodes    map[utilizationNodeKey]*utilizationHistoryNode
@@ -235,6 +236,14 @@ func utilizationBuildHistory(results []utilizationQueryResult, start, end time.T
 							node.Pool = label
 						}
 					case "kube_node_status_capacity", "kube_node_status_allocatable":
+						if m["resource"] == "pods" {
+							if m["__name__"] == "kube_node_status_capacity" {
+								utilizationMax(&node.podCapacity, v)
+							} else {
+								utilizationMax(&node.podAllocatable, v)
+							}
+							continue
+						}
 						if m["resource"] == "aro_openshift_io_swift_nic" {
 							if m["__name__"] == "kube_node_status_capacity" {
 								utilizationMax(&node.swiftCapacity, v)

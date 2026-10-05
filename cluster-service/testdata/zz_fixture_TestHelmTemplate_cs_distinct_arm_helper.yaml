@@ -8130,7 +8130,7 @@ spec:
           timeoutSeconds: 10
         resources:
           requests:
-            memory: '150Mi'
+            memory: '170Mi'
             cpu: '630m'
 ---
 # Source: clusters-service/templates/postgres-breakglass.deployment.yaml

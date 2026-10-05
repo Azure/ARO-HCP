@@ -3,6 +3,42 @@ global:
   imageOverrides:
     governance_policy_propagator: "governance-policy-propagator-acm-216@sha256:deb737b19932d520553c902ee5e0738ebeaad4592e8aa9649c41fec6fc00b62e"
 finalizeMceJobImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
+resources:
+  finalize:
+    requests:
+      cpu: "{{ .acm.resources.finalize.requests.cpu }}"
+      memory: "{{ .acm.resources.finalize.requests.memory }}"
+    limits:
+      cpu: "{{ .acm.resources.finalize.limits.cpu }}"
+      memory: "{{ .acm.resources.finalize.limits.memory }}"
+  configPolicyController:
+    requests:
+      cpu: "{{ .acm.resources.configPolicyController.requests.cpu }}"
+      memory: "{{ .acm.resources.configPolicyController.requests.memory }}"
+    limits:
+      cpu: "{{ .acm.resources.configPolicyController.limits.cpu }}"
+      memory: "{{ .acm.resources.configPolicyController.limits.memory }}"
+  governancePolicyFramework:
+    requests:
+      cpu: "{{ .acm.resources.governancePolicyFramework.requests.cpu }}"
+      memory: "{{ .acm.resources.governancePolicyFramework.requests.memory }}"
+    limits:
+      cpu: "{{ .acm.resources.governancePolicyFramework.limits.cpu }}"
+      memory: "{{ .acm.resources.governancePolicyFramework.limits.memory }}"
+  workManager:
+    requests:
+      cpu: "{{ .acm.resources.workManager.requests.cpu }}"
+      memory: "{{ .acm.resources.workManager.requests.memory }}"
+    limits:
+      cpu: "{{ .acm.resources.workManager.limits.cpu }}"
+      memory: "{{ .acm.resources.workManager.limits.memory }}"
+  hypershiftAddonAgent:
+    requests:
+      cpu: "{{ .acm.resources.hypershiftAddonAgent.requests.cpu }}"
+      memory: "{{ .acm.resources.hypershiftAddonAgent.requests.memory }}"
+    limits:
+      cpu: "{{ .acm.resources.hypershiftAddonAgent.limits.cpu }}"
+      memory: "{{ .acm.resources.hypershiftAddonAgent.limits.memory }}"
 localCluster:
   kubeApiUrl: https://kubernetes.default.svc
   addonConfig:
@@ -12,8 +48,31 @@ localCluster:
     searchCollectorEnabled: false
 policy:
   grc:
+    resources:
+      policyAddonController:
+        requests:
+          cpu: "{{ .acm.resources.policyAddonController.requests.cpu }}"
+          memory: "{{ .acm.resources.policyAddonController.requests.memory }}"
+        limits:
+          cpu: "{{ .acm.resources.policyAddonController.limits.cpu }}"
+          memory: "{{ .acm.resources.policyAddonController.limits.memory }}"
+      policyPropagator:
+        requests:
+          cpu: "{{ .acm.resources.policyPropagator.requests.cpu }}"
+          memory: "{{ .acm.resources.policyPropagator.requests.memory }}"
+        limits:
+          cpu: "{{ .acm.resources.policyPropagator.limits.cpu }}"
+          memory: "{{ .acm.resources.policyPropagator.limits.memory }}"
     hubconfig:
       replicaCount: 2
   cluster-lifecycle:
+    resources:
+      klusterletAddonController:
+        requests:
+          cpu: "{{ .acm.resources.klusterletAddonController.requests.cpu }}"
+          memory: "{{ .acm.resources.klusterletAddonController.requests.memory }}"
+        limits:
+          cpu: "{{ .acm.resources.klusterletAddonController.limits.cpu }}"
+          memory: "{{ .acm.resources.klusterletAddonController.limits.memory }}"
     hubconfig:
       replicaCount: 2

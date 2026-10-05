@@ -164,6 +164,14 @@ defaults:
     validationActions: Audit
   # ACR Pull
   acrPull:
+    k8s:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 20Mi
+        limits:
+          cpu: 100m
+          memory: 1Gi
     image:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
@@ -181,12 +189,6 @@ defaults:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
         digest: sha256:70dea5e158860b7b59a9e9aae0e79fc5ab51f2c356fcc14aef38ce1ff6d7d577 # v5.1.3 (2026-10-01 10:51)
-      resources:
-        requests:
-          cpu: 250m
-          memory: 256Mi
-        limits:
-          memory: 1248Mi
     kusto:
       enabled: false
       buffering: true
@@ -235,6 +237,12 @@ defaults:
   # Mgmt Agent Controller
   mgmtAgent:
     managedIdentityName: mgmt-agent
+    guestKSMResources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
     # Node-health detection controller. On by default. It only labels and
     # annotates a node it believes is wedged and emits a metric; it never
     # cordons, drains, deletes, or reboots anything. Set this to false per
@@ -270,6 +278,7 @@ defaults:
           cpu: 20m
           memory: 64Mi
         limits:
+          cpu: NONE
           memory: 256Mi
   # Kube Applier Controller
   kubeApplier:
@@ -304,11 +313,19 @@ defaults:
     k8s:
       namespace: secret-sync-controller
       serviceAccountName: secrets-store-sync-controller-manager
+      controllerResources:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
       resources:
         requests:
           cpu: 50m
           memory: 100Mi
         limits:
+          cpu: NONE
           memory: unlimited
   tenantId: ""
   ev2:
@@ -418,6 +435,11 @@ defaults:
     enabled: true
   # Hypershift
   hypershift:
+    operatorResources:
+      requests:
+        cpu: 10m
+        memory: 150Mi
+    additionalMinimalResourceRequests: {}
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
@@ -553,19 +575,73 @@ defaults:
   velero:
     enableInstantAccess: true
     server:
+      resources:
+        requests:
+          cpu: 1000m
+          memory: 1024Mi
+        limits:
+          cpu: NONE
+          memory: NONE
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
       digest: sha256:8d1d01d0f429208b83725ab55beb358aee024f9c1b1511ea940fee220b0bb7fe # 1.6.2 (2026-10-01 18:37)
     azurePlugin:
+      resources:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
       digest: sha256:9d772e6ec41a99a9807e8a579010b9c2c0824d40d418e7dd7643782f09fab8fe # 1.6.2 (2026-10-01 22:37)
     hypershiftPlugin:
+      resources:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
       digest: sha256:894c2b85eb6db3381e03cd9cc5b84dc518ba043e5c0f331a5eeaebfc3f806ffb # 1.6.2 (2026-10-01 22:37)
+    nodeAgent:
+      resources:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
+    installer:
+      generate:
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
+      apply:
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
   # SVC cluster specifics
   svc:
+    arobit:
+      forwarder:
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            memory: 1248Mi
     subscription:
       usePlannedQuota: true
       key: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
@@ -619,6 +695,13 @@ defaults:
       gateway:
         ipAddressName: "aro-hcp-ops-ingress"
         ipAddressTags: ""
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
     aks:
       name: "{{ .ctx.environment }}-{{ .ctx.region }}-svc-1" # [env-unique]
       systemPoolOnly: false
@@ -668,7 +751,21 @@ defaults:
     prometheus:
       namespace: prometheus
       namespaceNetworkPolicyGroup: ""
+      opstoolResources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: NONE
+          memory: 2Gi
       prometheusOperator:
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
@@ -689,11 +786,25 @@ defaults:
         replicas: 2
         shards: 2
       prometheusConfigReloader:
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
           sha: 5fc5d09d0245cc1e7c6432ca9b0ebcc652c047b550d0289ea45725c14343585d # v0.94.1 (2026-09-24 10:50)
       kubeStateMetrics:
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
@@ -712,6 +823,14 @@ defaults:
           sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8 # v0.42.4 (2026-07-30 13:37)
   # MGMT cluster specifics
   mgmt:
+    arobit:
+      forwarder:
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            memory: 1248Mi
     stamps:
       count: 1
     defaultStorageClassSkuName: "PremiumV2_LRS"
@@ -751,6 +870,29 @@ defaults:
           poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     applyKubeletFixes: true
+    kubeletFixes:
+      resources:
+        requests:
+          cpu: 10m
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
+      initResources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: NONE
+          memory: 64Mi
+    storageClassHooks:
+      resources:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
     nsp:
       name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     aks:
@@ -802,6 +944,13 @@ defaults:
       namespace: prometheus
       namespaceNetworkPolicyGroup: monitoring
       prometheusOperator:
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
@@ -821,11 +970,25 @@ defaults:
         replicas: 2
         shards: 2
       prometheusConfigReloader:
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
           sha: 5fc5d09d0245cc1e7c6432ca9b0ebcc652c047b550d0289ea45725c14343585d # v0.94.1 (2026-09-24 10:50)
       kubeStateMetrics:
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
@@ -894,6 +1057,14 @@ defaults:
       zones: ""
   # Admin API
   adminApi:
+    certificateRefresher:
+      resources:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
     audit:
       connectSocket: false
     image:
@@ -917,6 +1088,14 @@ defaults:
       contentType: x-pkcs12
   # Session Gate
   sessiongate:
+    certificateRefresher:
+      resources:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpsessiongate
@@ -946,6 +1125,14 @@ defaults:
       serviceAccountName: hcp-recovery
   # Frontend
   frontend:
+    certificateRefresher:
+      resources:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
     audit:
       connectSocket: false
     image:
@@ -1065,6 +1252,20 @@ defaults:
   # Maestro
   maestro:
     server:
+      migrationResources:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
+      waitForDBResources:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
       mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
       loglevel: 2
       managedIdentityName: maestro-server
@@ -1079,6 +1280,22 @@ defaults:
           limits:
             memory: unlimited
     agent:
+      metricsProxy:
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
+      init:
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
       consumerName: "hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
       loglevel: 2
       managedIdentityName: maestro-consumer
@@ -1086,6 +1303,13 @@ defaults:
         replicas: 1
         namespace: maestro
         serviceAccountName: maestro
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
       sidecar:
         image:
           registry: mcr.microsoft.com
@@ -1112,6 +1336,13 @@ defaults:
       containerizedDb:
         image: ""
         pvcCapacity: ""
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
     restrictIstioIngress: true
     image:
       registry: quay.io
@@ -1119,6 +1350,70 @@ defaults:
       digest: sha256:9af415e086251e94f471e03844ce768bed6493653b6cabdaff68acf99573679d # 548e3487a36df54031a355019bc3a224e930273d (2026-09-22 14:09)
   # ACM
   acm:
+    resources:
+      backplaneOperator:
+        requests:
+          cpu: 100m
+          memory: 20Mi
+        limits:
+          cpu: 100m
+          memory: 2Gi
+      policyAddonController:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          cpu: NONE
+          memory: NONE
+      policyPropagator:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          cpu: NONE
+          memory: NONE
+      klusterletAddonController:
+        requests:
+          cpu: 50m
+          memory: 96Mi
+        limits:
+          cpu: NONE
+          memory: NONE
+      finalize:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
+      configPolicyController:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
+      governancePolicyFramework:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
+      workManager:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
+      hypershiftAddonAgent:
+        requests:
+          cpu: NONE
+          memory: NONE
+        limits:
+          cpu: NONE
+          memory: NONE
     operator:
       bundle:
         registry: quay.io
@@ -1131,6 +1426,13 @@ defaults:
         digest: sha256:d88f1b5db1d00985843e95b2f000f043b5b42ef5784739f6b03c21628faccaa8 # v2.17.4-513 (2026-10-01 20:07)
   # Cluster Service
   clustersService:
+    initResources:
+      requests:
+        cpu: NONE
+        memory: NONE
+      limits:
+        cpu: NONE
+        memory: NONE
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
@@ -1168,6 +1470,13 @@ defaults:
       containerizedDb:
         image: ""
         pvcCapacity: ""
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
     managedIdentityName: clusters-service
     k8s:
       replicas: 3
@@ -1305,11 +1614,6 @@ clouds:
       tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
       automationDryRun: false
       arobit:
-        forwarder:
-          resources:
-            requests:
-              cpu: 450m
-              memory: 472Mi
         mdsd:
           enabled: false
         kusto:
@@ -1373,6 +1677,11 @@ clouds:
         server:
           certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           certCN: 'server.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
+          k8s:
+            resources:
+              requests:
+                cpu: 140m
+                memory: 100Mi
         agent:
           certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
@@ -1384,6 +1693,7 @@ clouds:
           resources:
             requests:
               cpu: 630m
+              memory: 170Mi
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
@@ -1393,16 +1703,93 @@ clouds:
       # Hypershift Operator
       hypershift:
         limitClusterSizes: true
+        operatorResources:
+          requests:
+            cpu: 1690m
+            memory: 640Mi
+        # Selected HCP request increases: docs/ci/hcp-request-increases.md.
+        additionalMinimalResourceRequests:
+          azure-cloud-controller-manager-cloud-controller-manager:
+            deploymentName: "azure-cloud-controller-manager"
+            containerName: "cloud-controller-manager"
+            cpu: 40m
+            memory: 140Mi
+          konnectivity-agent-konnectivity-agent:
+            deploymentName: "konnectivity-agent"
+            containerName: "konnectivity-agent"
+            cpu: 20m
+            memory: 90Mi
+          kube-scheduler-kube-scheduler:
+            deploymentName: "kube-scheduler"
+            containerName: "kube-scheduler"
+            cpu: 40m
+          router-router:
+            deploymentName: "router"
+            containerName: "router"
+            cpu: 10m
+          etcd-etcd-metrics:
+            deploymentName: "etcd"
+            containerName: "etcd-metrics"
+            cpu: 50m
+          control-plane-operator-control-plane-operator:
+            deploymentName: "control-plane-operator"
+            containerName: "control-plane-operator"
+            cpu: 560m
+            memory: 230Mi
+          ignition-server-ignition-server:
+            deploymentName: "ignition-server"
+            containerName: "ignition-server"
+            cpu: 160m
+            memory: 270Mi
+          packageserver-packageserver:
+            deploymentName: "packageserver"
+            containerName: "packageserver"
+            cpu: 90m
+            memory: 590Mi
+          catalog-operator-catalog-operator:
+            deploymentName: "catalog-operator"
+            containerName: "catalog-operator"
+            cpu: 20m
+            memory: 140Mi
+          certified-operators-catalog-registry:
+            deploymentName: "certified-operators-catalog"
+            containerName: "registry"
+            cpu: 130m
+            memory: 1110Mi
+          community-operators-catalog-registry:
+            deploymentName: "community-operators-catalog"
+            containerName: "registry"
+            cpu: 200m
+            memory: 850Mi
+          redhat-operators-catalog-registry:
+            deploymentName: "redhat-operators-catalog"
+            containerName: "registry"
+            cpu: 100m
+            memory: 550Mi
+          redhat-marketplace-catalog-registry:
+            deploymentName: "redhat-marketplace-catalog"
+            containerName: "registry"
+            cpu: 130m
       # Admin API
       adminApi:
         cert:
           san: 'admin.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 30Mi
       # Sessiongate
       sessiongate:
         cert:
           san: 'sessiongate.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 30Mi
       # Frontend
       frontend:
         cert:
@@ -1410,6 +1797,11 @@ clouds:
           issuer: Self
         clusterScopedIdentitiesConfig:
           roleSetName: dev
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 30Mi
       # Backend
       backend:
         k8s:
@@ -1433,6 +1825,7 @@ clouds:
           resources:
             requests:
               cpu: 350m
+              memory: 480Mi
       # Image Sync
       imageSync:
         ocMirror:
@@ -1451,6 +1844,12 @@ clouds:
         certificate:
           manage: false
       svc:
+        arobit:
+          forwarder:
+            resources:
+              requests:
+                cpu: 350m
+                memory: 472Mi
         subscription:
           key: ARO Hosted Control Planes (EA Subscription 1)
           certificateDomains:
@@ -1467,6 +1866,12 @@ clouds:
           prometheusSpec:
             shards: 1
       mgmt:
+        arobit:
+          forwarder:
+            resources:
+              requests:
+                cpu: 590m
+                memory: 472Mi
         stampIdentifier: '{{ .ctx.stamp }}'
         subscription:
           key: ARO Hosted Control Planes (EA Subscription 1)
@@ -1552,6 +1957,59 @@ clouds:
           certificate:
             issuer: Self
             san: genevaAction.hcp-global.osadev.cloud
+      customExporter:
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 30Mi
+      fleet:
+        k8s:
+          resources:
+            requests:
+              cpu: 60m
+              memory: 60Mi
+      kubeEvents:
+        k8s:
+          resources:
+            requests:
+              cpu: 150m
+              memory: 70Mi
+      acm:
+        resources:
+          backplaneOperator:
+            requests:
+              cpu: 20m
+              memory: 180Mi
+          klusterletAddonController:
+            requests:
+              cpu: 20m
+              memory: 30Mi
+          policyAddonController:
+            requests:
+              cpu: 70m
+          policyPropagator:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+      acrPull:
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+      secretSyncController:
+        k8s:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+      velero:
+        server:
+          resources:
+            requests:
+              cpu: 30m
+              memory: 190Mi
     environments:
       dev:
         # this is the integrated DEV environment
@@ -1869,7 +2327,7 @@ clouds:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               systemPoolOnly: true
               systemAgentPool:
-                minCount: 3
+                minCount: 2
                 maxCount: 5
                 vmSize: Standard_D4ds_v6
               userAgentPool:
@@ -1977,7 +2435,7 @@ clouds:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               systemPoolOnly: true
               systemAgentPool:
-                minCount: 3
+                minCount: 2
                 maxCount: 5
                 vmSize: Standard_D4ds_v6
               userAgentPool:

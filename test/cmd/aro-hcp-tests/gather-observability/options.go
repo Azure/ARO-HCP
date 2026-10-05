@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -47,10 +48,11 @@ import (
 )
 
 func DefaultOptions() *RawOptions {
-	return &RawOptions{}
+	return &RawOptions{ChangeThreshold: 0.1}
 }
 
 func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
+	cmd.Flags().Float64Var(&opts.ChangeThreshold, "change-threshold", opts.ChangeThreshold, "Right-sizing relative change deadband [0,1]; default 0.1, observed alert risk bypasses it.")
 	cmd.Flags().StringVar(&opts.TimingInputDir, "timing-input", opts.TimingInputDir, "Path to the directory holding timing outputs from an end-to-end test run.")
 	cmd.Flags().StringVar(&opts.OutputDir, "output", opts.OutputDir, "Path to the directory where artifacts will be written.")
 	cmd.Flags().StringVar(&opts.RenderedConfig, "rendered-config", opts.RenderedConfig, "Path to the rendered configuration YAML file.")
@@ -62,6 +64,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 }
 
 type RawOptions struct {
+	ChangeThreshold   float64
 	AMWOnly           bool
 	TimingInputDir    string
 	OutputDir         string
@@ -81,6 +84,7 @@ type ValidatedOptions struct {
 }
 
 type completedOptions struct {
+	ChangeThreshold   float64
 	AMWOnly           bool
 	OutputDir         string
 	Workspaces        map[string]azcorearm.ResourceID
@@ -106,6 +110,9 @@ type Options struct {
 }
 
 func (o *RawOptions) Validate() (*ValidatedOptions, error) {
+	if math.IsNaN(o.ChangeThreshold) || math.IsInf(o.ChangeThreshold, 0) || o.ChangeThreshold < 0 || o.ChangeThreshold > 1 {
+		return nil, fmt.Errorf("--change-threshold must be a finite fraction between 0 and 1")
+	}
 	for _, item := range []struct {
 		flag  string
 		name  string
@@ -243,6 +250,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	logger.Info("loaded known issues config", "patterns", len(knownIssues))
 
 	return &Options{completedOptions: &completedOptions{
+		ChangeThreshold:    o.ChangeThreshold,
 		AMWOnly:            o.AMWOnly,
 		OutputDir:          o.OutputDir,
 		Workspaces:         workspaces,
@@ -310,6 +318,8 @@ type gatherDependencies struct {
 	queryRange            func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*promutil.Response, error)
 	queryMetrics          func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]promutil.Result, string, error)
 	collectUtilization    func(context.Context, map[string]*workspaceData) utilizationReport
+	collectReplicaPeaks   func(context.Context, map[string]*workspaceData) replicaPeakReport
+	renderRightSizing     func(rightSizingReport) ([]byte, error)
 	collectAMW            func(context.Context) amwReport
 	renderAMW             func(amwReport) ([]byte, error)
 	renderAlerts          func(any) ([]byte, error)
@@ -327,7 +337,9 @@ func (o Options) dependencies() gatherDependencies {
 		fetchAlertRules: fetchAlertRules, lookupEndpoint: promutil.LookupPrometheusEndpoint,
 		queryRange: promutil.QueryRange, queryMetrics: queryAzureMonitorMetrics,
 		collectUtilization: o.collectUtilization, renderUtilization: renderUtilizationHTML,
-		collectAMW: o.collectAMW, renderAMW: renderAMWHTML,
+		collectReplicaPeaks: o.collectReplicaPeaks,
+		renderRightSizing:   renderRightSizingHTML,
+		collectAMW:          o.collectAMW, renderAMW: renderAMWHTML,
 		renderResourceHistory: renderResourceHistoryHTML,
 		renderAlerts:          renderAlertsHTML, renderPanel: renderPanelHTML,
 		renderPage: renderObservabilityPage, writeFile: os.WriteFile, writeJUnit: junit.Write,
@@ -523,6 +535,15 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 	}
 	tabs = append(tabs, amwTab)
 
+	// Persist compact per-replica evidence before the more expensive chart and
+	// resource-history queries. Collection warnings are informational, not a gate.
+	peaks := deps.collectReplicaPeaks(ctx, workspaces)
+	writeJSON("replica-peaks.json", peaks)
+	sizing := buildRightSizingReport(peaks, o.ChangeThreshold)
+	writeJSON("right-sizing.json", sizing)
+	sizingTab := len(tabs)
+	tabs = append(tabs, observabilityTab{Title: "Right-Sizing"})
+
 	// Execute panel queries (Prometheus and Azure Monitor) and render timeseries charts
 	if o.Queries != nil {
 		panelTabs, err := o.runQueries(ctx, workspaces, deps)
@@ -546,6 +567,19 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 		record(fmt.Errorf("failed to render resource history HTML: %w", err))
 	}
 	tabs = append(tabs, observabilityTab{Title: "Resource History", HTML: string(incompleteHTML(historyHTML, err))})
+	// Add a concurrent baseline only after utilization collection. The earlier
+	// JSON write preserves recommendations if later collection is interrupted.
+	sizing.Savings = buildRightSizingSavings(sizing, report)
+	if sizing.Savings != nil {
+		writeJSON("right-sizing.json", sizing)
+	}
+	sizingHTML, sizingErr := deps.renderRightSizing(sizing)
+	if sizingErr != nil {
+		record(fmt.Errorf("failed to render right-sizing HTML: %w", sizingErr))
+	}
+	sizingHTML = incompleteHTML(sizingHTML, sizingErr)
+	record(deps.writeFile(filepath.Join(o.OutputDir, "right-sizing.html"), sizingHTML, 0644))
+	tabs[sizingTab].HTML = string(sizingHTML)
 
 	// Existing collectors and JUnit must not wait behind the additional diagnostic
 	// budget. Persist shared results separately and embed them in the alert page.

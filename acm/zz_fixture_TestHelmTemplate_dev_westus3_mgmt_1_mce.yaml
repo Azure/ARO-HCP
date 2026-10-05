@@ -3603,8 +3603,8 @@ spec:
             cpu: 100m
             memory: 2Gi
           requests:
-            cpu: 100m
-            memory: 20Mi
+            cpu: 20m
+            memory: 180Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -3748,5 +3748,7 @@ spec:
           echo "Namespace 'local-cluster' found."
         image: 'mcr.microsoft.com/aks/command/runtime@sha256:1234567890'
         name: finalize
+        resources:
+          {}
       restartPolicy: Never
       serviceAccountName: multicluster-engine-operator

@@ -565,12 +565,111 @@ func TestRenderResourceHistoryBrowserLabels(t *testing.T) {
 
 func TestRenderResourceHistoryBrowserLegacy(t *testing.T) {
 	r := resourceHistoryFixture(t)
+	checkResourceHistoryBrowser(t, r, `
+  startCharts();
+  check(resources.length === 3 && Object.keys(charts).length === 3 && $('pods-panel').hidden, 'old history retains three charts');
+  check($('pods-status').textContent.includes('unknown, not zero'), 'old history explains missing pod counts');
+`)
 	r.History = nil
 	checkResourceHistoryBrowser(t, r, `
   check($('history-status').textContent.startsWith('History not recorded.'), 'legacy artifacts explicitly lack history');
   check($('history-content').hidden && !$('samples'), 'do not synthesize history from peak snapshots');
   startCharts(); check(!Object.keys(charts).length, 'no empty charts for legacy report');
 `)
+}
+
+func TestRenderResourceHistoryPods(t *testing.T) {
+	r := resourceHistoryFixture(t)
+	for i := range r.History {
+		for j := range r.History[i].Nodes {
+			node := &r.History[i].Nodes[j]
+			capacity, allocatable, usage := 100.0, 90.0, float64(10+j*40+i)
+			node.Capacity.Pods, node.Allocatable.Pods, node.Usage.Pods = &capacity, &allocatable, &usage
+		}
+	}
+	// Above-allocatable values are valid observations, never clamped or rejected.
+	*r.History[0].Nodes[2].Usage.Pods = 110
+	*r.History[0].Nodes[2].Capacity.Pods = 200
+	r.History[1].Nodes[2].Usage.Pods = nil
+	r.History[4].Nodes[0].Capacity.Pods = nil
+	*r.History[4].Nodes[0].Usage.Pods = 0
+	before, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compact, err := marshalResourceHistoryHTML(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := json.Marshal(decodeHistoryHTML(t, compact))
+	if err != nil || !bytes.Equal(before, decoded) {
+		t.Fatalf("pod history round trip changed exact counts or unknowns: %v", err)
+	}
+	checkResourceHistoryBrowser(t, r, `
+  check(resources.length === 4 && !$('pods-panel').hidden, 'pod history enables fourth chart');
+  const fleet = {cluster: '', pool: '', node: ''};
+  const mgmt = {...fleet, cluster: 'synthetic-mgmt'};
+  const svc = {...fleet, cluster: 'synthetic-svc'};
+  const a = aggregate(history[0], 'pods', fleet);
+  check(a.lines.capacity.value === 400 && a.lines.allocatable.value === 270 && a.lines.usage.value === 170, 'pod counts sum across nodes, not average');
+  check(a.lines.usage.percent === 42.5, 'pod percentage is ratio of sums');
+  check(!('requests' in a.lines) && !('partialRequests' in a.lines) && a.requestRatio === null && a.estimate === null, 'pods never invent request series or estimates');
+  check(aggregate(history[1], 'pods', fleet).lines.usage.value === null, 'missing node count gaps aggregate instead of partial sum');
+  check(aggregate(history[1], 'pods', svc).lines.usage.value === 11, 'unrelated missing count does not gap selected cluster');
+  check(aggregate(history[4], 'pods', svc).lines.usage.value === 0 && aggregate(history[4], 'pods', svc).lines.usage.percent === null, 'known zero retained without denominator');
+  check($('pods-title').textContent.includes('sum across selected nodes') && $('pods-status').textContent.includes('hide per-node saturation'), 'aggregate labeled and warning visible');
+  startCharts();
+  const option = () => charts.pods.getOption();
+  check(Object.keys(charts).length === 4 && option().series.length === 3, 'four charts, exactly three pod lines');
+  check(option().series.map(s => s.name).join(',') === 'Capacity,Allocatable,Usage (assigned pods)', 'pod legends state exact model');
+  check(option().series.every(s => s.step === 'end' && !s.connectNulls) && option().yAxis[0].minInterval === 1, 'counts are step series with gaps and integer ticks');
+  check(tooltip('pods', 0, 'usage').textContent.includes('Usage (assigned pods): 170 pods'), 'exact count tooltip');
+  const choose = (id, value) => { $(id).value = value; $(id).onchange(); };
+  choose('cluster', 'synthetic-mgmt'); choose('pool', JSON.stringify('hcp'));
+  check(aggregates.pods[0].lines.usage.value === 160 && aggregates.pods[1].lines.usage.value === 182, 'pod pool membership is historical');
+  choose('node', JSON.stringify(['synthetic-mgmt', 'mgmt-old']));
+  check(aggregates.pods[0].lines.usage.value === 50 && aggregates.pods[2].lines.usage.value === null && $('pods-title').textContent.includes('selected node'), 'node filter handles deletion without zero fill');
+  choose('display', 'percent');
+  check(option().series.find(s => s.id === 'usage').data[0][1] === 50 && tooltip('pods', 0, 'usage').textContent.includes('50 pods / 100 pods capacity'), 'percentage mode preserves exact count tooltip');
+  choose('cluster', ''); choose('display', 'absolute');
+  const left = $('chart-swiftNIC').getBoundingClientRect(), right = $('chart-pods').getBoundingClientRect();
+  check(window.innerWidth <= 900 ? right.top > left.top : right.top === left.top && right.left > left.left, 'fourth chart follows responsive two-column layout');
+  check(document.documentElement.scrollWidth <= innerWidth, 'pod chart and explanatory text fit mobile');
+  if (window.cachedECharts) {
+    check(Object.values(charts).every(chart => chart.getWidth() > 250 && chart.getHeight() >= 300), 'all real charts have usable dimensions');
+    const model = charts.pods.getModel(), view = charts.pods.getViewOfComponentModel(model.getComponent('legend'));
+    let count = 0;
+    view.group.traverse(element => {
+      if (element.type !== 'text' || !resourceFields('pods').some(field => fieldLabel('pods', field) === element.style.text)) return;
+      const bounds = element.getBoundingRect().clone(); bounds.applyTransform(element.getComputedTransform());
+      check(bounds.x >= 0 && bounds.x + bounds.width <= charts.pods.getWidth() && bounds.y + bounds.height < model.getComponent('grid').coordinateSystem.getRect().y - 15, 'pod legend fits and clears plot');
+      count++;
+    });
+    check(count === 3, 'all three pod legends rendered');
+  }
+`)
+	*r.History[0].Nodes[0].Usage.Pods = 1000
+	if err := validateUtilizationHistory(r); err != nil {
+		t.Fatalf("above-capacity pod usage must remain a valid observation: %v", err)
+	}
+	for _, value := range []float64{-1, 1.5, math.NaN(), math.Inf(1)} {
+		for _, field := range []*utilizationHistoryResources{&r.History[0].Nodes[0].Capacity, &r.History[0].Nodes[0].Allocatable, &r.History[0].Nodes[0].Usage} {
+			old := field.Pods
+			field.Pods = &value
+			if err := validateUtilizationHistory(r); err == nil {
+				t.Errorf("invalid pod measurement accepted: %v", value)
+			}
+			field.Pods = old
+		}
+	}
+	for _, field := range []*utilizationHistoryResources{&r.History[0].Nodes[0].Requests, &r.History[0].Nodes[0].PartialRequests} {
+		value := 0.0
+		field.Pods = &value
+		if err := validateUtilizationHistory(r); err == nil || !strings.Contains(err.Error(), "no request") {
+			t.Errorf("fictional pod requests accepted: %v", err)
+		}
+		field.Pods = nil
+	}
 }
 
 func largeResourceHistoryFixture(t *testing.T) utilizationReport {
@@ -745,6 +844,10 @@ const historyPerformanceAssertions = `
       const expected = complete ? relevant.reduce((sum, node) => sum + node[field][resource], 0) : null;
       check(aggregates[resource][i].lines[field].value === expected, 'independent exact fleet sum and gap check');
     }
+    if (resource === 'pods') {
+      check(!('requests' in aggregates[resource][i].lines) && !('partialRequests' in aggregates[resource][i].lines), 'pod replay has no fictional requests');
+      continue;
+    }
     const observed = nodes.filter(node => known(node.requests[resource]) || known(node.partialRequests?.[resource]));
     const expectedPartial = !known(aggregates[resource][i].lines.requests.value) && observed.length ? observed.reduce((sum, node) => sum + (known(node.requests[resource]) ? node.requests[resource] : node.partialRequests[resource]), 0) : null;
     check(aggregates[resource][i].lines.partialRequests.value === expectedPartial, 'independent lower bound uses complete or partial per node, including observed zero');
@@ -779,7 +882,7 @@ const historyPerformanceAssertions = `
     for (const resource of resources) {
       const option = charts[resource].getOption();
       check(option.dataZoom[0].start === 25 && option.dataZoom[0].end === 75, 'linked zoom retained');
-      check(option.legend[0].selected.Usage === false, 'legend retained');
+      if (resource !== 'pods') check(option.legend[0].selected.Usage === false, 'legend retained');
       if (window.cachedECharts) check(charts[resource].getModel().getSeries().every((model, i) => model === models[resource][i]), 'ECharts series models reused');
       for (const series of option.series) {
         check(series.data.length === history.length && series.connectNulls === false, 'all points and missing-data gaps retained');

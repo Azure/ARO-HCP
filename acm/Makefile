@@ -41,9 +41,13 @@ endif
 		-b oci://${MCE_OPERATOR_BUNDLE_FILE} \
 		-o ${HELM_BASE_DIR} -s scaffold \
 		-l ${MCE_OPERATOR_BUNDLE_IMAGE}
+	bash ./update-resource-templates.sh mce "${MCE_CHART_DIR}"
 	@rm ${MCE_OPERATOR_BUNDLE_FILE}
 
 helm-charts: mce-helm-chart policy-helm-chart
 	make -C ../ yamlfmt
 
-.PHONY: helm-charts mce-helm-chart policy-helm-chart
+test-resources:
+	python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+.PHONY: helm-charts mce-helm-chart policy-helm-chart test-resources

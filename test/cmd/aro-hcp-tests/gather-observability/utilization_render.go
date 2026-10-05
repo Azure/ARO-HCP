@@ -29,14 +29,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Validate at the shared rendering boundary so live and offline reports have
-// identical semantics. Missing measurements and empty snapshots are valid.
-func renderUtilizationHTML(report utilizationReport) ([]byte, error) {
+// Missing measurements and empty snapshots are valid for live and offline reports.
+func validateUtilizationReport(report utilizationReport) error {
 	if report.SchemaVersion != utilizationSchemaVersion {
-		return nil, fmt.Errorf("unsupported utilization schemaVersion %d (expected %d)", report.SchemaVersion, utilizationSchemaVersion)
+		return fmt.Errorf("unsupported utilization schemaVersion %d (expected %d)", report.SchemaVersion, utilizationSchemaVersion)
 	}
 	if report.GeneratedAt.IsZero() || report.Start.IsZero() || report.End.IsZero() || report.End.Before(report.Start) {
-		return nil, fmt.Errorf("utilization generatedAt, start and end must be nonzero timestamps with start <= end")
+		return fmt.Errorf("utilization generatedAt, start and end must be nonzero timestamps with start <= end")
 	}
 	resources := func(path string, values ...utilizationResources) error {
 		for _, value := range values {
@@ -51,7 +50,7 @@ func renderUtilizationHTML(report utilizationReport) ([]byte, error) {
 	clusters := map[string]bool{}
 	for _, cluster := range report.Clusters {
 		if strings.TrimSpace(cluster) == "" || clusters[cluster] {
-			return nil, fmt.Errorf("clusters must contain unique nonempty names")
+			return fmt.Errorf("clusters must contain unique nonempty names")
 		}
 		clusters[cluster] = true
 	}
@@ -63,7 +62,7 @@ func renderUtilizationHTML(report utilizationReport) ([]byte, error) {
 	for i, coverage := range report.Coverage {
 		key := [2]string{coverage.Scope, coverage.Resource}
 		if (coverage.Scope != "overall" && !clusters[coverage.Scope]) || (coverage.Resource != "cpu" && coverage.Resource != "memory") || coverageKeys[key] {
-			return nil, fmt.Errorf("coverage %d: scope/resource must be valid and unique", i)
+			return fmt.Errorf("coverage %d: scope/resource must be valid and unique", i)
 		}
 		coverageKeys[key] = true
 		clusterCount := 1
@@ -71,7 +70,7 @@ func renderUtilizationHTML(report utilizationReport) ([]byte, error) {
 			clusterCount = len(clusters)
 		}
 		if len(coverage.Intervals) == 0 || first.After(last) {
-			return nil, fmt.Errorf("coverage %d: intervals must cover the evaluated minute grid and cannot be empty", i)
+			return fmt.Errorf("coverage %d: intervals must cover the evaluated minute grid and cannot be empty", i)
 		}
 		next := first
 		for j, interval := range coverage.Intervals {
@@ -79,81 +78,88 @@ func renderUtilizationHTML(report utilizationReport) ([]byte, error) {
 			for _, timestamp := range []time.Time{interval.Start, interval.End} {
 				_, offset := timestamp.Zone()
 				if timestamp.IsZero() || offset != 0 || !timestamp.Equal(timestamp.Truncate(time.Minute)) || timestamp.Before(first) || timestamp.After(last) {
-					return nil, fmt.Errorf("%s: times must be UTC-minute samples within the report grid", path)
+					return fmt.Errorf("%s: times must be UTC-minute samples within the report grid", path)
 				}
 			}
 			if !interval.Start.Equal(next) || interval.End.Before(interval.Start) {
-				return nil, fmt.Errorf("%s: intervals must be ordered, contiguous and cover the evaluated minute grid", path)
+				return fmt.Errorf("%s: intervals must be ordered, contiguous and cover the evaluated minute grid", path)
 			}
 			next = interval.End.Add(time.Minute)
 			if interval.Nodes < 0 || interval.MissingClusters < 0 || interval.MissingClusters > clusterCount {
-				return nil, fmt.Errorf("%s: node and missing cluster counts must be nonnegative and within scope", path)
+				return fmt.Errorf("%s: node and missing cluster counts must be nonnegative and within scope", path)
 			}
 			for _, count := range []int{interval.MissingInventory, interval.MissingUsage, interval.MissingCapacity} {
 				if count < 0 || count > interval.Nodes {
-					return nil, fmt.Errorf("%s: missing node counts must be nonnegative and cannot exceed nodes", path)
+					return fmt.Errorf("%s: missing node counts must be nonnegative and cannot exceed nodes", path)
 				}
 			}
 			if interval.Eligible && (interval.Nodes == 0 || clusterCount == 0 || interval.MissingInventory != 0 || interval.MissingUsage != 0 || interval.MissingCapacity != 0 || interval.MissingClusters != 0) {
-				return nil, fmt.Errorf("%s: eligible samples cannot have coverage gaps or zero nodes", path)
+				return fmt.Errorf("%s: eligible samples cannot have coverage gaps or zero nodes", path)
 			}
 		}
 		if !next.Equal(last.Add(time.Minute)) {
-			return nil, fmt.Errorf("coverage %d: intervals must cover the evaluated minute grid", i)
+			return fmt.Errorf("coverage %d: intervals must cover the evaluated minute grid", i)
 		}
 	}
 	for i, snapshot := range report.Snapshots {
 		if snapshot.Time.IsZero() || snapshot.Time.Before(report.Start) || snapshot.Time.After(report.End) {
-			return nil, fmt.Errorf("snapshot %d: time must be within the report start/end window", i)
+			return fmt.Errorf("snapshot %d: time must be within the report start/end window", i)
 		}
 		nodes := map[[2]string]bool{}
 		for j, node := range snapshot.Nodes {
 			key := [2]string{node.Cluster, node.Name}
 			if !clusters[node.Cluster] || strings.TrimSpace(node.Name) == "" {
-				return nil, fmt.Errorf("snapshot %d node %d: named node must belong to a declared cluster", i, j)
+				return fmt.Errorf("snapshot %d node %d: named node must belong to a declared cluster", i, j)
 			}
 			if nodes[key] {
-				return nil, fmt.Errorf("snapshot %d: duplicate node %s/%s", i, node.Cluster, node.Name)
+				return fmt.Errorf("snapshot %d: duplicate node %s/%s", i, node.Cluster, node.Name)
 			}
 			nodes[key] = true
 			if err := resources(fmt.Sprintf("snapshot %d node %d", i, j), node.Capacity, node.Allocatable, node.Usage); err != nil {
-				return nil, err
+				return err
 			}
 		}
 		for j, workload := range snapshot.Workloads {
 			path := fmt.Sprintf("snapshot %d workload %d", i, j)
 			if !clusters[workload.Cluster] {
-				return nil, fmt.Errorf("%s: workload must belong to a declared cluster", path)
+				return fmt.Errorf("%s: workload must belong to a declared cluster", path)
 			}
 			if workload.Unscheduled && workload.Node != "" {
-				return nil, fmt.Errorf("%s: unscheduled workload cannot have a node", path)
+				return fmt.Errorf("%s: unscheduled workload cannot have a node", path)
 			}
 			if workload.Pods < 0 || workload.PendingPods < 0 {
-				return nil, fmt.Errorf("%s: pod counts must be nonnegative", path)
+				return fmt.Errorf("%s: pod counts must be nonnegative", path)
 			}
 			if workload.PendingPods > workload.Pods {
-				return nil, fmt.Errorf("%s: pendingPods cannot exceed pods", path)
+				return fmt.Errorf("%s: pendingPods cannot exceed pods", path)
 			}
 			if err := resources(path, workload.Usage, workload.Requests, workload.Limits); err != nil {
-				return nil, err
+				return err
 			}
 			containers := map[string]bool{}
 			for k, container := range workload.Containers {
 				path := fmt.Sprintf("%s container %d", path, k)
 				if strings.TrimSpace(container.Name) == "" || containers[container.Name] {
-					return nil, fmt.Errorf("%s: container names must be nonempty and unique within a workload", path)
+					return fmt.Errorf("%s: container names must be nonempty and unique within a workload", path)
 				}
 				containers[container.Name] = true
 				for _, count := range []*int{container.UnlimitedCPU, container.UnlimitedMemory} {
 					if count != nil && (*count < 0 || *count > workload.Pods) {
-						return nil, fmt.Errorf("%s: unlimited counts must be nonnegative and cannot exceed pods", path)
+						return fmt.Errorf("%s: unlimited counts must be nonnegative and cannot exceed pods", path)
 					}
 				}
 				if err := resources(path, container.Usage, container.Requests, container.Limits); err != nil {
-					return nil, err
+					return err
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func renderUtilizationHTML(report utilizationReport) ([]byte, error) {
+	if err := validateUtilizationReport(report); err != nil {
+		return nil, err
 	}
 	// The history tab embeds its own samples; do not duplicate the full history
 	// in the peak-only iframe (or retain it in that iframe's JavaScript heap).
@@ -175,6 +181,54 @@ func renderUtilizationHTML(report utilizationReport) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+func decodeUtilizationReport(reader io.Reader) (utilizationReport, error) {
+	decoder := json.NewDecoder(reader)
+	var raw json.RawMessage
+	if err := decoder.Decode(&raw); err != nil {
+		return utilizationReport{}, fmt.Errorf("decode utilization input: %w", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return utilizationReport{}, fmt.Errorf("utilization input must contain exactly one JSON report (trailing data)")
+	}
+	decoder = json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	var report utilizationReport
+	if err := decoder.Decode(&report); err != nil {
+		return utilizationReport{}, fmt.Errorf("decode utilization input: %w", err)
+	}
+	// Go scalar counters otherwise silently accept missing/null as zero.
+	// RawMessage distinguishes a missing nullable count from explicit null.
+	var presence struct {
+		Snapshots []struct {
+			Workloads []struct {
+				Pods        *int
+				PendingPods *int
+				Containers  []struct {
+					UnlimitedCPU    json.RawMessage
+					UnlimitedMemory json.RawMessage
+				}
+			}
+		}
+	}
+	if err := json.Unmarshal(raw, &presence); err != nil {
+		return utilizationReport{}, fmt.Errorf("decode utilization counters: %w", err)
+	}
+	for i, snapshot := range presence.Snapshots {
+		for j, workload := range snapshot.Workloads {
+			if workload.Pods == nil || workload.PendingPods == nil {
+				return utilizationReport{}, fmt.Errorf("snapshot %d workload %d: pods and pendingPods are required and cannot be null", i, j)
+			}
+			for k, container := range workload.Containers {
+				if len(container.UnlimitedCPU) == 0 || len(container.UnlimitedMemory) == 0 {
+					return utilizationReport{}, fmt.Errorf("snapshot %d workload %d container %d: unlimitedCPU and unlimitedMemory are required (null means unknown)", i, j, k)
+				}
+			}
+		}
+	}
+	return report, nil
+}
+
 func newRenderUtilizationCommand() *cobra.Command {
 	var input, output string
 	cmd := &cobra.Command{
@@ -190,49 +244,9 @@ func newRenderUtilizationCommand() *cobra.Command {
 				return fmt.Errorf("open utilization input: %w", err)
 			}
 			defer file.Close()
-			decoder := json.NewDecoder(file)
-			var raw json.RawMessage
-			if err := decoder.Decode(&raw); err != nil {
-				return fmt.Errorf("decode utilization input: %w", err)
-			}
-			var trailing any
-			if err := decoder.Decode(&trailing); err != io.EOF {
-				return fmt.Errorf("utilization input must contain exactly one JSON report (trailing data)")
-			}
-			decoder = json.NewDecoder(bytes.NewReader(raw))
-			decoder.DisallowUnknownFields()
-			var report utilizationReport
-			if err := decoder.Decode(&report); err != nil {
-				return fmt.Errorf("decode utilization input: %w", err)
-			}
-			// Go scalar counters otherwise silently accept missing/null as zero.
-			// RawMessage distinguishes a missing nullable count from explicit null.
-			var presence struct {
-				Snapshots []struct {
-					Workloads []struct {
-						Pods        *int
-						PendingPods *int
-						Containers  []struct {
-							UnlimitedCPU    json.RawMessage
-							UnlimitedMemory json.RawMessage
-						}
-					}
-				}
-			}
-			if err := json.Unmarshal(raw, &presence); err != nil {
-				return fmt.Errorf("decode utilization counters: %w", err)
-			}
-			for i, snapshot := range presence.Snapshots {
-				for j, workload := range snapshot.Workloads {
-					if workload.Pods == nil || workload.PendingPods == nil {
-						return fmt.Errorf("snapshot %d workload %d: pods and pendingPods are required and cannot be null", i, j)
-					}
-					for k, container := range workload.Containers {
-						if len(container.UnlimitedCPU) == 0 || len(container.UnlimitedMemory) == 0 {
-							return fmt.Errorf("snapshot %d workload %d container %d: unlimitedCPU and unlimitedMemory are required (null means unknown)", i, j, k)
-						}
-					}
-				}
+			report, err := decodeUtilizationReport(file)
+			if err != nil {
+				return err
 			}
 			html, err := renderUtilizationHTML(report)
 			if err != nil {

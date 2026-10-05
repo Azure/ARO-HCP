@@ -41,6 +41,28 @@ for fixture in disabled enabled capture-all; do
   fi
 done
 
+# Exercise resource config plumbing even when the pipeline is disabled by default.
+"${YQ}" '.defaults.swiftRecorder.k8s.resources = (load("testdata/helmtest_resources.yaml") | .testData.swiftRecorder.k8s.resources)' \
+  testdata/enabled.yaml > "${tmp}/resources-override.yaml"
+"${TEMPLATIZE}" generate --config-file ../config/config.yaml \
+  --cloud dev --deploy-env dev --region westus3 --stamp 1 --ev2-cloud public \
+  --config-file-override "${tmp}/resources-override.yaml" \
+  --input values.yaml --output "${tmp}/resources-values.yaml"
+for field in requests.cpu requests.memory limits.cpu limits.memory; do
+  test "$("${YQ}" ".resources.${field}" "${tmp}/resources-values.yaml")" == "$("${YQ}" ".testData.swiftRecorder.k8s.resources.${field}" testdata/helmtest_resources.yaml)"
+done
+"${HELM}" template swift-recorder deploy --namespace swift-recorder \
+  --values "${tmp}/resources-values.yaml" > "${tmp}/resources-manifest.yaml"
+"${YQ}" -e 'select(.kind == "DaemonSet") | .spec.template.spec.containers[0].resources.requests | has("cpu") == false' "${tmp}/resources-manifest.yaml" >/dev/null
+for field in requests.memory limits.cpu limits.memory; do
+  test "$("${YQ}" "select(.kind == \"DaemonSet\") | .spec.template.spec.containers[0].resources.${field}" "${tmp}/resources-manifest.yaml")" == "$("${YQ}" ".resources.${field}" "${tmp}/resources-values.yaml")"
+done
+"${HELM}" template swift-recorder deploy --namespace swift-recorder \
+  --values "${tmp}/resources-values.yaml" \
+  --set-string resources.requests.cpu=NONE,resources.requests.memory=NONE,resources.limits.cpu=NONE,resources.limits.memory=NONE \
+  > "${tmp}/resources-none-manifest.yaml"
+"${YQ}" -e 'select(.kind == "DaemonSet") | .spec.template.spec.containers[0] | has("resources") == false' "${tmp}/resources-none-manifest.yaml" >/dev/null
+
 # The release job supplies only mgmtAgent.image, without sourcing our local CI
 # helper. Check the resolved override, not a copied/stale default mgmt-agent pin.
 for environment in ci00 ci01; do

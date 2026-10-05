@@ -1,0 +1,30 @@
+values: ../values.yaml
+name: maestro-agent-resources
+namespace: maestro
+testData:
+  maestro:
+    agent:
+      k8s:
+        resources:
+          requests:
+            cpu: 25m
+            memory: 48Mi
+          limits:
+            cpu: NONE
+            memory: 96Mi
+      metricsProxy:
+        resources:
+          requests:
+            cpu: 5m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+      init:
+        resources:
+          requests:
+            cpu: NONE
+            memory: 8Mi
+          limits:
+            cpu: NONE
+            memory: NONE
