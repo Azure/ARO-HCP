@@ -451,6 +451,10 @@
         "isGlobalSubscription": {
           "type": "boolean",
           "description": "Marks where shared infra lives; the bot gets extra global-only data-plane roles (Grafana Admin) here"
+        },
+        "costTagInheritance": {
+          "type": "boolean",
+          "description": "Enable Cost Management tag inheritance on this DEV E2E infrastructure subscription"
         }
       },
       "required": ["name", "id"]
