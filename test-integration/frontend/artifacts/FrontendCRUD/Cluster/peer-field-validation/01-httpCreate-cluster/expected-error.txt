@@ -55,7 +55,7 @@
       }
       {
         "code": "InvalidRequestContent",
-        "message": "Invalid value: \"dataplane-operator\": unrecognized operator name; supported values: disk-csi-driver, file-csi-driver, image-registry",
+        "message": "Invalid value: \"dataplane-operator\": unrecognized operator name; supported values: autonode, disk-csi-driver, file-csi-driver, image-registry",
         "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"
       }
       {
