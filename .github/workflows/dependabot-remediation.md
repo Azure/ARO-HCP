@@ -198,12 +198,12 @@ safe-outputs:
           required: true
           type: string
         action:
-          description: Whether to update the branch or add a Prow comment
+          description: Update the branch, request a Prow retest, or request Prow closure
           required: true
           type: choice
-          options: [update-branch, add-comment]
+          options: [update-branch, retest, close]
         body:
-          description: Evidence and a Prow command on its own line, for add-comment only
+          description: Evidence for retest or close, without any slash commands
           required: false
           type: string
       steps:
@@ -225,7 +225,7 @@ safe-outputs:
             jq -c '.items[] | select(.type == "reconcile_owned_pr")' "$GH_AW_AGENT_OUTPUT" | while read -r item; do
               n=$(jq -er '.pull_request_number | select(type == "string" and test("^[1-9][0-9]*$"))' <<< "$item")
               sha=$(jq -er '.expected_head_sha | select(type == "string" and test("^[0-9a-fA-F]{40}$"))' <<< "$item")
-              action=$(jq -er '.action | select(. == "update-branch" or . == "add-comment")' <<< "$item")
+              action=$(jq -er '.action | select(. == "update-branch" or . == "retest" or . == "close")' <<< "$item")
               pr=$(gh api "repos/$REPO/pulls/$n")
               jq -e --arg sha "$sha" --arg repo "$REPO" '
                 .state == "open" and .user.login == "aro-hcp-robot[bot]" and
@@ -234,15 +234,16 @@ safe-outputs:
                 any(.labels[]; .name == "agentic-dependabot") and
                 .head.sha == $sha
               ' <<< "$pr" >/dev/null || { echo "PR $n is not an owned PR at the expected head" >&2; exit 1; }
-              if [[ "$action" == add-comment ]]; then
-                body=$(jq -er '.body | select(type == "string" and length > 0 and test("(?m)^/(retest-required|close)$"))' <<< "$item")
+              if [[ "$action" != update-branch ]]; then
+                evidence=$(jq -er '.body | select(type == "string" and length > 0 and length <= 4096 and (contains("\r") | not) and (test("(?m)^[[:space:]]*/") | not))' <<< "$item")
               fi
               if [[ "${GH_AW_SAFE_OUTPUTS_STAGED:-false}" == true ]]; then
                 echo "Staged $action for verified PR $n"
               elif [[ "$action" == update-branch ]]; then
                 gh api -X PUT "repos/$REPO/pulls/$n/update-branch" -f expected_head_sha="$sha" --silent
               else
-                gh api -X POST "repos/$REPO/issues/$n/comments" -f body="$body" --silent
+                if [[ "$action" == retest ]]; then command=/retest-required; else command=/close; fi
+                gh api -X POST "repos/$REPO/issues/$n/comments" -f body="$(printf '%s\n\n%s' "$evidence" "$command")" --silent
               fi
             done
 
@@ -278,9 +279,9 @@ Walk **every** open `agentic-dependabot` PR, even if its alert has disappeared. 
 
 - **Passing or pending checks**: keep the existing PR; wait for outstanding checks and human approvals. If a check is pending or its evidence is missing, never call the PR healthy or replace it on speculation. If an actionable review thread identifies an incomplete dependency fix, address it as described below.
 - **Behind base**: for an owned, still-needed PR with no conflicting dependency change, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, and `action: update-branch`. The guarded output merges current `main` into that PR branch after rechecking ownership and SHA; check the new SHA and CI on a later run. It cannot resolve conflicts or change dependency files. Do not request repeated updates for a PR already waiting on CI at its current SHA.
-- **Failing CI or merge conflict**: follow the failed check's URL and the PR diff to identify the cause. Compare the same job on `main` and other PRs before calling a failure transient. If it is a proven one-off infrastructure failure, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, `action: add-comment`, and `/retest-required` on its own line in `body`, plus a short evidence sentence; on a later run verify a new check started. Check existing PR comments first and do not repeat a retest request for the same head and failure without new evidence. If the failure is fleet-wide, report it rather than blindly retesting. If the dependency fix is demonstrably incomplete or incompatible, make one corrected, dependency-only replacement from current `main`, with the original PR number in its body. Keep the existing PR open until the replacement is actually created and its checks pass; a safe-output request to create a PR is not proof of creation. On later runs, recognize that replacement and do not generate another one for the same package/version while it is pending.
+- **Failing CI or merge conflict**: follow the failed check's URL and the PR diff to identify the cause. Compare the same job on `main` and other PRs before calling a failure transient. If it is a proven one-off infrastructure failure, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, `action: retest`, and a short evidence sentence in `body` (no slash commands); the guarded job appends `/retest-required`. On a later run verify a new check started. Check existing PR comments first and do not repeat a retest request for the same head and failure without new evidence. If the failure is fleet-wide, report it rather than blindly retesting. If the dependency fix is demonstrably incomplete or incompatible, make one corrected, dependency-only replacement from current `main`, with the original PR number in its body. Keep the existing PR open until the replacement is actually created and its checks pass; a safe-output request to create a PR is not proof of creation. On later runs, recognize that replacement and do not generate another one for the same package/version while it is pending.
 - **Review feedback**: act only on an unresolved thread about a missing or incorrect dependency fix (section 5b). Do not dismiss or resolve threads on behalf of a reviewer. If review approval is missing, leave it for a human.
-- **No open alert**: do not infer the PR is obsolete just from the alert disappearing. Inspect its actual changes and whether they still provide a needed dependency fix. Never open a replacement solely for an orphaned PR. If the change is proven unnecessary on `main`, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, `action: add-comment`, and the evidence and `/close` on its own line in `body`. For a superseded PR, request `/close` only after verifying the replacement is merged and covers the same fixes. On the next run verify Prow actually closed the PR; never use the GitHub PR-state API or a closing keyword.
+- **No open alert**: do not infer the PR is obsolete just from the alert disappearing. Inspect its actual changes and whether they still provide a needed dependency fix. Never open a replacement solely for an orphaned PR. If the change is proven unnecessary on `main`, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, `action: close`, and the evidence in `body` (no slash commands); the guarded job appends `/close`. For a superseded PR, request closure only after verifying the replacement is merged and covers the same fixes. On the next run verify Prow actually closed the PR; never use the GitHub PR-state API or a closing keyword.
 
 Do not use `push_to_pull_request_branch` here: this is a scheduled or manual run with no triggering PR, so that output cannot reliably push to an arbitrary existing head. If no safe automated change is justified, report the blocker with its PR and evidence rather than opening another PR.
 
