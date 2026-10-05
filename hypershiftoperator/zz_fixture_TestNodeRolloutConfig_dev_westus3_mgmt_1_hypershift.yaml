@@ -8,7 +8,9 @@
 # 3. Run: UPDATE_NODE_ROLLOUT_FIXTURE=true go test -run TestNodeRolloutConfig -count=1 ./...
 additionalInstallArgs:
 - --enable-cpo-overrides
+- --enable-standalone-karpenter-operator=true
 - --metrics-set=SRE
+- --tech-preview-no-upgrade=true
 registryOverrides:
 - quay.io/openshift-release-dev/ocp-release-nightly=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release-nightly
 - quay.io/openshift-release-dev/ocp-release=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release
