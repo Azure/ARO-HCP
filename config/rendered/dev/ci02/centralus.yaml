@@ -207,9 +207,9 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci02
   image:
-    digest: sha256:52fd7478f2c9640f3325f4fd7b07523076d1aba460e0e84efd6ef68fde20dae7
-    registry: quay.io
-    repository: app-sre/aro-hcp-clusters-service
+    digest: sha256:a20e5fca3db5308ebe93cf442a9ba0f55c1a7436c5261bda2e9d8d05aee94254
+    registry: arohcpsvcdev.azurecr.io
+    repository: cluster-service/aro-hcp-clusters-service-asampaio
   k8s:
     deploymentStrategy:
       rollingUpdate:
@@ -507,11 +507,12 @@ hcpRecovery:
     replicas: 2
     serviceAccountName: hcp-recovery
 hypershift:
-  additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
+  additionalInstallArg: --enable-cpo-overrides --disable-capi-migration --tech-preview-no-upgrade=true
+    --enable-standalone-karpenter-operator=true
   image:
-    digest: sha256:253aec94d67f93a5a9fe93382d6b187611306e4beaab56199111df81119e53b7
-    registry: quay.io
-    repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+    digest: sha256:8598aac54e0c6487d567ac0880d5c26df052f195d16adf2b32b5eb5d1cba4d21
+    registry: arohcpsvcdev.azurecr.io
+    repository: asampaio-hypershift:karpenter
   limitClusterSizes: true
   metricsSet:
     performanceMetrics: false
