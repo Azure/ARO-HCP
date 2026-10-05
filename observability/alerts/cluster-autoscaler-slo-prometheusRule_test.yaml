@@ -26,17 +26,17 @@ tests:
     values: "0x70"
   alert_rule_test:
   - eval_time: 22m
-    alertname: UJClusterAutoscalerStalled
+    alertname: UserJourneyClusterAutoscalerStalled
   - eval_time: 22m
-    alertname: UJClusterAutoscalerSafetyDisabled
+    alertname: UserJourneyClusterAutoscalerSafetyDisabled
   - eval_time: 22m
-    alertname: UJClusterAutoscalerErrors
+    alertname: UserJourneyClusterAutoscalerErrors
   - eval_time: 22m
-    alertname: UJClusterAutoscalerScaleUpFailures
+    alertname: UserJourneyClusterAutoscalerScaleUpFailures
   - eval_time: 22m
-    alertname: UJClusterAutoscalerScaleUpStuck
+    alertname: UserJourneyClusterAutoscalerScaleUpStuck
 # ========================================
-# Test 2: Unsafe to autoscale — UJClusterAutoscalerSafetyDisabled fires
+# Test 2: Unsafe to autoscale — UserJourneyClusterAutoscalerSafetyDisabled fires
 # ========================================
 - interval: 1m
   input_series:
@@ -56,7 +56,7 @@ tests:
     values: "0x70"
   alert_rule_test:
   - eval_time: 20m
-    alertname: UJClusterAutoscalerSafetyDisabled
+    alertname: UserJourneyClusterAutoscalerSafetyDisabled
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -65,16 +65,16 @@ tests:
         severity: "4"
         slo: cluster-autoscaler-health
       exp_annotations:
-        summary: "mgmt-1/ocm-dev-abc-cluster21-01: cluster autoscaler is not safe to autoscale"
-        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 (management cluster mgmt-1) has reported cluster_safe_to_autoscale=0 for over 15 minutes. While unsafe, the autoscaler makes no scaling decisions. This is usually caused by unready, unregistered, or long-unregistered nodes and requires SRE investigation of node health."
-        correlationId: 'UJClusterAutoscalerSafetyDisabled/mgmt-1/ocm-dev-abc-cluster21-01'
-        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md"
+        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler is not safe to autoscale"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 has reported cluster_safe_to_autoscale=0 for over 15 minutes. While unsafe, the autoscaler makes no scaling decisions. This is usually caused by unready, unregistered, or long-unregistered nodes and requires SRE investigation of node health."
+        correlationId: 'UserJourneyClusterAutoscalerSafetyDisabled/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
   - eval_time: 20m
-    alertname: UJClusterAutoscalerStalled
+    alertname: UserJourneyClusterAutoscalerStalled
   - eval_time: 20m
-    alertname: UJClusterAutoscalerScaleUpStuck
+    alertname: UserJourneyClusterAutoscalerScaleUpStuck
 # ========================================
-# Test 3: Main loop stalled — UJClusterAutoscalerStalled fires
+# Test 3: Main loop stalled — UserJourneyClusterAutoscalerStalled fires
 # ========================================
 # last_activity constant at 0 while time() advances -> seconds_since grows past
 # the 600s threshold; sustained 15m; evaluated at 27m with margin past the boundary.
@@ -96,7 +96,7 @@ tests:
     values: "0x70"
   alert_rule_test:
   - eval_time: 27m
-    alertname: UJClusterAutoscalerStalled
+    alertname: UserJourneyClusterAutoscalerStalled
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -105,15 +105,15 @@ tests:
         severity: "4"
         slo: cluster-autoscaler-health
       exp_annotations:
-        summary: "mgmt-1/ocm-dev-abc-cluster21-01: cluster autoscaler main loop stalled"
-        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 (management cluster mgmt-1) has not completed a main loop iteration in over 10 minutes, sustained for 15 minutes. The autoscaler is wedged or its pod is not running; no scaling is happening for this hosted cluster. This is an autoscaler malfunction, independent of the customer's autoscaling configuration."
-        correlationId: 'UJClusterAutoscalerStalled/mgmt-1/ocm-dev-abc-cluster21-01'
-        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md"
+        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler main loop stalled"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 has not completed a main loop iteration in over 10 minutes, sustained for 15 minutes. The autoscaler is wedged or its pod is not running; no scaling is happening for this hosted cluster. This is an autoscaler malfunction, independent of the customer's autoscaling configuration."
+        correlationId: 'UserJourneyClusterAutoscalerStalled/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
   - eval_time: 27m
-    alertname: UJClusterAutoscalerSafetyDisabled
+    alertname: UserJourneyClusterAutoscalerSafetyDisabled
 # ========================================
 # Test 4: Scale-up stuck — pending pods WITH headroom (ready < max)
-# UJClusterAutoscalerScaleUpStuck fires.
+# UserJourneyClusterAutoscalerScaleUpStuck fires.
 # ========================================
 - interval: 1m
   input_series:
@@ -133,24 +133,24 @@ tests:
     values: "0x70"
   alert_rule_test:
   - eval_time: 22m
-    alertname: UJClusterAutoscalerScaleUpStuck
+    alertname: UserJourneyClusterAutoscalerScaleUpStuck
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
         namespace: "ocm-dev-abc-cluster21-01"
         component: slo
-        severity: "4"
+        severity: "3"
         slo: cluster-autoscaler-scaling
       exp_annotations:
-        summary: "mgmt-1/ocm-dev-abc-cluster21-01: cluster autoscaler scale-up appears stuck (pending pods with headroom)"
-        description: "For over 20 minutes the cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 (management cluster mgmt-1) has had unschedulable pods while still below its maximum node count (headroom available). The autoscaler is allowed to add nodes and demand exists, but the pods are not being scheduled — the scale-up operation is blocked (e.g. nodes failing to join, provisioning stuck). This is distinct from a cluster at its configured max, which is not alerted. SRE investigation needed."
-        correlationId: 'UJClusterAutoscalerScaleUpStuck/mgmt-1/ocm-dev-abc-cluster21-01'
-        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md"
+        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler scale-up appears stuck (pending pods with headroom)"
+        description: "For over 20 minutes the cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 has had unschedulable pods while still below its maximum node count (headroom available). The autoscaler is allowed to add nodes and demand exists, but the pods are not being scheduled — the scale-up operation is blocked (e.g. nodes failing to join, provisioning stuck). This is distinct from a cluster at its configured max, which is not alerted. SRE investigation needed."
+        correlationId: 'UserJourneyClusterAutoscalerScaleUpStuck/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
   - eval_time: 22m
-    alertname: UJClusterAutoscalerScaleUpFailures
+    alertname: UserJourneyClusterAutoscalerScaleUpFailures
 # ========================================
 # Test 5: Customer at configured max — pending pods but ready >= max.
-# UJClusterAutoscalerScaleUpStuck must NOT fire (customer's own ceiling).
+# UserJourneyClusterAutoscalerScaleUpStuck must NOT fire (customer's own ceiling).
 # ========================================
 - interval: 1m
   input_series:
@@ -170,11 +170,11 @@ tests:
     values: "0x70"
   alert_rule_test:
   - eval_time: 22m
-    alertname: UJClusterAutoscalerScaleUpStuck
+    alertname: UserJourneyClusterAutoscalerScaleUpStuck
   - eval_time: 22m
-    alertname: UJClusterAutoscalerScaleUpFailures
+    alertname: UserJourneyClusterAutoscalerScaleUpFailures
 # ========================================
-# Test 6: Scale-up failures — UJClusterAutoscalerScaleUpFailures fires
+# Test 6: Scale-up failures — UserJourneyClusterAutoscalerScaleUpFailures fires
 # ========================================
 - interval: 1m
   input_series:
@@ -200,23 +200,23 @@ tests:
       value: 1
   alert_rule_test:
   - eval_time: 20m
-    alertname: UJClusterAutoscalerScaleUpFailures
+    alertname: UserJourneyClusterAutoscalerScaleUpFailures
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
         namespace: "ocm-dev-abc-cluster21-01"
         component: slo
-        severity: "4"
+        severity: "3"
         slo: cluster-autoscaler-scaling
       exp_annotations:
-        summary: "mgmt-1/ocm-dev-abc-cluster21-01: cluster autoscaler scale-up attempts are failing"
-        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 (management cluster mgmt-1) has been recording failed scale-up attempts for over 15 minutes. Common causes are Azure quota exhaustion, lack of capacity in the target zone/VM size, or provider errors — all SRE/infra concerns. Pending pods will not receive new nodes until this clears."
-        correlationId: 'UJClusterAutoscalerScaleUpFailures/mgmt-1/ocm-dev-abc-cluster21-01'
-        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md"
+        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler scale-up attempts are failing"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 has been recording failed scale-up attempts for over 15 minutes. Common causes are Azure quota exhaustion, lack of capacity in the target zone/VM size, or provider errors — all SRE/infra concerns. Pending pods will not receive new nodes until this clears."
+        correlationId: 'UserJourneyClusterAutoscalerScaleUpFailures/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
   - eval_time: 20m
-    alertname: UJClusterAutoscalerErrors
+    alertname: UserJourneyClusterAutoscalerErrors
 # ========================================
-# Test 7: Autoscaler internal errors — UJClusterAutoscalerErrors fires
+# Test 7: Autoscaler internal errors — UserJourneyClusterAutoscalerErrors fires
 # ========================================
 - interval: 1m
   input_series:
@@ -236,7 +236,7 @@ tests:
     values: "0+1x70"
   alert_rule_test:
   - eval_time: 20m
-    alertname: UJClusterAutoscalerErrors
+    alertname: UserJourneyClusterAutoscalerErrors
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -245,9 +245,9 @@ tests:
         severity: "4"
         slo: cluster-autoscaler-health
       exp_annotations:
-        summary: "mgmt-1/ocm-dev-abc-cluster21-01: cluster autoscaler is reporting internal errors"
-        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 (management cluster mgmt-1) has been recording internal errors (cluster_autoscaler_errors_total) for over 15 minutes. This points at a malfunction in the scaling controller (cloud provider or API errors) that an SRE should investigate; it is independent of the customer's autoscaling configuration."
-        correlationId: 'UJClusterAutoscalerErrors/mgmt-1/ocm-dev-abc-cluster21-01'
-        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md"
+        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler is reporting internal errors"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 has been recording internal errors (cluster_autoscaler_errors_total) for over 15 minutes. This points at a malfunction in the scaling controller (cloud provider or API errors) that an SRE should investigate; it is independent of the customer's autoscaling configuration."
+        correlationId: 'UserJourneyClusterAutoscalerErrors/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
   - eval_time: 20m
-    alertname: UJClusterAutoscalerScaleUpFailures
+    alertname: UserJourneyClusterAutoscalerScaleUpFailures
