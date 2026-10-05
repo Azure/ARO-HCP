@@ -22,6 +22,12 @@ External-auth operation update baseline: `51851bfabe`, rebased on main `08987b4e
 scope: frontend create acceptance without a parent Cluster Service ID, empty
 create/update operation `InternalID`, and the corresponding lifecycle diagrams.
 
+Update-deadline baseline: `a0f232352a2e933142f2f2dfb61f2870aed7a26f` plus working-tree changes; scope: cluster/node-pool update admission, create/update timeout error codes and diagnostics, and their lifecycle views.
+
+Cluster teardown update baseline: `d453011603d357d8fa8938acef97eec5d00818c4`
+plus working-tree fixes; scope: ordered ApplyDesire removal, ReadDesire cleanup,
+concurrent Cluster Service delete dispatch, and the cluster-delete diagram.
+
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
 
@@ -430,7 +436,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `Cluster` | <ul><li>`CustomerProperties.*` (from request body; `DNS.BaseDomainPrefix` and `Platform.ManagedResourceGroup` carried from old if empty)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity` (PrincipalID, TenantID, non-nil UserAssignedIdentity values), `ServiceProviderProperties` (entire deep copy), `Status` (entire deep copy)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` = `Immediate` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.z-stream-update-policy=Immediate` is present; otherwise unset (other supplied values are rejected when gated on)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
+| `Cluster` | <ul><li>`CustomerProperties.*` (from request body; `DNS.BaseDomainPrefix` and `Platform.ManagedResourceGroup` carried from old if empty)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity` (PrincipalID, TenantID, non-nil UserAssignedIdentity values), `ServiceProviderProperties` (entire deep copy), `Status` (entire deep copy)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` = `Immediate` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.z-stream-update-policy=Immediate` is present; otherwise unset (other supplied values are rejected when gated on)</li><li>`ServiceProviderProperties.UpdateOperationCompletionDeadline` = admission clock + 60m (experimental `max-update-duration` override when enabled); reset for each update</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI` (from headers)</li><li>`StartTime`, `LastTransitionTime`, `OperationID`, `ResourceID`, `ClientRequestID`, `CorrelationRequestID`</li></ul> |
 
 ---
@@ -443,7 +449,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `Cluster` | <ul><li>`CustomerProperties.*` (old resource used as base, PATCH body overlaid, then converted to internal; `Platform.ContainerRegistry` dispatched to CS via `clusterUpdateDispatchConfig` for day-2 set/change/clear)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `ServiceProviderProperties`, `Status`</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` = `Immediate` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.z-stream-update-policy=Immediate` is present; otherwise unset (other supplied values are rejected when gated on)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
+| `Cluster` | <ul><li>`CustomerProperties.*` (old resource used as base, PATCH body overlaid, then converted to internal; `Platform.ContainerRegistry` dispatched to CS via `clusterUpdateDispatchConfig` for day-2 set/change/clear)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `ServiceProviderProperties`, `Status`</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` = `Immediate` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.z-stream-update-policy=Immediate` is present; otherwise unset (other supplied values are rejected when gated on)</li><li>`ServiceProviderProperties.UpdateOperationCompletionDeadline` = admission clock + 60m (experimental `max-update-duration` override when enabled); reset for each update</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI`</li></ul> |
 
 ---
@@ -452,11 +458,15 @@ transitively deletes all clusters (and their children) via transactional batches
 
 **Path:** `DELETE .../hcpOpenShiftClusters/{name}`
 **Handler:** `addDeleteClusterToTransaction` ([cluster.go](../frontend/pkg/frontend/cluster.go))
-**Write method:** Single transactional batch containing cluster + all child resources
+**Write method:** Single transactional batch containing the cluster and its operation. Children without initialized backend deletion are also initialized in that batch.
+
+Each accepted DELETE uses the current time plus `DeleteOperationCompletionTimeout` (12 hours by default) for `ServiceProviderProperties.DeleteOperationCompletionDeadline`. Existing `DeletionTimestamp` and `ClusterServiceDeletionTimestamp` values are preserved.
+
+Each child with a `DeletionTimestamp` and its backend-deletion flag set is left untouched, including its operation. Children without those markers are initialized, including children created while the parent operation was failed. Child-list errors abort the transaction. A retry renews parent operation monitoring without redispatching an already dispatched Cluster Service deletion. An active new-style deletion still returns HTTP 409 without modifying the deadline.
 
 | Object | Fields Written |
 |--------|---------------|
-| `Cluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` = `true`</li></ul> |
+| `Cluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.DeleteOperationCompletionDeadline` = now + configured timeout</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` = `true`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Deleting`</li><li>`UsesNewClusterDeletionApproach` = `true`</li><li>`TenantID`, `ClientID`, `NotificationURI` (if from user request)</li></ul> |
 | Child `NodePool`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new per-NP delete operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
 | Child `NodePool` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Deleting`</li><li>`UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
@@ -487,7 +497,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `NodePool` | <ul><li>`Properties.*` (from request; `Version.ID` carried from old if empty, `Platform.SubnetID` carried from old if nil)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyNodePoolValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `Properties.ProvisioningState`, `ServiceProviderProperties`, `Status`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
+| `NodePool` | <ul><li>`Properties.*` (from request; `Version.ID` carried from old if empty, `Platform.SubnetID` carried from old if nil)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyNodePoolValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `Properties.ProvisioningState`, `ServiceProviderProperties`, `Status`</li><li>`ServiceProviderProperties.UpdateOperationCompletionDeadline` = admission clock + 60m (experimental `max-update-duration` override when enabled); reset for each update</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = node pool ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li></ul> |
 
 ---
@@ -738,8 +748,11 @@ code only from sources reporting that state: `Invalid*` codes take precedence,
 other codes rank next, and `InternalServerError` is the default for non-successful
 states. Successful states have no error code. Equal-priority codes keep the first
 source in the stable provisioning-state/message sort.
-The selected code is persisted in the operation error, including create deadline
-failures; existing customer-safe error messages and details are retained.
+The selected code is persisted in the operation error. In all cluster/node-pool
+create/update timeout paths, `OperationState.CloudErrorCode` is preserved unless
+it is `InternalServerError`; only that code is replaced with `DeadlineExceeded`.
+Timeout messages retain the merged pending reasons. Existing customer-safe error
+messages and details are retained for already-failed observations.
 
 Validation instances use the [cluster wrapper](../backend/pkg/controllers/cluster/validation/cluster_validation_controller.go)
 or [node-pool wrapper](../backend/pkg/controllers/nodepool/validation/nodepool_validation_controller.go).
@@ -844,7 +857,9 @@ After Cluster Service placement is visible, maps its provision shard to the flee
 
 Requires observed `Status.ManagementClusterResourceID`; live reconciliation also requires `ClusterServiceID`. Fetches Cluster Service manifests and reconciles tagged `ApplyDesire` documents for namespaces, HostedCluster, node pools, SWIFT networking and supporting objects. Skips absent/deleting node pools; stale intents during live reconciliation use an explicit Delete request and wait for confirmed deletion before document removal.
 
-On cluster deletion, stops fetching manifests and removes all its tagged ApplyDesire documents directly. This stops kube-applier reconciliation but does not delete the Kubernetes objects. Cluster Service delete dispatch waits for those intents to disappear before requesting external teardown. ClusterResources does not create ReadDesires; cluster/node-pool read controllers supply the mirrored observations.
+On cluster deletion, stops fetching manifests and runs the [removal chain](../backend/pkg/controllers/clusterresources/apply_desire_removal_chain.go). First drops NodePool and supporting configuration ApplyDesires to stop reconciliation while leaving their Kubernetes objects for HostedCluster or namespace cleanup. Then explicitly requests deletion, waiting for kube-applier confirmation at each stage: ManagedCluster → ingress manifests in the shared policy namespace → HostedCluster → PodNetworkInstance → PodNetwork → cluster namespaces. A pending deletion or error blocks subsequent stages. HyperShift owns NodePool cleanup during HostedCluster deletion; if the HostedCluster is absent, remaining NodePools depend on namespace deletion and their finalizers. Dropping a NodePool document alone is not evidence that machines were removed.
+
+Creates owned ReadDesires for ManagedCluster, SWIFT resources and the cluster namespaces during live reconciliation; dedicated cluster/node-pool controllers provide HostedCluster and NodePool observations. Explicit removal deletes the corresponding ReadDesire after its ApplyDesire is purged. The final sweep removes owned orphan ReadDesires after every removal step drains, including retries for failed paired cleanup. Cluster Service delete dispatch runs independently of this chain.
 
 #### CreateClusterScopedReadDesires
 
@@ -983,7 +998,7 @@ Requires cached cluster/provider documents and an SRE `Spec.PinnedVersion.ExactV
 
 [Source](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) · **Trigger:** Cluster; 1m.
 
-Requires `UsesNewClusterDeletionApproach`, deletion intent and no dispatch timestamp. Waits for all ClusterResources-tagged ApplyDesires to disappear, then calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp`. A missing ID or external 404 waits up to 120s from first observed deletion after the ApplyDesire gate passes to cover creation races; this is not a dispatch interval.
+Requires `UsesNewClusterDeletionApproach`, deletion intent and no dispatch timestamp. Calls Cluster Service DELETE and stamps `ClusterServiceDeletionTimestamp` independently of ClusterResources teardown; there is no ApplyDesire gate. A missing ID or external 404 waits up to 120s from first observed deletion to cover creation races; this is not a dispatch interval.
 
 #### ClusterDeletionClusterServiceIDClearer
 
@@ -995,7 +1010,7 @@ After delete dispatch, polls Cluster Service; only a not-found result clears `Se
 
 [Source](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) · **Trigger:** Cluster; 1m.
 
-Requires deletion timestamp, dispatched deletion and cleared Cluster Service ID. Waits for node pools, external auth, credential requests and revocations to be gone. Leaves controller-owned ApplyDesires to their owners and backup schedule desires to BackupSchedule; removes other eligible cluster-scoped intents. Deletes the provider document only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires are gone.
+Requires deletion timestamp, dispatched deletion and cleared Cluster Service ID. Waits for node pools, external auth, credential requests and revocations to be gone. Leaves controller-owned ApplyDesires to their owners, ClusterResources-owned ReadDesires to its paired cleanup/orphan sweep, and backup schedule desires to BackupSchedule; removes other eligible cluster-scoped intents. Deletes the provider document only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires are gone.
 
 #### ClusterDeletionController
 
@@ -1018,6 +1033,8 @@ For the matching nonterminal operation, writes status/error/transition time and 
 [Source](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) · **Trigger:** Active operation; 10s.
 
 Checks resolved provider desired major/minor against the customer request, rejects incompatible SRE/exact overrides, and waits up to 129s from first observed mismatch for assignment (tracked in memory per operation). It no longer reads or creates status for the removed desired-version controller. Combines dispatched configuration, Cluster Service state, mirrored HostedCluster completion, and the same cluster validation check and five-minute failure grace period as [OperationClusterCreate](#operationclustercreate). For the matching nonterminal operation, writes operation status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+
+After determining state, a still-pending operation past `ServiceProviderProperties.UpdateOperationCompletionDeadline` becomes Failed with the selected `OperationState.CloudErrorCode` (replacing only `InternalServerError` with `DeadlineExceeded`) and the merged, source-labelled pending reasons, including Cluster Service progress messages. Already successful/failed observations retain their result. A missing deadline (older stored resources) preserves the previous behavior. State-evaluation errors remain reconcile errors, as in creation.
 
 #### OperationClusterDelete
 
@@ -1116,6 +1133,8 @@ Observes Cluster Service and resource readiness; For the matching nonterminal op
 [Source](../backend/pkg/controllers/nodepool/operations/operation_node_pool_update.go) · **Trigger:** Active operation; 10s.
 
 Combines version resolution, Cluster Service state/configuration and mirrored NodePool spec/status. Requires the requested replica count (or autoscaling range), `AllNodesHealthy=True` and `AllMachinesReady=True`; skips both health conditions when replicas are zero and autoscaling is unset. Reports all failing status checks together. For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification.
+
+After determining state, a still-pending operation past `ServiceProviderProperties.UpdateOperationCompletionDeadline` becomes Failed with the selected `OperationState.CloudErrorCode` (replacing only `InternalServerError` with `DeadlineExceeded`) and the merged, source-labelled pending reasons, including Cluster Service progress messages. Already successful/failed observations retain their result. A missing deadline (older stored resources) preserves the previous behavior. State-evaluation errors remain reconcile errors, as in creation.
 
 #### OperationNodePoolDelete
 
@@ -1674,8 +1693,8 @@ The delete views describe resources using `UsesNewClusterDeletionApproach`,
 operation paths still exist. Pending operations keep reconciling; errors retry,
 and operation-specific failure checks can produce Failed instead of Succeeded.
 The 120-second missing-ID/404 creation-race wait in delete dispatchers is distinct
-from waiting for external teardown; cluster dispatch starts tracking that wait only
-after its ClusterResources ApplyDesire gate passes. Graphs show the usual successful path and
+from waiting for external teardown; cluster dispatch runs independently of the
+ClusterResources removal chain. Graphs show the usual successful path and
 important feedback, not every failure branch.
 
 Render all PNGs with Graphviz installed:
@@ -1762,7 +1781,7 @@ is not upgrade completion, and automatic z-stream rollout creates no ARM operati
 
 ![Cluster delete controller digraph](diagrams/controller-flows/cluster-delete.png)
 
-[ClusterResources](../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) first drops its tagged ApplyDesire documents, stopping their reconciliation without deleting their Kubernetes targets. [Delete dispatch](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) waits for that intent cleanup before calling Cluster Service DELETE. External components then tear down Kubernetes and Azure resources. [Child cleanup](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) waits for resource and credential children, and preserves owned ApplyDesires for their controllers and removes provider state only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires clear. [Managed-resource-group reconciliation](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go) observes deletion during normal flow but also initiates Azure deletion for orphaned managed resource groups (where Cluster Service deletion completed, Cluster Service ID cleared, but Azure resource group still exists). The optional orphan-group cleaner is a background repair path, not a prerequisite for typical deletion.
+[ClusterResources](../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) first drops NodePool and supporting configuration ApplyDesires, then explicitly deletes and waits for ManagedCluster, shared-namespace ingress manifests, HostedCluster, PodNetworkInstance, PodNetwork and the two cluster namespaces, in that order. Kube-applier executes Delete intents and reports completion; HyperShift and Kubernetes controllers perform finalizer and dependent-resource cleanup. Owned orphan ReadDesires are swept after the chain drains. [Delete dispatch](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) independently calls Cluster Service DELETE, so external teardown can overlap the removal chain. [Child cleanup](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) waits for resource and credential children, and preserves owned ApplyDesires for their controllers and removes provider state only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires clear. [Managed-resource-group reconciliation](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go) observes deletion during normal flow but also initiates Azure deletion for orphaned managed resource groups (where Cluster Service deletion completed, Cluster Service ID cleared, but Azure resource group still exists). The optional orphan-group cleaner is a background repair path, not a prerequisite for typical deletion.
 
 The separate [BackupCleanup](../mgmt-agent/pkg/controller/backupcleanup/controller.go) branch starts only after live reads confirm no HC remains in the recognized backup's HC namespace, not merely a deletion timestamp. All backup/operation/opt-out gates in its [catalog entry](#backupcleanup) must also pass. It requests Velero deletion without waiting for TTL; pending work polls and processed requests with a remaining Backup are retried. [KeyRotationBackup](../backend/pkg/controllers/cluster/backups/key_rotation_controller.go) only purges its Cosmos desires during cluster deletion. Neither ARM success nor Backup absence proves Kopia GC completion; BackupRepositories remain for maintenance, and this branch does not gate the ARM result.
 
@@ -1850,6 +1869,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Cluster `ServiceProviderProperties.ProvisioningState`; node-pool/external-auth `Properties.ProvisioningState` | Frontend marks Accepted/Deleting; the matching operation controller writes progress/terminal state. This is ARM request state, not a complete inventory of external resources. |
 | `ServiceProviderProperties.ActiveOperationID` | Frontend sets the new operation reference; terminal operation updates clear it. Pollers reject superseded operation IDs. |
 | External-auth create/update `Operation.ExternalID` / `InternalID` | Frontend writes the ARM resource ID / empty ID, even for a resource with an existing Cluster Service ID. Pollers use `ExternalID` to look up the resource and its backend-owned `ServiceProviderProperties.ClusterServiceID`. The operation does not copy or clear the resource's ID. |
+| Cluster/node-pool `ServiceProviderProperties.UpdateOperationCompletionDeadline` | Frontend PUT/PATCH admission resets this to now + 60m for each update. With `ExperimentalReleaseFeatures`, the resource-specific `aro-hcp.experimental.cluster.max-update-duration` or `aro-hcp.experimental.nodepool.max-update-duration` tag overrides it (Go duration, minimum 1m). The matching update operation controller consumes it and reports pending reasons on timeout. |
 | `Operation.Status`, `Error`, `LastTransitionTime`, `NotificationURI` | Frontend initializes/cancels requests; operation controllers update status and send/clear async notifications through the shared helper. |
 | `ServiceProviderProperties.DeletionTimestamp` and deletion-approach flags | Frontend stamps deletion intent; dispatch, cleanup and final deletion controllers consume it. Deletion timestamp alone does not mean external resources are gone. |
 | Cluster `PendingClusterServiceID` / `ClusterServiceID` | [Pending ID assignment](#clusterpendingclusterserviceidassign) reserves the ID. [Cluster creation](#clusterclusterservicecreate) confirms the external ID and clears pending. The [ID clearer](#clusterdeletionclusterserviceidclearer) clears confirmed ID only after external absence. Node-pool/external-auth create and clear controllers similarly share their confirmed-ID fields. |
@@ -1884,7 +1904,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Cluster `Status.HostedClusterNamespace`, `ControlPlaneNamespace`, `ServingCABundle` | [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) fills these from mirrored reads. Credentials and create-operation completion wait on them. |
 | Cluster `Spec.BackupState` | Admin backup PATCH writes Enabled/Paused; [BackupSchedule](#backupschedule) reconciles Velero intent. Mirrored Kubernetes status reports results separately. |
 | Velero deletion intent / repository ownership | Management-agent [BackupCleanup](#backupcleanup) directly creates `DeleteBackupRequest.spec.backupName` and retries its processed requests; Velero owns Backup/data deletion. Backup/repository preservation annotations gate new cleanup requests, not already-issued requests or Velero TTL. BackupRepositories remain for Kopia maintenance; no Cosmos field records cleanup or repository GC completion. |
-| `ApplyDesire` / `ReadDesire` | Backend/fleet writers own desired content/targets; kube-applier owns execution/observation status. Credential cleanup and stale-resource cleanup during live ClusterResources reconciliation use Delete intents and wait. During whole-cluster deletion, ClusterResources drops its intent documents directly; external components own Kubernetes teardown. |
+| `ApplyDesire` / `ReadDesire` | Backend/fleet writers own desired content/targets; kube-applier owns execution/observation status. Credential cleanup and stale-resource cleanup during live ClusterResources reconciliation use Delete intents and wait. During whole-cluster deletion, ClusterResources drops only NodePool/supporting configuration ApplyDesires; its ordered removal chain uses Delete intents and waits for the remaining objects. Paired ReadDesires are removed on confirmed deletion, and owned orphan reads are swept after the chain drains. |
 | Kubernetes CapacityReport | Management-agent [capacity-reporting](#capacity-reporting) server-side applies status, preserving zero CPU/memory/SWIFT-NIC quantities and replacing `hostedControlPlanes` atomically. Kube-applier mirrors it; fleet updates scheduling and resource-requirement documents only from current observations. Collection failures retain the previous payload while setting ReportCurrent=False. |
 
 ### Credential and controller bookkeeping

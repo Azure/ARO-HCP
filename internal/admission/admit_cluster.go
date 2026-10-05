@@ -200,6 +200,7 @@ func mutateClusterServiceProviderProperties(ctx context.Context, admissionContex
 	errs = append(errs, mutateClusterUID(ctx, admissionContext, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, validation.ToClusterServiceProviderPropertiesClusterUID))...)
 	errs = append(errs, mutateClusterExperimentalFeatures(ctx, admissionContext, op, fldPath.Child("experimentalFeatures"), &newObj.ExperimentalFeatures, safe.Field(oldObj, toSPExperimentalFeatures))...)
 	errs = append(errs, mutateCreateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("createOperationCompletionDeadline"), &newObj.CreateOperationCompletionDeadline)...)
+	errs = append(errs, mutateUpdateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("updateOperationCompletionDeadline"), &newObj.UpdateOperationCompletionDeadline)...)
 	errs = append(errs, mutateDeleteOperationCompletionTimeout(ctx, admissionContext, op, fldPath.Child("deleteOperationCompletionTimeout"), &newObj.DeleteOperationCompletionTimeout)...)
 
 	return errs
@@ -243,7 +244,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterZStreamUpdatePolicy, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift)
+	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterZStreamUpdatePolicy, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxUpdateDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -343,6 +344,9 @@ func hasTag(tags map[string]string, key string) bool {
 const defaultCreateOperationCompletionDeadlineDuration = 60 * time.Minute
 const minCreateOperationCompletionDeadlineDuration = time.Minute
 
+const defaultUpdateOperationCompletionDeadlineDuration = 60 * time.Minute
+const minUpdateOperationCompletionDeadlineDuration = time.Minute
+
 // DefaultDeleteOperationCompletionDeadlineDuration is the fallback duration
 // used by the frontend DELETE handler when DeleteOperationCompletionTimeout
 // is nil (no tag / no AFEC).
@@ -379,6 +383,43 @@ func mutateCreateOperationCompletionDeadline(_ context.Context, admissionContext
 			if parsed < minCreateOperationCompletionDeadlineDuration {
 				tagsPath := field.NewPath("tags")
 				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxCreationDuration), tagValue, fmt.Sprintf("must be at least %s", minCreateOperationCompletionDeadlineDuration))}
+			}
+			duration = parsed
+		}
+	}
+
+	deadline := metav1.NewTime(admissionContext.Clock.Now().Add(duration))
+	*newObj = &deadline
+	return nil
+}
+
+// mutateUpdateOperationCompletionDeadline sets the deadline by which a cluster
+// update operation must complete. On UPDATE it defaults to 60 minutes from
+// now; when the subscription has the ExperimentalReleaseFeatures AFEC
+// registered, the caller may override the duration via the
+// TagClusterMaxUpdateDuration ARM resource tag.
+func mutateUpdateOperationCompletionDeadline(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, _ *field.Path, newObj **metav1.Time) field.ErrorList {
+	if op.Type != operation.Update {
+		return nil
+	}
+
+	duration := defaultUpdateOperationCompletionDeadlineDuration
+
+	subscription := admissionContext.Subscription
+	if subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		var tags map[string]string
+		if admissionContext.OriginalCluster != nil {
+			tags = admissionContext.OriginalCluster.Tags
+		}
+		if tagValue := lookupTag(tags, metadataapi.TagClusterMaxUpdateDuration); len(tagValue) > 0 {
+			parsed, err := time.ParseDuration(tagValue)
+			if err != nil {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxUpdateDuration), tagValue, "must be a valid Go duration string (e.g. \"19m\", \"30m\")")}
+			}
+			if parsed < minUpdateOperationCompletionDeadlineDuration {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxUpdateDuration), tagValue, fmt.Sprintf("must be at least %s", minUpdateOperationCompletionDeadlineDuration))}
 			}
 			duration = parsed
 		}
@@ -894,7 +935,15 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 					errs = append(errs, field.Invalid(versionPath, newObj.ID, skewErr.Error()))
 				}
 			}
-			errs = append(errs, validation.VersionMustBeAtLeast(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+
+			// Nightly versions include prerelease identifiers (e.g., X.Y.0-0.nightly-...) that may sort
+			// lower than stable versions in semver comparison, even if the nightly was built after
+			// the current active control plane version. Only compare the major.minor of the version.
+			if newObj.ChannelGroup == metadataapi.ChannelGroupNightly {
+				errs = append(errs, validation.VersionMustBeAtLeastMajorMinor(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+			} else {
+				errs = append(errs, validation.VersionMustBeAtLeast(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+			}
 		}
 	}
 

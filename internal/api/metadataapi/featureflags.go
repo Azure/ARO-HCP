@@ -88,6 +88,11 @@ const (
 	// The value must be a valid Go time.Duration string (e.g. "19m", "30m").
 	TagClusterMaxCreationDuration = ExperimentalClusterTagPrefix + "max-creation-duration"
 
+	// TagClusterMaxUpdateDuration overrides the default 60-minute update deadline.
+	// Only honored when ExperimentalReleaseFeatures is registered. The value must
+	// be a valid Go duration of at least one minute.
+	TagClusterMaxUpdateDuration = ExperimentalClusterTagPrefix + "max-update-duration"
+
 	// TagClusterMaxDeletionDuration is the ARM resource tag that overrides
 	// the default cluster deletion deadline (60 minutes) when the
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
@@ -106,4 +111,9 @@ const (
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
 	// The value must be a valid Go time.Duration string (e.g. "19m", "30m").
 	TagNodePoolMaxCreationDuration = ExperimentalNodePoolTagPrefix + "max-creation-duration"
+
+	// TagNodePoolMaxUpdateDuration overrides the default 60-minute update deadline.
+	// Only honored when ExperimentalReleaseFeatures is registered. The value must
+	// be a valid Go duration of at least one minute.
+	TagNodePoolMaxUpdateDuration = ExperimentalNodePoolTagPrefix + "max-update-duration"
 )

@@ -210,7 +210,7 @@ credentials, or exported `AZURE_*` variables.
 
 The acquire step must mount the same applicable profile credentials used by the
 test step. The selected identity needs permission to enumerate the E2E identity
-inventory and role assignments, and delete leased principals' FICs and role
+inventory and role assignments, and delete leased principals' role
 assignments. Missing credential files or insufficient permissions fail admission.
 No credentials are written to shared runtime state.
 
@@ -415,6 +415,11 @@ Admission assumes exclusive ownership of the allocated assets: previous
 consumers must no longer modify them, and handlers must not invalidate another
 asset's readiness. It does not protect against concurrent external writers.
 
+### Admission timeout
+
+All asset admission handlers share a configurable time budget, defaulting to
+10 minutes, separate from the lease acquisition and release timeouts.
+
 ### Emergency admission opt-out
 
 `slot-manager acquire --disable-asset-admission=e2e_identities` skips only that
@@ -434,7 +439,7 @@ and does not bypass catalog validation or provisioning checks.
 
 Use this only as a temporary mitigation, for example during ARM throttling.
 For E2E identities it skips identity/principal verification and cleanup of stale
-FICs and role assignments, so the identities are not guaranteed clean for reuse.
+role assignments, so the identities are not guaranteed clean for reuse.
 Remove the opt-out after mitigation; it applies only to that acquisition and is
 not a persistent catalog or release setting.
 
@@ -628,10 +633,12 @@ For every resolved resource group, the handler:
 1. enumerates all user-assigned managed identities;
 2. selects the 13 standard identities and requires valid principal IDs,
    reporting unexpected names without inspecting or cleaning those identities;
-3. enumerates every federated identity credential on those standard identities;
-4. enumerates role assignments for their principal IDs across the E2E
+3. enumerates role assignments for their principal IDs across the E2E
    subscription, including child scopes;
-5. deletes all discovered federated identity credentials and role assignments.
+4. deletes all discovered role assignments for those principals.
+
+Federated identity credential (FIC) cleanup is not part of admission: it is
+expensive in time and ARM calls and does not affect test correctness.
 
 Discovery lists role assignments once for the E2E subscription and matches them
 against the expected identities' principal IDs. Each synchronous deletion must
@@ -641,9 +648,8 @@ propagation can still lag behind successful deletion; checking resource absence
 would not guarantee authorization-cache convergence.
 
 All admission ARM requests run serially, finishing each container's identity
-and credential inventory before moving to the next container. Azure SDK
-throttling retries remain enabled. The single admission phase has a ten-minute
-budget. A clean inventory returns without deletion calls.
+inventory before moving to the next container. Azure SDK throttling retries
+remain enabled. A clean inventory returns without deletion calls.
 
 A missing required identity, invalid principal metadata, incomplete enumeration,
 or deletion error (including exhausted SDK retries) fails acquisition before
@@ -658,9 +664,8 @@ per affected resource group, listing the group and unexpected identity names.
 This reporting adds no ARM requests and does not block admission, including for
 unmanaged pools.
 
-The normal E2E framework cleanup remains the fast path after each test. Asset
-admission is authoritative because it also handles interrupted jobs and
-best-effort cleanup failures.
+The E2E framework cleans FICs and role assignments after each test. Admission
+repairs RBAC residue from interrupted jobs or failed teardown.
 
 ## Inventory maintenance
 

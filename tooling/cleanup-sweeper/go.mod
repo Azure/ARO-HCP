@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/cleanup-sweeper
 
-go 1.25.7
+go 1.26.0
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
@@ -16,11 +16,12 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates v1.5.0
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
+	github.com/microsoft/kiota-abstractions-go v1.9.3
 	github.com/microsoft/kiota-authentication-azure-go v1.3.0
 	github.com/microsoftgraph/msgraph-sdk-go v1.69.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
-	k8s.io/apimachinery v0.35.3
+	k8s.io/apimachinery v0.36.2
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -37,7 +38,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/microsoft/kiota-abstractions-go v1.9.3 // indirect
 	github.com/microsoft/kiota-http-go v1.5.5 // indirect
 	github.com/microsoft/kiota-serialization-form-go v1.1.2 // indirect
 	github.com/microsoft/kiota-serialization-json-go v1.1.2 // indirect

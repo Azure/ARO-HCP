@@ -9,6 +9,7 @@ Grafana dashboards for ARO-HCP SRE oncall and fleet health monitoring.
 | `resource-state.json` | Fleet-wide cluster provisioning state, clusters per region, nodepool health |
 | `operations-overview.json` | Fleet-wide in-flight operations, stuck/failed ops, duration distribution |
 | `per-cluster-drill-in.json` | Single-cluster oncall triage: KAS, etcd, provisioning state, nodepools |
+| `cluster-autoscaler-staleness.json` | Customer HCPs whose cluster-autoscaler main activity has been stale for at least five minutes |
 
 ## Datasource Model
 

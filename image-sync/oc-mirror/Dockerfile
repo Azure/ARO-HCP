@@ -30,7 +30,8 @@ RUN curl -sfL https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq
     tar -zvxf yq.tar.gz && \
     mv yq_linux_amd64 /usr/local/bin/yq
 
-FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS gobuilder
+FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS gobuilder
+ENV GOTOOLCHAIN=local
 WORKDIR /src
 COPY acrauth/go.mod acrauth/go.sum acrauth/
 RUN cd acrauth && go mod download

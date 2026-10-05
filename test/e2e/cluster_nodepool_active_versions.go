@@ -30,7 +30,7 @@ import (
 )
 
 var _ = Describe("Customer", func() {
-	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-11-01T00:00:00Z"))
+	timeBombDeadline := framework.V20261001PreviewDeploymentDeadline
 
 	It("should be able to retrieve cluster and nodepool status active versions",
 		labels.RequireNothing,

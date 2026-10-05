@@ -15,15 +15,66 @@
 package root
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
+
+func TestRunPropagatesAttribution(t *testing.T) {
+	t.Setenv("JOB_NAME", "test-prow-job")
+	t.Setenv("BUILD_ID", "12345")
+	t.Setenv("PROW_JOB_ID", "prow-uuid")
+	var runIDs []string
+	for range 2 {
+		var logs bytes.Buffer
+		ctx := logr.NewContext(context.Background(), logr.FromSlogHandler(slog.NewJSONHandler(&logs, nil)))
+		opts := Options{completedOptions: &completedOptions{
+			Workflow: WorkflowSharedLeftovers, SubscriptionID: "test-subscription", DryRun: true,
+		}}
+		if err := opts.Run(ctx); err == nil {
+			t.Fatal("expected missing credential error")
+		}
+		decoder := json.NewDecoder(&logs)
+		var runID string
+		entries := 0
+		for decoder.More() {
+			var entry map[string]any
+			if err := decoder.Decode(&entry); err != nil {
+				t.Fatal(err)
+			}
+			id, ok := entry["runID"].(string)
+			if !ok || id == "" {
+				t.Fatalf("missing run ID: %v", entry)
+			}
+			if runID == "" {
+				runID = id
+			}
+			if id != runID || entry["prowJob"] != "test-prow-job" || entry["prowBuildID"] != "12345" ||
+				entry["prowJobID"] != "prow-uuid" || entry["subscriptionID"] != "test-subscription" ||
+				entry["dryRun"] != true || entry["commitSHA"] == "" {
+				t.Fatalf("missing propagated attribution: %v", entry)
+			}
+			entries++
+		}
+		if entries != 2 {
+			t.Fatalf("expected root and workflow log entries, got %d", entries)
+		}
+		runIDs = append(runIDs, runID)
+	}
+	if runIDs[0] == runIDs[1] {
+		t.Fatal("independent runs reused an ID")
+	}
+}
 
 const testPolicyYAML = `
 rgOrdered:
