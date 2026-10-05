@@ -744,7 +744,7 @@ spec:
     spec:
       containers:
       - name: install
-        image: "arohcpsvcdev.azurecr.io/asampaio-hypershift:karpenter@sha256:1234567890"
+        image: "arohcpsvcdev.azurecr.io/asampaio/hypershift:aro-hcp-4.22.23-20261124-r3@sha256:1234567890"
         command:
         - /bin/sh
         - -c
@@ -753,7 +753,7 @@ spec:
             --install-scope=crds \
             --managed-service ARO-HCP \
             --limit-crd-install=Azure \
-            --hypershift-image arohcpsvcdev.azurecr.io/asampaio-hypershift:karpenter@sha256:1234567890 \
+            --hypershift-image arohcpsvcdev.azurecr.io/asampaio/hypershift:aro-hcp-4.22.23-20261124-r3@sha256:1234567890 \
             --enable-cpo-overrides --disable-capi-migration --tech-preview-no-upgrade=true --enable-standalone-karpenter-operator=true
       restartPolicy: Never
       serviceAccountName: hypershift-installer
@@ -775,7 +775,7 @@ spec:
     spec:
       containers:
       - name: install
-        image: "arohcpsvcdev.azurecr.io/asampaio-hypershift:karpenter@sha256:1234567890"
+        image: "arohcpsvcdev.azurecr.io/asampaio/hypershift:aro-hcp-4.22.23-20261124-r3@sha256:1234567890"
         command:
         - /bin/sh
         - -c
@@ -786,7 +786,7 @@ spec:
             --managed-service ARO-HCP \
             --aro-hcp-key-vault-users-client-id __csiSecretStoreClientId__ \
             --registry-overrides "quay.io/openshift-release-dev/ocp-v4.0-art-dev=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-v4.0-art-dev,quay.io/openshift-release-dev/ocp-v5.0-art-dev=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-v5.0-art-dev,quay.io/openshift-release-dev/ocp-release=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release,quay.io/openshift-release-dev/ocp-release-nightly=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release-nightly,registry.redhat.io/redhat=arohcpocpdev.azurecr.io/redhat,quay.io/redhat-user-workloads/crt-redhat-acm-tenant=arohcpocpdev.azurecr.io/quay-cache/redhat-user-workloads/crt-redhat-acm-tenant" \
-            --hypershift-image arohcpsvcdev.azurecr.io/asampaio-hypershift:karpenter@sha256:1234567890 \
+            --hypershift-image arohcpsvcdev.azurecr.io/asampaio/hypershift:aro-hcp-4.22.23-20261124-r3@sha256:1234567890 \
             --platform-monitoring=None \
             --metrics-set=SRE \
             --enable-size-tagging=true \
