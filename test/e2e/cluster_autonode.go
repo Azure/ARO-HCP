@@ -34,8 +34,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	hcpsdk20270330preview "github.com/Azure/ARO-HCP/test/sdk/v20270330preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -56,8 +56,10 @@ var autoNodeTestMarketplaceImage = framework.KarpenterMarketplaceImage{
 	Version:   "9.8.20260428",
 }
 
-// This test exercises: the enablement signal (AFEC-gated tag ->
-// ExperimentalFeatures.AutoNode projection, admit_cluster.go) plus the
+// This test exercises: the enablement signal (properties.autoNode.mode,
+// translated into the same AFEC-gated experimental tag and projected onto
+// ExperimentalFeatures.AutoNode by admit_cluster.go's mutateClusterExperimentalFeatures
+// — see the v20270330preview version package's normalizeAutoNode) plus the
 // "autonode" data-plane operator identity per ClusterOperatorIdentifierAutoNode
 // in internal/azure/cluster_scoped_identities_config.go; automatic delivery of
 // spec.autoNode onto the cluster's HostedCluster by the backend's
@@ -70,7 +72,7 @@ var autoNodeTestMarketplaceImage = framework.KarpenterMarketplaceImage{
 // framework.RunKarpenterNodeCSRApprover's doc comment) - a passing run here is
 // not evidence that gap is closed.
 var _ = Describe("Customer", func() {
-	It("should be able to enable AutoNode via the experimental tag for a cluster with version >= 4.22 and provision a real node via Karpenter",
+	It("should be able to enable AutoNode via the typed properties.autoNode.mode field for a cluster with version >= 4.22 and provision a real node via Karpenter",
 		labels.RequireNothing, labels.Medium, labels.Slow, labels.Positive, labels.AroRpApiCompatible, labels.CreateCluster,
 		labels.MIContainers(0),
 		func(ctx context.Context) {
@@ -87,24 +89,24 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "autonode-enable", tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for AutoNode enablement test")
 
-			By("creating cluster parameters with version 4.22 and the AutoNode experimental tag")
-			clusterParams := framework.NewDefaultClusterParams20260630()
+			By("creating cluster parameters with version 4.22 and the typed AutoNode field set to Enabled")
+			clusterParams := framework.NewDefaultClusterParams20270330()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = autoNodeTestOpenshiftVersion
 			// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
-			// registered for this tag to be honored (see NewDefaultClusterParams20260630,
+			// registered for this to be honored (see NewDefaultClusterParams20270330,
 			// whose default tags rely on the same AFEC). Without it, admission silently
 			// zeroes ExperimentalFeatures instead of rejecting the request
 			// (mutateClusterExperimentalFeatures in internal/admission/admit_cluster.go),
-			// so a missing AFEC registration would surface here as a failed tag
-			// round-trip assertion below, not a clean create-time error.
-			clusterParams.Tags[metadataapi.TagClusterAutoNode] = to.Ptr(string(coreapi.AutoNode))
+			// so a missing AFEC registration would surface here as a failed round-trip
+			// assertion below, not a clean create-time error.
+			clusterParams.AutoNodeMode = to.Ptr(hcpsdk20270330preview.AutoNodeModeEnabled)
 
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20260630(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20270330(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -120,8 +122,8 @@ var _ = Describe("Customer", func() {
 			Expect(autoNodeIdentityID).NotTo(BeNil(), "DataPlaneOperators should contain an \"autonode\" identity")
 			Expect(*autoNodeIdentityID).NotTo(BeEmpty(), "autonode data-plane identity resource ID should not be empty")
 
-			By("creating the HCP cluster with the AutoNode tag set")
-			err = tc.CreateHCPClusterFromParam20260630(
+			By("creating the HCP cluster with the typed AutoNode field set")
+			err = tc.CreateHCPClusterFromParam20270330(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -130,34 +132,38 @@ var _ = Describe("Customer", func() {
 				framework.ClusterCreationTimeout,
 			)
 			if framework.IsAPINotDeployedError(err) {
-				if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
-					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
+				if time.Now().Before(framework.V20270330PreviewDeploymentDeadline) {
+					Skip(fmt.Sprintf("v20270330preview API not yet deployed; skipping until %s", framework.V20270330PreviewDeploymentDeadline.Format(time.RFC3339)))
 				}
-				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
+				Fail(fmt.Sprintf("v20270330preview API still not deployed as of %s deadline", framework.V20270330PreviewDeploymentDeadline.Format(time.RFC3339)))
 			}
-			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster with the AutoNode tag set")
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster with the typed AutoNode field set")
 
-			By("verifying the AutoNode tag round-trips on the created cluster")
-			actualHCPCluster, err := tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, clusterName, nil)
+			By("verifying the typed AutoNode field round-trips on the created cluster")
+			actualHCPCluster, err := tc.Get20270330ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, clusterName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster %s", clusterName)
-			if tagValue := actualHCPCluster.Tags[metadataapi.TagClusterAutoNode]; tagValue == nil || *tagValue != string(coreapi.AutoNode) {
+			if actualHCPCluster.Properties.AutoNode == nil || actualHCPCluster.Properties.AutoNode.Mode == nil || *actualHCPCluster.Properties.AutoNode.Mode != hcpsdk20270330preview.AutoNodeModeEnabled {
 				subscriptionID, subErr := tc.SubscriptionID(ctx)
 				if subErr != nil {
 					subscriptionID = fmt.Sprintf("<unknown, failed to resolve: %s>", subErr)
 				}
+				var gotMode any
+				if actualHCPCluster.Properties.AutoNode != nil {
+					gotMode = actualHCPCluster.Properties.AutoNode.Mode
+				}
 				Fail(fmt.Sprintf(
 					"\n"+
 						"=================================================================\n"+
-						"AUTONODE TAG DID NOT ROUND-TRIP (got tag value: %v)\n"+
+						"AUTONODE FIELD DID NOT ROUND-TRIP (got mode: %v)\n"+
 						"This is almost certainly NOT an AutoNode bug: it means the %q AFEC\n"+
 						"flag is not registered on this test subscription (%s), so\n"+
 						"mutateClusterExperimentalFeatures (internal/admission/admit_cluster.go)\n"+
-						"silently zeroed ExperimentalFeatures instead of honoring the tag.\n"+
+						"silently zeroed ExperimentalFeatures instead of honoring the request.\n"+
 						"Fix by registering the flag on this subscription and re-running:\n"+
 						"  az feature register --namespace Microsoft.RedHatOpenShift \\\n"+
 						"    --name ExperimentalReleaseFeatures --subscription %s\n"+
 						"=================================================================\n",
-					tagValue, metadataapi.FeatureExperimentalReleaseFeatures, subscriptionID, subscriptionID,
+					gotMode, metadataapi.FeatureExperimentalReleaseFeatures, subscriptionID, subscriptionID,
 				))
 			}
 

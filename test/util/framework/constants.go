@@ -55,6 +55,7 @@ const (
 // API version deployment deadlines (timebombs)
 var V20260630PreviewDeploymentDeadline = Must(time.Parse(time.RFC3339, "2026-08-14T00:00:00Z"))
 var V20261001DeploymentDeadline = Must(time.Parse(time.RFC3339, "2026-11-01T00:00:00Z"))
+var V20270330PreviewDeploymentDeadline = Must(time.Parse(time.RFC3339, "2027-04-30T00:00:00Z"))
 
 // Backup timeouts
 const (
