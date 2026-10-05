@@ -135,6 +135,9 @@ automationDryRun: false
 azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 3
 backend:
+  autoNode:
+    karpenterOperatorImageOverride: ""
+    karpenterProviderAzureImageOverride: ""
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   backupCadenceProfile: production

@@ -941,6 +941,13 @@ defaults:
     orphanedMRGCleanupExcludedSubscriptionAFECFlags: ""
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
+    autoNode:
+      # Personal-dev-only stopgap overrides for the standalone
+      # karpenter-operator/karpenter-provider-azure images. Must stay empty
+      # here; only the pers environment overrides these (see
+      # clouds.dev.environments.pers.defaults.backend.autoNode below).
+      karpenterOperatorImageOverride: ""
+      karpenterProviderAzureImageOverride: ""
   # Fleet
   fleet:
     managedIdentityName: fleet

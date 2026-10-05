@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
+	clusterautonode "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/autonode"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
@@ -114,6 +115,11 @@ type BackendOptions struct {
 	// by MockFPARoleAssignments. It is empty when the backend runs with a real FPA
 	// (HasRealFPA is true).
 	MockFirstPartyApplicationPrincipalID string
+
+	// AutoNodeImageOverrides is a personal-dev-only stopgap: see the doc
+	// comment on clusterautonode.ImageOverrides for why it exists and when to
+	// remove it. Empty in every environment except personal dev.
+	AutoNodeImageOverrides clusterautonode.ImageOverrides
 }
 
 const backendShutdownTimeout = 31 * time.Second
