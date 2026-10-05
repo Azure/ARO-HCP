@@ -84,7 +84,7 @@ spec:
                 values:
                 - {{ .Values.schedulingRole | quote }}
       tolerations:
-      - key: {{ .Values.schedulingTolerationKey | default (ternary "CriticalAddonsOnly" "infra" (eq .Values.schedulingRole "system")) | quote }}
+      - key: {{ ternary "CriticalAddonsOnly" "infra" (eq .Values.schedulingRole "system") | quote }}
         operator: Equal
         value: "true"
         effect: NoSchedule

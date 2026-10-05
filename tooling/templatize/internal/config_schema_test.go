@@ -156,8 +156,7 @@ func TestMgmtSchedulingConfigSchema(t *testing.T) {
 	}{
 		{name: "default infra", mutate: func(scheduling map[string]any) {
 			require.Equal(t, "infra", scheduling["role"])
-			require.Equal(t, "", scheduling["tolerationKey"])
-			require.Len(t, scheduling, 2)
+			require.Len(t, scheduling, 1)
 		}},
 		{name: "system override", mutate: func(scheduling map[string]any) {
 			scheduling["role"] = "system"
@@ -167,9 +166,6 @@ func TestMgmtSchedulingConfigSchema(t *testing.T) {
 		{name: "invalid role", wantError: true, mutate: func(scheduling map[string]any) { scheduling["role"] = "worker" }},
 		{name: "invalid role type", wantError: true, mutate: func(scheduling map[string]any) { scheduling["role"] = true }},
 		{name: "unknown scheduling field", wantError: true, mutate: func(scheduling map[string]any) { scheduling["unknown"] = true }},
-		{name: "missing key", mutate: func(scheduling map[string]any) { delete(scheduling, "tolerationKey") }},
-		{name: "empty key", mutate: func(scheduling map[string]any) { scheduling["tolerationKey"] = "" }},
-		{name: "invalid key type", wantError: true, mutate: func(scheduling map[string]any) { scheduling["tolerationKey"] = []any{"infra"} }},
 		{name: "legacy tolerations list", wantError: true, mutate: func(scheduling map[string]any) { scheduling["tolerations"] = []any{} }},
 		{name: "removed operator", wantError: true, mutate: func(scheduling map[string]any) { scheduling["tolerationOperator"] = "Equal" }},
 		{name: "removed value", wantError: true, mutate: func(scheduling map[string]any) {
@@ -177,21 +173,6 @@ func TestMgmtSchedulingConfigSchema(t *testing.T) {
 		}},
 		{name: "removed effect", wantError: true, mutate: func(scheduling map[string]any) {
 			scheduling["tolerationEffect"] = "NoSchedule"
-		}},
-		{name: "key with spaces", wantError: true, mutate: func(scheduling map[string]any) {
-			scheduling["tolerationKey"] = "invalid key"
-		}},
-		{name: "long key name", wantError: true, mutate: func(scheduling map[string]any) {
-			scheduling["tolerationKey"] = strings.Repeat("a", 64)
-		}},
-		{name: "invalid DNS prefix", wantError: true, mutate: func(scheduling map[string]any) {
-			scheduling["tolerationKey"] = "Invalid.example/role"
-		}},
-		{name: "long DNS prefix", wantError: true, mutate: func(scheduling map[string]any) {
-			scheduling["tolerationKey"] = strings.Repeat("a", 254) + "/role"
-		}},
-		{name: "qualified key", mutate: func(scheduling map[string]any) {
-			scheduling["tolerationKey"] = "example.com/Node_role"
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
