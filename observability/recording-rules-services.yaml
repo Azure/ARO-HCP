@@ -1,5 +1,6 @@
 prometheusRules:
   rulesFolders:
+  - recording-rules/backend-operation-slo-recordingRule.yaml
   - recording-rules/access-cluster-slo-recordingRule.yaml
   - recording-rules/cluster-provision-slo-recordingRule.yaml
   - recording-rules/userJourneyClusterUpgrade-recordingRule.yaml

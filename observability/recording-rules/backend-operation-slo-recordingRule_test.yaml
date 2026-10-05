@@ -1,0 +1,534 @@
+rule_files:
+- backend-operation-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Latency: completed operations produce correct percentiles
+# ========================================
+- interval: 1m
+  input_series:
+  # A fast cluster create that completed in 5 minutes
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/2/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "300+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x20"
+  # A moderate cluster create that completed in 10 minutes
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/2/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "600+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x20"
+  # A slow cluster create that completed in 15 minutes
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/2/cluster/c", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/c", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "900+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/c", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x20"
+  promql_expr_test:
+  # Median reflects the middle duration
+  - expr: 'latency:backend_resource_operation:p50_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p50_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 600
+  # p95 skews toward the slowest operation
+  - expr: 'latency:backend_resource_operation:p95_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p95_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 870
+  # p99 approaches but does not exceed the slowest operation
+  - expr: 'latency:backend_resource_operation:p99_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p99_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 894
+# In-flight operations must not produce latency percentiles.
+- interval: 1m
+  input_series:
+  # A cluster create still provisioning
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/3/cluster/inflight", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/3/cluster/inflight", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/inflight", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x15"
+  promql_expr_test:
+  # No latency produced; the operation has not reached a terminal phase
+  - expr: 'latency:backend_resource_operation:p50_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 10m
+    exp_samples: []
+# Failed operations contribute to latency percentiles alongside succeeded ones.
+- interval: 1m
+  input_series:
+  # A fast cluster create that succeeded
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/8/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/8/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "300+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/8/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x20"
+  # A slow cluster create that failed
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/8/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/8/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "900+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/8/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x20"
+  promql_expr_test:
+  # Failed operations affect latency; median reflects both succeeded and failed durations
+  - expr: 'latency:backend_resource_operation:p50_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p50_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 600
+# Canceled operations are excluded from latency percentiles.
+- interval: 1m
+  input_series:
+  # A cluster create that succeeded
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/9/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/9/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "300+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/9/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x20"
+  # A cluster create the user canceled
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/9/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="canceled", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/9/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="canceled", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "900+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/9/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="canceled", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x20"
+  promql_expr_test:
+  # Canceled operation does not affect latency; only the succeeded op contributes
+  - expr: 'latency:backend_resource_operation:p50_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p50_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 300
+# Latency isolation: different resource types get separate percentile buckets.
+- interval: 1m
+  input_series:
+  # A completed cluster create
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "600+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x20"
+  # A completed nodepool create in the same subscription
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/np/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/np/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "120+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/np/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x20"
+  promql_expr_test:
+  # Cluster create latency is independent of nodepool create latency
+  - expr: 'latency:backend_resource_operation:p50_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p50_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 600
+  # Nodepool latency is computed independently from cluster latency
+  - expr: 'latency:backend_resource_operation:p50_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create"}'
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p50_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 120
+# ========================================
+# Latency window exclusion: completed ops that aged out of the window
+# stop affecting percentiles.
+# ========================================
+# 1h window: an older op drops out while a newer op remains.
+- interval: 1m
+  input_series:
+  # A cluster create that completed early and will age out of the 1h window
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/5/cluster/old", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/5/cluster/old", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "300+0x200"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/old", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x200"
+  # A cluster create that completed recently and stays in-window
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/5/cluster/recent", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "_x49 2400+0x151"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/5/cluster/recent", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "_x49 3000+0x151"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/recent", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "_x49 1+0x151"
+  promql_expr_test:
+  # Both ops in-window: percentile reflects both durations
+  - expr: 'latency:backend_resource_operation:p50_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 55m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p50_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 450
+  # Older op aged out: percentile reflects only the remaining op
+  - expr: 'latency:backend_resource_operation:p50_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 65m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p50_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 600
+# 6h window: same aging behavior at the 6h boundary.
+- interval: 1m
+  input_series:
+  # A cluster create that completed early and will age out of the 6h window
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/6/cluster/old", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/6/cluster/old", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "300+0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/old", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x400"
+  # A cluster create that completed recently and stays in-window
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/6/cluster/recent", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "_x349 20400+0x51"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/6/cluster/recent", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "_x349 21000+0x51"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/recent", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "_x349 1+0x51"
+  promql_expr_test:
+  # Both ops in-window: percentile reflects both durations
+  - expr: 'latency:backend_resource_operation:p50_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 355m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p50_6h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 450
+  # p95 skews toward the slowest operation across the 6h window
+  - expr: 'latency:backend_resource_operation:p95_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 355m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p95_6h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 585
+  # Older op aged out: percentile reflects only the remaining op
+  - expr: 'latency:backend_resource_operation:p50_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 366m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p50_6h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 600
+# 3d window: same aging behavior at the 3d boundary.
+- interval: 1m
+  input_series:
+  # A cluster create that completed early and will age out of the 3d window
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/7/cluster/old", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "0+0x4400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/7/cluster/old", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "300+0x4400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/7/cluster/old", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "1+0x4400"
+  # A cluster create that completed recently and stays in-window
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/7/cluster/recent", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "_x4309 258000+0x91"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/7/cluster/recent", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "_x4309 258600+0x91"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/7/cluster/recent", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2"}'
+    values: "_x4309 1+0x91"
+  promql_expr_test:
+  # Both ops in-window: percentile reflects both durations
+  - expr: 'latency:backend_resource_operation:p50_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 4315m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p50_3d{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 450
+  # p95 skews toward the slowest operation across the 3d window
+  - expr: 'latency:backend_resource_operation:p95_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 4315m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p95_3d{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 585
+  # Older op aged out: percentile reflects only the remaining op
+  - expr: 'latency:backend_resource_operation:p50_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 4326m
+    exp_samples:
+    - labels: 'latency:backend_resource_operation:p50_3d{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 600
+# ========================================
+# Error rate: stale failures age out of the window
+# ========================================
+# 1h window: a failure that completed outside the window is excluded from
+# the error rate while recent failures and successes are counted.
+- interval: 1m
+  input_series:
+  # A cluster create that failed long ago (outside the 1h window)
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/old", phase="failed", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/old", phase="failed", environment="dev", region="eastus2"}'
+    values: "0x200"
+  # A cluster create that failed recently
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "_x89 5400x111"
+  # A cluster create that succeeded recently
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "_x89 5400x111"
+  promql_expr_test:
+  # Only the recent failure counts; the stale one is excluded
+  - expr: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 95m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 1
+  # Error rate reflects only in-window operations
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 95m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0.5
+# Canceled operations are excluded from the error rate denominator.
+- interval: 1m
+  input_series:
+  # A cluster create that succeeded
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "0x200"
+  # A cluster create that failed
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "0x200"
+  # A cluster create the user canceled before completion
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/c1", phase="canceled", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/c1", phase="canceled", environment="dev", region="eastus2"}'
+    values: "0x200"
+  promql_expr_test:
+  # Only the actual failure is counted
+  - expr: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 1
+  # Denominator counts succeeded + failed only; canceled is excluded
+  - expr: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:total_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 2
+  # A user cancellation does not inflate or deflate the error rate
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0.5
+# Zero in-window failures produce error_rate=0, not absent.
+- interval: 1m
+  input_series:
+  # A cluster create that succeeded with no failures anywhere
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "0x200"
+  promql_expr_test:
+  # Error rate is pinned to 0 so downstream alerts see a value, not absent
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0
+# ========================================
+# Error rate isolation: different resource_type/operation_type combos
+# get separate error buckets.
+# ========================================
+- interval: 1m
+  input_series:
+  # A successful cluster create
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/c-s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/c-s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "0x200"
+  # A failed nodepool update (different resource type and operation)
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/np-f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/np-f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "0x200"
+  promql_expr_test:
+  # Cluster create is clean despite a nodepool update failure existing
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0
+  # Nodepool update captures the failure independently
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 1
+# Delete operations produce the same metrics as create operations.
+- interval: 1m
+  input_series:
+  # A cluster delete that succeeded
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", resource_id="/del-s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", resource_id="/del-s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "0x200"
+  # A cluster delete that failed
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", resource_id="/del-f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", resource_id="/del-f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "0x200"
+  promql_expr_test:
+  # Delete failures are tracked independently from create
+  - expr: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_1h{cluster="mgmt-1", operation_type="delete", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 1
+  # Delete error rate reflects the correct ratio
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="delete", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0.5
+# ========================================
+# Error rate: stale failures age out of 6h and 3d windows
+# ========================================
+# 6h window: same aging behavior at the 6h boundary.
+- interval: 1m
+  input_series:
+  # A cluster create that failed long ago (outside the 6h window)
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/old", phase="failed", environment="dev", region="eastus2"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/old", phase="failed", environment="dev", region="eastus2"}'
+    values: "0x400"
+  # A cluster create that failed recently
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "_x349 1x51"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "_x349 21000x51"
+  # A cluster create that succeeded recently
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "_x349 1x51"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "_x349 21000x51"
+  promql_expr_test:
+  # Only the recent failure counts; the stale one is excluded
+  - expr: 'errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 361m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_6h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 1
+  # Error rate reflects only in-window operations
+  - expr: 'errors:backend_resource_operation:error_rate_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 361m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_6h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0.5
+# 3d window: same aging behavior at the 3d boundary.
+- interval: 1m
+  input_series:
+  # A cluster create that failed long ago (outside the 3d window)
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/old", phase="failed", environment="dev", region="eastus2"}'
+    values: "1x4400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/old", phase="failed", environment="dev", region="eastus2"}'
+    values: "0x4400"
+  # A cluster create that failed recently
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "_x4309 1x91"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "_x4309 258600x91"
+  # A cluster create that succeeded recently
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "_x4309 1x91"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "_x4309 258600x91"
+  promql_expr_test:
+  # Only the recent failure counts; the stale one is excluded
+  - expr: 'errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 4321m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_3d{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 1
+  # Error rate reflects only in-window operations
+  - expr: 'errors:backend_resource_operation:error_rate_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 4321m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_3d{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0.5
+# ========================================
+# HA dedup: duplicate prometheus_replica series collapse to one count
+# ========================================
+# Two HA replicas reporting the same operations must not double-count.
+- interval: 1m
+  input_series:
+  # A successful cluster create reported by both HA replicas
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2", prometheus_replica="prometheus-0"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/1/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2", prometheus_replica="prometheus-0"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2", prometheus_replica="prometheus-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/1/cluster/a", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1", environment="dev", region="eastus2", prometheus_replica="prometheus-1"}'
+    values: "0+0x15"
+  # A failed cluster create reported by both HA replicas
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1", environment="dev", region="eastus2", prometheus_replica="prometheus-0"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/1/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1", environment="dev", region="eastus2", prometheus_replica="prometheus-0"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1", environment="dev", region="eastus2", prometheus_replica="prometheus-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/1/cluster/b", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1", environment="dev", region="eastus2", prometheus_replica="prometheus-1"}'
+    values: "0+0x15"
+  promql_expr_test:
+  # One failure, not two; HA replicas are collapsed
+  - expr: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 1
+  # Two operations total, not four; HA replicas are collapsed in the denominator
+  - expr: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:total_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 2
+  # Error rate reflects the true operation count, not the replica count
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0.5
+# ========================================
+# All terminal ops aged out: or-pin keeps metrics at 0, not absent.
+# ========================================
+# When every terminal operation has aged out of the window but phase_info
+# series still exist, the or-pin fallback fires and holds all values at 0.
+- interval: 1m
+  input_series:
+  # A cluster create that succeeded long ago (outside the 1h window)
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/old-s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "1x100"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/old-s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "0x100"
+  # A cluster create that failed long ago (outside the 1h window)
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/old-f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "1x100"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", resource_id="/old-f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "0x100"
+  promql_expr_test:
+  # No recent failures; or-pin holds at 0 instead of going absent
+  - expr: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 65m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0
+  # No recent terminal operations at all; or-pin holds at 0
+  - expr: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 65m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:total_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0
+  # Error rate is 0, not absent; downstream alerts remain evaluable
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create"}'
+    eval_time: 65m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0
