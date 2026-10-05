@@ -209,10 +209,24 @@ func BuildIdentityParamsFromNames(
 	subscriptionID string,
 	msiResourceGroupName string,
 	identities Identities,
+	enableAutoNode bool,
 ) (*hcpsdk20251223preview.UserAssignedIdentitiesProfile, *hcpsdk20251223preview.ManagedServiceIdentity) {
 	idFmt := "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s"
 	id := func(name string) *string {
 		return to.Ptr(fmt.Sprintf(idFmt, subscriptionID, msiResourceGroupName, name))
+	}
+
+	dataPlaneOperators := map[string]*string{
+		"disk-csi-driver": id(identities.DpDiskCsiDriverMiName),
+		"file-csi-driver": id(identities.DpFileCsiDriverMiName),
+		"image-registry":  id(identities.DpImageRegistryMiName),
+	}
+	// Only include "autonode" when the caller actually enables AutoNode: Cluster
+	// Service rejects a create request whose dataPlaneOperators includes an
+	// identity without corresponding feature enablement for the target
+	// OpenShift version.
+	if enableAutoNode {
+		dataPlaneOperators["autonode"] = id(identities.DpAutoNodeMiName)
 	}
 
 	uamis := &hcpsdk20251223preview.UserAssignedIdentitiesProfile{
@@ -227,11 +241,7 @@ func BuildIdentityParamsFromNames(
 			"cloud-network-config":     id(identities.CloudNetworkConfigMiName),
 			"kms":                      id(identities.KmsMiName),
 		},
-		DataPlaneOperators: map[string]*string{
-			"disk-csi-driver": id(identities.DpDiskCsiDriverMiName),
-			"file-csi-driver": id(identities.DpFileCsiDriverMiName),
-			"image-registry":  id(identities.DpImageRegistryMiName),
-		},
+		DataPlaneOperators:     dataPlaneOperators,
 		ServiceManagedIdentity: id(identities.ServiceManagedIdentityName),
 	}
 
