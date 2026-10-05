@@ -142,6 +142,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4 v4.3
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4 v4.3.0/go.mod h1:Y/HgrePTmGy9HjdSGTqZNa+apUpTVIEVKXJyARP2lrk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6 v6.2.0 h1:HYGD75g0bQ3VO/Omedm54v4LrD3B1cGImuRF3AJ5wLo=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6 v6.2.0/go.mod h1:ulHyBFJOI0ONiRL4vcJTmS7rx18jQQlEPmAgo80cRdM=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns v1.3.0 h1:yzrctSl9GMIQ5lHu7jc8olOsGjWDCsBpJhWqfGa/YIM=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns v1.3.0/go.mod h1:GE4m0rnnfwLGX0Y9A9A25Zx5N/90jneT5ABevqzhuFQ=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/prometheusrulegroups/armprometheusrulegroups v0.1.0 h1:7hIyhsWoAy/n8PgH4RjJlGj3MdI47M+05l6igVZDAx0=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/prometheusrulegroups/armprometheusrulegroups v0.1.0/go.mod h1:2E6zmRYul50Rju64xaJNI6UXwbszw9nxEIfGV4AjhFQ=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0 h1:+1fJwTilk/X7inNqwREnYEOgFCdg8ut7GULxARDbu34=
