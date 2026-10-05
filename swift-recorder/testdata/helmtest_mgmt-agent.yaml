@@ -1,0 +1,8 @@
+# CI bootstrap path: useMgmtAgentImage swaps the container image to mgmtAgent.image.
+values: ../values.yaml
+name: swift-recorder-mgmt-agent
+namespace: swift-recorder
+testData:
+  swiftRecorder:
+    enabled: true
+    useMgmtAgentImage: true

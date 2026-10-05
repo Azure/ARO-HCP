@@ -402,14 +402,12 @@ ARO-Tools:
 .PHONY: ARO-Tools
 
 update-helm-fixtures:
-	find * -name 'zz_fixture_TestHelmTemplate*' | xargs rm -rf
+	find * -name 'zz_fixture_Test*HelmTemplate*' | xargs rm -rf
 	$(MAKE) -C tooling/helmtest update
-	UPDATE=true $(MAKE) -C swift-recorder test-deploy
 .PHONY: update-helm-fixtures
 
 test-helm-fixtures:
 	$(MAKE) -C tooling/helmtest test
-	$(MAKE) -C swift-recorder test-deploy
 	$(MAKE) -C observability/prometheus test
 	go test -C dev-infrastructure system_pool_only_test.go
 .PHONY: test-helmcharts

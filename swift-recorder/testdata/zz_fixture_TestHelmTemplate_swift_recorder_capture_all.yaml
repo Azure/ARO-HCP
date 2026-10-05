@@ -86,14 +86,14 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
       - name: swift-recorder
-        image: "arohcpsvcdev.azurecr.io/swift-recorder@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        image: "arohcpsvcdev.azurecr.io/swift-recorder@sha256:1234567890"
         command:
         - /swift-recorder
         args:
         - controller
         - --node-name=$(NODE_NAME)
         - --health-address=:8091
-        - --capture-mode=slow
+        - --capture-mode=all
         - --startup-dwell=30s
         - --post-success-capture=10s
         - --sample-interval=1s
@@ -194,3 +194,4 @@ spec:
     matchLabels:
       app.kubernetes.io/name: swift-recorder
       port: metrics
+

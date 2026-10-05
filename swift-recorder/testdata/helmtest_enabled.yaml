@@ -1,0 +1,7 @@
+# Default (slow) capture mode with the first-party swift-recorder image.
+values: ../values.yaml
+name: swift-recorder-enabled
+namespace: swift-recorder
+testData:
+  swiftRecorder:
+    enabled: true

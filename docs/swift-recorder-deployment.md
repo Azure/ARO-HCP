@@ -39,11 +39,12 @@ ACR image resolution must not require the dedicated recorder repository while
 `useMgmtAgentImage` is true. Do not enable this bootstrap in public or persistent
 environments, or reuse an arbitrary component digest to bypass validation.
 
-`make -C swift-recorder test-deploy` verifies both CI shards using a synthetic,
-release-style mgmt-agent override. It checks per-job names, schema validation,
-mirror references, the final DaemonSet image/command and `--capture-mode=all`,
-CI build-cluster and ACR source registries, and isolation from non-CI defaults. It performs no
-deployment or image pulls.
+`make test-helm-fixtures` renders the chart through `tooling/helmtest`
+(`TestHelmTemplate`) and compares the golden manifests in `swift-recorder/` and
+`swift-recorder/testdata/` for the default (disabled), `slow`, `all`, and
+`useMgmtAgentImage` scenarios, including the resolved DaemonSet image, command,
+and `--capture-mode`. It performs no deployment or image pulls. Regenerate the
+goldens with `make update-helm-fixtures`.
 
 For a local test with a dedicated recorder image, explicitly set
 `swiftRecorder.useMgmtAgentImage: false`, `swiftRecorder.enabled: true`, and the
