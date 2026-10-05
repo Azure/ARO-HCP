@@ -346,7 +346,10 @@ func (h *AlertProcessingRulePutHandler) validateAmwScopes(scopes []string) ([]st
 	}
 
 	if !hasAtLeastOneAmwScope {
-		errs = append(errs, fmt.Errorf("at least one of these scopes is required: %s", strings.Join(h.amwResourceIds, ",")))
+		msg := "at least one of these scopes is required: %s; got: %s"
+		configScopes := strings.Join(h.amwResourceIds, ",")
+		userScopes := strings.Join(parsedScopes, ",")
+		errs = append(errs, fmt.Errorf(msg, configScopes, userScopes))
 	}
 
 	if len(errs) > 0 {
