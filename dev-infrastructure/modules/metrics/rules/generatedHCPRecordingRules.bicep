@@ -342,6 +342,18 @@ resource arohcpClusterAutoscalerRecordingRules 'Microsoft.AlertsManagement/prome
         record: 'errors:cluster_autoscaler:errors:rate15m'
         expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(cluster_autoscaler_errors_total[15m])))'
       }
+      {
+        record: 'nodes:cluster_autoscaler:pending_node_deletions'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (cluster_autoscaler_pending_node_deletions))'
+      }
+      {
+        record: 'nodes:cluster_autoscaler:scaled_up:rate15m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(cluster_autoscaler_scaled_up_nodes_total[15m])))'
+      }
+      {
+        record: 'nodes:cluster_autoscaler:scaled_down:rate15m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(cluster_autoscaler_scaled_down_nodes_total[15m])))'
+      }
     ]
   }
 }
