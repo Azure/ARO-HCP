@@ -200,6 +200,7 @@ func mutateClusterServiceProviderProperties(ctx context.Context, admissionContex
 	errs = append(errs, mutateClusterUID(ctx, admissionContext, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, validation.ToClusterServiceProviderPropertiesClusterUID))...)
 	errs = append(errs, mutateClusterExperimentalFeatures(ctx, admissionContext, op, fldPath.Child("experimentalFeatures"), &newObj.ExperimentalFeatures, safe.Field(oldObj, toSPExperimentalFeatures))...)
 	errs = append(errs, mutateCreateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("createOperationCompletionDeadline"), &newObj.CreateOperationCompletionDeadline)...)
+	errs = append(errs, mutateUpdateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("updateOperationCompletionDeadline"), &newObj.UpdateOperationCompletionDeadline)...)
 	errs = append(errs, mutateDeleteOperationCompletionTimeout(ctx, admissionContext, op, fldPath.Child("deleteOperationCompletionTimeout"), &newObj.DeleteOperationCompletionTimeout)...)
 
 	return errs
@@ -243,7 +244,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterZStreamUpdatePolicy, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift)
+	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterZStreamUpdatePolicy, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxUpdateDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -343,6 +344,9 @@ func hasTag(tags map[string]string, key string) bool {
 const defaultCreateOperationCompletionDeadlineDuration = 60 * time.Minute
 const minCreateOperationCompletionDeadlineDuration = time.Minute
 
+const defaultUpdateOperationCompletionDeadlineDuration = 60 * time.Minute
+const minUpdateOperationCompletionDeadlineDuration = time.Minute
+
 // DefaultDeleteOperationCompletionDeadlineDuration is the fallback duration
 // used by the frontend DELETE handler when DeleteOperationCompletionTimeout
 // is nil (no tag / no AFEC).
@@ -379,6 +383,43 @@ func mutateCreateOperationCompletionDeadline(_ context.Context, admissionContext
 			if parsed < minCreateOperationCompletionDeadlineDuration {
 				tagsPath := field.NewPath("tags")
 				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxCreationDuration), tagValue, fmt.Sprintf("must be at least %s", minCreateOperationCompletionDeadlineDuration))}
+			}
+			duration = parsed
+		}
+	}
+
+	deadline := metav1.NewTime(admissionContext.Clock.Now().Add(duration))
+	*newObj = &deadline
+	return nil
+}
+
+// mutateUpdateOperationCompletionDeadline sets the deadline by which a cluster
+// update operation must complete. On UPDATE it defaults to 60 minutes from
+// now; when the subscription has the ExperimentalReleaseFeatures AFEC
+// registered, the caller may override the duration via the
+// TagClusterMaxUpdateDuration ARM resource tag.
+func mutateUpdateOperationCompletionDeadline(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, _ *field.Path, newObj **metav1.Time) field.ErrorList {
+	if op.Type != operation.Update {
+		return nil
+	}
+
+	duration := defaultUpdateOperationCompletionDeadlineDuration
+
+	subscription := admissionContext.Subscription
+	if subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		var tags map[string]string
+		if admissionContext.OriginalCluster != nil {
+			tags = admissionContext.OriginalCluster.Tags
+		}
+		if tagValue := lookupTag(tags, metadataapi.TagClusterMaxUpdateDuration); len(tagValue) > 0 {
+			parsed, err := time.ParseDuration(tagValue)
+			if err != nil {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxUpdateDuration), tagValue, "must be a valid Go duration string (e.g. \"19m\", \"30m\")")}
+			}
+			if parsed < minUpdateOperationCompletionDeadlineDuration {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxUpdateDuration), tagValue, fmt.Sprintf("must be at least %s", minUpdateOperationCompletionDeadlineDuration))}
 			}
 			duration = parsed
 		}
@@ -894,7 +935,15 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 					errs = append(errs, field.Invalid(versionPath, newObj.ID, skewErr.Error()))
 				}
 			}
-			errs = append(errs, validation.VersionMustBeAtLeast(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+
+			// Nightly versions include prerelease identifiers (e.g., X.Y.0-0.nightly-...) that may sort
+			// lower than stable versions in semver comparison, even if the nightly was built after
+			// the current active control plane version. Only compare the major.minor of the version.
+			if newObj.ChannelGroup == metadataapi.ChannelGroupNightly {
+				errs = append(errs, validation.VersionMustBeAtLeastMajorMinor(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+			} else {
+				errs = append(errs, validation.VersionMustBeAtLeast(ctx, op, versionPath, ptr.To(newObj.ID), nil, highest.String())...)
+			}
 		}
 	}
 
@@ -910,6 +959,11 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 	// mirrored a non-empty channel list onto the ServiceProviderCluster; until
 	// then it fails open (see admitClusterVersionID).
 	errs = append(errs, admitClusterVersionID(ctx, admissionContext, op, fldPath, newObj, oldObj)...)
+
+	// Reject an upgrade into OpenShift 5.x until the backend has mirrored an
+	// observed HostedCluster containing the 5.x data-plane image mirror (see
+	// admitClusterV5DataPlaneMirror).
+	errs = append(errs, admitClusterV5DataPlaneMirror(ctx, admissionContext, op, fldPath, newObj, oldObj)...)
 
 	return errs
 }
@@ -1010,13 +1064,95 @@ func admitClusterVersionID(_ context.Context, admissionContext *ClusterAdmission
 		return nil
 	}
 
-	versionPath := fldPath.Child("id")
 	return field.ErrorList{field.Invalid(
-		versionPath,
+		fldPath.Child("id"),
 		newObj.ID,
 		fmt.Sprintf("no upgrade path to update channel %q is currently available for this cluster; "+
 			"a channel appears in the cluster's desired version channels only when an upgrade edge to a "+
 			"release in that channel exists", expectedChannel),
+	)}
+}
+
+// admitClusterV5DataPlaneMirror rejects a 4.y -> 5.y upgrade when the cluster's
+// observed HostedCluster does not carry the 5.y data-plane image mirror
+// (apihelpers.OcpV5ArtDevMirrorSource) in spec.imageContentSources.
+//
+// 5.y data-plane images are published under a different source than 4.y. A
+// cluster created before that source was added to the platform's image content
+// sources cannot pull them, so letting the upgrade start would strand its nodes
+// on images they cannot fetch. Recovering the missing mirror is a separate,
+// Cluster Service-side concern; this check only prevents the cluster from
+// entering that state in the first place.
+//
+// The fact is read from the mirrored HostedCluster rather than from any desired
+// state: what matters is what actually exists on the management cluster today,
+// not what we intend to be true. Admission reaches neither the management
+// cluster nor the DB for it — the backend's ActualHostedCluster controller
+// observes the HostedCluster and copies it onto
+// ServiceProviderCluster.Status.ActualHostedCluster, which the frontend
+// prefetches into the admission context. See internal/admission/CLAUDE.md.
+//
+// Fail closed until synced: ActualHostedCluster is populated asynchronously and
+// is nil on freshly created clusters and until the first sync completes. A v5
+// upgrade must not start while the required mirror cannot be proven present.
+// Once the HostedCluster has been observed, an empty spec.imageContentSources
+// is a real answer and is enforced as such.
+func admitClusterV5DataPlaneMirror(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.VersionProfile) field.ErrorList {
+	// Keep this helper safe when called independently of admitClusterVersionProfile.
+	// CREATE has no old version, and unchanged updates do not need an upgrade gate.
+	if op.Type != operation.Update || newObj == nil || oldObj == nil || newObj.ID == oldObj.ID {
+		return nil
+	}
+
+	oldVersion, oldErr := semver.ParseTolerant(oldObj.ID)
+	newVersion, newErr := semver.ParseTolerant(newObj.ID)
+	if oldErr != nil || newErr != nil {
+		// admitClusterVersionProfile already reports parse failures; do not
+		// duplicate them here.
+		return nil
+	}
+	// Scoped to the 4.y -> 5.y crossing specifically, both ends pinned. A future
+	// major ships its own mirror under its own source, so a 4.y -> 6.y jump must
+	// not be waved through (or blocked) by a 5.y mirror check — it needs its own
+	// rule rather than a widened one here.
+	if oldVersion.Major != 4 || newVersion.Major != 5 {
+		return nil
+	}
+
+	// Not observed yet: fail closed (see the doc comment above). Admission must
+	// have an observed HostedCluster before allowing a 4.y -> 5.y upgrade.
+	if admissionContext.ServiceProviderCluster == nil {
+		return unavailableV5DataPlaneMirrorError(fldPath, newObj.ID)
+	}
+	actualHostedCluster := admissionContext.ServiceProviderCluster.Status.ActualHostedCluster
+	if actualHostedCluster == nil {
+		return unavailableV5DataPlaneMirrorError(fldPath, newObj.ID)
+	}
+
+	if apihelpers.HostedClusterHasImageContentSource(actualHostedCluster, apihelpers.OcpV5ArtDevMirrorSource) {
+		return nil
+	}
+
+	return missingV5DataPlaneMirrorError(fldPath, newObj.ID, newVersion.Major)
+}
+
+func unavailableV5DataPlaneMirrorError(fldPath *field.Path, versionID string) field.ErrorList {
+	return field.ErrorList{field.Invalid(
+		fldPath.Child("id"),
+		versionID,
+		"cannot validate the OpenShift 5.y data-plane image mirror yet: the backend has not observed the HostedCluster; retry the update",
+	)}
+}
+
+func missingV5DataPlaneMirrorError(fldPath *field.Path, versionID string, major uint64) field.ErrorList {
+	versionPath := fldPath.Child("id")
+	return field.ErrorList{field.Invalid(
+		versionPath,
+		versionID,
+		fmt.Sprintf("cannot upgrade to OpenShift %d.y: this cluster is missing the required data-plane image "+
+			"mirror %q, so its nodes would be unable to pull %d.y images; contact support to have the mirror "+
+			"added before upgrading",
+			major, apihelpers.OcpV5ArtDevMirrorSource, major),
 	)}
 }
 

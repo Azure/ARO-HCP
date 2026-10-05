@@ -30,7 +30,6 @@ import (
 	_ "github.com/Azure/ARO-HCP/test/e2e"
 
 	"github.com/go-logr/stdr"
-	"github.com/onsi/gomega/format"
 	"github.com/spf13/cobra"
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
@@ -458,10 +457,7 @@ func isUpgradeInPlaceSuiteInvocation() bool {
 }
 
 func setupCli() *cobra.Command {
-	// Configure Ginkgo to be verbose - when we're emitting a full object to stdout on failure, there's no real value in truncating its
-	// content at some arbitrary length.
-	format.MaxLength = 0
-	format.MaxDepth = 0
+	configureGomegaFormatting()
 
 	parallelismOverride := parseSuiteParallelismOverride()
 	parallelism := func(defaultValue int) int {

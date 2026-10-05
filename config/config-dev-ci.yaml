@@ -162,7 +162,7 @@ clouds:
           image:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "tenant-quota-collector"
-            digest: sha256:5f4123307611efec1f3bf0e25ac6787707571830c0f2633ee9668554dfd2de20 # 201cc972505e9733144a53b73248816d8907ffb5 (2026-09-30 09:22)
+            digest: sha256:8c01f8e63df19e7658cad0ed3c6ddf14ba9796d617abd5de678dbb06b45a94da # 014015ee1bfd6c177eece47b4ea575d02bd04198 (2026-10-01 06:36)
           ciJobOutcomes:
             # Records the outcome of each CI job run so the alerts and logs in
             # the dev Kusto can be attributed to the run that produced them.
@@ -300,6 +300,18 @@ clouds:
               - brazilsouth
               - eastus2
       ci:
+        # Required Azure resource providers for ARO-HCP-managed E2E subscriptions.
+        # This is the single source of truth for provider registration; add new
+        # dependencies here and re-run make dev-ci-privileged-local-run.
+        e2eSubscriptionProviders:
+        - "Microsoft.Compute"
+        - "Microsoft.Insights"
+        - "Microsoft.KeyVault"
+        - "Microsoft.ManagedIdentity"
+        - "Microsoft.Network"
+        - "Microsoft.Quota"
+        - "Microsoft.RedHatOpenShift"
+        - "Microsoft.Storage"
         dev:
           bot:
             applicationName: "OpenShift Release Bot"

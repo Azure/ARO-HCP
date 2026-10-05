@@ -153,6 +153,33 @@ func VersionMustBeAtLeast(_ context.Context, op operation.Operation, fldPath *fi
 	return nil
 }
 
+// VersionMustBeAtLeastMajorMinor checks if the version is at least the minimum major.minor version,
+// ignoring patch and prerelease.
+func VersionMustBeAtLeastMajorMinor(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string, minimumMajorMinorVersion string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+
+	newVersion, err := semver.ParseTolerant(*value)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+
+	minVersion, err := semver.ParseTolerant(minimumMajorMinorVersion)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+
+	if newVersion.Major < minVersion.Major || (newVersion.Major == minVersion.Major && newVersion.Minor < minVersion.Minor) {
+		return field.ErrorList{field.Invalid(fldPath, value, fmt.Sprintf("must be at least %s", minimumMajorMinorVersion))}
+	}
+
+	return nil
+}
+
 func VersionMayNotDecrease(_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *string) field.ErrorList {
 	if value == nil {
 		return nil

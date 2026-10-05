@@ -169,6 +169,27 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		}
 	}
 
+	if !operationalState.ProvisioningState.IsTerminal() &&
+		existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline != nil &&
+		c.clock.Now().After(existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time) {
+		message := operationbase.DeadlineExceededMessage(
+			"node pool update did not complete before the deadline",
+			operationalState.Message,
+		)
+		logger.Info("update operation deadline exceeded, marking as failed",
+			"deadline", existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time,
+			"message", message)
+		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
+		code := operationalState.CloudErrorCode
+		if code == coreapi.CloudErrorCodeInternalServerError {
+			code = coreapi.CloudErrorCodeDeadlineExceeded
+		}
+		persistErr = &coreapi.CloudErrorBody{
+			Code:    code,
+			Message: message,
+		}
+	}
+
 	logger.Info("updating status")
 	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
@@ -316,7 +337,7 @@ func (c *operationNodePoolUpdate) clusterServiceNodePoolStatusOperationState(ctx
 		return nil, utils.TrackError(err)
 	}
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
-	state := operationbase.NewOperationState(newOperationStatus, "")
+	state := operationbase.NewOperationState(newOperationStatus, operationbase.NodePoolServiceOperationMessage(existingCSNodePoolStatus, opError))
 	if opError != nil {
 		state.Message = opError.Message
 		state.WithCloudErrorCode(opError.Code)

@@ -29,7 +29,7 @@ digraph nodepool_create {
   read -> mirror [label="ReadDesire"];
   mirror -> active [label="observed version"];
   cs -> op [label="external state"];
-  op -> done [label="complete or fail"];
+  op -> done [label="complete or fail;\npending past deadline: selected code + reasons;\nonly InternalServerError becomes DeadlineExceeded"];
   observed [label="Customer resource Status.ActiveVersions\nfull OCP versions", fillcolor="#e4f2e5", color="#4c8053"];
   active -> observed [label="separate Cosmos replace"];
   active -> upgrade [label="active versus desired", style=dashed, color="#857456", constraint=false];

@@ -42,6 +42,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -1214,6 +1215,23 @@ func TestDeleteCluster(t *testing.T) {
 			expectDeadlineInFuture:         true,
 		},
 		{
+			name:                           "Failed backend deletion - fresh monitoring deadline",
+			clusterExists:                  true,
+			clusterProvisioningState:       coreapi.ProvisioningStateFailed,
+			usesNewClusterDeletionApproach: true,
+			hasDeletionTimestamp:           true,
+			expectedStatusCode:             http.StatusAccepted,
+			expectDeadlineInFuture:         true,
+		},
+		{
+			name:                     "Legacy deletion with timestamp - initialize backend deletion",
+			clusterExists:            true,
+			clusterProvisioningState: coreapi.ProvisioningStateDeleting,
+			hasDeletionTimestamp:     true,
+			expectedStatusCode:       http.StatusAccepted,
+			expectDeadlineInFuture:   true,
+		},
+		{
 			name:                           "New approach cluster already deleting - conflict",
 			clusterExists:                  true,
 			clusterProvisioningState:       coreapi.ProvisioningStateDeleting,
@@ -1265,6 +1283,10 @@ func TestDeleteCluster(t *testing.T) {
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 
 			// Pre-populate the mock database with cluster if it should exist
+			now := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+			f.clock = clocktesting.NewFakeClock(now)
+			oldTimestamp := metav1.NewTime(now.Add(-25 * time.Hour))
+			var originalCluster *coreapi.Cluster
 			if test.clusterExists {
 				cluster := &coreapi.Cluster{
 					CosmosMetadata: coreapi.CosmosMetadata{
@@ -1284,10 +1306,12 @@ func TestDeleteCluster(t *testing.T) {
 				}
 				// Set DeletionTimestamp only if test specifies it should have one
 				if test.hasDeletionTimestamp {
-					ts := metav1.NewTime(time.Now().Add(-1 * time.Hour))
-					cluster.ServiceProviderProperties.DeletionTimestamp = &ts
+					cluster.ServiceProviderProperties.DeletionTimestamp = &oldTimestamp
+					deadline := metav1.NewTime(oldTimestamp.Add(12 * time.Hour))
+					cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = &deadline
 				}
-				_, err := mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
+				var err error
+				originalCluster, err = mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
 				require.NoError(t, err)
 			}
 
@@ -1302,9 +1326,9 @@ func TestDeleteCluster(t *testing.T) {
 
 			resp, err := ts.Client().Do(req)
 			require.NoError(t, err)
+			defer resp.Body.Close()
 
 			if !assert.Equal(t, test.expectedStatusCode, resp.StatusCode) {
-				defer resp.Body.Close()
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				fmt.Println(string(body))
@@ -1312,10 +1336,12 @@ func TestDeleteCluster(t *testing.T) {
 
 			// For conflict cases, verify error message
 			if test.expectedStatusCode == http.StatusConflict && test.expectedErrorMessage != "" {
-				defer resp.Body.Close()
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				assert.Contains(t, string(body), test.expectedErrorMessage)
+				unchangedCluster, err := mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
+				require.NoError(t, err)
+				assert.Equal(t, originalCluster, unchangedCluster, "rejected DELETE must not modify deletion state or deadline")
 			}
 
 			// For accepted cases, verify cluster state was updated correctly
@@ -1336,19 +1362,17 @@ func TestDeleteCluster(t *testing.T) {
 				if test.expectDeletionTimestampSet {
 					require.NotNil(t, updatedCluster.ServiceProviderProperties.DeletionTimestamp, "DeletionTimestamp should be set")
 
-					// Verify timestamp is recent (within last 5 seconds)
-					timeSinceSet := time.Since(updatedCluster.ServiceProviderProperties.DeletionTimestamp.Time)
-					assert.Less(t, timeSinceSet, 5*time.Second, "DeletionTimestamp should be recent")
-					assert.GreaterOrEqual(t, timeSinceSet, time.Duration(0), "DeletionTimestamp should not be in future")
+					assert.WithinDuration(t, now, updatedCluster.ServiceProviderProperties.DeletionTimestamp.Time, 0)
+				}
+				if test.hasDeletionTimestamp {
+					assert.True(t, oldTimestamp.Equal(updatedCluster.ServiceProviderProperties.DeletionTimestamp), "existing deletion intent must be preserved")
 				}
 
 				// Verify DeleteOperationCompletionDeadline is in the future if expected
 				if test.expectDeadlineInFuture {
 					require.NotNil(t, updatedCluster.ServiceProviderProperties.DeleteOperationCompletionDeadline, "DeleteOperationCompletionDeadline should be set")
 
-					timeUntilDeadline := time.Until(updatedCluster.ServiceProviderProperties.DeleteOperationCompletionDeadline.Time)
-					assert.Greater(t, timeUntilDeadline, time.Duration(0), "DeleteOperationCompletionDeadline should be in the future, not expired")
-					assert.Less(t, timeUntilDeadline, 13*time.Hour, "DeleteOperationCompletionDeadline should be within 12 hours (default duration) plus buffer")
+					assert.WithinDuration(t, now.Add(12*time.Hour), updatedCluster.ServiceProviderProperties.DeleteOperationCompletionDeadline.Time, 0)
 				}
 			}
 		})

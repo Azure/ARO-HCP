@@ -52,24 +52,7 @@ For the current mixed-management model of the pooled MSI mock identities, see [C
 
 A brand-new subscription typically has no Azure resource providers registered beyond `Microsoft.Authorization`. The Azure portal quota blade reports *"The selected provider is not registered for some of the selected subscriptions"*, and later provisioning and RBAC steps fail until the providers used by ARO-HCP are registered.
 
-Register the required providers on each new subscription before requesting quota or running any provisioning step:
-
-```sh
-for ns in Microsoft.Compute Microsoft.Network Microsoft.ManagedIdentity \
-          Microsoft.Storage Microsoft.KeyVault Microsoft.RedHatOpenShift \
-          Microsoft.Quota; do
-  az provider register --namespace "$ns" --subscription <subscription-id>
-done
-```
-
-Registration is asynchronous; wait until every namespace reports `Registered`:
-
-```sh
-az provider show --namespace Microsoft.Compute \
-  --subscription <subscription-id> --query registrationState -o tsv
-```
-
-`Microsoft.Compute` and `Microsoft.Network` in particular must be registered before the Standard DSv3 vCPU and public-IP quota requests can be filed. `Microsoft.Quota` backs the quota tooling and the `tenant-quota-collector` monitoring updated in step 6.
+**Provider registration is now automated** by the `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionProviders` service group, which runs as part of `make dev-ci-privileged-local-run` (step 6 of the procedure below). You no longer need to register providers manually for internally-managed subscriptions — the privileged pipeline handles it idempotently. The authoritative provider list lives in `config/config-dev-ci.yaml` under `ci.e2eSubscriptionProviders`; add new provider dependencies there.
 
 ## Procedure
 
@@ -84,7 +67,6 @@ az provider show --namespace Microsoft.Compute \
      - Standard DSv3 Family vCPUs: `2000`
      - Public IP Addresses: `3000`
      - Role Assignments: `8000`
-   - `Microsoft.Compute` and `Microsoft.Network` must already report `Registered` (see Prerequisites) before the DSv3 and public-IP requests can be filed.
    - Quota approvals are asynchronous and routed through Microsoft support, so file them early — they gate identity-container provisioning (step 5) and determine the Role Assignment limit reported by monitoring (step 6).
 
 3. Sync the ARO-HCP-managed Boskos inventory in `openshift/release`.
@@ -138,7 +120,9 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 - `test/cmd/aro-hcp-tests/slot-manager/DESIGN.md`
 - `test/cmd/aro-hcp-tests/slot-manager/release_repo.go`
 - `test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities/`
-- `config/config-dev-ci.yaml`
+- `config/config-dev-ci.yaml` — subscription inventory (`ci.<env>.e2eSubscriptions`) and provider list (`ci.e2eSubscriptionProviders`)
+- `dev-infrastructure/dev-ci/e2e-subscription-providers/pipeline.yaml` — provider registration pipeline; reads both lists above straight from the config, so adding a subscription needs no edit here
+- `dev-infrastructure/scripts/e2e-register-providers.sh` — the registration/poll script that pipeline runs
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
 - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
@@ -150,6 +134,8 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 For subscriptions owned by a different team where our pipeline identity does **not** have access, use the external onboarding model instead. External subscriptions are **not listed** in `config/config-dev-ci.yaml` and set `slot_assets.e2e_identities.provisioning: unmanaged` in the slot catalog.
 
 The external team runs the RBAC setup and identity-pool provisioning themselves using our Bicep modules. See [External Subscription Onboarding](external-subscription-onboarding.md) for the full procedure and grant contract.
+
+This is also why **Test Tenant subscriptions are excluded from automated provider registration**. The privileged pipeline registers providers only on the subscriptions listed in `ci.<env>.e2eSubscriptions`, which is by definition the Red Hat tenant inventory our pipeline identity holds **Owner** on. Test Tenant subscriptions live in a tenant we cannot authenticate into, so adding them to that inventory would not work and must not be attempted — they follow the external onboarding procedure, where their owning team registers providers manually.
 
 ---
 
@@ -287,9 +273,9 @@ Region access is separate from quota. Once the flag is `Registered`, file the pe
 
 ### Step 2: CI Infrastructure Setup
 
-1. Add the subscription to `config/config-dev-ci.yaml` under the appropriate `ci.<env>.e2eSubscriptions` section.
+1. Add the subscription to `config/config-dev-ci.yaml` under the appropriate `ci.<env>.e2eSubscriptions` section, with both its display `name` and its `id`. This is the only file to edit — the provider-registration pipeline reads the inventory directly and picks up the new entry by its `id`.
 
-2. Run the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint to grant the environment's CI bot (e.g. `OpenShift Release Bot - STG`) the required RBAC on the new subscription (`make dev-ci-privileged-local-run`). This creates subscription-scoped role assignments and therefore requires **Owner** on the target subscription — run it on demand via an OWNERS-group member, not the `dev-ci` postsubmit.
+2. Run the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (`make dev-ci-privileged-local-run`). This grants the environment's CI bot (e.g. `OpenShift Release Bot - STG`) the required RBAC on the new subscription **and** registers all required resource providers (see `ci.e2eSubscriptionProviders` in `config/config-dev-ci.yaml`). Both run on demand via an OWNERS-group member; the RBAC grants require **Owner** on the target subscription, while provider registration needs only `*/register/action`.
 
 3. Add the pool to `test/e2e-config/e2e-slots.yaml` under the environment's `pools` list.
 

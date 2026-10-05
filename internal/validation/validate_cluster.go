@@ -521,7 +521,9 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	if oldObj == nil || len(oldObj.ID) > 0 {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 
-		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
+		// Only the major.minor version can be specified for the control plane version
+		// so we only need to check if it meets the minimum required major.minor version
+		errs = append(errs, VersionMustBeAtLeastMajorMinor(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
 
 		errs = append(errs, VersionMayNotDecrease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 		errs = append(errs, OpenshiftVersionAtMostOneMinorSkewWithField(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)

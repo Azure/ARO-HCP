@@ -38,8 +38,9 @@ digraph cluster_convergence {
   role -> op [label="confirmed nonempty; none\npending"];
   validation -> op [label="False: Provisioning + InvalidResource;\nfailure and operation each >= 5m: Failed;\nall True: ready"];
   op -> done [label="all completion checks\nsatisfied"];
-  failed [label="ARM operation Failed\nInvalidResource", fillcolor="#fbe8e5", color="#a64f43"];
-  op -> failed [label="any validation False >= 5m\nand operation age >= 5m"];
+  failed [label="ARM operation Failed\nselected error code", fillcolor="#fbe8e5", color="#a64f43"];
+  op -> failed [label="any validation False >= 5m\nand operation age >= 5m: InvalidResource"];
+  op -> failed [label="pending past deadline: selected code + reasons;\nonly InternalServerError becomes DeadlineExceeded"];
   done -> billing [label="Succeeded; billing reference\nmissing"];
   uid -> billing [label="ClusterUID available"];
   azure -> role [label="created stays pending until\nGET confirms", style=dashed, color="#857456", constraint=false];

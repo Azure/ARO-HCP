@@ -1,7 +1,8 @@
 ARG PLATFORM
 
 # Builder image installs tools needed to build mgmt-agent
-FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS builder
+ENV GOTOOLCHAIN=local
 COPY internal/go.mod internal/go.sum internal/
 COPY mgmt-agent/go.mod mgmt-agent/go.sum mgmt-agent/
 COPY swift-recorder/go.mod swift-recorder/go.sum swift-recorder/

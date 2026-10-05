@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -37,23 +36,11 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
-const admissionPhaseTimeout = 10 * time.Minute
-
 type identityLeaseInventory struct {
-	federatedCredentials []federatedCredentialReference
-	roleAssignments      []*armauthorization.RoleAssignment
-}
-
-type federatedCredentialReference struct {
-	resourceGroup string
-	identityName  string
-	name          string
+	roleAssignments []*armauthorization.RoleAssignment
 }
 
 func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) error {
-	ctx, cancel := context.WithTimeout(ctx, admissionPhaseTimeout)
-	defer cancel()
-
 	credential, subscriptionID, err := leaseCredential(request)
 	if err != nil {
 		return err
@@ -77,20 +64,7 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 		return err
 	}
 
-	federatedCredentialsClient := msiFactory.NewFederatedIdentityCredentialsClient()
-	deleteOperations := make([]func(context.Context) error, 0, len(inventory.federatedCredentials)+len(inventory.roleAssignments))
-	for _, reference := range inventory.federatedCredentials {
-		deleteOperations = append(deleteOperations, func(ctx context.Context) error {
-			_, err := federatedCredentialsClient.Delete(ctx, reference.resourceGroup, reference.identityName, reference.name, nil)
-			if isNotFound(err) {
-				return nil
-			}
-			if err != nil {
-				return fmt.Errorf("failed deleting FIC %q from identity %q in resource group %q: %w", reference.name, reference.identityName, reference.resourceGroup, err)
-			}
-			return nil
-		})
-	}
+	deleteOperations := make([]func(context.Context) error, 0, len(inventory.roleAssignments))
 	for _, assignment := range inventory.roleAssignments {
 		deleteOperations = append(deleteOperations, func(ctx context.Context) error {
 			if assignment.ID == nil {
@@ -152,7 +126,6 @@ func loadIdentityLeaseInventory(
 
 	inventory := &identityLeaseInventory{}
 	principalIDs := map[uuid.UUID]struct{}{}
-	federatedCredentialsClient := msiFactory.NewFederatedIdentityCredentialsClient()
 	identitiesClient := msiFactory.NewUserAssignedIdentitiesClient()
 
 	for _, resourceGroup := range request.AcquiredSlotState.Slot.IdentityContainerNames() {
@@ -196,26 +169,6 @@ func loadIdentityLeaseInventory(
 		}
 		if err := validateIdentityNames(resourceGroup, expectedIdentities, actualIdentities); err != nil {
 			return nil, err
-		}
-
-		for _, identityName := range expectedIdentityNames {
-			ficPager := federatedCredentialsClient.NewListPager(resourceGroup, identityName, nil)
-			for ficPager.More() {
-				page, err := ficPager.NextPage(ctx)
-				if err != nil {
-					return nil, fmt.Errorf("failed listing FICs for identity %q in resource group %q: %w", identityName, resourceGroup, err)
-				}
-				for _, credential := range page.Value {
-					if credential == nil || credential.Name == nil || strings.TrimSpace(*credential.Name) == "" {
-						return nil, fmt.Errorf("FIC list for identity %q in resource group %q returned an entry without a name", identityName, resourceGroup)
-					}
-					inventory.federatedCredentials = append(inventory.federatedCredentials, federatedCredentialReference{
-						resourceGroup: resourceGroup,
-						identityName:  identityName,
-						name:          *credential.Name,
-					})
-				}
-			}
 		}
 	}
 

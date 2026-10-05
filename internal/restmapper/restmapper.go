@@ -116,6 +116,11 @@ var additionalRESTMappings = []meta.RESTMapping{
 		Scope:            meta.RESTScopeNamespace,
 		Resource:         schema.GroupVersionResource{Group: "secret-sync.x-k8s.io", Version: "v1alpha1", Resource: "secretsyncs"},
 	},
+	{
+		GroupVersionKind: schema.GroupVersionKind{Group: "cluster.open-cluster-management.io", Version: "v1", Kind: "ManagedCluster"},
+		Scope:            meta.RESTScopeRoot,
+		Resource:         schema.GroupVersionResource{Group: "cluster.open-cluster-management.io", Version: "v1", Resource: "managedclusters"},
+	},
 }
 
 // Mapper is a package-level RESTMapper that resolves GVK→GVR without API

@@ -147,6 +147,30 @@ must already exist; `Directory`, not `DirectoryOrCreate`, avoids silently hiding
 missing node prerequisites. Mount propagation makes newly created namespace
 mounts visible without allowing propagation back to the host.
 
+## Root-Namespace Monitor
+
+Alongside the per-pod capture above, the recorder runs a separate,
+always-on root-namespace monitor (`pkg/netwatch`) that never enters any
+pod namespace and needs no capability beyond an ordinary netlink socket -
+no additional mount, capability, RBAC rule, or Helm value is required for
+it. It maintains an in-memory current-state view of vmbus/pci-backed
+root-namespace links, including hv_netvsc synthetic NICs and their
+MANA/mlx5_core VFs. It does not collect root addresses, ordinary Kubernetes
+veths, bridges, routes, rules, neighbors, or traffic counters. It uses a
+subscribe-then-dump-then-replay pattern and logs structured `"SWIFT node
+netlink record"` messages: `change` records for tracked changes and `periodic`
+records for establishment, two-minute heartbeats, failures, and rebuilding
+after a netlink hiccup. A recoverable dump, decode, subscription, or
+notification-overflow failure is retried internally with bounded backoff;
+it never stops the independent per-pod recorder above.
+
+See [LOG_RECORDS.md](LOG_RECORDS.md) for the full emitted-field reference,
+tested change examples, and how a root record correlates
+with the per-pod records above through a known VMBus GUID and matching
+cluster, node, and boot context. Departure observations retain previous
+interface identity and known synthetic pairing even after unpairing or
+synthetic departure; a shared MANA PCI address is never a unique VF join key.
+
 ## Log Ingestion
 
 Arobit decodes the `swift-recorder` container's JSON stdout in place under `log`
