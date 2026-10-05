@@ -446,11 +446,15 @@ defaults:
   # Hypershift
   hypershift:
     image:
-      registry: quay.io
-      repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:22e41393c0b5ed3c36a5a72572ae511b0834081344f367dbd7e5a3ef04c6f7e7 # 1b72ba5ab18b58009ea31ccfde3744009476189a (2026-11-05 19:37)
+      # registry: quay.io
+      # repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+      # digest: sha256:22e41393c0b5ed3c36a5a72572ae511b0834081344f367dbd7e5a3ef04c6f7e7 # 1b72ba5ab18b58009ea31ccfde3744009476189a (2026-11-05 19:37)
+      registry: arohcpsvcdev.azurecr.io
+      repository: asampaio-hypershift:karpenter
+      digest: sha256:8598aac54e0c6487d567ac0880d5c26df052f195d16adf2b32b5eb5d1cba4d21
     namespace: hypershift
-    additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
+    # cd tooling/helmtest && UPDATE_NODE_ROLLOUT_FIXTURE=true go test -run TestNodeRolloutConfig -count=1 ./...
+    additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration --tech-preview-no-upgrade=true --enable-standalone-karpenter-operator=true'
     # By default we set it to empty as this tag is only required for msft environments. We override
     # this value in sdp pipelines for msft environments.
     sharedIngressIPTag: ''
@@ -1163,9 +1167,14 @@ defaults:
   # Cluster Service
   clustersService:
     image:
-      registry: quay.io
-      repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:f5c2796a33dd0f72258b4a5545263083d841451d9abca3ff70dccf66e82ec273 # a7acf8c44ea2737f285fc3a2c00056ab7bd1e91b (2026-11-03 09:46)
+      # make pipeline/ClusterService DEPLOY_ENV=pers \
+      #  OVERRIDE_CONFIG_FILE=/tmp/cs-override.yaml STEP_CACHE_DIR=""
+      registry: arohcpsvcdev.azurecr.io
+      repository: cluster-service/aro-hcp-clusters-service-asampaio
+      digest: sha256:a20e5fca3db5308ebe93cf442a9ba0f55c1a7436c5261bda2e9d8d05aee94254 # working CS d1fcf12
+      # the latest CS image is not working due to a mismatch between the hostedCluster CR its using
+      # and the same CR on the hacked hypershift+karpenter. The working digest is pinned above.
+      # digest: sha256:cd35833adafd2c1048c26b668397c6e72313ec895a4a5baecdf612bc7b6a5fd2 # not working c9df6f475
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active

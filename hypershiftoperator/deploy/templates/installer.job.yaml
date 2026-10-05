@@ -23,7 +23,8 @@ spec:
             --install-scope=crds \
             --managed-service ARO-HCP \
             --limit-crd-install=Azure \
-            --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }}
+            --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }} \
+            {{ .Values.additionalArgs }}
       restartPolicy: Never
       serviceAccountName: hypershift-installer
 ---
