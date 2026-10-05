@@ -1,3 +1,4 @@
+schedulingRole: infra
 monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 image:
   registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
@@ -31,9 +32,6 @@ nodeHealth:
   # goes in git.
   config:
     enabled: {{ .mgmtAgent.nodeHealth.enabled }}
-nodeSelector: {}
-tolerations: []
-affinity: {}
 serviceAccount:
   name: "{{ .mgmtAgent.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__msiClientId__"
