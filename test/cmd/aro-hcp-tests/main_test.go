@@ -332,6 +332,64 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 	}
 }
 
+func TestStageAllSuiteIncludesFastAndSlow(t *testing.T) {
+	listNames := func(suite string) map[string]bool {
+		t.Helper()
+		output, err := os.CreateTemp(t.TempDir(), "suite-names-*.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer output.Close()
+
+		root := setupCli()
+		root.SetArgs([]string{"list", "tests", "--suite", suite, "--output", "names"})
+		originalStdout := os.Stdout
+		func() {
+			os.Stdout = output
+			defer func() { os.Stdout = originalStdout }()
+			err = root.Execute()
+		}()
+		if err != nil {
+			t.Fatalf("listing %s tests: %v", suite, err)
+		}
+		if _, err := output.Seek(0, io.SeekStart); err != nil {
+			t.Fatal(err)
+		}
+		data, err := io.ReadAll(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		names := make(map[string]bool)
+		for _, name := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+			if name != "" {
+				names[name] = true
+			}
+		}
+		return names
+	}
+
+	fast := listNames("stage/parallel")
+	slow := listNames("stage/parallel/slow")
+	all := listNames("stage/parallel/all")
+	if len(fast) == 0 || len(slow) == 0 {
+		t.Fatalf("expected nonempty fast and Slow suites, got %d and %d", len(fast), len(slow))
+	}
+	for name := range slow {
+		if fast[name] {
+			t.Fatalf("test %q belongs to both fast and Slow suites", name)
+		}
+		fast[name] = true
+	}
+	if len(all) != len(fast) {
+		t.Fatalf("combined Stage suite has %d tests, expected %d", len(all), len(fast))
+	}
+	for name := range fast {
+		if !all[name] {
+			t.Fatalf("combined Stage suite is missing %q", name)
+		}
+	}
+}
+
 func TestWriteEV2RetryMetadata(t *testing.T) {
 	sampleSummary := ev2SuiteSummary{Total: 3, Passed: 1, Failed: 2, Skipped: 0, DurationSeconds: 12.5}
 

@@ -125,6 +125,15 @@ Or `integration/parallel` test suite:
 $ ./test/aro-hcp-tests run-suite "integration/parallel" --junit-path="junit.xml"
 ```
 
+The `stage/parallel/all` suite selects the union of `stage/parallel` and
+`stage/parallel/slow`. It retains the Stage environment exclusions and runs both
+Slow-labeled and non-Slow tests in one suite:
+
+```bash
+./test/aro-hcp-tests list tests --suite "stage/parallel/all" --output names
+./test/aro-hcp-tests run-suite "stage/parallel/all"
+```
+
 ### Test cases with per-run cluster
 > **Important**
 > - You can use the `FALLBACK_TO_BICEP` environment variable to populate the e2esetup models and run tests that require e2esetup to be present.
