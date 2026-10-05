@@ -585,10 +585,10 @@ spec:
                 values:
                 - "infra"
       tolerations:
-      - effect: NoSchedule
-        key: infra
-        operator: Equal
+      - key: "infra"
+        operator: "Equal"
         value: "true"
+        effect: "NoSchedule"
 ---
 # Source: mgmt-agent/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

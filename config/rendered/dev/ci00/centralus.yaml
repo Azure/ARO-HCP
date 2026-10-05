@@ -749,11 +749,10 @@ mgmt:
   rg: hcp-underlay-ci00-j7654321-mgmt-1
   scheduling:
     role: infra
-    tolerations:
-    - effect: NoSchedule
-      key: infra
-      operator: Equal
-      value: "true"
+    tolerationEffect: NoSchedule
+    tolerationKey: infra
+    tolerationOperator: Equal
+    tolerationValue: "true"
   stampIdentifier: "1"
   stamps:
     count: 2

@@ -285,10 +285,10 @@ spec:
                 values:
                 - "infra"
       tolerations:
-      - effect: NoSchedule
-        key: infra
-        operator: Equal
+      - key: "infra"
+        operator: "Equal"
         value: "true"
+        effect: "NoSchedule"
       topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: 'topology.kubernetes.io/zone'

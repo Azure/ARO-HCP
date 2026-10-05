@@ -177,12 +177,15 @@ param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }} // ... but not boolea
 ## Management Controller Scheduling
 
 `mgmt.scheduling.role` selects the `aro-hcp.azure.com/role` node label for
-`mgmt-agent` and `kube-applier`. `mgmt.scheduling.tolerations` sets their pod
-tolerations. The defaults are role `infra` and toleration `infra=true:NoSchedule`.
+`mgmt-agent` and `kube-applier`. The scalar fields `tolerationKey`,
+`tolerationOperator`, `tolerationValue`, and `tolerationEffect` under
+`mgmt.scheduling` configure their single pod toleration. The defaults are role
+`infra` and toleration `infra=true:NoSchedule` with operator `Equal`.
 
-When overriding the role, also configure tolerations matching the target nodes'
-taints. The toleration list replaces the defaults. These settings do not change
-node pools or the scheduling of other workloads.
+When overriding the role, also configure the toleration matching the target nodes'
+taint. For example, use role `system` and toleration key `CriticalAddonsOnly`,
+operator `Equal`, value `"true"`, and effect `NoSchedule` for system nodes.
+These settings do not change node pools or the scheduling of other workloads.
 
 ## Schema
 

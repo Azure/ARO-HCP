@@ -65,11 +65,8 @@ func TestMgmtScheduling(t *testing.T) {
 					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
 				},
 				{
-					name: "multiple tolerations", role: "system", override: true,
-					tolerations: []corev1.Toleration{
-						{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule},
-						{Key: "maintenance", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute},
-					},
+					name: "Exists toleration", role: "system", override: true,
+					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute}},
 				},
 				{
 					name: "boolean role", role: "true", override: true,
@@ -92,15 +89,13 @@ func TestMgmtScheduling(t *testing.T) {
 					var cfg types.Configuration
 					require.NoError(t, yaml.Unmarshal(raw, &cfg))
 					if test.override {
-						tolerations := make([]any, 0, len(test.tolerations))
-						for _, toleration := range test.tolerations {
-							tolerations = append(tolerations, map[string]any{
-								"key": toleration.Key, "operator": string(toleration.Operator),
-								"value": toleration.Value, "effect": string(toleration.Effect),
-							})
-						}
+						toleration := test.tolerations[0]
 						cfg = types.MergeConfiguration(cfg, map[string]any{
-							"mgmt": map[string]any{"scheduling": map[string]any{"role": test.role, "tolerations": tolerations}},
+							"mgmt": map[string]any{"scheduling": map[string]any{
+								"role":          test.role,
+								"tolerationKey": toleration.Key, "tolerationOperator": string(toleration.Operator),
+								"tolerationValue": toleration.Value, "tolerationEffect": string(toleration.Effect),
+							}},
 						})
 					}
 					values, err := config.PreprocessFile(valuesPath, cfg)
@@ -128,6 +123,10 @@ func TestMgmtScheduling(t *testing.T) {
 						}},
 					}}}, pod.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution)
 					require.Equal(t, test.tolerations, pod.Tolerations)
+					require.Len(t, pod.Tolerations, 1)
+					if test.override {
+						require.NotEqual(t, "infra", pod.Tolerations[0].Key)
+					}
 				})
 			}
 		})
