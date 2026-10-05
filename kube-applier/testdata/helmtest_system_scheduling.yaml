@@ -1,0 +1,12 @@
+values: ../values.yaml
+name: helmtest-kube-applier-system
+namespace: kube-applier
+testData:
+  mgmt:
+    scheduling:
+      role: system
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Equal
+        value: "true"
+        effect: NoSchedule

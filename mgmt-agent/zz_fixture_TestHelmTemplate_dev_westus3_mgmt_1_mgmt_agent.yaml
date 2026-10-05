@@ -583,7 +583,7 @@ spec:
               - key: aro-hcp.azure.com/role
                 operator: In
                 values:
-                - infra
+                - "infra"
       tolerations:
       - effect: NoSchedule
         key: infra

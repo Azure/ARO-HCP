@@ -16,11 +16,123 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	yamlv3 "go.yaml.in/yaml/v3"
+	"helm.sh/helm/v4/pkg/chart/common"
+	"helm.sh/helm/v4/pkg/chart/common/util"
+	"helm.sh/helm/v4/pkg/chart/v2/loader"
+	"helm.sh/helm/v4/pkg/engine"
+
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+
+	"sigs.k8s.io/yaml"
+
+	"github.com/Azure/ARO-Tools/config"
+	"github.com/Azure/ARO-Tools/config/types"
+
 	"github.com/Azure/ARO-HCP/tooling/helmtest/testrunner"
 )
+
+func TestMgmtScheduling(t *testing.T) {
+	raw, err := os.ReadFile("../../config/rendered/dev/dev/westus3.yaml")
+	require.NoError(t, err)
+	for _, component := range []string{"mgmt-agent", "kube-applier"} {
+		t.Run(component, func(t *testing.T) {
+			componentDir := filepath.Join("../..", component)
+			valuesPath := filepath.Join(componentDir, "values.yaml")
+			valuesSource, err := os.ReadFile(valuesPath)
+			require.NoError(t, err)
+			var rawValues yamlv3.Node
+			require.NoError(t, yamlv3.Unmarshal(valuesSource, &rawValues))
+
+			for _, test := range []struct {
+				name        string
+				role        string
+				tolerations []corev1.Toleration
+				override    bool
+			}{
+				{
+					name: "default infra", role: "infra",
+					tolerations: []corev1.Toleration{{Key: "infra", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
+				},
+				{
+					name: "system override", role: "system", override: true,
+					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
+				},
+				{
+					name: "multiple tolerations", role: "system", override: true,
+					tolerations: []corev1.Toleration{
+						{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule},
+						{Key: "maintenance", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute},
+					},
+				},
+				{
+					name: "boolean role", role: "true", override: true,
+					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
+				},
+				{
+					name: "null role", role: "null", override: true,
+					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
+				},
+				{
+					name: "on role", role: "on", override: true,
+					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
+				},
+				{
+					name: "numeric role", role: "123", override: true,
+					tolerations: []corev1.Toleration{{Key: "CriticalAddonsOnly", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule}},
+				},
+			} {
+				t.Run(test.name, func(t *testing.T) {
+					var cfg types.Configuration
+					require.NoError(t, yaml.Unmarshal(raw, &cfg))
+					if test.override {
+						tolerations := make([]any, 0, len(test.tolerations))
+						for _, toleration := range test.tolerations {
+							tolerations = append(tolerations, map[string]any{
+								"key": toleration.Key, "operator": string(toleration.Operator),
+								"value": toleration.Value, "effect": string(toleration.Effect),
+							})
+						}
+						cfg = types.MergeConfiguration(cfg, map[string]any{
+							"mgmt": map[string]any{"scheduling": map[string]any{"role": test.role, "tolerations": tolerations}},
+						})
+					}
+					values, err := config.PreprocessFile(valuesPath, cfg)
+					require.NoError(t, err)
+					var overrides map[string]any
+					require.NoError(t, yaml.Unmarshal(values, &overrides))
+					chart, err := loader.Load(filepath.Join(componentDir, "deploy"))
+					require.NoError(t, err)
+					renderValues, err := util.ToRenderValues(chart, overrides, common.ReleaseOptions{
+						Name: component, Namespace: component, IsInstall: true,
+					}, nil)
+					require.NoError(t, err)
+					manifests, err := engine.Render(chart, renderValues)
+					require.NoError(t, err)
+					manifestPath := component + "/templates/deployment.yaml"
+					require.Contains(t, manifests, manifestPath)
+					var deployment appsv1.Deployment
+					require.NoError(t, yaml.Unmarshal([]byte(manifests[manifestPath]), &deployment))
+					pod := deployment.Spec.Template.Spec
+					require.NotNil(t, pod.Affinity)
+					require.NotNil(t, pod.Affinity.NodeAffinity)
+					require.Equal(t, &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{
+						MatchExpressions: []corev1.NodeSelectorRequirement{{
+							Key: "aro-hcp.azure.com/role", Operator: corev1.NodeSelectorOpIn, Values: []string{test.role},
+						}},
+					}}}, pod.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution)
+					require.Equal(t, test.tolerations, pod.Tolerations)
+				})
+			}
+		})
+	}
+}
 
 func TestHelmTemplate(t *testing.T) {
 	testrunner.RunTestHelmTemplate(t, "settings.yaml")

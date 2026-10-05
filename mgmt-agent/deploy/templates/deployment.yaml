@@ -82,9 +82,6 @@ spec:
               - key: aro-hcp.azure.com/role
                 operator: In
                 values:
-                - {{ .Values.schedulingRole }}
+                - {{ .Values.schedulingRole | quote }}
       tolerations:
-      - effect: NoSchedule
-        key: infra
-        operator: Equal
-        value: "true"
+      {{- toYaml .Values.tolerations | nindent 6 }}
