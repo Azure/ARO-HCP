@@ -308,6 +308,112 @@ func TestAdmitClusterSkipsRequiredIdentitiesForUnparseableVersion(t *testing.T) 
 	}
 }
 
+// autoNodeCapableClusterTestCase returns a fixture with a version new enough for the "autonode"
+// data plane operator to exist (MinVersionInclusive 4.22), since the shared minimum-valid fixture
+// defaults to 4.20.
+func autoNodeCapableClusterTestCase() *coreapi.Cluster {
+	cluster := coreapitesting.MinimumValidClusterTestCase()
+	cluster.CustomerProperties.Version.ID = "4.22.0"
+	return cluster
+}
+
+// TestAdmitClusterRequiresAutoNodeDataPlaneIdentity covers the conditionally-required data plane
+// counterpart to the kms control plane check above: the "autonode" identity is required on CREATE
+// once AutoNode is enabled, but only for a version that defines the operator, and never on UPDATE
+// (userAssignedIdentities and AutoNode are both immutable after create).
+func TestAdmitClusterRequiresAutoNodeDataPlaneIdentity(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("enabled and missing is rejected on create", func(t *testing.T) {
+		cluster := autoNodeCapableClusterTestCase()
+		cluster.ServiceProviderProperties.ExperimentalFeatures.AutoNode = coreapi.AutoNode
+
+		errs := AdmitCluster(ctx, operatorIdentitiesAdmissionContext(nil), operation.Operation{Type: operation.Create}, cluster, nil)
+		require.True(t, hasErrorContaining(errs,
+			`a user-assigned identity for the "autonode" data plane operator is required when the AutoNode experimental feature is enabled`,
+			operatorIdentitiesPath+".dataPlaneOperators[autonode]"),
+			"expected the conditional autonode requirement, got: %v", errs)
+	})
+
+	t.Run("enabled and supplied is accepted", func(t *testing.T) {
+		cluster := autoNodeCapableClusterTestCase()
+		cluster.ServiceProviderProperties.ExperimentalFeatures.AutoNode = coreapi.AutoNode
+		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["autonode"] =
+			metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityPrefix + "autonode-dataplane-identity"))
+
+		errs := AdmitCluster(ctx, operatorIdentitiesAdmissionContext(nil), operation.Operation{Type: operation.Create}, cluster, nil)
+		for _, err := range errs {
+			require.NotContains(t, err.Error(), "autonode",
+				"a supplied autonode identity must not be rejected, got: %v", errs)
+		}
+	})
+
+	t.Run("disabled and missing is accepted", func(t *testing.T) {
+		errs := AdmitCluster(ctx, operatorIdentitiesAdmissionContext(nil), operation.Operation{Type: operation.Create},
+			autoNodeCapableClusterTestCase(), nil)
+		for _, err := range errs {
+			require.NotContains(t, err.Error(), "autonode",
+				"autonode must not be required when AutoNode is disabled, got: %v", errs)
+		}
+	})
+
+	t.Run("enabled but unsupported for version is accepted", func(t *testing.T) {
+		// The shared fixture defaults to 4.20, below autonode's real MinVersionInclusive of 4.22.
+		cluster := coreapitesting.MinimumValidClusterTestCase()
+		cluster.ServiceProviderProperties.ExperimentalFeatures.AutoNode = coreapi.AutoNode
+
+		errs := AdmitCluster(ctx, operatorIdentitiesAdmissionContext(nil), operation.Operation{Type: operation.Create}, cluster, nil)
+		for _, err := range errs {
+			require.NotContains(t, err.Error(), "autonode",
+				"autonode does not exist for this version, so it must not be required, got: %v", errs)
+		}
+	})
+
+	t.Run("enabled with an unparseable version is accepted", func(t *testing.T) {
+		cluster := autoNodeCapableClusterTestCase()
+		cluster.ServiceProviderProperties.ExperimentalFeatures.AutoNode = coreapi.AutoNode
+		cluster.CustomerProperties.Version.ID = "not-a-version"
+
+		errs := AdmitCluster(ctx, operatorIdentitiesAdmissionContext(nil), operation.Operation{Type: operation.Create}, cluster, nil)
+		for _, err := range errs {
+			require.NotContains(t, err.Error(), "operator is required",
+				"required identities must not be reported for an unparseable version, got: %v", errs)
+		}
+	})
+
+	t.Run("enabled but missing from the config is accepted", func(t *testing.T) {
+		// Defensive: a table entry naming an operator the config does not define must not panic or
+		// produce an unsatisfiable requirement.
+		config := azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev)
+		delete(config.DataPlaneOperatorsIdentities, azure.ClusterOperatorIdentifierAutoNode)
+
+		cluster := autoNodeCapableClusterTestCase()
+		cluster.ServiceProviderProperties.ExperimentalFeatures.AutoNode = coreapi.AutoNode
+
+		errs := AdmitCluster(ctx, operatorIdentitiesAdmissionContext(config), operation.Operation{Type: operation.Create}, cluster, nil)
+		for _, err := range errs {
+			require.NotContains(t, err.Error(), "autonode",
+				"an operator missing from the config must not be required, got: %v", errs)
+		}
+	})
+
+	t.Run("enabled and missing is not rejected on update", func(t *testing.T) {
+		// userAssignedIdentities and AutoNode are both immutable after create, so an UPDATE that
+		// predates this check (AutoNode enabled without the identity ever being required) must not
+		// start failing on every future unrelated update.
+		oldCluster := autoNodeCapableClusterTestCase()
+		oldCluster.ServiceProviderProperties.ExperimentalFeatures.AutoNode = coreapi.AutoNode
+		newCluster := autoNodeCapableClusterTestCase()
+		newCluster.ServiceProviderProperties.ExperimentalFeatures.AutoNode = coreapi.AutoNode
+
+		errs := AdmitCluster(ctx, operatorIdentitiesAdmissionContext(nil), operation.Operation{Type: operation.Update}, newCluster, oldCluster)
+		for _, err := range errs {
+			require.NotContains(t, err.Error(), "autonode",
+				"the conditional autonode requirement must only run on create, got: %v", errs)
+		}
+	})
+}
+
 func TestAdmitClusterRejectsOperatorUnsupportedForVersion(t *testing.T) {
 	ctx := context.Background()
 	op := operation.Operation{Type: operation.Create}
