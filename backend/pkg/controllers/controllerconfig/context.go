@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
+	clusterautonode "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/autonode"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
@@ -39,7 +40,7 @@ import (
 )
 
 type ControllerContext struct {
-	AzureLocation string
+	AzureLocation                                       string
 	// ServiceTenantID is the Azure AD tenant where the ARO-HCP service's First Party
 	// Application (FPA) identity is registered. It is the tenantId used both to
 	// retrieve the FPA credential that calls the Managed Identities Data Plane, and
@@ -48,6 +49,7 @@ type ControllerContext struct {
 	// tenant, and permissions granted here are not scoped to any individual
 	// customer's HostedCluster or subscription.
 	ServiceTenantID                                     string
+	AutoNodeImageOverrides                              clusterautonode.ImageOverrides
 	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
 	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
 	BackupConfig                                        *clusterbackups.BackupConfig

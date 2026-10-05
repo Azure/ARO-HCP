@@ -53,6 +53,7 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 	return ControllerContext{
 		AzureLocation:                     b.options.AzureLocation,
 		ServiceTenantID:                   b.options.ServiceTenantID,
+		AutoNodeImageOverrides:            b.options.AutoNodeImageOverrides,
 		BackendIdentityAzureCachedReaders: b.options.BackendIdentityAzureCachedReaders,
 		BackendIdentityAzureClients:       b.options.BackendIdentityAzureClients,
 		BackupConfig:                      b.options.BackupConfig,

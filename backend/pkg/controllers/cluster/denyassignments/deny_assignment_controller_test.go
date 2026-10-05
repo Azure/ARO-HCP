@@ -17,6 +17,7 @@ package denyassignments
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
@@ -300,6 +302,53 @@ func TestGenerateDenyAssignmentUUIDMatchesClusterService(t *testing.T) {
 		"c4ff85a1-5daa-5ed4-b4e2-fdf60a7d24ad",
 		generateDenyAssignmentUUID("2abcdef1234567890abcdef123456789", "compute-deny-assignment"),
 		"deny assignment UUID derivation must not change (would desync from Cluster Service)")
+}
+
+func TestConditionalAutoNodeExclusion(t *testing.T) {
+	definitionsWithAutoNode := func(cluster *coreapi.Cluster) sets.Set[string] {
+		types := sets.New[string]()
+		for _, d := range denyAssignmentDefinitions(cluster) {
+			if slices.Contains(d.dataPlaneOperators, operatorAutoNode) {
+				types.Insert(d.denyAssignmentType)
+			}
+		}
+		return types
+	}
+
+	t.Run("AutoNode not enabled excludes no definitions", func(t *testing.T) {
+		cluster := newTestCluster()
+		assert.Empty(t, definitionsWithAutoNode(cluster).UnsortedList(),
+			"no deny assignment should exclude the autonode operator when AutoNode is not enabled")
+	})
+
+	t.Run("AutoNode enabled excludes the expected definitions", func(t *testing.T) {
+		cluster := newTestCluster(func(c *coreapi.Cluster) {
+			c.ServiceProviderProperties.ExperimentalFeatures.AutoNode = coreapi.AutoNode
+			c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[operatorAutoNode] = testIdentityResourceID("dp-autonode")
+		})
+		assert.Equal(t,
+			sets.New(denyAssignmentSuffixCompute, denyAssignmentSuffixManagedIdentity, denyAssignmentSuffixNetworkVnetJoin, denyAssignmentSuffixNetworkInterfaces),
+			definitionsWithAutoNode(cluster),
+			"AutoNode's granted roles (VM Contributor, Network Contributor, Managed Identity Operator) require exclusion from exactly these deny assignments")
+	})
+
+	t.Run("AutoNode enabled but no autonode identity configured excludes no definitions", func(t *testing.T) {
+		// admission only requires the "autonode" data-plane identity on CREATE,
+		// and only for versions where that operator is supported - so an
+		// AutoNode-enabled cluster can legitimately have no such identity.
+		// Excluding the operator here anyway would make collectExcludedPrincipalIDs
+		// hard-error looking it up, permanently wedging these deny assignments.
+		cluster := newTestCluster(func(c *coreapi.Cluster) {
+			c.ServiceProviderProperties.ExperimentalFeatures.AutoNode = coreapi.AutoNode
+		})
+		assert.Empty(t, definitionsWithAutoNode(cluster).UnsortedList(),
+			"no deny assignment should exclude the autonode operator when no autonode identity is configured")
+
+		for _, def := range denyAssignmentDefinitions(cluster) {
+			_, err := collectExcludedPrincipalIDs(cluster, def)
+			assert.NoError(t, err, "collectExcludedPrincipalIDs must not error for %q when AutoNode is enabled without an autonode identity", def.denyAssignmentType)
+		}
+	})
 }
 
 func TestResolvePrincipalID(t *testing.T) {
