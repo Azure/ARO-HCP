@@ -45,4 +45,4 @@ services:
     children:
     - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants
       pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml
-      purpose: Manage explicit dev E2E customer-subscription RBAC and shared custom-role assignable scopes, plus the CI bot subscription-scoped RBAC. Runs after the CI bot identities exist. Owner-only; run on demand by an OWNERS-group member.
+      purpose: Manage DEV E2E subscription RBAC and shared custom-role assignable scopes, register Microsoft.CostManagement on DEV E2E and opted-in infrastructure subscriptions, then deploy Cost Management tag inheritance. Runs after the CI bot identities exist. RBAC grants require Owner; tag inheritance requires Cost Management edit permission on each target subscription. Run on demand by an OWNERS-group member with both permissions.
