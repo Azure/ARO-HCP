@@ -1,20 +1,16 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants
 rolloutName: Dev CI E2E Subscription RBAC Grants Rollout
-# PRIVILEGED pipeline: every step here creates subscription-scoped custom role
-# definitions and/or role assignments, which require Owner (or an unconstrained
-# User Access Administrator) on the target subscriptions. It is the child of the
-# Microsoft.Azure.ARO.HCP.DevCI.Privileged entrypoint and is deliberately kept
-# out of the unattended Microsoft.Azure.ARO.HCP.DevCI.Unprivileged entrypoint
-# so the dev-ci postsubmit never runs it. That postsubmit runs as the
-# `OpenShift Release Bot` SP, which is intentionally not an Owner: it holds
-# Contributor plus a condition-constrained RBAC/User Access Administrator whose
-# ABAC condition forbids assigning the Owner, User Access Administrator, and
-# Role Based Access Control Administrator roles (one of which this pipeline
-# assigns), and on some subscriptions lacks roleDefinitions/write — so it cannot
-# apply these grants. Run the Microsoft.Azure.ARO.HCP.DevCI.Privileged
-# entrypoint on demand with `make dev-ci-privileged-local-run` as a member
-# of the OWNERS group (who has real Owner) when a change touches these grants.
+# PRIVILEGED pipeline: subscription-scoped RBAC, Azure Policy, and Cost
+# Management settings for E2E subscriptions. Role definitions/assignments
+# require Owner (or an unconstrained User Access Administrator); Cost Management
+# tag inheritance requires permission to edit Cost Management settings on each
+# subscription. This pipeline is a child of the on-demand
+# Microsoft.Azure.ARO.HCP.DevCI.Privileged entrypoint, not the unattended
+# postsubmit. The `OpenShift Release Bot` SP has Contributor and constrained
+# RBAC administration; it cannot apply these grants. Run
+# `make dev-ci-privileged-local-run` as an OWNERS-group member with the required
+# Cost Management permissions on the target subscriptions.
 buildStep:
   command: bash
   args:
@@ -29,10 +25,10 @@ buildStep:
     mv "${tmp}" "${tool_dir}/entra-app-credentials"
     trap - EXIT
 resourceGroups:
-# Assigns the createdAt resource-group tag Azure Policy to the e2e/customer
-# subscriptions. Writing policy definitions/assignments needs
-# Microsoft.Authorization/policy*/write, which the unattended Contributor bot
-# lacks, so this belongs in the privileged tree alongside the RBAC grants.
+# Applies the createdAt resource-group tag Azure Policy to E2E customer
+# subscriptions and Cost Management tag inheritance to E2E customer and
+# infrastructure subscriptions. Both are subscription-scoped and run with the
+# on-demand privileged entrypoint, not the unattended Contributor bot.
 - name: grants
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -41,6 +37,11 @@ resourceGroups:
     action: ARM
     template: ../../templates/createdat-rg-tag-policy.bicep
     parameters: ../../configurations/createdat-rg-tag-policy.tmpl.bicepparam
+    deploymentLevel: Subscription
+  - name: cost-tag-inheritance
+    action: ARM
+    template: ../../templates/cost-tag-inheritance.bicep
+    parameters: ../../configurations/cost-tag-inheritance.tmpl.bicepparam
     deploymentLevel: Subscription
 # Mock identity Entra apps/SPs plus their subscription-scoped RBAC. The rbac
 # steps create custom role definitions and role assignments (including the
