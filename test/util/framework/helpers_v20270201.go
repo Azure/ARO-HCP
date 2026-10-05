@@ -78,6 +78,7 @@ type ClusterParams20270201 struct {
 	CryptoRestrictions               *hcpsdk20270201.CryptoRestrictions
 	ContainerRegistryManagedIdentity *string
 	Tags                             map[string]*string
+	AutoNodeMode                     *hcpsdk20270201.AutoNodeMode
 }
 
 type NodePoolParams20270201 struct {
@@ -316,10 +317,11 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20270201(ctx
 		WithDeploymentName(managedIdentitiesDeploymentName),
 		WithClusterResourceGroup(*resourceGroup.Name),
 		WithParameters(map[string]interface{}{
-			"nsgName":      clusterParams.NsgName,
-			"vnetName":     clusterParams.VnetName,
-			"subnetName":   clusterParams.SubnetName,
-			"keyVaultName": clusterParams.KeyVaultName,
+			"nsgName":        clusterParams.NsgName,
+			"vnetName":       clusterParams.VnetName,
+			"subnetName":     clusterParams.SubnetName,
+			"keyVaultName":   clusterParams.KeyVaultName,
+			"enableAutoNode": clusterParams.autoNodeEnabled(),
 		}),
 	)
 
@@ -519,7 +521,14 @@ func BuildHCPClusterFromParams20270201(
 			ManagedIdentity: parameters.ContainerRegistryManagedIdentity,
 		}
 	}
+	if parameters.AutoNodeMode != nil {
+		cluster.Properties.AutoNode = &hcpsdk20270201.AutoNodeProfile{Mode: parameters.AutoNodeMode}
+	}
 	return cluster, nil
+}
+
+func (p ClusterParams20270201) autoNodeEnabled() bool {
+	return p.AutoNodeMode != nil && *p.AutoNodeMode == hcpsdk20270201.AutoNodeModeEnabled
 }
 
 func buildKmsEncryptionProfile20270201(parameters ClusterParams20270201) *hcpsdk20270201.KmsEncryptionProfile {
