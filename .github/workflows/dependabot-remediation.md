@@ -43,11 +43,15 @@ timeout-minutes: 120
 # bumped versions and the ritual fails. The `go` and `node` ecosystem presets
 # allowlist proxy.golang.org, sum.golang.org, go.dev and registry.npmjs.org. GitHub
 # domains (for the workspace's own internal modules) are always allowed by default.
+# Prow check links and their redirected build logs are required to diagnose CI.
 network:
   allowed:
     - defaults
     - go
     - node
+    - https://prow.ci.openshift.org
+    - https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com
+    - https://gcs.ci.openshift.org
 
 # Runner setup before the agent starts:
 #  - check out the repo (persist-credentials:false is required by gh-aw strict mode),
