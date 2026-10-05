@@ -51,6 +51,7 @@ module managedIdentities '../modules/managed-identities.bicep' = {
     manageIdentityNames: [
       'opstool'
       'cihealth'
+      'cihealth-auth'
       'cert-manager'
       'prometheus'
       'tenant-quota'

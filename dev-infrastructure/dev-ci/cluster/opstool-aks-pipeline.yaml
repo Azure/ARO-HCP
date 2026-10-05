@@ -16,6 +16,12 @@ resourceGroups:
     template: ../../templates/opstool-cluster.bicep
     parameters: ../../configurations/opstool-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+    - name: globalMSIId
+      input:
+        resourceGroup: global
+        step: global-identity
+        name: globalMSIId
     automatedRetry:
       errorContainsAny:
       - "Internal server error"
@@ -25,6 +31,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: opstool
       step: network
+    - resourceGroup: global
+      step: global-identity
   # Upgrade the AKS control plane and node pools to the configured Kubernetes
   # version. The `cluster` ARM step only moves the control plane; node pools
   # keep their orchestrator version on a managedCluster PUT, so an explicit

@@ -28,7 +28,7 @@ services:
     purpose: Deploy cert-manager and the shared Azure DNS DNS-01 ClusterIssuer.
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.CIHealth
     pipelinePath: dev-infrastructure/dev-ci/cihealth/pipeline.yaml
-    purpose: Deploy the CIHealth runtime on cihealth.tools.hcpsvc.osadev.cloud.
+    purpose: Deploy the public CIHealth runtime and the authenticated historical-data archive.
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.BatchAnalysis
     pipelinePath: dev-infrastructure/dev-ci/batch-analysis/pipeline.yaml
     purpose: Provision the storage account for Chai-bot Tide-batch analysis output and grant the bot read/write access.
@@ -36,6 +36,9 @@ services:
   pipelinePath: dev-infrastructure/dev-ci/privileged/pipeline.yaml
   purpose: No-op grouping root for the on-demand privileged entrypoint. Owner-only; run manually by an OWNERS-group member.
   children:
+  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.CIHealthAuthIdentity
+    pipelinePath: dev-infrastructure/dev-ci/cihealth-auth-identity/pipeline.yaml
+    purpose: Create the CIHealth archive Entra application and manage its client credential in the global Key Vault.
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
     pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml
     purpose: Create/reconcile the CI bot Entra applications + service principals and rotate their Key Vault secrets. Involves Entra directory-object writes, so it runs on demand under an OWNERS-group member, not the unattended postsubmit.
