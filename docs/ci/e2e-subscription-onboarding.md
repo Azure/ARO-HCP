@@ -54,31 +54,6 @@ A brand-new subscription typically has no Azure resource providers registered be
 
 **Provider registration is now automated** by the `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionProviders` service group, which runs as part of `make dev-ci-privileged-local-run` (step 6 of the procedure below). You no longer need to register providers manually for internally-managed subscriptions — the privileged pipeline handles it idempotently. The authoritative provider list lives in `config/config-dev-ci.yaml` under `ci.e2eSubscriptionProviders`; add new provider dependencies there.
 
-`Microsoft.Compute` and `Microsoft.Network` in particular must be registered before the Standard DSv3 vCPU and public-IP quota requests can be filed. `Microsoft.Quota` backs the quota tooling and the `tenant-quota-collector` monitoring updated in step 6. Because quota requests (step 2) must come before `make dev-ci-privileged-local-run` (step 6), you may still need to register `Microsoft.Compute` and `Microsoft.Network` manually before filing quota:
-
-```sh
-SUB=<subscription-id>
-
-for ns in Microsoft.Compute Microsoft.Network; do
-  az provider register --namespace "$ns" --subscription "$SUB"
-done
-
-# Registration is asynchronous. Poll until both report Registered before filing
-# quota. Bounded at ~10 min so a stuck registration or a wrong subscription id
-# fails visibly instead of hanging.
-for ns in Microsoft.Compute Microsoft.Network; do
-  for _ in $(seq 60); do
-    state="$(az provider show --namespace "$ns" --subscription "$SUB" \
-      --query registrationState -o tsv 2>/dev/null || true)"
-    [ "$state" = "Registered" ] && break
-    sleep 10
-  done
-  echo "$ns: ${state:-unreadable}"
-done
-```
-
-All remaining providers (`Microsoft.Insights`, `Microsoft.KeyVault`, `Microsoft.ManagedIdentity`, `Microsoft.Quota`, `Microsoft.RedHatOpenShift`, `Microsoft.Storage`) are registered automatically when you run the privileged pipeline in step 6.
-
 ## Procedure
 
 1. Add the new pool to `test/e2e-config/e2e-slots.yaml`.
@@ -92,7 +67,6 @@ All remaining providers (`Microsoft.Insights`, `Microsoft.KeyVault`, `Microsoft.
      - Standard DSv3 Family vCPUs: `2000`
      - Public IP Addresses: `3000`
      - Role Assignments: `8000`
-   - `Microsoft.Compute` and `Microsoft.Network` must already report `Registered` (see Prerequisites) before the DSv3 and public-IP requests can be filed.
    - Quota approvals are asynchronous and routed through Microsoft support, so file them early — they gate identity-container provisioning (step 5) and determine the Role Assignment limit reported by monitoring (step 6).
 
 3. Sync the ARO-HCP-managed Boskos inventory in `openshift/release`.
