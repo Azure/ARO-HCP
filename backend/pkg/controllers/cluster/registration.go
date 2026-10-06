@@ -387,14 +387,12 @@ func registerOperationClusterDeleteController() controllerconfig.ControllerRegis
 func instantiateOperationClusterDeleteController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	activeOperationInformer, _ := controllerContext.BackendInformers.ActiveOperations()
 	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
-	_, unionApplyDesireLister := controllerContext.UnionKubeApplierInformers.ApplyDesires()
 	return clusteroperations.NewOperationClusterDeleteController(
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		controllerContext.BillingDBClient,
 		controllerContext.KubeApplierDBClients,
 		unionReadDesireLister,
-		unionApplyDesireLister,
 		controllerContext.ClustersServiceClient,
 		controllerContext.AsyncOperationNotificationClient,
 		activeOperationInformer,

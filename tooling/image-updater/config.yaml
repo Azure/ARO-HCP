@@ -44,7 +44,8 @@ images:
     group: cs
     source:
       image: quay.io/app-sre/aro-hcp-clusters-service
-      tag: "latest"
+      # Pinning CS until https://gitlab.cee.redhat.com/service/aro-hcp-clusters-service/-/merge_requests/387 is reverted tomorrow and we can unpin to unblock other features
+      tag: "7250546"
       versionLabel: "vcs-ref"
       useAuth: true
     targets:
