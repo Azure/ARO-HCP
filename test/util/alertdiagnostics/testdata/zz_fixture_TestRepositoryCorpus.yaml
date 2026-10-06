@@ -1826,9 +1826,9 @@
   group: kusto-logs-age-rules
   alert: KustoLogsDataStale
   occurrence: 1
-  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc",table="systemdlogs"} > 7200
   plan:
-    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc",table="systemdlogs"} > 7200
     conditions:
       - expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600
         path: root/or:left/or:left
@@ -1839,19 +1839,19 @@
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600
+      - expression: kusto_logs_age_in_seconds{cluster!~".*-svc",table="systemdlogs"} > 3600
         path: root/or:left/or:right
         queries:
-          - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"}
+          - expression: kusto_logs_age_in_seconds{cluster!~".*-svc",table="systemdlogs"}
             role: signal
         thresholds:
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+      - expression: kusto_logs_age_in_seconds{cluster=~".*-svc",table="systemdlogs"} > 7200
         path: root/or:right
         queries:
-          - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"}
+          - expression: kusto_logs_age_in_seconds{cluster=~".*-svc",table="systemdlogs"}
             role: signal
         thresholds:
           - operator: '>'
@@ -9602,9 +9602,9 @@
   group: kusto-logs-age-rules
   alert: KustoLogsDataStale
   occurrence: 1
-  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster!~".*-svc-.*"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster=~".*-svc-.*"} > 7200
+  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster!~".*-svc"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster=~".*-svc"} > 7200
   plan:
-    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc",table="systemdlogs"} > 7200
     conditions:
       - expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600
         path: root/or:left/or:left
@@ -9615,19 +9615,19 @@
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600
+      - expression: kusto_logs_age_in_seconds{cluster!~".*-svc",table="systemdlogs"} > 3600
         path: root/or:left/or:right
         queries:
-          - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"}
+          - expression: kusto_logs_age_in_seconds{cluster!~".*-svc",table="systemdlogs"}
             role: signal
         thresholds:
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+      - expression: kusto_logs_age_in_seconds{cluster=~".*-svc",table="systemdlogs"} > 7200
         path: root/or:right
         queries:
-          - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"}
+          - expression: kusto_logs_age_in_seconds{cluster=~".*-svc",table="systemdlogs"}
             role: signal
         thresholds:
           - operator: '>'

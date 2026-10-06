@@ -10,7 +10,7 @@ spec:
       component: kusto
     rules:
     - alert: KustoLogsDataStale
-      expr: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster!~".*-svc-.*"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster=~".*-svc-.*"} > 7200
+      expr: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster!~".*-svc"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster=~".*-svc"} > 7200
       for: 15m
       labels:
         severity: warning
