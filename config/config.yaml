@@ -241,12 +241,16 @@ defaults:
     # environment to opt out.
     nodeHealth:
       enabled: true
-    # SwiftV2 (SWIFT NIC) data-path mesh probe. Disabled by default: an empty
-    # network name leaves both the controller and its powerful pods/exec RBAC
-    # unrendered. Set to the SwiftV2 Multus network-attachment name (as it appears
-    # in the pod networks-status annotation) to enable per-HCP router mesh probing.
+    # SwiftV2 (SWIFT NIC) data-path mesh probe. Disabled by default: when false
+    # both the controller and its powerful pods/exec RBAC are left unrendered.
+    # The SWIFT NIC IP is read from each router pod's MTPNC. podLabel/container/
+    # port target the HyperShift private-router pods; override them if the router's
+    # labels, container name, or HTTPS port differ.
     swiftMesh:
-      network: ""
+      enabled: false
+      podLabel: app=private-router
+      container: router
+      port: 8443
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: mgmt-agent

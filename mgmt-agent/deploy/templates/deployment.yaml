@@ -29,8 +29,11 @@ spec:
         - "--node-health-configmap={{ .Values.nodeHealth.configMapName }}"
         - "--node-health-config-key={{ .Values.nodeHealth.configKey }}"
         - "--monitoring-api-group={{ .Values.monitoringApiGroup }}"
-        {{- if .Values.swiftMesh.network }}
-        - "--swift-mesh-network={{ .Values.swiftMesh.network }}"
+        {{- if .Values.swiftMesh.enabled }}
+        - "--swift-mesh-enabled=true"
+        - "--swift-mesh-pod-label={{ .Values.swiftMesh.podLabel }}"
+        - "--swift-mesh-container={{ .Values.swiftMesh.container }}"
+        - "--swift-mesh-port={{ .Values.swiftMesh.port }}"
         {{- end }}
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         name: mgmt-agent-controller

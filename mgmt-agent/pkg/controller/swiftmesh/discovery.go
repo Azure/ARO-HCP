@@ -16,30 +16,34 @@ package swiftmesh
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic/dynamiclister"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 )
 
-// MultusNetworkStatusAnnotation is the de-facto standard annotation Multus
-// writes on a pod, listing every attached network and its assigned IP(s). The
-// SWIFT NIC IP is NOT pod.Status.PodIP (that is the primary CNI interface); it
-// is the IP of the SwiftV2 attachment, read from this annotation.
-const MultusNetworkStatusAnnotation = "k8s.v1.cni.cncf.io/networks-status"
-
-// multusNetworkStatus is the subset of a networks-status entry we consume.
-type multusNetworkStatus struct {
-	Name      string   `json:"name"`
-	Interface string   `json:"interface"`
-	IPs       []string `json:"ips"`
+// MTPNCGroupVersionResource is Azure CNS's MultitenantPodNetworkConfig. One
+// exists per SwiftV2 pod, named after the pod, in the pod's namespace, and its
+// status carries the allocated SWIFT NIC IP. This is the authoritative source;
+// the SWIFT NIC IP is NOT on pod.Status.PodIP nor in a Multus annotation.
+var MTPNCGroupVersionResource = schema.GroupVersionResource{
+	Group:    "multitenancy.acn.azure.com",
+	Version:  "v1alpha1",
+	Resource: "multitenantpodnetworkconfigs",
 }
+
+// vnetNICDeviceType is the MTPNC InterfaceInfo DeviceType for the vnet (data
+// path) NIC, as opposed to acn.azure.com/infiniband-nic.
+const vnetNICDeviceType = "acn.azure.com/vnet-nic"
 
 // Discoverer resolves the per-HCP router meshes to probe in one sweep.
 type Discoverer interface {
@@ -48,30 +52,26 @@ type Discoverer interface {
 
 // HCPDiscoverer enumerates router pods across all namespaces from a cluster-wide
 // informer-backed lister and groups them into one mesh per HCP control-plane
-// namespace. Because it reads from a shared informer, router pods of newly
-// deployed HCPs appear automatically on the next sweep, and pods of deleted HCPs
-// drop out.
+// namespace. Each pod's SWIFT NIC IP is resolved from its MTPNC. Because both
+// listers are informer-backed, router pods of newly deployed HCPs appear
+// automatically on the next sweep, and pods of deleted HCPs drop out.
 type HCPDiscoverer struct {
 	podLister       corelisters.PodLister
 	namespaceLister corelisters.NamespaceLister
+	mtpncLister     dynamiclister.Lister
 	labelSelector   labels.Selector
 	container       string
-	// networkName identifies the SwiftV2 attachment within the networks-status
-	// annotation. Matched against each entry's Name, either exactly or as the
-	// "<namespace>/<name>" suffix.
-	networkName string
-	port        int
+	port            int
 }
 
-// NewHCPDiscoverer builds an HCPDiscoverer. networkName must be non-empty: it is
-// the only reliable way to pick the SWIFT NIC out of a pod's attachments.
-func NewHCPDiscoverer(podLister corelisters.PodLister, namespaceLister corelisters.NamespaceLister, labelSelector labels.Selector, container, networkName string, port int) *HCPDiscoverer {
+// NewHCPDiscoverer builds an HCPDiscoverer.
+func NewHCPDiscoverer(podLister corelisters.PodLister, namespaceLister corelisters.NamespaceLister, mtpncLister dynamiclister.Lister, labelSelector labels.Selector, container string, port int) *HCPDiscoverer {
 	return &HCPDiscoverer{
 		podLister:       podLister,
 		namespaceLister: namespaceLister,
+		mtpncLister:     mtpncLister,
 		labelSelector:   labelSelector,
 		container:       container,
-		networkName:     networkName,
 		port:            port,
 	}
 }
@@ -89,7 +89,7 @@ func (d *HCPDiscoverer) Discover(_ context.Context) ([]HCPMesh, error) {
 		if pod.Status.Phase != corev1.PodRunning {
 			continue
 		}
-		ip, ok := swiftIPFromPod(pod, d.networkName)
+		ip, ok := d.swiftIP(pod.Namespace, pod.Name)
 		if !ok {
 			continue
 		}
@@ -123,6 +123,20 @@ func (d *HCPDiscoverer) Discover(_ context.Context) ([]HCPMesh, error) {
 	return meshes, nil
 }
 
+// swiftIP resolves a router pod's SWIFT NIC IP from its MTPNC (same name and
+// namespace as the pod). Returns false when the MTPNC is absent or has no IP yet.
+func (d *HCPDiscoverer) swiftIP(namespace, podName string) (string, bool) {
+	obj, err := d.mtpncLister.Namespace(namespace).Get(podName)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			// A non-NotFound error is unexpected; treat the pod as not-yet-ready.
+			return "", false
+		}
+		return "", false
+	}
+	return swiftIPFromMTPNC(obj)
+}
+
 // hcpResourceID returns the HCP Azure resource ID annotation on the namespace,
 // and false when the namespace is absent or not an HCP control-plane namespace.
 func (d *HCPDiscoverer) hcpResourceID(namespace string) (string, bool) {
@@ -137,31 +151,53 @@ func (d *HCPDiscoverer) hcpResourceID(namespace string) (string, bool) {
 	return id, true
 }
 
-// swiftIPFromPod returns the first IP of the attachment matching networkName.
-func swiftIPFromPod(pod *corev1.Pod, networkName string) (string, bool) {
-	raw, ok := pod.Annotations[MultusNetworkStatusAnnotation]
-	if !ok || raw == "" {
-		return "", false
-	}
-	var statuses []multusNetworkStatus
-	if err := json.Unmarshal([]byte(raw), &statuses); err != nil {
-		return "", false
-	}
-	for _, s := range statuses {
-		if !networkMatches(s.Name, networkName) {
-			continue
+// swiftIPFromMTPNC extracts the SWIFT NIC IP from an MTPNC's status. It prefers
+// the vnet (data-path) NIC's primaryIP, falls back to any interface's primaryIP,
+// then to the deprecated top-level status.primaryIP.
+func swiftIPFromMTPNC(u *unstructured.Unstructured) (string, bool) {
+	infos, found, err := unstructured.NestedSlice(u.Object, "status", "interfaceInfos")
+	if err == nil && found {
+		if ip, ok := pickInterfaceIP(infos, vnetNICDeviceType); ok {
+			return ip, true
 		}
-		for _, ip := range s.IPs {
-			if ip != "" {
-				return ip, true
-			}
+		if ip, ok := pickInterfaceIP(infos, ""); ok {
+			return ip, true
+		}
+	}
+	// Deprecated single-NIC fields, for older CNS versions.
+	if ip, found, err := unstructured.NestedString(u.Object, "status", "primaryIP"); err == nil && found {
+		if ip = trimMask(ip); ip != "" {
+			return ip, true
 		}
 	}
 	return "", false
 }
 
-// networkMatches accepts an exact match or a "<namespace>/<name>" suffix match,
-// since Multus reports attachment names with or without a namespace prefix.
-func networkMatches(statusName, networkName string) bool {
-	return statusName == networkName || strings.HasSuffix(statusName, "/"+networkName)
+// pickInterfaceIP returns the first interfaceInfos entry's primaryIP. When
+// deviceType is non-empty, only entries with that deviceType are considered.
+func pickInterfaceIP(infos []any, deviceType string) (string, bool) {
+	for _, raw := range infos {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if deviceType != "" {
+			dt, _, _ := unstructured.NestedString(entry, "deviceType")
+			if dt != deviceType {
+				continue
+			}
+		}
+		ip, _, _ := unstructured.NestedString(entry, "primaryIP")
+		if ip = trimMask(ip); ip != "" {
+			return ip, true
+		}
+	}
+	return "", false
+}
+
+// trimMask strips a trailing CIDR mask ("10.0.0.5/32" -> "10.0.0.5"); MTPNC may
+// report either form.
+func trimMask(ip string) string {
+	bare, _, _ := strings.Cut(ip, "/")
+	return bare
 }

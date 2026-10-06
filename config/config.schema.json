@@ -1567,13 +1567,25 @@
         "swiftMesh": {
           "type": "object",
           "properties": {
-            "network": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the SwiftV2 (SWIFT NIC) data-path mesh-probe controller. When false the controller and its pods/exec RBAC are left unrendered. The SWIFT NIC IP is read from each router pod's MTPNC."
+            },
+            "podLabel": {
               "type": "string",
-              "description": "SwiftV2 Multus network-attachment name whose IP is the SWIFT NIC. Empty disables the SwiftV2 mesh-probe controller and leaves its pods/exec RBAC unrendered; set it to enable per-HCP router mesh probing."
+              "description": "Label selector identifying the router pods to probe across all HCP namespaces (HyperShift private-router pods: app=private-router)."
+            },
+            "container": {
+              "type": "string",
+              "description": "Container to exec the probe in within each router pod (HyperShift private-router pod's container is named router)."
+            },
+            "port": {
+              "type": "integer",
+              "description": "TCP port probed on each SWIFT NIC (private-router HTTPS: 8443)."
             }
           },
           "additionalProperties": false,
-          "required": ["network"]
+          "required": ["enabled", "podLabel", "container", "port"]
         }
       },
       "additionalProperties": false,

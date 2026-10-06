@@ -800,7 +800,10 @@ mgmtAgent:
   nodeHealth:
     enabled: true
   swiftMesh:
-    network: ""
+    container: router
+    enabled: false
+    podLabel: app=private-router
+    port: 8443
 mgmtKeyVault:
   name: ah-pers-mg-usw3test-1
   private: false

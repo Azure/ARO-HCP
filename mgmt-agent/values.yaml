@@ -33,8 +33,11 @@ nodeHealth:
   config:
     enabled: {{ .mgmtAgent.nodeHealth.enabled }}
 swiftMesh:
-  # Empty disables the SwiftV2 mesh-probe controller and its pods/exec RBAC.
-  network: "{{ .mgmtAgent.swiftMesh.network }}"
+  # false disables the SwiftV2 mesh-probe controller and its pods/exec RBAC.
+  enabled: {{ .mgmtAgent.swiftMesh.enabled }}
+  podLabel: "{{ .mgmtAgent.swiftMesh.podLabel }}"
+  container: "{{ .mgmtAgent.swiftMesh.container }}"
+  port: {{ .mgmtAgent.swiftMesh.port }}
 nodeSelector: {}
 tolerations: []
 affinity: {}

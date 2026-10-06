@@ -18,9 +18,6 @@ import (
 	"context"
 	"testing"
 	"time"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestClassify(t *testing.T) {
@@ -169,48 +166,6 @@ func TestParseCurlOutput(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestSwiftIPFromPod(t *testing.T) {
-	pod := func(annotation string) *corev1.Pod {
-		return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
-			Name:        "router-a",
-			Annotations: map[string]string{MultusNetworkStatusAnnotation: annotation},
-		}}
-	}
-
-	const status = `[
-	  {"name":"ovn-kubernetes","interface":"eth0","ips":["10.128.0.10"]},
-	  {"name":"ocm-int-abc-cluster/swiftv2-nic","interface":"net1","ips":["10.100.77.5"]}
-	]`
-
-	t.Run("matches by namespaced suffix", func(t *testing.T) {
-		ip, ok := swiftIPFromPod(pod(status), "swiftv2-nic")
-		if !ok || ip != "10.100.77.5" {
-			t.Fatalf("got (%q,%v), want (10.100.77.5,true)", ip, ok)
-		}
-	})
-	t.Run("matches by exact name", func(t *testing.T) {
-		ip, ok := swiftIPFromPod(pod(status), "ocm-int-abc-cluster/swiftv2-nic")
-		if !ok || ip != "10.100.77.5" {
-			t.Fatalf("got (%q,%v), want (10.100.77.5,true)", ip, ok)
-		}
-	})
-	t.Run("no matching network", func(t *testing.T) {
-		if ip, ok := swiftIPFromPod(pod(status), "does-not-exist"); ok {
-			t.Fatalf("expected no match, got %q", ip)
-		}
-	})
-	t.Run("missing annotation", func(t *testing.T) {
-		if _, ok := swiftIPFromPod(&corev1.Pod{}, "swiftv2-nic"); ok {
-			t.Fatal("expected no match for pod without annotation")
-		}
-	})
-	t.Run("malformed json", func(t *testing.T) {
-		if _, ok := swiftIPFromPod(pod("{not json"), "swiftv2-nic"); ok {
-			t.Fatal("expected no match for malformed annotation")
-		}
-	})
 }
 
 func threeRouterMesh() HCPMesh {

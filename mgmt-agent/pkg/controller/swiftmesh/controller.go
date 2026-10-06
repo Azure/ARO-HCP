@@ -154,6 +154,9 @@ func (c *Controller) reportMesh(logger logr.Logger, rep MeshReport) {
 			// A broken edge is the actionable signal; log it at Info.
 			meshLogger.Info("swift mesh edge unreachable", kv...)
 		}
+		if r.Err != nil {
+			meshLogger.Error(r.Err, "swift mesh edge error", kv...)
+		}
 	}
 
 	summary := []any{
