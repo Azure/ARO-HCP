@@ -73,9 +73,15 @@ In reuse mode Bicep reads the UAMIs from the current deployment subscription
 and supplied resource groups without creating or owning them. Templates that
 also support identity creation use resource-ID lookups rather than declaring
 the same identity a second time as `existing`, avoiding duplicate-resource
-validation in default mode. The service deployment publishes the selected
-identity resource group to both PostgreSQL access steps.
+validation in default mode. The service `cluster-output` lookup publishes the
+selected identity resource group to both PostgreSQL access steps. This lookup
+is `outputOnly`, so the same handoff works during pipeline dry-runs.
 It still creates per-run federated identity
 credentials for the new AKS OIDC issuer and applies the same RBAC grants at
 their original target scopes. AKS-generated kubelet and Key Vault Secrets
 Provider identities remain unchanged.
+
+The `test-infrastructure` target runs the compiled infrastructure identity
+regressions alongside the system-pool checks. Both `test` and the required CI
+`test-unit` target depend on it, as does `test-helm-fixtures`. It passes `BICEP`
+through to the tests, using the pinned compiler on the CI image's PATH by default.
