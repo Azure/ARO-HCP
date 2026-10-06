@@ -14,10 +14,13 @@
 
 package client
 
+import "github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
+
 // BackendIdentityAzureClients is a type that contains the Azure clients that
 // are used to interact with the Azure platform as the backend identity. The
 // backend identity is used to interact with Red Hat side Azure infrastructure.
 type BackendIdentityAzureClients struct {
+	CertificatesClient func(string) (*azcertificates.Client, error)
 	// DataplaneIdentitiesOIDCConfigurationBlobStorageClient is the blob storage client
 	// that is used to interact with the Azure Storage Account Blob Service that contains the
 	// OIDC configuration associated to the ARO-HCP Clusters' Data Plane Operators

@@ -57,6 +57,7 @@ type BackendOptions struct {
 	AppShortDescriptionName            string
 	AppVersion                         string
 	AzureLocation                      string
+	ServiceTenantID                    string
 	LeaderElectionLock                 resourcelock.Interface
 	ClustersServiceClient              ocm.ClusterServiceClientSpec
 	MetricsRegisterer                  prometheus.Registerer

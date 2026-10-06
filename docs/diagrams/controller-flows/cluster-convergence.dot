@@ -4,7 +4,9 @@ digraph cluster_convergence {
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
   cs [label="Cluster Service\nconfirmed cluster ID", fillcolor="#fff0da", color="#b27624"];
   place [label="ManagementClusterPlacementSync", fillcolor="#e6f0fa", color="#35648a"];
-  resources [label="ClusterResources", fillcolor="#e6f0fa", color="#35648a"];
+  resources [label="ClusterResources\nalways stamp ingress defaultCertificate\nsubscription AFEC-gated suppression of legacy ACM desires", fillcolor="#e6f0fa", color="#35648a"];
+  ingress [label="IngressCertificate\nservice tenant + fleet vault/identity\nHostedCluster namespace", fillcolor="#e6f0fa", color="#35648a"];
+  certificates [label="TLSCertificates\nbackend identity: read-only Key Vault GETs\nKAS + ingress: PendingReference -> AzureReference\noperation status = completed", fillcolor="#e6f0fa", color="#35648a"];
   read [label="CreateClusterScopedReadDesires", fillcolor="#e6f0fa", color="#35648a"];
   apply [label="ApplyDesireController", fillcolor="#e6f0fa", color="#35648a"];
   kube [label="Management-cluster Kubernetes\nHyperShift / supporting controllers", fillcolor="#fff0da", color="#b27624"];
@@ -23,6 +25,15 @@ digraph cluster_convergence {
   cs -> resources [label="GET resource manifests"];
   place -> read [label="actual placement + cluster ID"];
   resources -> apply [label="ApplyDesires"];
+  cs -> ingress [label="confirmed cluster ID"];
+  cs -> certificates [label="CS creates KAS + ingress certs"];
+  place -> certificates [label="hosted-cluster secrets vault"];
+  certificates -> ingress [label="AzureResources.IngressCertificate\nAzureReference set"];
+  place -> ingress [label="observed management cluster"];
+  props -> ingress [label="HostedCluster namespace"];
+  ingress -> apply [label="SPC + SecretSync ApplyDesires"];
+  ingress -> props [label="DesiredHostedCluster defaultCertificate\ninitialize if nil; persist only changes"];
+  ingress -> mirror [label="paired ReadDesires"];
   apply -> kube [label="apply objects"];
   read -> mirror [label="ReadDesires"];
   kube -> mirror [label="observed content / absence"];
@@ -36,6 +47,7 @@ digraph cluster_convergence {
   armprops -> op [label="API endpoint populated"];
   role -> azure [label="GET / create missing"];
   role -> op [label="confirmed nonempty; none\npending"];
+  certificates -> op [label="KAS + ingress\nAzureReference non-nil"];
   validation -> op [label="False: Provisioning + InvalidResource;\nfailure and operation each >= 5m: Failed;\nall True: ready"];
   op -> done [label="all completion checks\nsatisfied"];
   failed [label="ARM operation Failed\nselected error code", fillcolor="#fbe8e5", color="#a64f43"];

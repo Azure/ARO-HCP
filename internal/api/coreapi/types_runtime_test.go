@@ -20,10 +20,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
