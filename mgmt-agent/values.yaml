@@ -32,6 +32,12 @@ nodeHealth:
   # goes in git.
   config:
     enabled: {{ .mgmtAgent.nodeHealth.enabled }}
+swiftMesh:
+  # Empty disables the SwiftV2 mesh-probe controller and its pods/exec RBAC.
+  network: "{{ .mgmtAgent.swiftMesh.network }}"
+nodeSelector: {}
+tolerations: []
+affinity: {}
 serviceAccount:
   name: "{{ .mgmtAgent.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__msiClientId__"

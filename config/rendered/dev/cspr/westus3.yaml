@@ -799,6 +799,8 @@ mgmtAgent:
   managedIdentityName: mgmt-agent
   nodeHealth:
     enabled: true
+  swiftMesh:
+    network: ""
 mgmtKeyVault:
   name: ah-cspr-mg-usw3-1
   private: false

@@ -241,6 +241,12 @@ defaults:
     # environment to opt out.
     nodeHealth:
       enabled: true
+    # SwiftV2 (SWIFT NIC) data-path mesh probe. Disabled by default: an empty
+    # network name leaves both the controller and its powerful pods/exec RBAC
+    # unrendered. Set to the SwiftV2 Multus network-attachment name (as it appears
+    # in the pod networks-status annotation) to enable per-HCP router mesh probing.
+    swiftMesh:
+      network: ""
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: mgmt-agent

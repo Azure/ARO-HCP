@@ -1,0 +1,35 @@
+{{- if .Values.swiftMesh.network }}
+# Dedicated, separately-bound role for the SwiftV2 mesh-probe controller. It is
+# rendered ONLY when the controller is enabled (swiftMesh.network set), so the
+# powerful cluster-wide pods/exec grant is never a standing privilege on a
+# mgmt-agent that is not running the probe. pods/exec create cannot be scoped by
+# namespace or name at the RBAC level, so it is isolated here for auditability.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+  name: mgmt-agent-swift-mesh
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods/exec
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+  name: mgmt-agent-swift-mesh
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mgmt-agent-swift-mesh
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.serviceAccount.name }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

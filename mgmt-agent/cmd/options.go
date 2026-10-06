@@ -31,6 +31,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -62,6 +63,7 @@ import (
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/monitortranslator"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/swiftmesh"
 	capacityreportclient "github.com/Azure/ARO-HCP/mgmt-agent/pkg/generated/clientset/versioned"
 )
 
@@ -80,6 +82,14 @@ type RawControllerOptions struct {
 	NodeHealthConfigMapName string
 	NodeHealthConfigKey     string
 	MonitoringAPIGroup      string
+
+	SwiftMeshNetwork      string
+	SwiftMeshPodLabel     string
+	SwiftMeshContainer    string
+	SwiftMeshPort         int
+	SwiftMeshInterval     time.Duration
+	SwiftMeshProbeTimeout time.Duration
+	SwiftMeshConcurrency  int
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
@@ -88,6 +98,13 @@ func DefaultControllerOptions() *RawControllerOptions {
 		Workers:                 2,
 		NodeHealthConfigMapName: "mgmt-agent-node-health",
 		NodeHealthConfigKey:     "config.yaml",
+
+		SwiftMeshPodLabel:     "app=router",
+		SwiftMeshContainer:    "router",
+		SwiftMeshPort:         8443,
+		SwiftMeshInterval:     5 * time.Minute,
+		SwiftMeshProbeTimeout: 5 * time.Second,
+		SwiftMeshConcurrency:  8,
 	}
 }
 
@@ -106,6 +123,15 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 		"Key within the node-health ConfigMap that holds the YAML configuration.")
 	cmd.Flags().StringVar(&o.MonitoringAPIGroup, "monitoring-api-group", o.MonitoringAPIGroup,
 		"API group for monitoring CRDs (e.g. azmonitoring.coreos.com). Enables AMA NetworkPolicy controller when set to azmonitoring.coreos.com.")
+
+	cmd.Flags().StringVar(&o.SwiftMeshNetwork, "swift-mesh-network", o.SwiftMeshNetwork,
+		"Name of the SwiftV2 Multus network attachment (as it appears in the pod networks-status annotation) whose IP is the SWIFT NIC. The SWIFT mesh probe controller is disabled until this is set.")
+	cmd.Flags().StringVar(&o.SwiftMeshPodLabel, "swift-mesh-pod-label", o.SwiftMeshPodLabel, "Label selector identifying the router pods to probe across all HCP namespaces.")
+	cmd.Flags().StringVar(&o.SwiftMeshContainer, "swift-mesh-container", o.SwiftMeshContainer, "Container to exec the probe in within each router pod.")
+	cmd.Flags().IntVar(&o.SwiftMeshPort, "swift-mesh-port", o.SwiftMeshPort, "TCP port probed on each SWIFT NIC.")
+	cmd.Flags().DurationVar(&o.SwiftMeshInterval, "swift-mesh-interval", o.SwiftMeshInterval, "How often to re-probe every HCP's SWIFT mesh.")
+	cmd.Flags().DurationVar(&o.SwiftMeshProbeTimeout, "swift-mesh-probe-timeout", o.SwiftMeshProbeTimeout, "Per-edge probe timeout (curl -m).")
+	cmd.Flags().IntVar(&o.SwiftMeshConcurrency, "swift-mesh-concurrency", o.SwiftMeshConcurrency, "Maximum concurrent in-flight probes per sweep.")
 
 	return nil
 }
@@ -126,6 +152,7 @@ type completedControllerOptions struct {
 	nodeHealth               *nodehealth.Controller
 	capacityReport           *capacityreporting.CapacityReportController
 	backupCleanup            *backupcleanup.Controller
+	swiftMesh                *swiftmesh.Controller
 	veleroInformers          dynamicinformer.DynamicSharedInformerFactory
 	resourceWatcher          *controller.ResourceWatcher
 	podWatcher               *controller.PodWatcher
@@ -158,6 +185,23 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 	}
 	if o.LogVerbosity < 0 {
 		return nil, fmt.Errorf("--log-verbosity must be a value >= 0")
+	}
+	if o.SwiftMeshNetwork != "" {
+		if o.SwiftMeshInterval <= 0 {
+			return nil, fmt.Errorf("--swift-mesh-interval must be > 0")
+		}
+		if o.SwiftMeshProbeTimeout < time.Second {
+			return nil, fmt.Errorf("--swift-mesh-probe-timeout must be >= 1s")
+		}
+		if o.SwiftMeshProbeTimeout >= o.SwiftMeshInterval {
+			return nil, fmt.Errorf("--swift-mesh-probe-timeout (%s) must be less than --swift-mesh-interval (%s)", o.SwiftMeshProbeTimeout, o.SwiftMeshInterval)
+		}
+		if o.SwiftMeshPort < 1 || o.SwiftMeshPort > 65535 {
+			return nil, fmt.Errorf("--swift-mesh-port must be in 1..65535")
+		}
+		if o.SwiftMeshConcurrency < 1 {
+			return nil, fmt.Errorf("--swift-mesh-concurrency must be >= 1")
+		}
 	}
 	return &ValidatedControllerOptions{
 		validatedControllerOptions: &validatedControllerOptions{
@@ -322,6 +366,37 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		nil,
 	)
 
+	// SWIFT mesh probe controller. Disabled unless a SwiftV2 network name is
+	// configured: it execs into router pods, which needs pods/exec and a known
+	// attachment to read the SWIFT NIC IP from.
+	var swiftMeshCtrl *swiftmesh.Controller
+	if o.SwiftMeshNetwork != "" {
+		podSelector, err := labels.Parse(o.SwiftMeshPodLabel)
+		if err != nil {
+			return nil, fmt.Errorf("invalid --swift-mesh-pod-label %q: %w", o.SwiftMeshPodLabel, err)
+		}
+		swiftmesh.RegisterMetrics()
+		swiftMeshPods := clusterWideKubeInformers.Core().V1().Pods()
+		swiftMeshNamespaces := clusterWideKubeInformers.Core().V1().Namespaces()
+		discoverer := swiftmesh.NewHCPDiscoverer(
+			swiftMeshPods.Lister(),
+			swiftMeshNamespaces.Lister(),
+			podSelector,
+			o.SwiftMeshContainer,
+			o.SwiftMeshNetwork,
+			o.SwiftMeshPort,
+		)
+		driver := swiftmesh.NewExecDriver(kubeClientset, kubeConfig, o.SwiftMeshProbeTimeout)
+		swiftMeshCtrl = swiftmesh.NewController(
+			discoverer,
+			driver,
+			[]cache.InformerSynced{swiftMeshPods.Informer().HasSynced, swiftMeshNamespaces.Informer().HasSynced},
+			o.SwiftMeshInterval,
+			o.SwiftMeshProbeTimeout,
+			o.SwiftMeshConcurrency,
+		)
+	}
+
 	var ksmCtrl *ksmhcp.KSMHCPController
 	var ksmKubeInformers kubeinformers.SharedInformerFactory
 	var dynInformers dynamicinformer.DynamicSharedInformerFactory
@@ -410,6 +485,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			nodeHealth:               nodeHealth,
 			capacityReport:           capacityReportCtrl,
 			backupCleanup:            backupCleanup,
+			swiftMesh:                swiftMeshCtrl,
 			veleroInformers:          veleroInformers,
 			resourceWatcher:          resourceWatcher,
 			podWatcher:               podWatcher,
@@ -624,6 +700,15 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 						logger.Error(err, "backup cleanup controller failed")
 					}
 				}()
+
+				if o.swiftMesh != nil {
+					go func() {
+						defer utilruntime.HandleCrash()
+						if err := o.swiftMesh.Run(ctx); err != nil {
+							logger.Error(err, "SWIFT mesh controller failed")
+						}
+					}()
+				}
 
 				// Block until the leadership context is cancelled.
 				<-ctx.Done()

@@ -1563,6 +1563,17 @@
           },
           "additionalProperties": false,
           "required": ["enabled"]
+        },
+        "swiftMesh": {
+          "type": "object",
+          "properties": {
+            "network": {
+              "type": "string",
+              "description": "SwiftV2 Multus network-attachment name whose IP is the SWIFT NIC. Empty disables the SwiftV2 mesh-probe controller and leaves its pods/exec RBAC unrendered; set it to enable per-HCP router mesh probing."
+            }
+          },
+          "additionalProperties": false,
+          "required": ["network"]
         }
       },
       "additionalProperties": false,
@@ -1570,7 +1581,8 @@
         "image",
         "k8s",
         "managedIdentityName",
-        "nodeHealth"
+        "nodeHealth",
+        "swiftMesh"
       ]
     },
     "swiftRecorder": {

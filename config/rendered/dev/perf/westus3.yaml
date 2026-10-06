@@ -799,6 +799,8 @@ mgmtAgent:
   managedIdentityName: mgmt-agent
   nodeHealth:
     enabled: true
+  swiftMesh:
+    network: ""
 mgmtKeyVault:
   name: ah-perf-mg-usw3ptest-1
   private: false
