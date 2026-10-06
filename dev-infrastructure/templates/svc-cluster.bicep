@@ -550,13 +550,15 @@ resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAss
   location: location
 }
 
-resource leasedAksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: '${aksClusterName}-msi'
-  scope: resourceGroup(infrastructureIdentityResourceGroup)
-}
-
+// A second resource declaration can alias the created identity when leasing is disabled.
+var leasedAksClusterUserDefinedManagedIdentityId = resourceId(
+  subscription().subscriptionId,
+  infrastructureIdentityResourceGroup,
+  'Microsoft.ManagedIdentity/userAssignedIdentities',
+  '${aksClusterName}-msi'
+)
 var aksClusterUserDefinedManagedIdentityPrincipalId = useLeasedInfrastructureIdentities
-  ? leasedAksClusterUserDefinedManagedIdentity.properties.principalId
+  ? reference(leasedAksClusterUserDefinedManagedIdentityId, '2023-01-31').principalId
   : aksClusterUserDefinedManagedIdentity!.properties.principalId
 
 module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = {
@@ -727,6 +729,9 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
 }
 
 output aksClusterName string = svcCluster.outputs.aksClusterName
+output identityResourceGroup string = useLeasedInfrastructureIdentities
+  ? infrastructureIdentityResourceGroup
+  : resourceGroup().name
 
 //
 //   O P S   I N G R E S S   P U B L I C   I P

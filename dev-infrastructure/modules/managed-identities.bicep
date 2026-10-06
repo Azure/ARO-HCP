@@ -15,19 +15,26 @@ resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = [
   }
 ]
 
-resource leasedUami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = [
-  for name in manageIdentityNames: {
-    name: name
-    scope: resourceGroup(identityResourceGroupName)
-  }
+// Keep leased lookups out of the resource declarations so empty default RGs cannot alias created identities.
+var leasedIdentityIds = [
+  for name in manageIdentityNames: resourceId(
+    subscription().subscriptionId,
+    identityResourceGroupName,
+    'Microsoft.ManagedIdentity/userAssignedIdentities',
+    name
+  )
 ]
 
 output managedIdentities array = [
   for i in range(0, length(manageIdentityNames)): {
-    uamiID: useLeasedIdentities ? leasedUami[i].id : uami[i]!.id
+    uamiID: useLeasedIdentities ? leasedIdentityIds[i] : uami[i]!.id
     uamiName: manageIdentityNames[i]
-    uamiClientID: useLeasedIdentities ? leasedUami[i].properties.clientId : uami[i]!.properties.clientId
-    uamiPrincipalID: useLeasedIdentities ? leasedUami[i].properties.principalId : uami[i]!.properties.principalId
+    uamiClientID: useLeasedIdentities
+      ? reference(leasedIdentityIds[i], '2023-01-31').clientId
+      : uami[i]!.properties.clientId
+    uamiPrincipalID: useLeasedIdentities
+      ? reference(leasedIdentityIds[i], '2023-01-31').principalId
+      : uami[i]!.properties.principalId
   }
 ]
 
