@@ -301,23 +301,23 @@ tests:
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/np1", phase="failed"}'
     values: "_x85 1x115"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/np1", phase="failed"}'
-    values: "_x85 5100x115"
+    values: "_x85 5100+60x115"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/np2", phase="failed"}'
     values: "_x85 1x115"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/np2", phase="failed"}'
-    values: "_x85 5100x115"
+    values: "_x85 5100+60x115"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/np3", phase="failed"}'
     values: "_x85 1x115"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/np3", phase="failed"}'
-    values: "_x85 5100x115"
+    values: "_x85 5100+60x115"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/np4", phase="failed"}'
     values: "_x85 1x115"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/np4", phase="failed"}'
-    values: "_x85 5100x115"
+    values: "_x85 5100+60x115"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/np5", phase="succeeded"}'
     values: "_x85 1x115"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/np5", phase="succeeded"}'
-    values: "_x85 5100x115"
+    values: "_x85 5100+60x115"
   alert_rule_test:
   - eval_time: 95m
     alertname: userJourneyNodePoolErrors1h5m
@@ -359,23 +359,23 @@ tests:
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/w6f1", phase="failed"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/w6f1", phase="failed"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/w6f2", phase="failed"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/w6f2", phase="failed"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/w6f3", phase="failed"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/w6f3", phase="failed"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/w6s1", phase="succeeded"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/w6s1", phase="succeeded"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/w6s2", phase="succeeded"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/w6s2", phase="succeeded"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   promql_expr_test:
   - expr: errors:backend_nodepool_operation:failed_6h
     eval_time: 140m
@@ -572,35 +572,35 @@ tests:
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgf1", phase="failed"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgf1", phase="failed"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgf2", phase="failed"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgf2", phase="failed"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs1", phase="succeeded"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs1", phase="succeeded"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs2", phase="succeeded"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs2", phase="succeeded"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs3", phase="succeeded"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs3", phase="succeeded"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs4", phase="succeeded"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs4", phase="succeeded"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs5", phase="succeeded"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs5", phase="succeeded"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs6", phase="succeeded"}'
     values: "_x40 1x101"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs6", phase="succeeded"}'
-    values: "_x40 2400x101"
+    values: "_x40 2400+60x101"
   promql_expr_test:
   - expr: errors:backend_nodepool_operation:failed_6h
     eval_time: 140m
@@ -632,6 +632,7 @@ tests:
         severity: "4"
         slo: nodepool-errors
         long_window: 6h
+        short_window: 30m
       exp_annotations:
         summary: "mgmt-1: Node Pool operation failure rate exceeds 15% over 6h"
         description: "More than 15% of completed node pool operations on mgmt-1 failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."

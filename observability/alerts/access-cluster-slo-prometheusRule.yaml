@@ -130,6 +130,8 @@ spec:
         errors:backend_credential_operation:failed_1h >= 3
         and
         errors:backend_credential_operation:error_rate_1h > 0.72
+        and
+        errors:backend_credential_operation:error_rate_5m > 0.72
       for: 5m
       labels:
         severity: "3"
@@ -146,6 +148,8 @@ spec:
         errors:backend_credential_operation:total_6h >= 5
         and
         errors:backend_credential_operation:error_rate_6h > 0.30
+        and
+        errors:backend_credential_operation:error_rate_30m > 0.30
       for: 30m
       labels:
         severity: "3"
@@ -181,11 +185,14 @@ spec:
         errors:backend_credential_operation:failed_6h >= 2
         and
         errors:backend_credential_operation:error_rate_6h > 0.15
+        and
+        errors:backend_credential_operation:error_rate_30m > 0.15
       for: 30m
       labels:
         severity: "4"
         slo: access-cluster-errors
         long_window: 6h
+        short_window: 30m
       annotations:
         summary: "{{ $labels.cluster }}: Credential operation failure rate exceeds 15% over 6h"
         description: "More than 15% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
