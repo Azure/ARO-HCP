@@ -553,6 +553,50 @@ tests:
     alertname: userJourneyBackupStorageAvailability
     exp_alerts: []
 # ========================================
+# StorageAvailability: mixed-cadence dilution regression test. 3 distinct
+# HostedClusters, each with all 3 schedules (hourly/daily/weekly) - only the
+# hourly schedule has failed on each (a storage outage just started); daily
+# and weekly still show their old pre-outage success since their own cron
+# hasn't ticked again yet. Before restricting sli:backup:last_run_failure:
+# ratio5m to hourly-only, this would read 3 failed / 9 total = 33%, well
+# under the 0.8 threshold, and could delay detection by up to a week waiting
+# for weekly to also fail. Scoped to hourly, it correctly fires.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-hourly"}'
+    values: "0+0x20"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-daily"}'
+    values: "1+0x20"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-weekly"}'
+    values: "1+0x20"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-hourly"}'
+    values: "0+0x20"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-daily"}'
+    values: "1+0x20"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-weekly"}'
+    values: "1+0x20"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-hourly"}'
+    values: "0+0x20"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-daily"}'
+    values: "1+0x20"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-weekly"}'
+    values: "1+0x20"
+  alert_rule_test:
+  - eval_time: 17m
+    alertname: userJourneyBackupStorageAvailability
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyBackupStorageAvailability
+        cluster: mgmt-9
+        component: slo
+        severity: "4"
+        slo: backup-storage-availability
+      exp_annotations:
+        summary: "mgmt-9: Velero backups failing fleet-wide - possible storage location outage"
+        description: "Over 80% of Velero schedules on management cluster mgmt-9 had a failed last run, sustained for 15m, across at least 3 distinct HostedClusters on mgmt-9. PROXY signal for a BackupStorageLocation outage (no direct BSL-phase metric exists yet - see ARO-29949); also fires for other fleet-wide causes (e.g. a bad Velero/plugin rollout) - check `kubectl get backupstoragelocation -n velero` on the MC before assuming it is specifically storage."
+        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
+# ========================================
 # RepoMaintenanceSaturation: a modest non-terminal count, well under the
 # threshold - must not fire.
 # ========================================

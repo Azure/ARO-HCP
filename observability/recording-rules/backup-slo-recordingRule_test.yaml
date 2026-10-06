@@ -119,6 +119,42 @@ tests:
     - labels: '{__name__="backup:hostedcluster_count:count", cluster="mgmt-1"}'
       value: 3
 # ========================================
+# Storage proxy regression: mixed-cadence dilution. Each of 3 HostedClusters
+# has all 3 schedules (hourly/daily/weekly, config.go:43-45) - only the
+# hourly schedule has failed so far (a storage outage just started); daily
+# and weekly still show their old pre-outage success since their own cron
+# hasn't ticked again yet. Before restricting the ratio to hourly-only, this
+# would read 3 failed / 9 total = 33%, well under the 0.8 threshold -
+# exactly the dilution that could delay detection by up to a week. Scoped to
+# hourly, it correctly reads 3/3 = 100%.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-hourly"}'
+    values: "0+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-daily"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-weekly"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-hourly"}'
+    values: "0+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-daily"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-weekly"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-hourly"}'
+    values: "0+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-daily"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-weekly"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: sli:backup:last_run_failure:ratio5m{cluster="mgmt-9"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:backup:last_run_failure:ratio5m", cluster="mgmt-9"}'
+      value: 1
+# ========================================
 # HostedCluster-count guard regression: ONE HostedCluster with all 3 of its
 # own cadences (hourly/daily/weekly) - must count as 1 distinct HC, not 3
 # schedules, so a downstream >=3 guard does not mistake it for 3 HCs.

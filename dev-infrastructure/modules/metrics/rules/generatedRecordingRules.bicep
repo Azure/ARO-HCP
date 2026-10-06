@@ -234,7 +234,7 @@ resource arohcpBackupSloRecordingRules 'Microsoft.AlertsManagement/prometheusRul
       }
       {
         record: 'sli:backup:last_run_failure:ratio5m'
-        expression: 'count by (cluster, region) (max without (prometheus_replica) (velero_backup_last_status{schedule!=""}) == 0) / count by (cluster, region) (max without (prometheus_replica) (velero_backup_last_status{schedule!=""}))'
+        expression: 'count by (cluster, region) (max without (prometheus_replica) (velero_backup_last_status{schedule=~".+-hourly"}) == 0) / count by (cluster, region) (max without (prometheus_replica) (velero_backup_last_status{schedule=~".+-hourly"}))'
       }
       {
         record: 'backup:hostedcluster_count:count'
