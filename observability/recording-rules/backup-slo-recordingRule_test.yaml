@@ -9,6 +9,8 @@ tests:
   input_series:
   - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
     values: "0+100x10"
+  - series: 'velero_backup_success_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0+90x10"
   - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
     values: "0+10x10"
   - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
@@ -47,6 +49,32 @@ tests:
   - expr: errors:backup:ratio:rate5m{cluster="mgmt-quiet"}
     eval_time: 8m
     exp_samples: []
+# ========================================
+# Errors ratio regression: masked-failure-type test. partial_failure_total
+# and validation_failure_total report NO time series at all for this cluster
+# (never incremented - not merely a flat zero, which is a present sample),
+# while attempt/success/failure are all present and real: 10 failures out of
+# 100 attempts per minute. Before applying the "or 0 * attempt" fallback to
+# EACH outcome-type sum individually, plain vector addition dropped the
+# whole numerator the moment any one term had no matching series, masking
+# these 10 real failures as a 0% error rate. With the per-term fallback,
+# the missing types correctly contribute 0 instead of poisoning the sum, and
+# this reads as the true 10%.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_attempt_total{cluster="mgmt-masked", schedule="ns-a-hourly"}'
+    values: "0+100x10"
+  - series: 'velero_backup_success_total{cluster="mgmt-masked", schedule="ns-a-hourly"}'
+    values: "0+90x10"
+  - series: 'velero_backup_failure_total{cluster="mgmt-masked", schedule="ns-a-hourly"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: errors:backup:ratio:rate5m{cluster="mgmt-masked"}
+    eval_time: 8m
+    exp_samples:
+    - labels: '{__name__="errors:backup:ratio:rate5m", cluster="mgmt-masked"}'
+      value: 0.09999999999999999
 # ========================================
 # Latency p99: all observations land in (300,600] - histogram_quantile
 # interpolates a concrete estimate inside that finite bucket.
@@ -140,3 +168,29 @@ tests:
   - expr: backup:in_progress:count{cluster="mgmt-2"}
     eval_time: 5m
     exp_samples: []
+# ========================================
+# RepoMaintenance proxy: "Queued"/"ReadyToStart" regression test. These are
+# real, non-terminal velerobackup_phase values (see
+# observability/prometheus/values-mgmt.yaml's phase StateSet and
+# controller_test.go's TestBackupPhases) that must count toward the backlog
+# the same as "New"/"InProgress" - 2 InProgress + 1 Queued + 1 ReadyToStart +
+# 1 Completed (which must not count) = 4.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-a-hourly", phase="InProgress"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-b-hourly", phase="InProgress"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-c-hourly", phase="Queued"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-d-hourly", phase="ReadyToStart"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-e-hourly", phase="Completed"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: backup:in_progress:count{cluster="mgmt-7"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="backup:in_progress:count", cluster="mgmt-7"}'
+      value: 4
