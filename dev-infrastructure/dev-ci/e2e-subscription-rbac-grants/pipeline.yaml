@@ -63,10 +63,17 @@ resourceGroups:
     - name: PROVIDER_NAMESPACES
       value: Microsoft.CostManagement
   - name: cost-tag-inheritance
-    action: ARM
-    template: ../../templates/cost-tag-inheritance.bicep
-    parameters: ../../configurations/cost-tag-inheritance.tmpl.bicepparam
-    deploymentLevel: Subscription
+    action: Shell
+    command: ./e2e-enable-cost-tag-inheritance.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: grants
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: SUBSCRIPTION_IDS
+      value: '{{ range .ci.dev.e2eSubscriptions }}{{ .id }} {{ end }}{{ range .ci.dev.infrastructureSubscriptions }}{{ if index . "costTagInheritance" }}{{ .id }} {{ end }}{{ end }}'
     dependsOn:
     - resourceGroup: grants
       step: register-costmanagement
