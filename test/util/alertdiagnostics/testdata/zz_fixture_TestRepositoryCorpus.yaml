@@ -567,57 +567,17 @@
         workqueue_depth{namespace="aro-hcp"}
       )
     ) > 10
-    unless on (name, cluster) (
-      workqueue_depth{namespace="aro-hcp",name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)"}
-      and on (cluster) (
-        max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
-      )
-    )
   plan:
-    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))
+    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
     conditions:
-      - expression: (max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10) unless on (name, cluster) ((workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)))
-        path: root/unless:left
+      - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
+        path: root
         queries:
-          - expression: (max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"}))) unless on (name, cluster) ((workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)))
+          - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"}))
             role: signal
         thresholds:
           - operator: '>'
             value: 10
-        unsupported: ""
-- source: backend/alerts/backend-prometheusRule.yaml
-  group: backend
-  alert: BackendControllerQueueDepthHigh
-  occurrence: 2
-  input: |
-    max by (name, cluster) (
-      max without(prometheus_replica) (
-        workqueue_depth{namespace="aro-hcp",name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)"}
-      )
-    ) > 10
-    and on (cluster) (
-      max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
-    )
-  plan:
-    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10 and on (cluster) (max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)
-    conditions:
-      - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10
-        path: root/and:left
-        queries:
-          - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"}))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 10
-        unsupported: ""
-      - expression: max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
-        path: root/and:right
-        queries:
-          - expression: max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"})
-            role: signal
-        thresholds:
-          - operator: ==
-            value: 1
         unsupported: ""
 - source: backend/alerts/backend-prometheusRule.yaml
   group: backend
@@ -1231,44 +1191,18 @@
   group: backend
   alert: BackendControllerQueueDepthHigh
   occurrence: 1
-  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))
+  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
   plan:
-    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))
+    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
     conditions:
-      - expression: (max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10) unless on (name, cluster) ((workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)))
-        path: root/unless:left
+      - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
+        path: root
         queries:
-          - expression: (max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"}))) unless on (name, cluster) ((workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)))
+          - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"}))
             role: signal
         thresholds:
           - operator: '>'
             value: 10
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
-  group: backend
-  alert: BackendControllerQueueDepthHigh
-  occurrence: 2
-  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10 and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)
-  plan:
-    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10 and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)
-    conditions:
-      - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10
-        path: root/and:left
-        queries:
-          - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"}))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 10
-        unsupported: ""
-      - expression: max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
-        path: root/and:right
-        queries:
-          - expression: max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"})
-            role: signal
-        thresholds:
-          - operator: ==
-            value: 1
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
   group: backend
@@ -1892,12 +1826,12 @@
   group: kusto-logs-age-rules
   alert: KustoLogsDataStale
   occurrence: 1
-  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or (kusto_logs_age_in_seconds{table="systemdlogs"} > 3600 and on (cluster) (sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0))
+  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
   plan:
-    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or (kusto_logs_age_in_seconds{table="systemdlogs"} > 3600 and on (cluster) (sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0))
+    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
     conditions:
       - expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600
-        path: root/or:left
+        path: root/or:left/or:left
         queries:
           - expression: kusto_logs_age_in_seconds{table!="systemdlogs"}
             role: signal
@@ -1905,23 +1839,23 @@
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{table="systemdlogs"} > 3600
-        path: root/or:right/and:left
+      - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600
+        path: root/or:left/or:right
         queries:
-          - expression: kusto_logs_age_in_seconds{table="systemdlogs"}
+          - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"}
             role: signal
         thresholds:
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0
-        path: root/or:right/and:right
+      - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+        path: root/or:right
         queries:
-          - expression: sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m]))
+          - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"}
             role: signal
         thresholds:
           - operator: '>'
-            value: 0
+            value: 7200
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
   group: leaderelection
@@ -5885,281 +5819,269 @@
             value: 1
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_cluster_deletion_saturation_alerts
-  alert: userJourneyClusterDeletionQueueDepth
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailability1h5m
   occurrence: 1
-  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+  input: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 2 * 3600
   plan:
-    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+    expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 2 * 3600
     conditions:
-      - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+      - expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 2 * 3600
         path: root
         queries:
-          - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"}))
+          - expression: time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 7200
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailability3d6h
+  occurrence: 1
+  input: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 24 * 3600
+  plan:
+    expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 24 * 3600
+    conditions:
+      - expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 24 * 3600
+        path: root
+        queries:
+          - expression: time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 86400
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailability6h30m
+  occurrence: 1
+  input: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 6 * 3600
+  plan:
+    expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 6 * 3600
+    conditions:
+      - expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 6 * 3600
+        path: root
+        queries:
+          - expression: time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 21600
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_error_alerts
+  alert: userJourneyBackupErrors1h5m
+  occurrence: 1
+  input: (((sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))))) > 0.072 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))))) > 0.072
+  plan:
+    expression: (((sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))))) > 0.072 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))))) > 0.072
+    conditions:
+      - expression: (((sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))))) > 0.072
+        path: root/and:left
+        queries:
+          - expression: ((sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.072
+        unsupported: ""
+      - expression: (((sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))))) > 0.072
+        path: root/and:right
+        queries:
+          - expression: ((sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.072
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_error_alerts
+  alert: userJourneyBackupErrors3d6h
+  occurrence: 1
+  input: (((sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))))) > 0.005 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))) > 0.005
+  plan:
+    expression: (((sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))))) > 0.005 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))) > 0.005
+    conditions:
+      - expression: (((sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))))) > 0.005
+        path: root/and:left
+        queries:
+          - expression: ((sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.005
+        unsupported: ""
+      - expression: (((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))) > 0.005
+        path: root/and:right
+        queries:
+          - expression: ((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.005
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_error_alerts
+  alert: userJourneyBackupErrors6h30m
+  occurrence: 1
+  input: (((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))) > 0.03 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))))) > 0.03
+  plan:
+    expression: (((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))) > 0.03 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))))) > 0.03
+    conditions:
+      - expression: (((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))) > 0.03
+        path: root/and:left
+        queries:
+          - expression: ((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.03
+        unsupported: ""
+      - expression: (((sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))))) > 0.03
+        path: root/and:right
+        queries:
+          - expression: ((sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.03
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_latency_alerts
+  alert: userJourneyBackupLatency3d6h
+  occurrence: 1
+  input: (histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[3d]))) > 1200 and on (cluster) histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[6h]))) > 1200)
+  plan:
+    expression: (histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[3d]))) > 1200 and on (cluster) histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[6h]))) > 1200)
+    conditions:
+      - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[3d]))) > 1200
+        path: root/and:left
+        queries:
+          - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[3d])))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1200
+        unsupported: ""
+      - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[6h]))) > 1200
+        path: root/and:right
+        queries:
+          - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[6h])))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1200
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_latency_alerts
+  alert: userJourneyBackupLatency6h30m
+  occurrence: 1
+  input: (histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[6h]))) > 1200 and on (cluster) histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[30m]))) > 1200)
+  plan:
+    expression: (histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[6h]))) > 1200 and on (cluster) histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[30m]))) > 1200)
+    conditions:
+      - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[6h]))) > 1200
+        path: root/and:left
+        queries:
+          - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[6h])))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1200
+        unsupported: ""
+      - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[30m]))) > 1200
+        path: root/and:right
+        queries:
+          - expression: histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[30m])))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1200
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_metrics_absent_alerts
+  alert: userJourneyBackupMetricsAbsent
+  occurrence: 1
+  input: group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster, region) (velero_backup_attempt_total)
+  plan:
+    expression: group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster, region) (velero_backup_attempt_total)
+    conditions:
+      - expression: (group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster, region) (velero_backup_attempt_total))
+        path: root/unless:left
+        queries:
+          - expression: (group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster, region) (velero_backup_attempt_total))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_saturation_alerts
+  alert: userJourneyBackupRepoMaintenanceSaturation
+  occurrence: 1
+  input: backup:in_progress:count > 10
+  plan:
+    expression: backup:in_progress:count > 10
+    conditions:
+      - expression: backup:in_progress:count > 10
+        path: root
+        queries:
+          - expression: backup:in_progress:count
             role: signal
         thresholds:
           - operator: '>'
             value: 10
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionErrors1h5m
+  group: arohcp_backup_slo_storage_availability_alerts
+  alert: userJourneyBackupStorageAvailability
   occurrence: 1
-  input: errors:backend_cluster_deletion_operation:failed_1h >= 3 and errors:backend_cluster_deletion_operation:error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+  input: (sli:backup:last_run_failure:ratio5m > 0.8 and backup:hostedcluster_count:count >= 3)
   plan:
-    expression: errors:backend_cluster_deletion_operation:failed_1h >= 3 and errors:backend_cluster_deletion_operation:error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+    expression: (sli:backup:last_run_failure:ratio5m > 0.8 and backup:hostedcluster_count:count >= 3)
     conditions:
-      - expression: errors:backend_cluster_deletion_operation:failed_1h >= 3
-        path: root/and:left/and:left
+      - expression: sli:backup:last_run_failure:ratio5m > 0.8
+        path: root/and:left
         queries:
-          - expression: errors:backend_cluster_deletion_operation:failed_1h
+          - expression: sli:backup:last_run_failure:ratio5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.8
+        unsupported: ""
+      - expression: backup:hostedcluster_count:count >= 3
+        path: root/and:right
+        queries:
+          - expression: backup:hostedcluster_count:count
             role: signal
         thresholds:
           - operator: '>='
             value: 3
         unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:error_rate_1h > 0.72
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:error_rate_1h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:error_rate_5m
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionErrors3d
+  group: arohcp_backup_slo_traffic_alerts
+  alert: userJourneyBackupTraffic
   occurrence: 1
-  input: errors:backend_cluster_deletion_operation:total_3d >= 10 and errors:backend_cluster_deletion_operation:failed_3d >= 2 and errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+  input: (avg_over_time(traffic:backup:attempt_rate:rate5m[2h]) < 0.1 * avg_over_time(traffic:backup:attempt_rate:rate5m[1d])) and avg_over_time(traffic:backup:attempt_rate:rate5m[1d]) > 0
   plan:
-    expression: errors:backend_cluster_deletion_operation:total_3d >= 10 and errors:backend_cluster_deletion_operation:failed_3d >= 2 and errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+    expression: (avg_over_time(traffic:backup:attempt_rate:rate5m[2h]) < 0.1 * avg_over_time(traffic:backup:attempt_rate:rate5m[1d])) and avg_over_time(traffic:backup:attempt_rate:rate5m[1d]) > 0
     conditions:
-      - expression: errors:backend_cluster_deletion_operation:total_3d >= 10
-        path: root/and:left/and:left
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:total_3d
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 10
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:failed_3d >= 2
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:failed_3d
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 2
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:error_rate_3d
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.05
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionErrors6h30m
-  occurrence: 1
-  input: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
-  plan:
-    expression: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
-    conditions:
-      - expression: errors:backend_cluster_deletion_operation:total_6h >= 5
-        path: root/and:left/and:left
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:total_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:error_rate_6h > 0.3
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:error_rate_6h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:error_rate_30m
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionErrorsDegradation
-  occurrence: 1
-  input: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:failed_6h >= 2 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
-  plan:
-    expression: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:failed_6h >= 2 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
-    conditions:
-      - expression: errors:backend_cluster_deletion_operation:total_6h >= 5
-        path: root/and:left/and:left
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:total_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:failed_6h >= 2
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:failed_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 2
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:error_rate_6h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.15
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionLatency1h5m
-  occurrence: 1
-  input: errors:backend_cluster_deletion_operation:latency_total_1h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
-  plan:
-    expression: errors:backend_cluster_deletion_operation:latency_total_1h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
-    conditions:
-      - expression: errors:backend_cluster_deletion_operation:latency_total_1h >= 5
-        path: root/and:left/and:left
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_total_1h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_1h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_5m
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionLatency3d
-  occurrence: 1
-  input: errors:backend_cluster_deletion_operation:latency_total_3d >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
-  plan:
-    expression: errors:backend_cluster_deletion_operation:latency_total_3d >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
-    conditions:
-      - expression: errors:backend_cluster_deletion_operation:latency_total_3d >= 5
+      - expression: avg_over_time(traffic:backup:attempt_rate:rate5m[2h]) < 0.1 * avg_over_time(traffic:backup:attempt_rate:rate5m[1d])
         path: root/and:left
         queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_total_3d
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_3d
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.05
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionLatency6h30m
-  occurrence: 1
-  input: errors:backend_cluster_deletion_operation:latency_total_6h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
-  plan:
-    expression: errors:backend_cluster_deletion_operation:latency_total_6h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
-    conditions:
-      - expression: errors:backend_cluster_deletion_operation:latency_total_6h >= 5
-        path: root/and:left/and:left
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_total_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_6h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_30m
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionStuckOperation
-  occurrence: 1
-  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)) unless on (subscription_id) internal_subscription:info
-  plan:
-    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)) unless on (subscription_id) internal_subscription:info
-    conditions:
-      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
-        path: root/unless:left/and:left
-        queries:
-          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
-            role: signal
+          - expression: avg_over_time(traffic:backup:attempt_rate:rate5m[2h])
+            role: left
+          - expression: 0.1 * avg_over_time(traffic:backup:attempt_rate:rate5m[1d])
+            role: right
         thresholds: []
         unsupported: ""
-      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) unless on (subscription_id) (internal_subscription:info)
-        path: root/unless:left/and:right
+      - expression: avg_over_time(traffic:backup:attempt_rate:rate5m[1d]) > 0
+        path: root/and:right
         queries:
-          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) unless on (subscription_id) (internal_subscription:info)
+          - expression: avg_over_time(traffic:backup:attempt_rate:rate5m[1d])
             role: signal
         thresholds:
-          - operator: ==
-            value: 1
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_cluster_provision_slo_latency_alerts
@@ -6512,6 +6434,41 @@
         thresholds:
           - operator: '>'
             value: 0.85
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_frontend_slo_traffic_alerts
+  alert: userJourneyFrontendTrafficDrop
+  occurrence: 1
+  input: (avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5 and sli:frontend:ready:ratio5m > 0
+  plan:
+    expression: (avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5 and sli:frontend:ready:ratio5m > 0
+    conditions:
+      - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
+        path: root/and:left/and:left
+        queries:
+          - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[15m])
+            role: left
+          - expression: 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
+            role: right
+        thresholds: []
+        unsupported: ""
+      - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5
+        path: root/and:left/and:right
+        queries:
+          - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.5
+        unsupported: ""
+      - expression: sli:frontend:ready:ratio5m > 0
+        path: root/and:right
+        queries:
+          - expression: sli:frontend:ready:ratio5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_saturation_alerts
@@ -7666,391 +7623,583 @@
           - operator: '>'
             value: 0
         unsupported: ""
-- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
-  group: arohcp_cluster_deletion_saturation_alerts
-  alert: userJourneyClusterDeletionQueueDepth
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailability1h5m
   occurrence: 1
   input: |
-    max by (name, cluster) (
-      max without(prometheus_replica) (
-        workqueue_depth{namespace="aro-hcp", name="OperationClusterDelete"}
+    (
+      time()
+      -
+      max by (cluster, hosted_cluster_namespace) (
+        label_replace(
+          max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}),
+          "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"
+        )
       )
-    ) > 10
+    )
+    > 2 * 3600
   plan:
-    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+    expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 2 * 3600
     conditions:
-      - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+      - expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 2 * 3600
         path: root
         queries:
-          - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"}))
+          - expression: time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 7200
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailability3d6h
+  occurrence: 1
+  input: |
+    (
+      time()
+      -
+      max by (cluster, hosted_cluster_namespace) (
+        label_replace(
+          max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}),
+          "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"
+        )
+      )
+    )
+    > 24 * 3600
+  plan:
+    expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 24 * 3600
+    conditions:
+      - expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 24 * 3600
+        path: root
+        queries:
+          - expression: time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 86400
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_availability_alerts
+  alert: userJourneyBackupAvailability6h30m
+  occurrence: 1
+  input: |
+    (
+      time()
+      -
+      max by (cluster, hosted_cluster_namespace) (
+        label_replace(
+          max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}),
+          "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"
+        )
+      )
+    )
+    > 6 * 3600
+  plan:
+    expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 6 * 3600
+    conditions:
+      - expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 6 * 3600
+        path: root
+        queries:
+          - expression: time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 21600
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_error_alerts
+  alert: userJourneyBackupErrors1h5m
+  occurrence: 1
+  input: |
+    (
+      (
+        (
+          sum by (cluster) (rate(velero_backup_failure_total[1h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total[1h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total[1h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))
+        )
+      )
+      /
+      (
+        (
+          sum by (cluster) (rate(velero_backup_success_total[1h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_failure_total[1h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total[1h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total[1h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))
+        )
+      )
+    ) > 0.072
+    and on (cluster)
+    (
+      (
+        (
+          sum by (cluster) (rate(velero_backup_failure_total[5m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total[5m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total[5m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))
+        )
+      )
+      /
+      (
+        (
+          sum by (cluster) (rate(velero_backup_success_total[5m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_failure_total[5m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total[5m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total[5m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))
+        )
+      )
+    ) > 0.072
+  plan:
+    expression: (((sum by (cluster) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h])))) / ((sum by (cluster) (rate(velero_backup_success_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))))) > 0.072 and on (cluster) (((sum by (cluster) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m])))) / ((sum by (cluster) (rate(velero_backup_success_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))))) > 0.072
+    conditions:
+      - expression: (((sum by (cluster) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h])))) / ((sum by (cluster) (rate(velero_backup_success_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))))) > 0.072
+        path: root/and:left
+        queries:
+          - expression: ((sum by (cluster) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h])))) / ((sum by (cluster) (rate(velero_backup_success_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.072
+        unsupported: ""
+      - expression: (((sum by (cluster) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m])))) / ((sum by (cluster) (rate(velero_backup_success_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))))) > 0.072
+        path: root/and:right
+        queries:
+          - expression: ((sum by (cluster) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m])))) / ((sum by (cluster) (rate(velero_backup_success_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.072
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_error_alerts
+  alert: userJourneyBackupErrors3d6h
+  occurrence: 1
+  input: |
+    (
+      (
+        (
+          sum by (cluster) (rate(velero_backup_failure_total[3d]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total[3d]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total[3d]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))
+        )
+      )
+      /
+      (
+        (
+          sum by (cluster) (rate(velero_backup_success_total[3d]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_failure_total[3d]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total[3d]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total[3d]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))
+        )
+      )
+    ) > 0.005
+    and on (cluster)
+    (
+      (
+        (
+          sum by (cluster) (rate(velero_backup_failure_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+      )
+      /
+      (
+        (
+          sum by (cluster) (rate(velero_backup_success_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_failure_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+      )
+    ) > 0.005
+  plan:
+    expression: (((sum by (cluster) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d])))) / ((sum by (cluster) (rate(velero_backup_success_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))))) > 0.005 and on (cluster) (((sum by (cluster) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))))) > 0.005
+    conditions:
+      - expression: (((sum by (cluster) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d])))) / ((sum by (cluster) (rate(velero_backup_success_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))))) > 0.005
+        path: root/and:left
+        queries:
+          - expression: ((sum by (cluster) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d])))) / ((sum by (cluster) (rate(velero_backup_success_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.005
+        unsupported: ""
+      - expression: (((sum by (cluster) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))))) > 0.005
+        path: root/and:right
+        queries:
+          - expression: ((sum by (cluster) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.005
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_error_alerts
+  alert: userJourneyBackupErrors6h30m
+  occurrence: 1
+  input: |
+    (
+      (
+        (
+          sum by (cluster) (rate(velero_backup_failure_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+      )
+      /
+      (
+        (
+          sum by (cluster) (rate(velero_backup_success_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_failure_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total[6h]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        )
+      )
+    ) > 0.03
+    and on (cluster)
+    (
+      (
+        (
+          sum by (cluster) (rate(velero_backup_failure_total[30m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total[30m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total[30m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))
+        )
+      )
+      /
+      (
+        (
+          sum by (cluster) (rate(velero_backup_success_total[30m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_failure_total[30m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_partial_failure_total[30m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))
+        )
+        +
+        (
+          sum by (cluster) (rate(velero_backup_validation_failure_total[30m]))
+          or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))
+        )
+      )
+    ) > 0.03
+  plan:
+    expression: (((sum by (cluster) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))))) > 0.03 and on (cluster) (((sum by (cluster) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m])))) / ((sum by (cluster) (rate(velero_backup_success_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))))) > 0.03
+    conditions:
+      - expression: (((sum by (cluster) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))))) > 0.03
+        path: root/and:left
+        queries:
+          - expression: ((sum by (cluster) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.03
+        unsupported: ""
+      - expression: (((sum by (cluster) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m])))) / ((sum by (cluster) (rate(velero_backup_success_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))))) > 0.03
+        path: root/and:right
+        queries:
+          - expression: ((sum by (cluster) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m])))) / ((sum by (cluster) (rate(velero_backup_success_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.03
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_latency_alerts
+  alert: userJourneyBackupLatency3d6h
+  occurrence: 1
+  input: |
+    (
+      histogram_quantile(
+        0.99,
+        sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[3d]))
+      ) > 1200
+      and on (cluster)
+      histogram_quantile(
+        0.99,
+        sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[6h]))
+      ) > 1200
+    )
+  plan:
+    expression: (histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[3d]))) > 1200 and on (cluster) histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[6h]))) > 1200)
+    conditions:
+      - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[3d]))) > 1200
+        path: root/and:left
+        queries:
+          - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[3d])))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1200
+        unsupported: ""
+      - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[6h]))) > 1200
+        path: root/and:right
+        queries:
+          - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[6h])))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1200
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_latency_alerts
+  alert: userJourneyBackupLatency6h30m
+  occurrence: 1
+  input: |
+    (
+      histogram_quantile(
+        0.99,
+        sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[6h]))
+      ) > 1200
+      and on (cluster)
+      histogram_quantile(
+        0.99,
+        sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[30m]))
+      ) > 1200
+    )
+  plan:
+    expression: (histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[6h]))) > 1200 and on (cluster) histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[30m]))) > 1200)
+    conditions:
+      - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[6h]))) > 1200
+        path: root/and:left
+        queries:
+          - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[6h])))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1200
+        unsupported: ""
+      - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[30m]))) > 1200
+        path: root/and:right
+        queries:
+          - expression: histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[30m])))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 1200
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_metrics_absent_alerts
+  alert: userJourneyBackupMetricsAbsent
+  occurrence: 1
+  input: |
+    group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})
+    unless on (cluster)
+    group by (cluster) (velero_backup_attempt_total)
+  plan:
+    expression: group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster) (velero_backup_attempt_total)
+    conditions:
+      - expression: (group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster) (velero_backup_attempt_total))
+        path: root/unless:left
+        queries:
+          - expression: (group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster) (velero_backup_attempt_total))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_saturation_alerts
+  alert: userJourneyBackupRepoMaintenanceSaturation
+  occurrence: 1
+  input: |
+    backup:in_progress:count > 10
+  plan:
+    expression: backup:in_progress:count > 10
+    conditions:
+      - expression: backup:in_progress:count > 10
+        path: root
+        queries:
+          - expression: backup:in_progress:count
             role: signal
         thresholds:
           - operator: '>'
             value: 10
         unsupported: ""
-- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionErrors1h5m
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_storage_availability_alerts
+  alert: userJourneyBackupStorageAvailability
   occurrence: 1
   input: |
-    errors:backend_cluster_deletion_operation:failed_1h >= 3
-    and
-    errors:backend_cluster_deletion_operation:error_rate_1h > 0.72
-    and
-    errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+    (
+      sli:backup:last_run_failure:ratio5m > 0.8
+      and
+      backup:hostedcluster_count:count >= 3
+    )
   plan:
-    expression: errors:backend_cluster_deletion_operation:failed_1h >= 3 and errors:backend_cluster_deletion_operation:error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+    expression: (sli:backup:last_run_failure:ratio5m > 0.8 and backup:hostedcluster_count:count >= 3)
     conditions:
-      - expression: errors:backend_cluster_deletion_operation:failed_1h >= 3
-        path: root/and:left/and:left
+      - expression: sli:backup:last_run_failure:ratio5m > 0.8
+        path: root/and:left
         queries:
-          - expression: errors:backend_cluster_deletion_operation:failed_1h
+          - expression: sli:backup:last_run_failure:ratio5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.8
+        unsupported: ""
+      - expression: backup:hostedcluster_count:count >= 3
+        path: root/and:right
+        queries:
+          - expression: backup:hostedcluster_count:count
             role: signal
         thresholds:
           - operator: '>='
             value: 3
         unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:error_rate_1h > 0.72
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:error_rate_1h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:error_rate_5m
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionErrors3d
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_traffic_alerts
+  alert: userJourneyBackupTraffic
   occurrence: 1
   input: |
-    errors:backend_cluster_deletion_operation:total_3d >= 10
-    and
-    errors:backend_cluster_deletion_operation:failed_3d >= 2
-    and
-    errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
-  plan:
-    expression: errors:backend_cluster_deletion_operation:total_3d >= 10 and errors:backend_cluster_deletion_operation:failed_3d >= 2 and errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
-    conditions:
-      - expression: errors:backend_cluster_deletion_operation:total_3d >= 10
-        path: root/and:left/and:left
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:total_3d
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 10
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:failed_3d >= 2
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:failed_3d
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 2
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:error_rate_3d
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.05
-        unsupported: ""
-- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionErrors6h30m
-  occurrence: 1
-  input: |
-    errors:backend_cluster_deletion_operation:total_6h >= 5
-    and
-    errors:backend_cluster_deletion_operation:error_rate_6h > 0.30
-    and
-    errors:backend_cluster_deletion_operation:error_rate_30m > 0.30
-  plan:
-    expression: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
-    conditions:
-      - expression: errors:backend_cluster_deletion_operation:total_6h >= 5
-        path: root/and:left/and:left
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:total_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:error_rate_6h > 0.3
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:error_rate_6h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:error_rate_30m
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionErrorsDegradation
-  occurrence: 1
-  input: |
-    errors:backend_cluster_deletion_operation:total_6h >= 5
-    and
-    errors:backend_cluster_deletion_operation:failed_6h >= 2
-    and
-    errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
-  plan:
-    expression: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:failed_6h >= 2 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
-    conditions:
-      - expression: errors:backend_cluster_deletion_operation:total_6h >= 5
-        path: root/and:left/and:left
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:total_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:failed_6h >= 2
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:failed_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 2
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:error_rate_6h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.15
-        unsupported: ""
-- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionLatency1h5m
-  occurrence: 1
-  input: |
-    errors:backend_cluster_deletion_operation:latency_total_1h >= 5
-    and
-    errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72
-    and
-    errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
-  plan:
-    expression: errors:backend_cluster_deletion_operation:latency_total_1h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
-    conditions:
-      - expression: errors:backend_cluster_deletion_operation:latency_total_1h >= 5
-        path: root/and:left/and:left
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_total_1h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_1h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_5m
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionLatency3d
-  occurrence: 1
-  input: |
-    errors:backend_cluster_deletion_operation:latency_total_3d >= 5
-    and
-    errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
-  plan:
-    expression: errors:backend_cluster_deletion_operation:latency_total_3d >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
-    conditions:
-      - expression: errors:backend_cluster_deletion_operation:latency_total_3d >= 5
-        path: root/and:left
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_total_3d
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_3d
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.05
-        unsupported: ""
-- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionLatency6h30m
-  occurrence: 1
-  input: |
-    errors:backend_cluster_deletion_operation:latency_total_6h >= 5
-    and
-    errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.30
-    and
-    errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.30
-  plan:
-    expression: errors:backend_cluster_deletion_operation:latency_total_6h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
-    conditions:
-      - expression: errors:backend_cluster_deletion_operation:latency_total_6h >= 5
-        path: root/and:left/and:left
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_total_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_6h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_30m
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
-  group: arohcp_cluster_deletion_slo_windowed_error_alerts
-  alert: userJourneyClusterDeletionStuckOperation
-  occurrence: 1
-  input: |
-    max by (
-      cluster,
-      environment,
-      region,
-      subscription_id,
-      resource_id,
-      resource_type,
-      operation_type,
-      phase
-    ) (
-      max_over_time(
-        (
-          (
-            max by (
-              cluster,
-              environment,
-              region,
-              subscription_id,
-              resource_id,
-              resource_type,
-              operation_type,
-              phase
-            ) (
-              backend_resource_operation_phase_info{
-                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-                operation_type="delete",
-                phase=~"accepted|deleting"
-              } == 1
-            )
-            and
-            (
-              time() - max by (
-                cluster,
-                environment,
-                region,
-                subscription_id,
-                resource_id,
-                resource_type,
-                operation_type,
-                phase
-              ) (
-                backend_resource_operation_last_transition_time_seconds{
-                  resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-                  operation_type="delete",
-                  phase=~"accepted|deleting"
-                }
-              )
-            ) > 3600
-          )
-        )[6h:5m]
-      )
-    )
-    and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
     (
-      max by (
-        cluster,
-        environment,
-        region,
-        subscription_id,
-        resource_id,
-        resource_type,
-        operation_type,
-        phase
-      ) (
-        backend_resource_operation_phase_info{
-          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-          operation_type="delete",
-          phase=~"accepted|deleting"
-        }
-      ) == 1
+      avg_over_time(traffic:backup:attempt_rate:rate5m[2h])
+      < 0.1 * avg_over_time(traffic:backup:attempt_rate:rate5m[1d])
     )
+    and
+    avg_over_time(traffic:backup:attempt_rate:rate5m[1d]) > 0
   plan:
-    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)
+    expression: (avg_over_time(traffic:backup:attempt_rate:rate5m[2h]) < 0.1 * avg_over_time(traffic:backup:attempt_rate:rate5m[1d])) and avg_over_time(traffic:backup:attempt_rate:rate5m[1d]) > 0
     conditions:
-      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m]))
+      - expression: avg_over_time(traffic:backup:attempt_rate:rate5m[2h]) < 0.1 * avg_over_time(traffic:backup:attempt_rate:rate5m[1d])
         path: root/and:left
         queries:
-          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m]))
-            role: signal
+          - expression: avg_over_time(traffic:backup:attempt_rate:rate5m[2h])
+            role: left
+          - expression: 0.1 * avg_over_time(traffic:backup:attempt_rate:rate5m[1d])
+            role: right
         thresholds: []
         unsupported: ""
-      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1
+      - expression: avg_over_time(traffic:backup:attempt_rate:rate5m[1d]) > 0
         path: root/and:right
         queries:
-          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})
+          - expression: avg_over_time(traffic:backup:attempt_rate:rate5m[1d])
             role: signal
         thresholds:
-          - operator: ==
-            value: 1
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: observability/alerts/cluster-provision-slo-prometheusRule.yaml
   group: arohcp_cluster_provision_slo_latency_alerts
@@ -8712,6 +8861,49 @@
         thresholds:
           - operator: '>'
             value: 0.85
+        unsupported: ""
+- source: observability/alerts/frontend-slo-prometheusRule.yaml
+  group: arohcp_frontend_slo_traffic_alerts
+  alert: userJourneyFrontendTrafficDrop
+  occurrence: 1
+  input: |
+    (
+      avg_over_time(traffic:frontend_http:request_rate:rate5m[15m])
+      < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
+    )
+    and
+    avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5
+    and
+    sli:frontend:ready:ratio5m > 0
+  plan:
+    expression: (avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5 and sli:frontend:ready:ratio5m > 0
+    conditions:
+      - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
+        path: root/and:left/and:left
+        queries:
+          - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[15m])
+            role: left
+          - expression: 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
+            role: right
+        thresholds: []
+        unsupported: ""
+      - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5
+        path: root/and:left/and:right
+        queries:
+          - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.5
+        unsupported: ""
+      - expression: sli:frontend:ready:ratio5m > 0
+        path: root/and:right
+        queries:
+          - expression: sli:frontend:ready:ratio5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: observability/alerts/hcp-test-clusters-prometheusRule.yaml
   group: hcp-test-clusters-rules
@@ -10253,22 +10445,12 @@
   group: kusto-logs-age-rules
   alert: KustoLogsDataStale
   occurrence: 1
-  input: |
-    kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600
-    or (
-      kusto_logs_age_in_seconds{table="systemdlogs"} > 3600
-      and on (cluster)
-      (
-        sum by (cluster) (
-          increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])
-        ) > 0
-      )
-    )
+  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster!~".*-svc-.*"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster=~".*-svc-.*"} > 7200
   plan:
-    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or (kusto_logs_age_in_seconds{table="systemdlogs"} > 3600 and on (cluster) (sum by (cluster) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0))
+    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
     conditions:
       - expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600
-        path: root/or:left
+        path: root/or:left/or:left
         queries:
           - expression: kusto_logs_age_in_seconds{table!="systemdlogs"}
             role: signal
@@ -10276,23 +10458,23 @@
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{table="systemdlogs"} > 3600
-        path: root/or:right/and:left
+      - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600
+        path: root/or:left/or:right
         queries:
-          - expression: kusto_logs_age_in_seconds{table="systemdlogs"}
+          - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"}
             role: signal
         thresholds:
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: sum by (cluster) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0
-        path: root/or:right/and:right
+      - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+        path: root/or:right
         queries:
-          - expression: sum by (cluster) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m]))
+          - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"}
             role: signal
         thresholds:
           - operator: '>'
-            value: 0
+            value: 7200
         unsupported: ""
 - source: observability/alerts/leaderelection-prometheusRule.yaml
   group: leaderelection
@@ -11299,18 +11481,27 @@
   group: prow-ci-alerts
   alert: ProwCIHealthcheckProvisionSuccessRateLow
   occurrence: 1
-  input: label_replace(prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}, "region", "$1", "job_name", ".*-provision-(.*)") >= 6
+  input: label_replace((sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"}) / sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})), "region", "$1", "job_name", ".*-provision-(.*)") > 0.40 and on (job_name) sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}) >= 5
   plan:
-    expression: label_replace(prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}, "region", "$1", "job_name", ".*-provision-(.*)") >= 6
+    expression: label_replace((sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"}) / sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})), "region", "$1", "job_name", ".*-provision-(.*)") > 0.4 and on (job_name) sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}) >= 5
     conditions:
-      - expression: label_replace(prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}, "region", "$1", "job_name", ".*-provision-(.*)") >= 6
-        path: root
+      - expression: label_replace((sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"}) / sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})), "region", "$1", "job_name", ".*-provision-(.*)") > 0.4
+        path: root/and:left
         queries:
-          - expression: label_replace(prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}, "region", "$1", "job_name", ".*-provision-(.*)")
+          - expression: label_replace((sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"}) / sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})), "region", "$1", "job_name", ".*-provision-(.*)")
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.4
+        unsupported: ""
+      - expression: sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}) >= 5
+        path: root/and:right
+        queries:
+          - expression: sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})
             role: signal
         thresholds:
           - operator: '>='
-            value: 6
+            value: 5
         unsupported: ""
 - source: tooling/tenant-quota/alerting.bicep
   group: prow-ci-alerts
