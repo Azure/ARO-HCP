@@ -31,6 +31,21 @@ Cluster Service by [ClusterClusterServiceCreate](#clusterclusterservicecreate); 
 controller, endpoint, external effect, lifecycle edge, or multi-writer/gating field, so it is
 covered by the existing `CustomerProperties` ownership row and `CustomerProperties.*` create bullet
 without catalog or diagram changes.
+Ingress-certificate update baseline: `aac7f68f368798143d25c593bc9e3f20d92437f9`
+plus working-tree changes; scope: backend IngressCertificate registration,
+service-tenant configuration, paired kube-applier desires and owner-managed teardown.
+Certificate-observation update baseline: `9a4006d51`; scope: separate read-only
+TLSCertificates controller, per-certificate pending/confirmed references and ingress delivery gate.
+Review-batch baseline: `c32a6156e`; scope: CS operation-status observation, reference identity,
+deletion gates, exact-name teardown, vault validation and namespace-specific SSA ownership.
+Authoritative follow-up: retain the default kube-applier field manager (CS ingress objects
+are in `open-cluster-management-policies`, not the HostedCluster namespace); register
+TLSCertificates alongside other cluster controllers in `cluster/registration.go`.
+Certificate-review update baseline: `9556b62a11`; scope: non-nil certificate confirmation
+for CREATE, string vault URLs matching fleet status, and observed-reference validation errors.
+Review14 update baseline: `17f28e03`; scope: reuse certificate clients per Key Vault,
+parse management-cluster-validated vault URLs, and pass the configured Azure cloud
+name into ingress SecretProviderClass parameters. SecretSync paths are unchanged.
 
 Update-deadline baseline: `a0f232352a2e933142f2f2dfb61f2870aed7a26f` plus working-tree changes; scope: cluster/node-pool update admission, create/update timeout error codes and diagnostics, and their lifecycle views.
 
@@ -865,13 +880,29 @@ After Cluster Service placement is visible, maps its provision shard to the flee
 
 [Source](../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) · **Trigger:** Cluster; 30s.
 
-Requires observed `Status.ManagementClusterResourceID`; live reconciliation also requires `ClusterServiceID`. Fetches Cluster Service manifests and reconciles tagged `ApplyDesire` documents for namespaces, HostedCluster, node pools, SWIFT networking and supporting objects. Skips absent/deleting node pools; stale intents during live reconciliation use an explicit Delete request and wait for confirmed deletion before document removal.
+Requires observed `Status.ManagementClusterResourceID`; live reconciliation also requires `ClusterServiceID`. Fetches Cluster Service manifests and reconciles tagged `ApplyDesire` documents for namespaces, HostedCluster, node pools, SWIFT networking and supporting objects. Unconditionally stamps the HostedCluster ingress `defaultCertificate.name` as `default-ingress-tls-cert-<ClusterServiceID.ID()>`, preserving unrelated fields. This stamp lasts only for this controller's lifetime, until the backend crafts the Desired HostedCluster CR. Separately, the per-subscription experimental AFEC `Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures` alone gates suppression of the ManagedCluster, DefaultIngressConfigMap, default-ingress SecretSync and default-ingress SecretProviderClass desires so HyperShift manages the certificate. There is no version gate: without the registered flag, all four ACM-path desires are emitted. This intentional temporal shim is not the end state and will be removed when the ACM-path ingress bits are retired. Skips absent/deleting node pools; stale intents during live reconciliation use an explicit Delete request and wait for confirmed deletion before document removal.
 
 During manifest processing, sets the `hypershift.openshift.io/machine-health-check-node-startup-timeout` annotation. This controls how long the machine health check waits until it starts to auto-repair an unhealthy node during node startup. This is set to `10m` on all HostedCluster resources.
 
 On cluster deletion, stops fetching manifests and runs the [removal chain](../backend/pkg/controllers/clusterresources/apply_desire_removal_chain.go). First drops NodePool and supporting configuration ApplyDesires to stop reconciliation while leaving their Kubernetes objects for HostedCluster or namespace cleanup. Then explicitly requests deletion, waiting for kube-applier confirmation at each stage: ManagedCluster → ingress manifests in the shared policy namespace → HostedCluster → PodNetworkInstance → PodNetwork → cluster namespaces. A pending deletion or error blocks subsequent stages. HyperShift owns NodePool cleanup during HostedCluster deletion; if the HostedCluster is absent, remaining NodePools depend on namespace deletion and their finalizers. Dropping a NodePool document alone is not evidence that machines were removed.
 
 Creates owned ReadDesires for ManagedCluster, SWIFT resources and the cluster namespaces during live reconciliation; dedicated cluster/node-pool controllers provide HostedCluster and NodePool observations. Explicit removal deletes the corresponding ReadDesire after its ApplyDesire is purged. The final sweep removes owned orphan ReadDesires after every removal step drains, including retries for failed paired cleanup. Cluster Service delete dispatch runs independently of this chain.
+
+#### IngressCertificate
+
+[Source](../backend/pkg/controllers/cluster/k8sresources/ingress_certificate_controller.go) · **Trigger:** Cluster, ServiceProviderCluster and cluster-scoped kube-applier desires; 30s.
+
+Requires observed management-cluster placement, HostedCluster namespace and Cluster Service ID. Reads the management cluster's hosted-cluster secrets Key Vault URL and managed identity client ID, plus the backend service tenant configuration. Creates or repairs two owner-tagged cluster-scoped `ApplyDesire`/`ReadDesire` pairs: an Azure `SecretProviderClass` and a `SecretSync` in the HostedCluster namespace. The Key Vault object is `ingress-tls-cert-<CS-ID>`; both Kubernetes resources and the resulting TLS secret are named `default-ingress-tls-cert-<CS-ID>`. Read desires mirror the supporting resources; certificate/private-key contents are not placed in Cosmos. Missing placement or certificate inputs defer reconciliation; malformed vault URLs and missing service tenant configuration produce errors.
+
+The `needsWork` predicate requires observed management-cluster placement for both delivery and deletion. Delivery additionally requires a nonempty `ServiceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference` and the HostedCluster namespace; KAS observation does not gate ingress delivery. The observed reference supplies the certificate name and vault URL. An empty fleet vault URL or managed-identity client ID is an error, as are malformed URLs and vault names. Both resources retain the default kube-applier SSA field manager: they are in the HostedCluster namespace, while legacy CS ingress resources are in `open-cluster-management-policies`, so they do not share object ownership. On cluster deletion, bypasses the certificate and namespace gates and deletes ApplyDesires and ReadDesires by their two known names (`IngressCertificateSecretProviderClass`, `IngressCertificateSecretSync`), without listing. This works even if certificate references, the Cluster Service ID, namespace or fleet configuration are no longer available. It does not request Kubernetes resource deletion: namespace cleanup removes the certificate resources. Generic child cleanup skips owner-tagged ApplyDesires and relies on this teardown. The controller initializes `Spec.DesiredHostedCluster` when nil and always sets `spec.operatorConfiguration.ingressOperator.defaultCertificate.name` to the delivered secret name. It replaces ServiceProviderCluster only when changed, preserving unrelated fields and retrying optimistic-concurrency conflicts on a later reconciliation. ClusterResources alone suppresses ManagedCluster, DefaultIngressConfigMap and default-ingress SecretSync/SecretProviderClass desires when the subscription has the experimental AFEC `Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures` registered, independent of version. Without that flag, all four desires remain. CS emits all four for every version.
+
+#### TLSCertificates
+
+[Source](../backend/pkg/controllers/cluster/azureresources/tls_certificates_controller.go) · **Trigger:** Cluster, ServiceProviderCluster and cluster-scoped ManagementClusterContent; 30s. Does not watch kube-applier ApplyDesire/ReadDesire events because certificate observation does not read desires.
+
+Separate read-only observer for the certificates created by Cluster Service's `tls_certificates_provision_step.go`. CS `utils.GetApiTlsCertName` names the KAS Key Vault certificate/backing secret `kube-apiserver-tls-cert-<CS-ID>`; `utils.GetIngressTlsCertName` names ingress `ingress-tls-cert-<CS-ID>`. Their Kubernetes secret names are `kube-apiserver-tls-cert` and `default-ingress-tls-cert-<CS-ID>` respectively. Uses the backend identity to GET certificate metadata from `ManagementCluster.Status.HostedClustersSecretsKeyVaultURL`; it never creates certificates or retrieves private-key material.
+
+`Status.AzureResources.KubeAPIServerCertificate` and `Status.AzureResources.IngressCertificate` follow the deny-assignment placement under `Status.AzureResources` and each optionally point to a `TLSCertificate` with `PendingReference` and `AzureReference` value objects (`KeyVaultURL`/JSON `keyVaultURL`, `CertificateName`/JSON `certificateName`). `CertificateName` uses a required JSON tag; the pending/confirmed fields use `omitempty`. `KeyVaultURL` uses `string` and `json:"keyVaultURL,omitempty"`, matching the plain-string URL and omission format of `fleetapi.ManagementClusterStatus.HostedClustersSecretsKeyVaultURL`. Ingress delivery parses this observed URL and wraps parse errors without re-validating its scheme, host, or vault-name format. TLSCertificates caches one Key Vault certificates client per vault URL in `certificatesClients` for the controller's lifetime, reusing it across reconciliations for both KAS and ingress reads; both pending references use the management cluster vault URL. No client is constructed while persisting pending references, for fully confirmed clusters, or during deletion. A controller TODO records that a management-cluster placement change must remove old references and create new ones. Before Azure reads, persists each unconfirmed identity as `PendingReference`. Matches CS readiness: GET certificate to confirm existence, then GET certificate operation; `completed` moves the pending reference to `AzureReference` and clears pending, `inProgress` waits, while nil/failed/cancelled/unknown statuses are errors. A missing certificate remains pending; errors do not discard independent progress. Missing fleet vault URL is an error. Writes use `ServiceProviderClusters(...).Replace(...)` with ETag protection; conflicts defer to the next reconciliation. No certificate material enters Cosmos. Outside deletion, `NeedsWork` skips missing CS ID and fully confirmed clusters. During deletion it clears both certificate pointers to nil without Azure access or a CS ID. Both provider-document cleanup and final cluster deletion wait for both certificate pointers to be nil. This is initial-provisioning observation, not renewal monitoring. Cluster Service retains certificate creation/deletion ownership.
 
 #### CreateClusterScopedReadDesires
 
@@ -1033,15 +1064,17 @@ After delete dispatch, polls Cluster Service; only a not-found result clears `Se
 
 [Source](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) · **Trigger:** Cluster; 1m.
 
-Requires deletion timestamp, dispatched deletion and cleared Cluster Service ID. Waits for node pools, external auth, credential requests and revocations to be gone. Leaves controller-owned ApplyDesires to their owners, ClusterResources-owned ReadDesires to its paired cleanup/orphan sweep, and backup schedule desires to BackupSchedule; removes other eligible cluster-scoped intents. Deletes the provider document only after managed-resource-group references, Maestro readonly bundles and cluster-scoped desires are gone.
+Requires deletion timestamp, dispatched deletion and cleared Cluster Service ID. Waits for node pools, external auth, credential requests and revocations to be gone. Leaves controller-owned ApplyDesires to their owners, ClusterResources-owned ReadDesires to its paired cleanup/orphan sweep, and backup schedule desires to BackupSchedule; removes other eligible cluster-scoped intents. Deletes the provider document only after managed-resource-group references, both pending/confirmed TLS certificate references, Maestro readonly bundles and cluster-scoped desires are gone.
 
 #### ClusterDeletionController
 
 [Source](../backend/pkg/controllers/cluster/deletion/cluster_deletion_controller.go) · **Trigger:** Cluster; 1m.
 
-Once deletion prerequisites and child cleanup are satisfied, deletes the ARM resource document. Marks the linked billing document deleted first; requires the new deletion approach.
+Once deletion prerequisites and child cleanup are satisfied, deletes the ARM resource document. Explicitly checks the live ServiceProviderCluster for cleared KAS and ingress TLS certificate references before proceeding. Marks the linked billing document deleted first; requires the new deletion approach.
 
 #### OperationClusterCreate
+
+The TLS certificate check contributes Provisioning until both KAS and ingress certificates have non-nil `AzureReference` pointers, and Succeeded once both are set. It does not validate the reference URL, certificate name, or pending-reference state. Like role assignments, this check participates in the overall operation-state aggregation; other checks can still prevent CREATE completion.
 
 [Source](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) · **Trigger:** Active operation; 10s.
 

@@ -156,6 +156,8 @@ var expectedControllerLaunches = []struct {
 	{"cosmosrolloutversionmigration", 5},
 	{"fpavirtualmachineresourceskuscachedreader", 20},
 	{"backupschedule", 20},
+	{"ingresscertificate", 20},
+	{"tlscertificates", 20},
 	{"fetchmsiidentitiesinfo", 20},
 	{"fetchdataplaneoperatorsmanagedidentitiesinfo", 20},
 	{"identityroleassignments", 20},
@@ -165,7 +167,7 @@ var expectedControllerLaunches = []struct {
 
 func TestControllerRegistryManifest(t *testing.T) {
 	registry := newControllerRegistry()
-	require.Len(t, registry, 111)
+	require.Len(t, registry, 113)
 	expectedOrder := make([]string, 0, len(expectedControllerLaunches))
 	for _, expected := range expectedControllerLaunches {
 		expectedOrder = append(expectedOrder, expected.name)
@@ -207,9 +209,11 @@ func testControllerContext(t *testing.T, hasRealFPA bool) (ControllerContext, St
 			BackupConfig:      &clusterbackups.BackupConfig{},
 			CloudEnvironment:  cloudEnvironment,
 			HasRealFPA:        hasRealFPA,
+			ServiceTenantID:   "test-service-tenant",
 		},
 	}
 	controllerContext := backend.newControllerContext(t.Context())
+	require.Equal(t, "test-service-tenant", controllerContext.ServiceTenantID)
 	require.Same(t, backend.clock, controllerContext.Clock)
 	require.Same(t, http.DefaultClient, controllerContext.AsyncOperationNotificationClient)
 	require.Nil(t, controllerContext.ResourcesDBClient)
@@ -329,7 +333,7 @@ func TestControllerContextKeepsFactoriesNotIndividualInformers(t *testing.T) {
 func TestControllerRegistryNamedZoneRegistrations(t *testing.T) {
 	files := token.NewFileSet()
 	for zone, expectedCount := range map[string]int{
-		"billing": 2, "cluster": 64, "clusterresources": 1, "cosmosmigration": 2,
+		"billing": 2, "cluster": 66, "clusterresources": 1, "cosmosmigration": 2,
 		"datadump": 1, "externalauth": 10, "metrics": 6, "mismatch": 4, "nodepool": 19,
 	} {
 		source, err := parser.ParseFile(files, "../controllers/"+zone+"/registration.go", nil, 0)
@@ -398,7 +402,7 @@ func TestControllerRegistryUnorderedConstructionAndErrors(t *testing.T) {
 	constructed = nil
 	_, err = instantiateControllers(registry, ControllerContext{}, storageFactory)
 	require.NoError(t, err)
-	require.Len(t, constructed, 110)
+	require.Len(t, constructed, 112)
 	require.NotContains(t, constructed, "clusterdenyassignment")
 	expectedErr := errors.New("constructor failed")
 	name := "union-kube-applier-informers-controller"
