@@ -46,12 +46,12 @@ import (
 )
 
 // BestVersionSelector returns the upgrade-graph-selected best exact version for a
-// y-stream channel, already offset by the channel group's z-stream offset. It
-// abstracts the OpenShift update service query so the Best Version Selection
+// minor version and channel group, already offset by the channel group's z-stream
+// offset. It abstracts the OpenShift update service query so the Best Version Selection
 // controller can be tested with a fake. Returning (nil, nil) means the graph has
 // no suitable version yet.
 type BestVersionSelector interface {
-	BestExactVersionForChannel(ctx context.Context, yStreamChannel string) (*semver.Version, error)
+	BestExactVersionForProfile(ctx context.Context, profile coreapi.VersionProfile) (*semver.Version, error)
 }
 
 // ClusterSelector chooses which of the eligible clusters to advance in a canary

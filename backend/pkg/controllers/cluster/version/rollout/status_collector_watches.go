@@ -64,12 +64,11 @@ func (c *statusCollectorSyncer) enqueueStatusChannels(queue controllerutils.Enqu
 		return
 	}
 	for _, rollout := range rollouts {
-		if rollout.ResourceID == nil {
+		if rollout.Spec.Version == (coreapi.VersionProfile{}) {
 			continue
 		}
 		yStreamChannel := rollout.ResourceID.Name
-		_, minor, ok := parseYStreamChannel(yStreamChannel)
-		if ok && (affected[""] || affected[minor]) {
+		if affected[""] || affected[rollout.Spec.Version.ID] {
 			logger.Info("Enqueuing status collection after input change", "ystreamChannel", yStreamChannel)
 			queue.Enqueue(controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: yStreamChannel})
 		}

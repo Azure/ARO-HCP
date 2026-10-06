@@ -16,12 +16,17 @@ package rollout
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clocktesting "k8s.io/utils/clock/testing"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -30,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
 func TestClusterYStreamChannel(t *testing.T) {
@@ -63,11 +69,11 @@ func newSeedingSyncer(t *testing.T, ctx context.Context, cluster *coreapi.Cluste
 	t.Helper()
 	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster})
 	require.NoError(t, err, "failed to build mock resources DB client")
-	mockFleet, lister := newTestRolloutStore(t, rollouts...)
+	mockFleet, rolloutLister := newTestRolloutStore(t, rollouts...)
 	return &rolloutSeedingSyncer{
 		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
-		rolloutLister:                lister,
+		rolloutLister:                rolloutLister,
 		fleetDBClient:                mockFleet,
 	}, mockFleet
 }
@@ -90,7 +96,8 @@ func TestRolloutSeedingSyncer_SyncOnce(t *testing.T) {
 
 		got, err := mockFleet.ControlPlaneVersionRollouts().Get(ctx, "stable-4.21")
 		require.NoError(t, err, "expected the rollout to have been created")
-		assert.Nil(t, got.Spec.BestExactVersion, "a freshly seeded rollout has no best version")
+		require.Empty(t, cmp.Diff(fleetapi.ControlPlaneVersionRolloutSpec{Version: coreapi.VersionProfile{ID: "4.21", ChannelGroup: "stable"}}, got.Spec))
+		require.Empty(t, cmp.Diff(fleetapi.ControlPlaneVersionRolloutStatus{}, got.Status))
 	})
 
 	t.Run("no-op when the rollout already exists", func(t *testing.T) {
@@ -98,6 +105,7 @@ func TestRolloutSeedingSyncer_SyncOnce(t *testing.T) {
 		ctx := context.Background()
 		existing := newTestRollout("stable-4.21", v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{})
 		syncer, mockFleet := newSeedingSyncer(t, ctx, newTestCluster("c1", "stable", "4.21"), existing)
+		syncer.fleetDBClient = nil // Existing cached rollouts require no live database access.
 
 		require.NoError(t, syncer.SyncOnce(ctx, key))
 
@@ -116,8 +124,9 @@ func TestRolloutSeedingSyncer_SyncOnce(t *testing.T) {
 		}}
 		require.NoError(t, syncer.SyncOnce(ctx, key))
 		for _, yStreamChannel := range []string{"stable-4.22", "stable-4.21"} {
-			_, err := fleet.ControlPlaneVersionRollouts().Get(ctx, yStreamChannel)
+			got, err := fleet.ControlPlaneVersionRollouts().Get(ctx, yStreamChannel)
 			require.NoError(t, err, "requested and pinned channels must both exist")
+			require.Empty(t, cmp.Diff(newTestRollout(yStreamChannel, nil, fleetapi.ControlPlaneVersionRolloutStatus{}).Spec, got.Spec))
 		}
 	})
 
@@ -127,7 +136,7 @@ func TestRolloutSeedingSyncer_SyncOnce(t *testing.T) {
 		require.NoError(t, syncer.SyncOnce(ctx, key))
 		_, err := fleet.ControlPlaneVersionRollouts().Get(ctx, "nightly-4.22")
 		require.True(t, cosmosstorageutils.IsNotFoundError(err))
-		best, err := NewCincinnatiBestVersionSelector().BestExactVersionForChannel(ctx, "nightly-4.22")
+		best, err := NewCincinnatiBestVersionSelector().BestExactVersionForProfile(ctx, coreapi.VersionProfile{ID: "4.22", ChannelGroup: "nightly"})
 		require.NoError(t, err)
 		require.Nil(t, best)
 	})
@@ -155,4 +164,90 @@ func TestRolloutSeedingSyncer_SyncOnce(t *testing.T) {
 		_, err := mockFleet.ControlPlaneVersionRollouts().Get(ctx, "stable-4.21")
 		assert.True(t, cosmosstorageutils.IsNotFoundError(err), "no rollout should be created for a deleting cluster")
 	})
+}
+
+func TestNewControlPlaneVersionRollout(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		profile coreapi.VersionProfile
+		channel string
+	}{
+		{name: "minor", profile: coreapi.VersionProfile{ID: "4.21", ChannelGroup: "stable"}, channel: "stable-4.21"},
+		{name: "exact", profile: coreapi.VersionProfile{ID: "4.21.5", ChannelGroup: "stable"}, channel: "stable-4.21"},
+		{name: "prerelease", profile: coreapi.VersionProfile{ID: "4.22.0-rc.1", ChannelGroup: "fast"}, channel: "fast-4.22"},
+		{name: "below floor", profile: coreapi.VersionProfile{ID: "4.19.5", ChannelGroup: "stable"}, channel: "stable-4.19"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := newControlPlaneVersionRollout(tc.profile)
+			require.NoError(t, err)
+			want := newTestRollout(tc.channel, nil, fleetapi.ControlPlaneVersionRolloutStatus{})
+			require.Empty(t, cmp.Diff(want, got, cmp.AllowUnexported(azcorearm.ResourceID{}, azcorearm.ResourceType{})))
+			require.Empty(t, validation.ValidateControlPlaneVersionRolloutCreate(t.Context(), got))
+		})
+	}
+}
+
+func TestRolloutSeedingSyncer_ExistingProfiles(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		profile coreapi.VersionProfile
+	}{
+		{name: "normalized legacy no-op"},
+		{name: "valid no-op", profile: coreapi.VersionProfile{ID: "4.21", ChannelGroup: "stable"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			clock := clocktesting.NewFakeClock(statusTestNow)
+			existing := newTestRollout("stable-4.21", v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{
+				LastAssignmentTime: &metav1.Time{Time: clock.Now()},
+				Conditions: []metav1.Condition{{
+					Type: ConditionProgressing, Status: metav1.ConditionTrue, LastTransitionTime: metav1.Time{Time: clock.Now()}, Reason: "Canary",
+				}},
+				ClusterCountByDesiredExactVersion:            map[string]int64{"4.21.6": 5},
+				MismatchedClusterCountByDesiredExactVersion:  map[string]int64{"4.21.6": 3},
+				FailedClusterCountByDesiredExactVersion:      map[string]int64{"4.21.6": 1},
+				ClusterCountByAchievedExactVersion:           map[string]int64{"4.21.6": 2},
+				SuccessfulClusterCountByAchievedExactVersion: map[string]int64{"4.21.6": 1},
+			})
+			syncer, db := newSeedingSyncer(t, ctx, newTestCluster("c1", "stable", "4.21.5"), existing)
+			crud := db.ControlPlaneVersionRollouts()
+			stored, err := crud.Get(ctx, "stable-4.21")
+			require.NoError(t, err)
+			// Seed persisted shapes directly: new creates require a valid profile.
+			data, ok := db.GetDocument(stored.GetCosmosUID())
+			require.True(t, ok)
+			var doc cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]
+			require.NoError(t, json.Unmarshal(data, &doc))
+			doc.Content.Spec.Version = tc.profile
+			data, err = json.Marshal(doc)
+			require.NoError(t, err)
+			db.StoreDocument(doc.ID, data)
+			before, err := crud.Get(ctx, "stable-4.21")
+			require.NoError(t, err)
+
+			err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
+				SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: "c1",
+			})
+			require.NoError(t, err)
+			got, err := crud.Get(ctx, "stable-4.21")
+			require.NoError(t, err)
+			want := before.DeepCopy()
+			if tc.profile == (coreapi.VersionProfile{}) {
+				want.Spec.Version = coreapi.VersionProfile{ID: "4.21", ChannelGroup: "stable"}
+				require.Empty(t, validation.ValidateControlPlaneVersionRolloutCreate(ctx, got))
+			}
+			persisted, ok := db.GetDocument(doc.ID)
+			require.True(t, ok)
+			require.Equal(t, json.RawMessage(data), persisted, "seeding must not rewrite existing documents")
+			require.Empty(t, cmp.Diff(want, got, cmp.AllowUnexported(azcorearm.ResourceID{}, azcorearm.ResourceType{})))
+			require.NoError(t, syncer.ensureRollout(ctx, coreapi.VersionProfile{ID: "4.21", ChannelGroup: "stable"}))
+			after, err := crud.Get(ctx, "stable-4.21")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(got, after, cmp.AllowUnexported(azcorearm.ResourceID{}, azcorearm.ResourceType{})), "repeated seeding must not rewrite a valid profile")
+		})
+	}
 }

@@ -16,14 +16,11 @@ package validation
 
 import (
 	"context"
-	"regexp"
-	"strings"
-
-	"github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 // ValidateControlPlaneVersionRolloutCreate validates a new ControlPlaneVersionRollout.
@@ -40,8 +37,6 @@ func ValidateControlPlaneVersionRolloutUpdate(_ context.Context, newRollout *fle
 	return errs
 }
 
-var rolloutChannelPattern = regexp.MustCompile(`^(stable|fast|candidate|nightly)-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
-
 func validateControlPlaneVersionRolloutIdentifier(rollout *fleetapi.ControlPlaneVersionRollout) field.ErrorList {
 	var errs field.ErrorList
 	channel := rollout.GetStampIdentifier()
@@ -53,10 +48,8 @@ func validateControlPlaneVersionRolloutIdentifier(rollout *fleetapi.ControlPlane
 		))
 		return errs
 	}
-	_, minor, _ := strings.Cut(channel, "-")
-	_, parseErr := semver.Parse(minor + ".0")
-	if !rolloutChannelPattern.MatchString(channel) || parseErr != nil {
-		errs = append(errs, field.Invalid(path, channel, "y-stream channel must be <stable|fast|candidate|nightly>-<major>.<minor>"))
+	if err := fleetapihelpers.ValidateRolloutVersion(rollout); err != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec", "version"), rollout.Spec.Version, err.Error()))
 	}
 	return errs
 }

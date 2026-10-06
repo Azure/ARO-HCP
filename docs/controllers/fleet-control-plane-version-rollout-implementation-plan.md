@@ -5,9 +5,13 @@ This plan maps the fleet rollout design originally authored on the
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: the seven controllers, Cosmos storage, informers, and backend wiring
+> Status: the seven rollout controllers, separate CosmosRolloutVersionMigration,
+> Cosmos storage, informers, and backend wiring
 > are implemented. They run unconditionally. Production policy is hardcoded;
 > risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
+> Structured rollout profiles, shared read normalization and independent Fleet migration are implemented.
+> Graph-data discovery, prospective seeding, catalog publication and rollout
+> retirement are not implemented yet.
 
 ## 1. Background: the pipeline before this change
 
@@ -73,6 +77,8 @@ type ControlPlaneVersionRollout struct {
 }
 
 type ControlPlaneVersionRolloutSpec struct {
+    // Canonical major.minor ID and channel group; written by rollout seeding.
+    Version coreapi.VersionProfile `json:"version"`
     // BestExactVersion uses recency and the channel offset, subject to the SRE
     // minimum-version floor. Conditional-update risk filtering is a follow-up.
     BestExactVersion *semver.Version `json:"bestExactVersion,omitempty"`
@@ -89,6 +95,17 @@ type ControlPlaneVersionRolloutStatus struct {
     SuccessfulClusterCountByAchievedExactVersion map[string]int64 `json:"successfulClusterCountByAchievedExactVersion,omitempty"`
 }
 ```
+
+[`Spec.Version`](../../internal/api/fleetapi/types_control_plane_version_rollout.go)
+holds the structured minor version and channel group: for example, `{ID: "4.21",
+ChannelGroup: "stable"}` must have resource name `stable-4.21`.
+Shared Cosmos read conversion fills absent profiles from valid legacy names.
+Consumers use structured profiles directly and return nil for an absent profile,
+resuming on later watch events or resync. Write validation stays at Create/Replace.
+CosmosRolloutVersionMigration watches individual rollouts and
+persists normalized representations with ETag protection, preserving metadata,
+selection and status. Ordinary writes also preserve normalized profiles; seeding
+does not own migration. Creates and updates require valid structured profiles.
 
 Wiring checklist (templated on `Stamp`, see the research notes):
 `types_control_plane_version_rollout.go`, `types_runtime.go` (`GetObjectKind`,
@@ -222,9 +239,12 @@ controller** — the plan reuses the existing path. Input
 
 ### 5.6 Rollout Seeding (per-cluster)
 
-Creates a rollout for the customer's requested channel and, when pinned, the
-pinned minor's channel. Existing rollout contents are preserved. Nightly and
-deleting clusters are skipped.
+Checks the cached rollout for the customer's requested channel and, when pinned, the
+pinned minor's channel. Creates missing documents with normalized `Spec.Version`
+and nil best version. Existing cached documents are a no-op without live reads. Create
+conflicts count as another seeder winning; read/create failures return errors
+for retry. Nightly and deleting clusters are still skipped.
+The existing per-cluster informer triggers and Controller bookkeeping remain.
 
 ### 5.7 Initial Normal Desired Version (per-cluster)
 
@@ -242,10 +262,20 @@ including pools still being deleted. Pins and experimental exact overrides are
 owned exclusively by forced assignment. Both initial and minor assignment retry missing rollout/best data
 after ten seconds and bypass progressive z-stream gates.
 
+### Cosmos Rollout Version Migration
+
+The separate `CosmosRolloutVersionMigration` uses the existing rollout watcher,
+five workers, five-minute cooldown/resync and rollout-cache gating. Each channel
+performs live Get and validated Replace until one write succeeds per process,
+including already-structured and unused rollouts. Conflicts re-read up to three
+attempts; other failures remain retryable. NotFound is benign without completion
+or recreation. Later events do not reopen completed keys. There is no custom Run
+or Fleet sweep; subscription CosmosMigration remains unchanged.
+
 ## 6. Ownership and cutover
 
 This implementation deliberately replaces `ControlPlaneDesiredVersion`; all
-seven rollout controllers run unconditionally. The earlier feature-flag proposal
+seven rollout controllers and the separate migration run unconditionally. The earlier feature-flag proposal
 was removed during review. Restoring it would reintroduce the removed owner and
 is not part of this change.
 
@@ -286,7 +316,8 @@ Implemented:
 
 - Fleet API, validation of supported channel groups and major/minor names,
   Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
-- Seven controllers, backend registration under leader election, and unit tests.
+- Seven rollout controllers plus separate migration, backend registration under leader election, and unit tests.
+- Structured `Spec.Version`, shared legacy read normalization and independent ETag-protected Fleet migration.
 - Shared Cincinnati selection with the existing per-channel offset policy.
 - Persisted transition ages and assignment cooldown reservations.
 - Forced-version precedence, pinned-channel seeding, and completed-only progress.

@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/versionpolicy"
 )
 
 // RolloutSeedingControllerName is the single source of the controller name.
@@ -117,7 +118,7 @@ func (c *rolloutSeedingSyncer) SyncOnce(ctx context.Context, key controllerutils
 	}
 
 	logger.Info("Ensuring rollout for cluster channel", "ystreamChannel", requestedYStreamChannel)
-	if err := c.ensureRollout(ctx, requestedYStreamChannel); err != nil {
+	if err := c.ensureRollout(ctx, cluster.CustomerProperties.Version); err != nil {
 		return err
 	}
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -130,7 +131,7 @@ func (c *rolloutSeedingSyncer) SyncOnce(ctx context.Context, key controllerutils
 	if pin := serviceProviderCluster.Spec.PinnedVersion.ExactVersion; pin != nil {
 		// Forced assignment checks the pinned minor's best version for release,
 		// which can differ from the customer's requested minor.
-		return c.ensureRollout(ctx, yStreamChannel(cluster.CustomerProperties.Version.ChannelGroup, minorString(*pin)))
+		return c.ensureRollout(ctx, coreapi.VersionProfile{ID: pin.String(), ChannelGroup: cluster.CustomerProperties.Version.ChannelGroup})
 	}
 	return nil
 }
@@ -156,19 +157,19 @@ func clusterYStreamChannel(cluster *coreapi.Cluster) (string, bool) {
 // one does not already exist. The lister is consulted first so steady-state runs
 // avoid a Cosmos round-trip; a create that races another seeder (or a stale
 // lister) surfaces as a 409 conflict, which is treated as success.
-func (c *rolloutSeedingSyncer) ensureRollout(ctx context.Context, yStreamChannel string) error {
+func (c *rolloutSeedingSyncer) ensureRollout(ctx context.Context, profile coreapi.VersionProfile) error {
+	rollout, err := newControlPlaneVersionRollout(profile)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	yStreamChannel := rollout.ResourceID.Name
 	logger := utils.LoggerFromContext(ctx).WithValues("ystreamChannel", yStreamChannel)
-	_, err := c.rolloutLister.Get(ctx, yStreamChannel)
+	_, err = c.rolloutLister.Get(ctx, yStreamChannel)
 	if err == nil {
 		return nil // already exists
 	}
 	if !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", yStreamChannel, err))
-	}
-
-	rollout, err := newControlPlaneVersionRollout(yStreamChannel)
-	if err != nil {
-		return utils.TrackError(err)
 	}
 
 	logger.Info("creating ControlPlaneVersionRollout")
@@ -185,7 +186,12 @@ func (c *rolloutSeedingSyncer) ensureRollout(ctx context.Context, yStreamChannel
 // newControlPlaneVersionRollout builds an empty rollout for the given y-stream
 // channel: the channel is the top-level resource name, and every rollout shares
 // the provider-namespace partition key (see ProviderNamespacePartitionKeyDeriver).
-func newControlPlaneVersionRollout(yStreamChannel string) (*fleetapi.ControlPlaneVersionRollout, error) {
+func newControlPlaneVersionRollout(profile coreapi.VersionProfile) (*fleetapi.ControlPlaneVersionRollout, error) {
+	profile, err := versionpolicy.NormalizeProfile(profile)
+	if err != nil {
+		return nil, err
+	}
+	yStreamChannel := yStreamChannel(profile.ChannelGroup, profile.ID)
 	id, err := fleetapihelpers.ToControlPlaneVersionRolloutResourceID(yStreamChannel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build resource ID for ControlPlaneVersionRollout %q: %w", yStreamChannel, err)
@@ -195,5 +201,6 @@ func newControlPlaneVersionRollout(yStreamChannel string) (*fleetapi.ControlPlan
 			ResourceID:   id,
 			PartitionKey: strings.ToLower(coreapi.ProviderNamespace),
 		},
+		Spec: fleetapi.ControlPlaneVersionRolloutSpec{Version: profile},
 	}, nil
 }
