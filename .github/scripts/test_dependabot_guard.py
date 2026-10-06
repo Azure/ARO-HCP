@@ -15,8 +15,8 @@ guard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(guard)
 
 
-def create_item(manifest="api/package.json", family="typespec"):
-    return {
+def create_item(manifest="api/package.json", family="typespec", patch_files=None):
+    item = {
         "type": "create_pull_request",
         "title": f"api npm {family} family to 1.16.0 (high)",
         "data": {
@@ -26,6 +26,9 @@ def create_item(manifest="api/package.json", family="typespec"):
             "manifests": [manifest],
         },
     }
+    if patch_files:
+        item["files"] = [{"path": f, "content": "..."} for f in patch_files]
+    return item
 
 
 class CreateGuardTests(TestCase):
@@ -63,6 +66,31 @@ class CreateGuardTests(TestCase):
         ]
         with self.assertRaisesRegex(ValueError, "#401"):
             guard.guard_create({"items": [create_item()]}, "Azure/ARO-HCP")
+
+    @patch.object(guard, "gh_lines")
+    def test_prose_match_without_deps_is_allowed(self, gh):
+        gh.side_effect = [
+            [{"number": 402, "title": "Documentation for typespec", "body": "See typespec family docs", "base": "main"}],
+            [{"filename": "docs/readme.md"}],
+        ]
+        guard.guard_create({"items": [create_item()]}, "Azure/ARO-HCP")
+
+    @patch.object(guard, "gh_lines")
+    def test_two_character_package_is_allowed(self, gh):
+        gh.side_effect = [[], []]
+        guard.guard_create({"items": [create_item(family="ms")]}, "Azure/ARO-HCP")
+
+    @patch.object(guard, "gh_lines")
+    def test_patch_mismatch_is_rejected(self, gh):
+        item = create_item(manifest="api/package.json", patch_files=["other/package.json"])
+        with self.assertRaisesRegex(ValueError, "manifests in data do not match"):
+            guard.guard_create({"items": [item]}, "Azure/ARO-HCP")
+
+    @patch.object(guard, "gh_lines")
+    def test_path_normalization_succeeds(self, gh):
+        gh.side_effect = [[], []]
+        item = create_item(manifest="./api/package.json", patch_files=["api/package.json"])
+        guard.guard_create({"items": [item]}, "Azure/ARO-HCP")
 
     @patch.object(guard, "gh_lines")
     def test_two_requests_for_same_family_are_rejected_before_api(self, gh):
@@ -137,6 +165,19 @@ class RetestGuardTests(TestCase):
         guard.guard_retest(
             "Azure/ARO-HCP", "7355", "a" * 40,
             "https://prow/fail was transient; same job passes at https://prow/pass",
+            datetime(2026, 10, 6, 14, tzinfo=timezone.utc),
+        )
+
+    @patch.object(guard, "gh_lines")
+    def test_url_normalization_with_punctuation_passes(self, gh):
+        gh.side_effect = [
+            [{"context": "e2e-parallel", "state": "failure", "target_url": "https://prow/fail", "created_at": "2026-10-06T12:00:00Z"}],
+            [],
+            [],
+        ]
+        guard.guard_retest(
+            "Azure/ARO-HCP", "7355", "a" * 40,
+            "Failed check https://prow/fail; comparison at https://prow/other.",
             datetime(2026, 10, 6, 14, tzinfo=timezone.utc),
         )
 

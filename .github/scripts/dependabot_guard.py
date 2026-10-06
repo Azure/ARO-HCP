@@ -31,10 +31,12 @@ def group(item):
     family = data.get("package_family")
     version = data.get("target_version")
     manifests = data.get("manifests")
+    if isinstance(manifests, list):
+        manifests = [os.path.normpath(m) for m in manifests]
     if (
         ecosystem not in ("go", "npm")
         or not isinstance(family, str)
-        or not re.fullmatch(r"[@a-zA-Z0-9._/+*-]{3,100}", family)
+        or not re.fullmatch(r"[@a-zA-Z0-9._/+*-]{1,100}", family)
         or not isinstance(version, str)
         or not re.fullmatch(r"v?[0-9][a-zA-Z0-9.+_-]{0,50}", version)
         or not isinstance(manifests, list)
@@ -49,6 +51,17 @@ def group(item):
         )
     ):
         raise ValueError("invalid dependency group metadata")
+
+    # Derive canonical changed manifests from each proposal's patch artifact.
+    actual_files = set()
+    if isinstance(item.get("files"), list):
+        actual_files.update(os.path.normpath(f["path"]) for f in item["files"] if isinstance(f, dict) and "path" in f)
+    elif isinstance(item.get("patch"), str):
+        actual_files.update(os.path.normpath(f) for f in re.findall(r"^diff --git a/(.*) b/.*$", item["patch"], re.MULTILINE))
+    actual_manifests = {f for f in actual_files if f.rsplit("/", 1)[-1] in ("go.mod", "package.json")}
+    if actual_manifests and set(manifests) != actual_manifests:
+        raise ValueError("manifests in data do not match actual manifests in patch")
+
     title = item.get("title", "").casefold()
     if family.casefold() not in title or version.casefold() not in title:
         raise ValueError("PR title must identify the dependency family and target version")
@@ -57,8 +70,9 @@ def group(item):
 
 def overlaps(candidate, existing, files):
     _, family, _, manifests = candidate
-    text = ((existing.get("title") or "") + "\n" + (existing.get("body") or "")).casefold()
-    if family in text:
+    title = (existing.get("title") or "").casefold()
+    # Check for the canonical fix(deps): <family> to <version> pattern.
+    if re.search(fr"fix\(deps\):\s+{re.escape(family)}\b", title):
         return True
     if not manifests.intersection(files):
         return False
@@ -116,19 +130,19 @@ def guard_retest(repo, number, sha, evidence, now=None):
             if context not in latest or status["created_at"] > latest[context]["created_at"]:
                 latest[context] = status
     failed_urls = {
-        status["target_url"]
+        status["target_url"].rstrip(".;,")
         for status in latest.values()
         if status["state"] in ("failure", "error") and status.get("target_url")
     }
     failed_urls.update(
-        check["details_url"]
+        check["details_url"].rstrip(".;,")
         for check in checks
         if check["conclusion"] in ("failure", "timed_out", "cancelled", "action_required", "startup_failure")
         and check.get("details_url")
     )
-    if not any(url in evidence for url in failed_urls):
+    links = {url.rstrip(".;,") for url in re.findall(r"https://[^\s)]+", evidence)}
+    if not any(url in links for url in failed_urls):
         raise ValueError("retest needs a current failing check URL and proven transient-failure evidence")
-    links = set(re.findall(r"https://[^\s)]+", evidence))
     if not links.difference(failed_urls):
         raise ValueError("retest also needs a comparison run URL")
     comments = gh_lines(
