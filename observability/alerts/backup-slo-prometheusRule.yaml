@@ -145,13 +145,57 @@ spec:
     #   Fast (14.4x):  14.4 * 0.005 = 7.2% failed-attempt share
     #   Medium (6x):   6    * 0.005 = 3.0%
     #   Slow (1x):     1    * 0.005 = 0.5%
+    #
+    # Ratio is computed directly over each window from the raw counters
+    # (frontend-slo-prometheusRule.yaml's pattern), NOT by averaging the 5m
+    # errors:backup:ratio:rate5m recording rule: averaging per-5m ratios
+    # weights quiet and busy 5m periods equally (volume-blind), and can miss a
+    # failure entirely if it completes outside its own attempt's 5m slice
+    # (e.g. the 10m pre-hook timeout in internal/backup/backup.go:88) because
+    # that 5m window's attempt-rate gate then reads zero. A full long/short
+    # window always contains both the attempt and any failure completing
+    # within the hook/snapshot timeouts, so neither issue applies here.
+    # Replicas are summed, not deduped with `max without`, because duplicate
+    # HA scrapes cancel out in a ratio (same reasoning as frontend's header
+    # comment) and summing avoids breaking histogram-bucket monotonicity.
+    # `or 0 * attempt` per window preserves the recording rule's cold-start
+    # guard: if a failure-type counter has no time series at all for a
+    # cluster (never incremented, so no series yet), the vector addition would
+    # otherwise silently drop that cluster from the whole sum instead of
+    # treating the missing failure type as zero.
     - alert: userJourneyBackupErrors1h5m
       expr: |
         (
-          avg_over_time(errors:backup:ratio:rate5m[1h]) > 0.072
-          and
-          avg_over_time(errors:backup:ratio:rate5m[5m]) > 0.072
-        )
+          (
+            (
+              sum by (cluster) (rate(velero_backup_failure_total[1h]))
+              +
+              sum by (cluster) (rate(velero_backup_partial_failure_total[1h]))
+              +
+              sum by (cluster) (rate(velero_backup_validation_failure_total[1h]))
+            )
+            or
+            0 * sum by (cluster) (rate(velero_backup_attempt_total[1h]))
+          )
+          /
+          sum by (cluster) (rate(velero_backup_attempt_total[1h]))
+        ) > 0.072
+        and on (cluster)
+        (
+          (
+            (
+              sum by (cluster) (rate(velero_backup_failure_total[5m]))
+              +
+              sum by (cluster) (rate(velero_backup_partial_failure_total[5m]))
+              +
+              sum by (cluster) (rate(velero_backup_validation_failure_total[5m]))
+            )
+            or
+            0 * sum by (cluster) (rate(velero_backup_attempt_total[5m]))
+          )
+          /
+          sum by (cluster) (rate(velero_backup_attempt_total[5m]))
+        ) > 0.072
       for: 2m
       labels:
         severity: "4"
@@ -165,10 +209,36 @@ spec:
     - alert: userJourneyBackupErrors6h30m
       expr: |
         (
-          avg_over_time(errors:backup:ratio:rate5m[6h]) > 0.03
-          and
-          avg_over_time(errors:backup:ratio:rate5m[30m]) > 0.03
-        )
+          (
+            (
+              sum by (cluster) (rate(velero_backup_failure_total[6h]))
+              +
+              sum by (cluster) (rate(velero_backup_partial_failure_total[6h]))
+              +
+              sum by (cluster) (rate(velero_backup_validation_failure_total[6h]))
+            )
+            or
+            0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+          )
+          /
+          sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        ) > 0.03
+        and on (cluster)
+        (
+          (
+            (
+              sum by (cluster) (rate(velero_backup_failure_total[30m]))
+              +
+              sum by (cluster) (rate(velero_backup_partial_failure_total[30m]))
+              +
+              sum by (cluster) (rate(velero_backup_validation_failure_total[30m]))
+            )
+            or
+            0 * sum by (cluster) (rate(velero_backup_attempt_total[30m]))
+          )
+          /
+          sum by (cluster) (rate(velero_backup_attempt_total[30m]))
+        ) > 0.03
       for: 15m
       labels:
         severity: "4"
@@ -182,10 +252,36 @@ spec:
     - alert: userJourneyBackupErrors3d6h
       expr: |
         (
-          avg_over_time(errors:backup:ratio:rate5m[3d]) > 0.005
-          and
-          avg_over_time(errors:backup:ratio:rate5m[6h]) > 0.005
-        )
+          (
+            (
+              sum by (cluster) (rate(velero_backup_failure_total[3d]))
+              +
+              sum by (cluster) (rate(velero_backup_partial_failure_total[3d]))
+              +
+              sum by (cluster) (rate(velero_backup_validation_failure_total[3d]))
+            )
+            or
+            0 * sum by (cluster) (rate(velero_backup_attempt_total[3d]))
+          )
+          /
+          sum by (cluster) (rate(velero_backup_attempt_total[3d]))
+        ) > 0.005
+        and on (cluster)
+        (
+          (
+            (
+              sum by (cluster) (rate(velero_backup_failure_total[6h]))
+              +
+              sum by (cluster) (rate(velero_backup_partial_failure_total[6h]))
+              +
+              sum by (cluster) (rate(velero_backup_validation_failure_total[6h]))
+            )
+            or
+            0 * sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+          )
+          /
+          sum by (cluster) (rate(velero_backup_attempt_total[6h]))
+        ) > 0.005
       for: 1h
       labels:
         severity: "4"
@@ -206,12 +302,31 @@ spec:
     # backup should complete well inside 20m; both tiers use the same
     # threshold, same as Frontend's Medium/Slow Latency pattern - they differ
     # only in how long the breach must sustain.
+    #
+    # p99 is computed directly via histogram_quantile over each window's own
+    # aggregated bucket rates, NOT by averaging the 5m
+    # sli:backup:latency_p99:rate5m recording rule: averaging two already-
+    # computed 5m p99 values is neither an aggregate p99 nor volume-weighted -
+    # e.g. a 5m window with a few ~300s backups and another with many ~1800s
+    # backups can average under 1200s even though the true combined p99 (all
+    # buckets summed over the full window, then one quantile taken) exceeds
+    # it. Replicas are summed, not deduped with `max without`, because
+    # histogram_quantile only depends on relative bucket proportions, so a
+    # uniform duplication factor across all buckets does not shift the
+    # computed quantile (and summing avoids breaking bucket monotonicity that
+    # per-bucket `max` across replicas can cause).
     - alert: userJourneyBackupLatency6h30m
       expr: |
         (
-          avg_over_time(sli:backup:latency_p99:rate5m[6h]) > 1200
-          and
-          avg_over_time(sli:backup:latency_p99:rate5m[30m]) > 1200
+          histogram_quantile(
+            0.99,
+            sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[6h]))
+          ) > 1200
+          and on (cluster)
+          histogram_quantile(
+            0.99,
+            sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[30m]))
+          ) > 1200
         )
       for: 15m
       labels:
@@ -226,9 +341,15 @@ spec:
     - alert: userJourneyBackupLatency3d6h
       expr: |
         (
-          avg_over_time(sli:backup:latency_p99:rate5m[3d]) > 1200
-          and
-          avg_over_time(sli:backup:latency_p99:rate5m[6h]) > 1200
+          histogram_quantile(
+            0.99,
+            sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[3d]))
+          ) > 1200
+          and on (cluster)
+          histogram_quantile(
+            0.99,
+            sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket[6h]))
+          ) > 1200
         )
       for: 1h
       labels:
@@ -241,8 +362,17 @@ spec:
         description: "Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes on both the 3d and 6h windows (1x burn of the p99 < 20m SLO)."
         runbook_url: "https://aka.ms/arohcp-runbook-backups"
   # Traffic: absolute attempt-rate drop, fleet-wide per management cluster.
-  # Same pattern as Frontend's traffic-drop alert: a 1d-baseline noise floor so
-  # a quiet/low-HC-count MC does not false-positive on normal variance.
+  # Unlike Frontend's continuous HTTP traffic, every HC's hourly schedule uses
+  # the SAME cron (`0 */1 * * *` for every HC - config.go/schedule.go, not
+  # independently offset), so attempts burst around each hour mark and the
+  # attempt rate is legitimately ~0 for most of the hour even when fully
+  # healthy. The window must comfortably span at least one full hourly cycle
+  # or a normal gap between bursts looks identical to a real collapse - a 15m
+  # window (sized for Frontend's continuous traffic) would false-page after
+  # every single healthy short hourly batch. 2h covers a full cycle with
+  # margin for a slow/queued batch; `for: 1h` requires that to persist through
+  # a second cycle before paging, so one delayed-but-eventually-successful
+  # batch does not alone trigger this.
   - name: arohcp_backup_slo_traffic_alerts
     labels:
       component: slo
@@ -250,18 +380,18 @@ spec:
     - alert: userJourneyBackupTraffic
       expr: |
         (
-          avg_over_time(traffic:backup:attempt_rate:rate5m[15m])
+          avg_over_time(traffic:backup:attempt_rate:rate5m[2h])
           < 0.1 * avg_over_time(traffic:backup:attempt_rate:rate5m[1d])
         )
         and
         avg_over_time(traffic:backup:attempt_rate:rate5m[1d]) > 0
-      for: 30m
+      for: 1h
       labels:
         severity: "4"
         slo: backup-traffic
       annotations:
         summary: "{{ $labels.cluster }}: Velero backup attempts collapsed below 10% of 1d baseline"
-        description: "Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average for 30m. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC's problem."
+        description: "Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average, sustained across a 2h window (more than one full hourly cadence cycle) for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC's problem."
         runbook_url: "https://aka.ms/arohcp-runbook-backups"
   - name: arohcp_backup_slo_storage_availability_alerts
     labels:
@@ -269,14 +399,18 @@ spec:
     rules:
     # PROXY alert - see the KNOWN GAPS note at the top of this file and the
     # recording-rule comments for sli:backup:last_run_failure:ratio5m. Guarded
-    # by a minimum schedule count so a management cluster with only 1-2 HCs
-    # does not treat a single bad backup as a fleet-wide storage outage.
+    # by a minimum DISTINCT HostedCluster count (backup:hostedcluster_count,
+    # not a raw schedule count) so a management cluster with only 1-2 HCs does
+    # not treat a single bad HC as a fleet-wide storage outage - each HC gets
+    # up to 3 schedules (hourly/daily/weekly), so gating on schedule count
+    # would let one HC whose all 3 schedules are failing pass a >=3 guard on
+    # its own.
     - alert: userJourneyBackupStorageAvailability
       expr: |
         (
           sli:backup:last_run_failure:ratio5m > 0.8
           and
-          backup:schedule_count:count >= 3
+          backup:hostedcluster_count:count >= 3
         )
       for: 15m
       labels:
@@ -284,7 +418,7 @@ spec:
         slo: backup-storage-availability
       annotations:
         summary: "{{ $labels.cluster }}: Velero backups failing fleet-wide - possible storage location outage"
-        description: "Over 80% of Velero schedules on management cluster {{ $labels.cluster }} had a failed last run, sustained for 15m, across {{ $labels.cluster }}'s active schedules. PROXY signal for a BackupStorageLocation outage (no direct BSL-phase metric exists yet - see ARO-29949); also fires for other fleet-wide causes (e.g. a bad Velero/plugin rollout) - check `kubectl get backupstoragelocation -n velero` on the MC before assuming it is specifically storage."
+        description: "Over 80% of Velero schedules on management cluster {{ $labels.cluster }} had a failed last run, sustained for 15m, across at least 3 distinct HostedClusters on {{ $labels.cluster }}. PROXY signal for a BackupStorageLocation outage (no direct BSL-phase metric exists yet - see ARO-29949); also fires for other fleet-wide causes (e.g. a bad Velero/plugin rollout) - check `kubectl get backupstoragelocation -n velero` on the MC before assuming it is specifically storage."
         runbook_url: "https://aka.ms/arohcp-runbook-backups"
   - name: arohcp_backup_slo_saturation_alerts
     labels:
@@ -296,16 +430,28 @@ spec:
     # one MC is the observable symptom of the repo-maintenance/BackupRepository
     # contention seen in ARO-29757, even without a metric for the repo queue
     # itself.
+    #
+    # backup:in_progress:count now includes "New" (queued) backups, not just
+    # "InProgress" - with --concurrent-backups 4
+    # (velero/deploy/templates/install-job.yaml), a perfectly healthy MC with
+    # enough HCs can legitimately queue well over 5 "New" backups the moment
+    # every HC's hourly cron fires at once. Threshold/duration are sized to
+    # tolerate that normal burst (worst case ~40 queued backups draining
+    # through 4 concurrent slots at up to the ~20m p99 latency SLO is
+    # ceil(40/4)*20m = 200m ~= a bit over 3h) while still catching a genuine
+    # stuck pile-up well before the next hourly cycle. Known gap: an MC
+    # hosting a much larger fleet than that per hourly tick may need a higher
+    # threshold - revisit against real fleet-size numbers once known.
     - alert: userJourneyBackupRepoMaintenanceSaturation
       expr: |
-        backup:in_progress:count > 5
-      for: 30m
+        backup:in_progress:count > 10
+      for: 3h30m
       labels:
         severity: "4"
         slo: backup-repo-maintenance-saturation
       annotations:
-        summary: "{{ $labels.cluster }}: {{ $value }} Velero backups stuck non-terminal for 30+ minutes"
-        description: "{{ $value }} Velero backups on management cluster {{ $labels.cluster }} have been in a non-terminal phase (InProgress/WaitingForPluginOperations/Finalizing) for over 30 minutes. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757's staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC."
+        summary: "{{ $labels.cluster }}: {{ $value }} Velero backups stuck non-terminal for 3.5+ hours"
+        description: "{{ $value }} Velero backups on management cluster {{ $labels.cluster }} have been in a non-terminal phase (New/InProgress/WaitingForPluginOperations/Finalizing) for over 3.5 hours - well beyond the time a healthy hourly-cron burst should take to drain through the 4 concurrent backup slots. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757's staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC."
         runbook_url: "https://aka.ms/arohcp-runbook-backups"
   - name: arohcp_backup_slo_metrics_absent_alerts
     labels:

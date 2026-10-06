@@ -17,10 +17,23 @@ spec:
   # ADR, scoped per management cluster (Velero runs on the MC, one Schedule per
   # HostedCluster namespace per cadence). "Per cluster" here means per
   # management cluster, fleet-aggregated across every HostedCluster/schedule on
-  # it - each MC hosts many HCs each with hourly/daily/weekly schedules on
-  # independently-offset crons, so attempts/failures/duration trickle
-  # continuously across any 5m window at this scope (unlike a single HC's own
-  # hourly cron, which does not).
+  # it - each MC can host many HCs, but every HC uses the SAME cron string per
+  # cadence (hourly is always `0 */1 * * *` for every HC - see
+  # backend/pkg/controllers/cluster/backups/config.go and schedule.go), so
+  # attempts/completions on a given MC cluster in a BURST around each cadence's
+  # cron tick, not continuously throughout the hour.
+  #
+  # Because of that burst shape, the Errors and Latency ALERTS
+  # (backup-slo-prometheusRule.yaml) compute true windowed ratios/quantiles
+  # directly over each alert's own long/short window from the raw counters
+  # (matching frontend-slo-prometheusRule.yaml's pattern), rather than
+  # averaging the 5m-resolution recording rules below - averaging per-5m
+  # snapshots can miss a burst that lands outside one 5m slice (e.g. a failure
+  # completing a few minutes after its attempt started) or misweight quiet vs.
+  # busy 5m periods equally. `errors:backup:ratio:rate5m` and
+  # `sli:backup:latency_p99:rate5m` remain as lower-resolution diagnostic SLIs
+  # for dashboards only (same framing as frontend-slo-recordingRule.yaml) and
+  # are intentionally not referenced by any alert.
   #
   # Metrics: velero_backup_{attempt,success,failure,partial_failure,
   # validation_failure}_total, velero_backup_last_successful_timestamp,
@@ -120,13 +133,24 @@ spec:
         count by (cluster) (
           max without (prometheus_replica) (velero_backup_last_status{schedule!=""})
         )
-    # Schedule count SLI - minimum-sample guard for the proxy above (and for
-    # not alerting off a management cluster with only one or two HCs, where
-    # one bad backup looks identical to a fleet-wide outage).
-    - record: backup:schedule_count:count
+    # HostedCluster count SLI - minimum-sample guard for the StorageAvailability
+    # proxy above (and for not alerting off a management cluster with only one
+    # or two HCs, where one bad HC looks identical to a fleet-wide outage).
+    # Derived from schedule name (same `{namespace}-{cadence}` convention as
+    # the Availability alert's label_replace), NOT a raw count of schedule
+    # series: each HC gets up to 3 schedules (hourly/daily/weekly), so counting
+    # schedules directly would let a single HC with all 3 of its own schedules
+    # failing look like 3 distinct HostedClusters and slip past a >=3 guard
+    # meant to require multiple distinct HCs.
+    - record: backup:hostedcluster_count:count
       expr: |
         count by (cluster) (
-          max without (prometheus_replica) (velero_backup_last_status{schedule!=""})
+          count by (cluster, hosted_cluster_namespace) (
+            label_replace(
+              max without (prometheus_replica) (velero_backup_last_status{schedule!=""}),
+              "hosted_cluster_namespace", "$1", "schedule", "(.+)-(hourly|daily|weekly)"
+            )
+          )
         )
     # RepoMaintenance saturation PROXY: count of backups currently stuck in a
     # non-terminal phase, fleet-wide per management cluster. There is no
@@ -137,14 +161,23 @@ spec:
     # surfaces as a pile-up of non-completing backups, which this counts
     # directly from velerobackup_phase. Replace with a direct repo-maintenance
     # metric once one exists.
-    # No "or vector(0)" fallback here: the alert only checks `> 5`, and an
-    # absent series (zero backups currently in a non-terminal phase on that
+    # Includes "New" (queued, not yet started) as well as the in-flight
+    # phases, matching the existing dashboard's enqueued-backup query
+    # (observability/grafana-dashboards/velero/velero.json, "Backup CRs
+    # Enqueued" panel) - Velero runs --concurrent-backups 4
+    # (velero/deploy/templates/install-job.yaml), so a stalled fleet can pile
+    # up many "New" backups while never exceeding a threshold that only counts
+    # "InProgress". See the alert's `for:`/threshold comment for how the
+    # resulting normal-burst queuing (not just genuine saturation) is handled.
+    #
+    # No "or vector(0)" fallback here: the alert only checks a `> N` threshold,
+    # and an absent series (zero backups currently non-terminal on that
     # cluster) is already equivalent to false for that comparison - adding a
     # synthetic always-on {} series would just create an unlabeled orphan.
     - record: backup:in_progress:count
       expr: |
         count by (cluster) (
           max without (prometheus_replica) (
-            velerobackup_phase{phase=~"InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed"}
+            velerobackup_phase{phase=~"New|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed"}
           ) == 1
         )
