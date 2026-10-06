@@ -253,6 +253,10 @@ safe-outputs:
               echo "Repair patch exceeds 128 KiB" >&2
               exit 1
             fi
+            if grep -q '^GIT binary patch' "$patch"; then
+              echo "Repair patch cannot contain Git binary data" >&2
+              exit 1
+            fi
             pr=$(gh api "repos/$REPO/pulls/$n")
             jq -e --arg sha "$sha" --arg repo "$REPO" '
               .state == "open" and .user.login == "aro-hcp-robot[bot]" and
