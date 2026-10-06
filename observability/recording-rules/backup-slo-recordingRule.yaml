@@ -154,14 +154,27 @@ spec:
     # Velero image rollout) - see userJourneyBackupStorageAvailability's
     # description for the same caveat. Replace with a direct BSL phase metric
     # once ARO-29949 lands.
+    #
+    # Restricted to hourly schedules only (not all three of hourly/daily/
+    # weekly per HostedCluster, config.go:43-45): a storage outage fails
+    # uploads for every cadence on the MC near-simultaneously, but "last run"
+    # only updates on each schedule's own cron tick, so daily/weekly still
+    # show their old pre-outage success for up to a day/week after the
+    # outage starts. Mixing all three cadences into one ratio dilutes a real
+    # outage to 1/3 (then 2/3) of the fleet, both under the 0.8 threshold,
+    # and can delay detection by nearly a week waiting for weekly to also
+    # fail. Hourly is both the most frequent cadence (fastest to reflect the
+    # outage) and the primary restore-point freshness signal elsewhere in
+    # this file, so restricting to it avoids the dilution without losing
+    # real signal.
     - record: sli:backup:last_run_failure:ratio5m
       expr: |
         count by (cluster) (
-          max without (prometheus_replica) (velero_backup_last_status{schedule!=""}) == 0
+          max without (prometheus_replica) (velero_backup_last_status{schedule=~".+-hourly"}) == 0
         )
         /
         count by (cluster) (
-          max without (prometheus_replica) (velero_backup_last_status{schedule!=""})
+          max without (prometheus_replica) (velero_backup_last_status{schedule=~".+-hourly"})
         )
     # HostedCluster count SLI - minimum-sample guard for the StorageAvailability
     # proxy above (and for not alerting off a management cluster with only one
