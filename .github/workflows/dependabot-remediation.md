@@ -177,6 +177,8 @@ safe-outputs:
         GH_TOKEN: ${{ steps.safe-outputs-app-token.outputs.token }}
         REPO: ${{ github.repository }}
         AGENT_OUTPUT: ${{ steps.setup-agent-output-env.outputs.GH_AW_AGENT_OUTPUT }}
+      # Missing `data` is dropped with a warning so a successful reconcile is not
+      # painted red. Invalid or overlapping `data` still fails closed.
       run: python3 .github/scripts/dependabot_guard.py create "$AGENT_OUTPUT" "$REPO"
   create-pull-request:
     max: 6                              # one PR per vulnerability group
@@ -409,33 +411,93 @@ safe-outputs:
               echo "Reconciliation requires valid PR numbers and no conflicting repair" >&2
               exit 1
             }
-            jq -c '[.items[] | select(.type == "reconcile_owned_pr")] | unique_by(.pull_request_number)[]' "$GH_AW_AGENT_OUTPUT" | while read -r item; do
-              n=$(jq -er '.pull_request_number | select(type == "string" and test("^[1-9][0-9]*$"))' <<< "$item")
-              sha=$(jq -er '.expected_head_sha | select(type == "string" and test("^[0-9a-fA-F]{40}$"))' <<< "$item")
-              action=$(jq -er '.action | select(. == "update-branch" or . == "retest" or . == "close")' <<< "$item")
-              pr=$(gh api "repos/$REPO/pulls/$n")
-              jq -e --arg sha "$sha" --arg repo "$REPO" '
-                .state == "open" and .user.login == "aro-hcp-robot[bot]" and
+            items_file="$RUNNER_TEMP/reconcile-owned-pr-items.jsonl"
+            jq -c '[.items[] | select(.type == "reconcile_owned_pr")] | unique_by(.pull_request_number)[]' "$GH_AW_AGENT_OUTPUT" > "$items_file"
+            applied=0
+            skipped=0
+            failed=0
+            while IFS= read -r item || [[ -n "${item:-}" ]]; do
+              [[ -z "${item:-}" ]] && continue
+              n=$(jq -er '.pull_request_number | select(type == "string" and test("^[1-9][0-9]*$"))' <<< "$item") || {
+                echo "::warning::Skipping reconcile item with invalid pull_request_number"
+                failed=$((failed+1))
+                continue
+              }
+              sha=$(jq -er '.expected_head_sha | select(type == "string" and test("^[0-9a-fA-F]{40}$"))' <<< "$item") || {
+                echo "::warning::PR $n skipped: invalid expected_head_sha"
+                failed=$((failed+1))
+                continue
+              }
+              action=$(jq -er '.action | select(. == "update-branch" or . == "retest" or . == "close")' <<< "$item") || {
+                echo "::warning::PR $n skipped: invalid action"
+                failed=$((failed+1))
+                continue
+              }
+              if ! pr=$(gh api "repos/$REPO/pulls/$n"); then
+                echo "::warning::PR $n skipped: failed to fetch"
+                failed=$((failed+1))
+                continue
+              fi
+              state=$(jq -r '.state' <<< "$pr")
+              if [[ "$state" != open ]]; then
+                echo "PR $n is already $state; skipping"
+                skipped=$((skipped+1))
+                continue
+              fi
+              if ! jq -e --arg sha "$sha" --arg repo "$REPO" '
+                .user.login == "aro-hcp-robot[bot]" and
                 .head.repo.full_name == $repo and .base.ref == "main" and
                 (.title | startswith("fix(deps): ")) and
                 any(.labels[]; .name == "agentic-dependabot") and
                 .head.sha == $sha
-              ' <<< "$pr" >/dev/null || { echo "PR $n is not an owned PR at the expected head" >&2; exit 1; }
+              ' <<< "$pr" >/dev/null; then
+                echo "::warning::PR $n is not an owned PR at the expected head; skipping"
+                failed=$((failed+1))
+                continue
+              fi
+              evidence=""
               if [[ "$action" != update-branch ]]; then
-                evidence=$(jq -er '.body | select(type == "string" and length > 0 and length <= 4096 and (contains("\r") | not) and (contains("\u0000") | not) and (test("(?m)^[[:space:]]*/") | not))' <<< "$item")
+                evidence=$(jq -er '.body | select(type == "string" and length > 0 and length <= 4096 and (contains("\r") | not) and (contains("\u0000") | not) and (test("(?m)^[[:space:]]*/") | not))' <<< "$item") || {
+                  echo "::warning::PR $n skipped: invalid evidence body"
+                  failed=$((failed+1))
+                  continue
+                }
               fi
               if [[ "$action" == retest ]]; then
-                python3 .github/scripts/dependabot_guard.py retest "$REPO" "$n" "$sha" "$evidence"
+                if ! python3 .github/scripts/dependabot_guard.py retest "$REPO" "$n" "$sha" "$evidence"; then
+                  echo "::warning::PR $n skipped: retest guard refused"
+                  failed=$((failed+1))
+                  continue
+                fi
               fi
               if [[ "${GH_AW_SAFE_OUTPUTS_STAGED:-false}" == true ]]; then
                 echo "Staged $action for verified PR $n"
-              elif [[ "$action" == update-branch ]]; then
-                gh api -X PUT "repos/$REPO/pulls/$n/update-branch" -f expected_head_sha="$sha" --silent
-              else
-                if [[ "$action" == retest ]]; then command=/retest-required; else command=/close; fi
-                gh api -X POST "repos/$REPO/issues/$n/comments" -f body="$(printf '%s\n\n%s' "$evidence" "$command")" --silent
+                applied=$((applied+1))
+                continue
               fi
-            done
+              if [[ "$action" == update-branch ]]; then
+                if gh api -X PUT "repos/$REPO/pulls/$n/update-branch" -f expected_head_sha="$sha" --silent; then
+                  echo "Updated branch for PR $n"
+                  applied=$((applied+1))
+                else
+                  echo "::warning::PR $n update-branch failed; continuing"
+                  failed=$((failed+1))
+                fi
+                continue
+              fi
+              if [[ "$action" == retest ]]; then command=/retest-required; else command=/close; fi
+              if gh api -X POST "repos/$REPO/issues/$n/comments" -f body="$(printf '%s\n\n%s' "$evidence" "$command")" --silent; then
+                echo "Posted $command on PR $n"
+                applied=$((applied+1))
+              else
+                echo "::warning::PR $n $action comment failed; continuing"
+                failed=$((failed+1))
+              fi
+            done < "$items_file"
+            echo "Reconcile summary: applied=$applied skipped=$skipped failed=$failed"
+            if (( failed > 0 )); then
+              exit 1
+            fi
 
 ---
 
@@ -465,13 +527,22 @@ First classify each open PR by who owns it, because that decides what you may do
 - **Your own PRs** must have the `agentic-dependabot` label, author `aro-hcp-robot[bot]`, title prefix `fix(deps): `, `head_repo` equal to `Azure/ARO-HCP`, and `base` equal to `main`. Only these may receive a branch update or a code repair. A label alone never grants permission to change someone else's PR.
 - **Native Dependabot PRs** and **human PRs** are not yours. Never mutate them. If one of your PRs supersedes a native Dependabot PR for the same package, reference it without a closing keyword and leave it for Prow-managed closure after the replacement merges.
 
-Walk **every** open `agentic-dependabot` PR, even if its alert has disappeared. Record its number, alerts covered, CI/check failure evidence, merge state, review decision, unresolved threads, and one outcome: waiting (pending CI or required review), retested (proven transient with a new test pending), repaired (verified new head required), closed (Prow closure verified), or blocked (evidence and reason). A requested action alone is not a completed outcome. Do not confuse a required review or Tide's `blocked` state with a failing check. Do not merge or approve PRs: human reviews and repository merge policy still apply. Emit at most 20 unique `reconcile_owned_pr` items and at most 1 `repair_owned_pr` item; gh-aw silently drops extras. Prefer closing superseded duplicates, then updating or repairing the canonical PR for each family. Do not emit two reconciles for the same PR.
+Walk **every** open `agentic-dependabot` PR, even if its alert has disappeared. Record its number, alerts covered, CI/check failure evidence, merge state, review decision, unresolved threads, and one outcome: waiting (pending CI or required review), retested (proven transient with a new test pending), repaired (verified new head required), closed (Prow closure verified), or blocked (evidence and reason). A requested action alone is not a completed outcome. Do not confuse a required review or Tide's `blocked` state with a failing check. Do not merge or approve PRs: human reviews and repository merge policy still apply. Emit at most 20 unique `reconcile_owned_pr` items and at most 1 `repair_owned_pr` item; gh-aw silently drops extras. Prefer closing superseded duplicates, then updating or repairing the canonical still-needed PR for each family. Do not emit two reconciles for the same PR.
+
+Decide close vs update vs repair from whether the PR still provides a needed fix, not from a `needs-rebase` label or a disappearing alert:
+
+1. **Close** (do not rebase or repair) when `main` already contains an equal-or-newer version of every package this PR changes, and no open Dependabot alert remains for that family. Rebasing a superseded PR recreates an already-merged older bump. Cite the merged replacement PR or the `main` versions in `body`. Close each obsolete duplicate in the same run; do not keep one "canonical" copy of an obsolete bump.
+2. **update-branch** only when the PR is still needed (its target is newer than `main`, or `main` still has the vulnerable range) and the branch is behind with no conflict.
+3. **repair_owned_pr** only when the PR is still needed and has a merge conflict or an incomplete or wrong dependency fix. One repair per run; pick the canonical still-needed PR for that family.
+4. **retest** only for a still-needed PR with a proven transient failure.
+
+A `needs-rebase` label on an obsolete PR is not a reason to update-branch.
 
 - **Passing or pending checks**: keep the existing PR; wait for outstanding checks and human approvals. If a check is pending or its evidence is missing, never call the PR healthy or replace it on speculation. If an actionable review thread identifies an incomplete dependency fix, address it as described below.
-- **Behind base**: for an owned, still-needed PR with no conflicting dependency change, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, and `action: update-branch`. The guarded output merges current `main` into that PR branch after rechecking ownership and SHA; check the new SHA and CI on a later run. It cannot resolve conflicts or change dependency files. Do not request repeated updates for a PR already waiting on CI at its current SHA.
+- **Behind base**: for an owned, still-needed PR with no conflicting dependency change, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, and `action: update-branch`. The guarded output merges current `main` into that PR branch after rechecking ownership and SHA; check the new SHA and CI on a later run. It cannot resolve conflicts or change dependency files. Do not request repeated updates for a PR already waiting on CI at its current SHA. Do not update-branch a superseded PR.
 - **Failing CI or merge conflict**: follow the failed check's URL and the PR diff to identify the cause. Compare the same job on `main` and other PRs before calling a failure transient. A failed E2E test is not evidence of a transient failure: diagnose its logs and compare with a passing run of the same job before requesting a retest. If a failure is proven transient, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, `action: retest`, and a short evidence sentence in `body` with both the current failed-check URL and a comparison-run URL (no slash commands); the guarded job enforces a 24-hour cooldown and appends `/retest-required`. Verify a new check starts on a later run. If the failure is fleet-wide or reproducible, report it instead of blindly retesting. If the fix is incomplete, repair the existing owned PR with `repair_owned_pr`: check out its exact head, run the workspace ritual and tests, and pass a unified `git diff` against that head as `patch` with its PR number and `expected_head_sha`. If the PR has a genuine merge conflict (`DIRTY`), reconstruct the **full dependency change** on freshly fetched `main`, rerun dependency generation and tests, and pass a unified diff against that exact `main` SHA with `expected_base_sha` as well as `expected_head_sha`. This rebuilds the same owned PR branch; it does not create a replacement. The guarded job checks ownership, both heads, patch paths, and an atomic force-with-lease before pushing. It permits TypeSpec tooling (`api/Makefile`) and generated SDK metadata only with an `api/package.json` update; regenerate generated Go files with `make -C api models testsdk`, never edit them manually. Keep the patch under 2 MiB and limited to existing files. Do not request both repair and reconciliation for the same PR. On the next run verify the new head and CI. If regeneration, the size limit, or a changed head prevents safe repair, report a blocker instead of opening a replacement.
 - **Review feedback**: act only on an unresolved thread about a missing or incorrect dependency fix (section 5b). Do not dismiss or resolve threads on behalf of a reviewer. If review approval is missing, leave it for a human.
-- **No open alert**: do not infer the PR is obsolete just from the alert disappearing. Inspect its actual changes and whether they still provide a needed dependency fix. Never open a replacement solely for an orphaned PR. If the change is proven unnecessary on `main`, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, `action: close`, and the evidence in `body` (no slash commands); the guarded job appends `/close`. For a superseded PR, request closure only after verifying the replacement is merged and covers the same fixes. On the next run verify Prow actually closed the PR; never use the GitHub PR-state API or a closing keyword.
+- **No open alert**: do not infer the PR is obsolete just from the alert disappearing. Inspect its actual changes and whether they still provide a needed dependency fix. Never open a replacement solely for an orphaned PR. If the change is proven unnecessary on `main`, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, `action: close`, and the evidence in `body` (no slash commands); the guarded job appends `/close`. For a superseded PR, request closure only after verifying the replacement is merged and covers the same fixes. Do not rebase or repair that superseded PR. On the next run verify Prow actually closed the PR; never use the GitHub PR-state API or a closing keyword.
 
 Do not use `push_to_pull_request_branch` here: this is a scheduled or manual run with no triggering PR, so that output cannot reliably push to an arbitrary existing head. Use the guarded `repair_owned_pr` job instead. If no safe automated change is justified, report the blocker with its PR and evidence rather than opening another PR.
 
@@ -508,7 +579,7 @@ An existing owned PR may also need a small Go source correction when the depende
 
 ## 5. Open the pull requests
 
-For each group with no open overlapping PR, open one pull request via the create-pull-request safe output. Supply the tool's structured `data` with `ecosystem` (`go` or `npm`), canonical `package_family` (also in the title), `target_version` (also in the title), and `manifests` (the affected `go.mod` or `package.json` paths). Do not omit or underreport affected manifests. The PR must:
+For each group with no open overlapping PR, open one pull request via the create-pull-request safe output. The tool's structured `data` argument is mandatory: `{ecosystem: "go"|"npm", package_family, target_version, manifests}`. `package_family` and `target_version` must also appear in the title, and `manifests` must be the affected `go.mod` or `package.json` paths. Do not omit `data`; a create without it is dropped and the PR is not opened. If a create call returns success without `data`, immediately call it again with `data` before finishing. Do not underreport affected manifests. The PR must:
 
 - Title: `<package-or-family> to <version> (<severity>)` (the `fix(deps): ` prefix is added automatically, so give the rest).
 - Body: list the alerts fixed (GHSA/CVE, package, from -> to version), the modules or manifests touched, and confirm the workspace is tidy-clean and the build/lint targets pass. State that it is dependency-only.
