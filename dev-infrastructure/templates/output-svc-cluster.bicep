@@ -48,3 +48,6 @@ output hcpDcrRemoteWriteUrl string = 'NONE'
 output prometheusUAMIClientId string = prometheusUAMI.properties.clientId
 output clusterLogPrincipalId string = logsUAMI.properties.principalId
 output adminApiPrincipalId string = adminApiUAMI.properties.principalId
+output identityResourceGroup string = useLeasedInfrastructureIdentities
+  ? infrastructureIdentityResourceGroup
+  : resourceGroup().name

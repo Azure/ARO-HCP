@@ -36,16 +36,6 @@ func TestInfrastructureIdentityDeclarations(t *testing.T) {
 			var template identityTemplate
 			compileIdentityTemplate(t, file, &template)
 			checkIdentityDeclarations(t, template, file)
-			if file == "templates/svc-cluster.bicep" {
-				want := "[if(parameters('useLeasedInfrastructureIdentities'), parameters('infrastructureIdentityResourceGroup'), resourceGroup().name)]"
-				var got string
-				if err := json.Unmarshal(template.Outputs["identityResourceGroup"].Value, &got); err != nil {
-					t.Fatal(err)
-				}
-				if got != want {
-					t.Errorf("Postgres identity RG selection: got %q, want %q", got, want)
-				}
-			}
 		})
 	}
 }
@@ -140,23 +130,46 @@ func checkIdentityDeclarations(t *testing.T, template identityTemplate, path str
 }
 
 func TestPostgresUsesSelectedIdentityResourceGroup(t *testing.T) {
+	var template identityTemplate
+	compileIdentityTemplate(t, "templates/output-svc-cluster.bicep", &template)
+	want := "[if(parameters('useLeasedInfrastructureIdentities'), parameters('infrastructureIdentityResourceGroup'), resourceGroup().name)]"
+	var got string
+	if err := json.Unmarshal(template.Outputs["identityResourceGroup"].Value, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("Postgres identity RG selection: got %q, want %q", got, want)
+	}
+	for name, resource := range template.Resources {
+		if !resource.Existing {
+			t.Errorf("output-only lookup must not deploy resource %s", name)
+		}
+	}
+
 	data, err := os.ReadFile("svc-pipeline.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
 	steps := strings.Split(string(data), "\n  - name: ")
-	for _, name := range []string{"cs-postgres-access", "maestro-postgres-access"} {
+	for _, name := range []string{"cluster-output", "cs-postgres-access", "maestro-postgres-access"} {
 		found := false
 		for _, step := range steps {
 			if !strings.HasPrefix(step, name+"\n") {
 				continue
 			}
 			found = true
-			want := "- name: MI_RESOURCE_GROUP\n      input:\n        resourceGroup: service\n        step: cluster\n        name: identityResourceGroup"
+			if name == "cluster-output" {
+				if !strings.Contains(step, "    outputOnly: true\n") ||
+					!strings.Contains(step, "    template: templates/output-svc-cluster.bicep\n") {
+					t.Error("cluster-output must provide the identity RG through an output-only lookup")
+				}
+				continue
+			}
+			want := "- name: MI_RESOURCE_GROUP\n      input:\n        resourceGroup: service\n        step: cluster-output\n        name: identityResourceGroup"
 			if !strings.Contains(step, want) {
 				t.Errorf("%s must consume the service cluster's selected identity RG", name)
 			}
-			if !strings.Contains(step, "dependsOn:\n    - resourceGroup: service\n      step: cluster") {
+			if !strings.Contains(step, "dependsOn:\n    - resourceGroup: service\n      step: cluster-output\n") {
 				t.Errorf("%s must wait for the identity RG output", name)
 			}
 		}

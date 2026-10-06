@@ -729,9 +729,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
 }
 
 output aksClusterName string = svcCluster.outputs.aksClusterName
-output identityResourceGroup string = useLeasedInfrastructureIdentities
-  ? infrastructureIdentityResourceGroup
-  : resourceGroup().name
 
 //
 //   O P S   I N G R E S S   P U B L I C   I P
