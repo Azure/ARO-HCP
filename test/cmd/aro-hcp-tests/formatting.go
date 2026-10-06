@@ -16,32 +16,27 @@ package main
 
 import (
 	"errors"
-	"sync"
 
 	"github.com/onsi/gomega/format"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
-var azureErrorFormatterOnce sync.Once
-
 func configureGomegaFormatting() {
 	// Retain complete failure messages and Gomega's default depth handling.
 	format.MaxLength = 0
-	azureErrorFormatterOnce.Do(func() {
-		format.RegisterCustomFormatter(func(value any) (string, bool) {
-			err, ok := value.(error)
-			if !ok {
-				return "", false
-			}
-			var responseErr *azcore.ResponseError
-			if !errors.As(err, &responseErr) {
-				return "", false
-			}
-			// Match the outer error, including wrappers and joins, before reflection
-			// reaches private fields. Gomega already prints its Error() message.
-			// Nested errors only get this marker, not a separate Error() message.
-			return "<Azure error internals omitted>", true
-		})
+	format.RegisterCustomFormatter(func(value any) (string, bool) {
+		err, ok := value.(error)
+		if !ok {
+			return "", false
+		}
+		var responseErr *azcore.ResponseError
+		if !errors.As(err, &responseErr) {
+			return "", false
+		}
+		// Match the outer error, including wrappers and joins, before reflection
+		// reaches private fields. Gomega already prints its Error() message.
+		// Nested errors only get this marker, not a separate Error() message.
+		return "<Azure error internals omitted>", true
 	})
 }
