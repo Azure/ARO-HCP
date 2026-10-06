@@ -237,12 +237,12 @@ resource arohcpBackupSloRecordingRules 'Microsoft.AlertsManagement/prometheusRul
         expression: 'count by (cluster, region) (max without (prometheus_replica) (velero_backup_last_status{schedule!=""}) == 0) / count by (cluster, region) (max without (prometheus_replica) (velero_backup_last_status{schedule!=""}))'
       }
       {
-        record: 'backup:schedule_count:count'
-        expression: 'count by (cluster, region) (max without (prometheus_replica) (velero_backup_last_status{schedule!=""}))'
+        record: 'backup:hostedcluster_count:count'
+        expression: 'count by (cluster, region) (count by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_status{schedule!=""}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-(hourly|daily|weekly)")))'
       }
       {
         record: 'backup:in_progress:count'
-        expression: 'count by (cluster, region) (max without (prometheus_replica) (velerobackup_phase{phase=~"InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed"}) == 1)'
+        expression: 'count by (cluster, region) (max without (prometheus_replica) (velerobackup_phase{phase=~"New|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed"}) == 1)'
       }
     ]
   }

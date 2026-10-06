@@ -68,7 +68,8 @@ tests:
     - labels: '{__name__="sli:backup:latency_p99:rate5m", cluster="mgmt-1"}'
       value: 597
 # ========================================
-# Storage/schedule-count proxies: 3 schedules, 2 with a failed last run.
+# Storage proxy / HostedCluster-count guard: 3 schedules on 3 distinct
+# HostedClusters (ns-a, ns-b, ns-c), 2 with a failed last run.
 # ========================================
 - interval: 1m
   input_series:
@@ -84,13 +85,33 @@ tests:
     exp_samples:
     - labels: '{__name__="sli:backup:last_run_failure:ratio5m", cluster="mgmt-1"}'
       value: 0.6666666666666666
-  - expr: backup:schedule_count:count{cluster="mgmt-1"}
+  - expr: backup:hostedcluster_count:count{cluster="mgmt-1"}
     eval_time: 5m
     exp_samples:
-    - labels: '{__name__="backup:schedule_count:count", cluster="mgmt-1"}'
+    - labels: '{__name__="backup:hostedcluster_count:count", cluster="mgmt-1"}'
       value: 3
 # ========================================
-# RepoMaintenance proxy: 2 backups non-terminal (InProgress, Finalizing),
+# HostedCluster-count guard regression: ONE HostedCluster with all 3 of its
+# own cadences (hourly/daily/weekly) - must count as 1 distinct HC, not 3
+# schedules, so a downstream >=3 guard does not mistake it for 3 HCs.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-hourly"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-daily"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-weekly"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: backup:hostedcluster_count:count{cluster="mgmt-3"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="backup:hostedcluster_count:count", cluster="mgmt-3"}'
+      value: 1
+# ========================================
+# RepoMaintenance proxy: 3 backups non-terminal (InProgress, Finalizing, and
+# New - queued counts too, matching the dashboard's enqueued-backup query),
 # 1 Completed - Completed must not count.
 # ========================================
 - interval: 1m
@@ -99,14 +120,16 @@ tests:
     values: "1+0x10"
   - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-b-hourly", phase="Finalizing"}'
     values: "1+0x10"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-c-hourly", phase="Completed"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-c-hourly", phase="New"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-d-hourly", phase="Completed"}'
     values: "1+0x10"
   promql_expr_test:
   - expr: backup:in_progress:count{cluster="mgmt-1"}
     eval_time: 5m
     exp_samples:
     - labels: '{__name__="backup:in_progress:count", cluster="mgmt-1"}'
-      value: 2
+      value: 3
 # No non-terminal backups anywhere - absent series, not a spurious 0 (see the
 # recording rule's comment on why there is no "or vector(0)" fallback here).
 - interval: 1m
