@@ -1,11 +1,9 @@
 digraph cluster_delete {
-  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Cluster delete · ordered Kubernetes teardown and concurrent external cleanup", dpi=110];
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Cluster delete · stop publishing, external teardown and record cleanup", dpi=110];
   node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
   delete [label="Frontend DELETE cluster\ndeletion timestamp + Delete Operation\nchild node-pool / external-auth deletes", fillcolor="#eee7fb", color="#7b59a4"];
-  resources [label="ClusterResources\ndrop NodePool / configuration ApplyDesires\nthen request ordered deletion", fillcolor="#e6f0fa", color="#35648a"];
-  ordered [label="Kube-applier / HyperShift / Kubernetes\nManagedCluster → shared ingress manifests\n→ HostedCluster (NodePool cleanup)\n→ PodNetworkInstance → PodNetwork\n→ cluster namespaces\nWait for deletion at each stage", fillcolor="#fff0da", color="#b27624"];
-  drained [label="ClusterResources\npurge completed ApplyDesires + paired reads\nfinally sweep owned orphan ReadDesires", fillcolor="#e6f0fa", color="#35648a"];
+  resources [label="ClusterResources\nremove tagged ApplyDesire documents", fillcolor="#e6f0fa", color="#35648a"];
   dispatch [label="ClusterClusterServiceDelete\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
   cs [label="Cluster Service / external cleanup\nKubernetes and Azure resources", fillcolor="#fff0da", color="#b27624"];
   clear [label="ClusterDeletionClusterServiceID\nClearer", fillcolor="#e6f0fa", color="#35648a"];
@@ -21,14 +19,10 @@ digraph cluster_delete {
   velero [label="Velero (external)\nprocess DeleteBackupRequest\ndelete Backup and associated backup data", fillcolor="#fff0da", color="#b27624"];
   retained [label="Backup absent: stop reconciling\nBackupRepositories retained for Kopia maintenance\nNot proof of repository GC; not an ARM gate", fillcolor="#e4f2e5", color="#4c8053"];
   delete -> resources [label="deletion intent"];
-  resources -> ordered [label="Type=Delete intents"];
-  ordered -> resources [label="pending / failed deletion: retry\nconfirmed deletion: advance", style=dashed, color="#857456"];
-  ordered -> drained [label="all stages complete"];
-  drained -> cleanup [label="owned cluster-scoped desires gone\n(required before provider removal)"];
-  delete -> dispatch [label="deletion intent; independent\nof ApplyDesire cleanup"];
+  resources -> dispatch [label="all tagged ApplyDesires gone\nKubernetes objects remain"];
   dispatch -> cs [label="DELETE; stamp dispatch\ntimestamp"];
   cs -> clear [label="GET reports not found"];
-  ordered -> backups [label="live HC list confirms absence\n(any HC, even terminating, blocks)"];
+  cs -> backups [label="live HC list confirms absence\n(any HC, even terminating, blocks)"];
   backups -> velero [label="create DeleteBackupRequest\nwithout waiting for TTL"];
   velero -> backups [label="poll pending work; Processed + Backup\nexists: delete request, recheck, retry", style=dashed, color="#857456"];
   velero -> retained [label="live Backup GET: NotFound"];
