@@ -96,13 +96,15 @@ resource pullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
   name: 'image-puller'
 }
 
-resource leasedPullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: 'image-puller'
-  scope: resourceGroup(infrastructureIdentityResourceGroup)
-}
-
+// Avoid declaring the same identity twice when the leased RG is empty in default mode.
+var leasedPullerIdentityId = resourceId(
+  subscription().subscriptionId,
+  infrastructureIdentityResourceGroup,
+  'Microsoft.ManagedIdentity/userAssignedIdentities',
+  'image-puller'
+)
 var pullerIdentityPrincipalId = useLeasedInfrastructureIdentities
-  ? leasedPullerIdentity.properties.principalId
+  ? reference(leasedPullerIdentityId, '2023-01-31').principalId
   : pullerIdentity!.properties.principalId
 
 module acrPullerRoles 'acr/acr-permissions.bicep' = [

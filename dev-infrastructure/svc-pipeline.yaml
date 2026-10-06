@@ -537,7 +537,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: regionRG
     - name: MI_RESOURCE_GROUP
-      configRef: svc.rg
+      input:
+        resourceGroup: service
+        step: cluster
+        name: identityResourceGroup
     - name: PG_SERVER_NAME
       configRef: clustersService.postgres.name
     - name: DATABASE_NAME
@@ -571,7 +574,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: regionRG
     - name: MI_RESOURCE_GROUP
-      configRef: svc.rg
+      input:
+        resourceGroup: service
+        step: cluster
+        name: identityResourceGroup
     - name: PG_SERVER_NAME
       configRef: maestro.postgres.name
     - name: DATABASE_NAME

@@ -69,8 +69,13 @@ The role list is authoritative for deployment wiring, while the configured
 identity names remain authoritative for actual Azure names. The future handler
 must provision and validate all roles before publication.
 
-In reuse mode Bicep treats the UAMIs as `existing` resources in the current
-deployment subscription and supplied resource groups. It still creates per-run federated identity
+In reuse mode Bicep reads the UAMIs from the current deployment subscription
+and supplied resource groups without creating or owning them. Templates that
+also support identity creation use resource-ID lookups rather than declaring
+the same identity a second time as `existing`, avoiding duplicate-resource
+validation in default mode. The service deployment publishes the selected
+identity resource group to both PostgreSQL access steps.
+It still creates per-run federated identity
 credentials for the new AKS OIDC issuer and applies the same RBAC grants at
 their original target scopes. AKS-generated kubelet and Key Vault Secrets
 Provider identities remain unchanged.
