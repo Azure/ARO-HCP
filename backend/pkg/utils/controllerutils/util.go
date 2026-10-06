@@ -37,6 +37,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// ServiceProviderDefaultIngressWildcardServingCertName is the Kubernetes Secret and
+// SecretProviderClass name used for the default ingress wildcard serving certificate
+// referenced by HostedCluster.Spec.OperatorConfiguration.IngressOperator.DefaultCertificate.
+const ServiceProviderDefaultIngressWildcardServingCertName = "service-provider-default-ingress-wildcard-serving-cert"
+
 type Controller interface {
 	QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error
 	SyncOnce(ctx context.Context, keyObj any) error

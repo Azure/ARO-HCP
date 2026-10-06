@@ -53,10 +53,12 @@ type Backend struct {
 }
 
 type BackendOptions struct {
-	StorageFactory                     StorageFactory
-	AppShortDescriptionName            string
-	AppVersion                         string
-	AzureLocation                      string
+	StorageFactory          StorageFactory
+	AppShortDescriptionName string
+	AppVersion              string
+	AzureLocation           string
+	// The ID of the tenant where the service is running on
+	ServiceTenantID                    string
 	LeaderElectionLock                 resourcelock.Interface
 	ClustersServiceClient              ocm.ClusterServiceClientSpec
 	MetricsRegisterer                  prometheus.Registerer

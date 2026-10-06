@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -55,6 +56,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
+
+	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/test/util/dnsreadback"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -69,15 +73,15 @@ var letsEncryptStagingCAs embed.FS
 // Pinned upstream cert-manager release. Bump deliberately; do not float to :latest.
 const certManagerManifestURL = "https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml"
 
-var _ = Describe("Customer", func() {
-	It("should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges",
+var _ = Describe("ARO-HCP", func() {
+	DescribeTable("should serve the default ingress certificate and allow a customer ingress certificate",
 		labels.RequireNothing,
 		labels.High,
 		labels.Positive,
 		labels.CreateCluster,
 		labels.AroRpApiCompatible,
 		labels.MIContainers(1),
-		func(ctx context.Context) {
+		func(ctx context.Context, version string) {
 			const (
 				customerClusterName  = "ingress-cert-le"
 				customerNodePoolName = "np-1"
@@ -101,7 +105,30 @@ var _ = Describe("Customer", func() {
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams20260901()
+			channel := clusterParams.ChannelGroup
+			if channel == "nightly" {
+				resolved, err := framework.GetLatestNightlyInstallVersion(ctx, channel, version)
+				if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+					Skip(fmt.Sprintf("no %s version available in configured channel %s: %v", version, channel, err))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve configured nightly channel")
+				clusterParams.OpenshiftVersionId = resolved
+			} else {
+				offset := clusterversion.GetZStreamOffset(channel)
+				if version == "4.20" || version == "4.21" || version == "4.22" {
+					offset = 2 // to back to previous 2 releases to be sure that install happens with old version and verify the CPO override is working
+				}
+
+				v, err := framework.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel+"-"+version, offset)
+				if framework.IsVersionNotFoundError(err) || (err == nil && v == nil) {
+					Skip(fmt.Sprintf("no %s version available in configured channel %s", version, channel))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve configured channel %s-%s", channel, version)
+
+				clusterParams.OpenshiftVersionId = v.Version
+			}
 			clusterParams.ClusterName = customerClusterName
+			clusterParams.IngressType = "Public"
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
@@ -127,6 +154,8 @@ var _ = Describe("Customer", func() {
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
+			nodePoolParams.OpenshiftVersionId = clusterParams.OpenshiftVersionId
+			nodePoolParams.ChannelGroup = clusterParams.ChannelGroup
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
@@ -155,6 +184,8 @@ var _ = Describe("Customer", func() {
 
 			By("ensuring the cluster is viable")
 			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "cluster viability check failed")
+			// temporary hack until when we can assert that the ingress has been synced before marking the operation create cluster as ready
+			Expect(verifiers.VerifyIngressControllerScope(operatorv1.ExternalLoadBalancer, 1*time.Second).Verify(ctx, adminRESTConfig)).To(Succeed(), "default ingress certificate scenario requires public ingress")
 
 			By("getting the cluster's OIDC issuer URL and DNS domain")
 			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster Properties was nil")
@@ -471,15 +502,46 @@ var _ = Describe("Customer", func() {
 			err = expectTLSSecretIssuedByLetsEncrypt(ctx, kubeClient, ingressNamespace, ingressSecretName, appsWildcard)
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("TLS Secret should contain a valid cert issued by Let's Encrypt staging with SAN %s", appsWildcard))
 
-			// TODO: once we stop managing ingress certificates with ACM, we should plumb the openshift default ingresscontroller with this certificate
-			// 	signed by staging LetsEncrypt server
+			By("deploying a sample application before verifying the default ingress certificate")
+			sampleApp, err := framework.DeploySampleApp(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to deploy sample application")
+			DeferCleanup(func(ctx context.Context) {
+				err := kubeClient.CoreV1().Namespaces().Delete(ctx, sampleApp.Namespace, metav1.DeleteOptions{})
+				if !apierrors.IsNotFound(err) {
+					Expect(err).NotTo(HaveOccurred(), "failed to delete sample application namespace %q", sampleApp.Namespace)
+				}
+			})
 
-			//By("pointing IngressController/default at the new TLS Secret")
-			//icPatch := []byte(fmt.Sprintf(`{"spec":{"defaultCertificate":{"name":%q}}}`, ingressSecretName))
-			//icGVR := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "ingresscontrollers"}
-			//_, err = dynClient.Resource(icGVR).Namespace("openshift-ingress-operator").Patch(ctx, "default", types.MergePatchType, icPatch, metav1.PatchOptions{})
-			//Expect(err).NotTo(HaveOccurred(), "failed to patch IngressController default certificate")
-		})
+			By("verifying the environment wired HyperShift's default ingress secret and suppressed ACM's secret")
+			Expect(verifiers.VerifyHyperShiftIngressCertificate(10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "HyperShift's ingress certificate secret must exist and be referenced by IngressController/default")
+			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret")
+
+			By("verifying the served default ingress certificate covers the cluster's ingress wildcard")
+			Expect(verifiers.VerifyDefaultIngressCertificate(sampleApp.RouteHost, appsWildcard, 35*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "sample application must serve the delivered default certificate")
+
+			By("pointing IngressController/default at the customer's Let's Encrypt certificate")
+			icPatch := []byte(fmt.Sprintf(`{"spec":{"defaultCertificate":{"name":%q}}}`, ingressSecretName))
+			icGVR := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "ingresscontrollers"}
+			_, err = dynClient.Resource(icGVR).Namespace("openshift-ingress-operator").Patch(ctx, "default", types.MergePatchType, icPatch, metav1.PatchOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to patch IngressController default certificate")
+			customerSecret, err := kubeClient.CoreV1().Secrets(ingressNamespace).Get(ctx, ingressSecretName, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to read the customer's certificate")
+			certificateBlock, _ := pem.Decode(customerSecret.Data[corev1.TLSCertKey])
+			Expect(certificateBlock).NotTo(BeNil(), "customer TLS secret must contain a PEM certificate")
+			customerCertificate, err := x509.ParseCertificate(certificateBlock.Bytes)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse the customer's certificate")
+			roots, err := loadEmbeddedCAs(letsEncryptStagingCAs, "letsencrypt-stg-cas")
+			Expect(err).NotTo(HaveOccurred(), "failed to load Let's Encrypt staging roots")
+			Expect(verifiers.VerifyCustomIngressCertificate(sampleApp.RouteHost, appsWildcard, customerCertificate, roots, 10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "sample application must serve the exact customer-specified certificate with a valid Let's Encrypt chain")
+			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM's ingress certificate must remain absent after the customer's override")
+		},
+		Entry("for 4.20", "4.20"),
+		Entry("for 4.21", "4.21"),
+		Entry("for 4.22", "4.22"),
+		Entry("for 4.23", "4.23"),
+		Entry("for 5.0", "5.0"),
+		Entry("for 5.1", "5.1"),
+	)
 })
 
 func ingressDNSResolver(address string) *net.Resolver {

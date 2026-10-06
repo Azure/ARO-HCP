@@ -135,7 +135,7 @@ var _ = Describe("Customer", func() {
 
 			By("ensuring the cluster is viable (basic v2026 API verification)")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
-				verifiers.VerifyIngressControllerScope(operatorv1.InternalLoadBalancer),
+				verifiers.VerifyIngressControllerScope(operatorv1.InternalLoadBalancer, 5*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster health or IngressController scope for cluster %q", customerClusterName)
 			GinkgoLogr.Info("Cluster health and IngressController scope verified")

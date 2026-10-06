@@ -31,6 +31,7 @@ import (
 
 // AzureCloudEnvironment represents an Azure cloud environment.
 type AzureCloudEnvironment struct {
+	name apisconfigv1.CloudEnvironmentName
 	// Configuration of the cloud environment
 	configuration *cloud.Configuration
 	// RDBMS scope of the cloud environment
@@ -107,11 +108,16 @@ func NewAzureCloudEnvironment(
 	}
 
 	return &AzureCloudEnvironment{
+		name:                     cloudEnvironmentName,
 		configuration:            &configuration.cloud,
 		rdbmsScope:               configuration.rdbmsScope,
 		checkAccessV2Environment: &configuration.checkAccessV2Environment,
 		clientOptions:            clientOptions,
 	}, nil
+}
+
+func (a AzureCloudEnvironment) Name() apisconfigv1.CloudEnvironmentName {
+	return a.name
 }
 
 // AZCoreClientOptions returns an azcore.ClientOptions instance from the current
