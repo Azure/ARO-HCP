@@ -1,7 +1,10 @@
 """Focused safety checks for agentic dependency PR creation and retests."""
 
 import importlib.util
+import json
 import os
+import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest import TestCase, main
@@ -112,6 +115,61 @@ class CreateGuardTests(TestCase):
         item["data"]["manifests"] = ["../api/package.json"]
         with self.assertRaisesRegex(ValueError, "invalid dependency group"):
             guard.group(item)
+
+    @patch.object(guard, "gh_lines")
+    def test_missing_data_is_dropped_instead_of_failing_the_job(self, gh):
+        output = {
+            "items": [
+                {"type": "create_pull_request", "title": "api npm undici to 7.29.1+ (high)"},
+                {"type": "missing_data", "reason": "sprintf-js has no patch"},
+            ]
+        }
+        guard.guard_create(output, "Azure/ARO-HCP")
+        gh.assert_not_called()
+        self.assertEqual(
+            [item["type"] for item in output["items"]],
+            ["missing_data"],
+        )
+
+    @patch.object(guard, "gh_lines")
+    def test_mixed_creates_drop_only_the_item_missing_data(self, gh):
+        gh.side_effect = [[], []]
+        output = {
+            "items": [
+                {"type": "create_pull_request", "title": "api npm undici to 7.29.1+ (high)"},
+                create_item(),
+            ]
+        }
+        guard.guard_create(output, "Azure/ARO-HCP")
+        remaining = [item for item in output["items"] if item.get("type") == "create_pull_request"]
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0]["data"]["package_family"], "typespec")
+        gh.assert_called()
+
+    @patch.object(guard, "gh_lines")
+    def test_invalid_data_still_fails_closed(self, gh):
+        item = create_item()
+        item["data"]["manifests"] = ["../api/package.json"]
+        with self.assertRaisesRegex(ValueError, "invalid dependency group"):
+            guard.guard_create({"items": [item]}, "Azure/ARO-HCP")
+        gh.assert_not_called()
+
+    def test_main_rewrites_output_after_dropping_malformed_creates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "agent_output.json"
+            path.write_text(json.dumps({
+                "items": [
+                    {"type": "create_pull_request", "title": "api npm undici to 7.29.1+ (high)"},
+                    {"type": "reconcile_owned_pr", "pull_request_number": "7187"},
+                ]
+            }))
+            with patch.object(sys, "argv", ["dependabot_guard.py", "create", str(path), "Azure/ARO-HCP"]):
+                guard.main()
+            written = json.loads(path.read_text())
+            self.assertEqual(
+                [item["type"] for item in written["items"]],
+                ["reconcile_owned_pr"],
+            )
 
 
 class RetestGuardTests(TestCase):
