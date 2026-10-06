@@ -49,9 +49,9 @@ tests:
         slo: cluster-upgrade-reach-partial
         component: "slo"
       exp_annotations:
-        summary: "svc-1: Cluster upgrade on /sub/2/rg/c2 to version 4.19.21 not progressing"
+        summary: "svc-1: Cluster version change on /sub/2/rg/c2 to version 4.19.21 not progressing"
         description: |
-          Cluster upgrade target version 4.19.21 has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
+          Cluster version change (upgrade or rollback) to 4.19.21 has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the version change is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
           Service Cluster: svc-1
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
         correlationId: "userJourneyClusterUpgradeStuckInDesired/svc-1/sub/2/rg/c2/4.19.21"
@@ -111,9 +111,9 @@ tests:
         slo: cluster-upgrade-complete
         component: "slo"
       exp_annotations:
-        summary: "svc-1: Cluster upgrade on /sub/2/rg/c2 to version 4.19.21 stuck"
+        summary: "svc-1: Cluster version change on /sub/2/rg/c2 to version 4.19.21 stuck"
         description: |
-          Cluster upgrade target version 4.19.21 has been in progress for over 30 minutes without reaching completed. With the alert pending for 5 minutes, paging starts after ~35 minutes. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
+          Cluster version change (upgrade or rollback) to 4.19.21 has been in progress for over 30 minutes without reaching completed. With the alert pending for 5 minutes, paging starts after ~35 minutes. Completed is when the target version change has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
           Service Cluster: svc-1
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
         correlationId: "userJourneyClusterUpgradeStuckInProgress/svc-1/sub/2/rg/c2/4.19.21"
@@ -125,6 +125,90 @@ tests:
   - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/c4", subscription_id="sub-3", cluster_uuid="uuid-4", version="4.19.20", state="desired"}'
     values: "1+0x50"
   alert_rule_test:
+  - eval_time: 50m
+    alertname: userJourneyClusterUpgradeStuckInProgress
+    exp_alerts: []
+# ========================================
+# Rollback to an older z-stream: a target stuck in desired or partial still alerts
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/c5", subscription_id="sub-4", cluster_uuid="uuid-5", version="4.22.10", state="completed"}'
+    values: "1+0x50"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/c5", subscription_id="sub-4", cluster_uuid="uuid-5", version="4.22.2", state="desired"}'
+    values: "1+0x50"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyClusterUpgradeStuckInDesired
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyClusterUpgradeStuckInDesired
+        cluster: "svc-1"
+        cluster_uuid: "uuid-5"
+        resource_id: "/sub/4/rg/c5"
+        subscription_id: "sub-4"
+        version: "4.22.2"
+        state: "desired"
+        severity: "4"
+        slo: cluster-upgrade-reach-partial
+        component: "slo"
+      exp_annotations:
+        summary: "svc-1: Cluster version change on /sub/4/rg/c5 to version 4.22.2 not progressing"
+        description: |
+          Cluster version change (upgrade or rollback) to 4.22.2 has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the version change is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
+          Service Cluster: svc-1
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
+        correlationId: "userJourneyClusterUpgradeStuckInDesired/svc-1/sub/4/rg/c5/4.22.2"
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/c6", subscription_id="sub-4", cluster_uuid="uuid-6", version="4.22.10", state="completed"}'
+    values: "1+0x50"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/c6", subscription_id="sub-4", cluster_uuid="uuid-6", version="4.22.2", state="desired"}'
+    values: "1x10 0x40"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/c6", subscription_id="sub-4", cluster_uuid="uuid-6", version="4.22.2", state="partial"}'
+    values: "0x10 1x40"
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: userJourneyClusterUpgradeStuckInDesired
+    exp_alerts: []
+  - eval_time: 40m
+    alertname: userJourneyClusterUpgradeStuckInProgress
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyClusterUpgradeStuckInProgress
+        cluster: "svc-1"
+        cluster_uuid: "uuid-6"
+        resource_id: "/sub/4/rg/c6"
+        subscription_id: "sub-4"
+        version: "4.22.2"
+        state: "partial"
+        severity: "4"
+        slo: cluster-upgrade-complete
+        component: "slo"
+      exp_annotations:
+        summary: "svc-1: Cluster version change on /sub/4/rg/c6 to version 4.22.2 stuck"
+        description: |
+          Cluster version change (upgrade or rollback) to 4.22.2 has been in progress for over 30 minutes without reaching completed. With the alert pending for 5 minutes, paging starts after ~35 minutes. Completed is when the target version change has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
+          Service Cluster: svc-1
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
+        correlationId: "userJourneyClusterUpgradeStuckInProgress/svc-1/sub/4/rg/c6/4.22.2"
+# ========================================
+# Completed rollback held by a pin: an older version alone does not alert
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/c7", subscription_id="sub-4", cluster_uuid="uuid-7", version="4.22.10", state="completed"}'
+    values: "1x15 0x40"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/c7", subscription_id="sub-4", cluster_uuid="uuid-7", version="4.22.2", state="desired"}'
+    values: "1x5 0x50"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/c7", subscription_id="sub-4", cluster_uuid="uuid-7", version="4.22.2", state="partial"}'
+    values: "0x5 1x10 0x40"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/c7", subscription_id="sub-4", cluster_uuid="uuid-7", version="4.22.2", state="completed"}'
+    values: "0x15 1x40"
+  alert_rule_test:
+  - eval_time: 50m
+    alertname: userJourneyClusterUpgradeStuckInDesired
+    exp_alerts: []
   - eval_time: 50m
     alertname: userJourneyClusterUpgradeStuckInProgress
     exp_alerts: []
