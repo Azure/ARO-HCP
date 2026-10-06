@@ -283,9 +283,9 @@ spec:
               - key: aro-hcp.azure.com/role
                 operator: In
                 values:
-                - "infra"
+                - "system"
       tolerations:
-      - key: "infra"
+      - key: "CriticalAddonsOnly"
         operator: Equal
         value: "true"
         effect: NoSchedule

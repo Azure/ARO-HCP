@@ -712,6 +712,8 @@ defaults:
           sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8 # v0.42.4 (2026-07-30 13:37)
   # MGMT cluster specifics
   mgmt:
+    scheduling:
+      role: infra
     stamps:
       count: 1
     defaultStorageClassSkuName: "PremiumV2_LRS"

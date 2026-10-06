@@ -747,6 +747,8 @@ mgmt:
         sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
         tag: v0.41.0
   rg: hcp-underlay-perf-usw3ptest-mgmt-1
+  scheduling:
+    role: infra
   stampIdentifier: "1"
   stamps:
     count: 1

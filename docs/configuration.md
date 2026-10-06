@@ -174,6 +174,16 @@ param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }} // ... but not boolea
 - Only **basic fields** (string, boolean, or number types) should be referenced from pipeline files and Bicepparam files. Complex data types do not translate well to EV2 configuration settings right now.
 - Avoid using **arrays** in configuration. Instead, represent arrays as a list of comma separated values and parse them in Bicep templates using the `csvToArray` function from `modules/common.bicep`. Arrays do not translate well to EV2 configuration settings right now.
 
+## Management Controller Scheduling
+
+`mgmt.scheduling.role` selects the `aro-hcp.azure.com/role` node label for
+`mgmt-agent` and `kube-applier`. Supported roles are `infra` (the default) and
+`system`. Helm derives their single pod toleration from the role: `infra` uses
+`infra=true:NoSchedule`, and `system` uses `CriticalAddonsOnly=true:NoSchedule`.
+The operator is always `Equal`, the value `"true"`, and the effect `NoSchedule`.
+
+These settings do not change node pools or the scheduling of other workloads.
+
 ## Schema
 
 The structure of the configuration is strictly defined by a [JSON schema](https://json-schema.org/) to ensure correctness, enforce required fields, and enable validation. This schema is maintained in [config.schema.json](../config/config.schema.json) and dictates the format of the YAML configuration, including supported properties, nested structures, and allowed values.

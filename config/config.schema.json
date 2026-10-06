@@ -3142,6 +3142,24 @@
     "mgmt": {
       "type": "object",
       "properties": {
+        "scheduling": {
+          "description": "Node scheduling for mgmt-agent and kube-applier on management clusters. Does not change node pools or scheduling of other components.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": {
+              "type": "string",
+              "enum": [
+                "infra",
+                "system"
+              ],
+              "default": "infra"
+            }
+          },
+          "required": [
+            "role"
+          ]
+        },
         "aks": {
           "$ref": "#/definitions/aksConfig"
         },
@@ -3200,6 +3218,7 @@
         "applyKubeletFixes",
         "monitoringApiGroup",
         "rg",
+        "scheduling",
         "stamps",
         "subscription",
         "prometheus"
