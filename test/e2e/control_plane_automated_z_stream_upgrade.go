@@ -143,9 +143,12 @@ var _ = Describe("Service Provider", func() {
 			// Retain Immediate from the progressive rollout test: production fleet
 			// canary readiness can outlast this test's upgrade timeout.
 			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
-				Tags: map[string]*string{
+				// Per RPC-Patch-V1-04 these tags replace every tag on the cluster, so the
+				// policy tag has to ride along with the tags the cluster was created with
+				// rather than be sent on its own.
+				Tags: framework.TagsForPatch(clusterParams.Tags, map[string]*string{
 					metadataapi.TagClusterZStreamUpdatePolicy: to.Ptr(string(coreapi.ImmediateZStreamUpdatePolicy)),
-				},
+				}),
 				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20240610preview.VersionProfile{
 						ID:           to.Ptr(minorVersion),
