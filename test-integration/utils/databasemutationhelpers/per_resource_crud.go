@@ -27,6 +27,8 @@ import (
 
 func NewCosmosCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](t *testing.T, cosmosClient corecosmosstorage.ResourcesDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) cosmosstorageutils.ResourceCRUD[InternalAPIType, InternalAPITypePointer] {
 	switch {
+	case strings.EqualFold(resourceType.String(), coreapi.OpenShiftVersionCatalogResourceType.String()):
+		return any(cosmosClient.OpenShiftVersionCatalogs()).(cosmosstorageutils.ResourceCRUD[InternalAPIType, InternalAPITypePointer])
 	case strings.EqualFold(resourceType.String(), coreapi.ClusterControllerResourceType.String()):
 		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Controllers(parentResourceID.Name)).(cosmosstorageutils.ResourceCRUD[InternalAPIType, InternalAPITypePointer])
 	case strings.EqualFold(resourceType.String(), coreapi.ExternalAuthControllerResourceType.String()):

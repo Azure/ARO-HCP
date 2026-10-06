@@ -1,28 +1,41 @@
 digraph version_catalog {
-  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Version catalog - internal discovery and Resources publication", dpi=110];
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.35", ranksep="0.5", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Version catalog - discovery, publication and retirement", dpi=110];
   node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
-  graphdata [label="Cincinnati graph-data archive\nvalidated allowed profiles at/above backend floor", fillcolor="#fff0da", color="#b27624"];
-  refs [label="Cached Cluster / SPC references\nrequested, desired, exact pins, overrides, active\nincludes deleting and nightly; not pin thresholds", fillcolor="#e4f2e5", color="#4c8053"];
-  seed [label="ControlPlaneVersionRolloutSeeding\nexisting rollout watcher; channel keys\nRun: HTTP discovery only, immediate + fixed 5m ticker\nCluster/SPC add/delete; every update maps old + new\nworker creation and legacy cleanup; queue retries"];
-  fleet [label="Fleet: ControlPlaneVersionRollout\nSpec.Version: canonical ID + ChannelGroup\nBestExactVersion may be nil", fillcolor="#e4f2e5", color="#4c8053"];
-  best [label="ControlPlaneVersionBestVersionSelection\nCincinnati exact-release selection\nexisting selector does not resolve nightly"];
-  publish [label="OpenShiftVersionCatalog\ngeneric watcher; MakeKey returns singleton\nbootstrap even empty; rollout add/update/delete + 5m resync\nno delayed recurring requeue\nabsent profile: defer projection; preserve snapshot\npublic floor; Available = BestExactVersion != nil"];
-  catalog [label="Resources: OpenShiftVersionCatalog/default\nprovider-namespace partition; regional account\nEntries: Version {ID, ChannelGroup}, Available\nincludes unresolved entries; empty results = []", fillcolor="#e4f2e5", color="#4c8053"];
-  boundary [shape=note, label="Persistence only at this stage\nFrontend version GET/LIST still use Cluster Service", fillcolor="#f5f5f5", color="#777777"];
-  retire [label="ControlPlaneVersionRolloutRetirement\noriginal rollout watcher; mapped Cluster/SPC dependencies\n5m resync; per-target keys; no timer\nread cached target and current references\nmissing target/profile skips only that key"];
-  refs -> retire [label="mapped notifications; current reference check"];
-  fleet -> retire [label="target add/update/resync"];
-  retire -> fleet [label="DELETE only below floor AND unreferenced", constraint=false];
-  graphdata -> seed [label="discovered profiles"];
-  refs -> seed [label="referenced profiles, including below floor"];
-  seed -> fleet [label="CREATE missing structured profiles\nexisting documents unchanged"];
-  migration [label="CosmosRolloutVersionMigration\nrollout watcher; cache-gated\nGET + validated REPLACE until success per key/process"];
-  fleet -> migration [label="normalized reads", style=dashed];
-  migration -> fleet [label="persist representation", constraint=false];
-  fleet -> best [label="profile exists", style=dashed];
-  best -> fleet [label="persist changed best", constraint=false];
-  fleet -> publish [label="cached full inventory\nadd / update / delete, including tombstones"];
-  publish -> catalog [label="point GET; CREATE / changed ETag REPLACE\nerrors preserve previous snapshot and retry"];
-  {rank=same; catalog; boundary;}
+  graphdata [label="Cincinnati graph-data archive\nchannel names, not exact-release selection\ntypically no nightly definitions", fillcolor="#fff0da", color="#b27624"];
+  refs [label="Cached Cluster / SPC references\nrequested, desired, exact pins, overrides, active\nincludes deleting documents; not pin thresholds", fillcolor="#e4f2e5", color="#4c8053"];
+  subgraph cluster_seed {
+    label="ControlPlaneVersionRolloutSeeding - one controller identity";
+    color="#35648a";
+    discovery [label="Concrete Run after cache sync: HTTP discovery only\nimmediate + fixed 5m ticker; no overlapping passes\nfailures logged; next-tick retry"];
+    seed [label="Existing generic rollout watcher; channel keys\nlive GET; CREATE missing rollouts only\nmissing below floor: recheck cached references\nworker cleanupLegacyStatus after observed repair\nworker errors use queue retries / reconcile metrics"];
+  }
+  events [label="Shared Cluster / SPC dependency handlers\nadd/delete; every update maps old + new; 5m resync\nevent object + targeted cached counterpart\nno eligibility or field-change filters; channel keys"];
+  fleet [label="Fleet: ControlPlaneVersionRollout\nSpec.Version: canonical ID + ChannelGroup\nname must match profile; BestExactVersion may be nil", fillcolor="#e4f2e5", color="#4c8053"];
+  migration [label="CosmosRolloutVersionMigration\ngeneric rollout watcher; cache-gated\n5 workers; 5m cooldown/resync; no custom Run or sweep\nalways GET + validated REPLACE until success per key/process\nconflicts re-read; errors remain retryable\nNotFound skips; later events do not reopen completed keys"];
+  best [label="ControlPlaneVersionBestVersionSelection\nexisting Cincinnati exact-release selector\nnightly remains unresolved by this selector"];
+  retire [label="ControlPlaneVersionRolloutRetirement\nexisting rollout watcher; per-channel keys; no timer\nread cached target + current references\nmissing target / absent profile: skip only this key\nDELETE only below backend floor AND unreferenced"];
+  publish [label="OpenShiftVersionCatalog\ngeneric watcher; MakeKey returns singleton\nbootstrap even empty; rollout add/update/delete + 5m resync\nno delayed recurring requeue\nabsent profile: defer entire projection; keep snapshot\npublic floor; Available = best != nil; honors selected nightly"];
+  catalog [label="Resources: OpenShiftVersionCatalog/default\nregional snapshot, including empty results", fillcolor="#e4f2e5", color="#4c8053"];
+  api [label="Frontend GET / LIST (all API versions)\none Resources point read; no CS fallback\nshared allowed-channel sets\ncandidate / nightly require AFEC", fillcolor="#eee7fb", color="#7b59a4"];
+  health [label="Resources: legacy per-cluster\nseeder Controller status", fillcolor="#e4f2e5", color="#4c8053"];
+  graphdata -> discovery [label="validated profiles at/above backend floor"];
+  refs -> events [label="targeted cached counterpart"];
+  refs -> seed [label="current cached inventory\nincludes nightly", style=dashed];
+  discovery -> seed [label="channel keys"];
+  events -> seed [label="channel keys"];
+  events -> retire [label="channel keys", constraint=false];
+  fleet -> seed [label="add/update/delete + 5m resync\ncleanup checks cached referenced rollouts", style=dashed, constraint=false];
+  seed -> health [label="DELETE for clusters referencing worker channel\nall referenced rollouts cached; queue retries; 404 tolerated"];
+  seed -> fleet [label="CREATE structured profile\nexisting rollouts unchanged"];
+  fleet -> migration [label="add/update/resync; live GET\nreads normalize valid legacy names", style=dashed];
+  migration -> fleet [label="ETag-protected REPLACE\npreserve identity, best and status", constraint=false];
+  fleet -> best [label="channel exists", style=dashed];
+  best -> fleet [label="REPLACE selected best", constraint=false];
+  refs -> retire [label="all references validated", style=dashed, constraint=false];
+  fleet -> retire [label="add/update + 5m resync; cached target", style=dashed];
+  retire -> fleet [label="DELETE; retain referenced channels", constraint=false];
+  fleet -> publish [label="initial sync + add/update/delete + 5m resync"];
+  publish -> catalog [label="CREATE / changed REPLACE"];
+  catalog -> api [label="snapshot, not fleet health"];
 }

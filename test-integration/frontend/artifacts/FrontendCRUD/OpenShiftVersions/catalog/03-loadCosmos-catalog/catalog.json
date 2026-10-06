@@ -1,0 +1,57 @@
+{
+	"id": "838ec9da-43fa-5aae-a300-fdf0f52c7f17",
+	"partitionKey": "microsoft.redhatopenshift",
+	"properties": {
+		"cosmosMetadata": {
+			"instanceVersion": 1,
+			"partitionKey": "microsoft.redhatopenshift",
+			"resourceId": "/providers/microsoft.redhatopenshift/openshiftversioncatalogs/default"
+		},
+		"entries": [
+			{
+				"available": false,
+				"version": {
+					"channelGroup": "stable",
+					"id": "4.22"
+				}
+			},
+			{
+				"available": true,
+				"version": {
+					"channelGroup": "fast",
+					"id": "4.21"
+				}
+			},
+			{
+				"available": true,
+				"version": {
+					"channelGroup": "candidate",
+					"id": "4.21"
+				}
+			},
+			{
+				"available": true,
+				"version": {
+					"channelGroup": "stable",
+					"id": "4.19"
+				}
+			},
+			{
+				"available": true,
+				"version": {
+					"channelGroup": "nightly",
+					"id": "4.21"
+				}
+			},
+			{
+				"available": true,
+				"version": {
+					"channelGroup": "stable",
+					"id": "4.21"
+				}
+			}
+		]
+	},
+	"resourceID": "/providers/microsoft.redhatopenshift/openshiftversioncatalogs/default",
+	"resourceType": "Microsoft.RedHatOpenShift/openShiftVersionCatalogs"
+}

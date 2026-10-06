@@ -109,6 +109,25 @@ Most steps contain:
 {"resourceID": "/subscriptions/.../providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/name"}
 ```
 
+For `httpGet`, `ResourceKey` also accepts optional `expectedStatusCode` and
+`expectedHeaders` fields in `00-key.json`. These assert the final response's
+status and named header values, including error responses. Omit the status (or
+use zero) to skip the status assertion; omitted headers are not checked. An empty
+expected header value checks that `Header.Get` returns an empty string.
+
+```json
+{
+  "resourceID": "/subscriptions/.../providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOpenShiftVersions/4.21",
+  "expectedStatusCode": 503,
+  "expectedHeaders": {"Retry-After": "59"}
+}
+```
+
+These assertions supplement the usual expected resource JSON or
+`expected-error.txt`; they do not replace it. For example, the key above can be
+paired with `expected-error.txt` containing `HTTP 503:`. Other step types ignore
+these fields.
+
 **Typed CRUD steps:**
 ```json
 {

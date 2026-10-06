@@ -18,10 +18,6 @@ shared ownership, and cluster create/update and rollout diagrams, including the 
 Immediate z-stream update policy. Review fixes cover
 rollout membership, initial-assignment ownership, input-event queue metrics,
 field annotations, and the recency-only selection contract.
-Structured-seeding update scope: `Spec.Version` migration, legacy read adaptation,
-periodic discovery and the generic rollout watcher with mapped Cluster/SPC dependencies.
-Catalog publication and retirement bring the rollout/catalog group to nine
-controllers. Frontend catalog cutover is not implemented yet.
 External-auth operation update baseline: `51851bfabe`, rebased on main `08987b4eba`;
 scope: frontend create acceptance without a parent Cluster Service ID, empty
 create/update operation `InternalID`, and the corresponding lifecycle diagrams.
@@ -31,6 +27,13 @@ Update-deadline baseline: `a0f232352a2e933142f2f2dfb61f2870aed7a26f` plus workin
 Cluster teardown update baseline: `d453011603d357d8fa8938acef97eec5d00818c4`
 plus working-tree fixes; scope: ordered ApplyDesire removal, ReadDesire cleanup,
 concurrent Cluster Service delete dispatch, and the cluster-delete diagram.
+
+Version-catalog update baseline: `7ac7faa4596d12d509dff3228add77bb37d39475`
+plus working-tree implementation; scope: discovery, reference-aware seeding and
+retirement, structured rollout profiles and legacy migration, independent seeder
+producers and worker retries, Resources catalog publication, frontend version
+reads, and the two version-policy floors. Only the affected rollout diagram and a focused catalog
+diagram are regenerated; unrelated lifecycle views are unchanged.
 
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
@@ -158,8 +161,8 @@ sum by (source_kind, source) (
 
 The backend derives storage consumer names from its controller launch registry,
 using the registry's lowercase keys for RU budgets. Metrics controllers and the
-Azure SKU cache do not receive storage clients. Each remaining controller receives
-a copy of the shared context with its own Resources, Billing, Fleet, and
+Azure SKU cache do not receive storage clients. Each
+remaining controller receives a copy of the shared context with its own Resources, Billing, Fleet, and
 kube-applier clients. Shared informer clients are constructed separately.
 
 Each container storage constructor (`NewResourcesDBClient`, `NewBillingDBClient`,
@@ -240,8 +243,8 @@ The 30% and 50% limited shares together leave 20% headroom for unrestricted info
 and other traffic; no additional 80% factor is applied to those shares.
 There are no rate-allocation flags.
 
-The backend reduces orphaned Cosmos, orphaned billing, placement pending, orphaned
-managed resource group, and revoked credential garbage collection budgets to 10%
+The backend reduces rollout retirement, orphaned Cosmos, orphaned billing,
+placement pending, orphaned managed resource group, and revoked credential garbage collection budgets to 10%
 of a normal controller's share in **each** container. Customer deletion controllers
 retain normal shares. Unused shares are not redistributed. Use controller name
 constants for lookups and metric identity. Invalid names, duplicate registrations,
@@ -419,6 +422,60 @@ transitively deletes all clusters (and their children) via transactional batches
 
 ---
 
+### GET OpenShift Versions
+
+**Paths:** `GET /subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenShift/locations/{location}/hcpOpenShiftVersions` and `GET .../hcpOpenShiftVersions/{name}`
+**Handlers:** `ArmResourceListVersion`, `GetOpenshiftVersions`, both delegating to
+[`serveOpenShiftVersions`](../frontend/pkg/frontend/openshift_versions.go) for
+**every registered ARM API version**.
+
+Each handler makes one live point read of `OpenShiftVersionCatalogs().Get("default")`
+in **Resources**, not Fleet, an admission cache, or Cluster Service. There are no
+Cosmos writes, request-time graph lookups, or Cluster Service fallback. The
+[backend publisher](#openshiftversioncatalog) is the sole catalog writer.
+
+- Names identify minor versions: stable `4.21`, fast `4.21-fast`, candidate
+  `4.21-candidate`, nightly `4.21-nightly`. IDs use the request subscription and location.
+- Stable and fast are visible at or above `MinimumPublicVersion`; candidate and nightly also
+  require subscription AFEC `microsoft.redhatopenshift/experimentalreleasefeatures`
+  in the `Registered` state. Visibility uses the shared metadata allowed-channel
+  sets; unsupported groups are never listed.
+- Single GET matches the public name case-insensitively. Hidden, below-floor,
+  absent and noncanonical names return `404 NotFound` once the catalog exists.
+  `4.21-stable`, `4.21.0`, `fast-4.21` and `openshift-v4.21` are not aliases.
+- A missing catalog returns `503 ServiceUnavailable` with `Retry-After: 59`.
+  After visibility/name filtering, one or more eligible entries but no available
+  entry also returns that 503. A visible unresolved single GET therefore returns
+  503, whereas a hidden candidate or nightly GET returns 404, not availability information.
+- LIST returns only available visible entries, lexicographically sorted by public
+  name. A mixture of resolved and unresolved entries returns `200` with the resolved
+  subset. A present catalog with no eligible entries returns `200 {"value":[]}`,
+  including a genuinely empty catalog; no `nextLink` is emitted.
+- Returned properties contain `channelGroup` and `enabled: true`. End-of-life
+  fields are omitted, not inferred from graph data. Updating TypeSpec to reflect
+  these response semantics remains follow-up work.
+
+Availability means only that the rollout has a non-nil `Spec.BestExactVersion`.
+There is no freshness TTL or runtime fleet-wide health/drain gate on these reads;
+other storage errors propagate normally rather than triggering a fallback.
+
+### Cluster Version Floor
+
+[`validateClusterMinimumVersion`](../internal/validation/validate_cluster.go)
+applies `MinimumPublicVersion` from [versionpolicy](../internal/versionpolicy/policy.go)
+to cluster creates and changed version requests, including experimental exact
+versions. Major/minor comparison ignores patch and prerelease. Updates with both
+the stored `CustomerProperties.Version` profile and experimental exact version
+unchanged are grandfathered through this floor check; other validation still
+applies. Changing channel group or the exact override is not grandfathered.
+Publication and admission use the public floor; internal discovery/GC use the
+separately advanced backend floor. Both constants are currently `4.20`.
+Neither floor initiates a cluster upgrade.
+Follow the [deprecation procedure](ops/deprecate-openshift-version.md) before
+raising either constant, especially the manual valid-next-target prerequisite.
+
+---
+
 ### PUT Cluster (Create)
 
 **Path:** `PUT .../hcpOpenShiftClusters/{name}` (resource does not exist)
@@ -450,6 +507,18 @@ transitively deletes all clusters (and their children) via transactional batches
 **Path:** `PATCH .../hcpOpenShiftClusters/{name}`
 **Handler:** `updateHCPClusterInCosmos` ([cluster.go](../frontend/pkg/frontend/cluster.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` + `AddReplaceToTransaction`)
+
+PATCH decoding and update mutation/validation use the same subscription snapshot
+from middleware; PUT updates also use this snapshot. With the experimental AFEC
+registered, an ID-derived exact pin is restored into a private deep-copied merge
+baseline. Omitting `properties.version.id` preserves that pin; an explicit minor
+unpins, a full version replaces it, and null removes the supplied field before
+validation. An existing exact-version tag (case-insensitive key) keeps the public
+minor-version baseline, so removing that tag unpins unless a full ID replaces it.
+Present tags remain authoritative. A stored ID/pin minor-version mismatch fails
+before injecting the pin. Conversion, read-only copying, and comparisons use the
+original stored cluster. Without AFEC registration, mutation clears experimental
+pins as usual; the version floor still rejects changed pins below the floor.
 
 | Object | Fields Written |
 |--------|---------------|
@@ -635,7 +704,7 @@ No writes to Cosmos Resources container.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **137 entries**: 111 backend instances, 12 fleet controllers,
+The catalog contains **136 entries**: 111 backend instances, 11 fleet controllers,
 three kube-applier controller types, eight management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
@@ -644,10 +713,10 @@ controllers remain in the inventory. External operators are boundaries, not coun
 as in-repo controllers. Generic watching/operation wrappers, HTTP servers, informer
 factories, leader election and Prometheus collectors are infrastructure rather than
 additional business controllers.
+The shared union-informer controller is counted once, not again among Fleet's
+controllers, even though both backend and Fleet launch it.
 The four [frontend admission informers](#admission-caches-and-startup) are likewise
 infrastructure, not additional controller catalog entries.
-The seeder's discovery loop and dependency handlers share its existing registration
-and do not change these counts.
 
 ### Registration and trigger conventions
 
@@ -682,7 +751,9 @@ The [SKU](../backend/pkg/azure/cachedreader/registration.go) and
 register their existing shared supporting-controller instances. The app only
 aggregates these registrations. Keys lowercase the name constants in the actual
 controller implementation packages; there are no app-owned controller constants
-or construction/launch order lists.
+or construction/launch order lists. The registry remains generic: rollout seeding
+owns its discovery client and queue inputs, with no cross-controller queue injection
+or ordered factory.
 
 Controller construction precedes leader election. Once leading, backend and
 fleet informer factories, the union and SKU controllers, and all consumers launch
@@ -718,7 +789,8 @@ it does not create new factories or caches. The context's
 operation controllers to POST status notifications to `Operation.NotificationURI`.
 
 Registry entries retain the existing worker counts: 20 by default, one for each
-of the six metrics controllers, catalog publisher, retirement and the union informer controller, five for
+of the six metrics controllers, the union informer controller,
+rollout retirement and version-catalog publication, five for
 `PendingCleanup`, `CosmosMigration` and `CosmosRolloutVersionMigration`, and ten for
 `DeleteOrphanedCosmosResources`. `BackfillClusterUID` retains its 60-minute resync
 and `CreateBillingDoc` its 60-second resync. Registry keys are lowercased existing
@@ -734,7 +806,7 @@ Controllers using the default active-operation cooldown run at most every 10s
 with an active operation and every five minutes without one; see
 [cooldown.go](../backend/pkg/utils/controllerutils/cooldown.go).
 See [backend controller wrappers](../backend/pkg/utils/controllerutils/) and the
-[generic watching controller](../internal/controllerutils/generic_watching_controller.go).
+[shared queue implementation](../internal/controllerutils/generic_watching_controller.go).
 Intervals below are periodic resyncs unless explicitly called cooldowns, polls or
 expiry timers. Returned errors normally cause rate-limited retries; a no-work
 return waits for another event/resync. An earliest-recheck gate can suppress work
@@ -935,15 +1007,15 @@ Observes encryption-key rotation and creates an on-demand Velero Backup ApplyDes
 
 ### Backend: fleet control-plane version rollout
 
-These nine rollout/catalog controllers are registered in the [cluster registry](../backend/pkg/controllers/cluster/registration.go)
+These nine controllers are registered in the [cluster registry](../backend/pkg/controllers/cluster/registration.go)
 and run under [backend leader election](../backend/pkg/app/backend.go),
 replacing the removed per-cluster `ControlPlaneDesiredVersion` controller. Fleet
 `ControlPlaneVersionRollout` documents are keyed by y-stream channel (for example,
 `stable-4.21`) in the provider-namespace partition. Their structured
 [`Spec.Version`](../internal/api/fleetapi/types_control_plane_version_rollout.go)
-is a `coreapi.VersionProfile`: canonical major/minor `ID` and an allowed
-`ChannelGroup`. The resource name must equal `ChannelGroup + "-" + ID`.
-Cluster requested versions,
+is a `coreapi.VersionProfile`: canonical major/minor `ID` (for example, `4.21`)
+and an allowed `ChannelGroup` (for example, `stable`). The resource name must equal
+`ChannelGroup + "-" + ID`. Cluster requested versions,
 service-provider desired versions, and externally observed active versions remain
 separate. [Membership](../backend/pkg/controllers/cluster/version/rollout/membership.go)
 uses the cluster's channel group plus the desired minor, falling back to the oldest
@@ -951,113 +1023,194 @@ completed active minor; it does not fall back to customer-requested versions.
 All assignment writes use optimistic concurrency. Conflicts are logged before
 waiting for an informer update, including conflicts reserving a rollout batch.
 Seeding leaves existing rollouts unchanged and never rewrites existing documents.
-Shared Cosmos read conversion normalizes legacy profiles; CosmosRolloutVersionMigration persists them.
+Shared Cosmos read conversion normalizes legacy profiles;
+[CosmosRolloutVersionMigration](#cosmosrolloutversionmigration), registered separately,
+persists them.
 Per-cluster wrappers can persist
 child Controller bookkeeping; the [per-rollout wrapper](../backend/pkg/utils/controllerutils/control_plane_version_rollout_watching_controller.go)
-writes no child Controller document. Seeding also writes no child Controller
-bookkeeping. It uses the existing generic rollout watcher for channel keys,
-workers, retries, logging, metrics and cache sync. The seeder's concrete `Run`
-starts only HTTP discovery, then delegates worker execution to the generic watcher.
-Its existing registration still uses
-20 workers, dependent cache-sync gates and no union kube-applier dependency.
-These controllers select versions in Cosmos;
-Cluster Service and HyperShift perform the upgrades.
+writes no child Controller document. Seeding and retirement use that existing
+per-rollout watcher with `ControlPlaneVersionRolloutKey.YStreamChannel` keys.
+Catalog publication uses `GenericWatchingController[T]` directly, with a real
+`MakeKey` mapping every rollout resource ID to the regional `versionCatalogKey{}`
+singleton. The existing generic controller owns queues, workers, retries, logging,
+metrics, cache sync and resource-ID mapping; none of these three controllers writes
+child Controller bookkeeping. Only seeding adds a concrete `Run` for cache-gated
+Cincinnati discovery, delegating workers to the generic watcher. These
+controllers select versions in Cosmos; Cluster Service and HyperShift perform the upgrades.
 
-Shared Cosmos read conversion fills absent profiles from valid legacy names.
-Consumers use structured profiles directly and return nil for an absent profile,
-resuming on later watch events or resync. Write validation stays at Create/Replace.
-CosmosRolloutVersionMigration watches individual rollouts and
-persists normalized representations with ETag protection, preserving metadata,
-selection and status. Ordinary writes also preserve normalized profiles; seeding
-does not own migration. Creates and updates require valid structured profiles.
+Seeding, publication and retirement separate pure reconciliation from I/O. Their
+cores transform observed documents into repair actions, a desired catalog, or
+retirement candidates without calling clients or listers. Sync shells gather the
+inputs and execute those outputs. Unit tests exercise the transformations directly;
+separate shell tests cover queue lifecycle and persistence behavior.
+
+The shared [Cosmos read converter](../internal/database/cosmosstorage/cosmosstorageutils/convert_generic.go)
+fills an absent `Spec.Version` from the stored legacy channel name, so ordinary
+legacy reads need not wait for migration. Read normalization does not write Cosmos.
+Rollout controllers rely on valid stored data from previous controllers and consume
+structured profiles directly, without repeating write validation. Profile consumers
+skip an absent (zero-value) profile without error and resume on later watch events
+or periodic resync. Catalog defers its entire projection if any profile is absent,
+preserving the snapshot. Retirement skips only its target if that profile is absent;
+other rollout keys proceed independently.
+[CosmosRolloutVersionMigration](#cosmosrolloutversionmigration)
+watches rollout keys and persists normalized representations with ETag
+protection, preserving metadata, selection and status. Create and Replace retain
+write validation. Rollout controllers do not own migration. The
+[catalog](../backend/pkg/controllers/cluster/version/rollout/version_catalog_controller_test.go)
+and [retirement tests](../backend/pkg/controllers/cluster/version/rollout/rollout_retirement_controller_test.go)
+cover structured reconciliation, whole-catalog deferral for absent profiles and
+independent per-rollout retirement; the
+[writer regression](../backend/pkg/controllers/cluster/version/rollout/legacy_writers_test.go)
+uses raw legacy JSON to check normalized reads, persisted profiles and stale-ETag safety.
 
 #### ControlPlaneVersionRolloutSeeding
 
-[Source](../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller.go) | [Startup](../backend/pkg/controllers/cluster/registration.go) | **Trigger:** rollout and Cluster/SPC add/update/delete plus five-minute informer resync; periodic HTTP discovery. No kube-applier watch.
+[Source](../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller.go) | [Startup](../backend/pkg/controllers/cluster/registration.go) | **Trigger:** rollout add/update/delete and Cluster/SPC add/update/delete, with 5m informer resync; Cincinnati discovery feeds the same channel-keyed queue. No kube-applier watch.
 
 The seeder owns the graph-data client. Its
-concrete `Run` waits for dependent caches, then starts only HTTP discovery under
-leadership, immediately and on a fixed five-minute ticker without overlapping calls.
-Discovery and workers share the `ControlPlaneVersionRolloutSeeding` identity.
-Worker keys are `ControlPlaneVersionRolloutKey.YStreamChannel`. Discovery failures
-are logged for the next tick; workers use rate-limited retries and reconcile metrics.
+[`Run`](../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller.go)
+waits for dependent caches, then starts only HTTP graph-data discovery under
+leadership. Discovery runs immediately and then on a fixed five-minute ticker,
+not five minutes after the previous pass finishes. Slow passes never overlap;
+missed ticks may coalesce. Discovery and workers share the
+`ControlPlaneVersionRolloutSeeding` identity. Every worker key is a
+`ControlPlaneVersionRolloutKey{YStreamChannel: "stable-4.21"}` identifying a
+canonical channel. Discovery failures are logged and retried at the
+next tick; discovery does not increment queue retry/reconcile metrics. Worker failures use
+standard rate-limited queue retries and reconcile metrics. Discovery remains part
+of the seeder's lifecycle and registration.
 
-[`Discovery`](../backend/pkg/controllers/cluster/version/rollout/rollout_discovery.go)
-fetches the [Cincinnati graph-data archive](../internal/cincinnati/graph_data.go)
+Discovery fetches the [Cincinnati graph-data archive](../internal/cincinnati/graph_data.go)
 from `https://api.openshift.com/api/upgrades_info/graph-data`, with a one-minute
 deadline and bounded in-memory gzip/tar/schema validation. Only complete validated
-results enqueue canonical allowed profiles at/above `MinimumBackendVersion`
-(currently `4.20` in [versionpolicy](../internal/versionpolicy/policy.go)). This
-works in an empty region and makes no exact-release selection or Cluster Service
-call. Discovery errors enqueue no partial result, do not delete existing rollouts
-and do not block event-driven workers. The archive typically
-has no nightly definitions; accepting nightly references does not add a CI
-releasestream downloader, and the existing selector still skips nightly.
+results enqueue canonical channel keys in the shared allowed-channel set at or above
+`MinimumBackendVersion`. This works in an empty region, independently of existing
+clusters. Discovery makes no exact-release selection or Cluster Service call.
+The archive typically has no nightly channel definitions; accepting that channel
+group does not introduce a CI releasestream downloader.
+Discovery errors enqueue no partial archive result, do not block known-reference
+repair, and do not delete existing rollouts or clear the catalog.
 
-Shared Cluster/SPC handlers map add/delete and both old/new objects on every update,
-including unchanged five-minute resyncs. Targeted cached counterpart reads map
-dependencies only, without eligibility or field-change filters. Callbacks do no
-live I/O. Missing SPC still permits Cluster references; an unresolved parent reports
-an error. Informer resync recovers callback errors. Mapping uses
-[`collectRolloutReferences`](../backend/pkg/controllers/cluster/version/rollout/rollout_references.go).
-References include Cluster requested versions, experimental exact overrides and
-`Status.ActiveVersions`, plus SPC desired, pinned exact and active versions, using
-the parent's channel group. **Deleting documents and nightly channels remain
-references.** `UntilExactVersion` is only a comparison threshold against best in
-the pinned channel, not a dependency on its own minor. NodePool/SPNP are not inputs.
-Known references remain eligible for additive repair even when the scan also
-reports malformed references, unresolved parents or list errors.
+Shared [Cluster/SPC handlers](../backend/pkg/controllers/cluster/version/rollout/rollout_reference_watches.go)
+map add/delete events and both old/new objects on every update, including unchanged
+five-minute resyncs. They combine each event object with a targeted cached read of
+its counterpart, normalize known references and enqueue channel keys, including
+below-floor ones. These are dependency mappings only, with no eligibility or
+field-change filters. Callbacks do not persist state. Missing SPC still permits
+Cluster references; an SPC with an unresolved parent produces an error. Workers use
+[`collectRolloutReferences`](../backend/pkg/controllers/cluster/version/rollout/rollout_references.go)
+to recheck current cached references. References include Cluster requested versions,
+experimental exact overrides and `Status.ActiveVersions`, plus SPC desired version,
+pin exact version and all provider active versions, using the
+parent cluster's channel group. **Deleting documents remain references**, including
+nightly channels. `Spec.PinnedVersion.UntilExactVersion` is only a comparison threshold
+against best in the pinned channel, not a dependency on its own minor version.
+NodePool/SPNP documents are not inputs to this control-plane reference scan.
 
-Workers live-read the Fleet rollout and create it if missing, with `Spec.Version`,
-resource ID and lowercased provider-namespace partition key, leaving best nil.
-Creating a missing below-floor rollout requires a fresh cached regional reference
-inventory confirming that profile. Existing rollouts are a no-op and never replaced.
-Create conflicts and write failures
-return errors for queue retry with a new live read. Pure `reconcileSeeding`
-computes the desired document; `SyncOnce` gathers inputs and persists it.
+The scanner returns known references alongside accumulated errors for malformed
+references or unresolved SPC parent channel groups. Additive seeding preserves
+progress for known references. Event callback failures are logged and recover on
+informer resync; worker inventory errors use queue retries after any safe repair.
+An SPC list/read error does not discard known Cluster references. Retirement treats
+any such error as unsafe and performs no deletion.
 
-A stale seeding key
-cannot recreate a missing below-floor document without a current reference.
-After an error-free reference inventory, worker `cleanupLegacyStatus` checks cached
-Controller documents on clusters referencing its channel and deletes legacy status
-in Resources only when the cache
-shows rollouts exist for all that cluster's references. This removes
-stale Degraded conditions from the former per-cluster seeder. Enqueueing repair is
-not enough: cleanup must observe referenced rollouts in the cache,
-without requiring profile presence or migration persistence. Absent legacy status
-requires no Resources calls. Cleanup tolerates 404; errors use queue retries. See the
-[seeder tests](../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller_test.go)
-for lifecycle, retries, preservation and cleanup coverage.
+Each worker live-reads its Fleet rollout and creates it if missing, with
+`Spec.Version`, resource ID and lowercased provider-namespace partition key, leaving
+the selected version nil. Creating a missing below-floor rollout requires a fresh
+cached regional reference inventory confirming that profile; unrelated scan errors
+do not prevent repairing a known reference. Existing rollouts are a no-op and
+never replaced by the seeder. Create conflicts and failures return errors for queue
+retry with a new live read. Seeding does not migrate legacy rollouts.
+Recreating a deleted below-floor document still requires a
+current reference, even if a stale seeding key remains queued.
+
+After an error-free reference inventory, worker `cleanupLegacyStatus` deletes legacy
+`ControlPlaneVersionRolloutSeeding` Controller status documents in Resources for
+clusters referencing the worker's channel, once the cache shows all their rollouts.
+This removes stale Degraded conditions from the former per-cluster controller.
+Enqueueing repair alone does not authorize cleanup: the worker must observe the
+referenced rollouts in the cache; neither profile presence nor migration persistence
+is a cleanup gate. Cleanup tolerates 404; missing cached rollouts and cleanup failures
+return errors for normal worker queue retries.
+
+[Seeder tests](../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller_test.go)
+cover targeted cache-only events, preservation of existing state, prevention of unreferenced
+below-floor recreation after retirement,
+legacy-health cleanup after observed repair, partial inventories, cache-sync
+cancellation, and discovery timing independent of worker retries. Shared
+[reference-watch tests](../backend/pkg/controllers/cluster/version/rollout/rollout_reference_watches_test.go)
+cover old/new dependency mapping, every-update/resync handling and delete tombstones.
 
 #### ControlPlaneVersionRolloutRetirement
 
-[Source](../backend/pkg/controllers/cluster/version/rollout/rollout_retirement_controller.go) | **Trigger:** rollout watcher and shared Cluster/SPC mapped dependencies, with five-minute resync; one worker, no timer.
+[Source](../backend/pkg/controllers/cluster/version/rollout/rollout_retirement_controller.go) | [Startup](../backend/pkg/controllers/cluster/registration.go) | **Trigger:** rollout add/update and shared Cluster/SPC add/update/delete handlers, all with 5m informer resync; per-rollout channel key, standard error retries after dependent caches sync. No controller-owned timer or regional scan key.
 
-Reads the cached target and current Cluster/SPC references. Missing targets or absent
-target profiles skip only that key, without blocking others. Reference-inventory
-errors prevent deletion. Only below-backend-floor, unreferenced targets are deleted;
-404 is tolerated and other errors use queue retries. Deleting-resource references
-remain protected. Events are dependency hints, not authorization; inventories are
-eventually consistent rather than a transactionally locked snapshot. Migration
-persistence is not required. See the [deprecation procedure](ops/deprecate-openshift-version.md).
+Reads the target Fleet rollout from cache. A missing target or absent target
+`Spec.Version` returns nil without blocking other keys; later watch/resync events
+can retry. Reads current cached Cluster/SPC references using the same conservative
+scan as seeding, rather than treating an event payload as deletion authorization.
+Any reference-scan error prevents deletion, even when known references were returned.
+Floor and reference comparisons use the structured profile directly.
+Deletes only the target **below `MinimumBackendVersion` AND unreferenced**, tolerating
+404. Retirement need not wait for migration persistence. Retains deleting-resource
+references and every rollout at/above the floor,
+even if absent from current graph data. This is internal Fleet garbage collection,
+not customer deletion, cluster migration, or an all-fleet rollout gate. References
+are eventually consistent, not a transactionally locked fleet snapshot. The delete
+event triggers catalog reprojection; no Resources/Cluster Service/Kubernetes
+resource is deleted by retirement.
 
 #### OpenShiftVersionCatalog
 
-[Source](../backend/pkg/controllers/cluster/version/rollout/version_catalog_controller.go) | **Trigger:** bootstrap, rollout add/update/delete and unchanged five-minute resync; one singleton key and worker after Fleet cache sync.
+[Source](../backend/pkg/controllers/cluster/version/rollout/version_catalog_controller.go) | [Startup](../backend/pkg/controllers/cluster/registration.go) | **Trigger:** rollout add/update/delete (including tombstones), unchanged 5m informer resyncs, and explicit bootstrap enqueue even with an empty informer; one regional singleton key and one worker. No delayed recurring requeue.
 
-Uses the original generic watcher with `MakeKey` mapping every rollout ID to the
-same regional key. Bootstrap enqueues even with an empty informer. There is no
-delayed recurring requeue. The publisher projects profiles at/above the public
-floor, sorted by ID then channel group; availability means non-nil best version,
-not rollout health. An absent profile defers projection without changing storage.
-Creates a missing Resources catalog or replaces changed entries with ETag protection,
-including empty results. Errors use queue retries.
+Uses the existing generic watcher, with `MakeKey` returning `versionCatalogKey{}`
+for every rollout resource ID. Waits for the Fleet rollout informer's initial sync,
+including an empty list. Events and resync enqueue immediately; catalog scheduling
+does not use `EnqueueAfter`/`AddAfter` or require a scheduled-retry hot-loop alert
+exclusion.
+Projects storage-normalized
+`Spec.Version` profiles at/above `MinimumPublicVersion` into
+[`OpenShiftVersionCatalog`](../internal/api/coreapi/types_openshiftversioncatalog.go)
+entries with `Version.ID` (minor), `Version.ChannelGroup`, and `Available` equal to
+`Spec.BestExactVersion != nil`; experimental channel visibility is filtered later per request.
+If any rollout has an absent profile, including a below-floor entry, returns nil
+and defers the entire projection without creating or replacing the catalog.
+The previous snapshot remains intact; rollout events and informer resync retry.
+The generic projection honors any selected nightly rollout just like candidate.
+Availability still depends on backend selection: the existing Cincinnati selector
+does not resolve nightly releases, which are published through the CI releasestream
+API. No releasestream downloader is added, and the nightly exact-pin admission
+requirement is unchanged.
+Sorts by ID then channel group and point-reads the Resources singleton `default`,
+creating it when absent or replacing only changed `Entries` with ETag concurrency.
+Its internal ID is `/providers/microsoft.redhatopenshift/openshiftversioncatalogs/default`,
+partition key `microsoft.redhatopenshift`; the Resources account supplies regional
+scope. It is not an ARM resource or a Fleet document. An empty projection is
+persisted as an empty catalog, distinct from an absent/bootstrap catalog.
+Publication does not wait for discovery's first successful pass. An initially empty
+Fleet informer can therefore produce an early LIST `200 {"value":[]}` (single GET
+404) before discovery/seeding populates it; this is accepted behavior, not a 503
+bootstrap gate. An absent catalog or visible unresolved entries still follow the
+503 rules above.
 
-The internal ID is `/providers/microsoft.redhatopenshift/openshiftversioncatalogs/default`,
-partition `microsoft.redhatopenshift`; this is regional Resources data, not Fleet or
-ARM. Frontend version GET/LIST still use Cluster Service at this stage.
+Successful persistence makes the snapshot available to frontend GET/LIST. It does
+not confirm upgrades, rollout health or graph freshness. No runtime global gate
+waits for every channel to resolve before publishing; unresolved entries remain
+explicitly unavailable. See [API read semantics](#get-openshift-versions).
 
 #### ControlPlaneVersionBestVersionSelection
+
+Rollout selection, membership and status fanout consume the structured
+`Spec.Version` profile supplied by shared Cosmos read conversion. Best selection,
+status collection and progressive rollout return nil when that profile is absent;
+status fanout skips such rollouts. Later watch events or periodic resync resume work.
+Initial, minor-upgrade and forced assignment consume only `Spec.BestExactVersion`
+from the rollout and add no profile checks. Ordinary writers preserve the
+normalized profile when replacing a document; creates and replacements retain validation.
+ETag checks serialize writes with CosmosRolloutVersionMigration persistence, so stale
+writers cannot overwrite newer profiles, selection or status.
 
 [Source](../backend/pkg/controllers/cluster/version/rollout/best_version_controller.go) · [Startup](../backend/pkg/app/backend.go) · **Trigger:** Rollout informer; channel key, 5m resync; no additional cooldown.
 
@@ -1178,6 +1331,12 @@ Resolves the requested node-pool version with the cluster's version constraints 
 [Source](../backend/pkg/controllers/nodepool/version/nodepool_active_version_controller.go) · **Trigger:** Node pool and mirrored reads; 5m.
 
 Requires a service-provider node pool and populated mirrored NodePool content. Deduplicates valid `status.nodesInfo.nodeVersions[].ocpVersion` values and sorts newest first into `ServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions`. Separately writes full version strings into `NodePool.Status.ActiveVersions` for customer responses, using the cached node-pool document. ETag conflicts defer reconciliation; the two writes are not transactional.
+
+These are currently observed per-node versions, not an append-only upgrade history
+or a copy of NodePool `status.version`. Missing observations, an empty NodeVersions
+list or no usable parsed versions leave existing Cosmos observations unchanged.
+Node-pool versions constrain minor-upgrade skew, but neither NodePool nor SPNP
+status is a reference source for control-plane rollout seeding/retirement.
 
 #### TriggerNodePoolUpgrade
 
@@ -1517,23 +1676,19 @@ For management clusters with pending reservations, removes entries whose service
 
 #### CosmosMigration
 
-[Source](../backend/pkg/controllers/cosmosmigration/cosmos_migration.go) · **Trigger:** Subscription; once per process/key.
+[Source](../backend/pkg/controllers/cosmosmigration/cosmos_migration.go) · **Trigger:** Subscription; 5m cooldown/resync, five workers; once successfully completed per subscription per process.
 
-Live-reads and reserializes resources recursively, including per-management-cluster kube-applier documents, to migrate their stored representation. Skips TTL documents and retries conflicts.
+Live-reads and reserializes Resources recursively, including per-management-cluster kube-applier documents, to migrate their stored representation. Skips TTL documents to preserve expiry, skips documents missing at Get, and retries Get+Replace up to three attempts on conflicts/precondition failures. Aggregates migration errors for queue retry and marks a subscription complete only after success. Uses the existing cache-gated subscription watcher; it does not access Fleet or migrate rollouts.
 
 #### CosmosRolloutVersionMigration
 
-[Source](../backend/pkg/controllers/cosmosmigration/rollout_version_migration.go) | **Trigger:** rollout add/update/resync; five workers, five-minute cooldown/resync, rollout-cache gating.
+[Source](../backend/pkg/controllers/cosmosmigration/rollout_version_migration.go) | [Startup](../backend/pkg/controllers/cosmosmigration/registration.go) | **Trigger:** Rollout informer add/update/resync; channel key, 5m cooldown/resync, five workers; no delete handler.
 
-The separate controller uses the existing rollout watcher without a custom Run or
-Fleet sweep. Each channel performs live Get and validated Replace until one write
-succeeds per process, including unused and already-structured rollouts. Conflicts
-re-read up to three attempts; errors remain retryable. NotFound skips without
-completion or recreation. Later events do not reopen completed keys.
-Subscription CosmosMigration does not
-access Fleet. Later old-binary writes remain normalized on read, but persistence
-requires an ordinary write or migration after restart; durable completion requires
-old writers to stop.
+Uses the existing `NewControlPlaneVersionRolloutWatchingController` and generic worker `Run`, gated only on the rollout cache. It has no custom `Run`, polling loop or Fleet sweep, and writes no child Controller bookkeeping. Unused rollouts are included without subscriptions, cluster references or seeding dependencies.
+
+For each uncompleted key, live Get supplies shared read normalization, then validated `Replace(old.DeepCopy(), old, nil)` always rewrites the document, even if its profile is already structured. ETag protection preserves identity, selected best and status; conflicts/precondition failures retry the full Get+Replace cycle up to three attempts before returning an error to the queue. Other errors leave the key retryable and do not mark completion. NotFound at Get or Replace is a benign no-op, not completion; soft-deleted documents remain hidden and are never recreated or rewritten, preserving tombstone TTL.
+
+Only a successful Replace marks that channel complete for the process lifetime. Later events and resyncs do not reopen completed keys or perform another Get+Replace; failures on other keys do not reset completion. A later old-binary write can remove a persisted profile during mixed-version deployment. Reads remain normalized, but persistence then requires an ordinary write or migration after restart; durable completion requires old writers to have stopped. The integration-test helper `MigrateAllRolloutVersionsOrDie` lists rollouts once and calls the same per-key `SyncOnce`; it is not the production trigger.
 
 #### DeleteOrphanedCosmosResources
 
@@ -1786,7 +1941,7 @@ The DataplaneController registers ready session credentials, owner and backend A
 | Azure VMSS NICs / AKS pool ceilings | [SwiftNICController](#swiftniccontroller) and [ManagementClusterScaleCeilingReportingController](#managementclusterscaleceilingreportingcontroller) **observe** | The former changes Kubernetes Node capacity; the latter writes Cosmos scheduling capacity. Neither changes Azure VM/pool size. |
 | Azure Monitor metrics-container ingestion limits | [AMWIngestionScaling](#amwingestionscaling) reads utilization and updates Azure limits | Periodic fleet controller, outside any single cluster's lifecycle. |
 | OpenShift update graph | [ControlPlaneVersionBestVersionSelection](#controlplaneversionbestversionselection) **observes** | Selects the channel target in Fleet Cosmos; assignment writes provider intent, while Cluster Service and HyperShift execute upgrades. |
-| Cincinnati graph-data archive | [ControlPlaneVersionRolloutSeeding](#controlplaneversionrolloutseeding) **observes** | Its periodic discovery loop queues channel keys alongside mapped dependency events, including in an empty region. No external mutation, exact-release selection or Cluster Service lookup. |
+| Cincinnati graph-data archive | [ControlPlaneVersionRolloutSeeding](#controlplaneversionrolloutseeding) **observes** | Its periodic input discovers channel names and queues seeding alongside reference repair. No external mutation or Cluster Service version lookup; Resources publication projects Fleet state even before selection resolves. |
 | Cluster Service cluster/node pool/external auth | Create, update-dispatch, upgrade and delete-dispatch controllers call the external API | ID clearers observe 404; operation pollers observe completion. [ClusterServiceMatchingClusters](#clusterservicematchingclusters) also deletes aged, live-rechecked orphan clusters. |
 | Cluster Service provision shards / Maestro consumers | Fleet registration controllers ensure external registrations | Fleet management-cluster conditions record readiness for placement. Maestro/work-agent and HyperShift are external components, not repository controllers in this catalog. |
 | Kubernetes desired manifests | [ApplyDesireController](#applydesirecontroller) applies/deletes objects | Backend `ClusterResources`, backup and credential controllers write intent documents. An ApplyDesire **Delete request** executes a Kubernetes deletion; removal of the Cosmos intent alone does not. |
@@ -1881,13 +2036,8 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 ![Control-plane version rollout digraph](diagrams/controller-flows/control-plane-version-rollout.png)
 
-[Seeding](#controlplaneversionrolloutseeding) runs independent discovery and
-mapped dependency watches after cache sync. Discovery runs immediately and on a
-five-minute ticker; every Cluster/SPC notification maps channel keys through cached dependencies.
-Workers create missing structured channel documents without rewriting existing state.
-Deleting/nightly references remain repairable,
-and missing below-floor profiles require a current cached reference.
-[Best selection](#controlplaneversionbestversionselection) independently chooses the target.
+[Seeding](#controlplaneversionrolloutseeding) creates the channel document and
+[best selection](#controlplaneversionbestversionselection) chooses its target.
 [Initial](#initialnormalclusterdesiredversion) and [minor-version](#minorupgradenormalclusterdesiredversion)
 assignments use the requested channel; [normal rollout](#zstreamprogressivedesiredversionrollout)
 uses provider membership and bounded canary/rolling gates. [Forced assignment](#forcedclusterdesiredversion)
@@ -1900,14 +2050,46 @@ and normal assignment's own snapshot calculations. Persisted aggregate counts ar
 observations; normal assignment recomputes its decision inputs. An assigned version
 is not upgrade completion, and automatic z-stream rollout creates no ARM operation.
 
-### Version catalog publication
+### Version Catalog Lifecycle
 
-![Version catalog publication](diagrams/controller-flows/version-catalog.png)
+[Full PNG](diagrams/controller-flows/version-catalog.png) | [Graphviz source](diagrams/controller-flows/version-catalog.dot)
 
-[Graphviz source](diagrams/controller-flows/version-catalog.dot). Seeding creates
-profiles, selection resolves exact targets, and publication projects availability
-into Resources. Retirement checks each obsolete target against current references.
-Frontend cutover is not implemented yet.
+![Version discovery, catalog publication and retirement](diagrams/controller-flows/version-catalog.png)
+
+[Seeding](#controlplaneversionrolloutseeding) uses the existing rollout watcher with
+channel keys. Its concrete `Run` starts only HTTP discovery after cache sync,
+immediately and on a fixed five-minute ticker; discovery errors wait for the next
+tick. Shared Cluster/SPC handlers map add/delete and both old/new objects on every
+update, including five-minute resyncs, using cached counterpart lookups only for
+dependency mapping, with no eligibility filters. Workers live-read and create missing
+rollouts, leaving existing documents unchanged, and run `cleanupLegacyStatus` once
+the cache shows all referenced rollouts. Worker errors use queue retries.
+Storage reads normalize legacy profiles; the separate
+[CosmosRolloutVersionMigration](#cosmosrolloutversionmigration) watcher persists each
+key once successfully per process, outside seeding. Discovery identifies minor version and channel
+group pairs; the existing
+[selector](#controlplaneversionbestversionselection) chooses exact releases.
+[Catalog publication](#openshiftversioncatalog) maps rollout resource IDs to one
+singleton key through `MakeKey`, with bootstrap even for an empty informer and
+add/update/delete plus five-minute resync notifications, not delayed recurring
+requeues. It can run before selection and persists unavailable entries until Fleet
+observations resolve them. Its Resources
+write is the only version-data source for [frontend GET/LIST](#get-openshift-versions).
+[Retirement](#controlplaneversionrolloutretirement) watches individual rollouts and
+the same Cluster/SPC dependencies, with no timer. It checks the cached target and
+current references; missing targets or absent target profiles skip only that key.
+Deletion requires both below-backend-floor and no references; deleting resources
+still retain their channels. Public-floor
+advancement hides a version independently of internal retention. The
+[operations procedure](ops/deprecate-openshift-version.md) defines the manual
+fleet prerequisite; there is no runtime global drain gate.
+
+Render only the affected version diagrams from the repository root:
+
+```sh
+dot -Tpng docs/diagrams/controller-flows/control-plane-version-rollout.dot -o docs/diagrams/controller-flows/control-plane-version-rollout.png
+dot -Tpng docs/diagrams/controller-flows/version-catalog.dot -o docs/diagrams/controller-flows/version-catalog.png
+```
 
 ### Cluster delete
 
@@ -2021,7 +2203,8 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Service-provider cluster `Spec.ControlPlaneVersion.DesiredVersion` / `DesiredVersionLastTransitionTime` | [Initial assignment](#initialnormalclusterdesiredversion), [minor-version assignment](#minorupgradenormalclusterdesiredversion), [normal rollout](#zstreamprogressivedesiredversionrollout) and [forced assignment](#forcedclusterdesiredversion) write the target and transition time. Initial assignment also backfills a missing/zero time without changing the target. Cluster creation, upgrade dispatch and operation completion consume desired state; it is not an observed version. |
 | Cluster `ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` | Frontend admission projects the AFEC-gated `aro-hcp.experimental.cluster.z-stream-update-policy` tag; its only valid value is `Immediate`. Removing the tag or AFEC clears the policy. [Forced assignment](#forcedclusterdesiredversion) follows the desired channel's best z-stream without progressive gates, after pins and exact overrides. |
 | Service-provider cluster `Spec.PinnedVersion` | SRE supplies `ExactVersion` and optional `UntilExactVersion`. [Forced assignment](#forcedclusterdesiredversion) clears the pin once channel best reaches the release threshold. Pins precede experimental exact versions and normal assignment. |
-| Fleet `ControlPlaneVersionRollout` existence / `Spec.Version` / `Spec.BestExactVersion` | [Seeding](#controlplaneversionrolloutseeding) creates discovered/referenced documents with structured profiles, including deleting/nightly references, leaving existing documents unchanged. Shared reads normalize legacy profiles; CosmosRolloutVersionMigration persists them. [Best selection](#controlplaneversionbestversionselection) owns the target; assignment controllers consume it. |
+| Fleet `ControlPlaneVersionRollout` existence / `Spec.Version` / `Spec.BestExactVersion` | [Seeding](#controlplaneversionrolloutseeding) creates discovered/referenced documents with structured profiles, including deleting references, without rewriting existing state. Shared Cosmos reads normalize legacy profiles; [CosmosRolloutVersionMigration](#cosmosrolloutversionmigration) persists each key once successfully per process. [Retirement](#controlplaneversionrolloutretirement) deletes only below-backend-floor unreferenced documents. [Best selection](#controlplaneversionbestversionselection) owns the target; assignment and catalog controllers consume it. |
+| Resources `OpenShiftVersionCatalog.Entries[].Version` / `.Available` | [OpenShiftVersionCatalog](#openshiftversioncatalog) alone projects Fleet channel profiles and non-nil best-version availability above the public floor. Frontend GET/LIST point-reads this regional singleton and filters subscription visibility; no frontend writes or Cluster Service fallback. |
 | Fleet rollout status count maps | [Status collector](#controlplaneversionstatuscollector) alone persists desired, mismatched, failed, achieved and successful counts. Normal assignment recomputes its own snapshot counts to avoid collector lag. |
 | Fleet rollout `Status.LastAssignmentTime` / `Status.Conditions` | [Normal assignment](#zstreamprogressivedesiredversionrollout) reserves batches before provider writes and reports Progressing/Degraded. Persisted cooldown protects across restarts; it does not claim external completion. |
 | Service-provider cluster `Status.ControlPlaneVersion.ActiveVersions` / `Status.DesiredVersionChannels` | [ControlPlaneActiveVersions](#controlplaneactiveversions) copies exact HostedCluster history with per-version/state transition times and desired channels. Completed history and nonzero transition times drive rollout accounting. Desired target and active history can differ while an upgrade is underway. |
@@ -2049,7 +2232,6 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Credential request spec / status | [Credential dispatch](#systemadmincredentialdispatchrequestcredential) creates request material. [Issuance observation](#systemadmincredentialissuanceobserver) writes signed certificate and terminal conditions. Revocation marking and cluster deletion mark requests for cleanup; request controllers remove external artifacts and documents. |
 | Credential revocation conditions / deletion timestamp | MarkRequests reports request marking; Completion combines that with observed certificate revocation and sets deletion intent; Deletion removes artifacts/document; operation poller observes disappearance. |
 | Child `Controller` conditions and reconcile metadata | Generic wrappers persist bookkeeping; version/other syncers can set intent conditions. Degraded aggregators read them. “No domain write” in the catalog does not imply the wrapper never writes a Controller document. |
-| Legacy per-cluster `ControlPlaneVersionRolloutSeeding` Controller document | The channel-keyed [seeder](#controlplaneversionrolloutseeding) writes no new child bookkeeping. Workers delete cached obsolete status only after an error-free inventory and cached observation of all referenced rollouts. |
 | Kubernetes Session status / secrets | Sessiongate's [control-plane controller](#sessioncontrolplanecontroller) owns session expiry, readiness, endpoint and credential references; [DataplaneController](#dataplanecontroller) consumes them to configure its in-memory proxy registry. |
 
 ## Regeneration
