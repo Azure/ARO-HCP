@@ -5,12 +5,12 @@ This plan maps the fleet rollout design originally authored on the
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: the seven rollout controllers plus catalog publication, separate CosmosRolloutVersionMigration,
+> Status: the seven rollout controllers plus catalog publication and retirement, separate CosmosRolloutVersionMigration,
 > Cosmos storage, informers, and backend wiring
 > are implemented. They run unconditionally. Production policy is hardcoded;
 > risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
 > Structured rollout profiles, independent migration, and discovery/reference seeding are
-> implemented. Frontend catalog cutover and rollout retirement are not implemented yet.
+> implemented. Frontend catalog cutover is not implemented yet.
 
 ## 1. Background: the pipeline before this change
 
@@ -169,8 +169,8 @@ is separate from the per-channel minimum exact versions used by selection.
 
 ## 5. Controllers
 
-All eight rollout/catalog controllers plus separate migration run in the `backend` binary.
-Three assignment controllers are per-cluster; the other five, including seeding
+All nine rollout/catalog controllers plus separate migration run in the `backend` binary.
+Three assignment controllers are per-cluster; six, including seeding, retirement
 and migration, use the existing rollout watcher with channel keys.
 `GenericWatchingController` retains queue execution, retries, logging, metrics,
 cache-sync gating and resource-ID mapping. Seeding adds only a cache-gated HTTP
@@ -324,10 +324,19 @@ The sync shell creates a missing catalog or replaces changed entries with ETag
 protection, including empty results. Errors use queue retries. Frontend version
 GET/LIST still use Cluster Service at this stage.
 
+### Rollout Retirement
+
+Uses the original rollout watcher and shared Cluster/SPC dependency handlers, with
+five-minute informer resync and no timer or regional scan key. Each worker reads
+its target and current references from caches. Missing targets or absent target
+profiles skip only that key; reference-inventory errors prevent deletion. Only a
+below-backend-floor target with no references is deleted, tolerating 404. Events
+are dependency hints, not authorization. Migration persistence is not required.
+
 ## 6. Ownership and cutover
 
 This implementation deliberately replaces `ControlPlaneDesiredVersion`; all
-eight rollout/catalog controllers and the separate migration run unconditionally. The earlier feature-flag proposal
+nine rollout/catalog controllers and the separate migration run unconditionally. The earlier feature-flag proposal
 was removed during review. Restoring it would reintroduce the removed owner and
 is not part of this change.
 
@@ -376,7 +385,7 @@ Implemented:
 
 - Fleet API, validation of supported channel groups and major/minor names,
   Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
-- Eight rollout/catalog controllers plus separate migration, backend registration under leader election, and unit tests.
+- Nine rollout/catalog controllers plus separate migration, backend registration under leader election, and unit tests.
 - Structured `Spec.Version`, shared read normalization and independent Fleet migration.
 - Generic rollout watcher with mapped Cluster/SPC dependencies, periodic discovery,
   below-floor reference repair and worker-owned obsolete health cleanup.
@@ -387,7 +396,7 @@ Implemented:
 
 Follow-ups:
 
-- Frontend catalog cutover and unreferenced-rollout retirement.
+- Frontend catalog cutover.
 - Filter platform/control-plane risks from Cincinnati conditional updates. The
   current graph helper selects by recency, so selected versions are not
   guaranteed to be free of conditional-update risks.

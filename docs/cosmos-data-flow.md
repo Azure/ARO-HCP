@@ -20,8 +20,8 @@ rollout membership, initial-assignment ownership, input-event queue metrics,
 field annotations, and the recency-only selection contract.
 Structured-seeding update scope: `Spec.Version` migration, legacy read adaptation,
 periodic discovery and the generic rollout watcher with mapped Cluster/SPC dependencies.
-Catalog publication adds an eighth rollout/catalog controller and a Resources
-singleton. Frontend catalog cutover and rollout retirement are not implemented yet.
+Catalog publication and retirement bring the rollout/catalog group to nine
+controllers. Frontend catalog cutover is not implemented yet.
 External-auth operation update baseline: `51851bfabe`, rebased on main `08987b4eba`;
 scope: frontend create acceptance without a parent Cluster Service ID, empty
 create/update operation `InternalID`, and the corresponding lifecycle diagrams.
@@ -635,7 +635,7 @@ No writes to Cosmos Resources container.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **136 entries**: 110 backend instances, 12 fleet controllers,
+The catalog contains **137 entries**: 111 backend instances, 12 fleet controllers,
 three kube-applier controller types, eight management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
@@ -659,13 +659,13 @@ and do not change these counts.
 | Management-agent | [options.go](../mgmt-agent/cmd/options.go) |
 | Sessiongate | [options.go](../sessiongate/cmd/options.go) |
 
-The backend registry represents **111 launches**: 109 instances in the billing,
+The backend registry represents **112 launches**: 110 instances in the billing,
 cluster, clusterresources, cosmosmigration, datadump, externalauth, metrics,
 mismatch, and nodepool zones, the Azure SKU cached-reader controller, and the
-shared union kube-applier informer controller. This matches the catalog's 110
+shared union kube-applier informer controller. This matches the catalog's 111
 backend instances plus the separately counted shared union controller.
 `ClusterDenyAssignment` is instantiated and launched only when `HasRealFPA` is
-true; otherwise 110 controllers run. The flag is also passed to cluster creation.
+true; otherwise 111 controllers run. The flag is also passed to cluster creation.
 
 Each top-level controller package owns a `registration.go` file and a `Register`
 function: [billing](../backend/pkg/controllers/billing/registration.go),
@@ -718,7 +718,7 @@ it does not create new factories or caches. The context's
 operation controllers to POST status notifications to `Operation.NotificationURI`.
 
 Registry entries retain the existing worker counts: 20 by default, one for each
-of the six metrics controllers, catalog publisher and the union informer controller, five for
+of the six metrics controllers, catalog publisher, retirement and the union informer controller, five for
 `PendingCleanup`, `CosmosMigration` and `CosmosRolloutVersionMigration`, and ten for
 `DeleteOrphanedCosmosResources`. `BackfillClusterUID` retains its 60-minute resync
 and `CreateBillingDoc` its 60-second resync. Registry keys are lowercased existing
@@ -935,7 +935,7 @@ Observes encryption-key rotation and creates an on-demand Velero Backup ApplyDes
 
 ### Backend: fleet control-plane version rollout
 
-These eight rollout/catalog controllers are registered in the [cluster registry](../backend/pkg/controllers/cluster/registration.go)
+These nine rollout/catalog controllers are registered in the [cluster registry](../backend/pkg/controllers/cluster/registration.go)
 and run under [backend leader election](../backend/pkg/app/backend.go),
 replacing the removed per-cluster `ControlPlaneDesiredVersion` controller. Fleet
 `ControlPlaneVersionRollout` documents are keyed by y-stream channel (for example,
@@ -1028,6 +1028,18 @@ without requiring profile presence or migration persistence. Absent legacy statu
 requires no Resources calls. Cleanup tolerates 404; errors use queue retries. See the
 [seeder tests](../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller_test.go)
 for lifecycle, retries, preservation and cleanup coverage.
+
+#### ControlPlaneVersionRolloutRetirement
+
+[Source](../backend/pkg/controllers/cluster/version/rollout/rollout_retirement_controller.go) | **Trigger:** rollout watcher and shared Cluster/SPC mapped dependencies, with five-minute resync; one worker, no timer.
+
+Reads the cached target and current Cluster/SPC references. Missing targets or absent
+target profiles skip only that key, without blocking others. Reference-inventory
+errors prevent deletion. Only below-backend-floor, unreferenced targets are deleted;
+404 is tolerated and other errors use queue retries. Deleting-resource references
+remain protected. Events are dependency hints, not authorization; inventories are
+eventually consistent rather than a transactionally locked snapshot. Migration
+persistence is not required. See the [deprecation procedure](ops/deprecate-openshift-version.md).
 
 #### OpenShiftVersionCatalog
 
@@ -1894,7 +1906,8 @@ is not upgrade completion, and automatic z-stream rollout creates no ARM operati
 
 [Graphviz source](diagrams/controller-flows/version-catalog.dot). Seeding creates
 profiles, selection resolves exact targets, and publication projects availability
-into Resources. Frontend cutover and retirement are not implemented yet.
+into Resources. Retirement checks each obsolete target against current references.
+Frontend cutover is not implemented yet.
 
 ### Cluster delete
 

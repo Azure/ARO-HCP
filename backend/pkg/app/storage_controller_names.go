@@ -23,6 +23,7 @@ import (
 	credentialrequestdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/deletion"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version/rollout"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metrics"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -63,6 +64,7 @@ func BackendStorageControllerNames(hasRealFPA bool) []string {
 // Controllers on the customer deletion path retain the normal budget.
 func BackendCleanupControllerFractions(fraction float64) map[string]float64 {
 	return map[string]float64{
+		strings.ToLower(rollout.RolloutRetirementControllerName):                                fraction,
 		strings.ToLower(mismatch.DeleteOrphanedCosmosResourcesControllerName):                   fraction,
 		strings.ToLower(billing.OrphanedBillingCleanupControllerName):                           fraction,
 		strings.ToLower(clusterplacement.PendingCleanupControllerName):                          fraction,

@@ -160,6 +160,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Dashboard for pod health, restarts, node pressure, and scheduling delays
 - [Cleanup Stuck Cluster Deletion](ops/cleanup-stuck-cluster-deletion.md)
   - Procedure for manually cleaning up clusters stuck on deletion
+- [Deprecate an OpenShift Minor Version](ops/deprecate-openshift-version.md): public admission/catalog floors, reference drain, and internal rollout retirement
 - [Fix Maestro Stale Resource Bundle](ops/fix-maestro-stale-resource-bundle.md)
   - How to resolve Maestro resource bundle staleness issues
 - [Node Health](controllers/node-health.md)

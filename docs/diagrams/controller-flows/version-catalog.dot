@@ -9,7 +9,11 @@ digraph version_catalog {
   best [label="ControlPlaneVersionBestVersionSelection\nCincinnati exact-release selection\nexisting selector does not resolve nightly"];
   publish [label="OpenShiftVersionCatalog\ngeneric watcher; MakeKey returns singleton\nbootstrap even empty; rollout add/update/delete + 5m resync\nno delayed recurring requeue\nabsent profile: defer projection; preserve snapshot\npublic floor; Available = BestExactVersion != nil"];
   catalog [label="Resources: OpenShiftVersionCatalog/default\nprovider-namespace partition; regional account\nEntries: Version {ID, ChannelGroup}, Available\nincludes unresolved entries; empty results = []", fillcolor="#e4f2e5", color="#4c8053"];
-  boundary [shape=note, label="Persistence only at this stage\nFrontend version GET/LIST still use Cluster Service\nNo rollout retirement controller", fillcolor="#f5f5f5", color="#777777"];
+  boundary [shape=note, label="Persistence only at this stage\nFrontend version GET/LIST still use Cluster Service", fillcolor="#f5f5f5", color="#777777"];
+  retire [label="ControlPlaneVersionRolloutRetirement\noriginal rollout watcher; mapped Cluster/SPC dependencies\n5m resync; per-target keys; no timer\nread cached target and current references\nmissing target/profile skips only that key"];
+  refs -> retire [label="mapped notifications; current reference check"];
+  fleet -> retire [label="target add/update/resync"];
+  retire -> fleet [label="DELETE only below floor AND unreferenced", constraint=false];
   graphdata -> seed [label="discovered profiles"];
   refs -> seed [label="referenced profiles, including below floor"];
   seed -> fleet [label="CREATE missing structured profiles\nexisting documents unchanged"];
