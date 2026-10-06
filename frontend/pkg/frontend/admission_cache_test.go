@@ -255,7 +255,7 @@ func TestAdmissionProviderCacheHandlers(t *testing.T) {
 				cluster.ServiceProviderProperties.ClusterServiceID = cluster.ServiceProviderProperties.PendingClusterServiceID
 				_, err := db.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Create(t.Context(), cluster, nil)
 				require.NoError(t, err)
-				_, err = db.Subscriptions().Create(t.Context(), newTestSubscription(cluster.ID.SubscriptionID, coreapi.SubscriptionStateRegistered, nil), nil)
+				subscription, err := db.Subscriptions().Create(t.Context(), newTestSubscription(cluster.ID.SubscriptionID, coreapi.SubscriptionStateRegistered, nil), nil)
 				require.NoError(t, err)
 				pool := coreapi.NewDefaultNodePool(metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestNodePoolResourceID)), coreapitesting.TestLocation)
 				pool.SetResourceID(pool.ID)
@@ -273,6 +273,7 @@ func TestAdmissionProviderCacheHandlers(t *testing.T) {
 				version, ok := f.apiRegistry.Lookup(coreapitesting.TestAPIVersion)
 				require.True(t, ok)
 				ctx := ContextWithVersion(t.Context(), version)
+				ctx = ContextWithSubscription(ctx, subscription)
 				ctx = ContextWithCorrelationData(ctx, &coreapi.CorrelationData{})
 				ctx = ContextWithSystemData(ctx, cluster.SystemData)
 				ctx = utils.ContextWithResourceID(ctx, pool.ID)
