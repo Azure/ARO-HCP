@@ -120,7 +120,8 @@ func PossibleCustomerManagedEncryptionTypeValues() []CustomerManagedEncryptionTy
 }
 
 // DiskStorageAccountType - Supported Azure storage account types
-// - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+//
+//   - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 type DiskStorageAccountType string
 
 const (
@@ -357,7 +358,8 @@ func PossibleOriginValues() []Origin {
 }
 
 // OsDiskType - The type of the OS disk
-// - https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+//
+//   - https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
 type OsDiskType string
 
 const (
