@@ -15,13 +15,20 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -168,5 +175,77 @@ func TestGomegaZeroDepthHidesNegativeEqualEnum(t *testing.T) {
 	output := failures.messages[0]
 	if !strings.Contains(output, "not to equal") || strings.Count(output, ": ...") != 2 || strings.Contains(output, "Failed") {
 		t.Fatalf("expected the original configuration to hide both enum values:\n%s", output)
+	}
+}
+
+func TestGomegaAzureErrorOutput(t *testing.T) {
+	useProductionGomegaFormatting(t)
+	request, err := http.NewRequest(http.MethodGet, "https://example.com/operations/test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	responseErr := &azcore.ResponseError{
+		ErrorCode:  "DeadlineExceeded",
+		StatusCode: http.StatusOK,
+		RawResponse: &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Request:    request,
+			Header:     http.Header{"X-Test-Header": {"transport-only-header"}},
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"DeadlineExceeded","message":"waiting for nodes"}}`)),
+			TLS: &tls.ConnectionState{
+				PeerCertificates: []*x509.Certificate{{Raw: []byte("transport-only-certificate")}},
+			},
+		},
+	}
+	wrapped := fmt.Errorf("create node pool: %w", fmt.Errorf("poll operation: %w", responseErr))
+	for _, tc := range []struct {
+		name string
+		err  error
+		want []string
+	}{
+		{name: "direct", err: responseErr},
+		{name: "wrapped", err: wrapped, want: []string{"create node pool:", "poll operation:"}},
+		{name: "joined", err: errors.Join(errors.New("nodes not ready"), wrapped), want: []string{"nodes not ready", "create node pool:", "poll operation:"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, mode := range []string{"direct", "Eventually", "Consistently"} {
+				t.Run(mode, func(t *testing.T) {
+					failures := &formattingFailures{}
+					g := gomega.NewWithT(failures)
+					switch mode {
+					case "direct":
+						g.Expect(tc.err).NotTo(gomega.HaveOccurred(), "node pool must become ready")
+					case "Eventually":
+						g.Eventually(func() error { return tc.err }).WithTimeout(0).WithPolling(time.Hour).
+							Should(gomega.Succeed(), "node pool must become ready")
+					case "Consistently":
+						g.Consistently(func() error { return tc.err }).WithTimeout(time.Second).
+							Should(gomega.Succeed(), "node pool must become ready")
+					}
+					if len(failures.messages) != 1 {
+						t.Fatalf("expected one captured failure, got %q", failures.messages)
+					}
+					output := failures.messages[0]
+					for _, fragment := range append([]string{
+						"node pool must become ready", "GET https://example.com/operations/test",
+						"RESPONSE 200:", "ERROR CODE: DeadlineExceeded", "waiting for nodes",
+						"<Azure error internals omitted>",
+					}, tc.want...) {
+						if strings.Count(output, fragment) != 1 {
+							t.Errorf("expected %q exactly once in failure output:\n%s", fragment, output)
+						}
+					}
+					for _, fragment := range []string{"RawResponse:", "PeerCertificates:", "transport-only-header", "errMsg:"} {
+						if strings.Contains(output, fragment) {
+							t.Errorf("unexpected error internals %q in failure output:\n%s", fragment, output)
+						}
+					}
+				})
+			}
+		})
+	}
+	if output := format.Object(errors.New("unrelated failure"), 1); !strings.Contains(output, `s: "unrelated failure"`) {
+		t.Errorf("non-Azure error reflection must remain unchanged:\n%s", output)
 	}
 }
