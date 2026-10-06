@@ -263,21 +263,26 @@ safe-outputs:
             ' <<< "$pr" >/dev/null || { echo "PR $n is not an owned PR at the expected head" >&2; exit 1; }
             head=$(jq -r '.head.ref' <<< "$pr")
             git check-ref-format "refs/heads/$head"
-            git fetch --no-tags origin "$sha"
-            git switch --detach "$sha"
+            git fetch --no-tags origin "refs/heads/$head"
+            [[ "$(git rev-parse FETCH_HEAD)" == "$sha" ]] || {
+              echo "PR $n branch moved from the expected head" >&2
+              exit 1
+            }
+            git switch --detach FETCH_HEAD
             git apply --check --index "$patch"
             git apply --index "$patch"
             if [[ -n "$(git diff --cached --summary)" ]]; then
               echo "Repair cannot create, delete, rename, or change modes of files" >&2
               exit 1
             fi
-            git diff --cached --name-only -z | while IFS= read -r -d '' file; do
+            git diff --cached --name-only -z > "$RUNNER_TEMP/owned-pr-repair-paths"
+            while IFS= read -r -d '' file; do
               case "$file" in
                 .github/*|*/.github/*) echo "Protected path: $file" >&2; exit 1 ;;
                 go.work|go.work.sum|go.mod|go.sum|*/go.mod|*/go.sum|package.json|*/package.json|package-lock.json|*/package-lock.json|yarn.lock|*/yarn.lock|pnpm-lock.yaml|*/pnpm-lock.yaml|*.go) ;;
                 *) echo "Unexpected repair path: $file" >&2; exit 1 ;;
               esac
-            done
+            done < "$RUNNER_TEMP/owned-pr-repair-paths"
             git diff --cached --quiet && { echo "Repair patch has no changes" >&2; exit 1; }
             git diff --cached --check
             if [[ "${GH_AW_SAFE_OUTPUTS_STAGED:-false}" == true ]]; then
