@@ -844,7 +844,7 @@
       },
       "id": 104,
       "panels": [],
-      "title": "Unhealthy Node & AKSNodeClass Status",
+      "title": "Karpenter Resource Status",
       "type": "row"
     },
     {
@@ -888,7 +888,7 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 12,
+        "w": 6,
         "x": 0,
         "y": 28
       },
@@ -968,8 +968,8 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 12,
-        "x": 12,
+        "w": 6,
+        "x": 6,
         "y": 28
       },
       "id": 13,
@@ -998,13 +998,176 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "count(max without(prometheus_replica) (operator_aksnodeclass_status_condition_current_status_seconds{namespace=~\"$cluster\", type=\"Ready\", status!=\"True\"}) > 0) or vector(0)",
+          "expr": "count(max by (namespace, name) (max without(prometheus_replica) (karpenter_aksnodeclass_status_condition_transition_time_seconds{namespace=~\"$cluster\", condition=\"Ready\", status!=\"True\"}))) or vector(0)",
+          "instant": true,
           "legendFormat": "Unhealthy AKSNodeClasses",
-          "range": true,
+          "range": false,
           "refId": "A"
         }
       ],
       "title": "AKSNodeClasses in Unhealthy State",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "0"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 28
+      },
+      "id": 15,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.11",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "count(max without(prometheus_replica) (karpenter_nodepool_status_condition_transition_time_seconds{namespace=~\"$cluster\", status!=\"True\"})) or vector(0)",
+          "instant": true,
+          "legendFormat": "Unhealthy NodePool Conditions",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "NodePool Unhealthy Conditions",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "0"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 28
+      },
+      "id": 16,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.11",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "count(max without(prometheus_replica) (karpenter_nodeclaim_status_condition_transition_time_seconds{namespace=~\"$cluster\"})) or vector(0)",
+          "instant": true,
+          "legendFormat": "NodeClaim Conditions Requiring Attention",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "NodeClaim Conditions Requiring Attention",
       "type": "stat"
     },
     {
@@ -1030,14 +1193,6 @@
             "steps": [
               {
                 "color": "green"
-              },
-              {
-                "color": "yellow",
-                "value": 60
-              },
-              {
-                "color": "red",
-                "value": 300
               }
             ]
           },
@@ -1059,7 +1214,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "type"
+              "options": "condition"
             },
             "properties": [
               {
@@ -1072,7 +1227,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
         "y": 34
       },
@@ -1091,7 +1246,7 @@
         "sortBy": [
           {
             "desc": true,
-            "displayName": "Value"
+            "displayName": "In State"
           }
         ]
       },
@@ -1103,14 +1258,15 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "max without(prometheus_replica) (operator_aksnodeclass_status_condition_current_status_seconds{namespace=~\"$cluster\", status!=\"True\"})",
+          "expr": "(time() - max without(prometheus_replica) (karpenter_nodepool_status_condition_transition_time_seconds{namespace=~\"$cluster\", status!=\"True\"})) or (time() - max without(prometheus_replica) (karpenter_aksnodeclass_status_condition_transition_time_seconds{namespace=~\"$cluster\", status!=\"True\"}))",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
           "refId": "A"
         }
       ],
-      "title": "AKSNodeClass Unhealthy Conditions",
+      "description": "In State is the time since the condition's lastTransitionTime. Older conditions deserve investigation, but duration alone does not prove the resource is stuck.",
+      "title": "NodePool & AKSNodeClass Unhealthy Conditions",
       "transformations": [
         {
           "id": "organize",
@@ -1118,36 +1274,234 @@
             "excludeByName": {
               "Time": true,
               "__name__": true,
-              "_id": true,
-              "_mc_id": true,
               "container": true,
+              "customresource_group": true,
+              "customresource_version": true,
               "endpoint": true,
-              "env": true,
               "instance": true,
               "job": true,
-              "karpenter_azure_com_aksnodeclass": true,
-              "karpenter_sh_nodepool": true,
-              "mc_name": true,
               "namespace": true,
               "pod": true,
               "prometheus": true,
-              "region": true,
-              "rhobs_cell": true,
-              "sector": true,
               "source": true,
               "tenant_id": true
             },
             "renameByName": {
-              "Value": "Duration (s)",
-              "name": "AKSNodeClass",
+              "Value": "In State",
+              "condition": "Condition",
+              "customresource_kind": "Resource",
+              "name": "Name",
               "reason": "Reason",
-              "status": "Status",
-              "type": "Condition"
+              "status": "Status"
             }
           }
         }
       ],
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "name"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 240
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "reason"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 260
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      },
+      "id": 17,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "In State"
+          }
+        ]
+      },
+      "pluginVersion": "11.6.11",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "time() - max without(prometheus_replica) (karpenter_nodeclaim_status_condition_transition_time_seconds{namespace=~\"$cluster\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "description": "False and Unknown conditions are retained, along with InstanceTerminating=True. In State is the time since the condition's lastTransitionTime; older conditions deserve investigation, but duration alone does not prove the NodeClaim is stuck.",
+      "title": "NodeClaim Conditions Requiring Attention",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "container": true,
+              "customresource_group": true,
+              "customresource_kind": true,
+              "customresource_version": true,
+              "endpoint": true,
+              "instance": true,
+              "job": true,
+              "namespace": true,
+              "pod": true,
+              "prometheus": true,
+              "source": true,
+              "tenant_id": true
+            },
+            "renameByName": {
+              "Value": "In State",
+              "condition": "Condition",
+              "name": "NodeClaim",
+              "reason": "Reason",
+              "status": "Status"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Retained False and Unknown NodeClaim conditions plus InstanceTerminating=True across this Prometheus source. Other True-valued conditions are filtered before ingestion. The design ceiling is 250,000 series per management cluster.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "yellow",
+                "value": 200000
+              },
+              {
+                "color": "red",
+                "value": 250000
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "id": 18,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.11",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "count(max without(prometheus_replica) (karpenter_nodeclaim_status_condition_transition_time_seconds)) or vector(0)",
+          "instant": true,
+          "legendFormat": "Retained NodeClaim Series",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "NodeClaim Condition Series Cardinality",
+      "type": "stat"
     }
   ],
   "preload": false,

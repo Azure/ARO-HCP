@@ -12,7 +12,7 @@ Azure Managed Prometheus is enabled through the `aks-cluster-base.bicep` module 
 
 **Azure Managed Prometheus Configuration:**
 - Configured via `ama-metrics-settings-configmap` in the `kube-system` namespace
-- **Scrape Interval**: 30 seconds for all targets  
+- **Scrape Interval**: 30 seconds for all targets
 - **Built-in Targets Enabled**: kubelet, coredns, cadvisor, kubeproxy, apiserver, nodeexporter, control plane components (etcd, scheduler, controller-manager), and network observability (Retina, Hubble, Cilium)
 - **Disabled Targets**: kube-state-metrics (handled by self-managed Prometheus), Windows exporters
 - **Metadata Collection**: Supports custom `metricLabelsAllowlist` and `metricAnnotationsAllowList` via Bicep parameters
@@ -37,7 +37,7 @@ Self-managed Prometheus implements namespace-based routing to two Azure Monitor 
    - Handles infrastructure services, applications, and general cluster metrics
 
 2. **HCP Monitoring Workspace** (`prometheusSpec.hcpRemoteWriteUrl`):
-   - Receives metrics **only from** namespaces matching `^ocm-<environment>.*`  
+   - Receives metrics **only from** namespaces matching `^ocm-<environment>.*`
    - Handles Hosted Control Plane specific metrics (OCM-related components)
 
 **Deployment:**
@@ -61,9 +61,38 @@ To enable this, the `prometheus` namespace in the **management cluster** include
 
 Each **Hosted Control Plane** will have multiple `ServiceMonitor` and `PodMonitor` resources for core control plane components such as **etcd**, **kube-apiserver**, and others.  These monitors define how Prometheus should scrape metrics from each component, including details like the endpoint, port, and **TLS configuration**.  TLS settings in the monitors reference Kubernetes **Secrets** stored in the **hosted cluster namespace**. These secrets contain the certificates required to establish secure connections to the metrics endpoints.  The Prometheus server, running in the **management cluster**, has access to these secrets and uses them to configure TLS connections when scraping the Hosted Control Plane component metrics.
 
-### HCP Worker Node Metrics
+### HCP Worker Node and Karpenter Resource Metrics
 
-HCP worker nodes are only visible to the HCP's own API server, not the management cluster's. To monitor their health, the mgmt-agent deploys a [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics) instance per HCP that scrapes node metrics directly from the HCP API server. These metrics are routed to the HCP Monitoring Workspace via the existing namespace-based remote write filter.
+HCP worker nodes and guest-cluster Karpenter resources are only visible to the
+HCP's own API server, not the management cluster's. To monitor their health, the
+mgmt-agent deploys a
+[kube-state-metrics](https://github.com/kubernetes/kube-state-metrics) instance
+per HCP that scrapes the HCP API server directly. These metrics are routed to the
+HCP Monitoring Workspace via the existing namespace-based remote write filter.
+
+In addition to worker Node metrics, the per-HCP KSM exports bounded state for
+Karpenter `NodePool`, `NodeClaim`, and `AKSNodeClass` resources. Conditions with
+`status=True` are normally dropped during scrape ingestion, leaving `False` and
+`Unknown` conditions for SRE investigation. The sole exception is
+`NodeClaim` `InstanceTerminating=True`, which is retained to identify deletion
+that remains in progress for too long. This is an operational health view, not
+a complete lifecycle-state view.
+NodeClaim metric labels are restricted to the claim name, condition, status, and
+reason to avoid promoting provider IDs, node identities, or arbitrary resource
+labels. Condition metrics use `lastTransitionTime` as their value, allowing
+dashboards to show how long each resource has remained in its current condition
+without adding another metric series.
+
+In Kubernetes condition semantics, `False` means the reported condition is not
+satisfied and `Unknown` means the controller cannot currently determine it.
+Either status can be transient during normal provisioning or deletion, so the
+dashboard duration should be used to identify conditions that may be stuck.
+Provisioning is tracked through `Launched=False/Unknown`,
+`Registered=False/Unknown`, and `Initialized=False/Unknown`. Completed
+`Launched=True` conditions are filtered. `True` is not universally synonymous
+with healthy—for example, `Drifted=True` is a lifecycle signal—but all other
+`True`-valued conditions remain omitted because this view is limited to
+conditions requiring SRE attention.
 
 See [`mgmt-agent/pkg/controller/ksmhcp/README.md`](../mgmt-agent/pkg/controller/ksmhcp/README.md) for implementation details.
 
@@ -77,7 +106,7 @@ ARO-HCP implements two Azure Monitor Workspace to separate metrics based on thei
 - **Scope**: Infrastructure services, applications, and general cluster metrics
 - **Sources**: Azure Managed Prometheus (infrastructure) + Self-managed Prometheus (applications)
 - **Namespace Filter**: All namespaces **except** `ocm-<environment>.*`
-- **Data Flow**: 
+- **Data Flow**:
   - Azure Managed Prometheus → Direct ingestion
   - Self-managed Prometheus → Remote write with namespace filtering
 
