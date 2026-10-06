@@ -12,6 +12,19 @@
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
         "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "enable": true,
+        "expr": "ALERTS{alertname=~\"userJourneyClusterDeletion.*\", alertstate=\"firing\"}",
+        "iconColor": "red",
+        "name": "Cluster Deletion SLO Alerts",
+        "titleFormat": "{{alertname}}",
+        "textFormat": "{{alertname}} firing on {{cluster}}",
+        "step": "60s"
       }
     ]
   },
