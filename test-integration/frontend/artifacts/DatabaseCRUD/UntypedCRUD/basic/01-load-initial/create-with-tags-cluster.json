@@ -106,6 +106,7 @@
 			"console": {},
 			"dns": {},
 			"platform": {},
+			"userIntentGeneration": 7,
 			"usesNewClusterDeletionApproach": false
 		},
 		"status": {},

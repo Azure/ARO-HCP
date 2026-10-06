@@ -123,6 +123,12 @@ type ClusterServiceProviderProperties struct {
 	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ActiveOperationID string `json:"activeOperationId,omitempty"`
+	// UserIntentGeneration is a monotonically increasing counter bumped on every
+	// user-initiated create/update. Validation controllers use it to re-run
+	// validations immediately on user intent instead of waiting for the passed
+	// validation recheck interval. Not exposed via ARM API.
+	// Written by: Frontend PUT/PATCH Cluster
+	UserIntentGeneration int64 `json:"userIntentGeneration,omitempty"`
 	// Written by: Frontend POST RevokeCredentials, SystemAdminCredentialOperationRevokeCredentialsPoll
 	RevokeCredentialsOperationID string `json:"revokeCredentialsOperationId,omitempty"`
 	// Written by: ClusterPropertiesSync

@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/lru"
 
@@ -38,6 +40,7 @@ import (
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -137,10 +140,39 @@ func newTestSyncer(mockDB *corecosmosstoragetesting.MockResourcesDBClient, valid
 		enqueueAfter:                  enqueuer,
 		resourcesDBClient:             mockDB,
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
+		lastValidatedUserIntent:       lru.New(controllerutil.SettableCooldownCacheCapacity),
 		validation:                    validation,
 		consecutiveUnknownCounts:      lru.New(consecutiveUnknownCountsCacheCapacity),
 	}
 	return syncer, enqueuer
+}
+
+func TestNodePoolValidationSyncer_DeletionClearsUserIntent(t *testing.T) {
+	for _, deletingResource := range []string{"cluster", "node pool"} {
+		t.Run(deletingResource, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			cluster := newTestCluster(t)
+			nodePool := newTestNodePool(t)
+			deletionTime := metav1.NewTime(fixedNow)
+			if deletingResource == "cluster" {
+				cluster.ServiceProviderProperties.DeletionTimestamp = &deletionTime
+			} else {
+				nodePool.ServiceProviderProperties.DeletionTimestamp = &deletionTime
+			}
+			_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+			_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName).Create(ctx, nodePool, nil)
+			require.NoError(t, err)
+			syncer, _ := newTestSyncer(mockDB, NewMockNodePoolValidation(testValidationName), clocktesting.NewFakePassiveClock(fixedNow))
+			key := newTestNodePoolKey()
+			syncer.lastValidatedUserIntent.Add(key, int64(1))
+			require.NoError(t, syncer.SyncOnce(ctx, key))
+			_, exists := syncer.lastValidatedUserIntent.Get(key)
+			assert.False(t, exists, "deleting resources must not retain validated-generation history")
+		})
+	}
 }
 
 func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
@@ -320,6 +352,12 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+			}
+
+			if tc.wantCondition != nil || tc.wantConditionAbsent {
+				generation, exists := syncer.lastValidatedUserIntent.Get(newTestNodePoolKey())
+				require.True(t, exists, "every completed validation must record its generation")
+				assert.Equal(t, int64(0), generation)
 			}
 
 			if tc.wantEnqueue {
@@ -562,6 +600,182 @@ func TestNodePoolValidationSyncer_ConsecutiveUnknownSuppression(t *testing.T) {
 	assert.NotEqual(t, before.CosmosETag, after.CosmosETag, "expected a Cosmos write once the suppression threshold was exceeded")
 }
 
+type errorIndexer struct {
+	cache.Indexer
+}
+
+func (indexer *errorIndexer) GetByKey(string) (interface{}, bool, error) {
+	return nil, false, errors.New("informer cache unavailable")
+}
+
+func TestNodePoolValidationSyncer_DeleteRecreateDuringCooldown(t *testing.T) {
+	for _, absent := range []bool{false, true} {
+		name := "deleting"
+		if absent {
+			name = "absent"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+			require.NoError(t, err)
+			resource := newTestNodePool(t)
+			resource.ServiceProviderProperties.UserIntentGeneration = 5
+			resourceClient := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName)
+			resource, err = resourceClient.Create(ctx, resource, nil)
+			require.NoError(t, err)
+			_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+			require.NoError(t, err)
+			_, err = corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, mockDB, resource.ID)
+			require.NoError(t, err)
+			indexer := cache.NewIndexer(func(obj interface{}) (string, error) {
+				return strings.ToLower(obj.(*coreapi.NodePool).ResourceID.String()), nil
+			}, cache.Indexers{})
+			require.NoError(t, indexer.Add(resource))
+			validation := NewMockNodePoolValidation(testValidationName).WithPassed()
+			syncer, enqueuer := newTestSyncer(mockDB, validation, clocktesting.NewFakePassiveClock(fixedNow))
+			syncer.nodePoolLister = corelisters.NewNodePoolLister(indexer)
+			key := newTestNodePoolKey()
+			require.NoError(t, syncer.SyncOnce(ctx, key))
+			require.False(t, syncer.retryCooldownChecker.CanSync(ctx, key))
+			syncer.consecutiveUnknownCounts.Add(key, 2)
+			if absent {
+				require.NoError(t, indexer.Delete(resource))
+			} else {
+				deleting := resource.DeepCopy()
+				deletionTime := metav1.NewTime(fixedNow)
+				deleting.ServiceProviderProperties.DeletionTimestamp = &deletionTime
+				require.NoError(t, indexer.Update(deleting))
+			}
+			for range 2 {
+				require.NoError(t, syncer.SyncOnce(ctx, key))
+				_, exists := syncer.lastValidatedUserIntent.Get(key)
+				require.False(t, exists)
+				_, exists = syncer.consecutiveUnknownCounts.Get(key)
+				require.False(t, exists)
+				require.True(t, syncer.retryCooldownChecker.CanSync(ctx, key))
+				require.Zero(t, syncer.retryCooldownChecker.TimeUntilReady(key))
+			}
+			require.Empty(t, enqueuer.enqueuedKeys)
+			require.NoError(t, resourceClient.Delete(ctx, testNodePoolName))
+			mockDB.DeleteDocument(metadataapi.Must(coreapi.ResourceIDToCosmosID(resource.ID)))
+			recreated := newTestNodePool(t)
+			recreated.ServiceProviderProperties.UserIntentGeneration = 1
+			recreated, err = resourceClient.Create(ctx, recreated, nil)
+			require.NoError(t, err)
+			require.NoError(t, indexer.Update(recreated))
+			require.NoError(t, syncer.SyncOnce(ctx, key))
+			generation, exists := syncer.lastValidatedUserIntent.Get(key)
+			require.True(t, exists)
+			assert.Equal(t, int64(1), generation)
+			assert.False(t, syncer.retryCooldownChecker.CanSync(ctx, key))
+		})
+	}
+}
+
+func TestNodePoolValidationSyncer_UserIntentCooldown(t *testing.T) {
+	for _, testCase := range []struct {
+		name              string
+		initialGeneration int64
+		generation        int64
+		cachedGeneration  int64
+		cacheError        bool
+		forgetValidated   bool
+		evictValidated    bool
+		wantStatus        metav1.ConditionStatus
+	}{
+		{name: "internal churn", initialGeneration: 1, generation: 1, cachedGeneration: 1, wantStatus: metav1.ConditionTrue},
+		{name: "stale cached generation", initialGeneration: 1, generation: 1, cachedGeneration: 0, wantStatus: metav1.ConditionTrue},
+		{name: "new user intent", initialGeneration: 1, generation: 2, cachedGeneration: 2, wantStatus: metav1.ConditionFalse},
+		{name: "legacy first user intent", generation: 1, cachedGeneration: 1, wantStatus: metav1.ConditionFalse},
+		{name: "live generation newer than cache", generation: 2, cachedGeneration: 1, wantStatus: metav1.ConditionFalse},
+		{name: "cache error", generation: 1, cacheError: true, wantStatus: metav1.ConditionTrue},
+		{name: "missing history with active cooldown", initialGeneration: 1, generation: 1, cachedGeneration: 1, forgetValidated: true, wantStatus: metav1.ConditionFalse},
+		{name: "missing history and cache error", generation: 1, cacheError: true, forgetValidated: true, wantStatus: metav1.ConditionTrue},
+		{name: "evicted history with active cooldown", generation: 1, cachedGeneration: 1, evictValidated: true, wantStatus: metav1.ConditionFalse},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+			require.NoError(t, err)
+			nodePoolClient := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName)
+			nodePool := newTestNodePool(t)
+			nodePool.ServiceProviderProperties.UserIntentGeneration = testCase.initialGeneration
+			nodePool, err = nodePoolClient.Create(ctx, nodePool, nil)
+			require.NoError(t, err)
+			_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+			require.NoError(t, err)
+			_, err = corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, mockDB, nodePool.ID)
+			require.NoError(t, err)
+
+			indexer := cache.NewIndexer(func(obj interface{}) (string, error) {
+				return strings.ToLower(obj.(*coreapi.NodePool).ResourceID.String()), nil
+			}, cache.Indexers{})
+			require.NoError(t, indexer.Add(nodePool))
+			validation := NewMockNodePoolValidation(testValidationName).WithPassed()
+			fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+			syncer, enqueuer := newTestSyncer(mockDB, validation, fakeClock)
+			syncer.nodePoolLister = corelisters.NewNodePoolLister(indexer)
+			if testCase.evictValidated {
+				syncer.lastValidatedUserIntent = lru.New(1)
+			}
+			key := newTestNodePoolKey()
+			require.NoError(t, syncer.SyncOnce(ctx, key))
+			require.False(t, syncer.retryCooldownChecker.CanSync(ctx, key))
+			generation, exists := syncer.lastValidatedUserIntent.Get(key)
+			require.True(t, exists)
+			require.Equal(t, testCase.initialGeneration, generation)
+
+			nodePool = nodePool.DeepCopy()
+			nodePool.ServiceProviderProperties.UserIntentGeneration = testCase.generation
+			nodePool.Properties.ProvisioningState = coreapi.ProvisioningStateSucceeded
+			nodePool, err = nodePoolClient.Replace(ctx, nodePool, nil)
+			require.NoError(t, err)
+			if testCase.cacheError {
+				syncer.nodePoolLister = corelisters.NewNodePoolLister(&errorIndexer{Indexer: indexer})
+			} else {
+				cachedNodePool := nodePool.DeepCopy()
+				cachedNodePool.ServiceProviderProperties.UserIntentGeneration = testCase.cachedGeneration
+				require.NoError(t, indexer.Update(cachedNodePool))
+			}
+			if testCase.forgetValidated {
+				syncer.lastValidatedUserIntent.Remove(key)
+			}
+			if testCase.evictValidated {
+				otherKey := key
+				otherKey.HCPNodePoolName += "-other"
+				syncer.lastValidatedUserIntent.Add(otherKey, int64(0))
+				_, exists = syncer.lastValidatedUserIntent.Get(key)
+				require.False(t, exists, "history must actually be evicted")
+			}
+			validation.WithFailed("UserIntentInvalid", "invalid intent", "invalid intent")
+			require.NoError(t, syncer.SyncOnce(ctx, key))
+			providerClient := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName)
+			providerNodePool, err := providerClient.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
+			require.NoError(t, err)
+			condition := meta.FindStatusCondition(providerNodePool.Status.Validations, testValidationName)
+			require.NotNil(t, condition)
+			assert.Equal(t, testCase.wantStatus, condition.Status)
+			if testCase.wantStatus == metav1.ConditionFalse {
+				generation, exists = syncer.lastValidatedUserIntent.Get(key)
+				require.True(t, exists)
+				assert.Equal(t, testCase.generation, generation)
+			}
+
+			validation.WithSkipped("ShouldNotRun", "should not run", "should not run")
+			for range 2 {
+				enqueuesBefore := len(enqueuer.enqueuedKeys)
+				require.NoError(t, syncer.SyncOnce(ctx, key))
+				assert.Len(t, enqueuer.enqueuedKeys, enqueuesBefore+1)
+				providerNodePool, err = providerClient.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, condition, meta.FindStatusCondition(providerNodePool.Status.Validations, testValidationName))
+			}
+		})
+	}
+}
+
 // TestNodePoolValidationSyncer_CooldownSuppression verifies that when the
 // retryCooldownChecker's cooldown is active for a key, SyncOnce returns
 // immediately without performing validation, and schedules a re-enqueue.
@@ -587,6 +801,7 @@ func TestNodePoolValidationSyncer_CooldownSuppression(t *testing.T) {
 	syncer, enqueuer := newTestSyncer(mockDB, validation, fakeClock)
 
 	key := newTestNodePoolKey()
+	syncer.lastValidatedUserIntent.Add(key, int64(0))
 	syncer.retryCooldownChecker.SetCooldown(key, 60*time.Second)
 
 	err = syncer.SyncOnce(ctx, key)

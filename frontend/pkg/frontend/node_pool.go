@@ -335,6 +335,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
 	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = createNodePoolOperation.ResourceID.Name
+	newInternalNodePool.ServiceProviderProperties.UserIntentGeneration = 1
 	newInternalNodePool.Properties.ProvisioningState = createNodePoolOperation.Status
 
 	nodePoolCosmosClient := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name)
@@ -598,6 +599,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
 	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = nodePoolUpdateOperation.ResourceID.Name
+	newInternalNodePool.ServiceProviderProperties.UserIntentGeneration = oldInternalNodePool.ServiceProviderProperties.UserIntentGeneration + 1
 	newInternalNodePool.Properties.ProvisioningState = nodePoolUpdateOperation.Status
 
 	_, err = f.resourcesDBClient.HCPClusters(newInternalNodePool.ID.SubscriptionID, newInternalNodePool.ID.ResourceGroupName).

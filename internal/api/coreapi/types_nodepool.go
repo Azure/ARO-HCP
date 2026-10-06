@@ -114,6 +114,12 @@ type NodePoolServiceProviderProperties struct {
 	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
 	ActiveOperationID string `json:"activeOperationId,omitempty"`
+	// UserIntentGeneration is a monotonically increasing counter bumped on every
+	// user-initiated create/update. Validation controllers use it to re-run
+	// validations immediately on user intent instead of waiting for the passed
+	// validation recheck interval. Not exposed via ARM API.
+	// Written by: Frontend PUT/PATCH NodePool
+	UserIntentGeneration int64 `json:"userIntentGeneration,omitempty"`
 	// DeletionTimestamp is the timestamp at which the NodePool deletion was requested.
 	// The timestamp is in UTC.
 	// A nil value indicates that the NodePool deletion has not been requested.

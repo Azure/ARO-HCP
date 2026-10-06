@@ -65,6 +65,8 @@ type clusterValidationSyncer struct {
 	enqueueAfter controllerutils.AfterEnqueuer
 
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	clusterLister                corelisters.ClusterLister
+	lastValidatedUserIntent      *lru.Cache
 
 	// validation is the validation to perform on the cluster.
 	validation validationutils.ClusterValidation
@@ -96,10 +98,13 @@ func NewNamedClusterValidationController(
 	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 
+	_, clusterLister := informers.Clusters()
 	syncer := &clusterValidationSyncer{
 		retryCooldownChecker:         controllerutil.NewSettableCooldownChecker(),
 		resourcesDBClient:            resourcesDBClient,
 		serviceProviderClusterLister: serviceProviderClusterLister,
+		clusterLister:                clusterLister,
+		lastValidatedUserIntent:      lru.New(controllerutil.SettableCooldownCacheCapacity),
 		validation:                   validation,
 		consecutiveUnknownCounts:     lru.New(consecutiveUnknownCountsCacheCapacity),
 	}
@@ -127,9 +132,33 @@ func NewNamedClusterValidationController(
 func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
+	cachedCluster, cacheErr := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if cosmosstorageutils.IsNotFoundError(cacheErr) || (cacheErr == nil && cachedCluster.ServiceProviderProperties.DeletionTimestamp != nil) {
+		c.forget(key)
+		return nil
+	}
+
+	canSync := c.retryCooldownChecker.CanSync(ctx, key)
+	lastGeneration, hasValidated := c.lastValidatedUserIntent.Get(key)
+
+	// User intent is monotonic: frontend create/update strictly increases the generation;
+	// internal churn leaves it unchanged. With history, only a newer cached generation bypasses cooldown.
+	// Recording the validated live generation makes the bypass one-shot per increment,
+	// even when the informer lags behind (cached generation <= last validated generation).
+	freshUserIntent := false
+	if cacheErr == nil {
+		if hasValidated {
+			freshUserIntent = cachedCluster.ServiceProviderProperties.UserIntentGeneration > lastGeneration.(int64)
+		} else {
+			// Evicted history cannot prove that an active cooldown covers the current intent.
+			// Allow one validation to restore history; informer errors never bypass cooldown.
+			freshUserIntent = !canSync
+		}
+	}
+
 	// Skip processing if the key is still within its cooldown window from a previous validation. All outcomes can schedule a cooldown via
 	// EarliestRetryAfter so validations run continuously without racing. Re-enqueue so the item is revisited once the cooldown expires.
-	if !c.retryCooldownChecker.CanSync(ctx, key) {
+	if !freshUserIntent && !canSync {
 		if c.enqueueAfter != nil {
 			// Add a one-second buffer so the requeue lands strictly after the cooldown expires, avoiding a race where the item fires just before CanSync flips to true.
 			c.enqueueAfter.EnqueueAfter(key, c.retryCooldownChecker.TimeUntilReady(key)+time.Second)
@@ -139,12 +168,14 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		c.forget(key)
 		return nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		c.forget(key)
 		return nil
 	}
 
@@ -200,7 +231,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		}
 	}
 
-	c.handleRequeue(key, result)
+	c.handleRequeue(key, result, existingCluster.ServiceProviderProperties.UserIntentGeneration)
 
 	// ControllerReportingPolicy governs only how this Unknown result is reported to the controller
 	// machinery (e.g. workqueue error metrics); it has no bearing on the requeue scheduling already
@@ -215,7 +246,8 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 // handleRequeue sets the earliest-retry gate and, for Failed/Unknown outcomes, schedules a
 // delayed workqueue requeue. Passed and Skipped outcomes set only the gate (no requeue).
 // See EarliestRetryAfter on ValidationResult for the full semantics.
-func (c *clusterValidationSyncer) handleRequeue(key controllerutils.HCPClusterKey, result validationutils.ValidationResult) {
+func (c *clusterValidationSyncer) handleRequeue(key controllerutils.HCPClusterKey, result validationutils.ValidationResult, generation int64) {
+	c.lastValidatedUserIntent.Add(key, generation)
 	if result.EarliestRetryAfter == nil {
 		return
 	}
@@ -225,6 +257,12 @@ func (c *clusterValidationSyncer) handleRequeue(key controllerutils.HCPClusterKe
 	if c.enqueueAfter != nil && (result.Outcome.Type == validationutils.OutcomeTypeFailed || result.Outcome.Type == validationutils.OutcomeTypeUnknown) {
 		c.enqueueAfter.EnqueueAfter(key, *result.EarliestRetryAfter+time.Second)
 	}
+}
+
+func (c *clusterValidationSyncer) forget(key controllerutils.HCPClusterKey) {
+	c.lastValidatedUserIntent.Remove(key)
+	c.retryCooldownChecker.Forget(key)
+	c.consecutiveUnknownCounts.Remove(key)
 }
 
 // shouldWriteCondition reports whether the newly computed validation condition should be written, versus

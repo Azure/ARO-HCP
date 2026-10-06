@@ -62,6 +62,8 @@ type nodePoolValidationSyncer struct {
 	enqueueAfter controllerutils.AfterEnqueuer
 
 	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+	nodePoolLister                corelisters.NodePoolLister
+	lastValidatedUserIntent       *lru.Cache
 
 	// validation is the validation to perform on the node pool.
 	validation validationutils.NodePoolValidation
@@ -95,10 +97,13 @@ func NewNamedNodePoolValidationController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 
+	_, nodePoolLister := informers.NodePools()
 	syncer := &nodePoolValidationSyncer{
 		retryCooldownChecker:          controllerutil.NewSettableCooldownChecker(),
 		resourcesDBClient:             resourcesDBClient,
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		nodePoolLister:                nodePoolLister,
+		lastValidatedUserIntent:       lru.New(controllerutil.SettableCooldownCacheCapacity),
 		validation:                    validation,
 		consecutiveUnknownCounts:      lru.New(consecutiveUnknownCountsCacheCapacity),
 	}
@@ -126,9 +131,33 @@ func NewNamedNodePoolValidationController(
 func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
+	cachedNodePool, cacheErr := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if cosmosstorageutils.IsNotFoundError(cacheErr) || (cacheErr == nil && cachedNodePool.ServiceProviderProperties.DeletionTimestamp != nil) {
+		c.forget(key)
+		return nil
+	}
+
+	canSync := c.retryCooldownChecker.CanSync(ctx, key)
+	lastGeneration, hasValidated := c.lastValidatedUserIntent.Get(key)
+
+	// User intent is monotonic: frontend create/update strictly increases the generation;
+	// internal churn leaves it unchanged. With history, only a newer cached generation bypasses cooldown.
+	// Recording the validated live generation makes the bypass one-shot per increment,
+	// even when the informer lags behind (cached generation <= last validated generation).
+	freshUserIntent := false
+	if cacheErr == nil {
+		if hasValidated {
+			freshUserIntent = cachedNodePool.ServiceProviderProperties.UserIntentGeneration > lastGeneration.(int64)
+		} else {
+			// Evicted history cannot prove that an active cooldown covers the current intent.
+			// Allow one validation to restore history; informer errors never bypass cooldown.
+			freshUserIntent = !canSync
+		}
+	}
+
 	// Skip processing if the key is still within its cooldown window from a previous validation. All outcomes can schedule a cooldown via
 	// EarliestRetryAfter so validations run continuously without racing. Re-enqueue so the item is revisited once the cooldown expires.
-	if !c.retryCooldownChecker.CanSync(ctx, key) {
+	if !freshUserIntent && !canSync {
 		if c.enqueueAfter != nil {
 			// Add a one-second buffer so the requeue lands strictly after the cooldown expires, avoiding a race where the item fires just before CanSync flips to true.
 			c.enqueueAfter.EnqueueAfter(key, c.retryCooldownChecker.TimeUntilReady(key)+time.Second)
@@ -138,23 +167,27 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		c.forget(key)
 		return nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		c.forget(key)
 		return nil
 	}
 
 	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		c.forget(key)
 		return nil // node pool doesn't exist, no work to do
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
 	if existingNodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+		c.forget(key)
 		return nil
 	}
 
@@ -210,7 +243,7 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 		}
 	}
 
-	c.handleRequeue(key, result)
+	c.handleRequeue(key, result, existingNodePool.ServiceProviderProperties.UserIntentGeneration)
 
 	// ControllerReportingPolicy governs only how this Unknown result is reported to the controller
 	// machinery (e.g. workqueue error metrics); it has no bearing on the requeue scheduling already
@@ -225,7 +258,8 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 // handleRequeue sets the earliest-retry gate and, for Failed/Unknown outcomes, schedules a
 // delayed workqueue requeue. Passed and Skipped outcomes set only the gate (no requeue).
 // See EarliestRetryAfter on ValidationResult for the full semantics.
-func (c *nodePoolValidationSyncer) handleRequeue(key controllerutils.HCPNodePoolKey, result validationutils.ValidationResult) {
+func (c *nodePoolValidationSyncer) handleRequeue(key controllerutils.HCPNodePoolKey, result validationutils.ValidationResult, generation int64) {
+	c.lastValidatedUserIntent.Add(key, generation)
 	if result.EarliestRetryAfter == nil {
 		return
 	}
@@ -235,6 +269,12 @@ func (c *nodePoolValidationSyncer) handleRequeue(key controllerutils.HCPNodePool
 	if c.enqueueAfter != nil && (result.Outcome.Type == validationutils.OutcomeTypeFailed || result.Outcome.Type == validationutils.OutcomeTypeUnknown) {
 		c.enqueueAfter.EnqueueAfter(key, *result.EarliestRetryAfter+time.Second)
 	}
+}
+
+func (c *nodePoolValidationSyncer) forget(key controllerutils.HCPNodePoolKey) {
+	c.lastValidatedUserIntent.Remove(key)
+	c.retryCooldownChecker.Forget(key)
+	c.consecutiveUnknownCounts.Remove(key)
 }
 
 // shouldWriteCondition reports whether the newly computed validation condition should be written, versus

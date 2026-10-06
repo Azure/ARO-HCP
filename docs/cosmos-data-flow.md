@@ -417,6 +417,9 @@ transitively deletes all clusters (and their children) via transactional batches
 
 ### PUT Cluster (Create)
 
+Sets `ServiceProviderProperties.UserIntentGeneration = 1` in the cluster document.
+The marker is internal-only and is not returned through the ARM API.
+
 **Path:** `PUT .../hcpOpenShiftClusters/{name}` (resource does not exist)
 **Handler:** `createHCPCluster` ([cluster.go](../frontend/pkg/frontend/cluster.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` x2)
@@ -430,6 +433,9 @@ transitively deletes all clusters (and their children) via transactional batches
 
 ### PUT Cluster (Update)
 
+Sets `ServiceProviderProperties.UserIntentGeneration` to the previous value plus
+one, triggering immediate revalidation even when a passed validation is in cooldown.
+
 **Path:** `PUT .../hcpOpenShiftClusters/{name}` (resource exists)
 **Handler:** `updateHCPClusterInCosmos` ([cluster.go](../frontend/pkg/frontend/cluster.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` + `AddReplaceToTransaction`)
@@ -442,6 +448,9 @@ transitively deletes all clusters (and their children) via transactional batches
 ---
 
 ### PATCH Cluster (Update)
+
+Increments the cluster's `ServiceProviderProperties.UserIntentGeneration` just as
+PUT update does; internal controller writes and DELETE do not change this marker.
 
 **Path:** `PATCH .../hcpOpenShiftClusters/{name}`
 **Handler:** `updateHCPClusterInCosmos` ([cluster.go](../frontend/pkg/frontend/cluster.go))
@@ -478,6 +487,9 @@ Each child with a `DeletionTimestamp` and its backend-deletion flag set is left 
 
 ### PUT NodePool (Create)
 
+Sets `ServiceProviderProperties.UserIntentGeneration = 1` in the node-pool document.
+The marker is internal-only and is not returned through the ARM API.
+
 **Path:** `PUT .../nodePools/{name}` (resource does not exist)
 **Handler:** `createNodePool` ([node_pool.go](../frontend/pkg/frontend/node_pool.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` x2)
@@ -490,6 +502,9 @@ Each child with a `DeletionTimestamp` and its backend-deletion flag set is left 
 ---
 
 ### PUT/PATCH NodePool (Update)
+
+Sets the node pool's `ServiceProviderProperties.UserIntentGeneration` to the previous
+value plus one. Internal controller writes and DELETE do not change this marker.
 
 **Path:** `PUT/PATCH .../nodePools/{name}` (resource exists)
 **Handler:** `updateNodePoolInCosmos` ([node_pool.go](../frontend/pkg/frontend/node_pool.go))
@@ -759,6 +774,29 @@ or [node-pool wrapper](../backend/pkg/controllers/nodepool/validation/nodepool_v
 They write one named condition in `Status.Validations`, respect result-specified
 `EarliestRetryAfter` with delayed enqueue/cooldown, and suppress transient Unknown
 results until repeated. The validators' Azure calls are checks, not provisioning.
+
+Before the cooldown gate, each syncer reads the customer resource from its informer
+lister. A generation strictly greater than the last validated `UserIntentGeneration`
+bypasses the gate, so the frontend write's informer event can immediately rerun
+validation. Each syncer records the generation from the authoritative live resource
+after completing validation. Internal status/provisioning writes leave the marker
+unchanged, preserving the normal approximately 12-hour passed-validation cooldown.
+Before checking cooldown, an informer NotFound or deletion timestamp clears the
+resource's generation history, cooldown, and consecutive-Unknown count and returns.
+A same-name recreation starting at generation 1 therefore validates normally.
+Other lister errors do not bypass cooldown. If the
+resource is cached but its validated-generation history is missing, an active
+cooldown permits one validation to restore that history: an evicted entry cannot
+prove that the current user intent was already validated. History and cooldown
+caches share the same capacity, and every completed validation records its live
+generation when handling requeue, including non-pass outcomes. Node-pool validators
+use the node pool's marker, not its parent's. Live reads retain secondary deletion
+and absence checks that also clear all three caches.
+
+User intent generations increase monotonically. Recording the authoritative live
+generation makes the bypass one-shot per increment: equal or older cached
+generations respect cooldown, even while the informer is catching up. Internal
+churn and a lagging cache cannot trigger repeated bypasses.
 
 ### Backend: cluster provisioning and Azure resources
 

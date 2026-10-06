@@ -89,6 +89,9 @@ func (c *TimeBasedCooldownChecker) CanSync(_ context.Context, key any) bool {
 	return false
 }
 
+// SettableCooldownCacheCapacity bounds the cooldown cache and associated per-key state.
+const SettableCooldownCacheCapacity = 1000000
+
 // SettableCooldownChecker is a cooldown gate where the per-key cooldown
 // duration is set explicitly by the caller via SetCooldown, rather than
 // being fixed at construction time. A key with no cooldown set is always
@@ -101,7 +104,7 @@ type SettableCooldownChecker struct {
 func NewSettableCooldownChecker() *SettableCooldownChecker {
 	return &SettableCooldownChecker{
 		clock:        utilsclock.RealClock{},
-		nextExecTime: lru.New(1000000),
+		nextExecTime: lru.New(SettableCooldownCacheCapacity),
 	}
 }
 
@@ -113,6 +116,10 @@ func (c *SettableCooldownChecker) SetClock(clock utilsclock.PassiveClock) {
 // now+duration has elapsed.
 func (c *SettableCooldownChecker) SetCooldown(key any, duration time.Duration) {
 	c.nextExecTime.Add(key, c.clock.Now().Add(duration))
+}
+
+func (c *SettableCooldownChecker) Forget(key any) {
+	c.nextExecTime.Remove(key)
 }
 
 func (c *SettableCooldownChecker) CanSync(_ context.Context, key any) bool {

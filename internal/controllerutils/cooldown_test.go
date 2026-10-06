@@ -61,6 +61,27 @@ func TestSettableCooldownChecker_NoKeyAlwaysAllowed(t *testing.T) {
 	}
 }
 
+func TestSettableCooldownChecker_Forget(t *testing.T) {
+	checker := NewSettableCooldownChecker()
+	checker.SetClock(clocktesting.NewFakePassiveClock(time.Now()))
+	ctx := context.Background()
+	checker.SetCooldown("deleted", 12*time.Hour)
+	checker.SetCooldown("retained", 12*time.Hour)
+	checker.Forget("deleted")
+	checker.Forget("deleted")
+	checker.Forget("unknown")
+	if !checker.CanSync(ctx, "deleted") || checker.TimeUntilReady("deleted") != 0 {
+		t.Fatal("forgotten key must have no cooldown")
+	}
+	if checker.CanSync(ctx, "retained") {
+		t.Fatal("forget must not clear other keys")
+	}
+	checker.SetCooldown("deleted", time.Hour)
+	if checker.CanSync(ctx, "deleted") {
+		t.Fatal("recreated key must accept a new cooldown")
+	}
+}
+
 func TestSettableCooldownChecker_SetCooldownBlocksThenExpires(t *testing.T) {
 	startTime := time.Now()
 	fakeClock := clocktesting.NewFakePassiveClock(startTime)

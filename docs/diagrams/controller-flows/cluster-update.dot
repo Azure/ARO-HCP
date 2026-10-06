@@ -15,6 +15,7 @@ digraph cluster_update {
   done [label="ARM terminal operation state\nSucceeded or Failed", fillcolor="#e4f2e5", color="#4c8053"];
   put -> dispatch [label="changed dispatchable\nconfiguration"];
   put -> desired [label="requested version / channel"];
+  put -> validation [label="bump UserIntentGeneration;\nchanged intent: bypass cooldown"];
   desired -> upgrade [label="desired exact version"];
   desired -> op [label="resolved major.minor\nversus requested version"];
   dispatch -> cs [label="PATCH"];

@@ -45,6 +45,7 @@
 			}
 		},
 		"serviceProviderProperties": {
+			"userIntentGeneration": 1,
 			"usesNewNodePoolDeletionApproach": true
 		},
 		"status": {},

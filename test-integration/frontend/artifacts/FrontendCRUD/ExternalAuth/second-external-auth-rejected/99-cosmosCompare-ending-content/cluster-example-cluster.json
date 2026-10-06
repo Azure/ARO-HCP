@@ -103,6 +103,7 @@
 			"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
 			"platform": {},
 			"provisioningState": "Succeeded",
+			"userIntentGeneration": 1,
 			"usesNewClusterDeletionApproach": false
 		},
 		"status": {},

@@ -419,6 +419,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
 	newInternalCluster.ServiceProviderProperties.ActiveOperationID = clusterCreateOperation.ResourceID.Name
+	newInternalCluster.ServiceProviderProperties.UserIntentGeneration = 1
 	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterCreateOperation.Status
 
 	cosmosUID, err := f.resourcesDBClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddCreateToTransaction(ctx, transaction, newInternalCluster, nil)
@@ -677,6 +678,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
 	newInternalCluster.ServiceProviderProperties.ActiveOperationID = clusterUpdateOperation.ResourceID.Name
+	newInternalCluster.ServiceProviderProperties.UserIntentGeneration = oldInternalCluster.ServiceProviderProperties.UserIntentGeneration + 1
 	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterUpdateOperation.Status
 
 	_, err = f.resourcesDBClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, newInternalCluster, nil)
