@@ -78,6 +78,35 @@ func buildClusterNetworking(disableSwift bool, tags map[string]*string, subnetID
 	return tags, to.Ptr(subnetID)
 }
 
+// buildControlPlaneVersion encodes exact builds in a tag that survives GET and
+// unrelated PATCH requests. Raw parameters remain available for version selection.
+// Non-exact IDs and explicit tags are left for the RP to interpret and validate.
+func buildControlPlaneVersion(versionID string, tags map[string]*string) (string, map[string]*string) {
+	tags = maps.Clone(tags)
+	exact, err := semver.Parse(versionID)
+	if err != nil {
+		return versionID, tags
+	}
+	if tags == nil {
+		tags = map[string]*string{}
+	}
+	for key := range tags {
+		if strings.EqualFold(key, metadataapi.TagClusterControlPlaneExactVersion) {
+			delete(tags, key)
+		}
+	}
+	tags[metadataapi.TagClusterControlPlaneExactVersion] = to.Ptr(versionID)
+	return fmt.Sprintf("%d.%d", exact.Major, exact.Minor), tags
+}
+
+// ControlPlaneExactVersionPatchTags encodes an explicit version change. A bare
+// release line removes a stored pin via JSON null; omission would preserve it.
+func ControlPlaneExactVersionPatchTags(versionID string) (string, map[string]*string) {
+	return buildControlPlaneVersion(versionID, map[string]*string{
+		metadataapi.TagClusterControlPlaneExactVersion: nil,
+	})
+}
+
 // updateTimeoutTags leaves one minute for the test to receive the server's
 // timeout error before its own context expires, without changing caller tags.
 // Callers must resolve omitted tags from the current resource before calling.

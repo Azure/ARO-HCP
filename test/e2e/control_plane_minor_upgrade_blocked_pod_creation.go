@@ -220,10 +220,12 @@ var _ = Describe("Customer", func() {
 
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", upgradeVersionId,
 				upgradeVersion.String()))
+			upgradeVersionLine, upgradeTags := framework.ControlPlaneExactVersionPatchTags(upgradeVersionId)
 			update := hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
+				Tags: upgradeTags,
 				Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20260901preview.VersionProfileUpdate{
-						ID:           to.Ptr(upgradeVersionId),
+						ID:           to.Ptr(upgradeVersionLine),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
