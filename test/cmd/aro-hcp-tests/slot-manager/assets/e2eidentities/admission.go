@@ -59,10 +59,13 @@ func admitE2EIdentityLease(ctx context.Context, request assets.LeaseRequest) err
 }
 
 func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequest, msiFactory *armmsi.ClientFactory, roleAssignmentsClient *armauthorization.RoleAssignmentsClient) error {
+	logger := logr.FromContextOrDiscard(ctx)
+	logger.Info("Loading identity lease inventory", "slotName", request.AcquiredSlotState.Slot.ResourceName, "resourceGroupCount", len(request.AcquiredSlotState.Slot.IdentityContainerNames()))
 	inventory, err := loadIdentityLeaseInventory(ctx, request, msiFactory, roleAssignmentsClient)
 	if err != nil {
 		return err
 	}
+	logger.Info(fmt.Sprintf("Loaded identity lease inventory with %d role assignments", len(inventory.roleAssignments)))
 
 	deleteOperations := make([]func(context.Context) error, 0, len(inventory.roleAssignments))
 	for _, assignment := range inventory.roleAssignments {
@@ -70,13 +73,19 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 			if assignment.ID == nil {
 				return errors.New("role assignment has no ID")
 			}
+			logger.Info("Attempting to delete role assignment", "roleAssignmentResourceID", *assignment.ID)
 			_, err := roleAssignmentsClient.DeleteByID(ctx, *assignment.ID, nil)
 			if isNotFound(err) {
+				logger.Info("Role assignment not found. Nothing to delete", "roleAssignmentResourceID", *assignment.ID)
 				return nil
 			}
 			if err != nil {
 				return fmt.Errorf("failed deleting role assignment %q: %w", *assignment.ID, err)
 			}
+			logger.Info("Deleted role assignment",
+				"roleAssignmentResourceID", *assignment.ID, "roleAssignmentPrincipalID", *assignment.Properties.PrincipalID,
+				"roleAssignmentRoleDefinitionResourceID", assignment.Properties.RoleDefinitionID,
+			)
 			return nil
 		})
 	}
