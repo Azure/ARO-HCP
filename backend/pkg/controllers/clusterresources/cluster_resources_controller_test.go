@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -170,6 +172,104 @@ func TestNeedsWork(t *testing.T) {
 			c := &clusterResourcesController{}
 			got := c.NeedsWork(tt.cluster, tt.managementCluster)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestIngressDesireSuppression(test *testing.T) {
+	for _, scenario := range []struct {
+		name            string
+		customerVersion string
+		desiredVersion  string
+		featureName     string
+		featureState    string
+		missing         bool
+		suppressed      bool
+	}{
+		{name: "flag on below version threshold", customerVersion: "4.20", desiredVersion: "4.20.42", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
+		{name: "flag off below version threshold", customerVersion: "4.20", desiredVersion: "4.20.42"},
+		{name: "flag on above version threshold", customerVersion: "5.1", desiredVersion: "5.1.0-rc.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
+		{name: "flag off above version threshold", customerVersion: "5.1", desiredVersion: "5.1.0-rc.1"},
+		{name: "flag on without version", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
+		{name: "flag off without version"},
+		{name: "unregistered flag", customerVersion: "5.1", desiredVersion: "5.1.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "NotRegistered"},
+		{name: "unrelated flag", customerVersion: "5.1", desiredVersion: "5.1.0", featureName: "Microsoft.RedHatOpenShift/UnrelatedFeature", featureState: "Registered"},
+		{name: "case insensitive flag", featureName: "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures", featureState: "Registered", suppressed: true},
+		{name: "missing subscription", customerVersion: "5.1", desiredVersion: "5.1.0", missing: true},
+	} {
+		test.Run(scenario.name, func(test *testing.T) {
+			ctx := utils.ContextWithLogger(test.Context(), testr.New(test))
+			clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+			client := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+			clients.Register(testManagementClusterResourceID, client)
+			managementClusters := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testManagementClusterResourceID}}}}
+			cluster := newCluster()
+			cluster.CustomerProperties.Version.ID = scenario.customerVersion
+			spc := newSPC(testManagementClusterResourceID)
+			subscriptionLister := &corelistertesting.SliceSubscriptionLister{}
+			if !scenario.missing {
+				subscription := &coreapi.Subscription{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))},
+					Properties:     &coreapi.SubscriptionProperties{},
+				}
+				if scenario.featureName != "" {
+					subscription.Properties.RegisteredFeatures = &[]coreapi.Feature{{Name: ptr.To(scenario.featureName), State: ptr.To(scenario.featureState)}}
+				}
+				subscriptionLister.Subscriptions = append(subscriptionLister.Subscriptions, subscription)
+			}
+			if scenario.desiredVersion != "" {
+				desiredVersion := semver.MustParse(scenario.desiredVersion)
+				spc.Spec.ControlPlaneVersion.DesiredVersion = &desiredVersion
+			}
+			csClient := ocm.NewMockClusterServiceClientSpec(gomock.NewController(test))
+			resources := buildClusterResources(map[string]string{
+				"hosted":   `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"hc"}}`,
+				"managed":  `{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"test-cluster"}}`,
+				"config":   `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"open-cluster-management-policies"}}`,
+				"sync":     `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
+				"provider": `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
+				"kas":      `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-tls-cert-test","namespace":"hc"}}`,
+				"signing":  `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"signing-key-test","namespace":"hc"}}`,
+			})
+			csClient.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(resources, nil)
+			syncer := &clusterResourcesController{
+				subscriptionLister:           subscriptionLister,
+				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+				clustersServiceClient:        csClient, kubeApplierDBClients: clients,
+				applyDesireLister: &kubeapplierlistertesting.DBApplyDesireLister{Clients: clients, Lister: managementClusters},
+			}
+			require.NoError(test, syncer.SyncOnce(ctx, testKey()))
+			desires, err := syncer.applyDesireLister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
+			require.NoError(test, err)
+			expected := 7
+			if scenario.suppressed {
+				expected = 3
+			}
+			require.Len(test, desires, expected)
+			desireNames := make([]string, 0, len(desires))
+			for _, desire := range desires {
+				desireNames = append(desireNames, desire.ResourceID.Name)
+				if desire.ResourceID.Name == strings.ToLower("HostedCluster") {
+					var hostedCluster unstructured.Unstructured
+					require.NoError(test, json.Unmarshal(desire.Spec.ServerSideApply.KubeContent.Raw, &hostedCluster))
+					name, found, err := unstructured.NestedString(hostedCluster.Object, "spec", "operatorConfiguration", "ingressOperator", "defaultCertificate", "name")
+					require.NoError(test, err)
+					require.True(test, found)
+					require.Equal(test, "default-ingress-tls-cert-abc123", name)
+				}
+				if scenario.suppressed {
+					require.Contains(test, []string{strings.ToLower("HostedCluster"), strings.ToLower("KubeAPIServerServingCertSecretSync"), strings.ToLower("BoundServiceAccountSigningKeySecretProviderClass")}, desire.ResourceID.Name)
+				}
+			}
+			for _, desireName := range []string{"ManagedCluster", "DefaultIngressConfigMap", "DefaultIngressWildcardCertSecretSync", "DefaultIngressWildcardCertSecretProviderClass"} {
+				if scenario.suppressed {
+					require.NotContains(test, desireNames, strings.ToLower(desireName))
+				} else {
+					require.Contains(test, desireNames, strings.ToLower(desireName))
+				}
+			}
+			require.Contains(test, desireNames, strings.ToLower("HostedCluster"))
 		})
 	}
 }
@@ -412,6 +512,7 @@ func TestSyncOnce(t *testing.T) {
 			}
 
 			syncer := &clusterResourcesController{
+				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{},
 				clusterLister:                clusterLister,
 				serviceProviderClusterLister: spcLister,
 				clustersServiceClient:        tt.setupCSMock(ctrl),
@@ -837,6 +938,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 				},
 			}
 			syncer := &clusterResourcesController{
+				subscriptionLister:   &corelistertesting.SliceSubscriptionLister{},
 				nodePoolLister:       &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{tt.nodePool}},
 				kubeApplierDBClients: mockClients,
 				applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
@@ -850,7 +952,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 				NodePools: []*coreapi.NodePool{newNodePool(false)},
 			}
 			require.NoError(t, seedSyncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
-				buildClusterResources(map[string]string{"node-pool": nodePoolCR})),
+				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123"),
 				"seeding the NodePool ApplyDesire should succeed")
 			_, err = npCRUD.Get(ctx, "nodepool")
 			require.NoError(t, err, "seed pass should have created the NodePool ApplyDesire")
@@ -858,7 +960,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 			// Cluster Service still reports the CR, as it does until it removes the
 			// ManifestWork.
 			require.NoError(t, syncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
-				buildClusterResources(map[string]string{"node-pool": nodePoolCR})),
+				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123"),
 				"processClusterResources should succeed")
 
 			desire, err := npCRUD.Get(ctx, "nodepool")

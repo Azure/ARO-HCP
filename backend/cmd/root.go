@@ -535,6 +535,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		AppShortDescriptionName:            cmd.Short,
 		AppVersion:                         cmd.Version,
 		AzureLocation:                      f.AzureLocation,
+		ServiceTenantID:                    azureConfig.AzureRuntimeConfig.ServiceTenantID,
 		LeaderElectionLock:                 leaderElectionLock,
 		StorageFactory:                     storageFactory,
 		ClustersServiceClient:              clustersServiceClient,
