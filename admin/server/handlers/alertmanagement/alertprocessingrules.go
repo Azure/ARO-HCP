@@ -145,6 +145,9 @@ const (
 	// monitorConditionFired restricts suppression to firing alerts so resolved
 	// notifications still flow (allowing ICM auto-mitigation).
 	monitorConditionFired = "Fired"
+
+	// maxPutBodyBytes is a defense-in-depth bound against oversized bodies.
+	maxPutBodyBytes int64 = 1 << 20 // 1 MiB
 )
 
 func (h *AlertProcessingRuleListHandler) ServeHTTP(w http.ResponseWriter, request *http.Request) error {
@@ -185,7 +188,7 @@ func (h *AlertProcessingRulePutHandler) ServeHTTP(w http.ResponseWriter, request
 	name := request.PathValue("name")
 
 	var body AlertProcessingRulePutRequest
-	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, request.Body, maxPutBodyBytes)).Decode(&body); err != nil {
 		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
 			"invalid JSON body: %v", err)
 	}
@@ -288,12 +291,12 @@ func mapAlertProcessingRuleError(err error, name *string) error {
 		return utils.TrackError(err)
 	}
 
-	errFmt := "Error processing request: %s"
+	message := fmt.Sprintf("Error processing request: %s", azErr.Error())
 	if name != nil {
-		errFmt = fmt.Sprintf("Error processing request for rule %s: %s", *name, "%s")
+		message = fmt.Sprintf("Error processing request for rule %s: %s", *name, azErr.Error())
 	}
 
-	return coreapi.NewCloudError(azErr.StatusCode, azErr.ErrorCode, "", errFmt, azErr.Error())
+	return coreapi.NewCloudError(azErr.StatusCode, azErr.ErrorCode, "", "%s", message)
 }
 
 func summarizeRule(rule *armalertprocessingrules.AlertProcessingRule) AlertProcessingRuleSummary {

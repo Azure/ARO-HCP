@@ -484,7 +484,7 @@ var _ = Describe("SRE", func() {
 				Description:   "Test alert processing rule",
 				Scopes:        []string{servicesAMW},
 			}
-			ruleName := fmt.Sprintf("test-apr-%s", rand.String(4))
+			ruleName := fmt.Sprintf("test-apr-%s", rand.String(8))
 			createdRule, err := tc.CreateAlertProcessingRule(ctx, ruleName, createReq, http.StatusOK)
 			DeferCleanup(func(ctx context.Context) {
 				_ = tc.DeleteAlertProcessingRule(ctx, ruleName, http.StatusNoContent)

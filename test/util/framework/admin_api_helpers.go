@@ -602,6 +602,7 @@ func adminAPIGet(ctx context.Context, httpClient *http.Client, endpoint string) 
 }
 
 // AlertProcessingRuleRequest is the test API for alert processing rule operations.
+// Unwanted dependencies are avoided by duplicating this contract.
 type AlertProcessingRuleRequest struct {
 	AlertRuleName     string   `json:"alertRuleName"`
 	ResourceFilter    string   `json:"resourceFilter,omitempty"`
@@ -614,6 +615,7 @@ type AlertProcessingRuleRequest struct {
 }
 
 // AlertProcessingRuleSummary is the response from the alert processing rules API.
+// Unwanted dependencies are avoided by duplicating this contract.
 type AlertProcessingRuleSummary struct {
 	Name           string            `json:"name"`
 	ID             string            `json:"id"`
