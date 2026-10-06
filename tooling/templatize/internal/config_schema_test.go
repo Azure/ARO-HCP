@@ -28,6 +28,79 @@ import (
 	configtypes "github.com/Azure/ARO-Tools/config/types"
 )
 
+func TestInfrastructureIdentityResourceGroupSchema(t *testing.T) {
+	provider, err := config.NewConfigProvider(filepath.Join(repoRootDir, "config/config.yaml"))
+	require.NoError(t, err)
+	ev2, err := ev2config.ResolveConfig("public", "westus3")
+	require.NoError(t, err)
+	resolver, err := provider.GetResolver(&config.ConfigReplacements{
+		CloudReplacement:       "dev",
+		EnvironmentReplacement: "pers",
+		RegionReplacement:      "westus3",
+		RegionShortReplacement: "usw3",
+		StampReplacement:       "1",
+		Ev2Config:              ev2,
+	})
+	require.NoError(t, err)
+	baseline, err := resolver.GetRegionConfiguration("westus3")
+	require.NoError(t, err)
+	require.NoError(t, resolver.ValidateSchema(baseline))
+	require.Equal(t, map[string]any{
+		"useLeased":                false,
+		"serviceResourceGroup":     "",
+		"managementResourceGroups": "",
+	}, baseline["infrastructureIdentities"])
+	encoded, err := json.Marshal(baseline)
+	require.NoError(t, err)
+
+	for _, field := range []string{"serviceResourceGroup", "managementResourceGroups"} {
+		for _, test := range []struct {
+			name  string
+			value any
+			valid bool
+		}{
+			{name: "one character", value: "a", valid: true},
+			{name: "allowed punctuation", value: "AZaz09_rg.(bundle)-", valid: true},
+			{name: "maximum length", value: strings.Repeat("a", 90), valid: true},
+			{name: "empty leased name", value: ""},
+			{name: "too long", value: strings.Repeat("a", 91)},
+			{name: "trailing period", value: "rg."},
+			{name: "only period", value: "."},
+			{name: "quote", value: "bad'rg"},
+			{name: "backslash", value: `bad\rg`},
+			{name: "slash", value: "bad/rg"},
+			{name: "space", value: "bad rg"},
+			{name: "newline", value: "rg\n"},
+			{name: "mapping delimiter", value: "rg,other"},
+			{name: "non-string", value: 123},
+		} {
+			t.Run(field+"/"+test.name, func(t *testing.T) {
+				var mutated configtypes.Configuration
+				require.NoError(t, json.Unmarshal(encoded, &mutated))
+				identities := map[string]any{
+					"useLeased":                true,
+					"serviceResourceGroup":     "service-rg",
+					"managementResourceGroups": "1=management-rg",
+				}
+				value := test.value
+				if field == "managementResourceGroups" {
+					if name, ok := value.(string); ok {
+						value = "1=management-rg,2=" + name
+					}
+				}
+				identities[field] = value
+				mutated["infrastructureIdentities"] = identities
+				err := resolver.ValidateSchema(mutated)
+				if test.valid {
+					require.NoError(t, err)
+				} else {
+					require.ErrorContains(t, err, field)
+				}
+			})
+		}
+	}
+}
+
 func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 	provider, err := config.NewConfigProvider(filepath.Join(repoRootDir, "config/config.yaml"))
 	require.NoError(t, err)
