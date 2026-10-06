@@ -91,15 +91,26 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error) error {
 	}
 
 	var stepError *cosmosstorageutils.TransactionStepError
-	if errors.As(err, &stepError) && stepError.HTTPStatusCode == http.StatusPreconditionFailed {
-		w.Header().Set("Retry-After", "1")
-		coreapihelpers.WriteCloudError(w, coreapi.NewCloudError(
-			http.StatusTooManyRequests,
-			coreapi.CloudErrorCodeConflict, "",
-			"The resource was modified by another request. Please retry. (transaction step %d of %d)",
-			stepError.Step, stepError.TotalSteps,
-		))
-		return nil
+	if errors.As(err, &stepError) {
+		switch stepError.HTTPStatusCode {
+		case http.StatusPreconditionFailed:
+			w.Header().Set("Retry-After", "1")
+			coreapihelpers.WriteCloudError(w, coreapi.NewCloudError(
+				http.StatusTooManyRequests,
+				coreapi.CloudErrorCodeConflict, "",
+				"The resource was modified by another request. Please retry. (transaction step %d of %d)",
+				stepError.Step, stepError.TotalSteps,
+			))
+			return nil
+		case http.StatusConflict:
+			coreapihelpers.WriteCloudError(w, coreapi.NewCloudError(
+				http.StatusConflict,
+				coreapi.CloudErrorCodeConflict, "",
+				"The resource already exists. (transaction step %d of %d)",
+				stepError.Step, stepError.TotalSteps,
+			))
+			return nil
+		}
 	}
 
 	coreapihelpers.WriteInternalServerError(w)
@@ -126,8 +137,13 @@ func predictedResponseStatus(err error) int {
 	}
 
 	var stepError *cosmosstorageutils.TransactionStepError
-	if errors.As(err, &stepError) && stepError.HTTPStatusCode == http.StatusPreconditionFailed {
-		return http.StatusTooManyRequests
+	if errors.As(err, &stepError) {
+		switch stepError.HTTPStatusCode {
+		case http.StatusPreconditionFailed:
+			return http.StatusTooManyRequests
+		case http.StatusConflict:
+			return http.StatusConflict
+		}
 	}
 
 	return http.StatusInternalServerError
