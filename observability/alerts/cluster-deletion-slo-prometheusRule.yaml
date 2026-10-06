@@ -123,21 +123,9 @@ spec:
     # 14.4x burn rate → >72% of successful deletes exceeded 30m, sustained 5m
     - alert: userJourneyClusterDeletionLatency1h5m
       expr: |
-        errors:backend_cluster_deletion_operation:latency_error_rate > 0.72
+        errors:backend_cluster_deletion_operation:latency_total_1h >= 5
         and
-        clamp_min(
-          count by (cluster) (backend_resource_operation_phase_info{
-            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-            operation_type="delete",
-            phase="succeeded"
-          })
-          or
-          0 * count by (cluster) (backend_resource_operation_phase_info{
-            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-            operation_type="delete"
-          }),
-          1
-        ) >= 5
+        errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72
       for: 5m
       labels:
         severity: "3"
@@ -156,21 +144,9 @@ spec:
     # 6x burn rate → >30% of successful deletes exceeded 30m, sustained 30m
     - alert: userJourneyClusterDeletionLatency6h30m
       expr: |
-        errors:backend_cluster_deletion_operation:latency_error_rate > 0.30
+        errors:backend_cluster_deletion_operation:latency_total_6h >= 5
         and
-        clamp_min(
-          count by (cluster) (backend_resource_operation_phase_info{
-            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-            operation_type="delete",
-            phase="succeeded"
-          })
-          or
-          0 * count by (cluster) (backend_resource_operation_phase_info{
-            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-            operation_type="delete"
-          }),
-          1
-        ) >= 5
+        errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.30
       for: 30m
       labels:
         severity: "3"
@@ -189,21 +165,9 @@ spec:
     # 1x burn rate → >5% of successful deletes exceeded 30m, sustained 6h
     - alert: userJourneyClusterDeletionLatency3d
       expr: |
-        errors:backend_cluster_deletion_operation:latency_error_rate > 0.05
+        errors:backend_cluster_deletion_operation:latency_total_3d >= 5
         and
-        clamp_min(
-          count by (cluster) (backend_resource_operation_phase_info{
-            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-            operation_type="delete",
-            phase="succeeded"
-          })
-          or
-          0 * count by (cluster) (backend_resource_operation_phase_info{
-            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-            operation_type="delete"
-          }),
-          1
-        ) >= 5
+        errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
       for: 6h
       labels:
         severity: "4"
