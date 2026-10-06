@@ -220,10 +220,14 @@ var _ = Describe("Customer", func() {
 
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", upgradeVersionId,
 				upgradeVersion.String()))
+			current, err := hcpClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get current tags before upgrading cluster %q", clusterName)
+			upgradeVersionLine, upgradeTags := framework.ControlPlaneExactVersionPatchTags(upgradeVersionId)
 			update := hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
+				Tags: framework.TagsForPatch(current.Tags, upgradeTags),
 				Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20260901preview.VersionProfileUpdate{
-						ID:           to.Ptr(upgradeVersionId),
+						ID:           to.Ptr(upgradeVersionLine),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
