@@ -300,7 +300,7 @@ safe-outputs:
             git config user.email "aro-hcp-robot[bot]@users.noreply.github.com"
             git commit -m "fix(deps): repair agentic dependency PR"
             gh auth setup-git
-            git push origin "HEAD:refs/heads/$head"
+            git push --force-with-lease="refs/heads/$head:$sha" origin "HEAD:refs/heads/$head"
             git rev-parse HEAD | grep -Fx "$(gh api "repos/$REPO/pulls/$n" --jq '.head.sha')"
     reconcile-owned-pr:
       description: Update the base or post an evidenced Prow command on an owned agentic Dependabot PR
@@ -341,11 +341,16 @@ safe-outputs:
           run: |
             set -euo pipefail
             jq -e '
-              [.items[] | select(.type == "reconcile_owned_pr") | .pull_request_number] as $numbers |
+              . as $output |
+              [$output.items[] | select(.type == "reconcile_owned_pr") | .pull_request_number] as $numbers |
               all($numbers[]; type == "string" and test("^[1-9][0-9]*$")) and
-              ($numbers | unique | length) == ($numbers | length)
+              ($numbers | unique | length) == ($numbers | length) and
+              all($numbers[];
+                . as $n |
+                [$output.items[] | select(.type == "repair_owned_pr" and .pull_request_number == $n)] | length == 0
+              )
             ' "$GH_AW_AGENT_OUTPUT" >/dev/null || {
-              echo "Reconciliation requires unique, valid PR numbers" >&2
+              echo "Reconciliation requires unique, valid PR numbers and no conflicting repair" >&2
               exit 1
             }
             jq -c '.items[] | select(.type == "reconcile_owned_pr")' "$GH_AW_AGENT_OUTPUT" | while read -r item; do
