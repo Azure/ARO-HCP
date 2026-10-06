@@ -5,12 +5,12 @@ This plan maps the fleet rollout design originally authored on the
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: the seven rollout controllers, separate CosmosRolloutVersionMigration,
+> Status: the seven rollout controllers plus catalog publication, separate CosmosRolloutVersionMigration,
 > Cosmos storage, informers, and backend wiring
 > are implemented. They run unconditionally. Production policy is hardcoded;
 > risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
 > Structured rollout profiles, independent migration, and discovery/reference seeding are
-> implemented. Catalog publication and rollout retirement are not implemented yet.
+> implemented. Frontend catalog cutover and rollout retirement are not implemented yet.
 
 ## 1. Background: the pipeline before this change
 
@@ -169,7 +169,7 @@ is separate from the per-channel minimum exact versions used by selection.
 
 ## 5. Controllers
 
-All seven rollout controllers plus separate migration run in the `backend` binary.
+All eight rollout/catalog controllers plus separate migration run in the `backend` binary.
 Three assignment controllers are per-cluster; the other five, including seeding
 and migration, use the existing rollout watcher with channel keys.
 `GenericWatchingController` retains queue execution, retries, logging, metrics,
@@ -308,10 +308,26 @@ attempts; other failures remain retryable. NotFound is benign without completion
 or recreation. Later events do not reopen completed keys. There is no custom Run
 or Fleet sweep; subscription CosmosMigration remains unchanged.
 
+### OpenShift Version Catalog Publication
+
+The regional Resources singleton stores sorted version profiles and availability,
+not rollout health. Its internal ID is
+`/providers/microsoft.redhatopenshift/openshiftversioncatalogs/default`, partition
+`microsoft.redhatopenshift`. The publisher uses the original generic watcher;
+`MakeKey` maps every rollout ID to one singleton key. Bootstrap enqueues even an
+empty informer; rollout add/update/delete and unchanged five-minute resyncs trigger
+projection after cache sync. There is no delayed recurring requeue.
+
+Profiles at/above the public floor are projected with availability equal to non-nil
+best version. An absent profile defers projection without changing the snapshot.
+The sync shell creates a missing catalog or replaces changed entries with ETag
+protection, including empty results. Errors use queue retries. Frontend version
+GET/LIST still use Cluster Service at this stage.
+
 ## 6. Ownership and cutover
 
 This implementation deliberately replaces `ControlPlaneDesiredVersion`; all
-seven rollout controllers and the separate migration run unconditionally. The earlier feature-flag proposal
+eight rollout/catalog controllers and the separate migration run unconditionally. The earlier feature-flag proposal
 was removed during review. Restoring it would reintroduce the removed owner and
 is not part of this change.
 
@@ -360,7 +376,7 @@ Implemented:
 
 - Fleet API, validation of supported channel groups and major/minor names,
   Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
-- Seven rollout controllers plus separate migration, backend registration under leader election, and unit tests.
+- Eight rollout/catalog controllers plus separate migration, backend registration under leader election, and unit tests.
 - Structured `Spec.Version`, shared read normalization and independent Fleet migration.
 - Generic rollout watcher with mapped Cluster/SPC dependencies, periodic discovery,
   below-floor reference repair and worker-owned obsolete health cleanup.
@@ -371,7 +387,7 @@ Implemented:
 
 Follow-ups:
 
-- Catalog publication and unreferenced-rollout retirement controllers.
+- Frontend catalog cutover and unreferenced-rollout retirement.
 - Filter platform/control-plane risks from Cincinnati conditional updates. The
   current graph helper selects by recency, so selected versions are not
   guaranteed to be free of conditional-update risks.

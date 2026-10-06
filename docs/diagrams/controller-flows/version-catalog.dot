@@ -1,0 +1,24 @@
+digraph version_catalog {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Version catalog - internal discovery and Resources publication", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  graphdata [label="Cincinnati graph-data archive\nvalidated allowed profiles at/above backend floor", fillcolor="#fff0da", color="#b27624"];
+  refs [label="Cached Cluster / SPC references\nrequested, desired, exact pins, overrides, active\nincludes deleting and nightly; not pin thresholds", fillcolor="#e4f2e5", color="#4c8053"];
+  seed [label="ControlPlaneVersionRolloutSeeding\nexisting rollout watcher; channel keys\nRun: HTTP discovery only, immediate + fixed 5m ticker\nCluster/SPC add/delete; every update maps old + new\nworker creation and legacy cleanup; queue retries"];
+  fleet [label="Fleet: ControlPlaneVersionRollout\nSpec.Version: canonical ID + ChannelGroup\nBestExactVersion may be nil", fillcolor="#e4f2e5", color="#4c8053"];
+  best [label="ControlPlaneVersionBestVersionSelection\nCincinnati exact-release selection\nexisting selector does not resolve nightly"];
+  publish [label="OpenShiftVersionCatalog\ngeneric watcher; MakeKey returns singleton\nbootstrap even empty; rollout add/update/delete + 5m resync\nno delayed recurring requeue\nabsent profile: defer projection; preserve snapshot\npublic floor; Available = BestExactVersion != nil"];
+  catalog [label="Resources: OpenShiftVersionCatalog/default\nprovider-namespace partition; regional account\nEntries: Version {ID, ChannelGroup}, Available\nincludes unresolved entries; empty results = []", fillcolor="#e4f2e5", color="#4c8053"];
+  boundary [shape=note, label="Persistence only at this stage\nFrontend version GET/LIST still use Cluster Service\nNo rollout retirement controller", fillcolor="#f5f5f5", color="#777777"];
+  graphdata -> seed [label="discovered profiles"];
+  refs -> seed [label="referenced profiles, including below floor"];
+  seed -> fleet [label="CREATE missing structured profiles\nexisting documents unchanged"];
+  migration [label="CosmosRolloutVersionMigration\nrollout watcher; cache-gated\nGET + validated REPLACE until success per key/process"];
+  fleet -> migration [label="normalized reads", style=dashed];
+  migration -> fleet [label="persist representation", constraint=false];
+  fleet -> best [label="profile exists", style=dashed];
+  best -> fleet [label="persist changed best", constraint=false];
+  fleet -> publish [label="cached full inventory\nadd / update / delete, including tombstones"];
+  publish -> catalog [label="point GET; CREATE / changed ETag REPLACE\nerrors preserve previous snapshot and retry"];
+  {rank=same; catalog; boundary;}
+}
