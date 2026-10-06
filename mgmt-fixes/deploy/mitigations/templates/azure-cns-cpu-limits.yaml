@@ -14,7 +14,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "-5"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -24,7 +24,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "-5"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation
 rules:
 - apiGroups:
   - apps
@@ -44,7 +44,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "-5"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -91,7 +91,8 @@ spec:
           DESIRED_REQ="{{ .Values.azureCnsCpuLimits.cpuRequest }}"
 
           echo "Checking if azure-cns DaemonSet exists in kube-system..."
-          if ! kubectl get daemonset azure-cns -n kube-system --ignore-not-found -o name | grep -q .; then
+          DS_NAME=$(kubectl get daemonset azure-cns -n kube-system --ignore-not-found -o name)
+          if [ -z "$DS_NAME" ]; then
             echo "azure-cns DaemonSet not found in kube-system, skipping patch"
             exit 0
           fi
