@@ -42,7 +42,7 @@ func TestClusterPatchExactVersionIntent(t *testing.T) {
 	apiVersions := slices.Sorted(maps.Keys(NewTestFrontend(t).apiRegistry.ListVersions()))
 	require.Len(t, apiVersions, 5)
 	for _, apiVersion := range apiVersions {
-		for _, minor := range []string{"4.20"} {
+		for _, minor := range []string{"4.19", "4.20"} {
 			for _, tc := range []struct {
 				name           string
 				body           string

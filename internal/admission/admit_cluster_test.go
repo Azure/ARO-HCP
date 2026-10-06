@@ -39,6 +39,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
+	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
 func TestMutateCluster(t *testing.T) {
@@ -567,6 +568,60 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 		})
 	}
 
+}
+
+func TestMutatedExactVersionMinimum(t *testing.T) {
+	subscription := &coreapi.Subscription{Properties: &coreapi.SubscriptionProperties{
+		RegisteredFeatures: &[]coreapi.Feature{{Name: ptr.To(metadataapi.FeatureExperimentalReleaseFeatures), State: ptr.To("Registered")}},
+	}}
+	for _, source := range []string{"tag", "version.id"} {
+		for _, tc := range []struct {
+			name     string
+			update   bool
+			oldExact string
+			newExact string
+			invalid  bool
+		}{
+			{name: "new below floor", newExact: "4.19.1", invalid: true},
+			{name: "new pin below floor on update", update: true, newExact: "4.19.1", invalid: true},
+			{name: "changed below floor", oldExact: "4.19.1", newExact: "4.19.2", invalid: true},
+			{name: "unchanged below floor", oldExact: "4.19.1", newExact: "4.19.1"},
+			{name: "prerelease at floor", newExact: "4.20.0-rc.1"},
+		} {
+			t.Run(source+"/"+tc.name, func(t *testing.T) {
+				clock := clocktesting.NewFakeClock(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+				cluster := coreapitesting.MinimumValidClusterTestCase()
+				parsed := semver.MustParse(tc.newExact)
+				cluster.CustomerProperties.Version.ID = fmt.Sprintf("%d.%d", parsed.Major, parsed.Minor)
+				var oldCluster *coreapi.Cluster
+				op := operation.Operation{Type: operation.Create, Options: validation.AFECsToValidationOptions(*subscription.Properties.RegisteredFeatures)}
+				if tc.update || tc.oldExact != "" {
+					op.Type = operation.Update
+					oldCluster = cluster.DeepCopy()
+					if tc.oldExact != "" {
+						oldCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(semver.MustParse(tc.oldExact))
+					}
+				}
+				if source == "tag" {
+					cluster.Tags = map[string]string{metadataapi.TagClusterControlPlaneExactVersion: tc.newExact}
+				} else {
+					cluster.CustomerProperties.Version.ID = tc.newExact
+				}
+				admissionContext := &ClusterAdmissionContext{Subscription: subscription, OriginalCluster: cluster.DeepCopy(), Clock: clock}
+				if errs := MutateCluster(t.Context(), admissionContext, op, cluster, oldCluster); len(errs) > 0 {
+					t.Fatalf("mutation failed: %v", errs)
+				}
+				if oldCluster != nil && cluster.CustomerProperties.Version.ID != oldCluster.CustomerProperties.Version.ID {
+					t.Fatal("fixture must retain the same mutated version.id")
+				}
+				var expected []utils.ExpectedError
+				if tc.invalid {
+					expected = []utils.ExpectedError{{FieldPath: "customerProperties.version.id", Message: "must be at least 4.20"}}
+				}
+				utils.VerifyErrorsMatch(t, expected, validation.ValidateCluster(t.Context(), op, cluster, oldCluster, nil))
+			})
+		}
+	}
 }
 
 func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
