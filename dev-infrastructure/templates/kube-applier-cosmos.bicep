@@ -4,8 +4,15 @@ param rpCosmosDbAccountId string
 @description('The name of the kube-applier managed identity.')
 param kubeApplierMIName string
 
-@description('The resource group containing the kube-applier managed identity in this subscription')
-param infrastructureIdentityResourceGroup string = resourceGroup().name
+param useLeasedInfrastructureIdentities bool = false
+param managementIdentityResourceGroups string = ''
+param stampIdentifier string
+
+import * as mi from '../modules/managed-identities.bicep'
+
+var infrastructureIdentityResourceGroup = useLeasedInfrastructureIdentities
+  ? mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier)
+  : resourceGroup().name
 
 @description('The CosmosDB container name for kube-applier.')
 param kubeApplierContainerName string

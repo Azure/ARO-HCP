@@ -4,6 +4,9 @@ param fleetMIName string
 @description('The resource group containing the Fleet managed identity')
 param fleetMIResourceGroup string
 
+param useLeasedInfrastructureIdentities bool = false
+param infrastructureIdentityResourceGroup string = ''
+
 @description('The name of the SVC Azure Monitor Workspace')
 param svcMonitorName string
 
@@ -18,7 +21,7 @@ var contributorRoleId = subscriptionResourceId(
 )
 
 resource fleetMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup(fleetMIResourceGroup)
+  scope: resourceGroup(useLeasedInfrastructureIdentities ? infrastructureIdentityResourceGroup : fleetMIResourceGroup)
   name: fleetMIName
 }
 
