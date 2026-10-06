@@ -25,6 +25,7 @@ import (
 	auth "github.com/microsoft/kiota-authentication-azure-go"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 
+	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -39,12 +40,28 @@ const (
 	clusterAdminRoleID = "b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b" // Azure Kubernetes Service RBAC Cluster Admin
 )
 
+var errClusterAdminPermissionsDenied = errors.New("cluster admin permissions denied")
+
 type ClusterAdminAssignmentOptions struct {
 	Timeout        time.Duration
 	CheckFrequency time.Duration
 }
 
+// EnsureClusterAdmin assigns the admin role only after an authorization denial,
+// then waits for the same permission check to succeed.
 func EnsureClusterAdmin(ctx context.Context, kubeconfigPath, subscriptionID, resourceGroupName, aksClusterName string, options *ClusterAdminAssignmentOptions) error {
+	return ensureClusterAdmin(ctx, options, func(ctx context.Context) error {
+		return CheckClusterAdminPermissions(ctx, kubeconfigPath)
+	}, func(ctx context.Context) error {
+		userObjectID, err := getCurrentUserObjectID(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get current user object ID: %w", err)
+		}
+		return assignClusterAdminRBACRole(ctx, subscriptionID, resourceGroupName, aksClusterName, userObjectID, clusterAdminRoleID)
+	})
+}
+
+func ensureClusterAdmin(ctx context.Context, options *ClusterAdminAssignmentOptions, checkPermissions, assignRole func(context.Context) error) error {
 	if options == nil {
 		options = &ClusterAdminAssignmentOptions{
 			Timeout:        time.Duration(2 * time.Minute),
@@ -52,27 +69,26 @@ func EnsureClusterAdmin(ctx context.Context, kubeconfigPath, subscriptionID, res
 		}
 	}
 
-	// Check for permissions before assignment
-	if err := CheckClusterAdminPermissions(ctx, kubeconfigPath); err == nil {
+	err := checkPermissions(ctx)
+	if err == nil {
 		return nil
 	}
-
-	// Get the current user's object ID
-	userObjectID, err := getCurrentUserObjectID(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get current user object ID: %w", err)
+	if !errors.Is(err, errClusterAdminPermissionsDenied) {
+		return fmt.Errorf("failed to check cluster admin permissions: %w", err)
 	}
 
-	// Assign the Azure Kubernetes Service RBAC Cluster Admin role to the current user
-	err = assignClusterAdminRBACRole(ctx, subscriptionID, resourceGroupName, aksClusterName, userObjectID, clusterAdminRoleID)
+	err = assignRole(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to assign cluster admin role: %w", err)
 	}
 
 	// Validate assignment
-	err = CheckClusterAdminPermissions(ctx, kubeconfigPath)
+	err = checkPermissions(ctx)
 	if err == nil {
 		return nil
+	}
+	if !errors.Is(err, errClusterAdminPermissionsDenied) {
+		return fmt.Errorf("failed to check cluster admin permissions: %w", err)
 	}
 
 	// Wait for role assignment to be effective
@@ -87,29 +103,51 @@ func EnsureClusterAdmin(ctx context.Context, kubeconfigPath, subscriptionID, res
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-timeoutTimer.C:
-			return fmt.Errorf("timed out waiting for role assignment to be effective")
+			return fmt.Errorf("timed out waiting for role assignment to be effective: %w", err)
 		case <-ticker.C:
-			err = CheckClusterAdminPermissions(ctx, kubeconfigPath)
+			err = checkPermissions(ctx)
 			if err == nil {
 				fmt.Println("Cluster admin permissions are now effective")
 				return nil
+			}
+			if !errors.Is(err, errClusterAdminPermissionsDenied) {
+				return fmt.Errorf("failed to check cluster admin permissions: %w", err)
 			}
 			fmt.Println("Waiting for role assignment to be effective...")
 		}
 	}
 }
 
+// CheckClusterAdminPermissions reviews access to all resource verbs across API
+// groups and namespaces without modifying workloads.
 func CheckClusterAdminPermissions(ctx context.Context, kubeconfigPath string) error {
 	clientset, err := createKubeClient(kubeconfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to create Kubernetes client: %w", err)
 	}
 
-	// Implement the logic to test cluster admin permissions
-	// by checking if the user can list pods in the default namespace
-	_, err = clientset.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
+	return checkClusterAdminPermissions(ctx, clientset)
+}
+
+func checkClusterAdminPermissions(ctx context.Context, clientset kubernetes.Interface) error {
+	// Read access alone must not short-circuit the cluster admin assignment.
+	review, err := clientset.AuthorizationV1().SelfSubjectAccessReviews().Create(ctx, &authorizationv1.SelfSubjectAccessReview{
+		Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
+				Group:    "*",
+				Resource: "*",
+				Verb:     "*",
+			},
+		},
+	}, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to list pods in the default namespace: %w", err)
+		return fmt.Errorf("failed to review cluster admin permissions: %w", err)
+	}
+	if review.Status.EvaluationError != "" {
+		return fmt.Errorf("failed to evaluate cluster admin permissions: %s", review.Status.EvaluationError)
+	}
+	if !review.Status.Allowed {
+		return fmt.Errorf("%w: %s", errClusterAdminPermissionsDenied, review.Status.Reason)
 	}
 	return nil
 }
