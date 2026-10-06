@@ -203,7 +203,8 @@ safe-outputs:
   # Mutations require a fresh ownership and head-SHA check with the App token.
   jobs:
     repair-owned-pr:
-      description: Apply a verified dependency repair to an owned agentic Dependabot PR
+      description: Apply a verified dependency repair to one owned agentic Dependabot PR (max 1 per run)
+      max: 1                                # one full rebuild per run; extra repairs are dropped
       runs-on: ubuntu-latest
       if: needs.detection.result == 'success'
       inputs:
@@ -349,7 +350,8 @@ safe-outputs:
             git push --force-with-lease="refs/heads/$head:$sha" origin "HEAD:refs/heads/$head"
             git rev-parse HEAD | grep -Fx "$(gh api "repos/$REPO/pulls/$n" --jq '.head.sha')"
     reconcile-owned-pr:
-      description: Update the base or post an evidenced Prow command on an owned agentic Dependabot PR
+      description: Update the base or post an evidenced Prow command on owned agentic Dependabot PRs (max 20 unique PRs per run)
+      max: 20                               # gh-aw defaults custom jobs to 1 and silently drops extras
       runs-on: ubuntu-latest
       if: needs.detection.result == 'success'
       permissions:
@@ -399,16 +401,15 @@ safe-outputs:
               . as $output |
               [$output.items[] | select(.type == "reconcile_owned_pr") | .pull_request_number] as $numbers |
               all($numbers[]; type == "string" and test("^[1-9][0-9]*$")) and
-              ($numbers | unique | length) == ($numbers | length) and
               all($numbers[];
                 . as $n |
                 [$output.items[] | select(.type == "repair_owned_pr" and .pull_request_number == $n)] | length == 0
               )
             ' "$GH_AW_AGENT_OUTPUT" >/dev/null || {
-              echo "Reconciliation requires unique, valid PR numbers and no conflicting repair" >&2
+              echo "Reconciliation requires valid PR numbers and no conflicting repair" >&2
               exit 1
             }
-            jq -c '.items[] | select(.type == "reconcile_owned_pr")' "$GH_AW_AGENT_OUTPUT" | while read -r item; do
+            jq -c '[.items[] | select(.type == "reconcile_owned_pr")] | unique_by(.pull_request_number)[]' "$GH_AW_AGENT_OUTPUT" | while read -r item; do
               n=$(jq -er '.pull_request_number | select(type == "string" and test("^[1-9][0-9]*$"))' <<< "$item")
               sha=$(jq -er '.expected_head_sha | select(type == "string" and test("^[0-9a-fA-F]{40}$"))' <<< "$item")
               action=$(jq -er '.action | select(. == "update-branch" or . == "retest" or . == "close")' <<< "$item")
@@ -464,7 +465,7 @@ First classify each open PR by who owns it, because that decides what you may do
 - **Your own PRs** must have the `agentic-dependabot` label, author `aro-hcp-robot[bot]`, title prefix `fix(deps): `, `head_repo` equal to `Azure/ARO-HCP`, and `base` equal to `main`. Only these may receive a branch update or a code repair. A label alone never grants permission to change someone else's PR.
 - **Native Dependabot PRs** and **human PRs** are not yours. Never mutate them. If one of your PRs supersedes a native Dependabot PR for the same package, reference it without a closing keyword and leave it for Prow-managed closure after the replacement merges.
 
-Walk **every** open `agentic-dependabot` PR, even if its alert has disappeared. Record its number, alerts covered, CI/check failure evidence, merge state, review decision, unresolved threads, and one outcome: waiting (pending CI or required review), retested (proven transient with a new test pending), repaired (verified new head required), closed (Prow closure verified), or blocked (evidence and reason). A requested action alone is not a completed outcome. Do not confuse a required review or Tide's `blocked` state with a failing check. Do not merge or approve PRs: human reviews and repository merge policy still apply.
+Walk **every** open `agentic-dependabot` PR, even if its alert has disappeared. Record its number, alerts covered, CI/check failure evidence, merge state, review decision, unresolved threads, and one outcome: waiting (pending CI or required review), retested (proven transient with a new test pending), repaired (verified new head required), closed (Prow closure verified), or blocked (evidence and reason). A requested action alone is not a completed outcome. Do not confuse a required review or Tide's `blocked` state with a failing check. Do not merge or approve PRs: human reviews and repository merge policy still apply. Emit at most 20 unique `reconcile_owned_pr` items and at most 1 `repair_owned_pr` item; gh-aw silently drops extras. Prefer closing superseded duplicates, then updating or repairing the canonical PR for each family. Do not emit two reconciles for the same PR.
 
 - **Passing or pending checks**: keep the existing PR; wait for outstanding checks and human approvals. If a check is pending or its evidence is missing, never call the PR healthy or replace it on speculation. If an actionable review thread identifies an incomplete dependency fix, address it as described below.
 - **Behind base**: for an owned, still-needed PR with no conflicting dependency change, request `reconcile_owned_pr` with `pull_request_number`, `expected_head_sha`, and `action: update-branch`. The guarded output merges current `main` into that PR branch after rechecking ownership and SHA; check the new SHA and CI on a later run. It cannot resolve conflicts or change dependency files. Do not request repeated updates for a PR already waiting on CI at its current SHA.
