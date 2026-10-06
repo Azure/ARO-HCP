@@ -655,8 +655,8 @@ Setting a pin on a nightly cluster fails with HTTP 400; clearing an existing
 nightly pin remains allowed. Setting a pin also fails with HTTP 400 before any
 write if the HostedCluster mirror or usable control-plane history is missing,
 or the target is not the immediately previous successfully installed z-stream.
-Partial attempts and repeated
-latest-version entries are skipped when selecting that target.
+Partial attempts and repeated latest-version entries are skipped when selecting
+that target.
 Neither guest version history nor `Status.ControlPlaneVersion.ActiveVersions`
 substitutes for the control-plane history. Clearing a pin does not require
 observed history. The field is present in HyperShift 4.22 and was backported to
@@ -673,6 +673,42 @@ before modification; replacement uses the read document's ETag. If another write
 changes the document before replacement, the handler returns HTTP 409 `Conflict`
 with a retry message, preserving the concurrent update. Both set and clear
 requests leave retrying to the caller.
+
+### Admin API: POST FleetVersionPin
+
+**Path:** `POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin`
+**Handler:** `FleetVersionPinHandler` ([fleetversionpin.go](../admin/server/handlers/hcp/fleetversionpin.go))
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `Cluster` (all regional partitions) | `ID`, `ServiceProviderProperties.DeletionTimestamp`, `CustomerProperties.Version.ChannelGroup` determine live channel membership; `CustomerProperties.Version.ID` validates each changed pin's requested release line. |
+| Read | `ServiceProviderCluster` (all regional partitions) | `ResourceID.Parent` joins the backing cluster; `Spec.ControlPlaneVersion.DesiredVersion`, or the oldest completed `Status.ControlPlaneVersion.ActiveVersions` entry, determines the effective minor. `Spec.PinnedVersion` identifies unchanged pins. `Status.ActualHostedCluster.Status.ControlPlaneVersion.History` validates changed rollback pins. The full document and ETag are retained for replacement. |
+
+| Object | Fields Written |
+|--------|---------------|
+| `ServiceProviderCluster` | **`Spec.PinnedVersion.ExactVersion`** and **`Spec.PinnedVersion.UntilExactVersion`** = parsed request versions, or nil to clear. Identical pins are not rewritten. No provider or fleet rollout document is created. |
+
+The handler consumes all list pages and validates every changed pin before any
+write. Invalid JSON/channel/version inputs fail with HTTP 400. Per-cluster
+validation failures return HTTP 400 with cluster resource IDs in error details
+and leave all documents unchanged. Listing failures or a provider document with
+no cluster resource ID also make no writes.
+Deleting clusters, orphaned documents, and unknown channel groups/minors are
+excluded using the same membership rules as rollout controllers. Active versions
+are used only for membership; they do not authorize rollback targets.
+
+Changed pins use the [single-cluster rollback rules](#admin-api-post-controlplaneversionpin).
+An already identical pin is a no-op even after rollback has completed or history
+has become unavailable. Clear operations require no observed history.
+
+Each write preserves other fields with `DeepCopy` and uses the selected ETag.
+Writes are independent, not a transaction: a failure preserves that cluster's
+concurrent update, subsequent writes continue, and the response counts successful,
+unchanged, and failed documents and lists failed cluster IDs. HTTP 409 represents
+ETag conflicts; any other write failure takes precedence with HTTP 500. No
+automatic retries or compensating writes occur. Counts describe pin persistence,
+not rollback completion. Selection covers existing regional resources only and
+is recomputed on each request; this creates no policy for future clusters.
 
 ---
 
@@ -1961,7 +1997,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 |---|---|
 | Service-provider cluster `Spec.ControlPlaneVersion.DesiredVersion` / `DesiredVersionLastTransitionTime` | [Initial assignment](#initialnormalclusterdesiredversion), [minor-version assignment](#minorupgradenormalclusterdesiredversion), [normal rollout](#zstreamprogressivedesiredversionrollout) and [forced assignment](#forcedclusterdesiredversion) write the target and transition time. Initial assignment also backfills a missing/zero time without changing the target. Cluster creation, upgrade dispatch and operation completion consume desired state; it is not an observed version. |
 | Cluster `ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` | Frontend admission projects the AFEC-gated `aro-hcp.experimental.cluster.z-stream-update-policy` tag; its only valid value is `Immediate`. Removing the tag or AFEC clears the policy. [Forced assignment](#forcedclusterdesiredversion) follows the desired channel's best z-stream without progressive gates, after pins and exact overrides. |
-| Service-provider cluster `Spec.PinnedVersion` | [Admin API ControlPlaneVersionPin](#admin-api-post-controlplaneversionpin) sets `ExactVersion` and optional `UntilExactVersion`; sending a nil `ExactVersion` clears the pin. [Forced assignment](#forcedclusterdesiredversion) also clears the pin once channel best reaches the release threshold. Pins precede experimental exact versions and normal assignment. |
+| Service-provider cluster `Spec.PinnedVersion` | [Admin API ControlPlaneVersionPin](#admin-api-post-controlplaneversionpin) and [FleetVersionPin](#admin-api-post-fleetversionpin) set `ExactVersion` and optional `UntilExactVersion`; sending a nil `ExactVersion` clears the pin. [Forced assignment](#forcedclusterdesiredversion) also clears the pin once channel best reaches the release threshold. Pins precede experimental exact versions and normal assignment. |
 | Fleet `ControlPlaneVersionRollout.Spec.Version.{ID,ChannelGroup}` | [Seeding](#controlplaneversionrolloutseeding) sets the profile on creation. Shared Cosmos conversion fills absent/zero legacy profiles on read; [migration](#cosmosrolloutversionmigration) and ordinary rollout replacements persist them. Consumers still parse channel names. |
 | Fleet `ControlPlaneVersionRollout.Spec.BestExactVersion` | [Seeding](#controlplaneversionrolloutseeding) creates requested/pinned channel documents without a best version. [Best selection](#controlplaneversionbestversionselection) owns the target; assignment controllers consume it. |
 | Fleet rollout status count maps | [Status collector](#controlplaneversionstatuscollector) alone persists desired, mismatched, failed, achieved and successful counts. Normal assignment recomputes its own snapshot counts to avoid collector lag. |

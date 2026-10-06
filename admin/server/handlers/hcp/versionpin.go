@@ -61,8 +61,7 @@ type versionPinRequest struct {
 	// UntilExactVersion auto-releases the pin when the fleet's best version
 	// reaches this threshold. Nil leaves the pin in place until explicitly
 	// cleared. A non-nil value requires ExactVersion, must be in the same
-	// major.minor release line and >= ExactVersion, and is invalid for nightly
-	// clusters. An empty string is invalid.
+	// major.minor release line and >= ExactVersion. An empty string is invalid.
 	UntilExactVersion *string `json:"untilExactVersion"`
 }
 
@@ -84,60 +83,11 @@ func (h *HCPVersionPinHandler) ServeHTTP(writer http.ResponseWriter, request *ht
 		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "invalid resource identifier in request")
 	}
 
-	// Decode through a pointer so top-level null remains nil rather than
-	// becoming an empty struct and silently clearing an existing pin.
-	var body *versionPinRequest
-	decoder := json.NewDecoder(request.Body)
-	// An omitted exactVersion clears the pin. Reject unknown fields so a typo in
-	// exactVersion cannot silently clear it, and a typo in untilExactVersion
-	// cannot leave a new pin without its intended auto-release threshold.
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&body); err != nil {
-		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "invalid JSON body: %v", err)
+	pin, err := decodeVersionPinRequest(request.Body)
+	if err != nil {
+		return err
 	}
-	if body == nil {
-		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "invalid JSON body: expected an object")
-	}
-	// A second decode must reach EOF: the request may have trailing whitespace,
-	// but it must not contain another JSON value or any other trailing data.
-	var trailing json.RawMessage
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "invalid JSON body: expected a single object with no trailing data")
-	}
-
-	var exactVersion *semver.Version
-	var untilExactVersion *semver.Version
-
-	if body.ExactVersion != nil {
-		if *body.ExactVersion == "" {
-			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "exactVersion must not be empty; omit the field to clear the pin")
-		}
-		parsed, err := semver.Parse(*body.ExactVersion)
-		if err != nil {
-			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "exactVersion %q is not a valid semantic version: %v", *body.ExactVersion, err)
-		}
-		exactVersion = &parsed
-	}
-
-	if body.UntilExactVersion != nil {
-		if exactVersion == nil {
-			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "untilExactVersion requires exactVersion to be set")
-		}
-		if *body.UntilExactVersion == "" {
-			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "untilExactVersion must not be empty; omit the field to pin without an auto-release threshold")
-		}
-		parsed, err := semver.Parse(*body.UntilExactVersion)
-		if err != nil {
-			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "untilExactVersion %q is not a valid semantic version: %v", *body.UntilExactVersion, err)
-		}
-		if parsed.LT(*exactVersion) {
-			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "untilExactVersion %q must be greater than or equal to exactVersion %q", parsed.String(), exactVersion.String())
-		}
-		if parsed.Major != exactVersion.Major || parsed.Minor != exactVersion.Minor {
-			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "untilExactVersion %q must be in the same major.minor release line as exactVersion %q", parsed.String(), exactVersion.String())
-		}
-		untilExactVersion = &parsed
-	}
+	exactVersion, untilExactVersion := pin.ExactVersion, pin.UntilExactVersion
 
 	// Verify the cluster exists for both set and clear operations to prevent
 	// creating orphan ServiceProviderCluster documents for nonexistent clusters.
@@ -152,26 +102,8 @@ func (h *HCPVersionPinHandler) ServeHTTP(writer http.ResponseWriter, request *ht
 		return coreapi.NewCloudError(http.StatusConflict, coreapi.CloudErrorCodeConflict, "", "HCP cluster %s is being deleted", resourceID.String())
 	}
 
-	// Cluster version validation owns the supported minimum. Here, validate the
-	// pin against its requested release line and observed installed history
-	// rather than duplicating that minimum. The cluster's Version.ID (e.g.
-	// "4.20") is the authoritative source of the requested release line.
-	if exactVersion != nil {
-		// Nightly clusters select exact builds through experimental version
-		// overrides rather than a z-stream rollout. The version pin endpoint is
-		// reserved for z-stream rollback; clearing an existing pin is still allowed.
-		if cluster.CustomerProperties.Version.ChannelGroup == metadataapi.ChannelGroupNightly {
-			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
-				"version pins are not supported for nightly clusters")
-		}
-		clusterVersion, err := semver.ParseTolerant(cluster.CustomerProperties.Version.ID)
-		if err != nil {
-			return fmt.Errorf("failed to parse cluster version %q: %w", cluster.CustomerProperties.Version.ID, err)
-		}
-		if exactVersion.Major != clusterVersion.Major || exactVersion.Minor != clusterVersion.Minor {
-			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
-				"exactVersion %q must be in the cluster's release line %d.%d", exactVersion.String(), clusterVersion.Major, clusterVersion.Minor)
-		}
+	if err := validateClusterVersionPin(cluster.CustomerProperties.Version, pin); err != nil {
+		return err
 	}
 
 	existing, err := h.resourcesDBClient.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Get(request.Context(), coreapi.ServiceProviderClusterResourceName)
@@ -211,6 +143,93 @@ func (h *HCPVersionPinHandler) ServeHTTP(writer http.ResponseWriter, request *ht
 
 	_, err = coreapihelpers.WriteJSONResponse(writer, http.StatusOK, resp)
 	return utils.TrackError(err)
+}
+
+// decodeVersionPinRequest parses the JSON body from reader for both single-cluster
+// and fleet pin operations. It returns the requested pin, or a validation error.
+func decodeVersionPinRequest(reader io.Reader) (*coreapi.ServiceProviderClusterPinnedVersion, error) {
+	// Decode through a pointer so top-level null remains nil rather than
+	// becoming an empty struct and silently clearing an existing pin.
+	var body *versionPinRequest
+	decoder := json.NewDecoder(reader)
+	// An omitted exactVersion clears the pin. Reject unknown fields so a typo in
+	// exactVersion cannot silently clear it, and a typo in untilExactVersion
+	// cannot leave a new pin without its intended auto-release threshold.
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&body); err != nil {
+		return nil, coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "invalid JSON body: %v", err)
+	}
+	if body == nil {
+		return nil, coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "invalid JSON body: expected an object")
+	}
+	// A second decode must reach EOF: the request may have trailing whitespace,
+	// but it must not contain another JSON value or any other trailing data.
+	var trailing json.RawMessage
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return nil, coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "invalid JSON body: expected a single object with no trailing data")
+	}
+
+	var exactVersion *semver.Version
+	var untilExactVersion *semver.Version
+
+	if body.ExactVersion != nil {
+		if *body.ExactVersion == "" {
+			return nil, coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "exactVersion must not be empty; omit the field to clear the pin")
+		}
+		parsed, err := semver.Parse(*body.ExactVersion)
+		if err != nil {
+			return nil, coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "exactVersion %q is not a valid semantic version: %v", *body.ExactVersion, err)
+		}
+		exactVersion = &parsed
+	}
+
+	if body.UntilExactVersion != nil {
+		if exactVersion == nil {
+			return nil, coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "untilExactVersion requires exactVersion to be set")
+		}
+		if *body.UntilExactVersion == "" {
+			return nil, coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "untilExactVersion must not be empty; omit the field to pin without an auto-release threshold")
+		}
+		parsed, err := semver.Parse(*body.UntilExactVersion)
+		if err != nil {
+			return nil, coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "untilExactVersion %q is not a valid semantic version: %v", *body.UntilExactVersion, err)
+		}
+		if parsed.LT(*exactVersion) {
+			return nil, coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "untilExactVersion %q must be greater than or equal to exactVersion %q", parsed.String(), exactVersion.String())
+		}
+		if parsed.Major != exactVersion.Major || parsed.Minor != exactVersion.Minor {
+			return nil, coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "untilExactVersion %q must be in the same major.minor release line as exactVersion %q", parsed.String(), exactVersion.String())
+		}
+		untilExactVersion = &parsed
+	}
+
+	return &coreapi.ServiceProviderClusterPinnedVersion{ExactVersion: exactVersion, UntilExactVersion: untilExactVersion}, nil
+}
+
+func validateClusterVersionPin(version coreapi.VersionProfile, pin *coreapi.ServiceProviderClusterPinnedVersion) error {
+	// Cluster version validation owns the supported minimum. Here, validate the
+	// pin against its requested release line and observed installed history
+	// rather than duplicating that minimum. The cluster's Version.ID (e.g.
+	// "4.20") is the authoritative source of the requested release line.
+	if pin.ExactVersion != nil {
+		// Nightly clusters select exact builds through experimental version
+		// overrides rather than a z-stream rollout. The version pin endpoint is
+		// reserved for z-stream rollback; clearing an existing pin is still allowed.
+		if version.ChannelGroup == metadataapi.ChannelGroupNightly {
+			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
+				"version pins are not supported for nightly clusters")
+		}
+		clusterVersion, err := semver.ParseTolerant(version.ID)
+		if err != nil {
+			return fmt.Errorf("failed to parse cluster version %q: %w", version.ID, err)
+		}
+		if pin.ExactVersion.Major != clusterVersion.Major || pin.ExactVersion.Minor != clusterVersion.Minor {
+			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
+				"exactVersion %q must be in the cluster's release line %d.%d", pin.ExactVersion.String(), clusterVersion.Major, clusterVersion.Minor)
+		}
+	}
+
+	return nil
 }
 
 // validateVersionPinTarget uses the full mirrored control-plane history. The

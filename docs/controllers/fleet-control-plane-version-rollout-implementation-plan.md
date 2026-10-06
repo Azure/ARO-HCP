@@ -130,7 +130,9 @@ type ServiceProviderClusterPinnedVersion struct {
 
 An unset pin is a value with nil `ExactVersion` and serializes as `{}`. This is
 intentional. Consuming and clearing pins is implemented; the Admin API setter
-is implemented via `POST /controlplaneversionpin` (see `admin/server/handlers/hcp/versionpin.go`).
+is implemented via the single-cluster `POST /controlplaneversionpin` and regional
+`POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin` endpoints (see
+`admin/server/handlers/hcp/versionpin.go` and `fleetversionpin.go`).
 
 ## 4. Rollout policy
 
@@ -332,6 +334,12 @@ Implemented:
   deployed operator builds may lack it. Guest version history is not a
   substitute. The handler checks observed history rather than enforcing a
   minimum hosted-cluster version.
+
+- Regional Admin API `POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin`
+  sets/clears existing per-cluster pins using rollout channel membership. All pin
+  changes are validated before writes; identical pins are no-ops. Independent
+  ETag writes return counts and per-cluster failures on partial success. This
+  endpoint creates no persistent policy for future clusters.
 
 Follow-ups:
 
