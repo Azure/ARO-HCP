@@ -1,0 +1,112 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  system     system  Standard_E8s_v3   zone=1,2,3  max=4   count=1  autoscaled
+  infra2     infra   Standard_E32s_v3  zone=2      max=3   count=1  autoscaled
+  infra1     infra   Standard_E32s_v3  zone=1      max=3   count=1  autoscaled
+  userswft1  worker  Standard_E32s_v3  zone=1      max=14  count=6  autoscaled
+  userswft2  worker  Standard_E32s_v3  zone=2      max=14  count=6  autoscaled
+  userswft3  worker  Standard_E32s_v3  zone=3      max=14  count=6  autoscaled
+
+desired:
+  sys0dfb847    system  Standard_E4ds_v5   zone=   max=2
+  inf1f13c80    infra   Standard_E4ds_v6   zone=1  max=2
+  inf2f13c80    infra   Standard_E4ds_v6   zone=2  max=2
+  wrk16101f738  worker  Standard_E16ds_v6  zone=1  max=4
+  wrk161c0b180  worker  Standard_E16ds_v5  zone=1  max=16
+  wrk1627435c4  worker  Standard_E16s_v3   zone=2  max=20
+  wrk1637435c4  worker  Standard_E16s_v3   zone=3  max=20
+  wrk3214cde3c  worker  Standard_E32ds_v5  zone=1  max=3
+  wrk322a1f8fc  worker  Standard_E32s_v3   zone=2  max=3
+  wrk323a1f8fc  worker  Standard_E32s_v3   zone=3  max=3
+
+budget (vCPUs):
+  StandardEdsv6Family:  100
+  StandardEdsv7Family:  100
+  standardEDSv4Family:  100
+  standardEDSv5Family:  1376
+  standardESv3Family:   984
+
+initial headroom (vCPUs):
+  StandardEdsv6Family:  100
+  StandardEdsv7Family:  100
+  standardEDSv4Family:  100
+  standardEDSv5Family:  1376
+  standardESv3Family:   64
+
+fully allocated: true
+
+initial capacity:
+  infra:   cpu=192   memory=1536GiB   swiftNICs=0
+  system:  cpu=32    memory=256GiB    swiftNICs=0
+  worker:  cpu=1344  memory=10752GiB  swiftNICs=0
+
+role-zone floor:
+  infra zone 1:   cpu=8    memory=64GiB    swiftNICs=0
+  infra zone 2:   cpu=8    memory=64GiB    swiftNICs=0
+  system:         cpu=8    memory=64GiB    swiftNICs=0
+  worker zone 1:  cpu=416  memory=3328GiB  swiftNICs=0
+  worker zone 2:  cpu=416  memory=3328GiB  swiftNICs=0
+  worker zone 3:  cpu=416  memory=3328GiB  swiftNICs=0
+
+actions:
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action            role    pool          vm size   zone   change          margin                 quota left
+     1  Create            system  sys0dfb847    E4ds_v5          min=1   max=2     +32c   +256G    +0n  EDSv5 1368c
+     2  Create            infra   inf1f13c80    E4ds_v6   1      min=1   max=2     +96c   +768G    +0n  Edsv6 92c
+     3  Create            infra   inf2f13c80    E4ds_v6   2      min=1   max=2     +96c   +768G    +0n  Edsv6 84c
+     4  Create            worker  wrk16101f738  E16ds_v6  1      min=4   max=4     +96c   +768G   +28n  Edsv6 20c
+     5  Create            worker  wrk161c0b180  E16ds_v5  1      min=5   max=16   +352c  +2816G  +140n  EDSv5 1112c
+     6  Create            worker  wrk1627435c4  E16s_v3   2      min=4   max=4     +96c   +768G   +28n  ESv3 0c
+     7  Create            worker  wrk3214cde3c  E32ds_v5  1      min=1   max=3    +448c  +3584G  +161n  EDSv5 1016c
+     8  Delete            system  system        E8s_v3    1,2,3                     +0c     +0G    +0n  ESv3 32c
+     9  Create            worker  wrk1637435c4  E16s_v3   3      min=2   max=2     +64c   +512G   +14n  ESv3 0c
+    10  SetScalingBounds  infra   infra1        E32s_v3   1      min=1   max=1     +32c   +256G    +0n  ESv3 64c
+    11  Create            worker  wrk322a1f8fc  E32s_v3   2      min=1   max=2    +160c  +1280G   +42n  ESv3 0c
+    12  SetScalingBounds  infra   infra2        E32s_v3   2      min=1   max=1     +32c   +256G    +0n  ESv3 64c
+    13  Create            worker  wrk323a1f8fc  E32s_v3   3      min=1   max=2    +128c  +1024G   +28n  ESv3 0c
+    14  SetScalingBounds  worker  userswft1     E32s_v3   1      min=6   max=6    +192c  +1536G  +161n  ESv3 256c
+    15  SetScalingBounds  worker  wrk1627435c4  E16s_v3   2      min=4   max=20   +416c  +3328G  +154n  ESv3 0c
+    16  SetScalingBounds  worker  userswft2     E32s_v3   2      min=6   max=6    +160c  +1280G  +154n  ESv3 256c
+    17  SetScalingBounds  worker  wrk1637435c4  E16s_v3   3      min=2   max=18   +384c  +3072G  +140n  ESv3 0c
+    18  SetScalingBounds  worker  userswft3     E32s_v3   3      min=6   max=6    +128c  +1024G  +140n  ESv3 256c
+    19  SetScalingBounds  worker  wrk1637435c4  E16s_v3   3      min=2   max=20   +160c  +1280G  +154n  ESv3 224c
+    20  SetScalingBounds  worker  wrk322a1f8fc  E32s_v3   2      min=1   max=3    +192c  +1536G  +161n  ESv3 192c
+    21  SetScalingBounds  worker  wrk323a1f8fc  E32s_v3   3      min=1   max=3    +192c  +1536G  +161n  ESv3 160c
+    22  Freeze            infra   infra1        E32s_v3   1      count=1           +32c   +256G    +0n
+    23  Freeze            infra   infra2        E32s_v3   2      count=1           +32c   +256G    +0n
+    24  Freeze            worker  userswft1     E32s_v3   1      count=6          +192c  +1536G  +161n
+    25  Freeze            worker  userswft2     E32s_v3   2      count=6          +192c  +1536G  +161n
+    26  Freeze            worker  userswft3     E32s_v3   3      count=6          +192c  +1536G  +161n
+    27  Reduce            infra   infra1        E32s_v3   1      count=0            +0c     +0G    +0n  ESv3 192c
+    28  Reduce            infra   infra2        E32s_v3   2      count=0            +0c     +0G    +0n  ESv3 224c
+    29  Reduce            worker  userswft1     E32s_v3   1      count=5          +160c  +1280G  +161n  ESv3 256c
+    30  Reduce            worker  userswft1     E32s_v3   1      count=4          +128c  +1024G  +161n  ESv3 288c
+    31  Reduce            worker  userswft1     E32s_v3   1      count=3           +96c   +768G  +161n  ESv3 320c
+    32  Reduce            worker  userswft1     E32s_v3   1      count=2           +64c   +512G  +161n  ESv3 352c
+    33  Reduce            worker  userswft1     E32s_v3   1      count=1           +32c   +256G  +161n  ESv3 384c
+    34  Reduce            worker  userswft1     E32s_v3   1      count=0            +0c     +0G  +161n  ESv3 416c
+    35  Reduce            worker  userswft2     E32s_v3   2      count=5          +160c  +1280G  +161n  ESv3 448c
+    36  Reduce            worker  userswft2     E32s_v3   2      count=4          +128c  +1024G  +161n  ESv3 480c
+    37  Reduce            worker  userswft2     E32s_v3   2      count=3           +96c   +768G  +161n  ESv3 512c
+    38  Reduce            worker  userswft2     E32s_v3   2      count=2           +64c   +512G  +161n  ESv3 544c
+    39  Reduce            worker  userswft2     E32s_v3   2      count=1           +32c   +256G  +161n  ESv3 576c
+    40  Reduce            worker  userswft2     E32s_v3   2      count=0            +0c     +0G  +161n  ESv3 608c
+    41  Reduce            worker  userswft3     E32s_v3   3      count=5          +160c  +1280G  +161n  ESv3 640c
+    42  Reduce            worker  userswft3     E32s_v3   3      count=4          +128c  +1024G  +161n  ESv3 672c
+    43  Reduce            worker  userswft3     E32s_v3   3      count=3           +96c   +768G  +161n  ESv3 704c
+    44  Reduce            worker  userswft3     E32s_v3   3      count=2           +64c   +512G  +161n  ESv3 736c
+    45  Reduce            worker  userswft3     E32s_v3   3      count=1           +32c   +256G  +161n  ESv3 768c
+    46  Reduce            worker  userswft3     E32s_v3   3      count=0            +0c     +0G  +161n  ESv3 800c
+    47  Delete            infra   infra1        E32s_v3   1                         +0c     +0G    +0n
+    48  Delete            infra   infra2        E32s_v3   2                         +0c     +0G    +0n
+    49  Delete            worker  userswft1     E32s_v3   1                         +0c     +0G  +161n
+    50  Delete            worker  userswft2     E32s_v3   2                         +0c     +0G  +161n
+    51  Delete            worker  userswft3     E32s_v3   3                         +0c     +0G  +161n
+
+steps:      51
+converged:  true
+outcome:    converged
+reason:     pool configuration matches desired

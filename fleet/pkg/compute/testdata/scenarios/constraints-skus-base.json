@@ -1,0 +1,378 @@
+[
+  {
+    "name": "Standard_E16ds_v4",
+    "family": "standardEDSv4Family",
+    "resourceType": "virtualMachines",
+    "size": "E16ds_v4",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "614400" },
+      { "name": "vCPUs", "value": "16" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "ResourceDisk,CacheDisk" },
+      { "name": "MemoryGB", "value": "128" },
+      { "name": "vCPUsAvailable", "value": "16" },
+      { "name": "CachedDiskBytes", "value": "429496729600" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "8" }
+    ]
+  },
+  {
+    "name": "Standard_E16ds_v5",
+    "family": "standardEDSv5Family",
+    "resourceType": "virtualMachines",
+    "size": "E16ds_v5",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "614400" },
+      { "name": "vCPUs", "value": "16" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "ResourceDisk" },
+      { "name": "MemoryGB", "value": "128" },
+      { "name": "vCPUsAvailable", "value": "16" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "8" }
+    ]
+  },
+  {
+    "name": "Standard_E16ds_v6",
+    "family": "StandardEdsv6Family",
+    "resourceType": "virtualMachines",
+    "size": "E16ds_v6",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "0" },
+      { "name": "vCPUs", "value": "16" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "NvmeDisk" },
+      { "name": "MemoryGB", "value": "128" },
+      { "name": "vCPUsAvailable", "value": "16" },
+      { "name": "NvmeDiskSizeInMiB", "value": "901120" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "8" }
+    ]
+  },
+  {
+    "name": "Standard_E16ds_v7",
+    "family": "StandardEdsv7Family",
+    "resourceType": "virtualMachines",
+    "size": "E16ds_v7",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "0" },
+      { "name": "vCPUs", "value": "16" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "NvmeDisk" },
+      { "name": "MemoryGB", "value": "128" },
+      { "name": "vCPUsAvailable", "value": "16" },
+      { "name": "NvmeDiskSizeInMiB", "value": "901120" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "8" }
+    ]
+  },
+  {
+    "name": "Standard_E16s_v3",
+    "family": "standardESv3Family",
+    "resourceType": "virtualMachines",
+    "size": "E16s_v3",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "262144" },
+      { "name": "vCPUs", "value": "16" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "ResourceDisk,CacheDisk" },
+      { "name": "MemoryGB", "value": "128" },
+      { "name": "vCPUsAvailable", "value": "16" },
+      { "name": "CachedDiskBytes", "value": "429496729600" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "8" }
+    ]
+  },
+  {
+    "name": "Standard_E32ds_v4",
+    "family": "standardEDSv4Family",
+    "resourceType": "virtualMachines",
+    "size": "E32ds_v4",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "1228800" },
+      { "name": "vCPUs", "value": "32" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "ResourceDisk,CacheDisk" },
+      { "name": "MemoryGB", "value": "256" },
+      { "name": "vCPUsAvailable", "value": "32" },
+      { "name": "CachedDiskBytes", "value": "858993459200" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "8" }
+    ]
+  },
+  {
+    "name": "Standard_E32ds_v5",
+    "family": "standardEDSv5Family",
+    "resourceType": "virtualMachines",
+    "size": "E32ds_v5",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "1228800" },
+      { "name": "vCPUs", "value": "32" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "ResourceDisk" },
+      { "name": "MemoryGB", "value": "256" },
+      { "name": "vCPUsAvailable", "value": "32" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "8" }
+    ]
+  },
+  {
+    "name": "Standard_E32ds_v6",
+    "family": "StandardEdsv6Family",
+    "resourceType": "virtualMachines",
+    "size": "E32ds_v6",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "0" },
+      { "name": "vCPUs", "value": "32" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "NvmeDisk" },
+      { "name": "MemoryGB", "value": "256" },
+      { "name": "vCPUsAvailable", "value": "32" },
+      { "name": "NvmeDiskSizeInMiB", "value": "1802240" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "8" }
+    ]
+  },
+  {
+    "name": "Standard_E32ds_v7",
+    "family": "StandardEdsv7Family",
+    "resourceType": "virtualMachines",
+    "size": "E32ds_v7",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "0" },
+      { "name": "vCPUs", "value": "32" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "NvmeDisk" },
+      { "name": "MemoryGB", "value": "256" },
+      { "name": "vCPUsAvailable", "value": "32" },
+      { "name": "NvmeDiskSizeInMiB", "value": "1802240" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "8" }
+    ]
+  },
+  {
+    "name": "Standard_E32s_v3",
+    "family": "standardESv3Family",
+    "resourceType": "virtualMachines",
+    "size": "E32s_v3",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "524288" },
+      { "name": "vCPUs", "value": "32" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "ResourceDisk,CacheDisk" },
+      { "name": "MemoryGB", "value": "256" },
+      { "name": "vCPUsAvailable", "value": "32" },
+      { "name": "CachedDiskBytes", "value": "858993459200" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "8" }
+    ]
+  },
+  {
+    "name": "Standard_E4ds_v4",
+    "family": "standardEDSv4Family",
+    "resourceType": "virtualMachines",
+    "size": "E4ds_v4",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "153600" },
+      { "name": "vCPUs", "value": "4" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "ResourceDisk,CacheDisk" },
+      { "name": "MemoryGB", "value": "32" },
+      { "name": "vCPUsAvailable", "value": "4" },
+      { "name": "CachedDiskBytes", "value": "107374182400" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "2" }
+    ]
+  },
+  {
+    "name": "Standard_E4ds_v5",
+    "family": "standardEDSv5Family",
+    "resourceType": "virtualMachines",
+    "size": "E4ds_v5",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "153600" },
+      { "name": "vCPUs", "value": "4" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "ResourceDisk" },
+      { "name": "MemoryGB", "value": "32" },
+      { "name": "vCPUsAvailable", "value": "4" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "2" }
+    ]
+  },
+  {
+    "name": "Standard_E4ds_v6",
+    "family": "StandardEdsv6Family",
+    "resourceType": "virtualMachines",
+    "size": "E4ds_v6",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "0" },
+      { "name": "vCPUs", "value": "4" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "NvmeDisk" },
+      { "name": "MemoryGB", "value": "32" },
+      { "name": "vCPUsAvailable", "value": "4" },
+      { "name": "NvmeDiskSizeInMiB", "value": "225280" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "2" }
+    ]
+  },
+  {
+    "name": "Standard_E4ds_v7",
+    "family": "StandardEdsv7Family",
+    "resourceType": "virtualMachines",
+    "size": "E4ds_v7",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "0" },
+      { "name": "vCPUs", "value": "4" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "NvmeDisk" },
+      { "name": "MemoryGB", "value": "32" },
+      { "name": "vCPUsAvailable", "value": "4" },
+      { "name": "NvmeDiskSizeInMiB", "value": "225280" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "4" }
+    ]
+  },
+  {
+    "name": "Standard_E4s_v3",
+    "family": "standardESv3Family",
+    "resourceType": "virtualMachines",
+    "size": "E4s_v3",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "65536" },
+      { "name": "vCPUs", "value": "4" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "ResourceDisk,CacheDisk" },
+      { "name": "MemoryGB", "value": "32" },
+      { "name": "vCPUsAvailable", "value": "4" },
+      { "name": "CachedDiskBytes", "value": "107374182400" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "2" }
+    ]
+  },
+  {
+    "name": "Standard_E8ds_v4",
+    "family": "standardEDSv4Family",
+    "resourceType": "virtualMachines",
+    "size": "E8ds_v4",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "307200" },
+      { "name": "vCPUs", "value": "8" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "ResourceDisk,CacheDisk" },
+      { "name": "MemoryGB", "value": "64" },
+      { "name": "vCPUsAvailable", "value": "8" },
+      { "name": "CachedDiskBytes", "value": "214748364800" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "4" }
+    ]
+  },
+  {
+    "name": "Standard_E8ds_v5",
+    "family": "standardEDSv5Family",
+    "resourceType": "virtualMachines",
+    "size": "E8ds_v5",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "307200" },
+      { "name": "vCPUs", "value": "8" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "ResourceDisk" },
+      { "name": "MemoryGB", "value": "64" },
+      { "name": "vCPUsAvailable", "value": "8" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "4" }
+    ]
+  },
+  {
+    "name": "Standard_E8ds_v6",
+    "family": "StandardEdsv6Family",
+    "resourceType": "virtualMachines",
+    "size": "E8ds_v6",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "0" },
+      { "name": "vCPUs", "value": "8" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "NvmeDisk" },
+      { "name": "MemoryGB", "value": "64" },
+      { "name": "vCPUsAvailable", "value": "8" },
+      { "name": "NvmeDiskSizeInMiB", "value": "450560" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "4" }
+    ]
+  },
+  {
+    "name": "Standard_E8ds_v7",
+    "family": "StandardEdsv7Family",
+    "resourceType": "virtualMachines",
+    "size": "E8ds_v7",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "0" },
+      { "name": "vCPUs", "value": "8" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "NvmeDisk" },
+      { "name": "MemoryGB", "value": "64" },
+      { "name": "vCPUsAvailable", "value": "8" },
+      { "name": "NvmeDiskSizeInMiB", "value": "450560" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "4" }
+    ]
+  },
+  {
+    "name": "Standard_E8s_v3",
+    "family": "standardESv3Family",
+    "resourceType": "virtualMachines",
+    "size": "E8s_v3",
+    "tier": "Standard",
+    "locationInfo": [{ "zones": ["1", "2", "3"] }],
+    "restrictions": [],
+    "capabilities": [
+      { "name": "MaxResourceVolumeMB", "value": "131072" },
+      { "name": "vCPUs", "value": "8" },
+      { "name": "SupportedEphemeralOSDiskPlacements", "value": "ResourceDisk,CacheDisk" },
+      { "name": "MemoryGB", "value": "64" },
+      { "name": "vCPUsAvailable", "value": "8" },
+      { "name": "CachedDiskBytes", "value": "214748364800" },
+      { "name": "EphemeralOSDiskSupported", "value": "True" },
+      { "name": "MaxNetworkInterfaces", "value": "4" }
+    ]
+  }
+]
