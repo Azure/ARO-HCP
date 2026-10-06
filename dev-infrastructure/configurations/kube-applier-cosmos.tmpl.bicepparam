@@ -1,10 +1,8 @@
 using '../templates/kube-applier-cosmos.bicep'
 
-import * as mi from '../modules/managed-identities.bicep'
-
-param infrastructureIdentityResourceGroup = {{ .infrastructureIdentities.useLeased }}
-  ? mi.getManagementIdentityResourceGroup('{{ .infrastructureIdentities.managementResourceGroups }}', '{{ .mgmt.stampIdentifier }}')
-  : '{{ .mgmt.rg }}'
+param useLeasedInfrastructureIdentities = {{ .infrastructureIdentities.useLeased }}
+param managementIdentityResourceGroups = '{{ .infrastructureIdentities.managementResourceGroups }}'
+param stampIdentifier = '{{ .mgmt.stampIdentifier }}'
 
 param rpCosmosDbAccountId = '__rpCosmosDbAccountId__'
 
