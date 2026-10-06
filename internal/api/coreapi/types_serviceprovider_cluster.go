@@ -89,6 +89,7 @@ type ServiceProviderClusterSpec struct {
 	// We will only explicitly set the fields we care about, but serialization may store additional empty fields.
 	// Once this contains the critical values, we will create it on management clusters.
 	// We may or may not choose to store the actual state in status.  We may choose to store the actual state independently.
+	// Written by: IngressCertificate
 	DesiredHostedCluster *v1beta1.HostedCluster `json:"desiredHostedCluster,omitempty"`
 
 	// DesiredHostedClusterControlPlaneSize is the SRE-selected control plane
@@ -483,6 +484,12 @@ type ServiceProviderClusterDataPlaneOperatorManagedIdentity struct {
 type AzureResources struct {
 	// DenyAssignments tracks the deny assignments applied to the cluster's resources.
 	DenyAssignments DenyAssignmentReferences `json:"denyAssignments,omitempty"`
+	// KubeAPIServerCertificate tracks the TLS certificate created for the kube-apiserver.
+	// Written by: TLSCertificates
+	KubeAPIServerCertificate *TLSCertificate `json:"kubeAPIServerCertificate,omitempty"`
+	// IngressCertificate tracks the TLS certificate created for ingress.
+	// Written by: TLSCertificates
+	IngressCertificate *TLSCertificate `json:"ingressCertificate,omitempty"`
 	// ManagedResourceGroup tracks the managed resource group for the cluster.
 	// Written by: EnsureManagedResourceGroup
 	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
@@ -545,6 +552,27 @@ type DenyAssignmentReference struct {
 	// e.g. "/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Authorization/denyAssignments/{uuid}".
 	// Written by: ClusterDenyAssignment
 	DenyAssignmentResourceID *azcorearm.ResourceID `json:"denyAssignmentResourceID"`
+}
+
+// TLSCertificate tracks a single TLS certificate through its provisioning lifecycle.
+type TLSCertificate struct {
+	// PendingReference identifies a certificate not yet confirmed to be provisioned in Azure.
+	// Written by: TLSCertificates
+	PendingReference *AzureTLSCertificateReference `json:"pendingReference,omitempty"`
+	// AzureReference identifies a certificate confirmed to be provisioned in Azure.
+	// Written by: TLSCertificates
+	AzureReference *AzureTLSCertificateReference `json:"azureReference,omitempty"`
+}
+
+// AzureTLSCertificateReference identifies a single Azure Key Vault TLS certificate.
+// +k8s:deepcopy-gen=true
+type AzureTLSCertificateReference struct {
+	// KeyVaultURL mirrors the hosted-cluster secrets Key Vault URL of the management cluster.
+	// Written by: TLSCertificates
+	KeyVaultURL string `json:"keyVaultURL,omitempty"`
+	// CertificateName is the name of the certificate created in that vault.
+	// Written by: TLSCertificates
+	CertificateName string `json:"certificateName"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
