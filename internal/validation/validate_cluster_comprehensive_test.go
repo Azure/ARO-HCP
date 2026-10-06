@@ -1975,6 +1975,43 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "legacy empty kms keyVaultType with explicit KeyVault default - update",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "test-version",
+						},
+					},
+				}
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "test-version",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
 			name: "mutable kms key version with v20260630preview - update",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()

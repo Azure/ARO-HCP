@@ -1097,6 +1097,13 @@ var (
 	validKmsKeyVaultTypes = sets.New(coreapi.KmsKeyVaultTypeKeyVault, coreapi.KmsKeyVaultTypeManagedHSM)
 )
 
+func canonicalKmsKeyVaultType(keyVaultType *string) string {
+	if keyVaultType == nil || *keyVaultType == "" {
+		return coreapi.KmsKeyVaultTypeKeyVault
+	}
+	return *keyVaultType
+}
+
 func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.KmsEncryptionProfile) field.ErrorList {
 	if newObj == nil {
 		return nil
@@ -1113,7 +1120,9 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 	errs = append(errs, validateKmsKey(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
 
 	//KeyVaultType string `json:"keyVaultType,omitempty"`
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("keyVaultType"), &newObj.KeyVaultType, safe.Field(oldObj, toKmsEncryptionProfileKeyVaultType))...)
+	newKeyVaultType := canonicalKmsKeyVaultType(&newObj.KeyVaultType)
+	oldKeyVaultType := canonicalKmsKeyVaultType(safe.Field(oldObj, toKmsEncryptionProfileKeyVaultType))
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("keyVaultType"), &newKeyVaultType, &oldKeyVaultType)...)
 	if newObj.KeyVaultType != "" {
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("keyVaultType"), &newObj.KeyVaultType, nil, validKmsKeyVaultTypes, nil)...)
 	}

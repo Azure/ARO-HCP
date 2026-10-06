@@ -2104,6 +2104,7 @@ func TestConvertKmsKeyVaultTypeRPToCS(t *testing.T) {
 		name      string
 		vaultType string
 		want      arohcpv1alpha1.AzureKmsEncryptionKeyVaultType
+		wantErr   bool
 	}{
 		{
 			name:      "ManagedHSM maps to CS ManagedHsm",
@@ -2120,11 +2121,22 @@ func TestConvertKmsKeyVaultTypeRPToCS(t *testing.T) {
 			vaultType: "",
 			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault,
 		},
+		{
+			name:      "unknown type returns error",
+			vaultType: "InvalidType",
+			wantErr:   true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, convertKmsKeyVaultTypeRPToCS(tt.vaultType))
+			got, err := convertKmsKeyVaultTypeRPToCS(tt.vaultType)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
