@@ -9,9 +9,8 @@ types, config, wiring, and tests required.
 > Cosmos storage, informers, and backend wiring
 > are implemented. They run unconditionally. Production policy is hardcoded;
 > risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
-> Structured rollout profiles, shared read normalization and independent Fleet migration are implemented.
-> Graph-data discovery, prospective seeding, catalog publication and rollout
-> retirement are not implemented yet.
+> Structured rollout profiles, independent migration, and discovery/reference seeding are
+> implemented. Catalog publication and rollout retirement are not implemented yet.
 
 ## 1. Background: the pipeline before this change
 
@@ -159,18 +158,25 @@ type RolloutConfig struct {
 Production defaults are `CanaryPercentage=6`, `RollingPercentage=12`, one hour
 of readiness, and a two-hour upgrade timeout unless overridden for a minor.
 `GetZStreamOffset` selects one version behind for stable and zero for other graph
-channels. Nightly versions come from the experimental exact-version override;
-they neither seed rollouts nor query Cincinnati.
+channels. Nightly references seed structured rollout profiles under the shared
+allowed-channel policy. The existing selector skips Cincinnati for nightly, so
+nightly installs continue to use the experimental exact-version override.
+
+Discovery uses `MinimumBackendVersion` (currently `4.20`) from
+[`versionpolicy`](../../internal/versionpolicy/policy.go). Referenced minor version
+and channel group pairs remain repairable below that floor. This discovery floor
+is separate from the per-channel minimum exact versions used by selection.
 
 ## 5. Controllers
 
-All seven run in the `backend` binary. Four are per-cluster (use
-`controllerutils.NewClusterWatchingController` + `HCPClusterKey`); three are
-per-`ControlPlaneVersionRollout` (use a new fleet watching controller keyed by
-the rollout channel name, or `genericWatchingController[T]` on the rollout
-resource type + interval resync).
+All seven rollout controllers plus separate migration run in the `backend` binary.
+Three assignment controllers are per-cluster; the other five, including seeding
+and migration, use the existing rollout watcher with channel keys.
+`GenericWatchingController` retains queue execution, retries, logging, metrics,
+cache-sync gating and resource-ID mapping. Seeding adds only a cache-gated HTTP
+discovery loop in its concrete `Run`; it writes no child Controller bookkeeping.
 
-Every controller follows the house pattern: a syncer struct holding listers +
+Assignment and per-rollout controllers follow the house pattern: a syncer struct holding listers +
 DB clients (interfaces), a `New…Controller` constructor, and a `SyncOnce`
 implementing the read → `DeepCopy` → mutate → `equality.Semantic.DeepEqual`
 skip → `Replace` (treating `IsPreconditionFailedError` as a benign no-op) loop.
@@ -237,14 +243,44 @@ controller** — the plan reuses the existing path. Input
   changed-resource notifications and controller restarts. ETag conflicts stop the
   assignment, and partial failures retain the reservation.
 
-### 5.6 Rollout Seeding (per-cluster)
+### 5.6 Rollout Seeding
 
-Checks the cached rollout for the customer's requested channel and, when pinned, the
-pinned minor's channel. Creates missing documents with normalized `Spec.Version`
-and nil best version. Existing cached documents are a no-op without live reads. Create
-conflicts count as another seeder winning; read/create failures return errors
-for retry. Nightly and deleting clusters are still skipped.
-The existing per-cluster informer triggers and Controller bookkeeping remain.
+Uses the existing rollout watcher and channel keys. Rollout add/update/resync and
+delete notifications enqueue work. Its concrete `Run` starts only HTTP discovery
+after cache sync, immediately and on a fixed five-minute ticker; requests never
+overlap. Discovery failures wait for the next tick; worker failures use queue retries.
+Shared Cluster/SPC dependency handlers map add/delete and both old/new objects on
+every update, including unchanged five-minute resyncs. Cached counterpart lookups
+map dependencies, without eligibility or field-change filters. Workers re-read
+current state before deciding; callback errors recover on informer resync.
+
+[`Discovery`](../../backend/pkg/controllers/cluster/version/rollout/rollout_discovery.go)
+uses the [graph-data client](../../internal/cincinnati/graph_data.go) to fetch the
+Cincinnati archive with a one-minute deadline and bounded in-memory validation.
+Only complete validated results enqueue allowed profiles at/above the backend
+floor, including in an empty region. Discovery does not select exact releases or
+call Cluster Service. Its failure does not block event-driven workers.
+
+[`References`](../../backend/pkg/controllers/cluster/version/rollout/rollout_references.go)
+include Cluster requested versions, experimental exact overrides and active
+versions, plus SPC desired, pinned exact and active versions, using the parent's
+channel group. Deleting resources and nightly channels remain references;
+`UntilExactVersion` is only a pin comparison threshold, not a separate dependency.
+Known references can be repaired even when enumeration also reports errors.
+
+Workers live-read the rollout, create missing profiles with `Spec.Version` and a
+nil best version, and recheck regional cached references before creating missing
+below-floor profiles. Existing rollouts are a no-op and left unchanged.
+Create conflicts and write failures use
+queue retries with a fresh live read. Pure `reconcileSeeding` computes the desired
+document without I/O; `SyncOnce` gathers inputs and persists it.
+
+Worker `cleanupLegacyStatus` checks cached Controller documents for clusters
+referencing its channel, and deletes legacy status only after an error-free reference
+inventory and cached observation of all referenced rollouts. Absent legacy status
+requires no Resources calls. Neither profile presence nor migration persistence is
+a cleanup gate. Cleanup tolerates 404; missing cached rollouts and failures use
+worker queue retries. There is no reference producer or migration in the seeder.
 
 ### 5.7 Initial Normal Desired Version (per-cluster)
 
@@ -286,6 +322,14 @@ bounds unresolved version waits, and no longer reads or creates a legacy
 
 ## 7. Testing strategy
 
+- Storage and CosmosRolloutVersionMigration tests cover legacy normalization, persistence,
+  state preservation, invalid profiles and stale-ETag protection.
+- [Seeder tests](../../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller_test.go)
+  cover mapped dependencies, discovery timing, worker retries,
+  cache-sync cancellation, unchanged existing state, below-floor recreation guards and
+  legacy-health cleanup after observing referenced rollouts exist.
+- [Legacy writer tests](../../backend/pkg/controllers/cluster/version/rollout/legacy_writers_test.go)
+  cover normalized reads, preserved profiles and stale best/status/condition writes.
 - **Pure decision functions** (`computeRolloutStatusCounts`, `selectBestExactVersion`, `eligibleClusters`,
   `rolloutDecision`) get exhaustive table-driven unit tests — no fakes needed.
 - **`SyncOnce`** tests use the in-memory mock DB
@@ -317,7 +361,9 @@ Implemented:
 - Fleet API, validation of supported channel groups and major/minor names,
   Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
 - Seven rollout controllers plus separate migration, backend registration under leader election, and unit tests.
-- Structured `Spec.Version`, shared legacy read normalization and independent ETag-protected Fleet migration.
+- Structured `Spec.Version`, shared read normalization and independent Fleet migration.
+- Generic rollout watcher with mapped Cluster/SPC dependencies, periodic discovery,
+  below-floor reference repair and worker-owned obsolete health cleanup.
 - Shared Cincinnati selection with the existing per-channel offset policy.
 - Persisted transition ages and assignment cooldown reservations.
 - Forced-version precedence, pinned-channel seeding, and completed-only progress.
@@ -325,6 +371,7 @@ Implemented:
 
 Follow-ups:
 
+- Catalog publication and unreferenced-rollout retirement controllers.
 - Filter platform/control-plane risks from Cincinnati conditional updates. The
   current graph helper selects by recency, so selected versions are not
   guaranteed to be free of conditional-update risks.
