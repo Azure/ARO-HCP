@@ -16,6 +16,8 @@ package ksmhcp
 
 import (
 	"context"
+	"reflect"
+	"regexp"
 	"testing"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -24,6 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/testutil"
 
@@ -91,6 +95,96 @@ func TestBuildConfigMap(t *testing.T) {
 	testutil.CompareWithFixture(t, cm)
 }
 
+func TestKarpenterCustomResourceStateConfig(t *testing.T) {
+	type metricConfig struct {
+		Name string `yaml:"name"`
+		Each struct {
+			Type  string `yaml:"type"`
+			Gauge struct {
+				Path           []string            `yaml:"path"`
+				LabelsFromPath map[string][]string `yaml:"labelsFromPath"`
+				ValueFrom      []string            `yaml:"valueFrom"`
+			} `yaml:"gauge"`
+		} `yaml:"each"`
+	}
+	type resourceConfig struct {
+		GroupVersionKind struct {
+			Group   string `yaml:"group"`
+			Version string `yaml:"version"`
+			Kind    string `yaml:"kind"`
+		} `yaml:"groupVersionKind"`
+		LabelsFromPath map[string][]string `yaml:"labelsFromPath"`
+		Metrics        []metricConfig      `yaml:"metrics"`
+	}
+	var config struct {
+		Spec struct {
+			Resources []resourceConfig `yaml:"resources"`
+		} `yaml:"spec"`
+	}
+
+	if err := yaml.Unmarshal([]byte(customResourceStateConfig), &config); err != nil {
+		t.Fatalf("failed to parse custom resource state config: %v", err)
+	}
+
+	findResource := func(kind string) resourceConfig {
+		t.Helper()
+		for _, resource := range config.Spec.Resources {
+			if resource.GroupVersionKind.Kind == kind {
+				return resource
+			}
+		}
+		t.Fatalf("custom resource state config does not contain %s", kind)
+		return resourceConfig{}
+	}
+
+	wantResources := map[string]string{
+		"NodePool":     "karpenter.sh/v1",
+		"NodeClaim":    "karpenter.sh/v1",
+		"AKSNodeClass": "karpenter.azure.com/v1beta1",
+	}
+	for kind, groupVersion := range wantResources {
+		resource := findResource(kind)
+		if got := resource.GroupVersionKind.Group + "/" + resource.GroupVersionKind.Version; got != groupVersion {
+			t.Errorf("%s group/version = %q, want %q", kind, got, groupVersion)
+		}
+		if got, want := resource.LabelsFromPath, map[string][]string{"name": {"metadata", "name"}}; !reflect.DeepEqual(got, want) {
+			t.Errorf("%s labelsFromPath = %#v, want %#v", kind, got, want)
+		}
+	}
+
+	wantConditionLabels := map[string][]string{
+		"condition": {"type"},
+		"status":    {"status"},
+		"reason":    {"reason"},
+	}
+	for _, kind := range []string{"NodePool", "NodeClaim", "AKSNodeClass"} {
+		resource := findResource(kind)
+		var conditionMetric *metricConfig
+		for i := range resource.Metrics {
+			if resource.Metrics[i].Name == "status_condition_transition_time_seconds" {
+				conditionMetric = &resource.Metrics[i]
+				break
+			}
+		}
+		if conditionMetric == nil {
+			t.Errorf("%s does not define status_condition_transition_time_seconds", kind)
+			continue
+		}
+		if conditionMetric.Each.Type != "Gauge" {
+			t.Errorf("%s condition metric type = %q, want Gauge", kind, conditionMetric.Each.Type)
+		}
+		if got, want := conditionMetric.Each.Gauge.Path, []string{"status", "conditions"}; !reflect.DeepEqual(got, want) {
+			t.Errorf("%s condition path = %#v, want %#v", kind, got, want)
+		}
+		if got, want := conditionMetric.Each.Gauge.ValueFrom, []string{"lastTransitionTime"}; !reflect.DeepEqual(got, want) {
+			t.Errorf("%s condition valueFrom = %#v, want %#v", kind, got, want)
+		}
+		if got := conditionMetric.Each.Gauge.LabelsFromPath; !reflect.DeepEqual(got, wantConditionLabels) {
+			t.Errorf("%s condition labels = %#v, want %#v", kind, got, wantConditionLabels)
+		}
+	}
+}
+
 func TestBuildDeployment(t *testing.T) {
 	dep := buildDeployment(
 		"ocm-arohcppers-abc123-xyz",
@@ -131,6 +225,171 @@ func TestBuildServiceMonitor(t *testing.T) {
 	}
 
 	testutil.CompareWithFixture(t, sm)
+}
+
+func TestBuildServiceMonitorFiltersKarpenterConditions(t *testing.T) {
+	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", DefaultMonitoringAPIGroup, metav1.OwnerReference{
+		APIVersion: "hypershift.openshift.io/v1beta1",
+		Kind:       "HostedControlPlane",
+		Name:       "test-hcp",
+		UID:        "uid-123",
+	})
+	if err != nil {
+		t.Fatalf("buildServiceMonitor() error: %v", err)
+	}
+
+	endpoints, found, err := unstructured.NestedSlice(sm.Object, "spec", "endpoints")
+	if err != nil {
+		t.Fatalf("failed to read ServiceMonitor endpoints: %v", err)
+	}
+	if !found || len(endpoints) != 1 {
+		t.Fatalf("ServiceMonitor endpoints = %#v, want one endpoint", endpoints)
+	}
+	endpoint, ok := endpoints[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("ServiceMonitor endpoint has type %T, want map[string]interface{}", endpoints[0])
+	}
+	relabelings, found, err := unstructured.NestedSlice(endpoint, "metricRelabelings")
+	if err != nil {
+		t.Fatalf("failed to read metric relabelings: %v", err)
+	}
+	if !found {
+		t.Fatal("ServiceMonitor has no metric relabelings")
+	}
+
+	foundMarkerRule := false
+	foundTrueDropRule := false
+	foundMarkerCleanupRule := false
+	markerRuleIndex := -1
+	trueDropRuleIndex := -1
+	markerCleanupRuleIndex := -1
+	for i, relabeling := range relabelings {
+		rule, ok := relabeling.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		switch {
+		case rule["action"] == "replace" && rule["regex"] == retainedTrueNodeClaimConditionRE:
+			if got, want := rule["sourceLabels"], []interface{}{"__name__", "condition", "status"}; !reflect.DeepEqual(got, want) {
+				t.Errorf("retained True condition marker sourceLabels = %#v, want %#v", got, want)
+			}
+			if got, want := rule["targetLabel"], retainedTrueConditionMarkerLabel; got != want {
+				t.Errorf("retained True condition marker targetLabel = %#v, want %#v", got, want)
+			}
+			if got, want := rule["replacement"], "true"; got != want {
+				t.Errorf("retained True condition marker replacement = %#v, want %#v", got, want)
+			}
+			foundMarkerRule = true
+			markerRuleIndex = i
+		case rule["action"] == "drop" && rule["regex"] == unmarkedTrueKarpenterConditionRE:
+			if got, want := rule["sourceLabels"], []interface{}{"__name__", "status", retainedTrueConditionMarkerLabel}; !reflect.DeepEqual(got, want) {
+				t.Errorf("True condition drop sourceLabels = %#v, want %#v", got, want)
+			}
+			foundTrueDropRule = true
+			trueDropRuleIndex = i
+		case rule["action"] == "labeldrop" && rule["regex"] == retainedTrueConditionMarkerLabel:
+			foundMarkerCleanupRule = true
+			markerCleanupRuleIndex = i
+		}
+	}
+	if !foundMarkerRule {
+		t.Fatalf("ServiceMonitor is missing retained True condition marker rule %q", retainedTrueNodeClaimConditionRE)
+	}
+	if !foundTrueDropRule {
+		t.Fatalf("ServiceMonitor is missing unmarked True Karpenter condition drop rule %q", unmarkedTrueKarpenterConditionRE)
+	}
+	if !foundMarkerCleanupRule {
+		t.Fatalf("ServiceMonitor is missing temporary marker cleanup rule %q", retainedTrueConditionMarkerLabel)
+	}
+	if !(markerRuleIndex < trueDropRuleIndex && trueDropRuleIndex < markerCleanupRuleIndex) {
+		t.Errorf(
+			"condition relabel order = marker %d, drop %d, cleanup %d; want marker < drop < cleanup",
+			markerRuleIndex,
+			trueDropRuleIndex,
+			markerCleanupRuleIndex,
+		)
+	}
+
+	retainedTrueConditionRE := regexp.MustCompile("^(?:" + retainedTrueNodeClaimConditionRE + ")$")
+	unmarkedTrueConditionRE := regexp.MustCompile("^(?:" + unmarkedTrueKarpenterConditionRE + ")$")
+	tests := []struct {
+		name       string
+		metricName string
+		condition  string
+		status     string
+		wantDrop   bool
+	}{
+		{
+			name:       "completed launch",
+			metricName: nodeClaimConditionMetricName,
+			condition:  "Launched",
+			status:     "True",
+			wantDrop:   true,
+		},
+		{
+			name:       "failed launch",
+			metricName: nodeClaimConditionMetricName,
+			condition:  "Launched",
+			status:     "False",
+		},
+		{
+			name:       "unresolved launch",
+			metricName: nodeClaimConditionMetricName,
+			condition:  "Launched",
+			status:     "Unknown",
+		},
+		{
+			name:       "active instance termination",
+			metricName: nodeClaimConditionMetricName,
+			condition:  "InstanceTerminating",
+			status:     "True",
+		},
+		{
+			name:       "drift lifecycle signal",
+			metricName: nodeClaimConditionMetricName,
+			condition:  "Drifted",
+			status:     "True",
+			wantDrop:   true,
+		},
+		{
+			name:       "healthy NodePool",
+			metricName: "karpenter_nodepool_status_condition_transition_time_seconds",
+			condition:  "Ready",
+			status:     "True",
+			wantDrop:   true,
+		},
+		{
+			name:       "unresolved NodePool",
+			metricName: "karpenter_nodepool_status_condition_transition_time_seconds",
+			condition:  "Ready",
+			status:     "Unknown",
+		},
+		{
+			name:       "healthy AKSNodeClass",
+			metricName: "karpenter_aksnodeclass_status_condition_transition_time_seconds",
+			condition:  "Ready",
+			status:     "True",
+			wantDrop:   true,
+		},
+		{
+			name:       "unhealthy AKSNodeClass",
+			metricName: "karpenter_aksnodeclass_status_condition_transition_time_seconds",
+			condition:  "Ready",
+			status:     "False",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			marker := ""
+			if retainedTrueConditionRE.MatchString(tt.metricName + ";" + tt.condition + ";" + tt.status) {
+				marker = "true"
+			}
+			gotDrop := unmarkedTrueConditionRE.MatchString(tt.metricName + ";" + tt.status + ";" + marker)
+			if gotDrop != tt.wantDrop {
+				t.Errorf("drop decision = %t, want %t", gotDrop, tt.wantDrop)
+			}
+		})
+	}
 }
 
 // TestBuildServiceMonitorAMAGroup verifies that in AMA mode the KSM monitor is

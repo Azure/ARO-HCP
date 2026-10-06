@@ -134,10 +134,6 @@
             "steps": [
               {
                 "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           }
@@ -563,9 +559,10 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "count(max without(prometheus_replica) (operator_aksnodeclass_status_condition_current_status_seconds{condition=\"Ready\", status!=\"True\"}) > 0) or vector(0)",
+          "expr": "count(max by (namespace, name) (max without(prometheus_replica) (karpenter_aksnodeclass_status_condition_transition_time_seconds{condition=\"Ready\", status!=\"True\"}))) or vector(0)",
+          "instant": true,
           "legendFormat": "Not-Ready",
-          "range": true,
+          "range": false,
           "refId": "A"
         }
       ],
@@ -682,7 +679,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "count(max without(prometheus_replica) (operator_aksnodeclass_status_condition_current_status_seconds{condition=\"Ready\", status!=\"True\"}) > 0) or vector(0)",
+          "expr": "count(max by (namespace, name) (max without(prometheus_replica) (karpenter_aksnodeclass_status_condition_transition_time_seconds{condition=\"Ready\", status!=\"True\"}))) or vector(0)",
           "legendFormat": "Not-Ready AKSNodeClasses",
           "range": true,
           "refId": "A"
@@ -739,7 +736,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "s"
         },
         "overrides": [
           {
@@ -802,7 +800,12 @@
           "show": false
         },
         "showHeader": true,
-        "sortBy": []
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "In State"
+          }
+        ]
       },
       "pluginVersion": "11.6.3",
       "targets": [
@@ -813,13 +816,14 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max without(prometheus_replica) (operator_aksnodeclass_status_condition_current_status_seconds{condition=\"Ready\", status!=\"True\"}) > 0",
+          "expr": "time() - max without(prometheus_replica) (karpenter_aksnodeclass_status_condition_transition_time_seconds{condition=\"Ready\", status!=\"True\"})",
           "instant": true,
           "legendFormat": "__auto",
           "range": false,
           "refId": "A"
         }
       ],
+      "description": "In State is the time since the Ready condition's lastTransitionTime. Older conditions deserve investigation, but duration alone does not prove the resource is stuck.",
       "title": "Affected Clusters - AKSNodeClass Not-Ready Details",
       "transformations": [
         {
@@ -836,7 +840,14 @@
             "excludeByName": {
               "Time": true,
               "__name__": true,
-              "operator_aksnodeclass_status_condition_current_status_seconds": true,
+              "container": true,
+              "customresource_group": true,
+              "customresource_kind": true,
+              "customresource_version": true,
+              "endpoint": true,
+              "instance": true,
+              "job": true,
+              "pod": true,
               "prometheus": true,
               "source": true,
               "tenant_id": true
@@ -844,6 +855,10 @@
             "includeByName": {},
             "indexByName": {},
             "renameByName": {
+              "Value": "In State",
+              "condition": "Condition",
+              "name": "AKSNodeClass",
+              "reason": "Reason",
               "status": "Status"
             }
           }
