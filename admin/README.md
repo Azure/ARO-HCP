@@ -25,6 +25,7 @@ This prefix is abbreviated as `{resourceId}` below.
 | `PATCH` | `/admin/v1/hcp{resourceId}/backupschedules` | Enable or disable scheduled backups |
 | `GET` | `/admin/v1/hcp{resourceId}/backups` | List on-demand backups |
 | `POST` | `/admin/v1/hcp{resourceId}/controlplaneversionpin` | Pin a cluster's control plane to a version in its release line, or clear the pin (omit `exactVersion`) |
+| `POST` | `/admin/v1/versionrollouts/{channel}/controlplaneversionpin` | Set or clear control-plane pins for existing clusters in a regional y-stream channel |
 | `GET` | `/healthz/ready` | Readiness probe |
 | `GET` | `/healthz/live` | Liveness probe |
 | `GET` | `/metrics` | Prometheus metrics (served on the metrics port) |
@@ -82,6 +83,63 @@ Nightly clusters can be pinned to a previous or newer version, but their
 channels have no fleet rollout best version to trigger auto-release. Requests
 with `untilExactVersion` return HTTP 400 for nightly clusters; a nightly pin
 without a threshold remains until explicitly cleared.
+
+### Fleet control-plane version pins
+
+`POST /admin/v1/versionrollouts/stable-4.22/controlplaneversionpin` accepts the same body and
+version-pin validation as the single-cluster endpoint. It applies to existing
+ServiceProviderCluster documents in this Admin API's regional Resources container.
+It does not persist a channel-wide policy or pin clusters created after the request.
+
+Membership follows the rollout controllers: the backing cluster's channel group
+must match, and the provider's desired version must have the channel's major.minor.
+If desired version is absent, the oldest completed active version determines
+membership. Deleting clusters, orphaned provider documents, and clusters with no
+channel group or known effective minor are excluded. Active versions determine
+membership only; rollback validation still requires the mirrored control-plane
+history. A pin must also match each cluster's requested release line.
+If the oldest completed active-version entry used for fallback lacks a version,
+the request fails before writing any pins instead of silently excluding that cluster.
+
+The handler finishes listing and validates every pin change before writing. A
+validation failure returns HTTP 400 with per-cluster details and makes no writes.
+An identical persisted pin is counted as unchanged, without revalidating rollback
+history or rewriting the document; this lets callers retry after a rollback has
+completed. Clearing pins needs no observed history and does not create documents.
+
+Writes use each provider document's ETag independently. The operation is not
+atomic across clusters: it continues after individual failures and returns the
+successful writes and failed cluster IDs. HTTP 200 means all writes succeeded;
+HTTP 409 means writes encountered ETag conflicts; HTTP 500 means at least one
+write had another failure (or listing failed before any writes).
+
+A response after the write phase contains:
+
+```json
+{
+  "channel": "stable-4.22",
+  "matchedCount": 3,
+  "affectedCount": 1,
+  "unchangedCount": 1,
+  "failedCount": 1,
+  "failures": [
+    {
+      "resourceId": "/subscriptions/.../hcpOpenShiftClusters/cluster-name",
+      "code": "Conflict",
+      "message": "ETag conflict, retry the operation"
+    }
+  ]
+}
+```
+
+`affectedCount` counts successful document writes, not completed rollbacks.
+`matchedCount` equals `affectedCount + unchangedCount + failedCount`. An empty
+selection returns HTTP 200 with zero counts. Request validation, including
+channel/release-line and nightly restrictions, applies even to an empty selection.
+
+Inspect failed clusters before retrying; a new fleet request recomputes membership
+and can include newly created clusters.
+For a narrowly scoped retry, use the single-cluster endpoint on the failed IDs.
 
 ## Authentication
 
