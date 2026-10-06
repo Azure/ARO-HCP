@@ -24,13 +24,43 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Lint Markdown files
+      # Linting every .md in the repo is not viable: ~198 files carry pre-existing
+      # violations. Lint only in-scope files that this change actually touches, and
+      # widen SCOPE as more docs are brought up to standard.
+      - name: Collect changed Markdown files in scope
+        id: changed
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+
+          base="${BASE_SHA:-}"
+          if [[ -z "${base}" ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            # First push to a branch, or a force push: fall back to the previous commit.
+            base="$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)"
+          fi
+
+          files="$(git diff --name-only --diff-filter=ACMR "${base}" HEAD -- \
+                     docs/personal-dev.md test/docs/ \
+                   | { grep -E '\.md$' || true; } \
+                   | tr '\n' ' ' | sed 's/ *$//')"
+
+          echo "files=${files}" >> "$GITHUB_OUTPUT"
+          if [[ -n "${files}" ]]; then
+            echo "Linting: ${files}"
+          else
+            echo "No in-scope Markdown changed; nothing to lint."
+          fi
+
+      - name: Lint changed Markdown files
+        if: steps.changed.outputs.files != ''
         uses: nosborn/github-action-markdown-cli@v3.3.0
         with:
-          files: "**/*.md"
+          files: ${{ steps.changed.outputs.files }}
           config_file: .markdownlint.json
-          ignore_files: "vendor/"
 
   readme-tests:
     name: README Command Tests

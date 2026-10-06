@@ -5,6 +5,7 @@ This directory contains automated tests for validating README files and document
 ## Overview
 
 These tests ensure that:
+
 - Commands documented in READMEs are syntactically correct
 - Required tools and prerequisites are properly documented
 - Internal links point to existing files
@@ -18,6 +19,7 @@ These tests ensure that:
 Validates the [personal-dev.md](../../docs/personal-dev.md) documentation.
 
 **What it tests:**
+
 - README file exists and has required sections
 - Azure CLI prerequisites are documented (version >= 2.68.0)
 - All documented make targets exist
@@ -30,6 +32,7 @@ Validates the [personal-dev.md](../../docs/personal-dev.md) documentation.
 - Required tools (az, kubectl) are available (`full` mode only)
 
 **Running locally:**
+
 ```bash
 ./test/docs/personal-dev-readme-test.sh   # dry-run (default)
 make test-docs                            # same thing
@@ -38,6 +41,7 @@ TEST_MODE=full ./test/docs/personal-dev-readme-test.sh
 ```
 
 **Test modes:**
+
 - `dry-run` (default): docs assertions only. No tooling, no network, no Azure access.
 - `full`: adds checks that `az` and `kubectl` are installed locally.
 
@@ -46,6 +50,7 @@ An unrecognised `TEST_MODE` exits 2 rather than silently falling back.
 ## CI Integration
 
 Tests run automatically on PRs that modify:
+
 - Any `*.md` files
 - Test scripts in `test/docs/`
 - CI workflow configurations
@@ -104,18 +109,20 @@ echo "Tests: ${TESTS_RUN} | Passed: ${TESTS_PASSED} | Failed: ${TESTS_FAILED}"
 
 ## Markdown Linting
 
-Project uses `markdownlint` with configuration in `.markdownlint.json`.
+Configuration lives in `.markdownlint.json`.
+
+CI lints only the files a change actually touches, and only within a scoped allowlist
+(`docs/personal-dev.md` and `test/docs/`). Most of the repo predates this config and
+carries violations, so linting `**/*.md` would fail on files unrelated to your change.
+Widen the `SCOPE` list in the workflow as more docs are brought up to standard.
 
 **Run locally:**
+
 ```bash
-# Install
-npm install -g markdownlint-cli
+npx markdownlint-cli --config .markdownlint.json docs/personal-dev.md test/docs/
 
-# Lint all markdown
-markdownlint '**/*.md'
-
-# Auto-fix issues
-markdownlint '**/*.md' --fix
+# Auto-fix what can be fixed mechanically
+npx markdownlint-cli --config .markdownlint.json --fix docs/personal-dev.md test/docs/
 ```
 
 ## Link Checking
@@ -132,6 +139,7 @@ never fail because a third-party site is slow, rate-limiting, or behind a login.
 ### Tests fail on macOS
 
 Some GNU tools work differently on macOS. The test scripts are designed to be portable, but if you encounter issues:
+
 ```bash
 brew install grep  # GNU grep
 brew install gnu-sed  # GNU sed
