@@ -25,14 +25,6 @@ import (
 
 // Run with: BICEP=/path/to/bicep go test infrastructure_identities_test.go
 func TestInfrastructureIdentityDeclarations(t *testing.T) {
-	bicep := os.Getenv("BICEP")
-	if bicep == "" {
-		var err error
-		bicep, err = exec.LookPath("bicep")
-		if err != nil {
-			t.Fatal("set BICEP or install bicep to run compiled identity regression tests")
-		}
-	}
 	for _, file := range []string{
 		"templates/svc-cluster.bicep",
 		"templates/mgmt-infra.bicep",
@@ -41,19 +33,8 @@ func TestInfrastructureIdentityDeclarations(t *testing.T) {
 		"modules/managed-identities.bicep",
 	} {
 		t.Run(file, func(t *testing.T) {
-			output := filepath.Join(t.TempDir(), "template.json")
-			cmd := exec.Command(bicep, "build", file, "--outfile", output)
-			if data, err := cmd.CombinedOutput(); err != nil {
-				t.Fatalf("compile: %v\n%s", err, data)
-			}
-			data, err := os.ReadFile(output)
-			if err != nil {
-				t.Fatal(err)
-			}
 			var template identityTemplate
-			if err := json.Unmarshal(data, &template); err != nil {
-				t.Fatal(err)
-			}
+			compileIdentityTemplate(t, file, &template)
 			checkIdentityDeclarations(t, template, file)
 			if file == "templates/svc-cluster.bicep" {
 				want := "[if(parameters('useLeasedInfrastructureIdentities'), parameters('infrastructureIdentityResourceGroup'), resourceGroup().name)]"
@@ -64,6 +45,58 @@ func TestInfrastructureIdentityDeclarations(t *testing.T) {
 				if got != want {
 					t.Errorf("Postgres identity RG selection: got %q, want %q", got, want)
 				}
+			}
+		})
+	}
+}
+
+func compileIdentityTemplate(t *testing.T, file string, result any) {
+	t.Helper()
+	bicep := os.Getenv("BICEP")
+	if bicep == "" {
+		var err error
+		bicep, err = exec.LookPath("bicep")
+		if err != nil {
+			t.Fatal("set BICEP or install bicep to run compiled identity regression tests")
+		}
+	}
+	output := filepath.Join(t.TempDir(), "template.json")
+	cmd := exec.Command(bicep, "build", file, "--outfile", output)
+	if data, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("compile: %v\n%s", err, data)
+	}
+	data, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, result); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestManagementIdentityMappingIsGuarded(t *testing.T) {
+	for _, file := range []string{
+		"modules/mgmt-agent/mgmt-agent-lookup.bicep",
+		"modules/maestro/maestro-agent-lookup.bicep",
+		"templates/kube-applier-lookup.bicep",
+		"templates/image-puller-lookup.bicep",
+		"templates/output-mgmt-cluster.bicep",
+		"templates/output-mgmt.bicep",
+	} {
+		t.Run(file, func(t *testing.T) {
+			var template struct {
+				Variables map[string]json.RawMessage `json:"variables"`
+			}
+			compileIdentityTemplate(t, file, &template)
+			var expression string
+			if err := json.Unmarshal(template.Variables["identityResourceGroup"], &expression); err != nil {
+				t.Fatal(err)
+			}
+			// Guard the function call itself, not just the resource scope:
+			// ARM evaluates this variable even when the scope selects the default RG.
+			want := "[if(parameters('useLeasedInfrastructureIdentities'), _1.getManagementIdentityResourceGroup(parameters('managementIdentityResourceGroups'), parameters('stampIdentifier')), resourceGroup().name)]"
+			if expression != want {
+				t.Errorf("mapping must only be evaluated in leased mode: got %q, want %q", expression, want)
 			}
 		})
 	}

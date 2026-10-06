@@ -5,7 +5,9 @@ param useLeasedInfrastructureIdentities bool = false
 param managementIdentityResourceGroups string = ''
 param stampIdentifier string
 import * as mi from '../modules/managed-identities.bicep'
-var identityResourceGroup = mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier)
+var identityResourceGroup = useLeasedInfrastructureIdentities
+  ? mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier)
+  : resourceGroup().name
 var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? identityResourceGroup : resourceGroup().name)
 
 //
