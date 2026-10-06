@@ -943,6 +943,12 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 }
 
 func (tc *perItOrDescribeTestContext) collectHCPInspectData(ctx context.Context) {
+	if !ginkgo.CurrentSpecReport().Failed() {
+		// only collect data if we failed the current spec. This saves disk space, as oc adm inspect
+		// output can be large.
+		return
+	}
+
 	if tc.LogDirPath == "" {
 		return
 	}
