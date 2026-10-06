@@ -188,15 +188,20 @@ fi
 # will own it after admission succeeds.
 if [[ -n "${LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE:-}" ]]; then
   if ! jq -e '
+    def resource_group_name:
+      if type == "string" then
+        length >= 1 and length <= 90 and
+        test("\\A[A-Za-z0-9._()-]*[A-Za-z0-9_()-]\\z")
+      else false end;
     type == "object" and
     (keys | sort == ["managementResourceGroups", "serviceResourceGroup"]) and
-    (.serviceResourceGroup | type == "string" and length > 0) and
+    (.serviceResourceGroup | resource_group_name) and
     (.managementResourceGroups | type == "object" and length > 0) and
     all(.managementResourceGroups | to_entries[];
-      (.key | test("^[0-9]+$")) and
-      (.value | type == "string" and length > 0))
+      (.key | test("\\A[0-9]+\\z")) and
+      (.value | resource_group_name))
   ' <<< "${LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE}" >/dev/null; then
-    echo "ERROR: LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE must contain serviceResourceGroup and a non-empty managementResourceGroups object keyed by stamp" >&2
+    echo "ERROR: LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE must contain serviceResourceGroup and a non-empty managementResourceGroups object keyed by numeric stamp; resource-group names must be 1-90 ASCII letters, digits, underscores, hyphens, periods or parentheses and must not end in a period" >&2
     exit 1
   fi
 

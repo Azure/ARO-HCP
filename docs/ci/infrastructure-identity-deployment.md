@@ -24,6 +24,12 @@ subscription, and each management stamp's identities must exist in that
 management deployment's subscription. The contract intentionally does not
 support cross-subscription identity references.
 
+Bundle resource-group names must contain 1-90 ASCII letters, digits,
+underscores, hyphens, periods or parentheses, and must not end in a period.
+Both the CI bundle input and deployment config validate this supported subset
+of Azure resource-group names. Empty config values remain valid when reuse is
+disabled; a supplied bundle requires non-empty names for every group.
+
 This is a proposed deployment input, not an export implemented by
 Azure/ARO-HCP#7104. The lifecycle implementation introduced by that PR exports
 `INFRA_SUBSCRIPTION_ID` only when infrastructure assets are demanded; it does

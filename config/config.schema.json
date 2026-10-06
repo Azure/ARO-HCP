@@ -3957,12 +3957,14 @@
         },
         "serviceResourceGroup": {
           "type": "string",
-          "description": "Persistent resource group containing the service-cluster identity bundle in the service deployment subscription."
+          "description": "Persistent resource group containing the service-cluster identity bundle in the service deployment subscription.",
+          "maxLength": 90,
+          "pattern": "^$|^[A-Za-z0-9._()\\-]*[A-Za-z0-9_()\\-]$"
         },
         "managementResourceGroups": {
           "type": "string",
           "description": "Comma-separated explicit stamp-to-resource-group mappings in each management deployment subscription, for example 1=rg-a,2=rg-b.",
-          "pattern": "^$|^[0-9]+=[A-Za-z0-9._()\\-]+(,[0-9]+=[A-Za-z0-9._()\\-]+)*$"
+          "pattern": "^$|^[0-9]+=[A-Za-z0-9._()\\-]{0,89}[A-Za-z0-9_()\\-](,[0-9]+=[A-Za-z0-9._()\\-]{0,89}[A-Za-z0-9_()\\-])*$"
         }
       },
       "additionalProperties": false,
