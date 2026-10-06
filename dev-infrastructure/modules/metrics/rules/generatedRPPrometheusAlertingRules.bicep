@@ -1066,7 +1066,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyBackupAvailability1h5m/{{ $labels.cluster }}/{{ $labels.hosted_cluster_namespace }}'
           description: 'No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 2 hours (hourly cadence is 1h; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further.'
           info: 'No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 2 hours (hourly cadence is 1h; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backups'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: '{{ $labels.cluster }}: no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 2h'
           title: '{{ $labels.cluster }}: no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 2h'
         }
@@ -1097,7 +1097,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyBackupAvailability6h30m/{{ $labels.cluster }}/{{ $labels.hosted_cluster_namespace }}'
           description: 'No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 6 hours. No recent restore point for this HC; investigate before this ages further.'
           info: 'No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 6 hours. No recent restore point for this HC; investigate before this ages further.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backups'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: '{{ $labels.cluster }}: no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 6h'
           title: '{{ $labels.cluster }}: no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 6h'
         }
@@ -1128,7 +1128,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyBackupAvailability3d6h/{{ $labels.cluster }}/{{ $labels.hosted_cluster_namespace }}'
           description: 'No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 24 hours. Daily and weekly tiers on this HC are also at risk once their own cadences lapse.'
           info: 'No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 24 hours. Daily and weekly tiers on this HC are also at risk once their own cadences lapse.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backups'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: '{{ $labels.cluster }}: no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 24h'
           title: '{{ $labels.cluster }}: no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 24h'
         }
@@ -1172,11 +1172,11 @@ resource arohcpBackupSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGr
           correlationId: 'userJourneyBackupErrors1h5m/{{ $labels.cluster }}'
           description: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above 7.2% on both the 1h and 5m windows (14.4x burn of the 99.5% success / 0.5% error budget).'
           info: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above 7.2% on both the 1h and 5m windows (14.4x burn of the 99.5% success / 0.5% error budget).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backups'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: '{{ $labels.cluster }}: Velero backup failure rate critically high (>7.2%)'
           title: '{{ $labels.cluster }}: Velero backup failure rate critically high (>7.2%)'
         }
-        expression: '(((sum by (cluster, region) (rate(velero_backup_failure_total[1h])) + sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) + sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h]))) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) / sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) > 0.072 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[5m])) + sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) + sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m]))) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) / sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) > 0.072'
+        expression: '(((sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))))) > 0.072 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))))) > 0.072'
         for: 'PT2M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1203,11 +1203,11 @@ resource arohcpBackupSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGr
           correlationId: 'userJourneyBackupErrors6h30m/{{ $labels.cluster }}'
           description: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above 3.0% on both the 6h and 30m windows (6x burn).'
           info: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above 3.0% on both the 6h and 30m windows (6x burn).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backups'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: '{{ $labels.cluster }}: Velero backup failure rate elevated (>3.0%)'
           title: '{{ $labels.cluster }}: Velero backup failure rate elevated (>3.0%)'
         }
-        expression: '(((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) + sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) + sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h]))) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) / sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) > 0.03 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[30m])) + sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) + sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m]))) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) / sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) > 0.03'
+        expression: '(((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))) > 0.03 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))))) > 0.03'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1234,11 +1234,11 @@ resource arohcpBackupSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGr
           correlationId: 'userJourneyBackupErrors3d6h/{{ $labels.cluster }}'
           description: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above the 0.5% SLO boundary on both the 3d and 6h windows (1x burn).'
           info: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above the 0.5% SLO boundary on both the 3d and 6h windows (1x burn).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backups'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: '{{ $labels.cluster }}: Velero backup failure rate exceeds SLO (>0.5%)'
           title: '{{ $labels.cluster }}: Velero backup failure rate exceeds SLO (>0.5%)'
         }
-        expression: '(((sum by (cluster, region) (rate(velero_backup_failure_total[3d])) + sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) + sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d]))) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) / sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) > 0.005 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) + sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) + sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h]))) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) / sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) > 0.005'
+        expression: '(((sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))))) > 0.005 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))) > 0.005'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1278,7 +1278,7 @@ resource arohcpBackupSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRule
           correlationId: 'userJourneyBackupLatency6h30m/{{ $labels.cluster }}'
           description: 'Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes on both the 6h and 30m windows (SLO: p99 < 20m, inside the 10m CSI snapshot / 15m item-operation timeouts).'
           info: 'Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes on both the 6h and 30m windows (SLO: p99 < 20m, inside the 10m CSI snapshot / 15m item-operation timeouts).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backups'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: '{{ $labels.cluster }}: Velero backup p99 duration above SLO (>20m)'
           title: '{{ $labels.cluster }}: Velero backup p99 duration above SLO (>20m)'
         }
@@ -1309,7 +1309,7 @@ resource arohcpBackupSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRule
           correlationId: 'userJourneyBackupLatency3d6h/{{ $labels.cluster }}'
           description: 'Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes on both the 3d and 6h windows (1x burn of the p99 < 20m SLO).'
           info: 'Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes on both the 3d and 6h windows (1x burn of the p99 < 20m SLO).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backups'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: '{{ $labels.cluster }}: Velero backup p99 duration above SLO (>20m)'
           title: '{{ $labels.cluster }}: Velero backup p99 duration above SLO (>20m)'
         }
@@ -1351,7 +1351,7 @@ resource arohcpBackupSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRule
           correlationId: 'userJourneyBackupTraffic/{{ $labels.cluster }}'
           description: 'Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average, sustained across a 2h window (more than one full hourly cadence cycle) for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC\'s problem.'
           info: 'Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average, sustained across a 2h window (more than one full hourly cadence cycle) for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC\'s problem.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backups'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: '{{ $labels.cluster }}: Velero backup attempts collapsed below 10% of 1d baseline'
           title: '{{ $labels.cluster }}: Velero backup attempts collapsed below 10% of 1d baseline'
         }
@@ -1393,7 +1393,7 @@ resource arohcpBackupSloStorageAvailabilityAlerts 'Microsoft.AlertsManagement/pr
           correlationId: 'userJourneyBackupStorageAvailability/{{ $labels.cluster }}'
           description: 'Over 80% of Velero schedules on management cluster {{ $labels.cluster }} had a failed last run, sustained for 15m, across at least 3 distinct HostedClusters on {{ $labels.cluster }}. PROXY signal for a BackupStorageLocation outage (no direct BSL-phase metric exists yet - see ARO-29949); also fires for other fleet-wide causes (e.g. a bad Velero/plugin rollout) - check `kubectl get backupstoragelocation -n velero` on the MC before assuming it is specifically storage.'
           info: 'Over 80% of Velero schedules on management cluster {{ $labels.cluster }} had a failed last run, sustained for 15m, across at least 3 distinct HostedClusters on {{ $labels.cluster }}. PROXY signal for a BackupStorageLocation outage (no direct BSL-phase metric exists yet - see ARO-29949); also fires for other fleet-wide causes (e.g. a bad Velero/plugin rollout) - check `kubectl get backupstoragelocation -n velero` on the MC before assuming it is specifically storage.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backups'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: '{{ $labels.cluster }}: Velero backups failing fleet-wide - possible storage location outage'
           title: '{{ $labels.cluster }}: Velero backups failing fleet-wide - possible storage location outage'
         }
@@ -1433,9 +1433,9 @@ resource arohcpBackupSloSaturationAlerts 'Microsoft.AlertsManagement/prometheusR
         }
         annotations: {
           correlationId: 'userJourneyBackupRepoMaintenanceSaturation/{{ $labels.cluster }}'
-          description: '{{ $value }} Velero backups on management cluster {{ $labels.cluster }} have been in a non-terminal phase (New/InProgress/WaitingForPluginOperations/Finalizing) for over 3.5 hours - well beyond the time a healthy hourly-cron burst should take to drain through the 4 concurrent backup slots. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757\'s staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC.'
-          info: '{{ $value }} Velero backups on management cluster {{ $labels.cluster }} have been in a non-terminal phase (New/InProgress/WaitingForPluginOperations/Finalizing) for over 3.5 hours - well beyond the time a healthy hourly-cron burst should take to drain through the 4 concurrent backup slots. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757\'s staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backups'
+          description: '{{ $value }} Velero backups on management cluster {{ $labels.cluster }} have been in a non-terminal phase (New/Queued/ReadyToStart/InProgress/WaitingForPluginOperations/Finalizing) for over 3.5 hours - well beyond the time a healthy hourly-cron burst should take to drain through the 4 concurrent backup slots. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757\'s staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC.'
+          info: '{{ $value }} Velero backups on management cluster {{ $labels.cluster }} have been in a non-terminal phase (New/Queued/ReadyToStart/InProgress/WaitingForPluginOperations/Finalizing) for over 3.5 hours - well beyond the time a healthy hourly-cron burst should take to drain through the 4 concurrent backup slots. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757\'s staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: '{{ $labels.cluster }}: {{ $value }} Velero backups stuck non-terminal for 3.5+ hours'
           title: '{{ $labels.cluster }}: {{ $value }} Velero backups stuck non-terminal for 3.5+ hours'
         }
@@ -1477,7 +1477,7 @@ resource arohcpBackupSloMetricsAbsentAlerts 'Microsoft.AlertsManagement/promethe
           correlationId: 'userJourneyBackupMetricsAbsent/{{ $labels.cluster }}'
           description: 'Management cluster {{ $labels.cluster }} is in the underlay-cluster inventory but has reported zero velero_backup_attempt_total samples for 15m. Every other backup alert in this file depends on this metric existing; its absence means Velero itself, its ServiceMonitor, or the whole cluster\'s metrics pipeline may be down, not just an individual backup failing.'
           info: 'Management cluster {{ $labels.cluster }} is in the underlay-cluster inventory but has reported zero velero_backup_attempt_total samples for 15m. Every other backup alert in this file depends on this metric existing; its absence means Velero itself, its ServiceMonitor, or the whole cluster\'s metrics pipeline may be down, not just an individual backup failing.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-backups'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: '{{ $labels.cluster }}: no Velero backup metrics reported at all'
           title: '{{ $labels.cluster }}: no Velero backup metrics reported at all'
         }

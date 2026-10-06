@@ -49,35 +49,65 @@ spec:
   - name: arohcp_backup_slo_recording_rules
     interval: 1m
     rules:
-    # Errors SLI: failed attempts / total attempts (ratio in [0,1]), fleet-wide
-    # per management cluster. "Failed" = failure + partial_failure +
-    # validation_failure (any attempt that did not cleanly complete).
-    # `or 0 * total` keeps errors=0 when there is attempt volume but no failure
-    # series yet (matches the frontend SLI pattern - avoids NaN, not a silent 0).
+    # Errors SLI: failed outcomes / completed outcomes (ratio in [0,1]),
+    # fleet-wide per management cluster. "Failed" = failure + partial_failure
+    # + validation_failure; "completed" additionally includes success - any
+    # attempt that has reached a terminal outcome. Denominator is built from
+    # completed outcomes, NOT velero_backup_attempt_total: an attempt and its
+    # eventual outcome can land in different 5m samples (e.g. a failure
+    # completing after the 10m pre-hook timeout in internal/backup/backup.go),
+    # so dividing by attempts can transiently divide by zero (attempt_rate
+    # reads 0 in a slice with no new attempts) even while a real failure
+    # completes in that same slice - keying both numerator and denominator off
+    # outcomes that complete together removes that mismatch.
+    #
+    # `or 0 * attempt` is applied to EACH outcome-type sum individually before
+    # they are added, not to the combined sum: if even one outcome-type
+    # counter (e.g. partial_failure) has no time series at all for a cluster
+    # (never incremented), plain vector addition drops that cluster from the
+    # WHOLE sum - silently zeroing out real failures/successes from the
+    # other, present counters too. The per-term fallback (matches the
+    # frontend SLI pattern - avoids NaN, not a silent 0) keeps every term's
+    # contribution even when a sibling counter is absent.
     - record: errors:backup:ratio:rate5m
       expr: |
         (
           (
-            sum by (cluster) (
-              max without (prometheus_replica) (rate(velero_backup_failure_total[5m]))
-            )
-            +
-            sum by (cluster) (
-              max without (prometheus_replica) (rate(velero_backup_partial_failure_total[5m]))
-            )
-            +
-            sum by (cluster) (
-              max without (prometheus_replica) (rate(velero_backup_validation_failure_total[5m]))
-            )
+            sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_failure_total[5m])))
+            or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))
           )
-          or
-          0 * sum by (cluster) (
-            max without (prometheus_replica) (rate(velero_backup_attempt_total[5m]))
+          +
+          (
+            sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_partial_failure_total[5m])))
+            or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))
+          )
+          +
+          (
+            sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_validation_failure_total[5m])))
+            or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))
           )
         )
         /
-        sum by (cluster) (
-          max without (prometheus_replica) (rate(velero_backup_attempt_total[5m]))
+        (
+          (
+            sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_success_total[5m])))
+            or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))
+          )
+          +
+          (
+            sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_failure_total[5m])))
+            or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))
+          )
+          +
+          (
+            sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_partial_failure_total[5m])))
+            or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))
+          )
+          +
+          (
+            sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_validation_failure_total[5m])))
+            or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))
+          )
         )
         and on (cluster)
         (
@@ -161,14 +191,21 @@ spec:
     # surfaces as a pile-up of non-completing backups, which this counts
     # directly from velerobackup_phase. Replace with a direct repo-maintenance
     # metric once one exists.
-    # Includes "New" (queued, not yet started) as well as the in-flight
-    # phases, matching the existing dashboard's enqueued-backup query
+    # Includes "New" (queued, not yet started), "Queued" and "ReadyToStart"
+    # (both exported in observability/prometheus/values-mgmt.yaml's phase
+    # StateSet and confirmed non-terminal - no write/completion - in
+    # mgmt-agent/pkg/controller/backupcleanup/controller_test.go's
+    # TestBackupPhases) as well as the in-flight phases, matching the
+    # existing dashboard's enqueued-backup query
     # (observability/grafana-dashboards/velero/velero.json, "Backup CRs
     # Enqueued" panel) - Velero runs --concurrent-backups 4
     # (velero/deploy/templates/install-job.yaml), so a stalled fleet can pile
-    # up many "New" backups while never exceeding a threshold that only counts
-    # "InProgress". See the alert's `for:`/threshold comment for how the
-    # resulting normal-burst queuing (not just genuine saturation) is handled.
+    # up many queued backups while never exceeding a threshold that only
+    # counts "InProgress". Omitting Queued/ReadyToStart would undercount the
+    # real backlog (e.g. 4 genuinely InProgress plus 25 queued recorded as
+    # just 4), masking exactly the saturation this proxy exists to catch. See
+    # the alert's `for:`/threshold comment for how the resulting normal-burst
+    # queuing (not just genuine saturation) is handled.
     #
     # No "or vector(0)" fallback here: the alert only checks a `> N` threshold,
     # and an absent series (zero backups currently non-terminal on that
@@ -178,6 +215,6 @@ spec:
       expr: |
         count by (cluster) (
           max without (prometheus_replica) (
-            velerobackup_phase{phase=~"New|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed"}
+            velerobackup_phase{phase=~"New|Queued|ReadyToStart|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed"}
           ) == 1
         )

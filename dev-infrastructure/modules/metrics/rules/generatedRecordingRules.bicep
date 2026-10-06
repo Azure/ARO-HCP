@@ -222,7 +222,7 @@ resource arohcpBackupSloRecordingRules 'Microsoft.AlertsManagement/prometheusRul
     rules: [
       {
         record: 'errors:backup:ratio:rate5m'
-        expression: '((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_failure_total[5m]))) + sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_partial_failure_total[5m]))) + sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_validation_failure_total[5m])))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))) / sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m]))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m]))) > 0)'
+        expression: '((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_failure_total[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))) + (sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_partial_failure_total[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))) + (sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_validation_failure_total[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m]))))) / ((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_success_total[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))) + (sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_failure_total[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))) + (sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_partial_failure_total[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m])))) + (sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_validation_failure_total[5m]))) or 0 * sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m]))))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (rate(velero_backup_attempt_total[5m]))) > 0)'
       }
       {
         record: 'traffic:backup:attempt_rate:rate5m'
@@ -242,7 +242,7 @@ resource arohcpBackupSloRecordingRules 'Microsoft.AlertsManagement/prometheusRul
       }
       {
         record: 'backup:in_progress:count'
-        expression: 'count by (cluster, region) (max without (prometheus_replica) (velerobackup_phase{phase=~"New|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed"}) == 1)'
+        expression: 'count by (cluster, region) (max without (prometheus_replica) (velerobackup_phase{phase=~"New|Queued|ReadyToStart|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed|Finalizing|FinalizingPartiallyFailed"}) == 1)'
       }
     ]
   }
