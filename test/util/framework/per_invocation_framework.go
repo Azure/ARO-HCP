@@ -32,7 +32,6 @@ import (
 	_ "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/runtime" // contains init() function which populates ARM cloud services
 
 	"github.com/onsi/ginkgo/v2/types"
-	"golang.org/x/net/http2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -288,13 +287,12 @@ func defaultHTTPTransport() *http.Transport {
 			MinVersion:    tls.VersionTLS12,
 			Renegotiation: tls.RenegotiateFreelyAsClient,
 		},
-	}
-	// TODO: evaluate removing this once https://github.com/golang/go/issues/59690 has been fixed
-	if http2Transport, err := http2.ConfigureTransports(defaultTransport); err == nil {
-		// if the connection has been idle for 10 seconds, send a ping frame for a health check
-		http2Transport.ReadIdleTimeout = 10 * time.Second
+		// if the connection has been idle for 10 seconds, send a ping frame for a health check;
 		// if there's no response to the ping within the timeout, the connection will be closed
-		http2Transport.PingTimeout = 5 * time.Second
+		HTTP2: &http.HTTP2Config{
+			SendPingTimeout: 10 * time.Second,
+			PingTimeout:     5 * time.Second,
+		},
 	}
 	return defaultTransport
 }
