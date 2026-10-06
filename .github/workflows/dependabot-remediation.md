@@ -352,6 +352,10 @@ safe-outputs:
       description: Update the base or post an evidenced Prow command on an owned agentic Dependabot PR
       runs-on: ubuntu-latest
       if: needs.detection.result == 'success'
+      permissions:
+        contents: read
+        checks: read
+        statuses: read
       inputs:
         pull_request_number:
           description: Number of the owned PR to reconcile
