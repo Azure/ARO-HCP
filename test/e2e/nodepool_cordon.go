@@ -42,6 +42,7 @@ var _ = Describe("Customer", func() {
 		labels.Medium,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.Slow,
 		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
@@ -52,6 +53,23 @@ var _ = Describe("Customer", func() {
 				cordonVerifyTimeout = 2 * time.Minute
 				podScheduleTimeout  = 3 * time.Minute
 				drainEvictTimeout   = 3 * time.Minute
+
+				// The stuck-drain alert this test feeds uses `for: 4h`. Azure Monitor
+				// ingestion for a newly born series routinely lags 10+ minutes (see the
+				// lookback window in metrics_amw_hcp_ksm.go), and the rule only starts
+				// accumulating its `for` duration once samples land. Holding 4h15m
+				// leaves the condition true for a full 4h of rule evaluation after
+				// ingestion catches up.
+				cordonHoldDuration = 4*time.Hour + 15*time.Minute
+
+				// 5m keeps API traffic negligible across the hold (~51 polls) while
+				// still catching a reversion quickly enough to be useful.
+				cordonPollInterval = 5 * time.Minute
+
+				// A multi-hour hold that logs nothing is indistinguishable from a hung
+				// test in CI, so emit a heartbeat on this cadence on top of the
+				// delta-only logging required by test/AGENTS.md.
+				cordonHeartbeatInterval = 30 * time.Minute
 			)
 
 			tc := framework.NewTestContext()
@@ -220,6 +238,52 @@ var _ = Describe("Customer", func() {
 				g.Expect(node.Spec.Unschedulable).To(BeTrue(), "expected node %s to be unschedulable (cordoned)", targetNode.Name)
 			}).WithContext(ctx).WithTimeout(cordonVerifyTimeout).WithPolling(5*time.Second).Should(Succeed(),
 				"node %s was not marked as unschedulable after cordoning", targetNode.Name,
+			)
+
+			// Hold the node in the exact state a stuck node drain leaves behind:
+			// cordoned, still Ready, and still hosting the pre-cordon workload. That
+			// is the condition the stuck-drain alert keys off:
+			//
+			//	kube_node_spec_unschedulable{job="kube-state-metrics-hcp"} == 1
+			//	and on (hostedcontrolplane, node)
+			//	kube_node_status_condition{job="kube-state-metrics-hcp", condition="Ready", status="true"} == 1
+			//
+			// The Ready half is what separates a drain that will not finish from a node
+			// cordoned because it had already failed, so assert both continuously
+			// rather than just leaving the node cordoned and walking away.
+			By(fmt.Sprintf("holding node %s cordoned and Ready for %s so the stuck-drain alert can fire", targetNode.Name, cordonHoldDuration))
+			holdStart := time.Now()
+			lastState := ""
+			lastHeartbeat := holdStart
+
+			Consistently(func(g Gomega) {
+				node, err := kubeClient.CoreV1().Nodes().Get(ctx, targetNode.Name, metav1.GetOptions{})
+				g.Expect(err).NotTo(HaveOccurred(), "failed to get node %s during the cordon hold", targetNode.Name)
+
+				cordoned := node.Spec.Unschedulable
+				ready := nodeHasReadyCondition(node)
+				elapsed := time.Since(holdStart).Round(time.Minute)
+
+				state := fmt.Sprintf("cordoned=%t ready=%t", cordoned, ready)
+				switch {
+				case state != lastState:
+					GinkgoLogr.Info("cordon hold state changed",
+						"node", targetNode.Name, "state", state, "previous", lastState, "elapsed", elapsed.String())
+					lastState = state
+					lastHeartbeat = time.Now()
+				case time.Since(lastHeartbeat) >= cordonHeartbeatInterval:
+					GinkgoLogr.Info("cordon hold in progress",
+						"node", targetNode.Name, "state", state, "elapsed", elapsed.String(),
+						"remaining", (cordonHoldDuration - time.Since(holdStart)).Round(time.Minute).String())
+					lastHeartbeat = time.Now()
+				}
+
+				g.Expect(cordoned).To(BeTrue(),
+					"node %s stopped being cordoned after %s; the stuck-drain alert condition no longer holds", targetNode.Name, elapsed)
+				g.Expect(ready).To(BeTrue(),
+					"node %s stopped being Ready after %s; a NotReady node is a failed node rather than a stuck drain, and the alert deliberately excludes it", targetNode.Name, elapsed)
+			}).WithContext(ctx).WithTimeout(cordonHoldDuration).WithPolling(cordonPollInterval).Should(Succeed(),
+				"node %s did not stay cordoned and Ready for the full %s hold", targetNode.Name, cordonHoldDuration,
 			)
 
 			By("verifying both nodes remain in Ready condition after cordoning")
@@ -400,4 +464,16 @@ func setNodeUnschedulable(ctx context.Context, kubeClient kubernetes.Interface, 
 		metav1.ApplyOptions{FieldManager: cordonFieldManager, Force: true},
 	)
 	return err
+}
+
+// nodeHasReadyCondition reports whether the node's Ready condition is True.
+// A missing condition counts as not ready, matching how
+// kube_node_status_condition{condition="Ready",status="true"} == 1 evaluates.
+func nodeHasReadyCondition(node *corev1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == corev1.NodeReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+	return false
 }

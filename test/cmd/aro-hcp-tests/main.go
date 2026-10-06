@@ -507,8 +507,18 @@ func setupCli() *cobra.Command {
 
 	// The tests that a suite is composed of can be filtered by CEL expressions. By
 	// default, the qualifiers only apply to tests from this extension.
+	// DO NOT MERGE: limits the integration/parallel/slow and stage/parallel/slow
+	// suites to the cordon test, so that /test creates one HostedCluster per
+	// environment and parks a worker node cordoned-but-Ready for 4h15m. That is
+	// long enough for the per-HCP KSM series to reach the HCP Azure Monitor
+	// Workspace and for a `for: 4h` stuck-drain alert to move from pending to
+	// firing. The qualifier goes on the *slow* suites because the test carries
+	// labels.Slow, which fastTestsOnly() filters out.
+	singleTestOnly := ` && name.contains("should be able to cordon, drain, and uncordon a node")`
+
 	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0])
-	integrationTestTimeout := 150 * time.Minute
+	// DO NOT MERGE: raised from 150m to cover cluster creation plus the 4h15m hold.
+	integrationTestTimeout := 6 * time.Hour
 	ext.AddSuite(e.Suite{
 		Name: "integration/parallel",
 		Qualifiers: []string{
@@ -524,7 +534,7 @@ func setupCli() *cobra.Command {
 	ext.AddSuite(e.Suite{
 		Name: "integration/parallel/slow",
 		Qualifiers: []string{
-			slowTestsOnly(integrationQuery),
+			slowTestsOnly(integrationQuery) + singleTestOnly,
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
@@ -534,7 +544,8 @@ func setupCli() *cobra.Command {
 	})
 
 	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
-	stageTestTimeout := 150 * time.Minute
+	// DO NOT MERGE: raised from 150m to cover cluster creation plus the 4h15m hold.
+	stageTestTimeout := 6 * time.Hour
 	ext.AddSuite(e.Suite{
 		Name: "stage/parallel",
 		Qualifiers: []string{
@@ -549,7 +560,7 @@ func setupCli() *cobra.Command {
 	ext.AddSuite(e.Suite{
 		Name: "stage/parallel/slow",
 		Qualifiers: []string{
-			slowTestsOnly(stageQuery),
+			slowTestsOnly(stageQuery) + singleTestOnly,
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
