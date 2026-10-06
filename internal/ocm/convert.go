@@ -323,7 +323,11 @@ func convertEtcdRPToCS(in coreapi.EtcdProfile, activeKeyBuilder *arohcpv1alpha1.
 				azureKmsEncryptionBuilder.Visibility(visibility)
 			}
 
-			azureKmsEncryptionBuilder.KeyVaultType(convertKmsKeyVaultTypeRPToCS(kms.KeyVaultType))
+			keyVaultType, err := convertKmsKeyVaultTypeRPToCS(kms.KeyVaultType)
+			if err != nil {
+				return nil, err
+			}
+			azureKmsEncryptionBuilder.KeyVaultType(keyVaultType)
 
 			azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
 		}
@@ -332,11 +336,15 @@ func convertEtcdRPToCS(in coreapi.EtcdProfile, activeKeyBuilder *arohcpv1alpha1.
 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder), nil
 }
 
-func convertKmsKeyVaultTypeRPToCS(vaultType string) arohcpv1alpha1.AzureKmsEncryptionKeyVaultType {
-	if vaultType == coreapi.KmsKeyVaultTypeManagedHSM {
-		return arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeManagedHsm
+func convertKmsKeyVaultTypeRPToCS(vaultType string) (arohcpv1alpha1.AzureKmsEncryptionKeyVaultType, error) {
+	switch vaultType {
+	case "", coreapi.KmsKeyVaultTypeKeyVault:
+		return arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault, nil
+	case coreapi.KmsKeyVaultTypeManagedHSM:
+		return arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeManagedHsm, nil
+	default:
+		return "", conversionError[arohcpv1alpha1.AzureKmsEncryptionKeyVaultType](vaultType)
 	}
-	return arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault
 }
 
 func convertContainerRegistryPullCredentialsToCS(resourceID *azcorearm.ResourceID) *arohcpv1alpha1.AzureContainerRegistryBuilder {
