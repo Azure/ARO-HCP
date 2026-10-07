@@ -507,12 +507,16 @@ func setupCli() *cobra.Command {
 
 	// The tests that a suite is composed of can be filtered by CEL expressions. By
 	// default, the qualifiers only apply to tests from this extension.
+	// DO NOT MERGE: run one cluster + node pool install test in INT and STG so
+	// the resulting clusters can be observed after each suite completes.
+	singleTestOnly := ` && (name.contains("should be able to perform a control plane and node pool install") && name.endsWith(" for 4.20"))`
+
 	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0])
 	integrationTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "integration/parallel",
 		Qualifiers: []string{
-			fastTestsOnly(integrationQuery),
+			fastTestsOnly(integrationQuery) + singleTestOnly,
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
@@ -538,7 +542,7 @@ func setupCli() *cobra.Command {
 	ext.AddSuite(e.Suite{
 		Name: "stage/parallel",
 		Qualifiers: []string{
-			fastTestsOnly(stageQuery),
+			fastTestsOnly(stageQuery) + singleTestOnly,
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
