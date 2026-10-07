@@ -160,6 +160,9 @@ resourceGroups:
     - serviceGroup: Microsoft.Azure.ARO.HCP.SecretSyncController
       resourceGroup: management
       step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.MGMT.CleanupPrometheus
+      resourceGroup: mgmt
+      step: cleanup-prometheus
     identityFrom:
       resourceGroup: global
       step: output

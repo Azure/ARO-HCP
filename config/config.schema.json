@@ -3265,7 +3265,11 @@
         },
         "monitoringApiGroup": {
           "description": "The API group for ServiceMonitor and PodMonitor CRDs",
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "monitoring.coreos.com",
+            "azmonitoring.coreos.com"
+          ]
         }
       },
       "additionalProperties": false,
@@ -3850,13 +3854,18 @@
         },
         "monitoringApiGroup": {
           "description": "The API group for ServiceMonitor and PodMonitor CRDs",
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "monitoring.coreos.com",
+            "azmonitoring.coreos.com"
+          ]
         }
       },
       "additionalProperties": false,
       "required": [
         "rg",
         "subscription",
+        "monitoringApiGroup",
         "aks",
         "istio",
         "opsIngress"

@@ -4,6 +4,11 @@ Replace:
 - Regex: 'sha256.[a-fA-F0-9]{64}'
   Replacement: 'sha256:1234567890'
 # Components exempt from requiring resources.requests.memory
+# ServiceMonitors/PodMonitors exempt from requiring the microsoft_metrics_include_label=service
+# routing label (without the label, scraped series are dropped by the filtered services DCR).
+MetricsRoutingLabelAllowlist:
+# Upstream kube-prometheus-stack operator self-monitoring ServiceMonitor
+- ServiceMonitor/prometheus-operator
 ResourceRequestsAllowlist:
 # Standing exemptions
 # (no standing exemptions for requests at the moment)

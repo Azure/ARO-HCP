@@ -45,6 +45,7 @@ delete_if_exists clusterrole "arohcp-monitor-kube-state-metrics"
 delete_if_exists clusterrolebinding "prometheus-operator"
 delete_if_exists clusterrolebinding "prometheus"
 delete_if_exists clusterrolebinding "prometheus-admission"
+delete_if_exists clusterrolebinding "arohcp-monitor-kube-state-metrics"
 
 delete_if_exists validatingwebhookconfiguration "prometheus-admission"
 delete_if_exists mutatingwebhookconfiguration "prometheus-admission"

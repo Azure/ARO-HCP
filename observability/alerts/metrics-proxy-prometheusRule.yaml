@@ -15,8 +15,8 @@ spec:
       component: monitoring-infrastructure
     rules:
     # Maestro agent sidecar nginx (container metrics-proxy, port 8080) is the
-    # scrape path for maestro-agent /metrics. Platform Prometheus already has
-    # its own rules in prometheus-prometheusRule.yaml — do not duplicate them.
+    # scrape path for maestro-agent /metrics. This file only covers that scrape
+    # path; platform Prometheus self-monitoring is not alerted on.
     #
     # HyperShift CP metrics-proxy (guest CMO metrics-forwarding in ocm-*
     # namespaces) is not deployed by ARO-HCP today; do not page on its absence.

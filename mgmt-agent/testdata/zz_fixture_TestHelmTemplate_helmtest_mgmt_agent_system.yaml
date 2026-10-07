@@ -529,7 +529,7 @@ spec:
         - "--log-verbosity=2"
         - "--node-health-configmap=mgmt-agent-node-health"
         - "--node-health-config-key=config.yaml"
-        - "--monitoring-api-group=monitoring.coreos.com"
+        - "--monitoring-api-group=azmonitoring.coreos.com"
         image: "arohcpsvcdev.azurecr.io/mgmt-agent@sha256:1234567890"
         name: mgmt-agent-controller
         env:
@@ -591,7 +591,7 @@ spec:
         effect: NoSchedule
 ---
 # Source: mgmt-agent/templates/servicemonitor.yaml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: mgmt-agent
@@ -602,6 +602,10 @@ spec:
     path: /metrics
     port: metrics
     scheme: http
+    metricRelabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
   namespaceSelector:
     matchNames:
     - 'mgmt-agent'

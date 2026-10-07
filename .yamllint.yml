@@ -63,6 +63,15 @@ ignore:
 - 'hypershiftoperator/values.yaml'
 - 'observability/arobit/values-mgmt.yaml'
 - 'observability/arobit/values-svc.yaml'
+- 'observability/prometheus/deploy/templates/prometheus.clusterrolebinding.yaml'
+- 'observability/prometheus/deploy/templates/prometheus.serviceaccount.yaml'
+- 'observability/kube-state-metrics/deploy/templates/clusterrole.yaml'
+- 'observability/kube-state-metrics/deploy/templates/clusterrolebinding.yaml'
+- 'observability/kube-state-metrics/deploy/templates/configmap.yaml'
+- 'observability/kube-state-metrics/deploy/templates/deployment.yaml'
+- 'observability/kube-state-metrics/deploy/templates/service.yaml'
+- 'observability/kube-state-metrics/deploy/templates/serviceaccount.yaml'
+- 'observability/prometheus/deploy/templates/prometheus.clusterrole.yaml'
 - 'acm/deploy/helm/multicluster-engine/templates/clusterlifecycle-state-metrics-v2.servicemonitor.yaml'
 - 'acrpull/deploy/templates/podmonitor.yaml'
 - 'admin/deploy/templates/admin.servicemonitor.yaml'
@@ -82,6 +91,7 @@ ignore:
 - 'observability/kube-state-metrics/deploy/templates/servicemonitor.yaml'
 - 'velero/deploy/templates/node-agent-podmonitor.yaml'
 - 'velero/deploy/templates/velero-podmonitor.yaml'
+- 'secret-sync-controller/deploy/templates/update_owners_check_old_object.yaml'
 rules:
   brackets: enable
   colons: enable

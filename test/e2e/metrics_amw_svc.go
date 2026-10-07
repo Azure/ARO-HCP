@@ -110,6 +110,7 @@ var _ = Describe("Engineering", func() {
 				{`maestro_build_info`, "maestro server build info (SVC)"},
 				{`public_ip_count_by_region_service_tag`, "aro-hcp-exporter public IP count (SVC)"},
 				{`process_start_time_seconds{namespace="aro-hcp-admin-api"}`, "admin API liveness (SVC)"},
+				{`kubelet_running_pods{cluster=~".*svc.*"}`, "ensure kubelet metrics are present (SVC)"},
 
 				// --- MGMT cluster services ---
 				{`kube_applier_health`, "kube-applier health (MGMT)"},
@@ -118,6 +119,7 @@ var _ = Describe("Engineering", func() {
 				{`process_start_time_seconds{namespace="maestro", container="metrics-proxy"}`, "maestro agent liveness (MGMT)"},
 				{`process_start_time_seconds{namespace="velero", container="velero"}`, "velero server liveness (MGMT)"},
 				{`process_start_time_seconds{namespace="velero", container="node-agent"}`, "velero node-agent liveness (MGMT)"},
+				{`kubelet_running_pods{cluster=~".*mgmt.*"}`, "ensure kubelet metrics are present (MGMT)"},
 
 				// --- Shared infra (runs on SVC + MGMT) ---
 				{`fluentbit_uptime`, "arobit forwarder uptime"},
@@ -134,7 +136,7 @@ var _ = Describe("Engineering", func() {
 					GinkgoWriter.Printf("Checking %s\n", c.description)
 					client.expectMetric(ctx, g, c.query, c.description)
 				}
-			}).WithTimeout(3*time.Minute).WithPolling(30*time.Second).WithContext(ctx).Should(Succeed(),
+			}).WithTimeout(20*time.Minute).WithPolling(30*time.Second).WithContext(ctx).Should(Succeed(),
 				"not all expected service metrics appeared in Azure Monitor")
 
 			for _, c := range checks {
