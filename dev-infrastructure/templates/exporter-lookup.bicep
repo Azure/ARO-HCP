@@ -3,7 +3,9 @@ param msiName string
 
 param useLeasedInfrastructureIdentities bool = false
 param infrastructureIdentityResourceGroup string = ''
-var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? infrastructureIdentityResourceGroup : resourceGroup().name)
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities
+  ? infrastructureIdentityResourceGroup
+  : resourceGroup().name)
 
 //
 //   E X P O R T E R   L O O K U P

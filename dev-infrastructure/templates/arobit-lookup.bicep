@@ -11,7 +11,9 @@ import * as mi from '../modules/managed-identities.bicep'
 
 // Parameter files must only pass values: selection runs after placeholder substitution.
 var identityResourceGroup = useLeasedInfrastructureIdentities
-  ? (stampIdentifier == '' ? infrastructureIdentityResourceGroup : mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier))
+  ? (stampIdentifier == ''
+      ? infrastructureIdentityResourceGroup
+      : mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier))
   : resourceGroup().name
 
 //

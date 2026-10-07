@@ -115,7 +115,9 @@ param stampIdentifier string
 var infrastructureIdentityResourceGroup = useLeasedInfrastructureIdentities
   ? mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier)
   : ''
-var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? infrastructureIdentityResourceGroup : resourceGroup().name)
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities
+  ? infrastructureIdentityResourceGroup
+  : resourceGroup().name)
 
 import * as mi from '../modules/managed-identities.bicep'
 
