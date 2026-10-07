@@ -2,6 +2,7 @@ values: ../values.yaml
 name: frontend-connect-socket
 namespace: aro-hcp
 testData:
+  serviceTreeId: "11111111-1111-4111-8111-111111111111"
   frontend:
     audit:
       connectSocket: true
