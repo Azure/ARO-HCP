@@ -260,6 +260,10 @@ func (c *zStreamProgressiveDesiredVersionRolloutSyncer) SyncOnce(ctx context.Con
 		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))
 	}
 
+	if rollout.Spec.Version == (coreapi.VersionProfile{}) {
+		// Cosmos reads normally normalize legacy profiles; rollout updates retry an absent profile.
+		return nil
+	}
 	logger.Info("Loaded rollout", "bestVersion", versionString(rollout.Spec.BestExactVersion), "conditions", rollout.Status.Conditions)
 	if last := rollout.Status.LastAssignmentTime; last != nil {
 		if remaining := last.Add(time.Minute).Sub(c.clock.Now()); remaining > 0 {
@@ -269,7 +273,7 @@ func (c *zStreamProgressiveDesiredVersionRolloutSyncer) SyncOnce(ctx context.Con
 			return nil
 		}
 	}
-	serviceProviderClusters, err := serviceProviderClustersForChannel(ctx, c.serviceProviderClusterLister, c.clusterLister, key.YStreamChannel)
+	serviceProviderClusters, err := serviceProviderClustersForProfile(ctx, c.serviceProviderClusterLister, c.clusterLister, rollout.Spec.Version)
 	if err != nil {
 		return utils.TrackError(err)
 	}

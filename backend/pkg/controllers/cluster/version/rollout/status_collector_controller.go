@@ -142,7 +142,11 @@ func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))
 	}
 
-	serviceProviderClusters, err := serviceProviderClustersForChannel(ctx, c.serviceProviderClusterLister, c.clusterLister, key.YStreamChannel)
+	if rollout.Spec.Version == (coreapi.VersionProfile{}) {
+		// Cosmos reads normally normalize legacy profiles; rollout updates retry an absent profile.
+		return nil
+	}
+	serviceProviderClusters, err := serviceProviderClustersForProfile(ctx, c.serviceProviderClusterLister, c.clusterLister, rollout.Spec.Version)
 	if err != nil {
 		return utils.TrackError(err)
 	}

@@ -5,7 +5,9 @@ This plan maps the fleet rollout design originally authored on the
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: the seven controllers, Cosmos storage, informers, and backend wiring
+> Status: the seven rollout controllers plus catalog publication and retirement,
+> the separate CosmosRolloutVersionMigration controller, Cosmos storage, informers,
+> and backend wiring
 > are implemented. They run unconditionally. Production policy is hardcoded;
 > risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
 
@@ -73,6 +75,8 @@ type ControlPlaneVersionRollout struct {
 }
 
 type ControlPlaneVersionRolloutSpec struct {
+    // Canonical major.minor ID and channel group; seeded on creation, normalized by storage reads.
+    Version coreapi.VersionProfile `json:"version"`
     // BestExactVersion uses recency and the channel offset, subject to the SRE
     // minimum-version floor. Conditional-update risk filtering is a follow-up.
     BestExactVersion *semver.Version `json:"bestExactVersion,omitempty"`
@@ -89,6 +93,26 @@ type ControlPlaneVersionRolloutStatus struct {
     SuccessfulClusterCountByAchievedExactVersion map[string]int64 `json:"successfulClusterCountByAchievedExactVersion,omitempty"`
 }
 ```
+
+[`Spec.Version`](../../internal/api/fleetapi/types_control_plane_version_rollout.go)
+holds the structured minor version and channel group: for example, `{ID: "4.21",
+ChannelGroup: "stable"}` must have resource name `stable-4.21`, the corresponding
+Cincinnati channel name.
+Shared [Cosmos read conversion](../../internal/database/cosmosstorage/cosmosstorageutils/convert_generic.go)
+fills absent profiles from legacy channel names, so ordinary legacy reads need not
+wait for migration. Reads perform no persistence. Consumers rely on valid stored
+data from previous controllers rather than repeating write validation. Best selection,
+status collection and progressive rollout return nil for an absent (zero-value)
+profile; status fanout skips it. Later watch events or periodic resync resume work.
+Catalog defers the entire projection without error if any profile is absent,
+preserving the snapshot. Retirement skips only the target with an absent
+profile; other rollout keys proceed independently. Initial, minor-upgrade and
+forced assignment consume only `Spec.BestExactVersion`, with no profile checks.
+CosmosRolloutVersionMigration
+watches individual rollouts and persists normalized representations with ETag
+protection, preserving metadata, best version and status. Create and Replace retain
+write validation. Profile consumers use structured `Spec.Version` directly; seeding
+does not own migration.
 
 Wiring checklist (templated on `Stamp`, see the research notes):
 `types_control_plane_version_rollout.go`, `types_runtime.go` (`GetObjectKind`,
@@ -142,18 +166,36 @@ type RolloutConfig struct {
 Production defaults are `CanaryPercentage=6`, `RollingPercentage=12`, one hour
 of readiness, and a two-hour upgrade timeout unless overridden for a minor.
 `GetZStreamOffset` selects one version behind for stable and zero for other graph
-channels. Nightly versions come from the experimental exact-version override;
-they neither seed rollouts nor query Cincinnati.
+channels. Nightly references seed structured rollout profiles under the shared
+allowed-channel policy. The existing selector skips Cincinnati for nightly, so
+nightly installs continue to use the experimental exact-version override.
+
+The separate `MinimumPublicVersion` and `MinimumBackendVersion` constants in
+[`versionpolicy`](../../internal/versionpolicy/policy.go) are both `4.20`.
+The public floor controls publication/admission; the backend floor controls
+discovery and unreferenced-rollout retirement. Referenced minor version and channel
+group pairs remain repairable below the backend floor. See the
+[deprecation procedure](../ops/deprecate-openshift-version.md) for advancing them.
 
 ## 5. Controllers
 
-All seven run in the `backend` binary. Four are per-cluster (use
-`controllerutils.NewClusterWatchingController` + `HCPClusterKey`); three are
-per-`ControlPlaneVersionRollout` (use a new fleet watching controller keyed by
-the rollout channel name, or `genericWatchingController[T]` on the rollout
-resource type + interval resync).
+All nine rollout/catalog controllers plus the separate CosmosRolloutVersionMigration
+run in the `backend` binary. Three assignment controllers are per-cluster
+(use `controllerutils.NewClusterWatchingController` + `HCPClusterKey`); six, including
+seeding, retirement and migration, use the existing per-rollout watcher and
+`ControlPlaneVersionRolloutKey.YStreamChannel`. Catalog publication uses one regional
+singleton key.
 
-Every controller follows the house pattern: a syncer struct holding listers +
+The existing `GenericWatchingController[T]` owns queues, workers, retries, logging,
+reconcile metrics, cache-sync gating and resource-ID mapping. The catalog syncer's
+`MakeKey` maps every rollout resource ID to `versionCatalogKey{}`. Seeding adds only
+a cache-gated Cincinnati discovery loop in its concrete `Run`, delegating worker
+execution to the generic watcher. Seeding and retirement share Cluster/SPC
+dependency handlers in
+[`rollout_reference_watches.go`](../../backend/pkg/controllers/cluster/version/rollout/rollout_reference_watches.go).
+None of these three controllers writes child Controller bookkeeping.
+
+Assignment and per-rollout controllers other than migration follow the house pattern: a syncer struct holding listers +
 DB clients (interfaces), a `New…Controller` constructor, and a `SyncOnce`
 implementing the read → `DeepCopy` → mutate → `equality.Semantic.DeepEqual`
 skip → `Replace` (treating `IsPreconditionFailedError` as a benign no-op) loop.
@@ -220,11 +262,39 @@ controller** — the plan reuses the existing path. Input
   changed-resource notifications and controller restarts. ETag conflicts stop the
   assignment, and partial failures retain the reservation.
 
-### 5.6 Rollout Seeding (per-cluster)
+### 5.6 Rollout Seeding
 
-Creates a rollout for the customer's requested channel and, when pinned, the
-pinned minor's channel. Existing rollout contents are preserved. Nightly and
-deleting clusters are skipped.
+Uses the existing rollout watcher with channel keys, rollout add/update/resync
+notifications and an additional rollout delete handler. After cache sync, its concrete
+[`Run`](../../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller.go)
+starts only HTTP discovery, immediately and then on a fixed five-minute ticker,
+not a delay after completion. Slow passes never overlap and missed ticks may coalesce;
+discovery failures are logged for the next tick. Queue retry/reconcile metrics
+cover worker execution.
+
+Shared Cluster/SPC handlers map add/delete and both old/new objects on every update,
+including unchanged five-minute resyncs, to channel keys. Cached counterpart lookups
+are allowed for dependency mapping only: callbacks neither filter eligibility nor
+persist state. There are no field-change filters; callback errors recover on resync.
+
+Workers live-read the rollout, create missing discovered profiles at/above the
+backend floor, and recheck the regional cached references before creating missing
+below-floor profiles. References include requested, desired, pinned, override and
+active versions, including deleting resources and nightly channels; pin comparison
+thresholds are excluded. Existing rollouts are a no-op and left unchanged;
+workers only create missing documents.
+Create conflicts and write failures use queue retries with a fresh live read.
+
+After an error-free inventory, worker `cleanupLegacyStatus` removes obsolete
+per-cluster seeder Controller status for clusters referencing that worker's channel,
+only once the cache shows all their referenced rollouts. Profile presence and
+migration persistence are not cleanup gates. Missing cached rollouts and cleanup
+failures return errors for queue retry. Seeding does not migrate legacy rollouts.
+
+Graph-data typically has no nightly channel definitions, and the existing
+Cincinnati selector does not resolve nightly releases. The generic catalog honors
+any selected nightly rollout, with candidate/nightly visibility gated by the shared
+experimental-release AFEC rule. Nightly exact-pin admission remains unchanged.
 
 ### 5.7 Initial Normal Desired Version (per-cluster)
 
@@ -242,12 +312,51 @@ including pools still being deleted. Pins and experimental exact overrides are
 owned exclusively by forced assignment. Both initial and minor assignment retry missing rollout/best data
 after ten seconds and bypass progressive z-stream gates.
 
+### 5.9 Cosmos Rollout Version Migration (per-rollout)
+
+[`CosmosRolloutVersionMigration`](../../backend/pkg/controllers/cosmosmigration/rollout_version_migration.go)
+is registered separately with five workers and five-minute cooldown/resync. It uses
+the existing `NewControlPlaneVersionRolloutWatchingController`, whose generic `Run`
+waits for the rollout cache; there is no custom `Run`, polling loop or Fleet sweep.
+Rollout add/update/resync events enqueue channel keys without subscription or cluster
+dependencies, including unused rollouts. The original subscription `CosmosMigration`
+retains its Resources/kube-applier migration behavior and does not access Fleet.
+
+Each key always performs a live Get followed by validated
+`Replace(old.DeepCopy(), old, nil)`, even for an already-structured profile, until
+one Replace succeeds in that process. Conflict/precondition failures re-read and
+retry up to three attempts; remaining errors use queue retries. NotFound at Get or
+Replace, including soft-deleted documents, is a benign no-op without marking completion or recreating
+the document. Successful keys remain complete despite later events or resyncs;
+other keys progress independently. A later legacy write is normalized on read but
+needs an ordinary write or migration after restart to persist again. The one-shot
+integration helper lists rollouts and delegates to the same `SyncOnce`.
+
+### 5.10 Rollout Retirement (per-rollout)
+
+Uses the existing rollout watcher plus the same Cluster/SPC dependency handlers as
+seeding, all with five-minute resync. It has no timer or regional scan key. Each
+worker reads its target rollout and current Cluster/SPC references from caches;
+missing targets or absent target profiles return nil without blocking other keys.
+Any reference-inventory error prevents deletion. Only a target below the backend
+floor with no current references is deleted, tolerating 404. Events are dependency
+hints, not authorization to delete; queued work rechecks current cached state.
+
+### 5.11 Version Catalog (regional singleton)
+
+Uses `GenericWatchingController` with `MakeKey` returning `versionCatalogKey{}` for
+every rollout resource ID. A bootstrap enqueue publishes even from an empty
+informer after initial cache sync. Rollout add/update/delete notifications, including
+tombstones and unchanged five-minute resyncs, enqueue the same key. There is no
+delayed recurring requeue. Reconciliation projects profiles at/above the public floor,
+with availability determined by non-nil best version, and persists only changed
+content. Any absent profile defers the entire projection without error; queue errors
+use normal retries.
+
 ## 6. Ownership and cutover
 
-This implementation deliberately replaces `ControlPlaneDesiredVersion`; all
-seven rollout controllers run unconditionally. The earlier feature-flag proposal
-was removed during review. Restoring it would reintroduce the removed owner and
-is not part of this change.
+The assignment controllers own desired-version writes; all nine rollout/catalog
+controllers and the separate rollout migration controller run unconditionally.
 
 `OperationClusterUpdate` observes the desired version resolved on the SPC by the
 current assignment controllers. It reports incompatible forced overrides directly,
@@ -256,6 +365,20 @@ bounds unresolved version waits, and no longer reads or creates a legacy
 
 ## 7. Testing strategy
 
+- Storage and [CosmosRolloutVersionMigration tests](../../backend/pkg/controllers/cosmosmigration/fleet_migration_test.go) own raw legacy normalization and persistence
+  coverage. The [writer regression](../../backend/pkg/controllers/cluster/version/rollout/legacy_writers_test.go)
+  retains raw legacy JSON to verify normalized reads, preserved profiles and stale-ETag protection.
+- [Seeder tests](../../backend/pkg/controllers/cluster/version/rollout/rollout_seeding_controller_test.go)
+  cover cached event-produced channel keys, discovery timing independent of worker
+  retries, cache-sync cancellation, preservation of existing state, below-floor recreation guards
+  and obsolete Controller-status cleanup after observing referenced rollouts.
+- [Catalog](../../backend/pkg/controllers/cluster/version/rollout/version_catalog_controller_test.go)
+  and [retirement tests](../../backend/pkg/controllers/cluster/version/rollout/rollout_retirement_controller_test.go)
+  cover structured reconciliation, catalog bootstrap/event/resync handling, whole
+  catalog deferral for absent profiles, and independent per-rollout retirement.
+- [Reference-watch tests](../../backend/pkg/controllers/cluster/version/rollout/rollout_reference_watches_test.go)
+  cover both old/new dependencies on every update, add/delete, resync, cached
+  counterpart lookups and partial reference errors without eligibility filtering.
 - **Pure decision functions** (`computeRolloutStatusCounts`, `selectBestExactVersion`, `eligibleClusters`,
   `rolloutDecision`) get exhaustive table-driven unit tests — no fakes needed.
 - **`SyncOnce`** tests use the in-memory mock DB
@@ -286,7 +409,10 @@ Implemented:
 
 - Fleet API, validation of supported channel groups and major/minor names,
   Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
-- Seven controllers, backend registration under leader election, and unit tests.
+- Nine rollout/catalog controllers, backend registration under leader election,
+  and unit tests, including structured-profile consumption and discovery lifecycle.
+- Separate CosmosRolloutVersionMigration watcher, cache-gated registration and
+  per-key once-successful persistence; subscription CosmosMigration is unchanged.
 - Shared Cincinnati selection with the existing per-channel offset policy.
 - Persisted transition ages and assignment cooldown reservations.
 - Forced-version precedence, pinned-channel seeding, and completed-only progress.

@@ -22,6 +22,7 @@ import (
 	"github.com/blang/semver/v4"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -83,7 +84,11 @@ func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key controlle
 		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))
 	}
 
-	graphBest, err := c.selector.BestExactVersionForChannel(ctx, key.YStreamChannel)
+	if rollout.Spec.Version == (coreapi.VersionProfile{}) {
+		// Cosmos reads normally normalize legacy profiles; rollout updates retry an absent profile.
+		return nil
+	}
+	graphBest, err := c.selector.BestExactVersionForProfile(ctx, rollout.Spec.Version)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to select best version for %q: %w", key.YStreamChannel, err))
 	}

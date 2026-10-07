@@ -1,7 +1,0 @@
-{
-  "error": {
-    "code": "InvalidRequestContent",
-    "message": "Invalid value: \"5.0\": OpenShift v5 and above is not supported",
-    "target": "properties.version.id"
-  }
-}

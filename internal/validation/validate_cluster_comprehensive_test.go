@@ -100,15 +100,13 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "OpenShift 5 rejected on create without experimental release features (no prior version id)",
+			name: "OpenShift 5 allowed on create without experimental release features (no prior version id)",
 			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "5.0"
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "OpenShift v5 and above is not supported", FieldPath: "customerProperties.version.id"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "OpenShift 5 allowed with experimental release features - create",
@@ -2432,7 +2430,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "update: version 4.19 rejected even with experimental flag",
+			name: "update: unchanged version 4.19 grandfathered with experimental flag",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.19"
@@ -2443,10 +2441,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{
-				{Message: "must be at least 4.20", FieldPath: "customerProperties.version.id"},
-			},
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: version may not skip minor within same major (4.20 to 4.22)",
@@ -2466,7 +2462,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "update: cross-major 4.22 to 5.0 rejected without experimental release features",
+			name: "update: cross-major 4.22 to 5.0 allowed without experimental release features",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "5.0"
@@ -2477,9 +2473,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.22"
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "OpenShift v5 and above is not supported", FieldPath: "customerProperties.version.id"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: cross-major 4.20 to 5.0 rejected (4.20 not in 4→5 pairing map)",
@@ -2580,7 +2574,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "update: version must still be at least 4.20 even if old cluster had lower version without experimental flag",
+			name: "update: unchanged version below 4.20 grandfathered without experimental flag",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.19"
@@ -2591,9 +2585,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "must be at least 4.20", FieldPath: "customerProperties.version.id"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			// This test is to ensure that the ManagedIdentitiesDataPlaneIdentityURL is not required when the old value is

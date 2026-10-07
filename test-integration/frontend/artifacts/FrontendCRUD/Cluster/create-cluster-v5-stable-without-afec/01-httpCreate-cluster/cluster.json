@@ -17,7 +17,7 @@
 			}
 		}
 	},
-	"name": "create-reject-cluster-v5-without-experimental",
+	"name": "create-cluster-v5-stable-without-afec",
 	"properties": {
 		"api": {
 			"visibility": "Public"

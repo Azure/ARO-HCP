@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -479,6 +480,7 @@ type StepInput struct {
 	ContentLoader          integrationutils.ContentLoader
 	DocumentLister         integrationutils.DocumentLister
 	ResourcesDBClient      corecosmosstorage.ResourcesDBClient
+	FleetDBClient          fleetcosmosstorage.FleetDBClient
 	FrontendURL            string
 	AdminURL               string
 	APIVersion             string
@@ -497,6 +499,10 @@ type ResourceKey struct {
 	// If empty, falls back to StepInput.APIVersion, then DefaultTestAPIVersion.
 	// Only used by HTTP step types; non-HTTP steps (e.g., completeOperation) ignore this field.
 	APIVersion string `json:"apiVersion,omitempty"`
+
+	// Optional assertions on the final httpGet response, including error responses.
+	ExpectedStatusCode int               `json:"expectedStatusCode,omitempty"`
+	ExpectedHeaders    map[string]string `json:"expectedHeaders,omitempty"`
 }
 
 func (s StepInput) HTTPTestAccessor(key ResourceKey) HTTPTestAccessor {
@@ -522,5 +528,6 @@ func NewCosmosStepInput(storageInfo integrationutils.StorageIntegrationTestInfo)
 		ContentLoader:     storageInfo,
 		DocumentLister:    storageInfo,
 		ResourcesDBClient: storageInfo.ResourcesDBClient(),
+		FleetDBClient:     storageInfo.FleetDBClient(),
 	}
 }

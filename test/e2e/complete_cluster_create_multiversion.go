@@ -34,6 +34,7 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -85,6 +86,13 @@ var _ = Describe("ARO-HCP", func() {
 			}
 
 			tc := framework.NewTestContext()
+			if channelGroup != "nightly" {
+				By(fmt.Sprintf("waiting for OpenShift version %s in channel group %s to be available in %s", version, channelGroup, tc.Location()))
+				err := framework.WaitForOpenShiftVersionAvailable20240610(ctx,
+					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftVersionsClient(),
+					tc.Location(), coreapi.VersionProfile{ID: version, ChannelGroup: channelGroup})
+				Expect(err).NotTo(HaveOccurred(), "resolved upstream version %s in channel group %s should become available in the regional catalog", version, channelGroup)
+			}
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")

@@ -70,6 +70,7 @@ const (
 	ServiceProviderClusterResourceTypeName          = "serviceProviderClusters"
 	ServiceProviderNodePoolResourceTypeName         = "serviceProviderNodePools"
 	VersionResourceTypeName                         = "hcpOpenShiftVersions"
+	OpenShiftVersionCatalogResourceTypeName         = "openShiftVersionCatalogs"
 	NodePoolResourceTypeName                        = "nodePools"
 	ExternalAuthResourceTypeName                    = "externalAuths"
 	OperationResultResourceTypeName                 = "hcpOperationResults"
@@ -91,6 +92,7 @@ var (
 	ExternalAuthResourceType            = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
 	PreflightResourceType               = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
 	VersionResourceType                 = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
+	OpenShiftVersionCatalogResourceType = azcorearm.NewResourceType(ProviderNamespace, OpenShiftVersionCatalogResourceTypeName)
 	ClusterControllerResourceType       = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ControllerResourceTypeName))
 	NodePoolControllerResourceType      = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ControllerResourceTypeName))
 	ExternalAuthControllerResourceType  = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ExternalAuthResourceTypeName, ControllerResourceTypeName))
