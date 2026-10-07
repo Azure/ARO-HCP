@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
 
 
@@ -80,8 +81,37 @@ def overlaps(candidate, existing, files):
     return True
 
 
+def drop_creates_missing_data(output):
+    """Drop creates that omitted `data` so a successful sweep is not failed.
+
+    Invalid `data` still fails closed. Missing `data` is the agent forgetting
+    the structured argument; stripping those items lets Process Safe Outputs
+    skip them instead of opening an unguarded PR.
+    """
+    items = output.get("items")
+    if not isinstance(items, list):
+        raise ValueError("create_pull_request output items must be a list")
+    kept = []
+    skipped = 0
+    for item in items:
+        if item.get("type") == "create_pull_request" and not isinstance(item.get("data"), dict):
+            title = item.get("title") or "untitled"
+            print(
+                f"::warning::Skipping create_pull_request without dependency group data: {title}",
+                file=sys.stderr,
+            )
+            skipped += 1
+            continue
+        kept.append(item)
+    if skipped:
+        output["items"] = kept
+        print(f"Dropped {skipped} create_pull_request item(s) missing dependency group data")
+    return skipped
+
+
 def guard_create(output, repo):
-    items = [item for item in output["items"] if item.get("type") == "create_pull_request"]
+    drop_creates_missing_data(output)
+    items = [item for item in output.get("items", []) if item.get("type") == "create_pull_request"]
     if not items:
         return
     groups = [group(item) for item in items]
@@ -110,6 +140,22 @@ def guard_create(output, repo):
                     "reconcile that PR instead of creating a replacement"
                 )
     print(f"Checked {len(groups)} dependency groups against {len(prs)} open PRs")
+
+
+def rewrite_output(path, output):
+    directory = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(prefix="dependabot-guard-", suffix=".json", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as dest:
+            json.dump(output, dest)
+            dest.write("\n")
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def guard_retest(repo, number, sha, evidence, now=None):
@@ -161,8 +207,11 @@ def guard_retest(repo, number, sha, evidence, now=None):
 def main():
     try:
         if sys.argv[1] == "create" and len(sys.argv) == 4:
-            with open(sys.argv[2], encoding="utf-8") as source:
-                guard_create(json.load(source), sys.argv[3])
+            path = sys.argv[2]
+            with open(path, encoding="utf-8") as source:
+                output = json.load(source)
+            guard_create(output, sys.argv[3])
+            rewrite_output(path, output)
         elif sys.argv[1] == "retest" and len(sys.argv) == 6:
             guard_retest(*sys.argv[2:])
         else:

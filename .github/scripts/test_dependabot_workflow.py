@@ -34,6 +34,22 @@ class CompiledSafeOutputLimitsTests(TestCase):
         self.assertIn("max 1 per run", self.config["repair-owned-pr"]["description"])
         self.assertIn("unique_by(.pull_request_number)", text)
 
+    def test_reconcile_continues_when_a_pr_is_already_closed(self):
+        text = LOCK.read_text()
+        self.assertIn("already $state; skipping", text)
+        self.assertIn("Reconcile summary:", text)
+        self.assertIn("reconcile-owned-pr-items.jsonl", text)
+
+    def test_prompt_forbids_rebasing_superseded_prs(self):
+        text = Path(__file__).resolve().parents[1] / "workflows" / "dependabot-remediation.md"
+        prompt = text.read_text()
+        self.assertIn("do not rebase or repair", prompt.casefold())
+        self.assertIn("data` argument is mandatory", prompt)
+
+    def test_prompt_requires_create_data(self):
+        prompt = (Path(__file__).resolve().parents[1] / "workflows" / "dependabot-remediation.md").read_text()
+        self.assertIn("a create without it is dropped", prompt)
+
 
 if __name__ == "__main__":
     main()
