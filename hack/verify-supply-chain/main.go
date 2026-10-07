@@ -14,8 +14,8 @@
 
 // verify-supply-chain inspects the files tracked by git and fails if any of
 // them match a high-confidence supply-chain attack indicator: an AI-agent
-// settings file, MCP server configuration, or anything at all under an editor
-// configuration directory.
+// settings file, MCP server configuration, an editor workspace file, or
+// anything at all under an editor configuration directory.
 // Agent JSON carrying an execution key is reported as a known attack pattern.
 // Agent JSON that cannot be parsed, or that is not a regular file and so
 // cannot be read at all, is refused rather than given the benefit of the
@@ -59,6 +59,12 @@ const (
 	agentConfigDir  = ".claude"
 	editorConfigDir = ".vscode"
 )
+
+// workspaceConfigExt is matched at any path rather than as a segment: an
+// editor workspace file carries the same executable configuration as the
+// directory above, under a name of the author's choosing and most often at
+// the repository root.
+const workspaceConfigExt = ".code-workspace"
 
 // agentSettingsFiles are agent configuration files that grant an agent
 // standing permission to execute things. They must never be committed.
@@ -315,6 +321,23 @@ func checkPaths(files []trackedFile) []finding {
 				rule:   ruleAgentSettings,
 				detail: "AI-agent settings files must not be committed",
 			})
+		// Matched by extension anywhere in the tree, because unlike the files
+		// above this one has no fixed name and no required directory. A
+		// .code-workspace is a single JSON document that can carry the entire
+		// contents of .vscode/ — settings, extension recommendations, launch
+		// configurations and tasks — and a task with runOptions.runOn set to
+		// "folderOpen" runs when the workspace is opened. Workspace Trust
+		// prompts first, but "the author clicked Trust" is not a control this
+		// check should lean on. Conventionally the file sits at the
+		// repository root, which is exactly where the editor directory rule
+		// cannot see it.
+		case path.Ext(lower) == workspaceConfigExt:
+			findings = append(findings, finding{
+				path:   p,
+				rule:   ruleEditorConfig,
+				detail: "editor workspace files can run tasks on folder open and must not be committed",
+			})
+
 		// Before the editor directory rule, so that an entry the named-file
 		// rules already describe keeps their more specific wording. What is
 		// left for this case is what those rules structurally cannot see: a
