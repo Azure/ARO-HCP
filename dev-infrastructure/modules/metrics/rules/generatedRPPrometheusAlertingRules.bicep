@@ -526,14 +526,14 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             }
           }
         ]
-        alert: 'UJNodePoolStuckOperation'
+        alert: 'userJourneyNodePoolStuckOperation'
         enabled: true
         labels: {
           component: 'slo'
-          severity: 'info'
+          severity: '4'
         }
         annotations: {
-          correlationId: 'UJNodePoolStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
+          correlationId: 'userJourneyNodePoolStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
           description: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
@@ -567,14 +567,14 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'UJNodePoolSaturationQueueDepth'
+        alert: 'userJourneyNodePoolSaturationQueueDepth'
         enabled: true
         labels: {
           component: 'slo'
-          severity: 'info'
+          severity: '4'
         }
         annotations: {
-          correlationId: 'UJNodePoolSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
+          correlationId: 'userJourneyNodePoolSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
@@ -608,17 +608,17 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJNodePoolErrors1h5m'
+        alert: 'userJourneyNodePoolErrors1h5m'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '1h'
-          severity: 'info'
+          severity: '4'
           short_window: '5m'
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrors1h5m/{{ $labels.cluster }}'
+          correlationId: 'userJourneyNodePoolErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           info: 'More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
@@ -639,17 +639,17 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJNodePoolErrors6h30m'
+        alert: 'userJourneyNodePoolErrors6h30m'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '6h'
-          severity: 'info'
+          severity: '4'
           short_window: '30m'
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrors6h30m/{{ $labels.cluster }}'
+          correlationId: 'userJourneyNodePoolErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           info: 'More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
@@ -670,16 +670,16 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJNodePoolErrors3d'
+        alert: 'userJourneyNodePoolErrors3d'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '3d'
-          severity: 'info'
+          severity: '4'
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrors3d/{{ $labels.cluster }}'
+          correlationId: 'userJourneyNodePoolErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
           info: 'More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
@@ -700,16 +700,16 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJNodePoolErrorsDegradation'
+        alert: 'userJourneyNodePoolErrorsDegradation'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '6h'
-          severity: 'info'
+          severity: '4'
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrorsDegradation/{{ $labels.cluster }}'
+          correlationId: 'userJourneyNodePoolErrorsDegradation/{{ $labels.cluster }}'
           description: 'More than 15% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
           info: 'More than 15% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
