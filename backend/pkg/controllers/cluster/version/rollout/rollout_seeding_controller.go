@@ -186,6 +186,10 @@ func (c *rolloutSeedingSyncer) ensureRollout(ctx context.Context, yStreamChannel
 // channel: the channel is the top-level resource name, and every rollout shares
 // the provider-namespace partition key (see ProviderNamespacePartitionKeyDeriver).
 func newControlPlaneVersionRollout(yStreamChannel string) (*fleetapi.ControlPlaneVersionRollout, error) {
+	profile, err := fleetapihelpers.RolloutVersionFromName(yStreamChannel)
+	if err != nil {
+		return nil, err
+	}
 	id, err := fleetapihelpers.ToControlPlaneVersionRolloutResourceID(yStreamChannel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build resource ID for ControlPlaneVersionRollout %q: %w", yStreamChannel, err)
@@ -195,5 +199,6 @@ func newControlPlaneVersionRollout(yStreamChannel string) (*fleetapi.ControlPlan
 			ResourceID:   id,
 			PartitionKey: strings.ToLower(coreapi.ProviderNamespace),
 		},
+		Spec: fleetapi.ControlPlaneVersionRolloutSpec{Version: profile},
 	}, nil
 }
