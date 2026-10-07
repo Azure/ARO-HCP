@@ -21,11 +21,13 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
@@ -85,6 +87,9 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 			logger.Info("Deleted role assignment",
 				"roleAssignmentResourceID", *assignment.ID, "roleAssignmentPrincipalID", *assignment.Properties.PrincipalID,
 				"roleAssignmentRoleDefinitionResourceID", assignment.Properties.RoleDefinitionID,
+				"roleAssignmentScope", ptr.Deref(assignment.Properties.Scope, "<nil>"),
+				"roleAssignmentCreatedBy", ptr.Deref(assignment.Properties.CreatedBy, "<nil>"),
+				"roleAssignmentCreatedOn", ptr.Deref(assignment.Properties.CreatedOn, time.Time{}),
 			)
 			return nil
 		})
