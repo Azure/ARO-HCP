@@ -40,6 +40,7 @@ const (
 	ClusterValidationControlPlaneIdentitiesPermissionsClusterValidationControllerName   = "ClusterValidationControlPlaneIdentitiesPermissionsClusterValidation"
 	ClusterValidationAzureClusterManagedIdentitiesExistenceValidationControllerName     = "ClusterValidationAzureClusterManagedIdentitiesExistenceValidation"
 	ClusterValidationAzureClusterResourceGroupExistenceValidationControllerName         = "ClusterValidationAzureClusterResourceGroupExistenceValidation"
+	ClusterValidationAzureVnetIntegrationSubnetSizeValidationControllerName             = "ClusterValidationAzureVnetIntegrationSubnetSizeValidation"
 	ClusterValidationAzureResourceProvidersRegistrationValidationControllerName         = "ClusterValidationAzureResourceProvidersRegistrationValidation"
 	ClusterValidationAlwaysSuccessValidationControllerName                              = "ClusterValidationAlwaysSuccessValidation"
 	// consecutiveUnknownCountsCacheCapacity bounds the size of the consecutiveUnknownCounts LRU cache.
