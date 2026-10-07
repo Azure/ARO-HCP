@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -52,6 +53,11 @@ import (
 
 const (
 	ClusterResourcesControllerName = "ClusterResources"
+
+	// resourcesFetchInterval is the minimum time between successful
+	// GetClusterResources calls for one cluster. Informer events arrive much
+	// faster than Cluster Service manifests change.
+	resourcesFetchInterval = 10 * time.Second
 )
 
 // clusterResourcesController polls the Cluster Service SDK endpoint for cluster resources information
@@ -62,6 +68,10 @@ type clusterResourcesController struct {
 	clustersServiceClient        ocm.ClusterServiceClientSpec
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	applyDesireLister            kubeapplierlisters.ApplyDesireLister
+
+	// resourcesFetchCooldown gates GetClusterResources on the last successful
+	// fetch and ApplyDesire update for the cluster.
+	resourcesFetchCooldown *controllerutil.LastSuccessCooldownChecker
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterResourcesController)(nil)
@@ -85,6 +95,7 @@ func NewClusterResourcesController(
 		clustersServiceClient:        clustersServiceClient,
 		kubeApplierDBClients:         kubeApplierDBClients,
 		applyDesireLister:            applyDesireLister,
+		resourcesFetchCooldown:       controllerutil.NewLastSuccessCooldownChecker(resourcesFetchInterval),
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -146,10 +157,17 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 		return c.deleteAllOwnedApplyDesires(ctx, key, managementCluster)
 	}
 
+	// Gate on the last successful fetch. Deletion cleanup and clusters that
+	// don't need work return above, so they leave the success time unchanged.
+	if !c.resourcesFetchCooldown.CanSync(ctx, key) {
+		return nil
+	}
+
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
 	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster resources: %w", err))
 	}
+	c.resourcesFetchCooldown.RecordSuccess(key)
 
 	return nil
 }

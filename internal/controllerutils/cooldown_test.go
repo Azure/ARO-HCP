@@ -52,6 +52,62 @@ func TestTimeBasedCooldownChecker_RepeatedFalseDoesNotPreventTrue(t *testing.T) 
 	}
 }
 
+func TestLastSuccessCooldownChecker_AttemptDoesNotStartCooldown(t *testing.T) {
+	startTime := time.Now()
+	fakeClock := clocktesting.NewFakePassiveClock(startTime)
+	checker := NewLastSuccessCooldownChecker(10 * time.Second)
+	checker.SetClock(fakeClock)
+
+	ctx := context.Background()
+	key := "test-key"
+
+	for i := 0; i < 3; i++ {
+		if !checker.CanSync(ctx, key) {
+			t.Fatalf("expected CanSync to stay true before any success, call %d", i)
+		}
+		fakeClock.SetTime(startTime.Add(time.Duration(i+1) * time.Second))
+	}
+}
+
+func TestLastSuccessCooldownChecker_SuccessStartsCooldown(t *testing.T) {
+	startTime := time.Now()
+	fakeClock := clocktesting.NewFakePassiveClock(startTime)
+	checker := NewLastSuccessCooldownChecker(10 * time.Second)
+	checker.SetClock(fakeClock)
+
+	ctx := context.Background()
+	key := "test-key"
+
+	if !checker.CanSync(ctx, key) {
+		t.Fatal("expected CanSync to return true before any success")
+	}
+	checker.RecordSuccess(key)
+
+	if checker.CanSync(ctx, key) {
+		t.Fatal("expected CanSync to return false immediately after success")
+	}
+
+	fakeClock.SetTime(startTime.Add(10 * time.Second))
+	if checker.CanSync(ctx, key) {
+		t.Fatal("expected CanSync to return false at the exact cooldown boundary")
+	}
+
+	fakeClock.SetTime(startTime.Add(10*time.Second + time.Nanosecond))
+	if !checker.CanSync(ctx, key) {
+		t.Fatal("expected CanSync to return true after the cooldown elapsed")
+	}
+
+	// A true CanSync does not move the window. Only another success does.
+	fakeClock.SetTime(startTime.Add(11 * time.Second))
+	if !checker.CanSync(ctx, key) {
+		t.Fatal("expected CanSync to stay true until the next success is recorded")
+	}
+	checker.RecordSuccess(key)
+	if checker.CanSync(ctx, key) {
+		t.Fatal("expected the new success to start another cooldown")
+	}
+}
+
 func TestSettableCooldownChecker_NoKeyAlwaysAllowed(t *testing.T) {
 	checker := NewSettableCooldownChecker()
 	ctx := context.Background()
