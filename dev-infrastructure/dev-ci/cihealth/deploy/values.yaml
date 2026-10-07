@@ -57,7 +57,9 @@ app:
       cpu: 500m
       memory: 512Mi
   extraEnv: []
-  extraArgs: []
+  # The prepared history window can exceed the app's default 192 MiB text budget.
+  extraArgs:
+  - "--app.failure-patterns-cache-max-text-bytes=268435456"
 httpRoute:
   enabled: false
   host: ""
