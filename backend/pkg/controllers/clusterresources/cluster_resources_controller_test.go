@@ -238,6 +238,7 @@ func TestIngressDesireSuppression(test *testing.T) {
 				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
 				clustersServiceClient:        csClient, kubeApplierDBClients: clients,
 				applyDesireLister: &kubeapplierlistertesting.DBApplyDesireLister{Clients: clients, Lister: managementClusters},
+				readDesireLister:  &kubeapplierlistertesting.DBReadDesireLister{Clients: clients, Lister: managementClusters},
 			}
 			require.NoError(test, syncer.SyncOnce(ctx, testKey()))
 			desires, err := syncer.applyDesireLister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
