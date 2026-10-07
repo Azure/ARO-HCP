@@ -89,13 +89,14 @@ func observeTLSCertificate(ctx context.Context, client tlsCertificatesClient, na
 	defer cancel()
 	_, err := client.GetCertificate(ctx, name, "", nil)
 	var responseError *azcore.ResponseError
-	if errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
-		return false, nil
-	}
-	if err != nil {
+	certificateMissing := errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound
+	if err != nil && !certificateMissing {
 		return false, err
 	}
 	operation, err := client.GetCertificateOperation(ctx, name, nil)
+	if certificateMissing && errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}
@@ -104,7 +105,7 @@ func observeTLSCertificate(ctx context.Context, client tlsCertificatesClient, na
 	}
 	switch *operation.Status {
 	case "completed":
-		return true, nil
+		return !certificateMissing, nil
 	case "inProgress":
 		return false, nil
 	case "failed", "cancelled":
