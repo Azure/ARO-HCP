@@ -282,6 +282,40 @@ func TestConfigureMISchedulerFatalOnMissingLabel(t *testing.T) {
 	}
 }
 
+func TestIntCordonValidationFiltersIntegrationSuite(t *testing.T) {
+	t.Setenv("ARO_HCP_DEPLOY_ENV", "int")
+	t.Setenv("ARO_HCP_SUITE_NAME", "integration/parallel")
+
+	root := setupCli()
+	root.SetArgs([]string{"list", "tests", "--suite", "integration/parallel", "--output", "names"})
+
+	output, err := os.CreateTemp(t.TempDir(), "suite-names-*.txt")
+	if err != nil {
+		t.Fatalf("failed to create output file: %v", err)
+	}
+	defer output.Close()
+
+	originalStdout := os.Stdout
+	os.Stdout = output
+	defer func() { os.Stdout = originalStdout }()
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("failed to list integration/parallel tests: %v", err)
+	}
+	if _, err := output.Seek(0, io.SeekStart); err != nil {
+		t.Fatalf("failed to rewind output file: %v", err)
+	}
+	data, err := io.ReadAll(output)
+	if err != nil {
+		t.Fatalf("failed to read output file: %v", err)
+	}
+
+	const expected = "Customer should be able to cordon, drain, and uncordon a node in an HCP cluster"
+	if got := strings.TrimSpace(string(data)); got != expected {
+		t.Fatalf("expected only %q in the INT validation suite, got %q", expected, got)
+	}
+}
+
 func TestMainListSuitesForEachSuite(t *testing.T) {
 	type testCase struct {
 		suite             string

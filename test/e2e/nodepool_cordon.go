@@ -17,6 +17,8 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -52,6 +54,9 @@ var _ = Describe("Customer", func() {
 				cordonVerifyTimeout = 2 * time.Minute
 				podScheduleTimeout  = 3 * time.Minute
 				drainEvictTimeout   = 3 * time.Minute
+
+				cordonHoldDuration = 2 * time.Hour
+				cordonPollInterval = 5 * time.Minute
 			)
 
 			tc := framework.NewTestContext()
@@ -221,6 +226,42 @@ var _ = Describe("Customer", func() {
 			}).WithContext(ctx).WithTimeout(cordonVerifyTimeout).WithPolling(5*time.Second).Should(Succeed(),
 				"node %s was not marked as unschedulable after cordoning", targetNode.Name,
 			)
+
+			if isIntCordonValidationRun() {
+				By(fmt.Sprintf("holding node %s cordoned and Ready for %s", targetNode.Name, cordonHoldDuration))
+				holdStart := time.Now()
+				previousState := ""
+
+				Consistently(func(g Gomega) {
+					node, err := kubeClient.CoreV1().Nodes().Get(ctx, targetNode.Name, metav1.GetOptions{})
+					g.Expect(err).NotTo(HaveOccurred(), "failed to get node %s during the cordon hold", targetNode.Name)
+
+					cordoned := node.Spec.Unschedulable
+					ready := nodeHasReadyCondition(node)
+					state := fmt.Sprintf("cordoned=%t ready=%t", cordoned, ready)
+					if state != previousState {
+						GinkgoLogr.Info("cordon hold state changed",
+							"node", targetNode.Name,
+							"state", state,
+							"previous", previousState,
+							"elapsed", time.Since(holdStart).Round(time.Minute).String(),
+						)
+						previousState = state
+					}
+
+					g.Expect(cordoned).To(BeTrue(),
+						"node %s stopped being cordoned during the %s hold", targetNode.Name, cordonHoldDuration)
+					g.Expect(ready).To(BeTrue(),
+						"node %s stopped being Ready during the %s hold", targetNode.Name, cordonHoldDuration)
+				}).WithContext(ctx).WithTimeout(cordonHoldDuration).WithPolling(cordonPollInterval).Should(Succeed(),
+					"node %s did not stay cordoned and Ready for %s", targetNode.Name, cordonHoldDuration,
+				)
+
+				GinkgoLogr.Info("completed cordon hold",
+					"node", targetNode.Name,
+					"duration", time.Since(holdStart).Round(time.Minute).String(),
+				)
+			}
 
 			By("verifying both nodes remain in Ready condition after cordoning")
 			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(
@@ -400,4 +441,18 @@ func setNodeUnschedulable(ctx context.Context, kubeClient kubernetes.Interface, 
 		metav1.ApplyOptions{FieldManager: cordonFieldManager, Force: true},
 	)
 	return err
+}
+
+func isIntCordonValidationRun() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")), "int") &&
+		strings.TrimSpace(os.Getenv("ARO_HCP_SUITE_NAME")) == "integration/parallel"
+}
+
+func nodeHasReadyCondition(node *corev1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == corev1.NodeReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+	return false
 }

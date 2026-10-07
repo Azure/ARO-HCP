@@ -503,12 +503,25 @@ func setupCli() *cobra.Command {
 	// Store the count so NewUpgradeBarrier can read it at spec-run time.
 	framework.SetUpgradeInPlaceSpecCount(upgradeInPlaceCount)
 
+	intCordonValidationRun := strings.EqualFold(strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")), "int") &&
+		strings.TrimSpace(os.Getenv("ARO_HCP_SUITE_NAME")) == "integration/parallel"
+	if intCordonValidationRun {
+		// Temporary INT validation: run only the cordon test so one HostedCluster
+		// remains cordoned and Ready long enough to validate the alert signal.
+		specs = specs.MustFilter([]string{`name.contains("should be able to cordon, drain, and uncordon a node")`})
+	}
+
 	// Remember that the label constants are (currently) slices, not items.
 
 	// The tests that a suite is composed of can be filtered by CEL expressions. By
 	// default, the qualifiers only apply to tests from this extension.
 	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0])
-	integrationTestTimeout := 150 * time.Minute
+	integrationParallelTestTimeout := 150 * time.Minute
+	if intCordonValidationRun {
+		// Cluster and node pool provisioning precede the two-hour cordon hold.
+		integrationParallelTestTimeout = 4 * time.Hour
+	}
+	integrationSlowTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "integration/parallel",
 		Qualifiers: []string{
@@ -517,7 +530,7 @@ func setupCli() *cobra.Command {
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
 		Parallelism:   parallelism(24),
-		TestTimeout:   &integrationTestTimeout,
+		TestTimeout:   &integrationParallelTestTimeout,
 		ResourcePools: miPools,
 	})
 
@@ -529,7 +542,7 @@ func setupCli() *cobra.Command {
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
 		Parallelism:   parallelism(24),
-		TestTimeout:   &integrationTestTimeout,
+		TestTimeout:   &integrationSlowTestTimeout,
 		ResourcePools: miPools,
 	})
 
