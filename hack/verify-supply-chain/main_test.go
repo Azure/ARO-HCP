@@ -42,6 +42,17 @@ func TestCheckPaths(t *testing.T) {
 		{name: "nested editor tasks", path: "a/b/.vscode/tasks.json", rule: ruleEditorConfig},
 		{name: "editor launch", path: ".vscode/launch.json", rule: ruleEditorConfig},
 
+		// The editor rule is the directory, not a list of filenames: every
+		// one of these used to pass, and each is either executable on open or
+		// a place to hide something that is. Enumerating filenames only has
+		// to miss once, and the set belongs to Microsoft.
+		{name: "editor keybindings", path: ".vscode/keybindings.json", rule: ruleEditorConfig},
+		{name: "editor c_cpp properties", path: ".vscode/c_cpp_properties.json", rule: ruleEditorConfig},
+		{name: "editor readme", path: ".vscode/README.md", rule: ruleEditorConfig},
+		{name: "script in editor directory", path: ".vscode/setup.sh", rule: ruleEditorConfig},
+		{name: "nested file in editor directory", path: ".vscode/profiles/default.json", rule: ruleEditorConfig},
+		{name: "unknown future editor file", path: ".vscode/whatever-ships-next.json", rule: ruleEditorConfig},
+
 		// MCP server config is matched by basename at any path: the
 		// project-scoped form has no .claude segment to key off.
 		{name: "project-scoped mcp config", path: ".mcp.json", rule: ruleAgentSettings},
@@ -408,7 +419,7 @@ func TestFindExecutionKeyNested(t *testing.T) {
 func TestReport(t *testing.T) {
 	var buf bytes.Buffer
 	report(&buf, []finding{
-		{path: ".vscode/settings.json", rule: ruleEditorConfig, detail: "editor configuration files must not be committed"},
+		{path: ".vscode/settings.json", rule: ruleEditorConfig, detail: "nothing under an editor configuration directory may be committed"},
 		{path: ".claude/settings.json", rule: ruleExecutionKey, detail: `contains a "command" key`, malware: true},
 	})
 	got := buf.String()
@@ -472,7 +483,7 @@ func TestReportEscapesControlCharactersInPaths(t *testing.T) {
 func TestReportOmitsMalwareWarningWhenNotApplicable(t *testing.T) {
 	var buf bytes.Buffer
 	report(&buf, []finding{
-		{path: ".vscode/settings.json", rule: ruleEditorConfig, detail: "editor configuration files must not be committed"},
+		{path: ".vscode/settings.json", rule: ruleEditorConfig, detail: "nothing under an editor configuration directory may be committed"},
 	})
 
 	if strings.Contains(buf.String(), "attack pattern") {

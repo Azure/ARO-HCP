@@ -14,7 +14,8 @@
 
 // verify-supply-chain inspects the files tracked by git and fails if any of
 // them match a high-confidence supply-chain attack indicator: an AI-agent
-// settings file, MCP server configuration, or an editor configuration file.
+// settings file, MCP server configuration, or anything at all under an editor
+// configuration directory.
 // Agent JSON carrying an execution key is reported as a known attack pattern.
 // Agent JSON that cannot be parsed, or that is not a regular file and so
 // cannot be read at all, is refused rather than given the benefit of the
@@ -65,16 +66,6 @@ var agentSettingsFiles = map[string]bool{
 	"settings.json":       true,
 	"settings.local.json": true,
 	"mcp.json":            true,
-}
-
-// editorConfigFiles are editor files that can execute commands on folder open
-// or recommend extensions. Nothing under .vscode/ is legitimately tracked in
-// this repository, so any of them appearing in a PR is a red flag.
-var editorConfigFiles = map[string]bool{
-	"settings.json":   true,
-	"extensions.json": true,
-	"tasks.json":      true,
-	"launch.json":     true,
 }
 
 // mcpConfigFiles name an MCP server set, every entry of which carries a
@@ -324,25 +315,18 @@ func checkPaths(files []trackedFile) []finding {
 				rule:   ruleAgentSettings,
 				detail: "AI-agent settings files must not be committed",
 			})
-		case hasSegment(lower, editorConfigDir) && editorConfigFiles[base]:
-			findings = append(findings, finding{
-				path:   p,
-				rule:   ruleEditorConfig,
-				detail: "editor configuration files must not be committed",
-			})
-
-		// Last, so that an entry the named-file rules already describe keeps
-		// their more specific wording. What is left for this case is what
-		// those rules structurally cannot see: a configuration directory that
-		// is not a directory in this repository at all. Git tracks
-		// "frontend/.claude -> config" as a single entry with no extension
-		// and a basename on no denylist, and tracks a submodule mounted at
-		// the same path the same way. Either records nothing for the paths
-		// underneath, so frontend/.claude/settings.json is never a tracked
-		// path and no amount of filename matching can match it — yet that is
-		// the path an agent resolves and reads, from a symlink target that
-		// keeps its own innocuous name or from a checkout the parent
-		// repository's diff does not show.
+		// Before the editor directory rule, so that an entry the named-file
+		// rules already describe keeps their more specific wording. What is
+		// left for this case is what those rules structurally cannot see: a
+		// configuration directory that is not a directory in this repository
+		// at all. Git tracks "frontend/.claude -> config" as a single entry
+		// with no extension and a basename on no denylist, and tracks a
+		// submodule mounted at the same path the same way. Either records
+		// nothing for the paths underneath, so frontend/.claude/settings.json
+		// is never a tracked path and no amount of filename matching can
+		// match it — yet that is the path an agent resolves and reads, from a
+		// symlink target that keeps its own innocuous name or from a checkout
+		// the parent repository's diff does not show.
 		//
 		// The test is readableBlob rather than a list of the two modes, so
 		// that an entry type neither case anticipated is refused here too.
@@ -351,6 +335,22 @@ func checkPaths(files []trackedFile) []finding {
 				path:   p,
 				rule:   ruleConfigNotFile,
 				detail: fmt.Sprintf("agent and editor configuration paths must be real files; git records mode %s, which names content this repository does not carry and is not resolved here", f.mode),
+			})
+
+		// Last, and deliberately not a list of filenames. Several files under
+		// .vscode/ execute on folder open — tasks.json via runOptions.runOn,
+		// launch.json, settings.json through terminal profiles — but
+		// enumerating them only has to miss one, and the set is Microsoft's to
+		// grow. Nothing under .vscode/ is legitimately tracked in this
+		// repository (.gitignore excludes it, and no such path is tracked
+		// today), so the directory itself is the rule and no filename needs
+		// judging. A tracked .vscode/ entry that is genuinely wanted is a
+		// deliberate, reviewed change to this check.
+		case hasSegment(lower, editorConfigDir):
+			findings = append(findings, finding{
+				path:   p,
+				rule:   ruleEditorConfig,
+				detail: "nothing under an editor configuration directory may be committed",
 			})
 		}
 	}
