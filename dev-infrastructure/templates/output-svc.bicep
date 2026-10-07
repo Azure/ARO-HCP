@@ -21,7 +21,9 @@ param exporterMIName string
 
 param useLeasedInfrastructureIdentities bool = false
 param infrastructureIdentityResourceGroup string = ''
-var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? infrastructureIdentityResourceGroup : resourceGroup().name)
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities
+  ? infrastructureIdentityResourceGroup
+  : resourceGroup().name)
 
 // CS MI resource ID
 resource csMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {

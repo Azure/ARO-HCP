@@ -14,7 +14,9 @@ param adminApiMIName string
 
 param useLeasedInfrastructureIdentities bool = false
 param infrastructureIdentityResourceGroup string = ''
-var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? infrastructureIdentityResourceGroup : resourceGroup().name)
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities
+  ? infrastructureIdentityResourceGroup
+  : resourceGroup().name)
 
 // These must match the same vars in modules/metrics/datacollection.bicep
 var dceName = safeTake('MSProm-${location}-${aksClusterName}', 44)

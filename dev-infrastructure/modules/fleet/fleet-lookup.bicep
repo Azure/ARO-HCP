@@ -21,7 +21,9 @@ param hcpMonitorName string
 
 param useLeasedInfrastructureIdentities bool = false
 param infrastructureIdentityResourceGroup string = ''
-var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? infrastructureIdentityResourceGroup : resourceGroup().name)
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities
+  ? infrastructureIdentityResourceGroup
+  : resourceGroup().name)
 
 //
 //   I M A G E   P U L L E R   L O O K U P
