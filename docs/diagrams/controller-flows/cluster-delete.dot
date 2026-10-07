@@ -3,7 +3,7 @@ digraph cluster_delete {
   node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
   delete [label="Frontend DELETE cluster\ndeletion timestamp + Delete Operation\nchild node-pool / external-auth deletes", fillcolor="#eee7fb", color="#7b59a4"];
-  resources [label="ClusterResources\nremove tagged ApplyDesire documents", fillcolor="#e6f0fa", color="#35648a"];
+  resources [label="ClusterResources\nordered applyDesireRemovalChain\ndrop cascade-covered desire documents\nset selected desires to Type=Delete and wait\nManagedCluster / ingress / HostedCluster\nthen SWIFT resources, namespaces last", fillcolor="#e6f0fa", color="#35648a"];
   ingress [label="IngressCertificate\ndelete known ApplyDesire/ReadDesire names\nno Kubernetes deletes", fillcolor="#e6f0fa", color="#35648a"];
   dispatch [label="ClusterClusterServiceDelete\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
   cs [label="Cluster Service / external cleanup\nKubernetes and Azure resources", fillcolor="#fff0da", color="#b27624"];
@@ -21,7 +21,7 @@ digraph cluster_delete {
   velero [label="Velero (external)\nprocess DeleteBackupRequest\ndelete Backup and associated backup data", fillcolor="#fff0da", color="#b27624"];
   retained [label="Backup absent: stop reconciling\nBackupRepositories retained for Kopia maintenance\nNot proof of repository GC; not an ARM gate", fillcolor="#e4f2e5", color="#4c8053"];
   delete -> resources [label="deletion intent"];
-  resources -> dispatch [label="all tagged ApplyDesires gone\nKubernetes objects remain"];
+  resources -> dispatch [label="ordered teardown complete\nall owned ApplyDesires gone"];
   delete -> ingress [label="deletion intent"];
   delete -> certificates [label="deletion intent"];
   certificates -> cleanup [label="all certificate references empty"];
