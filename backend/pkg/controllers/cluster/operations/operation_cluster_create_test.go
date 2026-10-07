@@ -35,6 +35,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -523,6 +524,16 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 					}
 				}(),
 			}
+			controller.statusCalculators, err = operationbase.NewOperationStatusCalculators[struct{}](
+				&clusterCreateValidationCheck{clock: controller.clock, serviceProviderClusterLister: controller.serviceProviderClusterLister},
+				&clusterCreateHostedClusterCheck{readDesireLister: controller.readDesireLister},
+				&clusterCreateResourceCheck{clusterLister: controller.clusterLister},
+				&clusterCreateClusterServiceCheck{clusterLister: controller.clusterLister, clusterServiceClient: controller.clusterServiceClient},
+				&clusterCreatePlacementCheck{clusterLister: controller.clusterLister, clock: controller.clock, serviceProviderClusterLister: controller.serviceProviderClusterLister},
+				&clusterCreateServingCACheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
+				&clusterCreateRoleAssignmentsCheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
+			)
+			require.NoError(t, err)
 
 			err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 			if tc.wantErr {
@@ -715,7 +726,17 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
 				resourcesDBClient:            db,
 			}
-			placementState, err := controller.placementOperationStatus(ctx, operation, cluster)
+			controller.statusCalculators, err = operationbase.NewOperationStatusCalculators[struct{}](
+				&clusterCreateValidationCheck{clock: controller.clock, serviceProviderClusterLister: controller.serviceProviderClusterLister},
+				&clusterCreateHostedClusterCheck{readDesireLister: controller.readDesireLister},
+				&clusterCreateResourceCheck{clusterLister: controller.clusterLister},
+				&clusterCreateClusterServiceCheck{clusterLister: controller.clusterLister, clusterServiceClient: controller.clusterServiceClient},
+				&clusterCreatePlacementCheck{clusterLister: controller.clusterLister, clock: controller.clock, serviceProviderClusterLister: controller.serviceProviderClusterLister},
+				&clusterCreateServingCACheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
+				&clusterCreateRoleAssignmentsCheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
+			)
+			require.NoError(t, err)
+			placementState, err := (&clusterCreatePlacementCheck{clusterLister: controller.clusterLister, clock: controller.clock, serviceProviderClusterLister: spcLister}).CalculateOperationStatus(ctx, operation, struct{}{})
 			require.NoError(t, err)
 			if tc.managementClusterAssigned {
 				assert.Equal(t, coreapi.ProvisioningStateSucceeded, placementState.ProvisioningState)
@@ -809,10 +830,9 @@ func newClusterWithAPIURL(url string, createdAt *time.Time) *coreapi.Cluster {
 	return cluster
 }
 
-func TestDetermineOperationState(t *testing.T) {
+func TestOperationClusterCreate_CalculateOperationStatus(t *testing.T) {
 	fixture := operationtesting.NewClusterTestFixture()
 	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
-	cluster := newClusterWithAPIURL("https://api.example.com", nil)
 
 	readyClusterServiceMock := func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -1191,6 +1211,10 @@ func TestDetermineOperationState(t *testing.T) {
 				setupCSMock = readyClusterServiceMock
 			}
 
+			if tt.clusterOverride != nil {
+				tt.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.clusterOverride}}
+			}
+
 			controller := &operationClusterCreate{
 				clock:                utilsclock.RealClock{},
 				clusterLister:        tt.clusterLister,
@@ -1224,12 +1248,19 @@ func TestDetermineOperationState(t *testing.T) {
 					},
 				},
 			}
+			calculators, err := operationbase.NewOperationStatusCalculators[struct{}](
+				&clusterCreateValidationCheck{clock: controller.clock, serviceProviderClusterLister: controller.serviceProviderClusterLister},
+				&clusterCreateHostedClusterCheck{readDesireLister: controller.readDesireLister},
+				&clusterCreateResourceCheck{clusterLister: controller.clusterLister},
+				&clusterCreateClusterServiceCheck{clusterLister: controller.clusterLister, clusterServiceClient: controller.clusterServiceClient},
+				&clusterCreatePlacementCheck{clusterLister: controller.clusterLister, clock: controller.clock, serviceProviderClusterLister: controller.serviceProviderClusterLister},
+				&clusterCreateServingCACheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
+				&clusterCreateRoleAssignmentsCheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
+			)
+			require.NoError(t, err)
+			controller.statusCalculators = calculators
 
-			clusterArg := cluster
-			if tt.clusterOverride != nil {
-				clusterArg = tt.clusterOverride
-			}
-			result, err := controller.determineOperationState(ctx, operation, clusterArg)
+			result, err := controller.statusCalculators.CalculateOperationStatus(ctx, operation, struct{}{})
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -1295,11 +1326,11 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			controller := &operationClusterCreate{
+			controller := &clusterCreateServingCACheck{
 				serviceProviderClusterLister: tt.spcLister,
 			}
 
-			result, err := controller.servingCABundleOperationStatus(ctx, operation)
+			result, err := controller.CalculateOperationStatus(ctx, operation, struct{}{})
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
@@ -1372,11 +1403,11 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			controller := &operationClusterCreate{
+			controller := &clusterCreateRoleAssignmentsCheck{
 				serviceProviderClusterLister: spcLister(tt.roleAssignments),
 			}
 
-			result, err := controller.roleAssignmentsOperationStatus(ctx, operation)
+			result, err := controller.CalculateOperationStatus(ctx, operation, struct{}{})
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)

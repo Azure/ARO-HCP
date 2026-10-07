@@ -24,6 +24,8 @@ create/update operation `InternalID`, and the corresponding lifecycle diagrams.
 
 Update-deadline baseline: `a0f232352a2e933142f2f2dfb61f2870aed7a26f` plus working-tree changes; scope: cluster/node-pool update admission, create/update timeout error codes and diagnostics, and their lifecycle views.
 
+Operation-status calculator baseline: `5549e1c131` plus working-tree changes; scope: shared evaluation of the named status sources for cluster/node-pool creation and updates.
+
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
 
@@ -739,11 +741,31 @@ and require matching request/resource type and nonterminal status; create/update
 pollers also check the resource's active-operation reference. Their
 [status helper](../backend/pkg/utils/operationutils/utils.go)
 updates operation/resource state transactionally and handles async notification.
-Create/update pollers select the worst provisioning state, then choose an error
-code only from sources reporting that state: `Invalid*` codes take precedence,
+Cluster/node-pool create/update pollers register their checks in a source-name
+map of [`OperationStatusCalculator[Input]`](../backend/pkg/utils/operationutils/operation_status_calculator.go)
+instances, built once during controller construction and reused across reconciliations.
+Each check is a concrete struct implementing `GetSourceName` and
+`CalculateOperationStatus`, with the listers, clock, Cluster Service client or
+version-mismatch cache it needs stored in instance fields. Checks fetch cluster and
+node-pool resources through their listers using the operation's resource ID; checks
+that do not need those resources avoid the lookup. Create checks have no resource
+input. Update checks receive shared external observations; the registry retains no
+per-operation inputs. Implementations live alongside the controllers:
+[cluster create](../backend/pkg/controllers/cluster/operations/operation_cluster_create_checks.go),
+[cluster update](../backend/pkg/controllers/cluster/operations/operation_cluster_update_checks.go),
+[node-pool create](../backend/pkg/controllers/nodepool/operations/operation_node_pool_create_checks.go), and
+[node-pool update](../backend/pkg/controllers/nodepool/operations/operation_node_pool_update_checks.go). Update pollers fetch
+Cluster Service state once and share that observation. Cluster updates also share
+service-provider state; the node-pool desired-version check fetches it through its lister.
+The common evaluator visits every source in name order, annotates returned states
+with that source, joins source-labelled evaluation errors (without persisting a
+partial result), and rejects nil/empty states. It then selects the worst
+provisioning state and chooses an error code only from sources reporting that state: `Invalid*` codes take precedence,
 other codes rank next, and `InternalServerError` is the default for non-successful
 states. Successful states have no error code. Equal-priority codes keep the first
-source in the stable provisioning-state/message sort.
+source in the stable provisioning-state/message sort; exact ties use source-name
+order. The shared evaluator logs the individual states and the selected result
+under the calling controller's logger.
 The selected code is persisted in the operation error. In all cluster/node-pool
 create/update timeout paths, `OperationState.CloudErrorCode` is preserved unless
 it is `InternalServerError`; only that code is replaced with `DeadlineExceeded`.
@@ -1018,7 +1040,7 @@ Once deletion prerequisites and child cleanup are satisfied, deletes the ARM res
 
 Combines cluster validations, selected placement, Cluster Service state, mirrored HostedCluster readiness/version, API endpoint, serving CA and confirmed role assignments (nonempty confirmed list, none pending). Placement is checked even before a Cluster Service ID exists. Unresolved placement remains Provisioning until `CreateOperationCompletionDeadline`; without a deadline it keeps waiting. At/after the deadline, `Status.Placement.Conditions[CapacityAvailable]=False` produces the customer-safe `AROHCPCapacityHeavyUse` error; missing/Unknown placement state produces `InternalServerError`. Assigned `Spec.ManagementClusterResourceID` satisfies this check despite a stale condition; other completion checks still apply.
 
-The [validation check](../backend/pkg/controllers/cluster/operations/operation_cluster_validation.go) reads `ServiceProviderCluster.Status.Validations`. All recorded conditions True (or no recorded conditions) contributes Succeeded; any non-True condition contributes Provisioning with a sorted message containing its name, reason and message. Any False condition sets `InvalidResource`; the check contributes Failed only when both its nonzero `LastTransitionTime` and the operation's nonzero `StartTime` are at least five minutes old. Unknown conditions remain Provisioning without `InvalidResource` or a failure timeout. Recovery resets the timer through the condition transition time. These results participate in the normal worst-state selection alongside other Provisioning sources, including their messages and error codes.
+The [validation check](../backend/pkg/controllers/cluster/operations/operation_cluster_validation.go) reads `ServiceProviderCluster.Status.Validations`. All recorded conditions True (or no recorded conditions) contributes Succeeded; any non-True condition contributes Provisioning with a sorted message containing its name, reason and message. Any False condition sets `InvalidResource`; the check contributes Failed only when both its nonzero `LastTransitionTime` and the operation's nonzero `StartTime` are at least ten minutes old. Unknown conditions remain Provisioning without `InvalidResource` or a failure timeout. Recovery resets the timer through the condition transition time. These results participate in the normal worst-state selection alongside other Provisioning sources, including their messages and error codes.
 
 For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification. Classified error messages are preserved (multiple classified failures retain their original errors in `Details`, with the worst code at the top level); internal placement diagnostics are not copied into the capacity error. Pending HostedCluster version diagnostics describe incomplete history entries and their elapsed time.
 
@@ -1737,7 +1759,7 @@ confirmed resource.
 
 ![Cluster create: convergence and completion controller digraph](diagrams/controller-flows/cluster-convergence.png)
 
-The [operation poller](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) combines cluster validations, Cluster Service state, HostedCluster observations, API endpoint, serving CA and confirmed role assignments. A validation remaining False for at least five minutes fails the operation with `InvalidResource` once the operation is also at least five minutes old. UID backfill and billing are independent controllers; billing needs both a UID and Succeeded provisioning. The manifest path is collapsed around external Kubernetes/HyperShift reconciliation; a particular deployment may also involve Maestro/work-agent.
+The [operation poller](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) combines cluster validations, Cluster Service state, HostedCluster observations, API endpoint, serving CA and confirmed role assignments. A validation remaining False for at least ten minutes fails the operation with `InvalidResource` once the operation is also at least ten minutes old. UID backfill and billing are independent controllers; billing needs both a UID and Succeeded provisioning. The manifest path is collapsed around external Kubernetes/HyperShift reconciliation; a particular deployment may also involve Maestro/work-agent.
 
 ### Cluster update
 
@@ -1747,7 +1769,7 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 [Frontend update admission](../frontend/pkg/frontend/cluster.go) combines cached node-pool inventory and SPC/SPNP state with a live target-cluster read. Deleting cached pools remain version-skew validation inputs and require cached SPNP state until they leave the inventory. Missing required provider state produces a contextual internal error, with no GetOrCreate or live parent fallback. These [admission inputs remain best effort](#admission-caches-and-startup), not an atomic snapshot.
 
-[Desired-version assignment](#backend-fleet-control-plane-version-rollout), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes and validation observations. Validation failures lasting at least five minutes also fail the operation with `InvalidResource` once the operation is at least five minutes old; sizing, identities and backup maintenance continue independently.
+[Desired-version assignment](#backend-fleet-control-plane-version-rollout), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes and validation observations. Validation failures lasting at least ten minutes also fail the operation with `InvalidResource` once the operation is at least ten minutes old; sizing, identities and backup maintenance continue independently.
 
 ### Control-plane version rollout
 
