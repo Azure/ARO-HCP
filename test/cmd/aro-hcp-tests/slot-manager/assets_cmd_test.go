@@ -17,12 +17,25 @@ package slotmanager
 import (
 	"context"
 	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities"
 )
+
+// assetCommandOptionsForTest fills in AzureGlobalLoggerLogPath and
+// SetupAzureGlobalLogger so runPoolAssetsCommand's tests never touch the
+// filesystem or the Azure SDK's process-wide logger, mirroring the pattern
+// used for RawAcquireOptions (see noopSetupAzureGlobalLogger in acquire_test.go).
+func assetCommandOptionsForTest(options assetCommandOptions) *assetCommandOptions {
+	if options.AzureGlobalLoggerLogPath == "" {
+		options.AzureGlobalLoggerLogPath = "azure-global-logger-test.log"
+	}
+	options.SetupAzureGlobalLogger = noopSetupAzureGlobalLogger
+	return &options
+}
 
 type recordingPoolHandler struct {
 	*e2eidentities.Handler
@@ -73,7 +86,8 @@ environments:
 				if err != nil {
 					t.Fatal(err)
 				}
-				args := []string{"--environment", "dev", "--slot-catalog", catalogPath, "--asset", "e2e_identities"}
+				azureGlobalLoggerLogPath := filepath.Join(t.TempDir(), "azure-global-logger-test.log")
+				args := []string{"--environment", "dev", "--slot-catalog", catalogPath, "--asset", "e2e_identities", "--azure-global-logger-log-path", azureGlobalLoggerLogPath}
 				switch selector {
 				case "subscription":
 					args = append(args, "--subscription", "customer")
@@ -87,7 +101,7 @@ environments:
 					if !strings.Contains(command.Deprecated, "--asset e2e_identities") {
 						t.Fatalf("deprecation must recommend canonical selector: %q", command.Deprecated)
 					}
-					args = []string{"--environment", "dev", "--slot-catalog", catalogPath, "--subscription", "customer"}
+					args = []string{"--environment", "dev", "--slot-catalog", catalogPath, "--subscription", "customer", "--azure-global-logger-log-path", azureGlobalLoggerLogPath}
 				case "missing-pool":
 					args = append(args, "--pool", "missing")
 				}

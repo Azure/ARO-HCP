@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -34,6 +36,13 @@ type assetCommandOptions struct {
 	Pools         []string
 	AssetKinds    []string
 	Out           io.Writer
+	// AzureGlobalLoggerLogPath is the file the Azure SDK's global logger writes
+	// to.
+	AzureGlobalLoggerLogPath string
+	// SetupAzureGlobalLogger wires Azure Go SDK's global log listener log output to the given path.
+	// Introduced so tests can override it with a no-op so they never touch the filesystem or that global Azure Go SDK logger.
+	// When not specified, defaultSetupAzureGlobalLogger is used as the SetupAzureGlobalLogger function.
+	SetupAzureGlobalLogger func(path string) (io.Closer, error)
 }
 
 func newAssetRegistry() (*assets.Registry, error) {
@@ -95,6 +104,8 @@ func newIdentityPoolCompatibilityCommand(registry *assets.Registry, validate boo
 	if err := command.MarkFlagRequired("environment"); err != nil {
 		return nil, fmt.Errorf("failed to mark flag %q as required: %w", "environment", err)
 	}
+	options.AzureGlobalLoggerLogPath = filepath.Join(os.Getenv("ARTIFACT_DIR"), "azure-global-logger.log")
+	command.Flags().StringVar(&options.AzureGlobalLoggerLogPath, "azure-global-logger-log-path", options.AzureGlobalLoggerLogPath, "Path to the file where the Azure global logger writes logs to. Defaults to ${ARTIFACT_DIR}/azure-global-logger.log if ARTIFACT_DIR is non empty. Otherwise it defaults to azure-global-logger.log, relative to the current working directory. It cannot be empty.")
 	return command, nil
 }
 
@@ -107,6 +118,8 @@ func bindAssetCommandOptions(command *cobra.Command, options *assetCommandOption
 	if err := command.MarkFlagRequired("environment"); err != nil {
 		return fmt.Errorf("failed to mark flag %q as required: %w", "environment", err)
 	}
+	options.AzureGlobalLoggerLogPath = filepath.Join(os.Getenv("ARTIFACT_DIR"), "azure-global-logger.log")
+	command.Flags().StringVar(&options.AzureGlobalLoggerLogPath, "azure-global-logger-log-path", options.AzureGlobalLoggerLogPath, "Path to the file where the Azure global logger writes logs to. Defaults to ${ARTIFACT_DIR}/azure-global-logger.log if ARTIFACT_DIR is non empty. Otherwise it defaults to azure-global-logger.log, relative to the current working directory. It cannot be empty.")
 	return nil
 }
 
@@ -114,6 +127,21 @@ func runPoolAssetsCommand(ctx context.Context, registry *assets.Registry, option
 	if registry == nil {
 		return fmt.Errorf("asset registry is nil")
 	}
+	if options.AzureGlobalLoggerLogPath == "" {
+		return fmt.Errorf("--azure-global-logger-log-path must not be empty")
+	}
+	setupAzureGlobalLoggerFn := options.SetupAzureGlobalLogger
+	if setupAzureGlobalLoggerFn == nil {
+		setupAzureGlobalLoggerFn = defaultSetupAzureGlobalLogger
+	}
+	azureGlobalLoggerCloser, err := setupAzureGlobalLoggerFn(options.AzureGlobalLoggerLogPath)
+	if err != nil {
+		return err
+	}
+	if azureGlobalLoggerCloser != nil {
+		defer azureGlobalLoggerCloser.Close()
+	}
+
 	catalog, err := slots.LoadCatalog(options.SlotCatalog)
 	if err != nil {
 		return err
