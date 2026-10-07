@@ -36,18 +36,18 @@ import (
 // parent directory, but requires a clean absolute path with no symlink components
 // and a cni- basename. No sysfs is read: its mount may describe a different netns.
 func Run(path string, output io.Writer) error {
-	fd, err := openNamespace(path)
+	fd, err := OpenNamespace(path)
 	if err != nil {
 		return err
 	}
 	var stat unix.Stat_t
 	if err := unix.Fstat(fd, &stat); err != nil {
-		_ = unix.Close(fd)
+		CloseWithLog("namespace", func() error { return unix.Close(fd) })
 		return fmt.Errorf("stat network namespace: %w", err)
 	}
 	runtime.LockOSThread()
 	err = unix.Setns(fd, unix.CLONE_NEWNET)
-	_ = unix.Close(fd)
+	CloseWithLog("namespace", func() error { return unix.Close(fd) })
 	if err != nil {
 		return fmt.Errorf("enter network namespace: %w", err)
 	}
@@ -73,7 +73,10 @@ type captureResult struct {
 	State     map[string]rtnl.Section `json:"state"`
 }
 
-func openNamespace(path string) (int, error) {
+// OpenNamespace opens a pinned network namespace descriptor after validating
+// its path, filesystem and namespace type. The caller owns and must close it.
+// It does not enter the namespace or verify a caller's expected device/inode.
+func OpenNamespace(path string) (int, error) {
 	base := filepath.Base(path)
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path || !strings.HasPrefix(base, "cni-") || len(base) <= len("cni-") {
 		return -1, fmt.Errorf("namespace path must be clean, absolute and have a cni- basename")
@@ -83,12 +86,12 @@ func openNamespace(path string) (int, error) {
 	if err != nil {
 		return -1, fmt.Errorf("open namespace parent: %w", err)
 	}
-	defer root.Close()
+	defer CloseWithLog("namespace root", root.Close)
 	dir, err := root.OpenFile(".", os.O_RDONLY|unix.O_DIRECTORY, 0)
 	if err != nil {
 		return -1, err
 	}
-	defer dir.Close()
+	defer CloseWithLog("namespace directory", dir.Close)
 	// OpenRoot confines later lookups, but follows symlinks in its own path.
 	// Validate the pinned parent with a no-symlinks lookup, failing closed if
 	// openat2 is unavailable or the directory changed between the two opens.
@@ -100,7 +103,7 @@ func openNamespace(path string) (int, error) {
 	}
 	var actual, expected unix.Stat_t
 	statErr := unix.Fstat(verified, &expected)
-	_ = unix.Close(verified)
+	CloseWithLog("verified namespace directory", func() error { return unix.Close(verified) })
 	if statErr != nil {
 		return -1, statErr
 	}
@@ -126,7 +129,7 @@ func openNamespace(path string) (int, error) {
 		}
 	}
 	if err != nil {
-		_ = unix.Close(fd)
+		CloseWithLog("namespace", func() error { return unix.Close(fd) })
 		return -1, fmt.Errorf("validate namespace: %w", err)
 	}
 	return fd, nil
