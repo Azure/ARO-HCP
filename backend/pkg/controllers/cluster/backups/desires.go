@@ -14,7 +14,6 @@
 package backups
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -30,7 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -134,25 +132,4 @@ func isDesireSuccessful(conditions []metav1.Condition) bool {
 		}
 	}
 	return false
-}
-
-// purgeApplyDesire retires an ApplyDesire by deleting its Cosmos document directly,
-// leaving the object it applied untouched on the management cluster.
-//
-// Per the ApplyDesire contract (see internal/api/kubeapplierapi/types_apply_desire.go),
-// removing the document is the sanctioned way to stop reconciliation without affecting the
-// applied target. Unlike converting a desire to Type=Delete (which makes the kube-applier
-// delete the target), purging leaves the applied object in place. Use purgeApplyDesire for
-// one-shot desires whose applied object must outlive the desire — e.g. an on-demand backup
-// that must remain a valid restore point until Velero expires it at its own TTL.
-func purgeApplyDesire(
-	ctx context.Context,
-	applyDesire kubeapplierapi.ApplyDesire,
-	applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
-) error {
-	name := applyDesire.ResourceID.Name
-	if err := applyDesireCRUD.Delete(ctx, name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("failed to purge ApplyDesire %s: %w", name, err))
-	}
-	return nil
 }
