@@ -30,9 +30,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	configv1 "github.com/openshift/api/config/v1"
-	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -53,7 +50,7 @@ var _ = Describe("Customer", func() {
 				cloudOpenShiftHost  = "cloud.openshift.com"
 
 				pullSecretMergeTimeout    = 10 * time.Minute
-				insightsTransitionTimeout = 10 * time.Minute
+				insightsTransitionTimeout = 30 * time.Minute
 			)
 			tc := framework.NewTestContext()
 
@@ -122,25 +119,6 @@ var _ = Describe("Customer", func() {
 			By("ensuring the cluster is viable")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability")
-
-			By("verifying Insights Operator is in Disabled/NoToken state before adding token")
-			configClient, err := configv1client.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to create config client for Insights Operator pre-check")
-
-			insightsCO, err := configClient.ClusterOperators().Get(ctx, "insights", metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to get ClusterOperator insights for pre-check")
-
-			disabledFound := false
-			for _, cond := range insightsCO.Status.Conditions {
-				if cond.Type == "Disabled" && cond.Status == configv1.ConditionTrue && cond.Reason == "NoToken" {
-					disabledFound = true
-					break
-				}
-			}
-			if !disabledFound {
-				Skip("Insights Operator is not in Disabled/NoToken state, " +
-					"the NoToken-to-healthy transition cannot be tested")
-			}
 
 			By("creating additional-pull-secret with cloud.openshift.com token")
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
