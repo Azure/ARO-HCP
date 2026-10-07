@@ -1477,7 +1477,7 @@ Finds Cluster Service clusters absent from the Cosmos inventory. Requires a crea
 
 [Source](../backend/pkg/controllers/datadump/cs_state_dump.go) · **Trigger:** Cluster; 1m.
 
-Reads cluster and node-pool records from informer-backed listers to obtain their Cluster Service IDs, then fetches and logs Cluster Service state with a cluster GET and a GET for each registered node pool; no domain mutation.
+Reads cluster and node-pool records from informer-backed listers to obtain their Cluster Service IDs, then logs Cluster Service state with one cluster GET and one node pool List. No domain mutation.
 
 #### FPAVirtualMachineResourceSKUsCachedReader
 
