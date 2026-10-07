@@ -40,6 +40,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/admin/server/handlers/stamp"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/test/util/config"
 )
 
 const (
@@ -575,6 +576,13 @@ func DoAdminAPIRequest[T any](ctx context.Context, httpClient *http.Client, meth
 		return zero, fmt.Errorf("expected status %d, got %d: %s", expectedStatus, resp.StatusCode, string(respBody))
 	}
 
+	// 204 No Content has no body by definition (e.g. DELETE); don't attempt to
+	// decode it. For any other status an empty body is still a decode error, so a
+	// handler that unexpectedly returns no payload is caught.
+	if resp.StatusCode == http.StatusNoContent {
+		return zero, nil
+	}
+
 	var result T
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return zero, fmt.Errorf("failed to decode response: %w", err)
@@ -604,4 +612,167 @@ func adminAPIGet(ctx context.Context, httpClient *http.Client, endpoint string) 
 	}
 
 	return body, nil
+}
+
+// AlertProcessingRuleRequest is the test API for alert processing rule operations.
+// Unwanted dependencies are avoided by duplicating this contract.
+type AlertProcessingRuleRequest struct {
+	AlertRuleName     string   `json:"alertRuleName"`
+	ResourceFilter    string   `json:"resourceFilter,omitempty"`
+	StartTime         string   `json:"startTime"`
+	EndTime           string   `json:"endTime"`
+	Description       string   `json:"description,omitempty"`
+	IncidentReference string   `json:"incidentReference,omitempty"`
+	Enabled           *bool    `json:"enabled,omitempty"`
+	Scopes            []string `json:"scopes"`
+}
+
+// AlertProcessingRuleSummary is the response from the alert processing rules API.
+// Unwanted dependencies are avoided by duplicating this contract.
+type AlertProcessingRuleSummary struct {
+	Name           string            `json:"name"`
+	ID             string            `json:"id"`
+	Enabled        bool              `json:"enabled"`
+	Description    string            `json:"description,omitempty"`
+	Scopes         []string          `json:"scopes,omitempty"`
+	EffectiveFrom  string            `json:"effectiveFrom,omitempty"`
+	EffectiveUntil string            `json:"effectiveUntil,omitempty"`
+	Tags           map[string]string `json:"tags,omitempty"`
+}
+
+// AlertProcessingRuleListResponse is the response from the list alert processing rules API.
+type AlertProcessingRuleListResponse struct {
+	Value []AlertProcessingRuleSummary `json:"value"`
+}
+
+// GetServicesAMWResourceID constructs the services Azure Monitor Workspace resource ID
+func (tc *perItOrDescribeTestContext) GetServicesAMWResourceID(ctx context.Context) (string, error) {
+	serviceConfig, err := config.GetServiceConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to load service config: %w", err)
+	}
+
+	// The admin API's configured AMW lives in the regional/infrastructure
+	// subscription the service was deployed into, NOT the customer/hosted-clusters
+	// subscription returned by tc.SubscriptionID. Resolve that subscription by
+	// display name so the scope matches what the admin API was configured with.
+	clientFactory, err := tc.GetARMSubscriptionsClientFactory()
+	if err != nil {
+		return "", fmt.Errorf("failed to get ARM subscriptions client factory: %w", err)
+	}
+	svcSubscriptionName, err := config.GetStringByPath(serviceConfig, "svc.subscription.key")
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve svc.subscription.key: %w", err)
+	}
+	subscriptionID, err := GetSubscriptionID(ctx, clientFactory.NewClient(), svcSubscriptionName)
+	if err != nil {
+		return "", err
+	}
+
+	regionRG, err := config.GetStringByPath(serviceConfig, "regionRG")
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve regionRG: %w", err)
+	}
+
+	svcWorkspaceName, err := config.GetStringByPath(serviceConfig, "monitoring.svcWorkspaceName")
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve monitoring.svcWorkspaceName: %w", err)
+	}
+
+	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", subscriptionID, regionRG, svcWorkspaceName), nil
+}
+
+// CreateAlertProcessingRule creates an alert processing rule via the admin API.
+func (tc *perItOrDescribeTestContext) CreateAlertProcessingRule(ctx context.Context, ruleName string, req AlertProcessingRuleRequest, expectedStatus int) (AlertProcessingRuleSummary, error) {
+	httpClient, adminAPIAddr, err := tc.NewAdminAPIHTTPClient(ctx)
+	if err != nil {
+		return AlertProcessingRuleSummary{}, err
+	}
+	return createAlertProcessingRuleWithClient(ctx, httpClient, adminAPIAddr, ruleName, req, expectedStatus)
+}
+
+// GetAlertProcessingRule retrieves an alert processing rule via the admin API.
+func (tc *perItOrDescribeTestContext) GetAlertProcessingRule(ctx context.Context, ruleName string, expectedStatus int) (AlertProcessingRuleSummary, error) {
+	httpClient, adminAPIAddr, err := tc.NewAdminAPIHTTPClient(ctx)
+	if err != nil {
+		return AlertProcessingRuleSummary{}, err
+	}
+	return getAlertProcessingRuleWithClient(ctx, httpClient, adminAPIAddr, ruleName, expectedStatus)
+}
+
+// ListAlertProcessingRules lists alert processing rules via the admin API.
+func (tc *perItOrDescribeTestContext) ListAlertProcessingRules(ctx context.Context, expectedStatus int) (AlertProcessingRuleListResponse, error) {
+	httpClient, adminAPIAddr, err := tc.NewAdminAPIHTTPClient(ctx)
+	if err != nil {
+		return AlertProcessingRuleListResponse{}, err
+	}
+	return listAlertProcessingRulesWithClient(ctx, httpClient, adminAPIAddr, expectedStatus)
+}
+
+// UpdateAlertProcessingRule updates an alert processing rule via the admin API.
+func (tc *perItOrDescribeTestContext) UpdateAlertProcessingRule(ctx context.Context, ruleName string, req AlertProcessingRuleRequest, expectedStatus int) (AlertProcessingRuleSummary, error) {
+	httpClient, adminAPIAddr, err := tc.NewAdminAPIHTTPClient(ctx)
+	if err != nil {
+		return AlertProcessingRuleSummary{}, err
+	}
+	return createAlertProcessingRuleWithClient(ctx, httpClient, adminAPIAddr, ruleName, req, expectedStatus)
+}
+
+// DeleteAlertProcessingRule deletes an alert processing rule via the admin API.
+func (tc *perItOrDescribeTestContext) DeleteAlertProcessingRule(ctx context.Context, ruleName string, expectedStatus int) error {
+	httpClient, adminAPIAddr, err := tc.NewAdminAPIHTTPClient(ctx)
+	if err != nil {
+		return err
+	}
+	return deleteAlertProcessingRuleWithClient(ctx, httpClient, adminAPIAddr, ruleName, expectedStatus)
+}
+
+func createAlertProcessingRuleWithClient(ctx context.Context, httpClient *http.Client, adminAPIAddr, ruleName string, req AlertProcessingRuleRequest, expectedStatus int) (AlertProcessingRuleSummary, error) {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return AlertProcessingRuleSummary{}, err
+	}
+
+	return DoAdminAPIRequest[AlertProcessingRuleSummary](
+		ctx,
+		httpClient,
+		http.MethodPut,
+		fmt.Sprintf("%s/admin/v1/alertprocessingrules/%s", adminAPIAddr, ruleName),
+		expectedStatus,
+		bytes.NewBuffer(body),
+	)
+}
+
+func getAlertProcessingRuleWithClient(ctx context.Context, httpClient *http.Client, adminAPIAddr, ruleName string, expectedStatus int) (AlertProcessingRuleSummary, error) {
+	return DoAdminAPIRequest[AlertProcessingRuleSummary](
+		ctx,
+		httpClient,
+		http.MethodGet,
+		fmt.Sprintf("%s/admin/v1/alertprocessingrules/%s", adminAPIAddr, ruleName),
+		expectedStatus,
+		nil,
+	)
+}
+
+func listAlertProcessingRulesWithClient(ctx context.Context, httpClient *http.Client, adminAPIAddr string, expectedStatus int) (AlertProcessingRuleListResponse, error) {
+	return DoAdminAPIRequest[AlertProcessingRuleListResponse](
+		ctx,
+		httpClient,
+		http.MethodGet,
+		fmt.Sprintf("%s/admin/v1/alertprocessingrules", adminAPIAddr),
+		expectedStatus,
+		nil,
+	)
+}
+
+func deleteAlertProcessingRuleWithClient(ctx context.Context, httpClient *http.Client, adminAPIAddr, ruleName string, expectedStatus int) error {
+	_, err := DoAdminAPIRequest[any](
+		ctx,
+		httpClient,
+		http.MethodDelete,
+		fmt.Sprintf("%s/admin/v1/alertprocessingrules/%s", adminAPIAddr, ruleName),
+		expectedStatus,
+		nil,
+	)
+	return err
 }

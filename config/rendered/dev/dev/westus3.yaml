@@ -40,6 +40,8 @@ acrPull:
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
 adminApi:
+  alertProcessingRules:
+    deploy: true
   audit:
     connectSocket: false
   cert:

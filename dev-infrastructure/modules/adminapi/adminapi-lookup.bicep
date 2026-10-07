@@ -52,3 +52,9 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' exis
 }
 
 output cosmosDBDocumentEndpoint string = cosmosDbAccount.properties.documentEndpoint
+
+//
+//   S U B S C R I P T I O N   L O O K U P
+//
+
+output subscriptionId string = subscription().subscriptionId

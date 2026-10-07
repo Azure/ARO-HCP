@@ -141,6 +141,14 @@ spec:
           value: "24h"
         - name: AZURE_TOKEN_CREDENTIALS
           value: "WorkloadIdentityCredential"
+        - name: APR_SUBSCRIPTION_ID
+          value: "__subscriptionId__"
+        - name: APR_RESOURCE_GROUP
+          value: "hcp-underlay-dev-westus3"
+        - name: APR_SVC_AMW_NAME
+          value: "services-usw3"
+        - name: APR_HCP_AMW_NAME
+          value: "hcps-usw3"
         ports:
         - containerPort: 8443
           name: http
