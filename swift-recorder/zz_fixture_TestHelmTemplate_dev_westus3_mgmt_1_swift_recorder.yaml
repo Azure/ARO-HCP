@@ -20,6 +20,68 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - multitenancy.acn.azure.com
+  resources:
+  - multitenantpodnetworkconfigs
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machines
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - azuremachines
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - ignition-server-ca-cert
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  resourceNames:
+  - root-ca
+  verbs:
+  - get
+  - list
+  - watch
 ---
 # Source: swift-recorder/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -86,14 +148,15 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
       - name: swift-recorder
-        image: "arohcpsvcdev.azurecr.io/swift-recorder@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        image: "arohcpsvcdev.azurecr.io/swift-recorder@sha256:1234567890"
         command:
         - /swift-recorder
         args:
         - controller
         - --node-name=$(NODE_NAME)
         - --health-address=:8091
-        - --capture-mode=all
+        - --capture-mode=slow
+        - --runtime-endpoint=unix:///run/containerd/containerd.sock
         - --startup-dwell=30s
         - --post-success-capture=10s
         - --sample-interval=1s
@@ -161,6 +224,11 @@ spec:
         - name: boot-id
           mountPath: /host/boot-id
           readOnly: true
+        # Mount the parent so socket replacement after a runtime restart is visible.
+        # Read-only mounting does not restrict the runtime API exposed by the socket.
+        - name: containerd
+          mountPath: /run/containerd
+          readOnly: true
       volumes:
       - name: cni-logs
         hostPath:
@@ -174,6 +242,10 @@ spec:
         hostPath:
           path: /proc/sys/kernel/random/boot_id
           type: File
+      - name: containerd
+        hostPath:
+          path: /run/containerd
+          type: Directory
 ---
 # Source: swift-recorder/templates/metrics.yaml
 apiVersion: monitoring.coreos.com/v1
@@ -194,3 +266,4 @@ spec:
     matchLabels:
       app.kubernetes.io/name: swift-recorder
       port: metrics
+

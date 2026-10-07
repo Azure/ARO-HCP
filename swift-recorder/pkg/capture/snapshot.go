@@ -41,6 +41,7 @@ func Snapshot(ctx context.Context, executable, path string, maxBytes int) (json.
 	// Do not wait indefinitely for inherited pipe descriptors after child exit.
 	cmd.WaitDelay = 10 * time.Millisecond
 	err := cmd.Run()
+	LogCleanupErrors(ctx, stderr.data)
 	if stdout.exceeded || stderr.exceeded {
 		return nil, fmt.Errorf("capture output exceeded %d bytes", maxBytes)
 	}

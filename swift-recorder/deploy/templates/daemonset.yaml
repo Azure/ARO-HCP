@@ -42,6 +42,7 @@ spec:
         - --node-name=$(NODE_NAME)
         - --health-address=:8091
         - --capture-mode={{ .Values.captureMode }}
+        - --runtime-endpoint=unix:///run/containerd/containerd.sock
         - --startup-dwell=30s
         - --post-success-capture=10s
         - --sample-interval=1s
@@ -105,6 +106,11 @@ spec:
         - name: boot-id
           mountPath: /host/boot-id
           readOnly: true
+        # Mount the parent so socket replacement after a runtime restart is visible.
+        # Read-only mounting does not restrict the runtime API exposed by the socket.
+        - name: containerd
+          mountPath: /run/containerd
+          readOnly: true
       volumes:
       - name: cni-logs
         hostPath:
@@ -118,4 +124,8 @@ spec:
         hostPath:
           path: /proc/sys/kernel/random/boot_id
           type: File
+      - name: containerd
+        hostPath:
+          path: /run/containerd
+          type: Directory
 {{- end }}
