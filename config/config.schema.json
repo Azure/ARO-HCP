@@ -1578,7 +1578,7 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Disabled pipelines skip image mirroring and deployment."
+          "description": "Enabled by default in every environment. Disabled pipelines skip image mirroring and deployment, but do not uninstall an existing release."
         },
         "useMgmtAgentImage": {
           "type": "boolean",
@@ -1596,22 +1596,7 @@
         }
       },
       "additionalProperties": false,
-      "required": ["enabled", "useMgmtAgentImage", "captureMode", "image", "k8s"],
-      "if": {
-        "properties": {
-          "enabled": {"const": true},
-          "useMgmtAgentImage": {"const": false}
-        }
-      },
-      "then": {
-        "properties": {
-          "image": {
-            "properties": {
-              "digest": {"minLength": 1}
-            }
-          }
-        }
-      }
+      "required": ["enabled", "useMgmtAgentImage", "captureMode", "image", "k8s"]
     },
     "kubeApplier": {
       "type": "object",

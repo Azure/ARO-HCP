@@ -178,10 +178,25 @@ func runRecorderIntegration(t *testing.T) {
 	changed := make(chan struct{})
 	watchStarted := make(chan struct{})
 	var watchOnce sync.Once
+	discoveryLists := map[string]metav1.TypeMeta{
+		"/api/v1/pods":                             {APIVersion: "v1", Kind: "PodList"},
+		"/api/v1/services":                         {APIVersion: "v1", Kind: "ServiceList"},
+		"/api/v1/secrets":                          {APIVersion: "v1", Kind: "SecretList"},
+		"/api/v1/configmaps":                       {APIVersion: "v1", Kind: "ConfigMapList"},
+		"/apis/discovery.k8s.io/v1/endpointslices": {APIVersion: "discovery.k8s.io/v1", Kind: "EndpointSliceList"},
+		"/apis/route.openshift.io/v1/routes":       {APIVersion: "route.openshift.io/v1", Kind: "RouteList"},
+		"/apis/multitenancy.acn.azure.com/v1alpha1/multitenantpodnetworkconfigs": {APIVersion: "multitenancy.acn.azure.com/v1alpha1", Kind: "MultitenantPodNetworkConfigList"},
+		"/apis/cluster.x-k8s.io/v1beta1/machines":                                {APIVersion: "cluster.x-k8s.io/v1beta1", Kind: "MachineList"},
+		"/apis/infrastructure.cluster.x-k8s.io/v1beta1/azuremachines":            {APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1", Kind: "AzureMachineList"},
+	}
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/pods" || r.URL.Query().Get("fieldSelector") != "spec.nodeName=integration-node" {
+		listType, supported := discoveryLists[r.URL.Path]
+		nodeScoped := r.URL.Path == "/api/v1/pods" && r.URL.Query().Get("fieldSelector") == "spec.nodeName=integration-node"
+		trustScoped := (r.URL.Path == "/api/v1/secrets" && r.URL.Query().Get("fieldSelector") == "metadata.name=ignition-server-ca-cert") ||
+			(r.URL.Path == "/api/v1/configmaps" && r.URL.Query().Get("fieldSelector") == "metadata.name=root-ca")
+		if r.Method != http.MethodGet || !supported || (r.URL.Query().Get("fieldSelector") != "" && !nodeScoped && !trustScoped) {
 			t.Errorf("unexpected Kubernetes request: %s %s", r.Method, r.URL)
-			http.Error(w, "only node-scoped pod list/watch is supported", http.StatusBadRequest)
+			http.Error(w, "unsupported list/watch request", http.StatusBadRequest)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -193,6 +208,20 @@ func runRecorderIntegration(t *testing.T) {
 			_ = encoder.Encode(metav1.Status{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Status"},
 				Status: metav1.StatusFailure, Reason: metav1.StatusReasonBadRequest, Code: http.StatusBadRequest,
 				Message: "sendInitialEvents is not supported by the integration API"})
+			return
+		}
+		// No routers are present. Discovery watches stay empty and must not
+		// satisfy the startup fixture's node-scoped watch readiness signal.
+		if !nodeScoped {
+			if r.URL.Query().Get("watch") == "true" {
+				w.(http.Flusher).Flush()
+				<-r.Context().Done()
+				return
+			}
+			_ = encoder.Encode(map[string]any{
+				"apiVersion": listType.APIVersion, "kind": listType.Kind,
+				"metadata": metav1.ListMeta{ResourceVersion: "1"}, "items": []any{},
+			})
 			return
 		}
 		if r.URL.Query().Get("watch") != "true" {

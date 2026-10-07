@@ -38,14 +38,18 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/swift-recorder/pkg/probe"
 	"github.com/Azure/ARO-HCP/swift-recorder/pkg/recorder"
+	"github.com/Azure/ARO-HCP/swift-recorder/pkg/routercheck"
 	"github.com/Azure/ARO-HCP/swift-recorder/pkg/testutil"
 )
 
@@ -61,6 +65,7 @@ func testOptions(t *testing.T) RawOptions {
 			MaxPods: 2, MaxRecordBytes: 2048, MaxBufferBytes: 8192,
 		},
 		HealthAddress: "127.0.0.1:0", CNILog: filepath.Join(dir, "azure-vnet.log"), BootIDFile: filepath.Join(dir, "boot-id"),
+		RuntimeEndpoint: "unix:///run/containerd/containerd.sock",
 	}
 }
 
@@ -78,10 +83,14 @@ func TestControllerFlags(t *testing.T) {
 		"startup-dwell": "30s", "post-success-capture": "10s", "sample-interval": "1s",
 		"capture-timeout": "500ms", "episode-timeout": "15m0s", "max-pods": "32",
 		"max-buffer-bytes": "16777216", "max-record-bytes": "65536", "log-verbosity": "0",
+		"runtime-endpoint": "unix:///run/containerd/containerd.sock",
 	} {
 		if flag := command.Flags().Lookup(name); flag == nil || flag.DefValue != want {
 			t.Errorf("flag %s = %v, want default %q", name, flag, want)
 		}
+	}
+	if command.Flags().Lookup("router-checks") != nil {
+		t.Fatal("router checks must not have a separate enablement flag")
 	}
 	if err := command.Args(command, []string{"unexpected"}); err == nil {
 		t.Error("controller accepted positional arguments")
@@ -89,6 +98,10 @@ func TestControllerFlags(t *testing.T) {
 	helper, _, err := root.Find([]string{"capture"})
 	if err != nil || !helper.Hidden || helper.Flags().Lookup("path") == nil {
 		t.Fatalf("hidden capture helper not registered: command=%v, error=%v", helper, err)
+	}
+	routerHelper, _, err := root.Find([]string{"router-probe"})
+	if err != nil || !routerHelper.Hidden {
+		t.Fatalf("hidden router-probe helper not registered: %v", err)
 	}
 
 	for _, tc := range []struct {
@@ -104,6 +117,7 @@ func TestControllerFlags(t *testing.T) {
 		{"verbosity", "--log-verbosity=-1", "log verbosity"},
 		{"health", "--health-address=", "health address"},
 		{"path", "--cni-log=relative", "paths must be absolute"},
+		{"runtime endpoint", "--runtime-endpoint=tcp://localhost:1234", "unix"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := NewRootCmd()
@@ -112,6 +126,35 @@ func TestControllerFlags(t *testing.T) {
 				t.Fatalf("flag validation error = %v, want %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestRouterCheckValidation(t *testing.T) {
+	for _, environment := range []string{"ci00", "ci01", "dev", "pers", "perf", "int", "stg", "prod", "cspr", "test"} {
+		o := testOptions(t)
+		o.Environment = environment
+		_, err := o.Validate()
+		if err != nil {
+			t.Errorf("environment %q: %v", environment, err)
+		}
+	}
+	o := testOptions(t)
+	o.Environment = "ci00"
+	o.RuntimeEndpoint = "tcp://localhost:1234"
+	if _, err := o.Validate(); err == nil {
+		t.Fatal("non-unix CRI endpoint accepted")
+	}
+}
+
+func TestRouterProbeInput(t *testing.T) {
+	for _, input := range []string{"{", "{} {}", `{"unexpected":true}`, strings.Repeat(" ", probe.MaxRequestBytes+1)} {
+		root := NewRootCmd()
+		root.SetArgs([]string{"router-probe"})
+		root.SetIn(strings.NewReader(input))
+		root.SetOut(io.Discard)
+		if err := root.ExecuteContext(t.Context()); err == nil || (!strings.Contains(err.Error(), "request") && !strings.Contains(err.Error(), "too large")) {
+			t.Fatalf("invalid request accepted: %v", err)
+		}
 	}
 }
 
@@ -211,7 +254,7 @@ func TestMuxReadinessAndMetrics(t *testing.T) {
 }
 
 func TestComplete(t *testing.T) {
-	for _, kind := range []string{"valid", "missing boot id", "empty boot id", "missing netns", "invalid kubeconfig"} {
+	for _, kind := range []string{"valid", "router checks unavailable runtime", "missing boot id", "empty boot id", "missing netns", "invalid kubeconfig"} {
 		t.Run(kind, func(t *testing.T) {
 			defer checkRecorderGoroutines(t)()
 			o := testOptions(t)
@@ -235,6 +278,9 @@ current-context: test
 			}
 			wantError := ""
 			switch kind {
+			case "router checks unavailable runtime":
+				o.Environment = "ci00"
+				o.RuntimeEndpoint = "unix://" + filepath.Join(o.NetNSDir, "missing.sock")
 			case "missing boot id":
 				o.BootIDFile += "-missing"
 				wantError = "read host boot ID"
@@ -269,12 +315,21 @@ current-context: test
 				ctx, cancel := context.WithCancel(ctx)
 				cancel()
 				_ = completed.controller.Run(ctx)
+				if completed.routerController != nil {
+					_ = completed.routerController.Run(ctx)
+				}
+				if completed.closeRuntime != nil {
+					_ = completed.closeRuntime()
+				}
 			}()
 			if completed.options.BootID != "host-boot-id" || !filepath.IsAbs(completed.options.Executable) || completed.factory == nil || completed.controller == nil {
 				t.Fatalf("incomplete runtime configuration: %+v", completed)
 			}
 			if validated.options != o {
 				t.Error("Complete mutated validated options")
+			}
+			if kind == "router checks unavailable runtime" && completed.routerController == nil {
+				t.Fatal("router controller not wired")
 			}
 		})
 	}
@@ -360,7 +415,7 @@ func waitHTTPStatus(t *testing.T, client *http.Client, address, path string, wan
 }
 
 func TestRun(t *testing.T) {
-	for _, kind := range []string{"existing log", "missing log", "cancel before cache sync"} {
+	for _, kind := range []string{"existing log", "missing log", "cancel before cache sync", "router runtime unavailable"} {
 		t.Run(kind, func(t *testing.T) {
 			defer checkRecorderGoroutines(t)()
 			o := testOptions(t)
@@ -407,6 +462,25 @@ func TestRun(t *testing.T) {
 				t.Fatal(err)
 			}
 			completed := &CompletedOptions{options: o, factory: factory, controller: ctrl}
+			if kind == "router runtime unavailable" {
+				pod.Labels = map[string]string{"app": "private-router", "kubernetes.azure.com/pod-network-instance": "pni"}
+				if _, err := client.CoreV1().Pods(pod.Namespace).Update(t.Context(), pod, metav1.UpdateOptions{}); err != nil {
+					t.Fatal(err)
+				}
+				dynamicClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(k8sruntime.NewScheme(), map[schema.GroupVersionResource]string{
+					{Group: "route.openshift.io", Version: "v1", Resource: "routes"}:                                     "RouteList",
+					{Group: "multitenancy.acn.azure.com", Version: "v1alpha1", Resource: "multitenantpodnetworkconfigs"}: "MultitenantPodNetworkConfigList",
+					{Group: "cluster.x-k8s.io", Version: "v1beta1", Resource: "machines"}:                                "MachineList",
+					{Group: "infrastructure.cluster.x-k8s.io", Version: "v1beta1", Resource: "azuremachines"}:            "AzureMachineList",
+				})
+				completed.routerController, err = routercheck.New(routercheck.Config{NodeName: o.NodeName, Executable: o.Executable, MaxRecordBytes: o.MaxRecordBytes}, factory.Core().V1().Pods(), client, dynamicClient, unavailableRuntime{}, func(context.Context, string, probe.Request) (json.RawMessage, error) {
+					t.Error("helper ran without a sandbox")
+					return nil, nil
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
 			ctx, cancel := context.WithCancel(utils.ContextWithLogger(t.Context(), logr.Discard()))
 			done := make(chan struct{})
 			var runErr error
@@ -485,6 +559,12 @@ func TestRun(t *testing.T) {
 			_ = listener.Close()
 		})
 	}
+}
+
+type unavailableRuntime struct{}
+
+func (unavailableRuntime) Sandbox(context.Context, *corev1.Pod) (routercheck.Sandbox, error) {
+	return routercheck.Sandbox{}, errors.New("runtime unavailable")
 }
 
 func TestRunStartupFailure(t *testing.T) {

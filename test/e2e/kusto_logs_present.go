@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -41,6 +42,7 @@ var _ = Describe("Engineering", func() {
 		labels.RequiresConfig,
 		labels.MIContainers(1),
 		func(ctx context.Context) {
+			startTime := time.Now()
 			const (
 				engineeringNetworkSecurityGroupName = "engineering-nsg-name"
 				engineeringVnetName                 = "engineering-vnet-name"
@@ -59,13 +61,14 @@ var _ = Describe("Engineering", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for kusto-logs test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams.DisableSwift = false
 			clusterParams.ClusterName = engineeringClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -79,16 +82,35 @@ var _ = Describe("Engineering", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20251223(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for kusto logs test")
+
+			By("creating two workers for SWIFT outbound controls")
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams.ClusterName = engineeringClusterName
+			nodePoolParams.NodePoolName = "engineering-workers"
+			nodePoolParams.Replicas = 2
+			err = tc.CreateNodePoolFromParam20240610(ctx, GinkgoLogr, *resourceGroup.Name,
+				managedResourceGroupName, engineeringClusterName, nodePoolParams, framework.NodePoolCreationTimeout)
+			Expect(err).NotTo(HaveOccurred(), "failed to create workers for SWIFT outbound controls")
+
 			subscriptionID, err := tc.SubscriptionID(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
+			By("verifying fresh complete SWIFT checks from every current router via Kusto")
+			credential, err := tc.AzureCredential()
+			Expect(err).NotTo(HaveOccurred(), "failed to get test Azure credential for Kusto")
+			resourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s",
+				subscriptionID, *resourceGroup.Name, engineeringClusterName)
+			err = verifiers.VerifySwiftRouterChecks(ctx, credential, resourceID, startTime, int(nodePoolParams.Replicas), 12*time.Minute)
+			Expect(err).NotTo(HaveOccurred(), "expected complete healthy SWIFT router, ignition, KAS, DNS and worker checks for %s", resourceID)
+
 			By("verifying kusto logs are present")
 
 			Eventually(func() error {

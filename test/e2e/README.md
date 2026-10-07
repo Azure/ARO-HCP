@@ -19,7 +19,7 @@ their existing non-SWIFT behavior.
 Set `clusterParams.DisableSwift = false` explicitly for private API or private
 KMS scenarios, which always require VNet integration. Public SWIFT coverage is
 retained by the OCP-version install table (`2025-12-23-preview`), node-pool
-deletion (`2026-09-01-preview`), cluster/node-pool active versions
+deletion (`2026-09-01-preview`), telemetry (`2025-12-23-preview`), cluster/node-pool active versions
 (`2026-10-01-preview`), and the independent HyperShift presubmit test. The install
 table covers each available OCP release line; entries without resolvable releases
 skip before creating a cluster. There is not yet a `2026-06-30-preview` creation
@@ -32,6 +32,46 @@ tag or revoking AFEC does not change an existing cluster's networking or prevent
 ordinary updates. An honored `"true"` tag together with an integration subnet is
 rejected. Tag names are case-insensitive; values must be exactly `"true"` or
 `"false"`. Without AFEC, the tag is ignored and normal subnet requirements apply.
+
+### SWIFT Telemetry Coverage
+
+`Engineering should be able to retrieve kusto logs for a cluster and services`
+creates an explicitly SWIFT-enabled cluster and two workers. See the
+[test](kusto_logs_present.go) and [`VerifySwiftRouterChecks` implementation/KQL](../util/verifiers/swift.go).
+It uses the test context's Azure credential, not management-cluster credentials,
+and service config `kusto.kustoName`, `kusto.location`, `kusto.serviceLogsDatabase`.
+The credential needs query access to `cosmosResourceSnapshots`,
+`kubernetesResourceSnapshots`, and `containerLogs` in that database.
+
+Mapping is exact: customer ARM ID -> child cluster ReadDesire HostedCluster ->
+fleet management-cluster document -> AKS telemetry cluster and HCP namespace
+(`metadata.namespace + "-" + metadata.name`). ReadDesire matching is
+case-insensitive and slash-delimited, excluding similarly named clusters and
+node-pool ReadDesires; it does not use Cluster Service log CID or `spec.infraID`.
+`spec.managementCluster` joins fleet `resourceID` case-insensitively; the last
+segment of fleet `status.aksResourceID` supplies the telemetry cluster name.
+Cosmos joins retain environment, region, and snapshot-emitting service cluster
+(not the target management cluster) to avoid collisions across personal/CI installs.
+Latest documents are selected by `content._ts`, then snapshot `timestamp`, before
+excluding tombstones or absent/deleting manifests; duplicates do not multiply
+scope. Mapping documents may predate test start. The linked KQL specifies the
+manifest fields and fleet resource types.
+
+Kubernetes evidence must be since test start: latest snapshots, filtered for
+deletion afterward, establish router Deployment replicas and every Running,
+nondeleting private-router Pod UID. Missing/ambiguous mapping, replicas, or reports
+cannot pass. Kusto returns bounded summaries, not raw probe logs.
+
+Call `VerifySwiftRouterChecks(ctx, credential, resourceID, startTime, workers, timeout)`
+with a nonzero test start and positive worker count/timeout; this test allows
+12 minutes. Every current router needs a latest healthy, complete summary matching
+its UID/node, emitted after test start and no more than eight minutes old.
+All [probe roles and DNS coverage](../../swift-recorder/LOG_RECORDS.md#role-matrix-and-tls-identities)
+must be present, including all peers and at least the requested worker count.
+Non-TCP targets require HTTP success (verified TLS for HTTPS); worker TCP refusal
+counts as reachability, not SSH readiness. Partial/canceled passes, missing coverage,
+and protocol failures fail. The verifier owns polling, one-minute query deadlines,
+and delta-only timeout diagnostics; do not wrap it in another `Eventually`.
 
 ### Resource Naming
 
@@ -50,7 +90,7 @@ When writing E2E test cases that provision their own cluster (i.e., the test cas
 - **Label Requirement:** You **MUST** add the `RequireNothing` label to these test cases. This label ensures the test is always considered for CI execution.
 - **Triggering in CI:** These tests will automatically run in the CI pipeline when a pull request is created or updated. Specifically, they are executed as part of the `ci/prow/integration...` and `ci/prow/stage...` jobs.
 
-See [`test/e2e/complete_cluster_create.go`](complete_cluster_create.go) for a reference implementation.
+See [`test/e2e/complete_cluster_create_multiversion.go`](complete_cluster_create_multiversion.go) for a reference implementation.
 
 > **Note:** Creating per-test cluster test cases is the **main focus** of this test suite. Whenever possible, prefer writing per-test cluster test cases over per-run cluster test cases. Priority may change in future.
 

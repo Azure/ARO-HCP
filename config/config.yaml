@@ -279,7 +279,7 @@ defaults:
           memory: 768Mi
   # SWIFT-v2 node-local startup recorder. Dedicated image pending; CI bootstraps below.
   swiftRecorder:
-    enabled: false
+    enabled: true
     useMgmtAgentImage: false
     captureMode: slow
     image:
@@ -1826,7 +1826,6 @@ clouds:
           # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
           # Remove this image switch after dedicated image onboarding (stage 2).
           swiftRecorder:
-            enabled: true
             captureMode: all
             useMgmtAgentImage: true
           # Avoid per-restore instant-access fees while retaining backup coverage.
@@ -1932,7 +1931,6 @@ clouds:
           # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
           # Remove this image switch after dedicated image onboarding (stage 2).
           swiftRecorder:
-            enabled: true
             captureMode: all
             useMgmtAgentImage: true
           # Avoid per-restore instant-access fees while retaining backup coverage.
