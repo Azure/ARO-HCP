@@ -1,4 +1,4 @@
-# E2E Testing - ARO HCP E2E Test Suite
+# E2E Testing - ARO HCP E2E Test Suite - Zero DIFF
 
 The E2E test suite will work in every environment of the ARO-HCP project. Its main purpose is to ensure specific functionality based on the environment and its usage.
 
