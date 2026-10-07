@@ -53,6 +53,16 @@ func TestCheckPaths(t *testing.T) {
 		{name: "nested file in editor directory", path: ".vscode/profiles/default.json", rule: ruleEditorConfig},
 		{name: "unknown future editor file", path: ".vscode/whatever-ships-next.json", rule: ruleEditorConfig},
 
+		// An editor workspace file carries everything .vscode/ does, under a
+		// name its author picks and usually at the repository root, so it is
+		// matched by extension at any path rather than under a directory.
+		{name: "workspace file at root", path: "aro-hcp.code-workspace", rule: ruleEditorConfig},
+		{name: "nested workspace file", path: "docs/team.code-workspace", rule: ruleEditorConfig},
+		{name: "workspace file in editor directory", path: ".vscode/x.code-workspace", rule: ruleEditorConfig},
+		{name: "workspace file with dotted name", path: "my.project.code-workspace", rule: ruleEditorConfig},
+		{name: "uppercased workspace file", path: "Team.Code-Workspace", rule: ruleEditorConfig},
+		{name: "workspace file in agent directory", path: ".claude/x.code-workspace", rule: ruleEditorConfig},
+
 		// MCP server config is matched by basename at any path: the
 		// project-scoped form has no .claude segment to key off.
 		{name: "project-scoped mcp config", path: ".mcp.json", rule: ruleAgentSettings},
@@ -127,6 +137,10 @@ func TestCheckPaths(t *testing.T) {
 		{name: "submodule outside config directories", path: "vendor/thirdparty", mode: modeSubmodule},
 
 		{name: "similarly named file", path: "config/mcp.json.tmpl"},
+		// The workspace rule is the final extension, not a substring: docs
+		// about workspace files are ordinary content.
+		{name: "doc about a workspace file", path: "docs/setup.code-workspace.md"},
+		{name: "workspace extension as a directory", path: "code-workspace/notes.md"},
 		{name: "devcontainer config", path: ".devcontainer/devcontainer.json"},
 		{name: "devcontainer script", path: ".devcontainer/postCreate.sh"},
 		{name: "unrelated settings file", path: "config/settings.json"},
