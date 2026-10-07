@@ -184,6 +184,15 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Relationship To `e2e-parallel`](upgrade-path-presubmit.md#relationship-to-e2e-parallel)
 - [Known Limitations](upgrade-path-presubmit.md#known-limitations)
 
+### [Supply-Chain Presubmit](supply-chain-presubmit.md)
+
+- [What It Blocks](supply-chain-presubmit.md#what-it-blocks)
+- [Threat Model And Scope](supply-chain-presubmit.md#threat-model-and-scope)
+- [Design Decisions](supply-chain-presubmit.md#design-decisions)
+- [Interpreting Failures](supply-chain-presubmit.md#interpreting-failures)
+- [Extending The Check](supply-chain-presubmit.md#extending-the-check)
+- [Known Limitations](supply-chain-presubmit.md#known-limitations)
+
 ### [CI Operations](operations.md)
 
 - [Inspecting Runs](operations.md#inspecting-runs)
@@ -228,6 +237,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [CI Cleanup](cleanup.md) explains why cleanup is intentionally split across strict per-test teardown, targeted environment teardown, and background hygiene.
 - [E2E Testing In CI](e2e-testing.md) explains how to trigger E2E jobs from PRs and how to narrow test selection safely.
 - [Upgrade-Path Presubmit](upgrade-path-presubmit.md) explains the optional `upgrade-e2e-parallel` job that validates main-to-PR infrastructure upgrades, including how to trigger it, interpret failures, and understand its image resolution strategy.
+- [Supply-Chain Presubmit](supply-chain-presubmit.md) explains the `make verify-supply-chain` check that blocks committed agent and editor configuration, including its threat model, why each rule refuses rather than resolves, and what it deliberately leaves to human review.
 - [CI Operations](operations.md) explains how to trigger, inspect, troubleshoot, and change the CI system itself.
 
 ## Source Of Truth
