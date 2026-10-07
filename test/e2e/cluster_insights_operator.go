@@ -123,18 +123,23 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability")
 
-			By("verifying Insights Operator does not yet have cloud.openshift.com token")
+			By("verifying Insights Operator is in Disabled/NoToken state before adding token")
 			configClient, err := configv1client.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create config client for Insights Operator pre-check")
 
 			insightsCO, err := configClient.ClusterOperators().Get(ctx, "insights", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to get ClusterOperator insights for pre-check")
 
+			disabledFound := false
 			for _, cond := range insightsCO.Status.Conditions {
-				if cond.Type == configv1.OperatorAvailable && cond.Status == configv1.ConditionTrue {
-					Skip("Insights Operator is already Available before cloud.openshift.com token was added, " +
-						"the NoToken-to-healthy transition cannot be tested")
+				if cond.Type == "Disabled" && cond.Status == configv1.ConditionTrue && cond.Reason == "NoToken" {
+					disabledFound = true
+					break
 				}
+			}
+			if !disabledFound {
+				Skip("Insights Operator is not in Disabled/NoToken state, " +
+					"the NoToken-to-healthy transition cannot be tested")
 			}
 
 			By("creating additional-pull-secret with cloud.openshift.com token")
