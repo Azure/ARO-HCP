@@ -173,7 +173,7 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/command/runtime
-      digest: sha256:161971cdd3bfe66be6a9b96d67fabf8c4b54a88b841add1aaced26b0a00358b4 # master.260914.1 (2026-09-14 00:00)
+      digest: sha256:37df117f1179d78fd372fd35878d53ff30dfb350fb571fb197f3a2bee48bd157 # master.261001.6 (2026-10-01 00:00)
   # Arobit
   arobit:
     forwarder:
@@ -212,14 +212,14 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:8dcdcbb193278f21587a96cb958ab100c6140c2284b1e95a98ddf749d3cc0703 # 1.44.2-20261002-1 (2026-10-02 12:48)
+        digest: sha256:7078728ffb6e251a2355d89b66bc977825a51352eee365aa6d0b00e3e0bc2b90 # 1.44.2-20261006-1 (2026-10-06 16:53)
   # Kube Events
   kubeEvents:
     enabled: true
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:54b14654077ec8c910ff0eeeda191bb45421c6496b2211751fbfd13b38779a46 # 20260927.1 (2026-09-27 03:25)
+      digest: sha256:7c0c84fdd1dde7d32754d602c60e7432108ecef850d5bcd2efc549110fbda458 # 20261004.1 (2026-10-04 03:26)
     k8s:
       namespace: monitoring
       serviceAccountName: ke-serviceaccount
@@ -437,7 +437,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:c94fd6357b05fd18ba1a0a39628488eb2f2246610b7c230640077eb92ca92b07 # 32651930f2fb6eb1e634d0378247cf0c2e320884 (2026-10-02 13:40)
+      digest: sha256:7c9c1add28497198f076d7c754c88d582306daba875c844b7692ab9907602120 # 677a841149d56ac1c68f1b2c5b40a2bcbe4a2d6e (2026-10-06 20:11)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -571,15 +571,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:8d1d01d0f429208b83725ab55beb358aee024f9c1b1511ea940fee220b0bb7fe # 1.6.2 (2026-10-01 18:37)
+      digest: sha256:e136364d692d38fae386d04b3ffc353e79c845e3403237098217945641152fde # 1.6.2 (2026-10-05 18:28)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:9d772e6ec41a99a9807e8a579010b9c2c0824d40d418e7dd7643782f09fab8fe # 1.6.2 (2026-10-01 22:37)
+      digest: sha256:089b210b4ad2a456947e62e7e56b960a4c8eb897e7b0a516c4261403d6bf7b54 # 1.6.2 (2026-10-05 18:28)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:894c2b85eb6db3381e03cd9cc5b84dc518ba043e5c0f331a5eeaebfc3f806ffb # 1.6.2 (2026-10-01 22:37)
+      digest: sha256:f9366e885089db8a2aa95fdac1f536ea9c1ae8f963a3327a815a255c434cb67e # 1.6.2 (2026-10-05 18:28)
   # SVC cluster specifics
   svc:
     subscription:
@@ -1108,7 +1108,7 @@ defaults:
         image:
           registry: mcr.microsoft.com
           repository: azurelinux/base/nginx
-          digest: sha256:3a8316d42c6491dbc15f2cf59985901365c7c402d3a0649abe695a4a6554654e # 1.30.4-1-azl3.0.20260923 (2026-09-23 21:03)
+          digest: sha256:f60f8c38a8bda8509b4308df13d4faeefd68268632e4d383164b50fd0ef46dd8 # 1.30.4-1-azl3.0.20261005 (2026-10-06 14:27)
     eventGrid:
       name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
@@ -1134,19 +1134,19 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:9af415e086251e94f471e03844ce768bed6493653b6cabdaff68acf99573679d # 548e3487a36df54031a355019bc3a224e930273d (2026-09-22 14:09)
+      digest: sha256:ccc6c4381bbbc6a7af65d4c3886e20baea76f7bb95ea6048b33ee31e8046e5cb # 43ab9a8fb83760ba9752f80db3067053737b59cb (2026-10-06 15:58)
   # ACM
   acm:
     operator:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:0caf9b648dd1df7c47c4ece294cb41ce559a16d45c42e26a0a111cfa8932d948 # v2.17.4-474 (2026-10-01 20:21)
+        digest: sha256:ba0a3874aca0d52bc0207506a4e0453c341deda0e767fd2cdf7100c139a74005 # v2.17.4-478 (2026-10-07 00:52)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:d88f1b5db1d00985843e95b2f000f043b5b42ef5784739f6b03c21628faccaa8 # v2.17.4-513 (2026-10-01 20:07)
+        digest: sha256:91b334c34abd5c30371840831058c96d8121a36093f8a50d544999fd541c23a0 # v2.17.4-520 (2026-10-06 20:08)
   # Cluster Service
   clustersService:
     image:
