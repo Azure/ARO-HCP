@@ -16,12 +16,12 @@ package controllerutils
 
 import (
 	"bytes"
-	"encoding/json"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/json"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -88,8 +88,12 @@ var needsUpdateEqualities = func() conversion.Equalities {
 			if bytes.Equal(aBytes, bBytes) {
 				return true
 			}
-			// Normalize both to canonical JSON (sorted keys) so that
-			// key-ordering differences don't produce false positives.
+			// Round-trip both payloads through k8s util/json and compare the
+			// re-marshaled bytes. util/json decodes whole numbers to int64 (so
+			// integers beyond float64's 2^53 range stay distinguishable) and
+			// re-marshaling canonicalizes the rest: map keys are sorted (so
+			// key-ordering differences don't matter) and equal numbers render
+			// identically (3 == 3.0, 1e6 == 1000000, int64 == whole float64).
 			var aObj, bObj any
 			if err := json.Unmarshal(aBytes, &aObj); err != nil {
 				return false

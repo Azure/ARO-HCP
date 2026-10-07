@@ -16,8 +16,9 @@ package cosmosstorageutils
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+
+	"k8s.io/apimachinery/pkg/util/json"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
