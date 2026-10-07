@@ -60,7 +60,7 @@ func TestHyperShiftIngressCertificateWiring(test *testing.T) {
 			if testCase.reference != "" {
 				controller.Spec.DefaultCertificate = &corev1.LocalObjectReference{Name: testCase.reference}
 			}
-			operatorClient := operatorfake.NewSimpleClientset(controller)
+			operatorClient := operatorfake.NewClientset(controller)
 			err := verifyHyperShiftIngressCertificateWiring(test.Context(), kubeClient, operatorClient)
 			if testCase.wantError == "" {
 				require.NoError(test, err)
