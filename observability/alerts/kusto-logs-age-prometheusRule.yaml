@@ -10,7 +10,32 @@ spec:
       component: kusto
     rules:
     - alert: KustoLogsDataStale
-      expr: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster!~".*-svc-.*"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster=~".*-svc-.*"} > 7200
+      # Quiet clusters may emit no systemdLogs; other tables keep the plain > 3600 threshold.
+      # The node-level kubelet/containerd runtime counter reaches the services AMW,
+      # unlike KSM pod metrics affected by the ocm-* namespace remoteWrite drop.
+      # This works for svc and mgmt clusters without a cluster_type label.
+      # Container and podsandbox lifecycle ops generate the kubelet/containerd
+      # journald entries that feed systemdLogs.
+      # The 15m window requires recent/ongoing runtime activity, not a wide lookback.
+      # During a genuine ingestion stall in an active run, continuous container ops
+      # keep the gate true through the 15m pending period so the alert fires.
+      # A healthy burst whose logs were ingested, followed by legitimate silence,
+      # drops out of this window well before log age crosses 1h, avoiding a false alert.
+      # Accepted limitation: a single isolated op whose log is lost, followed by
+      # total silence, is not caught (a lone dropped record with no follow-on activity).
+      # and on (cluster) preserves exporter labels (cluster, kusto_cluster, table)
+      # and therefore the existing annotations.
+      expr: |
+        kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600
+        or (
+          kusto_logs_age_in_seconds{table="systemdlogs"} > 3600
+          and on (cluster)
+          (
+            sum by (cluster) (
+              increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])
+            ) > 0
+          )
+        )
       for: 15m
       labels:
         severity: warning

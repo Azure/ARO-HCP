@@ -2,11 +2,68 @@ rule_files:
 - kusto-logs-age-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# KustoLogsDataStale - alert fires when age exceeds 1 hour
-- interval: 1m
+- name: stale systemdlogs with continuous runtime activity fires on svc and mgmt clusters
+  interval: 1m
+  input_series:
+  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="sc-test",table="systemdlogs"}'
+    values: "5400+0x120"
+  - series: 'kubelet_runtime_operations_total{cluster="sc-test",instance="node-1",operation_type="create_container"}'
+    values: "0+0x90 1+1x29"
+  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="mc-test",table="systemdlogs"}'
+    values: "5400+0x120"
+  - series: 'kubelet_runtime_operations_total{cluster="mc-test",instance="node-2",operation_type="run_podsandbox"}'
+    values: "0+0x90 1+1x29"
+  alert_rule_test:
+  - eval_time: 105m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+  - eval_time: 106m
+    alertname: KustoLogsDataStale
+    exp_alerts:
+    - exp_labels:
+        alertname: KustoLogsDataStale
+        cluster: sc-test
+        component: kusto
+        kusto_cluster: testcluster
+        severity: warning
+        table: systemdlogs
+      exp_annotations:
+        description: |
+          Kusto log data for table systemdlogs on cluster sc-test (Kusto cluster testcluster) is stale. Check the ingestion pipeline.
+        runbook_url: TBD
+        summary: Kusto log data stale for systemdlogs on sc-test (testcluster)
+    - exp_labels:
+        alertname: KustoLogsDataStale
+        cluster: mc-test
+        component: kusto
+        kusto_cluster: testcluster
+        severity: warning
+        table: systemdlogs
+      exp_annotations:
+        description: |
+          Kusto log data for table systemdlogs on cluster mc-test (Kusto cluster testcluster) is stale. Check the ingestion pipeline.
+        runbook_url: TBD
+        summary: Kusto log data stale for systemdlogs on mc-test (testcluster)
+- name: stale systemdlogs on quiet clusters with constant runtime counters does not alert
+  interval: 1m
+  input_series:
+  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="sc-test",table="systemdlogs"}'
+    values: "0+60x120"
+  - series: 'kubelet_runtime_operations_total{cluster="sc-test",operation_type="start_container"}'
+    values: "100+0x120"
+  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="mc-test",table="systemdlogs"}'
+    values: "0+60x120"
+  - series: 'kubelet_runtime_operations_total{cluster="mc-test",operation_type="remove_podsandbox"}'
+    values: "100+0x120"
+  alert_rule_test:
+  - eval_time: 120m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+- name: non-systemdlogs stale beyond one hour still alerts without runtime activity
+  interval: 1m
   input_series:
   - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="sc-test",table="ContainerLog"}'
-    values: "3700+0x20"
+    values: "3700+0x120"
   alert_rule_test:
   - eval_time: 15m
     alertname: KustoLogsDataStale
@@ -23,84 +80,134 @@ tests:
           Kusto log data for table ContainerLog on cluster sc-test (Kusto cluster testcluster) is stale. Check the ingestion pipeline.
         runbook_url: TBD
         summary: Kusto log data stale for ContainerLog on sc-test (testcluster)
-# KustoLogsDataStale - no alert when age is under 1 hour
-- interval: 1m
+- name: fresh systemdlogs with runtime activity does not alert
+  interval: 1m
+  input_series:
+  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="sc-test",table="systemdlogs"}'
+    values: "300+0x120"
+  - series: 'kubelet_runtime_operations_total{cluster="sc-test",operation_type="stop_container"}'
+    values: "0+1x120"
+  alert_rule_test:
+  - eval_time: 120m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+- name: increasing log age after runtime activity begins fires while activity continues
+  interval: 1m
+  input_series:
+  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="sc-test",table="systemdlogs"}'
+    values: "0+0x30 60+60x99"
+  - series: 'kubelet_runtime_operations_total{cluster="sc-test",operation_type="remove_container"}'
+    values: "0+0x29 10+1x100"
+  alert_rule_test:
+  - eval_time: 90m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+  - eval_time: 105m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+  - eval_time: 106m
+    alertname: KustoLogsDataStale
+    exp_alerts:
+    - exp_labels:
+        alertname: KustoLogsDataStale
+        cluster: sc-test
+        component: kusto
+        kusto_cluster: testcluster
+        severity: warning
+        table: systemdlogs
+      exp_annotations:
+        description: |
+          Kusto log data for table systemdlogs on cluster sc-test (Kusto cluster testcluster) is stale. Check the ingestion pipeline.
+        runbook_url: TBD
+        summary: Kusto log data stale for systemdlogs on sc-test (testcluster)
+  - eval_time: 130m
+    alertname: KustoLogsDataStale
+    exp_alerts:
+    - exp_labels:
+        alertname: KustoLogsDataStale
+        cluster: sc-test
+        component: kusto
+        kusto_cluster: testcluster
+        severity: warning
+        table: systemdlogs
+      exp_annotations:
+        description: |
+          Kusto log data for table systemdlogs on cluster sc-test (Kusto cluster testcluster) is stale. Check the ingestion pipeline.
+        runbook_url: TBD
+        summary: Kusto log data stale for systemdlogs on sc-test (testcluster)
+- name: healthy burst with ingested logs then silence does not alert when log age exceeds one hour
+  interval: 1m
+  input_series:
+  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="sc-test",table="systemdlogs"}'
+    values: "0+0x30 60+60x99"
+  - series: 'kubelet_runtime_operations_total{cluster="sc-test",operation_type="remove_container"}'
+    values: "0+0x29 10+0x100"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+  - eval_time: 90m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+  - eval_time: 91m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+  - eval_time: 106m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+  - eval_time: 120m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+  - eval_time: 130m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+- name: isolated runtime operation followed by silence cannot sustain the pending period
+  interval: 1m
+  input_series:
+  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="sc-test",table="systemdlogs"}'
+    values: "5400+0x120"
+  - series: 'kubelet_runtime_operations_total{cluster="sc-test",operation_type="create_container"}'
+    values: "0+0x90 1+0x29"
+  alert_rule_test:
+  - eval_time: 105m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+  - eval_time: 106m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+  - eval_time: 120m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+- name: activity from another cluster or unrelated runtime operations cannot enable the alert
+  interval: 1m
+  input_series:
+  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="sc-test",table="systemdlogs"}'
+    values: "5400+0x120"
+  - series: 'kubelet_runtime_operations_total{cluster="other-cluster",operation_type="start_container"}'
+    values: "0+1x120"
+  - series: 'kubelet_runtime_operations_total{cluster="sc-test",operation_type="list_containers"}'
+    values: "0+1x120"
+  alert_rule_test:
+  - eval_time: 120m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+- name: missing runtime activity series does not enable the alert
+  interval: 1m
+  input_series:
+  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="sc-test",table="systemdlogs"}'
+    values: "5400+0x120"
+  alert_rule_test:
+  - eval_time: 120m
+    alertname: KustoLogsDataStale
+    exp_alerts: []
+- name: non-systemdlogs fresh or exactly one hour old does not alert
+  interval: 1m
   input_series:
   - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="sc-test",table="ContainerLog"}'
-    values: "1800+0x20"
+    values: "1800+0x120"
+  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="sc-test",table="OtherLog"}'
+    values: "3600+0x120"
   alert_rule_test:
-  - eval_time: 15m
+  - eval_time: 120m
     alertname: KustoLogsDataStale
     exp_alerts: []
-# KustoLogsDataStale - no alert for systemdlogs on svc clusters when under 2 hours
-- interval: 1m
-  input_series:
-  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="aro-hcp-region-svc-1",table="systemdlogs"}'
-    values: "5400+0x20"
-  alert_rule_test:
-  - eval_time: 15m
-    alertname: KustoLogsDataStale
-    exp_alerts: []
-# KustoLogsDataStale - alert fires for systemdlogs on svc clusters when over 2 hours
-- interval: 1m
-  input_series:
-  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="aro-hcp-region-svc-1",table="systemdlogs"}'
-    values: "7300+0x20"
-  alert_rule_test:
-  - eval_time: 15m
-    alertname: KustoLogsDataStale
-    exp_alerts:
-    - exp_labels:
-        alertname: KustoLogsDataStale
-        cluster: aro-hcp-region-svc-1
-        component: kusto
-        kusto_cluster: testcluster
-        severity: warning
-        table: systemdlogs
-      exp_annotations:
-        description: |
-          Kusto log data for table systemdlogs on cluster aro-hcp-region-svc-1 (Kusto cluster testcluster) is stale. Check the ingestion pipeline.
-        runbook_url: TBD
-        summary: Kusto log data stale for systemdlogs on aro-hcp-region-svc-1 (testcluster)
-# KustoLogsDataStale - alert fires for systemdlogs on mgmt clusters at 1 hour
-- interval: 1m
-  input_series:
-  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="aro-hcp-region-mgmt-1",table="systemdlogs"}'
-    values: "3700+0x20"
-  alert_rule_test:
-  - eval_time: 15m
-    alertname: KustoLogsDataStale
-    exp_alerts:
-    - exp_labels:
-        alertname: KustoLogsDataStale
-        cluster: aro-hcp-region-mgmt-1
-        component: kusto
-        kusto_cluster: testcluster
-        severity: warning
-        table: systemdlogs
-      exp_annotations:
-        description: |
-          Kusto log data for table systemdlogs on cluster aro-hcp-region-mgmt-1 (Kusto cluster testcluster) is stale. Check the ingestion pipeline.
-        runbook_url: TBD
-        summary: Kusto log data stale for systemdlogs on aro-hcp-region-mgmt-1 (testcluster)
-# KustoLogsDataStale - alert fires for non-systemdlogs tables on svc clusters
-- interval: 1m
-  input_series:
-  - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="aro-hcp-region-svc-1",table="ContainerLog"}'
-    values: "7200+0x20"
-  alert_rule_test:
-  - eval_time: 15m
-    alertname: KustoLogsDataStale
-    exp_alerts:
-    - exp_labels:
-        alertname: KustoLogsDataStale
-        cluster: aro-hcp-region-svc-1
-        component: kusto
-        kusto_cluster: testcluster
-        severity: warning
-        table: ContainerLog
-      exp_annotations:
-        description: |
-          Kusto log data for table ContainerLog on cluster aro-hcp-region-svc-1 (Kusto cluster testcluster) is stale. Check the ingestion pipeline.
-        runbook_url: TBD
-        summary: Kusto log data stale for ContainerLog on aro-hcp-region-svc-1 (testcluster)

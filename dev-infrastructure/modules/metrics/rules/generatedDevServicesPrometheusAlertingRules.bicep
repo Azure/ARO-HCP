@@ -2262,7 +2262,7 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Kusto log data stale for {{ $labels.table }} on {{ $labels.cluster }} ({{ $labels.kusto_cluster }})'
           title: 'Kusto log data stale for {{ $labels.table }} on {{ $labels.cluster }} ({{ $labels.kusto_cluster }})'
         }
-        expression: 'kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200'
+        expression: 'kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or (kusto_logs_age_in_seconds{table="systemdlogs"} > 3600 and on (cluster) (sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0))'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
