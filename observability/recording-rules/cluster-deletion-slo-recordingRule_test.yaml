@@ -698,3 +698,210 @@ tests:
     exp_samples:
     - labels: 'errors:backend_cluster_deletion_operation:latency_error_rate_3d{cluster="svc-1"}'
       value: 0.2
+# ═════════════════════════════════════════════════════════════════════════════
+# Windowed error rules: expired/boundary tests
+# ═════════════════════════════════════════════════════════════════════════════
+# These tests verify that operations whose terminal transition falls OUTSIDE
+# a window are excluded from that window's counts. Without these, a
+# regression in the window constants (e.g., < 3600 → < 36000) would go
+# undetected.
+#
+# Setup: 3 expired failures + 2 recent failures + 5 recent succeeded.
+# "Expired" means last_transition_time = 0, so at eval_time 70m
+# (time() = 4200): (4200 - 0) = 4200 > 3600 → outside 1h window.
+# "Recent" means last_transition_time = 4100, so (4200 - 4100) = 100 < 3600.
+#
+# Expected at eval_time 70m:
+#   1h window: failed_1h = 2 (only recent), total_1h = 7, error_rate_1h = 2/7
+#   6h window: failed_6h = 5 (all),         total_6h = 10, error_rate_6h = 5/10
+#   3d window: failed_3d = 5 (all),         total_3d = 10, error_rate_3d = 5/10
+- name: windowed_expired_outside_1h_window
+  interval: 1m
+  input_series:
+  # 3 expired failures: last_transition_time = 0 → outside 1h at eval_time 70m
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="old1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x75"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="old1",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x75"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="old2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x75"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="old2",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x75"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="old3",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x75"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="old3",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x75"
+  # 2 recent failures: last_transition_time = 4100 → inside 1h at eval_time 70m
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="new1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x75"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="new1",subscription_id="sub1",cluster="svc-1"}'
+    values: "4100+0x75"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="new2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x75"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="new2",subscription_id="sub1",cluster="svc-1"}'
+    values: "4100+0x75"
+  # 5 recent succeeded: last_transition_time = 4100 → inside 1h
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x75"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s1",subscription_id="sub1",cluster="svc-1"}'
+    values: "4100+0x75"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x75"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s2",subscription_id="sub1",cluster="svc-1"}'
+    values: "4100+0x75"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s3",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x75"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s3",subscription_id="sub1",cluster="svc-1"}'
+    values: "4100+0x75"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s4",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x75"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s4",subscription_id="sub1",cluster="svc-1"}'
+    values: "4100+0x75"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s5",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x75"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s5",subscription_id="sub1",cluster="svc-1"}'
+    values: "4100+0x75"
+  promql_expr_test:
+  # 1h window: only 2 recent failures counted (3 expired excluded)
+  - expr: errors:backend_cluster_deletion_operation:failed_1h
+    eval_time: 70m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:failed_1h{cluster="svc-1"}'
+      value: 2
+  - expr: errors:backend_cluster_deletion_operation:total_1h
+    eval_time: 70m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:total_1h{cluster="svc-1"}'
+      value: 7
+  - expr: errors:backend_cluster_deletion_operation:error_rate_1h
+    eval_time: 70m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:error_rate_1h{cluster="svc-1"}'
+      value: 0.2857142857142857
+  # 6h window: all 5 failures counted (4200 < 21600)
+  - expr: errors:backend_cluster_deletion_operation:failed_6h
+    eval_time: 70m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:failed_6h{cluster="svc-1"}'
+      value: 5
+  - expr: errors:backend_cluster_deletion_operation:total_6h
+    eval_time: 70m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:total_6h{cluster="svc-1"}'
+      value: 10
+  - expr: errors:backend_cluster_deletion_operation:error_rate_6h
+    eval_time: 70m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:error_rate_6h{cluster="svc-1"}'
+      value: 0.5
+  # 3d window: all 5 failures counted (4200 < 259200)
+  - expr: errors:backend_cluster_deletion_operation:failed_3d
+    eval_time: 70m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:failed_3d{cluster="svc-1"}'
+      value: 5
+  - expr: errors:backend_cluster_deletion_operation:total_3d
+    eval_time: 70m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:total_3d{cluster="svc-1"}'
+      value: 10
+  - expr: errors:backend_cluster_deletion_operation:error_rate_3d
+    eval_time: 70m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:error_rate_3d{cluster="svc-1"}'
+      value: 0.5
+# --- Windowed latency: expired/boundary test ---
+# 2 expired slow + 1 recent slow + 2 recent fast succeeded.
+# At eval_time 100m (time()=6000):
+#   Expired: last_transition_time=2000 → (6000-2000)=4000 > 3600 → outside 1h, inside 6h/3d
+#   Recent:  last_transition_time=5900 → (6000-5900)=100  < 3600 → inside all windows
+#
+# Expected:
+#   1h window: latency_slow_1h = 1 (only recent slow), latency_total_1h = 3, rate = 1/3
+#   6h window: latency_slow_6h = 3 (all slow),         latency_total_6h = 5, rate = 3/5
+#   3d window: latency_slow_3d = 3 (all slow),         latency_total_3d = 5, rate = 3/5
+- name: windowed_latency_expired_outside_1h_window
+  interval: 1m
+  input_series:
+  # 2 expired slow ops: start_time=0, last_transition_time=2000 → duration=2000 > 1800
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="oldslow1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x105"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="oldslow1",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x105"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="oldslow1",subscription_id="sub1",cluster="svc-1"}'
+    values: "2000+0x105"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="oldslow2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x105"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="oldslow2",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x105"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="oldslow2",subscription_id="sub1",cluster="svc-1"}'
+    values: "2000+0x105"
+  # 1 recent slow op: start_time=3800, last_transition_time=5900 → duration=2100 > 1800
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="newslow1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x105"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="newslow1",subscription_id="sub1",cluster="svc-1"}'
+    values: "3800+0x105"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="newslow1",subscription_id="sub1",cluster="svc-1"}'
+    values: "5900+0x105"
+  # 2 recent fast ops: start_time=5800, last_transition_time=5900 → duration=100 < 1800
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="newfast1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x105"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="newfast1",subscription_id="sub1",cluster="svc-1"}'
+    values: "5800+0x105"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="newfast1",subscription_id="sub1",cluster="svc-1"}'
+    values: "5900+0x105"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="newfast2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x105"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="newfast2",subscription_id="sub1",cluster="svc-1"}'
+    values: "5800+0x105"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="newfast2",subscription_id="sub1",cluster="svc-1"}'
+    values: "5900+0x105"
+  promql_expr_test:
+  # 1h window: only 1 recent slow (2 expired slow excluded)
+  - expr: errors:backend_cluster_deletion_operation:latency_slow_1h
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:latency_slow_1h{cluster="svc-1"}'
+      value: 1
+  - expr: errors:backend_cluster_deletion_operation:latency_total_1h
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:latency_total_1h{cluster="svc-1"}'
+      value: 3
+  - expr: errors:backend_cluster_deletion_operation:latency_error_rate_1h
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:latency_error_rate_1h{cluster="svc-1"}'
+      value: 0.3333333333333333
+  # 6h window: all 3 slow counted (all within 21600s)
+  - expr: errors:backend_cluster_deletion_operation:latency_slow_6h
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:latency_slow_6h{cluster="svc-1"}'
+      value: 3
+  - expr: errors:backend_cluster_deletion_operation:latency_total_6h
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:latency_total_6h{cluster="svc-1"}'
+      value: 5
+  - expr: errors:backend_cluster_deletion_operation:latency_error_rate_6h
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:latency_error_rate_6h{cluster="svc-1"}'
+      value: 0.6
+  # 3d window: all 3 slow counted (all within 259200s)
+  - expr: errors:backend_cluster_deletion_operation:latency_slow_3d
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:latency_slow_3d{cluster="svc-1"}'
+      value: 3
+  - expr: errors:backend_cluster_deletion_operation:latency_total_3d
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:latency_total_3d{cluster="svc-1"}'
+      value: 5
+  - expr: errors:backend_cluster_deletion_operation:latency_error_rate_3d
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:latency_error_rate_3d{cluster="svc-1"}'
+      value: 0.6
