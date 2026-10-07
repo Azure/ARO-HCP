@@ -58,18 +58,18 @@
           phase=~"accepted|provisioning"
         }
       ) == 1
-    ) > 1200
+    ) > 3600
   plan:
-    expression: (max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1200
+    expression: (max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 3600
     conditions:
-      - expression: (max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 1200
+      - expression: (max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600
         path: root/and:left
         queries:
           - expression: max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})
             role: signal
         thresholds:
           - operator: '>'
-            value: 1200
+            value: 3600
         unsupported: ""
       - expression: max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1
         path: root/and:right
@@ -567,17 +567,57 @@
         workqueue_depth{namespace="aro-hcp"}
       )
     ) > 10
+    unless on (name, cluster) (
+      workqueue_depth{namespace="aro-hcp",name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)"}
+      and on (cluster) (
+        max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
+      )
+    )
   plan:
-    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
+    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))
     conditions:
-      - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
-        path: root
+      - expression: (max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10) unless on (name, cluster) ((workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)))
+        path: root/unless:left
         queries:
-          - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"}))
+          - expression: (max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"}))) unless on (name, cluster) ((workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)))
             role: signal
         thresholds:
           - operator: '>'
             value: 10
+        unsupported: ""
+- source: backend/alerts/backend-prometheusRule.yaml
+  group: backend
+  alert: BackendControllerQueueDepthHigh
+  occurrence: 2
+  input: |
+    max by (name, cluster) (
+      max without(prometheus_replica) (
+        workqueue_depth{namespace="aro-hcp",name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)"}
+      )
+    ) > 10
+    and on (cluster) (
+      max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
+    )
+  plan:
+    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10 and on (cluster) (max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)
+    conditions:
+      - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10
+        path: root/and:left
+        queries:
+          - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 10
+        unsupported: ""
+      - expression: max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
+        path: root/and:right
+        queries:
+          - expression: max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"})
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
         unsupported: ""
 - source: backend/alerts/backend-prometheusRule.yaml
   group: backend
@@ -1191,18 +1231,44 @@
   group: backend
   alert: BackendControllerQueueDepthHigh
   occurrence: 1
-  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
+  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))
   plan:
-    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
+    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))
     conditions:
-      - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
-        path: root
+      - expression: (max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10) unless on (name, cluster) ((workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)))
+        path: root/unless:left
         queries:
-          - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"}))
+          - expression: (max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"}))) unless on (name, cluster) ((workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)))
             role: signal
         thresholds:
           - operator: '>'
             value: 10
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
+  group: backend
+  alert: BackendControllerQueueDepthHigh
+  occurrence: 2
+  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10 and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)
+  plan:
+    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10 and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)
+    conditions:
+      - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10
+        path: root/and:left
+        queries:
+          - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 10
+        unsupported: ""
+      - expression: max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
+        path: root/and:right
+        queries:
+          - expression: max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"})
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
   group: backend
@@ -1242,18 +1308,18 @@
   group: backend-async-operations
   alert: BackendAsyncOperationClusterCreateStuck
   occurrence: 1
-  input: ((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1200) unless on (subscription_id) internal_subscription:info
+  input: ((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 3600) unless on (subscription_id) internal_subscription:info
   plan:
-    expression: ((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1200) unless on (subscription_id) internal_subscription:info
+    expression: ((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 3600) unless on (subscription_id) internal_subscription:info
     conditions:
-      - expression: ((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 1200) unless on (subscription_id) (internal_subscription:info)
+      - expression: ((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600) unless on (subscription_id) (internal_subscription:info)
         path: root/unless:left/and:left
         queries:
           - expression: (max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) unless on (subscription_id) (internal_subscription:info)
             role: signal
         thresholds:
           - operator: '>'
-            value: 1200
+            value: 3600
         unsupported: ""
       - expression: (max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) unless on (subscription_id) (internal_subscription:info)
         path: root/unless:left/and:right
@@ -1826,12 +1892,12 @@
   group: kusto-logs-age-rules
   alert: KustoLogsDataStale
   occurrence: 1
-  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or (kusto_logs_age_in_seconds{table="systemdlogs"} > 3600 and on (cluster) (sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0))
   plan:
-    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or (kusto_logs_age_in_seconds{table="systemdlogs"} > 3600 and on (cluster) (sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0))
     conditions:
       - expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600
-        path: root/or:left/or:left
+        path: root/or:left
         queries:
           - expression: kusto_logs_age_in_seconds{table!="systemdlogs"}
             role: signal
@@ -1839,23 +1905,23 @@
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600
-        path: root/or:left/or:right
+      - expression: kusto_logs_age_in_seconds{table="systemdlogs"} > 3600
+        path: root/or:right/and:left
         queries:
-          - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"}
+          - expression: kusto_logs_age_in_seconds{table="systemdlogs"}
             role: signal
         thresholds:
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
-        path: root/or:right
+      - expression: sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0
+        path: root/or:right/and:right
         queries:
-          - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"}
+          - expression: sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m]))
             role: signal
         thresholds:
           - operator: '>'
-            value: 7200
+            value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
   group: leaderelection
@@ -2849,14 +2915,14 @@
   group: kubernetes-apps
   alert: KubePodNotReady
   occurrence: 1
-  input: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0
+  input: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp
   plan:
-    expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0
+    expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp
     conditions:
-      - expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0
-        path: root
+      - expression: (sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)
+        path: root/unless:left
         queries:
-          - expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"})))
+          - expression: (sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"})))) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)
             role: signal
         thresholds:
           - operator: '>'
@@ -4078,14 +4144,14 @@
   group: svc-kubernetes-apps
   alert: KubePodNotReady
   occurrence: 1
-  input: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0
+  input: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp
   plan:
-    expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0
+    expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp
     conditions:
-      - expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0
-        path: root
+      - expression: (sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)
+        path: root/unless:left
         queries:
-          - expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"})))
+          - expression: (sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"})))) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)
             role: signal
         thresholds:
           - operator: '>'
@@ -5211,14 +5277,14 @@
   group: msft-kubernetes-apps
   alert: KubePodNotReady
   occurrence: 1
-  input: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0
+  input: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp{namespace=~"billing|credential-refresher"}
   plan:
-    expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0
+    expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp{namespace=~"billing|credential-refresher"}
     conditions:
-      - expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0
-        path: root
+      - expression: (sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp{namespace=~"billing|credential-refresher"})
+        path: root/unless:left
         queries:
-          - expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"})))
+          - expression: (sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"})))) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp{namespace=~"billing|credential-refresher"})
             role: signal
         thresholds:
           - operator: '>'
@@ -5754,12 +5820,12 @@
   group: arohcp_access_cluster_slo_windowed_error_alerts
   alert: userJourneyAccessClusterErrors1h5m
   occurrence: 1
-  input: errors:backend_credential_operation:failed_1h >= 3 and errors:backend_credential_operation:error_rate_1h > 0.72
+  input: errors:backend_credential_operation:failed_1h >= 3 and errors:backend_credential_operation:error_rate_1h > 0.72 and errors:backend_credential_operation:error_rate_5m > 0.72
   plan:
-    expression: errors:backend_credential_operation:failed_1h >= 3 and errors:backend_credential_operation:error_rate_1h > 0.72
+    expression: errors:backend_credential_operation:failed_1h >= 3 and errors:backend_credential_operation:error_rate_1h > 0.72 and errors:backend_credential_operation:error_rate_5m > 0.72
     conditions:
       - expression: errors:backend_credential_operation:failed_1h >= 3
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_credential_operation:failed_1h
             role: signal
@@ -5768,9 +5834,18 @@
             value: 3
         unsupported: ""
       - expression: errors:backend_credential_operation:error_rate_1h > 0.72
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_credential_operation:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_5m
             role: signal
         thresholds:
           - operator: '>'
@@ -5815,35 +5890,9 @@
   group: arohcp_access_cluster_slo_windowed_error_alerts
   alert: userJourneyAccessClusterErrors6h30m
   occurrence: 1
-  input: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.3
+  input: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.3 and errors:backend_credential_operation:error_rate_30m > 0.3
   plan:
-    expression: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.3
-    conditions:
-      - expression: errors:backend_credential_operation:total_6h >= 5
-        path: root/and:left
-        queries:
-          - expression: errors:backend_credential_operation:total_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_credential_operation:error_rate_6h > 0.3
-        path: root/and:right
-        queries:
-          - expression: errors:backend_credential_operation:error_rate_6h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_access_cluster_slo_windowed_error_alerts
-  alert: userJourneyAccessClusterErrorsDegradation
-  occurrence: 1
-  input: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15
-  plan:
-    expression: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15
+    expression: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.3 and errors:backend_credential_operation:error_rate_30m > 0.3
     conditions:
       - expression: errors:backend_credential_operation:total_6h >= 5
         path: root/and:left/and:left
@@ -5854,8 +5903,43 @@
           - operator: '>='
             value: 5
         unsupported: ""
-      - expression: errors:backend_credential_operation:failed_6h >= 2
+      - expression: errors:backend_credential_operation:error_rate_6h > 0.3
         path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_access_cluster_slo_windowed_error_alerts
+  alert: userJourneyAccessClusterErrorsDegradation
+  occurrence: 1
+  input: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15 and errors:backend_credential_operation:error_rate_30m > 0.15
+  plan:
+    expression: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15 and errors:backend_credential_operation:error_rate_30m > 0.15
+    conditions:
+      - expression: errors:backend_credential_operation:total_6h >= 5
+        path: root/and:left/and:left/and:left
+        queries:
+          - expression: errors:backend_credential_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_credential_operation:failed_6h >= 2
+        path: root/and:left/and:left/and:right
         queries:
           - expression: errors:backend_credential_operation:failed_6h
             role: signal
@@ -5864,13 +5948,299 @@
             value: 2
         unsupported: ""
       - expression: errors:backend_credential_operation:error_rate_6h > 0.15
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_credential_operation:error_rate_6h
             role: signal
         thresholds:
           - operator: '>'
             value: 0.15
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_30m > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_saturation_alerts
+  alert: userJourneyClusterDeletionQueueDepth
+  occurrence: 1
+  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+  plan:
+    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+    conditions:
+      - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+        path: root
+        queries:
+          - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 10
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrors1h5m
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:failed_1h >= 3 and errors:backend_cluster_deletion_operation:error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+  plan:
+    expression: errors:backend_cluster_deletion_operation:failed_1h >= 3 and errors:backend_cluster_deletion_operation:error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:failed_1h >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:failed_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_1h > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrors3d
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:total_3d >= 10 and errors:backend_cluster_deletion_operation:failed_3d >= 2 and errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_cluster_deletion_operation:total_3d >= 10 and errors:backend_cluster_deletion_operation:failed_3d >= 2 and errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:total_3d >= 10
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:failed_3d >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:failed_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrors6h30m
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
+  plan:
+    expression: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_6h > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrorsDegradation
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:failed_6h >= 2 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
+  plan:
+    expression: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:failed_6h >= 2 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:failed_6h >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:failed_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionLatency1h5m
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:latency_total_1h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
+  plan:
+    expression: errors:backend_cluster_deletion_operation:latency_total_1h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:latency_total_1h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_total_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionLatency3d
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:latency_total_3d >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_cluster_deletion_operation:latency_total_3d >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:latency_total_3d >= 5
+        path: root/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionLatency6h30m
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:latency_total_6h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
+  plan:
+    expression: errors:backend_cluster_deletion_operation:latency_total_6h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:latency_total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionStuckOperation
+  occurrence: 1
+  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left/and:left
+        queries:
+          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left/and:right
+        queries:
+          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_cluster_provision_slo_latency_alerts
@@ -5898,12 +6268,12 @@
   group: arohcp_cluster_provision_slo_windowed_error_alerts
   alert: userJourneyClusterProvisionErrors1h5m
   occurrence: 1
-  input: errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72
+  input: errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72 and errors:backend_cluster_provision:error_rate_5m > 0.72
   plan:
-    expression: errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72
+    expression: errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72 and errors:backend_cluster_provision:error_rate_5m > 0.72
     conditions:
       - expression: errors:backend_cluster_provision:failed_1h >= 3
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_cluster_provision:failed_1h
             role: signal
@@ -5912,9 +6282,18 @@
             value: 3
         unsupported: ""
       - expression: errors:backend_cluster_provision:error_rate_1h > 0.72
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_5m
             role: signal
         thresholds:
           - operator: '>'
@@ -5959,35 +6338,9 @@
   group: arohcp_cluster_provision_slo_windowed_error_alerts
   alert: userJourneyClusterProvisionErrors6h30m
   occurrence: 1
-  input: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3
+  input: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3 and errors:backend_cluster_provision:error_rate_30m > 0.3
   plan:
-    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3
-    conditions:
-      - expression: errors:backend_cluster_provision:total_6h >= 5
-        path: root/and:left
-        queries:
-          - expression: errors:backend_cluster_provision:total_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_cluster_provision:error_rate_6h > 0.3
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_provision:error_rate_6h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_cluster_provision_slo_windowed_error_alerts
-  alert: userJourneyClusterProvisionErrorsDegradation
-  occurrence: 1
-  input: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15
-  plan:
-    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15
+    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3 and errors:backend_cluster_provision:error_rate_30m > 0.3
     conditions:
       - expression: errors:backend_cluster_provision:total_6h >= 5
         path: root/and:left/and:left
@@ -5998,8 +6351,43 @@
           - operator: '>='
             value: 5
         unsupported: ""
-      - expression: errors:backend_cluster_provision:failed_6h >= 2
+      - expression: errors:backend_cluster_provision:error_rate_6h > 0.3
         path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_provision_slo_windowed_error_alerts
+  alert: userJourneyClusterProvisionErrorsDegradation
+  occurrence: 1
+  input: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15 and errors:backend_cluster_provision:error_rate_30m > 0.15
+  plan:
+    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15 and errors:backend_cluster_provision:error_rate_30m > 0.15
+    conditions:
+      - expression: errors:backend_cluster_provision:total_6h >= 5
+        path: root/and:left/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_provision:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:failed_6h >= 2
+        path: root/and:left/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:failed_6h
             role: signal
@@ -6008,9 +6396,18 @@
             value: 2
         unsupported: ""
       - expression: errors:backend_cluster_provision:error_rate_6h > 0.15
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:error_rate_30m > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_30m
             role: signal
         thresholds:
           - operator: '>'
@@ -6225,43 +6622,8 @@
             value: 0.85
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_frontend_slo_traffic_alerts
-  alert: userJourneyFrontendTrafficDrop
-  occurrence: 1
-  input: (avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5 and sli:frontend:ready:ratio5m > 0
-  plan:
-    expression: (avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5 and sli:frontend:ready:ratio5m > 0
-    conditions:
-      - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-        path: root/and:left/and:left
-        queries:
-          - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[15m])
-            role: left
-          - expression: 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-            role: right
-        thresholds: []
-        unsupported: ""
-      - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5
-        path: root/and:left/and:right
-        queries:
-          - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.5
-        unsupported: ""
-      - expression: sli:frontend:ready:ratio5m > 0
-        path: root/and:right
-        queries:
-          - expression: sli:frontend:ready:ratio5m
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_saturation_alerts
-  alert: UJNodePoolSaturationQueueDepth
+  alert: userJourneyNodePoolSaturationQueueDepth
   occurrence: 1
   input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10
   plan:
@@ -6278,7 +6640,7 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_slo_error_alerts
-  alert: UJNodePoolStuckOperation
+  alert: userJourneyNodePoolStuckOperation
   occurrence: 1
   input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
   plan:
@@ -6293,14 +6655,14 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_slo_windowed_error_alerts
-  alert: UJNodePoolErrors1h5m
+  alert: userJourneyNodePoolErrors1h5m
   occurrence: 1
-  input: errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72
+  input: errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72
   plan:
-    expression: errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72
+    expression: errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72
     conditions:
       - expression: errors:backend_nodepool_operation:failed_1h >= 3
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_nodepool_operation:failed_1h
             role: signal
@@ -6309,7 +6671,7 @@
             value: 3
         unsupported: ""
       - expression: errors:backend_nodepool_operation:error_rate_1h > 0.72
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_nodepool_operation:error_rate_1h
             role: signal
@@ -6317,9 +6679,18 @@
           - operator: '>'
             value: 0.72
         unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_slo_windowed_error_alerts
-  alert: UJNodePoolErrors3d
+  alert: userJourneyNodePoolErrors3d
   occurrence: 1
   input: errors:backend_nodepool_operation:total_3d >= 10 and errors:backend_nodepool_operation:failed_3d >= 2 and errors:backend_nodepool_operation:error_rate_3d > 0.05
   plan:
@@ -6354,37 +6725,11 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_slo_windowed_error_alerts
-  alert: UJNodePoolErrors6h30m
+  alert: userJourneyNodePoolErrors6h30m
   occurrence: 1
-  input: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3
+  input: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3
   plan:
-    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3
-    conditions:
-      - expression: errors:backend_nodepool_operation:total_6h >= 5
-        path: root/and:left
-        queries:
-          - expression: errors:backend_nodepool_operation:total_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_6h > 0.3
-        path: root/and:right
-        queries:
-          - expression: errors:backend_nodepool_operation:error_rate_6h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_nodepool_slo_windowed_error_alerts
-  alert: UJNodePoolErrorsDegradation
-  occurrence: 1
-  input: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15
-  plan:
-    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15
+    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3
     conditions:
       - expression: errors:backend_nodepool_operation:total_6h >= 5
         path: root/and:left/and:left
@@ -6395,8 +6740,43 @@
           - operator: '>='
             value: 5
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:failed_6h >= 2
+      - expression: errors:backend_nodepool_operation:error_rate_6h > 0.3
         path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_nodepool_slo_windowed_error_alerts
+  alert: userJourneyNodePoolErrorsDegradation
+  occurrence: 1
+  input: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15
+  plan:
+    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15
+    conditions:
+      - expression: errors:backend_nodepool_operation:total_6h >= 5
+        path: root/and:left/and:left/and:left
+        queries:
+          - expression: errors:backend_nodepool_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:failed_6h >= 2
+        path: root/and:left/and:left/and:right
         queries:
           - expression: errors:backend_nodepool_operation:failed_6h
             role: signal
@@ -6405,9 +6785,18 @@
             value: 2
         unsupported: ""
       - expression: errors:backend_nodepool_operation:error_rate_6h > 0.15
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_nodepool_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_30m > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_30m
             role: signal
         thresholds:
           - operator: '>'
@@ -7319,11 +7708,13 @@
     errors:backend_credential_operation:failed_1h >= 3
     and
     errors:backend_credential_operation:error_rate_1h > 0.72
+    and
+    errors:backend_credential_operation:error_rate_5m > 0.72
   plan:
-    expression: errors:backend_credential_operation:failed_1h >= 3 and errors:backend_credential_operation:error_rate_1h > 0.72
+    expression: errors:backend_credential_operation:failed_1h >= 3 and errors:backend_credential_operation:error_rate_1h > 0.72 and errors:backend_credential_operation:error_rate_5m > 0.72
     conditions:
       - expression: errors:backend_credential_operation:failed_1h >= 3
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_credential_operation:failed_1h
             role: signal
@@ -7332,9 +7723,18 @@
             value: 3
         unsupported: ""
       - expression: errors:backend_credential_operation:error_rate_1h > 0.72
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_credential_operation:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_5m
             role: signal
         thresholds:
           - operator: '>'
@@ -7388,11 +7788,13 @@
     errors:backend_credential_operation:total_6h >= 5
     and
     errors:backend_credential_operation:error_rate_6h > 0.30
+    and
+    errors:backend_credential_operation:error_rate_30m > 0.30
   plan:
-    expression: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.3
+    expression: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.3 and errors:backend_credential_operation:error_rate_30m > 0.3
     conditions:
       - expression: errors:backend_credential_operation:total_6h >= 5
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_credential_operation:total_6h
             role: signal
@@ -7401,9 +7803,18 @@
             value: 5
         unsupported: ""
       - expression: errors:backend_credential_operation:error_rate_6h > 0.3
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_credential_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_30m
             role: signal
         thresholds:
           - operator: '>'
@@ -7419,11 +7830,13 @@
     errors:backend_credential_operation:failed_6h >= 2
     and
     errors:backend_credential_operation:error_rate_6h > 0.15
+    and
+    errors:backend_credential_operation:error_rate_30m > 0.15
   plan:
-    expression: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15
+    expression: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15 and errors:backend_credential_operation:error_rate_30m > 0.15
     conditions:
       - expression: errors:backend_credential_operation:total_6h >= 5
-        path: root/and:left/and:left
+        path: root/and:left/and:left/and:left
         queries:
           - expression: errors:backend_credential_operation:total_6h
             role: signal
@@ -7432,7 +7845,7 @@
             value: 5
         unsupported: ""
       - expression: errors:backend_credential_operation:failed_6h >= 2
-        path: root/and:left/and:right
+        path: root/and:left/and:left/and:right
         queries:
           - expression: errors:backend_credential_operation:failed_6h
             role: signal
@@ -7441,9 +7854,18 @@
             value: 2
         unsupported: ""
       - expression: errors:backend_credential_operation:error_rate_6h > 0.15
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_credential_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_30m > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_30m
             role: signal
         thresholds:
           - operator: '>'
@@ -7532,6 +7954,392 @@
           - operator: '>'
             value: 0
         unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_saturation_alerts
+  alert: userJourneyClusterDeletionQueueDepth
+  occurrence: 1
+  input: |
+    max by (name, cluster) (
+      max without(prometheus_replica) (
+        workqueue_depth{namespace="aro-hcp", name="OperationClusterDelete"}
+      )
+    ) > 10
+  plan:
+    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+    conditions:
+      - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+        path: root
+        queries:
+          - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 10
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrors1h5m
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:failed_1h >= 3
+    and
+    errors:backend_cluster_deletion_operation:error_rate_1h > 0.72
+    and
+    errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+  plan:
+    expression: errors:backend_cluster_deletion_operation:failed_1h >= 3 and errors:backend_cluster_deletion_operation:error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:failed_1h >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:failed_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_1h > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrors3d
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:total_3d >= 10
+    and
+    errors:backend_cluster_deletion_operation:failed_3d >= 2
+    and
+    errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_cluster_deletion_operation:total_3d >= 10 and errors:backend_cluster_deletion_operation:failed_3d >= 2 and errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:total_3d >= 10
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:failed_3d >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:failed_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrors6h30m
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:total_6h >= 5
+    and
+    errors:backend_cluster_deletion_operation:error_rate_6h > 0.30
+    and
+    errors:backend_cluster_deletion_operation:error_rate_30m > 0.30
+  plan:
+    expression: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_6h > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrorsDegradation
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:total_6h >= 5
+    and
+    errors:backend_cluster_deletion_operation:failed_6h >= 2
+    and
+    errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
+  plan:
+    expression: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:failed_6h >= 2 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:failed_6h >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:failed_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionLatency1h5m
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:latency_total_1h >= 5
+    and
+    errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72
+    and
+    errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
+  plan:
+    expression: errors:backend_cluster_deletion_operation:latency_total_1h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:latency_total_1h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_total_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionLatency3d
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:latency_total_3d >= 5
+    and
+    errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_cluster_deletion_operation:latency_total_3d >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:latency_total_3d >= 5
+        path: root/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionLatency6h30m
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:latency_total_6h >= 5
+    and
+    errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.30
+    and
+    errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.30
+  plan:
+    expression: errors:backend_cluster_deletion_operation:latency_total_6h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:latency_total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionStuckOperation
+  occurrence: 1
+  input: |
+    max by (
+      cluster,
+      environment,
+      region,
+      subscription_id,
+      resource_id,
+      resource_type,
+      operation_type,
+      phase
+    ) (
+      max_over_time(
+        (
+          (
+            max by (
+              cluster,
+              environment,
+              region,
+              subscription_id,
+              resource_id,
+              resource_type,
+              operation_type,
+              phase
+            ) (
+              backend_resource_operation_phase_info{
+                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                operation_type="delete",
+                phase=~"accepted|deleting"
+              } == 1
+            )
+            and
+            (
+              time() - max by (
+                cluster,
+                environment,
+                region,
+                subscription_id,
+                resource_id,
+                resource_type,
+                operation_type,
+                phase
+              ) (
+                backend_resource_operation_last_transition_time_seconds{
+                  resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                  operation_type="delete",
+                  phase=~"accepted|deleting"
+                }
+              )
+            ) > 3600
+          )
+        )[6h:5m]
+      )
+    )
+    and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
+    (
+      max by (
+        cluster,
+        environment,
+        region,
+        subscription_id,
+        resource_id,
+        resource_type,
+        operation_type,
+        phase
+      ) (
+        backend_resource_operation_phase_info{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+          operation_type="delete",
+          phase=~"accepted|deleting"
+        }
+      ) == 1
+    )
+  plan:
+    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)
+    conditions:
+      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m]))
+        path: root/and:left
+        queries:
+          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m]))
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1
+        path: root/and:right
+        queries:
+          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
+        unsupported: ""
 - source: observability/alerts/cluster-provision-slo-prometheusRule.yaml
   group: arohcp_cluster_provision_slo_latency_alerts
   alert: userJourneyClusterProvisionStuckOperation
@@ -7578,11 +8386,13 @@
     errors:backend_cluster_provision:failed_1h >= 3
     and
     errors:backend_cluster_provision:error_rate_1h > 0.72
+    and
+    errors:backend_cluster_provision:error_rate_5m > 0.72
   plan:
-    expression: errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72
+    expression: errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72 and errors:backend_cluster_provision:error_rate_5m > 0.72
     conditions:
       - expression: errors:backend_cluster_provision:failed_1h >= 3
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_cluster_provision:failed_1h
             role: signal
@@ -7591,9 +8401,18 @@
             value: 3
         unsupported: ""
       - expression: errors:backend_cluster_provision:error_rate_1h > 0.72
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_5m
             role: signal
         thresholds:
           - operator: '>'
@@ -7647,11 +8466,13 @@
     errors:backend_cluster_provision:total_6h >= 5
     and
     errors:backend_cluster_provision:error_rate_6h > 0.30
+    and
+    errors:backend_cluster_provision:error_rate_30m > 0.30
   plan:
-    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3
+    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3 and errors:backend_cluster_provision:error_rate_30m > 0.3
     conditions:
       - expression: errors:backend_cluster_provision:total_6h >= 5
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_cluster_provision:total_6h
             role: signal
@@ -7660,9 +8481,18 @@
             value: 5
         unsupported: ""
       - expression: errors:backend_cluster_provision:error_rate_6h > 0.3
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_30m
             role: signal
         thresholds:
           - operator: '>'
@@ -7678,11 +8508,13 @@
     errors:backend_cluster_provision:failed_6h >= 2
     and
     errors:backend_cluster_provision:error_rate_6h > 0.15
+    and
+    errors:backend_cluster_provision:error_rate_30m > 0.15
   plan:
-    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15
+    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15 and errors:backend_cluster_provision:error_rate_30m > 0.15
     conditions:
       - expression: errors:backend_cluster_provision:total_6h >= 5
-        path: root/and:left/and:left
+        path: root/and:left/and:left/and:left
         queries:
           - expression: errors:backend_cluster_provision:total_6h
             role: signal
@@ -7691,7 +8523,7 @@
             value: 5
         unsupported: ""
       - expression: errors:backend_cluster_provision:failed_6h >= 2
-        path: root/and:left/and:right
+        path: root/and:left/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:failed_6h
             role: signal
@@ -7700,9 +8532,18 @@
             value: 2
         unsupported: ""
       - expression: errors:backend_cluster_provision:error_rate_6h > 0.15
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:error_rate_30m > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_30m
             role: signal
         thresholds:
           - operator: '>'
@@ -8192,49 +9033,6 @@
         thresholds:
           - operator: '>'
             value: 0.85
-        unsupported: ""
-- source: observability/alerts/frontend-slo-prometheusRule.yaml
-  group: arohcp_frontend_slo_traffic_alerts
-  alert: userJourneyFrontendTrafficDrop
-  occurrence: 1
-  input: |
-    (
-      avg_over_time(traffic:frontend_http:request_rate:rate5m[15m])
-      < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-    )
-    and
-    avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5
-    and
-    sli:frontend:ready:ratio5m > 0
-  plan:
-    expression: (avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5 and sli:frontend:ready:ratio5m > 0
-    conditions:
-      - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-        path: root/and:left/and:left
-        queries:
-          - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[15m])
-            role: left
-          - expression: 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-            role: right
-        thresholds: []
-        unsupported: ""
-      - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5
-        path: root/and:left/and:right
-        queries:
-          - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.5
-        unsupported: ""
-      - expression: sli:frontend:ready:ratio5m > 0
-        path: root/and:right
-        queries:
-          - expression: sli:frontend:ready:ratio5m
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0
         unsupported: ""
 - source: observability/alerts/hcp-test-clusters-prometheusRule.yaml
   group: hcp-test-clusters-rules
@@ -8848,13 +9646,14 @@
         1, max by(namespace, pod, owner_kind, cluster) (kube_pod_owner{prometheus="prometheus/prometheus", owner_kind!="Job"})
       )
     ) > 0
+    unless on(namespace, pod, cluster) kube_pod_deletion_timestamp
   plan:
-    expression: sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0
+    expression: sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp
     conditions:
-      - expression: sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0
-        path: root
+      - expression: (sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)
+        path: root/unless:left
         queries:
-          - expression: sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"})))
+          - expression: (sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"})))) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)
             role: signal
         thresholds:
           - operator: '>'
@@ -9775,12 +10574,22 @@
   group: kusto-logs-age-rules
   alert: KustoLogsDataStale
   occurrence: 1
-  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster!~".*-svc-.*"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster=~".*-svc-.*"} > 7200
+  input: |
+    kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600
+    or (
+      kusto_logs_age_in_seconds{table="systemdlogs"} > 3600
+      and on (cluster)
+      (
+        sum by (cluster) (
+          increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])
+        ) > 0
+      )
+    )
   plan:
-    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or (kusto_logs_age_in_seconds{table="systemdlogs"} > 3600 and on (cluster) (sum by (cluster) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0))
     conditions:
       - expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600
-        path: root/or:left/or:left
+        path: root/or:left
         queries:
           - expression: kusto_logs_age_in_seconds{table!="systemdlogs"}
             role: signal
@@ -9788,23 +10597,23 @@
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600
-        path: root/or:left/or:right
+      - expression: kusto_logs_age_in_seconds{table="systemdlogs"} > 3600
+        path: root/or:right/and:left
         queries:
-          - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"}
+          - expression: kusto_logs_age_in_seconds{table="systemdlogs"}
             role: signal
         thresholds:
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
-        path: root/or:right
+      - expression: sum by (cluster) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0
+        path: root/or:right/and:right
         queries:
-          - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"}
+          - expression: sum by (cluster) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m]))
             role: signal
         thresholds:
           - operator: '>'
-            value: 7200
+            value: 0
         unsupported: ""
 - source: observability/alerts/leaderelection-prometheusRule.yaml
   group: leaderelection
@@ -9995,7 +10804,7 @@
         unsupported: ""
 - source: observability/alerts/nodepool-slo-prometheusRule.yaml
   group: arohcp_nodepool_saturation_alerts
-  alert: UJNodePoolSaturationQueueDepth
+  alert: userJourneyNodePoolSaturationQueueDepth
   occurrence: 1
   input: |
     max by (name, cluster) (
@@ -10017,7 +10826,7 @@
         unsupported: ""
 - source: observability/alerts/nodepool-slo-prometheusRule.yaml
   group: arohcp_nodepool_slo_error_alerts
-  alert: UJNodePoolStuckOperation
+  alert: userJourneyNodePoolStuckOperation
   occurrence: 1
   input: |
     max by (
@@ -10052,17 +10861,19 @@
         unsupported: ""
 - source: observability/alerts/nodepool-slo-prometheusRule.yaml
   group: arohcp_nodepool_slo_windowed_error_alerts
-  alert: UJNodePoolErrors1h5m
+  alert: userJourneyNodePoolErrors1h5m
   occurrence: 1
   input: |
     errors:backend_nodepool_operation:failed_1h >= 3
     and
     errors:backend_nodepool_operation:error_rate_1h > 0.72
+    and
+    errors:backend_nodepool_operation:error_rate_5m > 0.72
   plan:
-    expression: errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72
+    expression: errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72
     conditions:
       - expression: errors:backend_nodepool_operation:failed_1h >= 3
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_nodepool_operation:failed_1h
             role: signal
@@ -10071,7 +10882,7 @@
             value: 3
         unsupported: ""
       - expression: errors:backend_nodepool_operation:error_rate_1h > 0.72
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_nodepool_operation:error_rate_1h
             role: signal
@@ -10079,9 +10890,18 @@
           - operator: '>'
             value: 0.72
         unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
 - source: observability/alerts/nodepool-slo-prometheusRule.yaml
   group: arohcp_nodepool_slo_windowed_error_alerts
-  alert: UJNodePoolErrors3d
+  alert: userJourneyNodePoolErrors3d
   occurrence: 1
   input: |
     errors:backend_nodepool_operation:total_3d >= 10
@@ -10121,45 +10941,16 @@
         unsupported: ""
 - source: observability/alerts/nodepool-slo-prometheusRule.yaml
   group: arohcp_nodepool_slo_windowed_error_alerts
-  alert: UJNodePoolErrors6h30m
+  alert: userJourneyNodePoolErrors6h30m
   occurrence: 1
   input: |
     errors:backend_nodepool_operation:total_6h >= 5
     and
     errors:backend_nodepool_operation:error_rate_6h > 0.30
-  plan:
-    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3
-    conditions:
-      - expression: errors:backend_nodepool_operation:total_6h >= 5
-        path: root/and:left
-        queries:
-          - expression: errors:backend_nodepool_operation:total_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_6h > 0.3
-        path: root/and:right
-        queries:
-          - expression: errors:backend_nodepool_operation:error_rate_6h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: observability/alerts/nodepool-slo-prometheusRule.yaml
-  group: arohcp_nodepool_slo_windowed_error_alerts
-  alert: UJNodePoolErrorsDegradation
-  occurrence: 1
-  input: |
-    errors:backend_nodepool_operation:total_6h >= 5
     and
-    errors:backend_nodepool_operation:failed_6h >= 2
-    and
-    errors:backend_nodepool_operation:error_rate_6h > 0.15
+    errors:backend_nodepool_operation:error_rate_30m > 0.30
   plan:
-    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15
+    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3
     conditions:
       - expression: errors:backend_nodepool_operation:total_6h >= 5
         path: root/and:left/and:left
@@ -10170,8 +10961,50 @@
           - operator: '>='
             value: 5
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:failed_6h >= 2
+      - expression: errors:backend_nodepool_operation:error_rate_6h > 0.3
         path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: observability/alerts/nodepool-slo-prometheusRule.yaml
+  group: arohcp_nodepool_slo_windowed_error_alerts
+  alert: userJourneyNodePoolErrorsDegradation
+  occurrence: 1
+  input: |
+    errors:backend_nodepool_operation:total_6h >= 5
+    and
+    errors:backend_nodepool_operation:failed_6h >= 2
+    and
+    errors:backend_nodepool_operation:error_rate_6h > 0.15
+    and
+    errors:backend_nodepool_operation:error_rate_30m > 0.15
+  plan:
+    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15
+    conditions:
+      - expression: errors:backend_nodepool_operation:total_6h >= 5
+        path: root/and:left/and:left/and:left
+        queries:
+          - expression: errors:backend_nodepool_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:failed_6h >= 2
+        path: root/and:left/and:left/and:right
         queries:
           - expression: errors:backend_nodepool_operation:failed_6h
             role: signal
@@ -10180,9 +11013,18 @@
             value: 2
         unsupported: ""
       - expression: errors:backend_nodepool_operation:error_rate_6h > 0.15
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_nodepool_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_30m > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_30m
             role: signal
         thresholds:
           - operator: '>'
@@ -10877,27 +11719,18 @@
   group: prow-ci-alerts
   alert: ProwCIHealthcheckProvisionSuccessRateLow
   occurrence: 1
-  input: label_replace((sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"}) / sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})), "region", "$1", "job_name", ".*-provision-(.*)") > 0.40 and on (job_name) sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}) >= 5
+  input: label_replace(prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}, "region", "$1", "job_name", ".*-provision-(.*)") >= 6
   plan:
-    expression: label_replace((sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"}) / sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})), "region", "$1", "job_name", ".*-provision-(.*)") > 0.4 and on (job_name) sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}) >= 5
+    expression: label_replace(prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}, "region", "$1", "job_name", ".*-provision-(.*)") >= 6
     conditions:
-      - expression: label_replace((sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"}) / sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})), "region", "$1", "job_name", ".*-provision-(.*)") > 0.4
-        path: root/and:left
+      - expression: label_replace(prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}, "region", "$1", "job_name", ".*-provision-(.*)") >= 6
+        path: root
         queries:
-          - expression: label_replace((sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"}) / sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})), "region", "$1", "job_name", ".*-provision-(.*)")
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.4
-        unsupported: ""
-      - expression: sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}) >= 5
-        path: root/and:right
-        queries:
-          - expression: sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})
+          - expression: label_replace(prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}, "region", "$1", "job_name", ".*-provision-(.*)")
             role: signal
         thresholds:
           - operator: '>='
-            value: 5
+            value: 6
         unsupported: ""
 - source: tooling/tenant-quota/alerting.bicep
   group: prow-ci-alerts
