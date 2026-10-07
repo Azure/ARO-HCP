@@ -24,6 +24,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -175,6 +177,104 @@ var _ = Describe("Customer", func() {
 				consoleURL = *resp.Properties.Console.URL
 			}, 15*time.Minute, 30*time.Second).Should(Succeed(), "console URL should become available for cluster %q", customerClusterName)
 			GinkgoLogr.Info("Console URL available", "url", consoleURL)
+
+			// DEBUG: one-time console diagnostics snapshot - revert after investigation complete
+			By("DEBUG: collecting one-time console diagnostics snapshot")
+			diagKubeClient, diagKubeErr := kubernetes.NewForConfig(adminRESTConfig)
+			dynClient, dynClientErr := dynamic.NewForConfig(adminRESTConfig)
+			if diagKubeErr != nil || dynClientErr != nil {
+				GinkgoLogr.Info("DEBUG: failed to create diagnostic clients", "kubeErr", diagKubeErr, "dynErr", dynClientErr)
+			} else {
+				// DEBUG: console ClusterOperator conditions
+				coGVR := schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "clusteroperators"}
+				if co, coErr := dynClient.Resource(coGVR).Get(ctx, "console", metav1.GetOptions{}); coErr != nil {
+					GinkgoLogr.Info("DEBUG: console ClusterOperator not found", "error", coErr)
+				} else {
+					GinkgoLogr.Info("DEBUG: console ClusterOperator status", "status", co.Object["status"])
+				}
+
+				// DEBUG: check console-oauth-config ConfigMap existence and content in openshift-config
+				if cm, cmErr := diagKubeClient.CoreV1().ConfigMaps("openshift-config").Get(ctx, "console-oauth-config", metav1.GetOptions{}); cmErr != nil {
+					GinkgoLogr.Info("DEBUG: console-oauth-config ConfigMap missing in openshift-config", "error", cmErr)
+				} else {
+					GinkgoLogr.Info("DEBUG: console-oauth-config ConfigMap exists in openshift-config", "data", cm.Data)
+				}
+
+				// DEBUG: check console OAuthClient existence and content
+				oauthClientGVR := schema.GroupVersionResource{Group: "oauth.openshift.io", Version: "v1", Resource: "oauthclients"}
+				if oc, ocErr := dynClient.Resource(oauthClientGVR).Get(ctx, "console", metav1.GetOptions{}); ocErr != nil {
+					GinkgoLogr.Info("DEBUG: console OAuthClient not found", "error", ocErr)
+				} else {
+					GinkgoLogr.Info("DEBUG: console OAuthClient exists", "redirectURIs", oc.Object["redirectURIs"], "grantMethod", oc.Object["grantMethod"])
+				}
+
+				// DEBUG: Deployments in openshift-console
+				if deps, depErr := diagKubeClient.AppsV1().Deployments("openshift-console").List(ctx, metav1.ListOptions{}); depErr != nil {
+					GinkgoLogr.Info("DEBUG: failed to list Deployments in openshift-console", "error", depErr)
+				} else {
+					for _, d := range deps.Items {
+						GinkgoLogr.Info("DEBUG: openshift-console Deployment", "name", d.Name, "readyReplicas", d.Status.ReadyReplicas, "replicas", d.Status.Replicas)
+					}
+				}
+
+				// DEBUG: Services in openshift-console
+				if svcs, svcErr := diagKubeClient.CoreV1().Services("openshift-console").List(ctx, metav1.ListOptions{}); svcErr != nil {
+					GinkgoLogr.Info("DEBUG: failed to list Services in openshift-console", "error", svcErr)
+				} else {
+					for _, s := range svcs.Items {
+						GinkgoLogr.Info("DEBUG: openshift-console Service", "name", s.Name, "clusterIP", s.Spec.ClusterIP)
+					}
+				}
+
+				// DEBUG: Routes in openshift-console
+				routeGVR := schema.GroupVersionResource{Group: "route.openshift.io", Version: "v1", Resource: "routes"}
+				if routes, routeErr := dynClient.Resource(routeGVR).Namespace("openshift-console").List(ctx, metav1.ListOptions{}); routeErr != nil {
+					GinkgoLogr.Info("DEBUG: failed to list Routes in openshift-console", "error", routeErr)
+				} else {
+					for _, r := range routes.Items {
+						spec, _ := r.Object["spec"].(map[string]interface{})
+						GinkgoLogr.Info("DEBUG: openshift-console Route", "name", r.GetName(), "host", spec["host"])
+					}
+				}
+
+				// DEBUG: EndpointSlices in openshift-console
+				if eps, epsErr := diagKubeClient.DiscoveryV1().EndpointSlices("openshift-console").List(ctx, metav1.ListOptions{}); epsErr != nil {
+					GinkgoLogr.Info("DEBUG: failed to list EndpointSlices in openshift-console", "error", epsErr)
+				} else {
+					for _, ep := range eps.Items {
+						var ready, notReady int
+						for _, e := range ep.Endpoints {
+							if e.Conditions.Ready != nil && *e.Conditions.Ready {
+								ready++
+							} else {
+								notReady++
+							}
+						}
+						GinkgoLogr.Info("DEBUG: openshift-console EndpointSlice", "name", ep.Name, "ready", ready, "notReady", notReady)
+					}
+				}
+
+				// DEBUG: Events in openshift-console
+				if events, evErr := diagKubeClient.CoreV1().Events("openshift-console").List(ctx, metav1.ListOptions{}); evErr != nil {
+					GinkgoLogr.Info("DEBUG: failed to list Events in openshift-console", "error", evErr)
+				} else {
+					for _, ev := range events.Items {
+						GinkgoLogr.Info("DEBUG: openshift-console Event", "reason", ev.Reason, "type", ev.Type, "message", ev.Message, "count", ev.Count)
+					}
+				}
+
+				// DEBUG: pods in openshift-console-operator
+				if pods, podErr := diagKubeClient.CoreV1().Pods("openshift-console-operator").List(ctx, metav1.ListOptions{}); podErr != nil {
+					GinkgoLogr.Info("DEBUG: failed to list pods in openshift-console-operator", "error", podErr)
+				} else {
+					for _, p := range pods.Items {
+						GinkgoLogr.Info("DEBUG: openshift-console-operator pod", "name", p.Name, "phase", p.Status.Phase)
+					}
+				}
+
+				// DEBUG: KAS /healthz returned 200 above, so shared ingress is functional; console 503 is console-specific
+				GinkgoLogr.Info("DEBUG: ingress note — KAS /healthz returned 200 OK, shared ingress is functional; console 503 is console-specific")
+			}
 
 			// DEBUG: revert after console URL debugging is done
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
