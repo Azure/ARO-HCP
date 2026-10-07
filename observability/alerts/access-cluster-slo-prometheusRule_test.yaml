@@ -659,32 +659,33 @@ tests:
   - eval_time: 38m
     alertname: userJourneyAccessClusterSaturationRetryHotLoop
 # ========================================
-# Recovery: Fast burn (1h5m) — failures age out of 1h window → alert resolves
+# Recovery: Fast burn (1h5m) — failures age out of short window → alert resolves
 # ========================================
-# 4 failed + 1 succeeded at t=85m (ltt=5100s). Fires at t=95m. At t=155m (9300s),
-# time()-3600=5700 > ltt=5100 → failures aged out → alert resolves.
+# 4 failed + 1 succeeded at t=85m. LTT increments for 16 samples (t=85-100m),
+# keeping ops fresh in the 5m window. Then LTT freezes at 6000. By t=106m,
+# time()-ltt=360 > 300 so ops fall out of the 5m short window → alert resolves.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv1", phase="failed"}'
     values: "_x85 1x75"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv1", phase="failed"}'
-    values: "_x85 5100x75"
+    values: "_x85 5100+60x16 6060x59"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv2", phase="failed"}'
     values: "_x85 1x75"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv2", phase="failed"}'
-    values: "_x85 5100x75"
+    values: "_x85 5100+60x16 6060x59"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv3", phase="failed"}'
     values: "_x85 1x75"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv3", phase="failed"}'
-    values: "_x85 5100x75"
+    values: "_x85 5100+60x16 6060x59"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv4", phase="failed"}'
     values: "_x85 1x75"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv4", phase="failed"}'
-    values: "_x85 5100x75"
+    values: "_x85 5100+60x16 6060x59"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvs1", phase="succeeded"}'
     values: "_x85 1x75"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvs1", phase="succeeded"}'
-    values: "_x85 5100x75"
+    values: "_x85 5100+60x16 6060x59"
   alert_rule_test:
   - eval_time: 95m
     alertname: userJourneyAccessClusterErrors1h5m
@@ -701,36 +702,37 @@ tests:
         summary: "mgmt-1: Credential operations failing fast (>72% of recent operations)"
         description: "More than 72% of completed credential operations (requestcredential/revokecredentials) on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
-  # At 155m, failures have aged out of the 1h window → alert resolves
-  - eval_time: 155m
+  # At 115m, failures have aged out of the 5m short window → alert resolves
+  - eval_time: 115m
     alertname: userJourneyAccessClusterErrors1h5m
 # ========================================
-# Recovery: Medium burn (6h30m) — failures age out of 6h window → alert resolves
+# Recovery: Medium burn (6h30m) — failures age out of short window → alert resolves
 # ========================================
-# 3 failed + 2 succeeded at t=40m (ltt=2400s). Fires at t=140m. At t=410m,
-# failures have aged out of the 6h window → alert resolves.
+# 3 failed + 2 succeeded at t=40m. LTT increments for 101 samples (t=40-140m),
+# keeping ops fresh in the 30m window. Then LTT freezes at 8460. By t=172m,
+# time()-ltt=1860 > 1800 so ops fall out of the 30m short window → alert resolves.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv6f1", phase="failed"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv6f1", phase="failed"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv6f2", phase="failed"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv6f2", phase="failed"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv6f3", phase="failed"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv6f3", phase="failed"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv6s1", phase="succeeded"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv6s1", phase="succeeded"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv6s2", phase="succeeded"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcv6s2", phase="succeeded"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   alert_rule_test:
   - eval_time: 140m
     alertname: userJourneyAccessClusterErrors6h30m
@@ -747,48 +749,49 @@ tests:
         summary: "mgmt-1: Credential operation error rate elevated (>30% over 6h)"
         description: "More than 30% of completed credential operations on mgmt-1 failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
-  # At 410m, failures have aged out of the 6h window → alert resolves
-  - eval_time: 410m
+  # At 180m, failures have aged out of the 30m short window → alert resolves
+  - eval_time: 180m
     alertname: userJourneyAccessClusterErrors6h30m
 # ========================================
-# Recovery: Degradation — failures age out of 6h window → alert resolves
+# Recovery: Degradation — failures age out of short window → alert resolves
 # ========================================
-# 2 failed + 6 succeeded at t=40m (ltt=2400s). Fires at t=140m.
-# At t=410m, failures have aged out → alert resolves.
+# 2 failed + 6 succeeded at t=40m. LTT increments for 101 samples (t=40-140m),
+# keeping ops fresh in the 30m window. Then LTT freezes at 8460. By t=172m,
+# time()-ltt=1860 > 1800 so ops fall out of the 30m short window → alert resolves.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvdf1", phase="failed"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvdf1", phase="failed"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvdf2", phase="failed"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvdf2", phase="failed"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvds1", phase="succeeded"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvds1", phase="succeeded"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvds2", phase="succeeded"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvds2", phase="succeeded"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvds3", phase="succeeded"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvds3", phase="succeeded"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvds4", phase="succeeded"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvds4", phase="succeeded"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvds5", phase="succeeded"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvds5", phase="succeeded"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvds6", phase="succeeded"}'
     values: "_x40 1x375"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", subscription_id="sub-1", resource_id="/rcvds6", phase="succeeded"}'
-    values: "_x40 2400x375"
+    values: "_x40 2400+60x101 8460x274"
   alert_rule_test:
   - eval_time: 140m
     alertname: userJourneyAccessClusterErrorsDegradation
@@ -800,10 +803,11 @@ tests:
         severity: "4"
         slo: access-cluster-errors
         long_window: 6h
+        short_window: 30m
       exp_annotations:
         summary: "mgmt-1: Credential operation failure rate exceeds 15% over 6h"
         description: "More than 15% of completed credential operations on mgmt-1 failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
-  # At 410m, failures have aged out of the 6h window → alert resolves
-  - eval_time: 410m
+  # At 180m, failures have aged out of the 30m short window → alert resolves
+  - eval_time: 180m
     alertname: userJourneyAccessClusterErrorsDegradation
