@@ -754,6 +754,47 @@ func GetNodePool20270330(
 	return &resp.NodePool, nil
 }
 
+// ValidateNodePoolDiskStorageAccountType20270330 verifies that a nodepool created using framework has DiskStorageAccountType set to the framework default "StandardSSD_LRS"
+func ValidateNodePoolDiskStorageAccountType20270330(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20270330preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+) error {
+	nodePool, err := GetNodePool20270330(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+	if err != nil {
+		return fmt.Errorf("failed to get nodepool %s: %w", nodePoolName, err)
+	}
+
+	// Verify the nodepool exists and has the expected structure
+	if nodePool.Properties == nil {
+		return fmt.Errorf("nodepool %s has no properties", nodePoolName)
+	}
+
+	if nodePool.Properties.Platform == nil {
+		return fmt.Errorf("nodepool %s has no platform configuration", nodePoolName)
+	}
+
+	if nodePool.Properties.Platform.OSDisk == nil {
+		return fmt.Errorf("nodepool %s has no OS disk configuration", nodePoolName)
+	}
+
+	if nodePool.Properties.Platform.OSDisk.DiskStorageAccountType == nil {
+		return fmt.Errorf("nodepool %s has no DiskStorageAccountType set", nodePoolName)
+	}
+
+	// Verify the framework default (StandardSSD_LRS) overrode the API default (Premium_LRS)
+	actualDiskType := string(*nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)
+
+	if actualDiskType != DefaultDiskStorageAccountType {
+		return fmt.Errorf("nodepool %s has incorrect DiskStorageAccountType: expected %s (framework default), got %s",
+			nodePoolName, DefaultDiskStorageAccountType, actualDiskType)
+	}
+
+	return nil
+}
+
 // --- Functions from per_test_framework.go ---
 
 func (tc *perItOrDescribeTestContext) Get20270330ClientFactory(ctx context.Context) (*hcpsdk20270330preview.ClientFactory, error) {
