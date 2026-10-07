@@ -442,10 +442,13 @@ func (cluster *Cluster) EnsureDefaults() {
 	}
 	// Default KMS Visibility to Public for clusters created via v2024_06_10_preview
 	// (which doesn't expose the visibility field and assumes public KeyVaults).
-	if cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
-		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil &&
-		len(cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility) == 0 {
-		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+	if cm := cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; cm != nil && cm.Kms != nil {
+		if len(cm.Kms.Visibility) == 0 {
+			cm.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+		}
+		if len(cm.Kms.KeyVaultType) == 0 {
+			cm.Kms.KeyVaultType = KmsKeyVaultTypeKeyVault
+		}
 	}
 }
 

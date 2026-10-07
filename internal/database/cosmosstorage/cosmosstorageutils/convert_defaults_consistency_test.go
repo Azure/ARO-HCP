@@ -434,6 +434,13 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 			internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility,
 			metadataapi.KeyVaultVisibilityPublic)
 	}
+
+	// Verify KMS KeyVaultType was defaulted to KeyVault
+	if internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType != coreapi.KmsKeyVaultTypeKeyVault {
+		t.Errorf("got KeyVaultType = %q, want %q",
+			internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType,
+			coreapi.KmsKeyVaultTypeKeyVault)
+	}
 }
 
 // TestPreExistingDataNodePool verifies that CosmosGenericToInternal applies
