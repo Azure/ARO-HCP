@@ -11,6 +11,9 @@ configMap:
   kubeApplierCosmosContainerName: "{{ .kubeApplier.cosmosContainerName }}"
 backupCadenceProfile: "{{ .backend.backupCadenceProfile }}"
 backupScheduleState: "{{ .backend.backupScheduleState }}"
+orphanedMRGCleanupTargetSubscriptionAFECFlags: "{{ .backend.orphanedMRGCleanupTargetSubscriptionAFECFlags }}"
+orphanedMRGCleanupExcludedSubscriptionAFECFlags: "{{ .backend.orphanedMRGCleanupExcludedSubscriptionAFECFlags }}"
+orphanedMRGCleanupRunningMode: "{{ .backend.orphanedMRGCleanupRunningMode }}"
 deployment:
   replicas: {{ .backend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .backend.image.repository }}@{{ .backend.image.digest }}"
