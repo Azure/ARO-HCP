@@ -399,9 +399,6 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 	case "HostedCluster":
 		return classifiedResource{desireName: DesireNameHostedCluster}, nil
 
-	case "ManagedCluster":
-		return classifiedResource{desireName: "ManagedCluster"}, nil
-
 	case "NodePool":
 		// HyperShift names kube NodePool CRs as "<spec.clusterName>-<armName>".
 		// Strip the prefix to recover the ARM nodepool name used in Cosmos.
