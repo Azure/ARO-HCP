@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -285,6 +286,7 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 
 			opts := DefaultAcquireOptions()
 			opts.CatalogPath = catalogPath
+			opts.SetupAzureGlobalLogger = noopSetupAzureGlobalLogger
 
 			validated, err := opts.Validate()
 			if err != nil {
@@ -1581,6 +1583,20 @@ func completeAcquireForTest(t *testing.T, raw *RawAcquireOptions) *AcquireOption
 	return completed
 }
 
+// noopCloser is a no-op io.Closer, so test doubles can return a real,
+// closeable value instead of a nil interface.
+type noopCloser struct{}
+
+func (noopCloser) Close() error { return nil }
+
+// noopSetupAzureGlobalLogger stands in for setupAzureGlobalLogger in tests so they
+// never touch the filesystem or the Azure SDK's process-wide, non-goroutine-safe
+// log.SetListener - both of which would otherwise be hit on every test that
+// completes RawAcquireOptions, including ones running under t.Parallel.
+func noopSetupAzureGlobalLogger(string) (io.Closer, error) {
+	return noopCloser{}, nil
+}
+
 func completeAcquireOptions(raw *RawAcquireOptions) (*AcquireOptions, error) {
 	calls := []string{}
 	registry, err := assets.NewRegistry(&lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls})
@@ -1591,6 +1607,12 @@ func completeAcquireOptions(raw *RawAcquireOptions) (*AcquireOptions, error) {
 	raw.ResolveSubscriptions = func(_ context.Context, _, _, e2e, _ string) (slots.ResolvedSubscriptions, error) {
 		return slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{Name: e2e, ID: "e2e-id"}}, nil
 	}
+	// SetupAzureGlobalLogger is a no-op in tests, so the path is never read or
+	// written. It only needs to satisfy Validate's non-empty requirement.
+	if raw.AzureGlobalLoggerLogPath == "" {
+		raw.AzureGlobalLoggerLogPath = "azure-global-logger-test.log"
+	}
+	raw.SetupAzureGlobalLogger = noopSetupAzureGlobalLogger
 	validated, err := raw.Validate()
 	if err != nil {
 		return nil, err

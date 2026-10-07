@@ -166,6 +166,10 @@ func lifecycleOptions(t *testing.T, catalog, server string, registry *assets.Reg
 				Infrastructure: slots.ResolvedSubscription{Name: "dev-infra", ID: "infra-id"},
 			}, nil
 		},
+		// SetupAzureGlobalLogger is a no-op in tests, so the path is never read or
+		// written. It only needs to satisfy Validate's non-empty requirement.
+		AzureGlobalLoggerLogPath: "azure-global-logger-test.log",
+		SetupAzureGlobalLogger:   noopSetupAzureGlobalLogger,
 	}
 }
 
@@ -493,10 +497,10 @@ func TestPoolCommandsPreserveWholeCatalogInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, validate := range []bool{false, true} {
-		err := runPoolAssetsCommand(context.Background(), registry, &assetCommandOptions{
+		err := runPoolAssetsCommand(context.Background(), registry, assetCommandOptionsForTest(assetCommandOptions{
 			Environment: "dev", SlotCatalog: path, Pools: []string{"shard0"}, Subscriptions: []string{"dev-e2e"},
 			AssetKinds: []string{string(slots.KindInfrastructureIdentities)},
-		}, validate)
+		}), validate)
 		if err != nil || len(assetInventories) != 1 || assetInventories[0].Capacity != 5 {
 			t.Fatalf("filtered command shrank full demand: %+v, %v", assetInventories, err)
 		}
@@ -505,7 +509,7 @@ func TestPoolCommandsPreserveWholeCatalogInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := runPoolAssetsCommand(context.Background(), builtIn, &assetCommandOptions{Environment: "dev", SlotCatalog: path}, true); err == nil || !strings.Contains(err.Error(), "without an implemented handler") {
+	if err := runPoolAssetsCommand(context.Background(), builtIn, assetCommandOptionsForTest(assetCommandOptions{Environment: "dev", SlotCatalog: path}), true); err == nil || !strings.Contains(err.Error(), "without an implemented handler") {
 		t.Fatalf("unsupported asset management must fail before Azure access: %v", err)
 	}
 }
