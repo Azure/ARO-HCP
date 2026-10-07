@@ -53,9 +53,9 @@ func (v verifyInsightsOperatorHealthy) checkOnce(ctx context.Context, adminRESTC
 		return fmt.Errorf("failed to get ClusterOperator %q: %w", insightsOperatorName, err)
 	}
 
-	available := getClusterOperatorCondition(co.Status.Conditions, configv1.OperatorAvailable)
-	if available == nil || available.Status != configv1.ConditionTrue {
-		return fmt.Errorf("ClusterOperator %q is not Available (%s)", insightsOperatorName, formatConditions(co.Status.Conditions))
+	disabled := getClusterOperatorCondition(co.Status.Conditions, "Disabled")
+	if disabled != nil && disabled.Status == configv1.ConditionTrue {
+		return fmt.Errorf("ClusterOperator %q is still Disabled (reason=%s, %s)", insightsOperatorName, disabled.Reason, formatConditions(co.Status.Conditions))
 	}
 
 	degraded := getClusterOperatorCondition(co.Status.Conditions, configv1.OperatorDegraded)
@@ -67,10 +67,10 @@ func (v verifyInsightsOperatorHealthy) checkOnce(ctx context.Context, adminRESTC
 }
 
 // VerifyInsightsOperatorHealthy polls until the "insights" ClusterOperator
-// reports Available=True and Degraded=False, or the timeout expires.
-// This verifies that the Insights Operator has detected a valid
-// cloud.openshift.com token (e.g. from kube-system/global-pull-secret)
-// and successfully registered the cluster.
+// reports Disabled!=True and Degraded!=True, or the timeout expires.
+// The Insights Operator sets Available=True even in NoToken/disabled state,
+// so we check the Disabled condition instead to detect the actual transition
+// from NoToken to actively gathering.
 func VerifyInsightsOperatorHealthy(timeout time.Duration) HostedClusterVerifier {
 	return verifyInsightsOperatorHealthy{timeout: timeout}
 }
