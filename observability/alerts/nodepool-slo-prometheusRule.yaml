@@ -40,7 +40,7 @@ spec:
     # PromQL.) Holding the condition firing over a 6h look-back collapses a
     # continuously-stuck resource into a single long-lived incident; genuinely
     # distinct stuck episodes more than 6h apart still get their own incident.
-    - alert: UJNodePoolStuckOperation
+    - alert: userJourneyNodePoolStuckOperation
       expr: |
         max by (
           cluster,
@@ -65,7 +65,7 @@ spec:
       for: 15m
       labels:
         exclude_internal_subscriptions: "true"
-        severity: info
+        severity: "4"
       annotations:
         summary: "{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours"
         description: "Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
@@ -80,7 +80,7 @@ spec:
       component: slo
     rules:
     # Queue depth: node pool controller workqueue accumulating work
-    - alert: UJNodePoolSaturationQueueDepth
+    - alert: userJourneyNodePoolSaturationQueueDepth
       expr: |
         max by (name, cluster) (
           max without(prometheus_replica) (
@@ -89,7 +89,7 @@ spec:
         ) > 10
       for: 5m
       labels:
-        severity: info
+        severity: "4"
       annotations:
         summary: "{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high"
         description: "Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
@@ -113,14 +113,14 @@ spec:
       component: slo
     rules:
     # Fast Burn. 14.4x burn: >72% failures over 1h, >=3 failures.
-    - alert: UJNodePoolErrors1h5m
+    - alert: userJourneyNodePoolErrors1h5m
       expr: |
         errors:backend_nodepool_operation:failed_1h >= 3
         and
         errors:backend_nodepool_operation:error_rate_1h > 0.72
       for: 5m
       labels:
-        severity: info
+        severity: "4"
         slo: nodepool-errors
         long_window: 1h
         short_window: 5m
@@ -129,14 +129,14 @@ spec:
         description: "More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # Medium Burn. 6x burn: >30% failures over 6h, >=5 completions.
-    - alert: UJNodePoolErrors6h30m
+    - alert: userJourneyNodePoolErrors6h30m
       expr: |
         errors:backend_nodepool_operation:total_6h >= 5
         and
         errors:backend_nodepool_operation:error_rate_6h > 0.30
       for: 30m
       labels:
-        severity: info
+        severity: "4"
         slo: nodepool-errors
         long_window: 6h
         short_window: 30m
@@ -145,7 +145,7 @@ spec:
         description: "More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # Slow Burn / Budget. 1x burn: >5% failures over 3d, >=10 completions, >=2 failures.
-    - alert: UJNodePoolErrors3d
+    - alert: userJourneyNodePoolErrors3d
       expr: |
         errors:backend_nodepool_operation:total_3d >= 10
         and
@@ -154,7 +154,7 @@ spec:
         errors:backend_nodepool_operation:error_rate_3d > 0.05
       for: 6h
       labels:
-        severity: info
+        severity: "4"
         slo: nodepool-errors
         long_window: 3d
       annotations:
@@ -162,7 +162,7 @@ spec:
         description: "More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # Early Warning / Degradation. Precursor: >15% failures over 6h before the burn-rate alerts fire.
-    - alert: UJNodePoolErrorsDegradation
+    - alert: userJourneyNodePoolErrorsDegradation
       expr: |
         errors:backend_nodepool_operation:total_6h >= 5
         and
@@ -171,7 +171,7 @@ spec:
         errors:backend_nodepool_operation:error_rate_6h > 0.15
       for: 30m
       labels:
-        severity: info
+        severity: "4"
         slo: nodepool-errors
         long_window: 6h
       annotations:
