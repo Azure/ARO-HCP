@@ -110,7 +110,7 @@ var _ = Describe("Customer", func() {
 			channel := clusterParams.ChannelGroup
 			if channel == "nightly" {
 				resolved, err := framework.GetLatestNightlyInstallVersion(ctx, channel, version)
-				if framework.IsVersionNotFoundError(err) {
+				if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
 					Skip(fmt.Sprintf("no %s version available in configured channel %s: %v", version, channel, err))
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve configured nightly channel")
@@ -150,6 +150,8 @@ var _ = Describe("Customer", func() {
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
+			nodePoolParams.OpenshiftVersionId = clusterParams.OpenshiftVersionId
+			nodePoolParams.ChannelGroup = clusterParams.ChannelGroup
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)

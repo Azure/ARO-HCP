@@ -206,11 +206,14 @@ func (client *fakeTLSCertificatesClient) GetCertificateOperation(_ context.Conte
 }
 
 func TestTLSCertificatesOperationReadiness(test *testing.T) {
+	notFound := &azcore.ResponseError{StatusCode: http.StatusNotFound}
 	for _, scenario := range []struct {
 		name                     string
 		status                   *string
 		getError, operationError error
 		wantReady, wantError     bool
+		wantErrorMessage         string
+		wantNoOperation          bool
 	}{
 		{name: "completed", status: ptr.To("completed"), wantReady: true},
 		{name: "in progress", status: ptr.To("inProgress")},
@@ -218,8 +221,13 @@ func TestTLSCertificatesOperationReadiness(test *testing.T) {
 		{name: "cancelled", status: ptr.To("cancelled"), wantError: true},
 		{name: "unknown", status: ptr.To("unexpected"), wantError: true},
 		{name: "nil status", wantError: true},
-		{name: "certificate absent", getError: &azcore.ResponseError{StatusCode: http.StatusNotFound}},
-		{name: "forbidden", getError: &azcore.ResponseError{StatusCode: http.StatusForbidden}, wantError: true},
+		{name: "certificate and operation absent", getError: notFound, operationError: notFound},
+		{name: "certificate absent operation in progress", getError: notFound, status: ptr.To("inProgress")},
+		{name: "certificate absent operation completed", getError: notFound, status: ptr.To("completed")},
+		{name: "certificate absent operation failed", getError: notFound, status: ptr.To("failed"), wantError: true, wantErrorMessage: `certificate "certificate" operation failed`},
+		{name: "certificate absent operation cancelled", getError: notFound, status: ptr.To("cancelled"), wantError: true, wantErrorMessage: `certificate "certificate" operation cancelled`},
+		{name: "certificate absent operation error", getError: notFound, operationError: errors.New("service unavailable"), wantError: true},
+		{name: "forbidden", getError: &azcore.ResponseError{StatusCode: http.StatusForbidden}, wantError: true, wantNoOperation: true},
 		{name: "operation absent", operationError: &azcore.ResponseError{StatusCode: http.StatusNotFound}, wantError: true},
 		{name: "operation error", operationError: errors.New("service unavailable"), wantError: true},
 	} {
@@ -229,10 +237,13 @@ func TestTLSCertificatesOperationReadiness(test *testing.T) {
 			require.Equal(test, scenario.wantReady, ready)
 			if scenario.wantError {
 				require.Error(test, err)
+				if scenario.wantErrorMessage != "" {
+					require.ErrorContains(test, err, scenario.wantErrorMessage)
+				}
 			} else {
 				require.NoError(test, err)
 			}
-			if scenario.getError != nil {
+			if scenario.wantNoOperation {
 				require.Zero(test, client.operationCalls)
 			} else {
 				require.Equal(test, 1, client.operationCalls)
