@@ -317,6 +317,8 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
   `ARO_HCP_E2E_VM_FAMILY_POLICY` in `${SHARED_DIR}/aro-hcp-slot.env`.
   The suite only parses and applies that object; it does not resolve policy from
   `ARO_HCP_DEPLOY_ENV` or load another configuration file.
+  The shared policy type/parser and its tests live in
+  [`test/pkg/vmfamily`](../pkg/vmfamily); `e2e-config` contains configuration only.
 - Unconfigured pools export `{}` to clear inherited policy. Explicit empty/null
   role lists, unknown or duplicate fields, and malformed JSON fail rather than
   falling back. An explicitly empty environment variable is invalid; unset it
@@ -334,9 +336,13 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
   discovery from selecting oversized SKUs such as D128. Exhausting configured
   families returns `ErrNoUsableVMSize` without falling through to other families.
 - The catalog configures **only `int` / `westus3-shard0`**:
-  `worker_families: [standardDSv5Family]` and
-  `helper_families: [standardDDSv5Family]`, normally selecting `Standard_D8s_v5`,
-  `Standard_D4s_v5`, and `Standard_D2ds_v5`.
+  workers search Dsv6 → Dsv5 → Dasv5, and helpers search Ddsv6 → Ddsv5 → Dadsv5.
+  The exact Azure family identifiers are `StandardDsv6Family`,
+  `standardDSv5Family`, `standardDASv5Family` for workers and
+  `StandardDdsv6Family`, `standardDDSv5Family`, `standardDADSv5Family` for helpers.
+  The first choices are `Standard_D8s_v6`, `Standard_D4s_v6`, and
+  `Standard_D2ds_v6`; later families are considered only when no eligible size
+  in an earlier family is available.
   INT UK South and all other pools retain historical behavior.
   Ephemeral OS disk, GPU, Arm64 selectors and explicit pins bypass family
   selection policy; malformed configuration still fails suite initialization.
@@ -352,10 +358,13 @@ Keep the usual local subscription, location, and authentication setup. The
 override does not choose a subscription or region, or grant quota.
 
 Only reported **restrictions** are honoured; quota *headroom* (vCPU Usages API)
-is out of scope. Alternative families are not enabled by the shipped policy.
-Enabling an additional family requires checking its worker quota, total regional
-quota and workload demand first. Azure SKU metadata and quota approval do not
-reserve physical capacity or guarantee that a later VM allocation succeeds.
+is out of scope. [ARO-30092](https://redhat.atlassian.net/browse/ARO-30092)
+records 2,000 vCPUs for each configured worker family, 350 for each helper
+family, and a shared 6,950-vCPU regional limit in the target subscription.
+Enabling further families requires checking their quota, total regional quota,
+and workload demand first. Azure SKU metadata and quota approval do not reserve
+physical capacity or guarantee that a later VM allocation succeeds. Ordered
+selection does not retry deployments after allocation or quota failures.
 
 ## Updating E2E Timeouts
 
