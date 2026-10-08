@@ -96,41 +96,10 @@ func main() {
 		root = os.Args[1]
 	}
 
-	files, err := trackedFiles(root)
+	findings, err := scanRepository(root)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error listing tracked files in %s: %v\n", root, err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
-	}
-
-	findings := checkPaths(files)
-
-	flagged := make(map[string]bool, len(findings))
-	for _, f := range findings {
-		flagged[f.path] = true
-	}
-
-	for _, f := range agentJSONFiles(files) {
-		var found []finding
-		if readableBlob(f) {
-			content, err := blobContent(root, f.oid)
-			if err != nil {
-				// Quoted for the same reason as in report: index data.
-				fmt.Fprintf(os.Stderr, "error reading %q (%q): %v\n", f.path, f.oid, err)
-				os.Exit(2)
-			}
-			found = scanAgentJSON(f.path, content)
-		} else {
-			found = []finding{unreadableAgentJSON(f)}
-		}
-
-		for _, fd := range found {
-			// A path the rules already reject is blocked whatever its contents,
-			// so only the execution-key escalation earns a second line.
-			if fd.rule != ruleExecutionKey && flagged[fd.path] {
-				continue
-			}
-			findings = append(findings, fd)
-		}
 	}
 
 	if len(findings) == 0 {
@@ -139,6 +108,44 @@ func main() {
 
 	report(os.Stderr, findings)
 	os.Exit(1)
+}
+
+// scanRepository applies every rule to the git index at root.
+//
+// Separate from main so the rules can be tested as they actually run. They
+// interact — the content rules read exactly what the path rules block — and
+// testing each in isolation is what let two of them go unreachable without a
+// test noticing.
+func scanRepository(root string) ([]finding, error) {
+	files, err := trackedFiles(root)
+	if err != nil {
+		return nil, fmt.Errorf("error listing tracked files in %s: %w", root, err)
+	}
+
+	findings := checkPaths(files)
+
+	// One entry can earn a path finding and a content finding, and both are
+	// reported. They say different things: the path rule that the file does
+	// not belong in the commit, the content rule what the scan made of the
+	// bytes. Suppressing the second because the first already fails the build
+	// is what made invalid-json and unreadable unreachable, and it hid the one
+	// signal separating a stray settings.json from an attempt to smuggle a
+	// command key past the decoder by breaking the syntax.
+	for _, f := range agentJSONFiles(files) {
+		if !readableBlob(f) {
+			findings = append(findings, unreadableAgentJSON(f))
+			continue
+		}
+
+		content, err := blobContent(root, f.oid)
+		if err != nil {
+			// Quoted for the same reason as in report: index data.
+			return nil, fmt.Errorf("error reading %q (%q): %w", f.path, f.oid, err)
+		}
+		findings = append(findings, scanAgentJSON(f.path, content)...)
+	}
+
+	return findings, nil
 }
 
 // Index modes. Only a regular file carries its own bytes; a symlink's blob is
@@ -215,8 +222,8 @@ func readableBlob(f trackedFile) bool {
 
 // unreadableAgentJSON refuses agent JSON the execution-key rule could not read,
 // naming the mode so a reviewer knows what the entry stands for. The path rules
-// report all of these first today; it stays anyway, so that narrowing one costs
-// a duplicate finding rather than a silent hole.
+// reject the same entry, and both lines are printed: that one says the alias
+// may not be committed, this one that nothing here judged what it stands for.
 func unreadableAgentJSON(f trackedFile) finding {
 	return finding{
 		path:   f.path,
@@ -381,14 +388,16 @@ func hasSegment(p, segment string) bool {
 
 // remediation is what to actually do about each rule, keyed by rule name. The
 // advice differs in kind and a single blanket line gets most of it wrong: a
-// settings file is unwanted and should go, whereas an alias or a syntax error
-// is usually a legitimate asset in the wrong shape, and telling its author to
-// delete it costs them work the check never meant to reject.
+// settings file is unwanted and should go, whereas an alias is usually a
+// legitimate asset in the wrong shape and telling its author to delete it
+// costs them work the check never meant to reject. A syntax error is different
+// again — it is the one finding that reports the scan did not run, so the
+// advice has to point at the contents rather than at the comma.
 var remediation = map[string]string{
 	ruleAgentSettings: "Remove these from the commit. They belong in your local working copy only.",
 	ruleEditorConfig:  "Remove these from the commit. They belong in your local working copy only.",
 	ruleConfigNotFile: "Replace the alias with a real file, or move the content out of the configuration path. Do not resolve it to find out what it points at.",
-	ruleInvalidJSON:   "Fix the syntax. Agent configuration must parse as strict JSON: no comments, no trailing commas.",
+	ruleInvalidJSON:   "This did not parse as strict JSON — no comments, no trailing commas — so it was never scanned for an execution key. Breaking the syntax is how a command key gets past the decoder, so read the contents rather than assuming a stray comma.",
 	ruleUnreadable:    "Replace the entry with a real file. Its contents could not be read, so the execution-key rule could not judge them.",
 	ruleExecutionKey:  "Do not open or run these files. Report them to the security team before taking any other action.",
 }
