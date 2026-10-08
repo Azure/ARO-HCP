@@ -5819,6 +5819,283 @@
             value: 1
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_saturation_alerts
+  alert: userJourneyClusterDeletionQueueDepth
+  occurrence: 1
+  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+  plan:
+    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+    conditions:
+      - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+        path: root
+        queries:
+          - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 10
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrors1h5m
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:failed_1h >= 3 and errors:backend_cluster_deletion_operation:error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+  plan:
+    expression: errors:backend_cluster_deletion_operation:failed_1h >= 3 and errors:backend_cluster_deletion_operation:error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:failed_1h >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:failed_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_1h > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrors3d
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:total_3d >= 10 and errors:backend_cluster_deletion_operation:failed_3d >= 2 and errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_cluster_deletion_operation:total_3d >= 10 and errors:backend_cluster_deletion_operation:failed_3d >= 2 and errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:total_3d >= 10
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:failed_3d >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:failed_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrors6h30m
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
+  plan:
+    expression: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_6h > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrorsDegradation
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:failed_6h >= 2 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
+  plan:
+    expression: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:failed_6h >= 2 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:failed_6h >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:failed_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionLatency1h5m
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:latency_total_1h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
+  plan:
+    expression: errors:backend_cluster_deletion_operation:latency_total_1h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:latency_total_1h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_total_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionLatency3d
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:latency_total_3d >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_cluster_deletion_operation:latency_total_3d >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:latency_total_3d >= 5
+        path: root/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionLatency6h30m
+  occurrence: 1
+  input: errors:backend_cluster_deletion_operation:latency_total_6h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
+  plan:
+    expression: errors:backend_cluster_deletion_operation:latency_total_6h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:latency_total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionStuckOperation
+  occurrence: 1
+  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left/and:left
+        queries:
+          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left/and:right
+        queries:
+          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_cluster_provision_slo_latency_alerts
   alert: userJourneyClusterProvisionStuckOperation
   occurrence: 1
@@ -7357,6 +7634,392 @@
         thresholds:
           - operator: '>'
             value: 0
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_saturation_alerts
+  alert: userJourneyClusterDeletionQueueDepth
+  occurrence: 1
+  input: |
+    max by (name, cluster) (
+      max without(prometheus_replica) (
+        workqueue_depth{namespace="aro-hcp", name="OperationClusterDelete"}
+      )
+    ) > 10
+  plan:
+    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+    conditions:
+      - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10
+        path: root
+        queries:
+          - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 10
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrors1h5m
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:failed_1h >= 3
+    and
+    errors:backend_cluster_deletion_operation:error_rate_1h > 0.72
+    and
+    errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+  plan:
+    expression: errors:backend_cluster_deletion_operation:failed_1h >= 3 and errors:backend_cluster_deletion_operation:error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:failed_1h >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:failed_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_1h > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrors3d
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:total_3d >= 10
+    and
+    errors:backend_cluster_deletion_operation:failed_3d >= 2
+    and
+    errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_cluster_deletion_operation:total_3d >= 10 and errors:backend_cluster_deletion_operation:failed_3d >= 2 and errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:total_3d >= 10
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:failed_3d >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:failed_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrors6h30m
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:total_6h >= 5
+    and
+    errors:backend_cluster_deletion_operation:error_rate_6h > 0.30
+    and
+    errors:backend_cluster_deletion_operation:error_rate_30m > 0.30
+  plan:
+    expression: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_6h > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionErrorsDegradation
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:total_6h >= 5
+    and
+    errors:backend_cluster_deletion_operation:failed_6h >= 2
+    and
+    errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
+  plan:
+    expression: errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:failed_6h >= 2 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:failed_6h >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:failed_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:error_rate_6h > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionLatency1h5m
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:latency_total_1h >= 5
+    and
+    errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72
+    and
+    errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
+  plan:
+    expression: errors:backend_cluster_deletion_operation:latency_total_1h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:latency_total_1h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_total_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionLatency3d
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:latency_total_3d >= 5
+    and
+    errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_cluster_deletion_operation:latency_total_3d >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:latency_total_3d >= 5
+        path: root/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionLatency6h30m
+  occurrence: 1
+  input: |
+    errors:backend_cluster_deletion_operation:latency_total_6h >= 5
+    and
+    errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.30
+    and
+    errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.30
+  plan:
+    expression: errors:backend_cluster_deletion_operation:latency_total_6h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
+    conditions:
+      - expression: errors:backend_cluster_deletion_operation:latency_total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_deletion_operation:latency_error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: observability/alerts/cluster-deletion-slo-prometheusRule.yaml
+  group: arohcp_cluster_deletion_slo_windowed_error_alerts
+  alert: userJourneyClusterDeletionStuckOperation
+  occurrence: 1
+  input: |
+    max by (
+      cluster,
+      environment,
+      region,
+      subscription_id,
+      resource_id,
+      resource_type,
+      operation_type,
+      phase
+    ) (
+      max_over_time(
+        (
+          (
+            max by (
+              cluster,
+              environment,
+              region,
+              subscription_id,
+              resource_id,
+              resource_type,
+              operation_type,
+              phase
+            ) (
+              backend_resource_operation_phase_info{
+                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                operation_type="delete",
+                phase=~"accepted|deleting"
+              } == 1
+            )
+            and
+            (
+              time() - max by (
+                cluster,
+                environment,
+                region,
+                subscription_id,
+                resource_id,
+                resource_type,
+                operation_type,
+                phase
+              ) (
+                backend_resource_operation_last_transition_time_seconds{
+                  resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                  operation_type="delete",
+                  phase=~"accepted|deleting"
+                }
+              )
+            ) > 3600
+          )
+        )[6h:5m]
+      )
+    )
+    and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
+    (
+      max by (
+        cluster,
+        environment,
+        region,
+        subscription_id,
+        resource_id,
+        resource_type,
+        operation_type,
+        phase
+      ) (
+        backend_resource_operation_phase_info{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+          operation_type="delete",
+          phase=~"accepted|deleting"
+        }
+      ) == 1
+    )
+  plan:
+    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)
+    conditions:
+      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m]))
+        path: root/and:left
+        queries:
+          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m]))
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1
+        path: root/and:right
+        queries:
+          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
         unsupported: ""
 - source: observability/alerts/cluster-provision-slo-prometheusRule.yaml
   group: arohcp_cluster_provision_slo_latency_alerts
