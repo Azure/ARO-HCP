@@ -202,38 +202,55 @@ func regularFiles(paths ...string) []trackedFile {
 func TestAgentJSONFiles(t *testing.T) {
 	got := agentJSONFiles(append(regularFiles(
 		".claude/settings.json",
+		".claude/settings.local.json",
 		".claude/skills/x/SKILL.md",
-		"frontend/.claude/other.json",
 		"config/config.json",
 		".vscode/settings.json",
-		".Claude/Payload.JSON",
+		// Keyed on the filename, not the directory: an auto-loaded name is
+		// escalated wherever it sits, so .claude/skills/ is no safe harbour.
+		".claude/skills/x/settings.json",
+		// Case-insensitive, because git's index is not.
+		".Claude/Settings.JSON",
 		// MCP config is scanned wherever it sits, so that a command hidden in
 		// a project-scoped server entry still reaches the content rules.
 		".mcp.json",
 		".cursor/mcp.json",
+
+		// Not selected. Nothing auto-loads a skill's fixtures or manifests, so
+		// a command key in one is a documented example far more often than an
+		// attack, and this rule reports confirmed malware. Scanning them
+		// bought no coverage either: a malicious skill carries its instruction
+		// in SKILL.md, which is markdown this check does not read.
+		".claude/skills/x/fixture.json",
+		".claude/skills/x/testdata.json",
+		".claude/skills/x/images/manifest.json",
+		"frontend/.claude/other.json",
 	),
 		// Selected despite not being readable. A symlink is how an execution
 		// key would otherwise walk straight through this rule: git stores a
 		// target path, but an agent resolves the link and reads the keys on
 		// the other end. Selecting it here is what lets the caller refuse it;
 		// dropping it at selection time is the bypass.
-		trackedFile{path: ".claude/skills/x/meta.json", mode: modeSymlink},
+		trackedFile{path: "frontend/.claude/settings.json", mode: modeSymlink},
 		trackedFile{path: "frontend/.mcp.json", mode: modeSymlink},
-		trackedFile{path: ".claude/vendor.json", mode: modeSubmodule},
+		trackedFile{path: "a/.claude/mcp.json", mode: modeSubmodule},
 		// An executable regular file is still a plain blob and safe to read.
-		trackedFile{path: ".claude/exec.json", mode: modeExecutable},
+		trackedFile{path: ".claude/settings.local.json", mode: modeExecutable},
+		// A non-auto-loaded name stays unselected whatever its mode.
+		trackedFile{path: ".claude/skills/x/meta.json", mode: modeSymlink},
 	))
 
 	want := []string{
 		".claude/settings.json",
-		"frontend/.claude/other.json",
-		".Claude/Payload.JSON",
+		".claude/settings.local.json",
+		".claude/skills/x/settings.json",
+		".Claude/Settings.JSON",
 		".mcp.json",
 		".cursor/mcp.json",
-		".claude/skills/x/meta.json",
+		"frontend/.claude/settings.json",
 		"frontend/.mcp.json",
-		".claude/vendor.json",
-		".claude/exec.json",
+		"a/.claude/mcp.json",
+		".claude/settings.local.json",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("expected %v, got %v", want, got)
@@ -242,6 +259,31 @@ func TestAgentJSONFiles(t *testing.T) {
 		if got[i].path != want[i] {
 			t.Errorf("index %d: expected %q, got %q", i, want[i], got[i].path)
 		}
+	}
+}
+
+// TestSkillAssetsAreNotContentScanned pins the carve-out the selector exists
+// for. These are the exact shapes a skill legitimately ships -- a manifest
+// documenting example commands, test data for a hooks-related skill -- and
+// before the selector was narrowed each was reported as confirmed malware and
+// its author sent to the security team.
+func TestSkillAssetsAreNotContentScanned(t *testing.T) {
+	for _, p := range []string{
+		".claude/skills/x/fixture.json",
+		".claude/skills/x/testdata.json",
+		".claude/skills/hooks-docs/examples.json",
+		"frontend/.claude/notes.json",
+	} {
+		t.Run(p, func(t *testing.T) {
+			files := regularFiles(p)
+
+			if selected := agentJSONFiles(files); len(selected) != 0 {
+				t.Fatalf("expected %s not to be content-scanned, got %+v", p, selected)
+			}
+			if findings := checkPaths(files); len(findings) != 0 {
+				t.Fatalf("expected %s to be accepted by the path rules, got %+v", p, findings)
+			}
+		})
 	}
 }
 
