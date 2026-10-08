@@ -15,14 +15,73 @@
 package controller
 
 import (
+	"context"
+	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/go-logr/logr/funcr"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/klog/v2"
 )
+
+func TestLogResourceEventRedactsSecretSyncHash(t *testing.T) {
+	tests := []struct {
+		name   string
+		gvr    schema.GroupVersionResource
+		redact bool
+	}{
+		{
+			name:   "SecretSync",
+			gvr:    schema.GroupVersionResource{Group: "secret-sync.x-k8s.io", Version: "v1alpha1", Resource: "secretsyncs"},
+			redact: true,
+		},
+		{
+			name: "other group",
+			gvr:  schema.GroupVersionResource{Group: "example.com", Version: "v1", Resource: "secretsyncs"},
+		},
+		{
+			name: "other resource",
+			gvr:  schema.GroupVersionResource{Group: "secret-sync.x-k8s.io", Version: "v1alpha1", Resource: "otherresources"},
+		},
+	}
+	for _, test := range tests {
+		for _, eventType := range []string{"Add", "Update", "Delete"} {
+			t.Run(test.name+"/"+eventType, func(t *testing.T) {
+				obj := &unstructured.Unstructured{Object: map[string]interface{}{
+					"metadata": map[string]interface{}{"name": "test", "namespace": "test"},
+					"status": map[string]interface{}{
+						"syncHash":               "synthetic-test-hash",
+						"lastSuccessfulSyncTime": "2026-10-08T00:00:00Z",
+					},
+				}}
+				original := obj.DeepCopy()
+				want := obj.DeepCopy()
+				if test.redact {
+					unstructured.RemoveNestedField(want.Object, "status", "syncHash")
+				}
+				var output string
+				logger := funcr.NewJSON(func(entry string) { output = entry }, funcr.Options{})
+				ctx := klog.NewContext(context.Background(), logger)
+				logResourceEvent(ctx, eventType, test.gvr, obj)
+				var logged map[string]interface{}
+				if err := json.Unmarshal([]byte(output), &logged); err != nil {
+					t.Fatalf("failed to decode logged event: %v", err)
+				}
+				if !reflect.DeepEqual(logged["object"], want.Object) {
+					t.Errorf("logged object = %#v, want %#v", logged["object"], want.Object)
+				}
+				if !reflect.DeepEqual(obj, original) {
+					t.Error("logging mutated the original object")
+				}
+			})
+		}
+	}
+}
 
 func TestReflectorStoreLogsWithoutRetainingObjects(t *testing.T) {
 	var added, updated, deleted []interface{}
