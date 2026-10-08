@@ -5,7 +5,7 @@ This plan maps the fleet rollout design originally authored on the
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: the seven controllers, Cosmos storage, informers, and backend wiring
+> Status: the seven rollout controllers, Cosmos storage, informers, and backend wiring
 > are implemented. They run unconditionally. Production policy is hardcoded;
 > risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
 
@@ -73,6 +73,8 @@ type ControlPlaneVersionRollout struct {
 }
 
 type ControlPlaneVersionRolloutSpec struct {
+    // Canonical major.minor ID and channel group matching the resource name.
+    Version coreapi.VersionProfile `json:"version"`
     // BestExactVersion uses recency and the channel offset, subject to the SRE
     // minimum-version floor. Conditional-update risk filtering is a follow-up.
     BestExactVersion *semver.Version `json:"bestExactVersion,omitempty"`
@@ -96,6 +98,17 @@ Wiring checklist (templated on `Stamp`, see the research notes):
 constants), `partition.go` (resource-id builders), `ProviderNamespacePartitionKeyDeriver`, `make deepcopy`, `fleetcosmosstorage` CRUD +
 `fleetcosmosstoragetesting` mock, validation, `fleetinformers` +
 `fleetlisters`.
+
+`Spec.Version` is populated on creation: `stable-4.21` has `ID: "4.21"` and
+`ChannelGroup: "stable"`. Create/update validation requires agreement with the
+name. Existing consumers continue parsing channel names; this storage migration
+does not switch consumers to the profile or add discovery, new floor policy, or
+catalog retirement.
+
+Shared Cosmos conversion fills absent/zero legacy profiles from valid names
+before Get/List results reach callers or informer caches, without a storage write.
+Partial or mismatched profiles are left for validation to reject. Ordinary rollout
+replacements persist the normalized profile alongside their existing changes.
 
 ### 3.2 `ServiceProviderCluster.Spec.PinnedVersion`
 
@@ -147,7 +160,7 @@ they neither seed rollouts nor query Cincinnati.
 
 ## 5. Controllers
 
-All seven run in the `backend` binary. Four are per-cluster (use
+All seven rollout controllers run in the `backend` binary. Four are per-cluster (use
 `controllerutils.NewClusterWatchingController` + `HCPClusterKey`); three are
 per-`ControlPlaneVersionRollout` (use a new fleet watching controller keyed by
 the rollout channel name, or `genericWatchingController[T]` on the rollout
@@ -222,9 +235,10 @@ controller** — the plan reuses the existing path. Input
 
 ### 5.6 Rollout Seeding (per-cluster)
 
-Creates a rollout for the customer's requested channel and, when pinned, the
-pinned minor's channel. Existing rollout contents are preserved. Nightly and
-deleting clusters are skipped.
+Creates a rollout with `Spec.Version` populated for the customer's requested
+channel and, when pinned, the pinned minor's channel. Best version and status
+start unset. Existing rollout contents are preserved. Nightly and deleting
+clusters are skipped.
 
 ### 5.7 Initial Normal Desired Version (per-cluster)
 
@@ -241,6 +255,21 @@ minor-skew rules. Missing provider state or incompatible pools block assignment,
 including pools still being deleted. Pins and experimental exact overrides are
 owned exclusively by forced assignment. Both initial and minor assignment retry missing rollout/best data
 after ten seconds and bypass progressive z-stream gates.
+
+### 5.9 Rollout Version Migration (per-rollout)
+
+The separate backend `CosmosRolloutVersionMigration` controller uses
+`NewControlPlaneVersionRolloutWatchingController`, five workers and a 5m
+resync/cooldown. It has no subscription dependency; the subscription-scoped
+`CosmosMigration` remains unchanged. It live-reads and replaces each rollout,
+including already-structured documents, to persist the normalized profile.
+ETag conflicts/precondition failures re-read and retry within three attempts per
+reconcile, preserving selection and status; not-found is a no-op. Only a
+successful replacement marks that key complete in memory for the process.
+
+An older writer can subsequently drop the unknown field. Read compatibility
+still works, but migration does not rewrite a completed key again in that
+process; an ordinary replacement or process restart can persist it again.
 
 ## 6. Ownership and cutover
 
@@ -287,6 +316,8 @@ Implemented:
 - Fleet API, validation of supported channel groups and major/minor names,
   Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
 - Seven controllers, backend registration under leader election, and unit tests.
+- Structured rollout version profiles, shared read compatibility, and the separate
+  `CosmosRolloutVersionMigration` controller for persisted backfill.
 - Shared Cincinnati selection with the existing per-channel offset policy.
 - Persisted transition ages and assignment cooldown reservations.
 - Forced-version precedence, pinned-channel seeding, and completed-only progress.

@@ -16,7 +16,6 @@ package rollout
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/blang/semver/v4"
 
@@ -36,17 +35,6 @@ func minorString(v semver.Version) string {
 // version, e.g. ("stable", "4.21") -> "stable-4.21".
 func yStreamChannel(channelGroup, minor string) string {
 	return channelGroup + "-" + minor
-}
-
-// parseYStreamChannel splits a y-stream channel name into its channel group and
-// minor version, e.g. "stable-4.21" -> ("stable", "4.21"). It splits on the
-// first "-"; channel groups (stable/fast/candidate/nightly) contain no "-".
-func parseYStreamChannel(yStreamChannel string) (channelGroup, minor string, ok bool) {
-	parts := strings.SplitN(yStreamChannel, "-", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", false
-	}
-	return parts[0], parts[1], true
 }
 
 // earliestActiveVersionEntry returns the earliest (oldest) active-version entry.

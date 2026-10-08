@@ -125,11 +125,15 @@ Or `integration/parallel` test suite:
 $ ./test/aro-hcp-tests run-suite "integration/parallel" --junit-path="junit.xml"
 ```
 
-The `stage/parallel/all` suite selects the union of `stage/parallel` and
-`stage/parallel/slow`. It retains the Stage environment exclusions and runs both
-Slow-labeled and non-Slow tests in one suite:
+The `integration/parallel/all` and `stage/parallel/all` suites select the union
+of their fast (`integration/parallel` / `stage/parallel`) and Slow
+(`integration/parallel/slow` / `stage/parallel/slow`) suites. Each retains its
+environment exclusions and runs both Slow-labeled and non-Slow tests in one
+suite:
 
 ```bash
+./test/aro-hcp-tests list tests --suite "integration/parallel/all" --output names
+./test/aro-hcp-tests run-suite "integration/parallel/all"
 ./test/aro-hcp-tests list tests --suite "stage/parallel/all" --output names
 ./test/aro-hcp-tests run-suite "stage/parallel/all"
 ```
