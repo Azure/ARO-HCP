@@ -103,7 +103,7 @@ There is deliberately no comment or annotation that suppresses a finding. Allowi
 The report names the path, the rule, and what to do. Two cases need different handling:
 
 - **`execution-key`** is reported as a known attack pattern. Do not open or run the file. Report it to the security team before taking any other action. If it is your own file and the key is innocent, say so in the PR rather than removing the evidence.
-- **Everything else** means the file does not belong in the commit. It almost always belongs in your local working copy only — check that it is gitignored, and remember that `git add -f` defeats that permanently.
+- **Everything else** means the file does not go in the commit as it stands, but the fix differs by rule and the report prints the right one under "What to do". A settings or editor file belongs in your local working copy — check it is gitignored, and remember that `git add -f` defeats that permanently. An alias is different: a symlinked asset under `.claude/skills/` is usually legitimate content in the wrong shape, and materialising it as a real file, or moving it off the configuration path, is the fix rather than deleting it.
 
 Run `make verify-supply-chain` locally before pushing; it takes well under a second.
 
