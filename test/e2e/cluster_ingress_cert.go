@@ -57,7 +57,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/test/util/config"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -72,7 +71,7 @@ var letsEncryptStagingCAs embed.FS
 const certManagerManifestURL = "https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml"
 
 var _ = Describe("Customer", func() {
-	DescribeTable("should serve the default ingress certificate and allow a customer certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges",
+	DescribeTable("should serve the default ingress certificate and allow a customer ingress certificate",
 		labels.RequireNothing,
 		labels.High,
 		labels.Positive,
@@ -92,10 +91,6 @@ var _ = Describe("Customer", func() {
 				acmeServer           = "https://acme-staging-v02.api.letsencrypt.org/directory"
 			)
 			tc := framework.NewTestContext()
-			serviceConfig, err := config.GetServiceConfig()
-			Expect(err).NotTo(HaveOccurred(), "failed to load environment certificate issuer configuration")
-			certificateIssuer, err := config.GetStringByPath(serviceConfig, "clustersService.azureRuntimeConfig.tlsCertificatesIssuer")
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve environment certificate issuer")
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
@@ -436,7 +431,7 @@ var _ = Describe("Customer", func() {
 			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret")
 
 			By("verifying the served default ingress certificate covers the cluster's ingress wildcard")
-			Expect(verifiers.VerifyDefaultIngressCertificate(sampleApp.RouteHost, appsWildcard, certificateIssuer, 35*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "sample application must serve the delivered default certificate")
+			Expect(verifiers.VerifyDefaultIngressCertificate(sampleApp.RouteHost, appsWildcard, 35*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "sample application must serve the delivered default certificate")
 
 			By("pointing IngressController/default at the customer's Let's Encrypt certificate")
 			icPatch := []byte(fmt.Sprintf(`{"spec":{"defaultCertificate":{"name":%q}}}`, ingressSecretName))

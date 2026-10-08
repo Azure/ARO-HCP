@@ -37,8 +37,8 @@ type defaultIngressCertificateVerifier struct {
 	timeout         time.Duration
 }
 
-func VerifyDefaultIngressCertificate(routeHost, ingressWildcard, issuer string, timeout time.Duration) HostedClusterVerifier {
-	return defaultIngressCertificateVerifier{routeHost: routeHost, ingressWildcard: ingressWildcard, selfSigned: issuer == "Self", timeout: timeout}
+func VerifyDefaultIngressCertificate(routeHost, ingressWildcard string, timeout time.Duration) HostedClusterVerifier {
+	return defaultIngressCertificateVerifier{routeHost: routeHost, ingressWildcard: ingressWildcard, selfSigned: framework.IsDevelopmentEnvironment(), timeout: timeout}
 }
 
 func VerifyCustomIngressCertificate(routeHost, ingressWildcard string, certificate *x509.Certificate, roots *x509.CertPool, timeout time.Duration) HostedClusterVerifier {

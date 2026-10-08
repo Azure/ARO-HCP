@@ -81,16 +81,36 @@ func TestVerifyDefaultIngressCertificate(test *testing.T) {
 	}
 }
 
+func TestDefaultIngressCertificateEnvironment(test *testing.T) {
+	for _, testCase := range []struct {
+		environment string
+		selfSigned  bool
+	}{
+		{environment: "development", selfSigned: true},
+		{environment: "Development", selfSigned: true},
+		{environment: "integration"},
+		{environment: "production"},
+		{environment: ""},
+	} {
+		test.Run(testCase.environment, func(test *testing.T) {
+			test.Setenv("AROHCP_ENV", testCase.environment)
+			verifier := VerifyDefaultIngressCertificate("app.apps.cluster.example.com", "*.apps.cluster.example.com", time.Minute).(defaultIngressCertificateVerifier)
+			require.Equal(test, testCase.selfSigned, verifier.selfSigned)
+			require.Equal(test, testCase.selfSigned, verifier.tlsConfig().InsecureSkipVerify)
+		})
+	}
+}
+
 func TestDefaultIngressCertificateTimeout(test *testing.T) {
 	for _, timeout := range []time.Duration{0, -time.Second} {
-		verifier := VerifyDefaultIngressCertificate("app.apps.cluster.example.com", "*.apps.cluster.example.com", "Self", timeout)
+		verifier := VerifyDefaultIngressCertificate("app.apps.cluster.example.com", "*.apps.cluster.example.com", timeout)
 		require.Equal(test, "VerifyDefaultIngressCertificate", verifier.Name())
 		require.ErrorContains(test, verifier.Verify(test.Context(), nil), "timeout must be > 0")
 	}
 }
 
 func TestDefaultIngressCertificateEmptyRouteHost(test *testing.T) {
-	verifier := VerifyDefaultIngressCertificate("", "*.apps.cluster.example.com", "Self", time.Minute)
+	verifier := VerifyDefaultIngressCertificate("", "*.apps.cluster.example.com", time.Minute)
 	require.ErrorContains(test, verifier.Verify(test.Context(), nil), "route host must not be empty")
 }
 
