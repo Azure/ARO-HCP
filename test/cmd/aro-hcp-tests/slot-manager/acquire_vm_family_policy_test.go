@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
-	e2econfig "github.com/Azure/ARO-HCP/test/e2e-config"
+	"github.com/Azure/ARO-HCP/test/pkg/vmfamily"
 )
 
 func TestSelectedRuntimeRegionDeterminesVMFamilyPolicy(t *testing.T) {
@@ -102,11 +102,11 @@ environments:
 			if err != nil {
 				t.Fatalf("sourcing runtime exports: %v: %s", err, output)
 			}
-			got, err := e2econfig.ParseVMFamilyPolicy(output)
+			got, err := vmfamily.ParseVMFamilyPolicy(output)
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := e2econfig.VMFamilyPolicy{WorkerFamilies: []string{tc.wantWorker}, HelperFamilies: []string{"standardDDSv5Family"}}
+			want := vmfamily.VMFamilyPolicy{WorkerFamilies: []string{tc.wantWorker}, HelperFamilies: []string{"standardDDSv5Family"}}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("selected region %q: got policy %+v, want %+v", state.RuntimeRegion, got, want)
 			}

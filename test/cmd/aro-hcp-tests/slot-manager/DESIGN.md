@@ -606,6 +606,9 @@ to overwrite any inherited policy. Omitted roles preserve historical selector
 behavior; supplied empty/null role lists, duplicate or unknown fields, and
 invalid region mappings are rejected. An omitted or null whole catalog policy
 means no policy.
+The shared resolved policy type and strict JSON parser live in
+`test/pkg/vmfamily`; the pool-specific YAML and regional resolution code stays
+with slot-manager. `test/e2e-config` contains only configuration data.
 
 Consumers already source the contract. The suite parses
 `ARO_HCP_E2E_VM_FAMILY_POLICY` without environment or region lookup and rejects a

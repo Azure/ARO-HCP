@@ -21,14 +21,14 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	e2econfig "github.com/Azure/ARO-HCP/test/e2e-config"
+	"github.com/Azure/ARO-HCP/test/pkg/vmfamily"
 )
 
 // PoolVMFamilyPolicy holds pool defaults and per-role runtime-region overrides.
 // Only the resolved VMFamilyPolicy is passed to the test suite.
 type PoolVMFamilyPolicy struct {
-	e2econfig.VMFamilyPolicy `yaml:",inline"`
-	Regions                  map[string]e2econfig.VMFamilyPolicy `yaml:"regions,omitempty"`
+	vmfamily.VMFamilyPolicy `yaml:",inline"`
+	Regions                 map[string]vmfamily.VMFamilyPolicy `yaml:"regions,omitempty"`
 }
 
 func (p *PoolVMFamilyPolicy) UnmarshalYAML(node *yaml.Node) error {
@@ -52,7 +52,7 @@ func (p *PoolVMFamilyPolicy) UnmarshalYAML(node *yaml.Node) error {
 		if err != nil {
 			return fmt.Errorf("regions: %w", err)
 		}
-		p.Regions = make(map[string]e2econfig.VMFamilyPolicy, len(entries))
+		p.Regions = make(map[string]vmfamily.VMFamilyPolicy, len(entries))
 		for region, value := range entries {
 			policy, err := decodeVMFamilyRoles(value)
 			if err != nil {
@@ -84,25 +84,25 @@ func policyMapping(node *yaml.Node) (map[string]*yaml.Node, error) {
 	return fields, nil
 }
 
-func decodeVMFamilyRoles(node *yaml.Node) (e2econfig.VMFamilyPolicy, error) {
+func decodeVMFamilyRoles(node *yaml.Node) (vmfamily.VMFamilyPolicy, error) {
 	fields, err := policyMapping(node)
 	if err != nil {
-		return e2econfig.VMFamilyPolicy{}, err
+		return vmfamily.VMFamilyPolicy{}, err
 	}
 	for role, value := range fields {
 		if role != "worker_families" && role != "helper_families" {
-			return e2econfig.VMFamilyPolicy{}, fmt.Errorf("unknown VM family policy field %q", role)
+			return vmfamily.VMFamilyPolicy{}, fmt.Errorf("unknown VM family policy field %q", role)
 		}
 		if value.Kind != yaml.SequenceNode {
-			return e2econfig.VMFamilyPolicy{}, fmt.Errorf("%s must be a non-empty sequence of strings", role)
+			return vmfamily.VMFamilyPolicy{}, fmt.Errorf("%s must be a non-empty sequence of strings", role)
 		}
 		for _, family := range value.Content {
 			if family.Kind != yaml.ScalarNode || family.Tag != "!!str" {
-				return e2econfig.VMFamilyPolicy{}, fmt.Errorf("%s entries must be strings", role)
+				return vmfamily.VMFamilyPolicy{}, fmt.Errorf("%s entries must be strings", role)
 			}
 		}
 	}
-	var policy e2econfig.VMFamilyPolicy
+	var policy vmfamily.VMFamilyPolicy
 	if err := node.Decode(&policy); err != nil {
 		return policy, err
 	}
@@ -126,7 +126,7 @@ func (p PoolVMFamilyPolicy) Validate() error {
 	return nil
 }
 
-func (p PoolVMFamilyPolicy) Resolve(runtimeRegion string) e2econfig.VMFamilyPolicy {
+func (p PoolVMFamilyPolicy) Resolve(runtimeRegion string) vmfamily.VMFamilyPolicy {
 	resolved := p.VMFamilyPolicy
 	if override, ok := p.Regions[strings.ToLower(runtimeRegion)]; ok {
 		if override.WorkerFamilies != nil {

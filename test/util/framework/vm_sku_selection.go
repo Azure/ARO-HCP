@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	"github.com/Azure/ARO-HCP/internal/validation"
-	e2econfig "github.com/Azure/ARO-HCP/test/e2e-config"
+	"github.com/Azure/ARO-HCP/test/pkg/vmfamily"
 )
 
 // ErrNoUsableVMSize is returned by SelectVMSize when no VM size in the target
@@ -616,14 +616,14 @@ func withVMFamilyPolicy(selector VMSizeSelector, helper bool) VMSizeSelector {
 	return selector
 }
 
-func vmFamilyPolicyFromEnv() (e2econfig.VMFamilyPolicy, error) {
+func vmFamilyPolicyFromEnv() (vmfamily.VMFamilyPolicy, error) {
 	value, configured := os.LookupEnv("ARO_HCP_E2E_VM_FAMILY_POLICY")
 	if !configured {
-		return e2econfig.VMFamilyPolicy{}, nil
+		return vmfamily.VMFamilyPolicy{}, nil
 	}
-	policy, err := e2econfig.ParseVMFamilyPolicy([]byte(value))
+	policy, err := vmfamily.ParseVMFamilyPolicy([]byte(value))
 	if err != nil {
-		return e2econfig.VMFamilyPolicy{}, fmt.Errorf("invalid ARO_HCP_E2E_VM_FAMILY_POLICY: %w", err)
+		return vmfamily.VMFamilyPolicy{}, fmt.Errorf("invalid ARO_HCP_E2E_VM_FAMILY_POLICY: %w", err)
 	}
 	// Validate the selected slot's location before applying its resolved policy.
 	location()
