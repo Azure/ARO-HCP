@@ -119,6 +119,101 @@ func TestDirectFamilyPolicyRoleSizes(t *testing.T) {
 	}
 }
 
+func TestApprovedFamilyFallbacks(t *testing.T) {
+	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", `{"worker_families":["StandardDsv6Family","standardDSv5Family","standardDASv5Family"],"helper_families":["StandardDdsv6Family","standardDDSv5Family","standardDADSv5Family"]}`)
+	t.Setenv("SELECTED_LOCATION", "")
+	for _, role := range []struct {
+		name        string
+		constructor func() VMSizeSelector
+		families    [3]string
+		sizes       [3]string
+		oversized   [3]string
+		cpus        string
+		largerCPUs  string
+		legacy      string
+	}{
+		{
+			name: "default-worker", constructor: DefaultWorkerVMSizeSelector,
+			families:  [3]string{"StandardDsv6Family", "standardDSv5Family", "standardDASv5Family"},
+			sizes:     [3]string{"Standard_D8s_v6", "Standard_D8s_v5", "Standard_D8as_v5"},
+			oversized: [3]string{"Standard_D16s_v6", "Standard_D16s_v5", "Standard_D16as_v5"},
+			cpus:      "8", largerCPUs: "16", legacy: DefaultWorkerVMSize,
+		},
+		{
+			name: "small-worker", constructor: SmallWorkerVMSizeSelector,
+			families:  [3]string{"StandardDsv6Family", "standardDSv5Family", "standardDASv5Family"},
+			sizes:     [3]string{"Standard_D4s_v6", "Standard_D4s_v5", "Standard_D4as_v5"},
+			oversized: [3]string{"Standard_D8s_v6", "Standard_D8s_v5", "Standard_D8as_v5"},
+			cpus:      "4", largerCPUs: "8", legacy: SmallWorkerVMSize,
+		},
+		{
+			name: "jumpbox", constructor: JumpboxVMSizeSelector,
+			families:  [3]string{"StandardDdsv6Family", "standardDDSv5Family", "standardDADSv5Family"},
+			sizes:     [3]string{"Standard_D2ds_v6", "Standard_D2ds_v5", "Standard_D2ads_v5"},
+			oversized: [3]string{"Standard_D4ds_v6", "Standard_D4ds_v5", "Standard_D4ads_v5"},
+			cpus:      "2", largerCPUs: "4", legacy: JumpboxVMSize,
+		},
+	} {
+		t.Run(role.name, func(t *testing.T) {
+			selector := role.constructor()
+			for blocked := 0; blocked <= len(role.families); blocked++ {
+				name := "exhausted"
+				if blocked < len(role.sizes) {
+					name = role.sizes[blocked]
+				}
+				t.Run(name, func(t *testing.T) {
+					// A usable historical default must not escape the whitelist.
+					skus := []*armcompute.ResourceSKU{familySKU(role.legacy, "standardDSv3Family", role.cpus)}
+					// Reverse API order to ensure the configured family order wins.
+					for i := len(role.families) - 1; i >= 0; i-- {
+						sku := familySKU(role.sizes[i], role.families[i], role.cpus)
+						if i < blocked {
+							withLocationRestriction(testLocation)(sku)
+						}
+						skus = append(skus, sku, familySKU(role.oversized[i], role.families[i], role.largerCPUs))
+					}
+					got, _, err := selectVMSize(skus, testLocation, selector)
+					if blocked == len(role.families) {
+						if got != "" || !errors.Is(err, ErrNoUsableVMSize) {
+							t.Fatalf("exhausted approved families must reject oversized and legacy SKUs: got %q err=%v", got, err)
+						}
+					} else if got != role.sizes[blocked] || err != nil {
+						t.Fatalf("expected %s-vCPU fallback %q after %d restricted families, got %q err=%v", role.cpus, role.sizes[blocked], blocked, got, err)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestFamilyPolicyRetainsRPAllowlist(t *testing.T) {
+	// Helper families may be configured for workers, but that cannot make
+	// their local-disk SKUs valid RP node pool sizes.
+	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", `{"worker_families":["standardDDSv5Family","StandardDdsv6Family","standardDADSv5Family"],"helper_families":["standardDDSv5Family","StandardDdsv6Family","standardDADSv5Family"]}`)
+	t.Setenv("SELECTED_LOCATION", "")
+	for _, role := range []struct {
+		constructor func() VMSizeSelector
+		sizes       [3]string
+		cpus        string
+	}{
+		{DefaultWorkerVMSizeSelector, [3]string{"Standard_D8ds_v5", "Standard_D8ds_v6", "Standard_D8ads_v5"}, "8"},
+		{SmallWorkerVMSizeSelector, [3]string{"Standard_D4ds_v5", "Standard_D4ds_v6", "Standard_D4ads_v5"}, "4"},
+	} {
+		selector := role.constructor()
+		t.Run(selector.Name, func(t *testing.T) {
+			skus := []*armcompute.ResourceSKU{
+				familySKU(role.sizes[0], "standardDDSv5Family", role.cpus),
+				familySKU(role.sizes[1], "StandardDdsv6Family", role.cpus),
+				familySKU(role.sizes[2], "standardDADSv5Family", role.cpus),
+			}
+			got, trace, err := selectVMSize(skus, testLocation, selector)
+			if got != "" || !errors.Is(err, ErrNoUsableVMSize) || trace.filteredByRPAllowlist != len(skus) {
+				t.Fatalf("expected all local-disk worker SKUs rejected by RP allowlist, got %q filtered=%d err=%v", got, trace.filteredByRPAllowlist, err)
+			}
+		})
+	}
+}
+
 func unsetVMFamilyPolicy(t *testing.T) {
 	t.Helper()
 	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", "")
