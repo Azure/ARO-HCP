@@ -391,8 +391,10 @@ func validateNodePoolAutoScaling(ctx context.Context, op operation.Operation, fl
 
 	errs := field.ErrorList{}
 
-	//Min int32 `json:"min,omitempty"`
-	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("min"), &newObj.Min, safe.Field(oldObj, toNodePoolAutoScalingMin), 0)...)
+	// Min int32 `json:"min,omitempty"`
+	// Cluster Service requires min_replica >= 1. Reject smaller values here so they
+	// are never dispatched; CS would reject them and the node pool would stay Updating.
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("min"), &newObj.Min, safe.Field(oldObj, toNodePoolAutoScalingMin), 1)...)
 	errs = append(errs, MaximumIfNoAZ(ctx, op, fldPath.Child("min"), &newObj.Min, safe.Field(oldObj, toNodePoolAutoScalingMin), MaxNodePoolNodes, availabilityZone)...)
 
 	//Max int32 `json:"max,omitempty"`
