@@ -634,7 +634,7 @@ No writes to Cosmos Resources container.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **135 entries**: 109 backend instances, 12 fleet controllers,
+The catalog contains **136 entries**: 110 backend instances, 12 fleet controllers,
 three kube-applier controller types, eight management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
@@ -656,13 +656,13 @@ infrastructure, not additional controller catalog entries.
 | Management-agent | [options.go](../mgmt-agent/cmd/options.go) |
 | Sessiongate | [options.go](../sessiongate/cmd/options.go) |
 
-The backend registry represents **110 launches**: 108 instances in the billing,
+The backend registry represents **111 launches**: 109 instances in the billing,
 cluster, clusterresources, cosmosmigration, datadump, externalauth, metrics,
 mismatch, and nodepool zones, the Azure SKU cached-reader controller, and the
-shared union kube-applier informer controller. This matches the catalog's 109
+shared union kube-applier informer controller. This matches the catalog's 110
 backend instances plus the separately counted shared union controller.
 `ClusterDenyAssignment` is instantiated and launched only when `HasRealFPA` is
-true; otherwise 109 controllers run. The flag is also passed to cluster creation.
+true; otherwise 110 controllers run. The flag is also passed to cluster creation.
 
 Each top-level controller package owns a `registration.go` file and a `Register`
 function: [billing](../backend/pkg/controllers/billing/registration.go),
@@ -1397,6 +1397,12 @@ Reads worker/integration subnets and NSG rules and evaluates required connectivi
 [Source](../backend/pkg/utils/validationutils/container_registry_pull_credentials_permission_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
 
 Validates that the CAPZ control-plane operator identity has `Microsoft.ManagedIdentity/userAssignedIdentities/assign/action` permission on the customer's container registry pull managed identity. Skipped if no pull MI is configured; fails if pull MI is in a different subscription than the cluster (cross-subscription not yet supported). Uses Azure CheckAccess V2 API to verify permission. Writes the corresponding service-provider `Status.Validations` condition through its controller-specific Resources storage client and RU budget; no Azure mutation.
+
+#### ClusterValidationEtcdEncryptionKMSKeyAccessValidation
+
+[Source](../backend/pkg/utils/validationutils/etcd_encryption_kms_key_access_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
+
+Reads HyperShift's `ValidAzureKMSConfig` condition from the cached HostedCluster ReadDesire for clusters using a customer-managed KMS key with Public visibility. Fails with an actionable message only when the condition reports that the customer's Key Vault rejected network access (403 `ForbiddenByConnection`) for the cluster's current key; skips everything else, including True conditions, private Key Vaults, other Key Vault errors and failures reported for a previous key. Makes no Azure calls. Writes the corresponding service-provider `Status.Validations` condition; no Azure mutation.
 
 ### Backend: billing, repair, diagnostics and caches
 
