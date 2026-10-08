@@ -1640,7 +1640,7 @@ Logs pod state changes; no Cosmos domain write or resource mutation.
 
 [Source](../mgmt-agent/pkg/controller/resourcewatcher.go) · **Trigger:** Configured Kubernetes resources and CRDs.
 
-Logs initial lists and watch snapshots through reflectors whose stores retain no object cache and perform no periodic resync replay. Watches discovered matching CRD groups plus explicit namespaces, nodes, config maps, endpoints, PVCs, services, workload controllers, jobs/cronjobs, PodMonitors/ServiceMonitors, SecretProviderClasses/SecretSyncs, network policies and disruption budgets. Newly matching CRDs cause process restart so watches can be rebuilt; no Cosmos domain write.
+Logs initial lists and watch snapshots through reflectors whose stores retain no object cache and perform no periodic resync replay. Watches discovered matching CRD groups plus explicit namespaces, nodes, config maps, endpoints, PVCs, services, workload controllers, jobs/cronjobs, PodMonitors/ServiceMonitors, SecretProviderClasses/SecretSyncs, network policies and disruption budgets. SecretSync snapshots omit the secret-derived `status.syncHash` field. Newly matching CRDs cause process restart so watches can be rebuilt; no Cosmos domain write.
 
 ### Sessiongate controllers
 
