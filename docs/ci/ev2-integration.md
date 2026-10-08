@@ -19,13 +19,15 @@ In short, EV2 gating ensures the tests and the code they validate are always ali
 
 The public-cloud environment mapping lives in `config/config.msft.clouds-overlay.yaml`.
 
-Current `prowJobName` mappings are:
+Current `prowJobName` values (see `config/config.msft.clouds-overlay.yaml`) and the E2E suite each environment gates on:
 
-- **INT** -> `branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel-all`
-- **STG** -> `branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel`
-- **PROD** -> `branch-ci-Azure-ARO-HCP-main-e2e-prod-e2e-parallel`
+| Environment | `prowJobName` | Promotion E2E suite |
+| ----------- | ------------- | ------------------- |
+| INT | `branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel-all` | Combined parallel (fast + Slow) |
+| STG | `branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel-all` | Combined parallel (fast + Slow) |
+| PROD | `branch-ci-Azure-ARO-HCP-main-e2e-prod-e2e-parallel` | Regular parallel (fast only) |
 
-INT uses the combined parallel suite, including Slow tests, so regional promotion requires both fast and slow E2E coverage. STG and PROD retain the regular parallel suite.
+**Promotion E2E suite:** *Combined parallel* runs fast and Slow specs; *Regular parallel* runs the fast suite only.
 
 This is the first place to check if a rollout is invoking the wrong Prow job for a given environment.
 
