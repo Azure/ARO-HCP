@@ -203,7 +203,7 @@ RES_SCOPED_HCPS = 1    # git grep -o "framework.RBACScopeResource," -- test/e2e/
 
 identity_container_count = 58   # slot_assets.e2e_identities.resource_group_count in
                                 #   test/e2e-config/e2e-slots.yaml. Differs per pool
-                                #   (20, 25 and 58 today), so run-cost is per pool too.
+                                #   (20, 25, 58 and 60 today), so run-cost is per pool too.
 
 # Concurrent HCPs is NOT the Ginkgo worker count. Some specs lease more than one
 # identity container each, so P workers can hold more than P clusters.
@@ -244,7 +244,7 @@ added to the E2E bicep — scale it across the slots that subscription configure
 # environment is the case that matters.
 #
 # run-cost is per pool, not per subscription: it depends on
-# identity_container_count, which differs between pools (20, 25 and 58 today).
+# identity_container_count, which differs between pools (20, 25, 58 and 60 today).
 # Compute it separately for each pool rather than reusing one value.
 subscription-cost = sum over that subscription's pools of (run-cost(pool) * slot_count(pool))
 
@@ -274,7 +274,7 @@ Three bottlenecks matter:
 
 Concurrency is bounded by the number of available slots across the pools that the job is allowed to consume.
 
-**Bottleneck 2: parallelism within a single run.** How many HCP clusters a single suite execution holds at once is bounded by both the leased identity-container set and the effective suite parallelism, whichever is smaller — see `hcp-concurrency` above. When the suite has more specs requiring HCPs than can run concurrently, specs run in waves — the first wave runs, and the remaining specs block inside `AssignIdentityContainers()` until containers are released. This means adding more test specs increases total suite runtime even if the specs themselves are fast.
+**Bottleneck 2: parallelism within a single run.** Suite parallelism bounds the number of running specs, not the number of HCP clusters. With pooled identities enabled, the resource-aware scheduler uses each spec's `labels.MIContainers` demand and the leased `mi-containers` resource pool to admit only specs whose combined demand fits. A spec requiring two containers consumes two units; zero-container specs consume none. Specs wait for scheduler capacity and run in waves as resources are released. The framework's `AssignIdentityContainers()` reservation and retry protocol remains a backstop. See `hcp-concurrency` above for the corresponding HCP bound; adding more workers does not bypass the identity-container ceiling.
 
 **Bottleneck 3: deny assignments per subscription (AME only — STG and PROD).** The Azure Authorization RP allows at most **2000 deny assignments per subscription**. The RP currently creates *sharded* (per-cluster) deny assignments — roughly 21 per HCP — which caps a single subscription at about **92 concurrent HCP clusters**, regardless of role-assignment quota or identity-pool size:
 
@@ -348,6 +348,57 @@ stack in a non-terminal state.
 INT, STG, and PROD parallel jobs use the same catalog-driven acquisition and
 release path without provisioning infrastructure. Catalog changes must stay
 aligned with the release-side Boskos inventory and job selectors.
+
+#### INT West US 3 Capacity And Rollout
+
+The canonical v2 catalog assigns 60 dedicated identity-container resource groups
+to the `int` pool `westus3-shard0`, with `slot_count: 1` unchanged. INT UK South
+retains 20 containers, and all other pools retain their existing counts. This
+expands capacity within one suite run, not the number of simultaneous CI jobs.
+
+For runtime `ARO_HCP_DEPLOY_ENV=int` and `LOCATION=westus3` (region matching is
+case-insensitive), `integration/parallel`, `integration/parallel/slow`, and
+`integration/parallel/all` default to 60 workers. Integration defaults remain 24
+outside that scope; Stage remains 34 and PROD remains 19. A valid positive
+`ARO_HCP_SUITE_PARALLELISM` overrides these defaults and still applies globally,
+including `upgrade/in-place`, whose default otherwise remains its dynamic spec
+count. Inspect the release-side job configuration for an override before
+assuming the new default is effective.
+
+Higher parallelism requires quota-backed worker and helper SKU-family
+configuration. A planning estimate for `60 runs × 2 D8 = 960 worker CPUs` plus
+`60 × D2 = 120 helper CPUs` describes the baseline demand. Here “runs” means concurrently executing specs in
+one suite, not 60 job slots. This is a planning estimate, not a measured peak or
+a physical capacity reservation; actual demand varies by selected specs.
+Confirm quota and role-assignment headroom before enabling the higher default.
+
+Before jobs acquire the expanded catalog, reconcile and validate the declared
+pool using the Make targets, which ensure the binary and embedded ARM templates
+reflect the source revision:
+
+```bash
+make -C test apply-pool-assets \
+  ENVIRONMENT=int ASSET=e2e_identities POOL=westus3-shard0 \
+  SUBSCRIPTION="ARO SRE Team - INT (EA Subscription 3)"
+make -C test validate-pool-assets \
+  ENVIRONMENT=int ASSET=e2e_identities POOL=westus3-shard0 \
+  SUBSCRIPTION="ARO SRE Team - INT (EA Subscription 3)"
+```
+
+Record the observed reconciliation and validation results in rollout/PR notes,
+not as a permanent claim that the live pool is ready. Older 20-container jobs
+check only their declared inventory during admission, so the additional 40
+groups do not interfere with those leases. Whole-pool validation with the old
+catalog can report surplus groups until it uses the expanded catalog. Boskos
+still leases one slot for this pool; no additional job-slot resources are
+introduced. Validate the release-side inventory and ensure persistent workflow
+steps source the slot runtime contract, mapping `SELECTED_LOCATION` to `LOCATION`
+and preserving `LEASED_MSI_CONTAINERS`.
+
+After rollout, inspect the acquired pool/region, the exported container list,
+effective suite parallelism, and scheduler/lease timing in job artifacts.
+Sixty workers do not guarantee 60 HCP-producing specs run concurrently:
+multi-container demand and the 60-container pool still govern admission.
 
 ### Operational Notes And Troubleshooting
 
