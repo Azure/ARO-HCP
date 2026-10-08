@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:13c96932b07337d6dad6d5b7fba293389b5cb2de54bb33c575b281fa00ae9cf0
+      digest: sha256:5c3445cf3f2fd18873bebb089bf9c7b2ca00da7faf065df20157d1163ff5b37b
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
   operator:
     bundle:
-      digest: sha256:d660790fef13c352e29df6a6a289cb7b6b4c959178028c263f0bf199827bb22e
+      digest: sha256:27948c8a15407f5e7e20a80850fcdaaf34a94964ca8a8e65879d9a80fc91ab49
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
 acr:
@@ -202,7 +202,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcppers
   image:
-    digest: sha256:dd374c05c97748d8d4d5c63c72f1cf1a4c1abc1779a8fdfc39120bc133166a16
+    digest: sha256:c6ff7c0adc99cb5c1435aeb07c9466e64b5f41bb91285eb39c8938b5e0e0e508
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -1200,15 +1200,15 @@ swiftRecorder:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:ce51594d5b37202343248c74bd60147db483716baecc304b3f759faa5bca8ee6
+    digest: sha256:6c602c5fcba58d5b7e4138f207b6115647ebfd5272de9c46239ec5929e3b3edd
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   enableInstantAccess: true
   hypershiftPlugin:
-    digest: sha256:91dd875dd9f6d229578a592107a2686b96d32d618e061b512acb50e2dc2f47e9
+    digest: sha256:252e09e815befd045e6c27f2d0af8ff991ef9189764a396cd2bfdf6c8585437c
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:bc3ff264188ec8e3cb7e38939fed09987bdcaa471601fa5909cf4bdc986deaa8
+    digest: sha256:63da51d11d7d7ed5268e35cce0a989fca95aa3cf2685480f123ba02b3e9f7886
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9
