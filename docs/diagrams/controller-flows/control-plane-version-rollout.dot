@@ -7,6 +7,9 @@ digraph control_plane_version_rollout {
   discovery [label="Cincinnati graph-data archive\nallowed groups include nightly\nunsupported upstream groups skipped", fillcolor="#fff0da", color="#b27624"];
   cincinnati [label="ControlPlaneVersionCincinnatiSeeding\none worker; generic rollout watch + 5m resync\nRun: cache-gated immediate discovery\nthen 5-5.5m after each pass; floor 4.20"];
   rollout [label="Fleet rollout: channel name + Spec.Version\nabsent legacy profile filled on Cosmos reads\nselection/assignment still parse channel names", fillcolor="#e4f2e5", color="#4c8053"];
+  references [label="Cached Cluster / SPC reference inventory\nincludes deleting clusters; requested / desired / active\nexperimental exact override + pin ExactVersion\nUntilExactVersion is the pin's release threshold", fillcolor="#eee7fb", color="#7b59a4"];
+  retirement [label="ControlPlaneVersionRolloutRetirement\none worker; cache-gated generic target watch\nmapped old/new Cluster/SPC dependencies\nnormal 5m informer resync fallback\nerror-free inventory + unreferenced target below 4.20"];
+  retired [label="Delete only the below-floor Fleet rollout\nretain supported zero-member channels and state\noperational drain required before raising floor", fillcolor="#fff0da", color="#b27624"];
   migration [label="CosmosRolloutVersionMigration\nfive workers; 5m resync/cooldown\nonce per key/process after success\nno subscription dependency"];
   best [label="ControlPlaneVersionBestVersionSelection"];
   updategraph [label="OpenShift update graph\nstable offset 1; other channels offset 0\nrecency only; risk filtering is a follow-up", fillcolor="#fff0da", color="#b27624"];
@@ -26,6 +29,9 @@ digraph control_plane_version_rollout {
   discovery -> cincinnati [label="periodic discovery enqueues keys"];
   cincinnati -> rollout [label="live Get; create only missing\npreserve existing best/status"];
   rollout -> cincinnati [label="watch / resync / delete repair", style=dashed, constraint=false];
+  rollout -> retirement [label="target watch / resync", style=dashed];
+  references -> retirement [label="mapped events + full cached inventory", style=dashed];
+  retirement -> retired [label="Fleet Delete; absent target completes successfully"];
   rollout -> best [label="rollout informer; independent of migration"];
   rollout -> migration [label="rollout watch / resync", style=dashed];
   migration -> rollout [label="live read + ETag replace\npersist normalized profile", constraint=false];

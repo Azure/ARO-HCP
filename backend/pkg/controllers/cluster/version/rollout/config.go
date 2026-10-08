@@ -20,7 +20,7 @@ import (
 	"github.com/blang/semver/v4"
 )
 
-// minimumBackendVersion bounds prospective Cincinnati seeding.
+// minimumBackendVersion bounds prospective seeding and unreferenced retirement.
 // Raise it only after the retired minor's clusters have drained.
 const minimumBackendVersion = "4.20"
 

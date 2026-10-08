@@ -1180,6 +1180,19 @@ func instantiateControlPlaneVersionCincinnatiSeedingController(controllerContext
 	), nil
 }
 
+func registerControlPlaneVersionRolloutRetirementController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     1,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateControlPlaneVersionRolloutRetirementController, false),
+	}
+}
+
+func instantiateControlPlaneVersionRolloutRetirementController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return rollout.NewControlPlaneVersionRolloutRetirementController(
+		controllerContext.FleetDBClient, controllerContext.BackendInformers, controllerContext.FleetInformers,
+	), nil
+}
+
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(rollout.BestVersionSelectionControllerName)] = registerBestVersionSelectionController()
 	registry[strings.ToLower(rollout.StatusCollectorControllerName)] = registerStatusCollectorController()
@@ -1189,6 +1202,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(rollout.ForcedClusterDesiredVersionControllerName)] = registerForcedClusterDesiredVersionController()
 	registry[strings.ToLower(rollout.RolloutSeedingControllerName)] = registerControlPlaneVersionRolloutSeedingController()
 	registry[strings.ToLower(rollout.CincinnatiSeedingControllerName)] = registerControlPlaneVersionCincinnatiSeedingController()
+	registry[strings.ToLower(rollout.RolloutRetirementControllerName)] = registerControlPlaneVersionRolloutRetirementController()
 	registry[strings.ToLower(legacycredentialrequest.DispatchRequestCredentialControllerName)] = registerDispatchRequestCredentialController()
 	registry[strings.ToLower(credentialrequestoperations.SystemAdminCredentialDispatchRequestCredentialControllerName)] = registerAdminCredentialsDispatchRequestCredentialController()
 	registry[strings.ToLower(credentialrevocationoperations.SystemAdminCredentialDispatchRevokeCredentialsControllerName)] = registerAdminCredentialsDispatchRevokeCredentialsController()

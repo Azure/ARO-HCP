@@ -19,7 +19,8 @@ Immediate z-stream update policy. Review fixes cover
 rollout membership, initial-assignment ownership, input-event queue metrics,
 field annotations, and the recency-only selection contract.
 Rollout lifecycle coverage includes structured version profiles, shared read
-compatibility, independent Fleet rollout migration, and Cincinnati seeding.
+compatibility, independent Fleet rollout migration, Cincinnati seeding, and
+below-floor retirement.
 External-auth operation update baseline: `51851bfabe`, rebased on main `08987b4eba`;
 scope: frontend create acceptance without a parent Cluster Service ID, empty
 create/update operation `InternalID`, and the corresponding lifecycle diagrams.
@@ -633,7 +634,7 @@ No writes to Cosmos Resources container.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **136 entries**: 110 backend instances, 12 fleet controllers,
+The catalog contains **137 entries**: 111 backend instances, 12 fleet controllers,
 three kube-applier controller types, eight management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
@@ -655,13 +656,13 @@ infrastructure, not additional controller catalog entries.
 | Management-agent | [options.go](../mgmt-agent/cmd/options.go) |
 | Sessiongate | [options.go](../sessiongate/cmd/options.go) |
 
-The backend registry represents **111 launches**: 109 instances in the billing,
+The backend registry represents **112 launches**: 110 instances in the billing,
 cluster, clusterresources, cosmosmigration, datadump, externalauth, metrics,
 mismatch, and nodepool zones, the Azure SKU cached-reader controller, and the
-shared union kube-applier informer controller. This matches the catalog's 110
+shared union kube-applier informer controller. This matches the catalog's 111
 backend instances plus the separately counted shared union controller.
 `ClusterDenyAssignment` is instantiated and launched only when `HasRealFPA` is
-true; otherwise 110 controllers run. The flag is also passed to cluster creation.
+true; otherwise 111 controllers run. The flag is also passed to cluster creation.
 
 Each top-level controller package owns a `registration.go` file and a `Register`
 function: [billing](../backend/pkg/controllers/billing/registration.go),
@@ -716,7 +717,7 @@ operation controllers to POST status notifications to `Operation.NotificationURI
 Registry entries use 20 workers by default, including
 `ControlPlaneVersionRolloutSeeding`; one for each of the six metrics
 controllers, the union informer controller, and
-`ControlPlaneVersionCincinnatiSeeding`; five for
+`ControlPlaneVersionCincinnatiSeeding` and `ControlPlaneVersionRolloutRetirement`; five for
 `PendingCleanup`, `CosmosMigration` and `CosmosRolloutVersionMigration`, and ten for
 `DeleteOrphanedCosmosResources`. `BackfillClusterUID` retains its 60-minute resync
 and `CreateBillingDoc` its 60-second resync. Registry keys are lowercased existing
@@ -933,7 +934,7 @@ Observes encryption-key rotation and creates an on-demand Velero Backup ApplyDes
 
 ### Backend: fleet control-plane version rollout
 
-These eight controllers are registered in the [cluster registry](../backend/pkg/controllers/cluster/registration.go)
+These nine controllers are registered in the [cluster registry](../backend/pkg/controllers/cluster/registration.go)
 and run under [backend leader election](../backend/pkg/app/backend.go),
 replacing the removed per-cluster `ControlPlaneDesiredVersion` controller. Fleet
 `ControlPlaneVersionRollout` documents are keyed by y-stream channel (for example,
@@ -953,7 +954,8 @@ Cluster Service and HyperShift perform the upgrades.
 Rollouts store `Spec.Version` as a `coreapi.VersionProfile`: canonical major.minor
 `ID` and `ChannelGroup` (for example, `4.21` and `stable` for `stable-4.21`). Create
 and update validation require the profile to match the channel name. Selection
-and assignment consumers parse channel names.
+and assignment consumers parse channel names; retirement uses `Spec.Version`
+as its target identity.
 Shared [Cosmos conversion](../internal/database/cosmosstorage/cosmosstorageutils/convert_generic.go)
 fills an absent/zero profile from a valid name before Get/List results reach
 callers or informer caches. Reads alone do not persist it; ordinary rollout
@@ -986,6 +988,27 @@ that floor, live-reads the key, and creates only missing rollouts with `Spec.Ver
 populated and best/status unset. Existing state is preserved; create races retry.
 Discovery proactively seeds channels for future clusters. Nightly assignments
 use the experimental exact-version override.
+
+#### ControlPlaneVersionRolloutRetirement
+
+[Source](../backend/pkg/controllers/cluster/version/rollout/rollout_retirement_controller.go) | [Watch mapping](../backend/pkg/controllers/cluster/version/rollout/rollout_reference_watches.go) | [Startup](../backend/pkg/controllers/cluster/registration.go) | **Trigger:** Generic target-rollout watcher plus mapped Cluster/SPC add, update (both old and new), and delete/tombstone events; normal 5m informer resync as a fallback. One worker.
+
+Startup waits for the tracked rollout, Cluster and SPC caches. Mapping enqueues
+every known dependency for reconciliation. Each reconcile reads the cached target
+and inventories all cached Cluster/SPC references. Protection includes deleting
+clusters, requested versions, experimental exact overrides, Cluster active versions, SPC desired/active
+versions and `PinnedVersion.ExactVersion`, paired with the parent cluster's channel
+group. Pin release depends on the pinned minor's rollout; `UntilExactVersion` is
+a release threshold for that pin. Missing parent identity/channel information,
+malformed references or lister errors prevent
+retirement; an empty target profile waits for a later notification.
+
+Only an error-free inventory for an unreferenced target below `4.20` permits
+Fleet `Delete`; an already-absent target completes reconciliation successfully.
+At/above-floor rollouts and their state survive zero membership. Retirement is
+backend storage lifecycle policy. Raising the floor requires an operational drain
+of the retired minor and its references, including coordinating new cluster
+requests and pins; retirement checks use cached observations.
 
 #### ControlPlaneVersionBestVersionSelection
 
@@ -1814,8 +1837,10 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 ![Control-plane version rollout digraph](diagrams/controller-flows/control-plane-version-rollout.png)
 
 [Per-cluster seeding](#controlplaneversionrolloutseeding) and independent
-[Cincinnati seeding](#controlplaneversioncincinnatiseeding) create channel documents.
-Profile migration runs independently;
+[Cincinnati seeding](#controlplaneversioncincinnatiseeding) create channel documents;
+[retirement](#controlplaneversionrolloutretirement) deletes only unreferenced
+below-floor targets, including protection for deleting clusters. Profile migration
+runs independently;
 [best selection](#controlplaneversionbestversionselection) chooses each channel's target.
 [Initial](#initialnormalclusterdesiredversion) and [minor-version](#minorupgradenormalclusterdesiredversion)
 assignments use the requested channel; [normal rollout](#zstreamprogressivedesiredversionrollout)
@@ -1941,8 +1966,9 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Service-provider cluster `Spec.ControlPlaneVersion.DesiredVersion` / `DesiredVersionLastTransitionTime` | [Initial assignment](#initialnormalclusterdesiredversion), [minor-version assignment](#minorupgradenormalclusterdesiredversion), [normal rollout](#zstreamprogressivedesiredversionrollout) and [forced assignment](#forcedclusterdesiredversion) write the target and transition time. Initial assignment also backfills a missing/zero time without changing the target. Cluster creation, upgrade dispatch and operation completion consume desired state; it is not an observed version. |
 | Cluster `ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` | Frontend admission projects the AFEC-gated `aro-hcp.experimental.cluster.z-stream-update-policy` tag; its only valid value is `Immediate`. Removing the tag or AFEC clears the policy. [Forced assignment](#forcedclusterdesiredversion) follows the desired channel's best z-stream without progressive gates, after pins and exact overrides. |
 | Service-provider cluster `Spec.PinnedVersion` | SRE supplies `ExactVersion` and optional `UntilExactVersion`. [Forced assignment](#forcedclusterdesiredversion) clears the pin once channel best reaches the release threshold. Pins precede experimental exact versions and normal assignment. |
-| Fleet `ControlPlaneVersionRollout.Spec.Version.{ID,ChannelGroup}` | [Per-cluster seeding](#controlplaneversionrolloutseeding) and [Cincinnati seeding](#controlplaneversioncincinnatiseeding) set the profile on creation. Shared Cosmos conversion fills absent/zero legacy profiles on read; [migration](#cosmosrolloutversionmigration) and ordinary rollout replacements persist them. Existing selection/assignment consumers still parse channel names. |
+| Fleet `ControlPlaneVersionRollout.Spec.Version.{ID,ChannelGroup}` | [Per-cluster seeding](#controlplaneversionrolloutseeding) and [Cincinnati seeding](#controlplaneversioncincinnatiseeding) set the profile on creation. Shared Cosmos conversion fills absent/zero legacy profiles on read; [migration](#cosmosrolloutversionmigration) and ordinary rollout replacements persist them. Retirement reads the profile; existing selection/assignment consumers still parse channel names. |
 | Fleet `ControlPlaneVersionRollout.Spec.BestExactVersion` | Both seeders create channel documents with the best version unset and preserve existing state. [Best selection](#controlplaneversionbestversionselection) owns the target; assignment controllers consume it. |
+| Fleet `ControlPlaneVersionRollout` deletion | [Retirement](#controlplaneversionrolloutretirement) deletes only below-floor targets with an error-free, unreferenced cached inventory. Retained rollouts preserve their state. |
 | Fleet rollout status count maps | [Status collector](#controlplaneversionstatuscollector) alone persists desired, mismatched, failed, achieved and successful counts. Normal assignment recomputes its own snapshot counts to avoid collector lag. |
 | Fleet rollout `Status.LastAssignmentTime` / `Status.Conditions` | [Normal assignment](#zstreamprogressivedesiredversionrollout) reserves batches before provider writes and reports Progressing/Degraded. Persisted cooldown protects across restarts; it does not claim external completion. |
 | Service-provider cluster `Status.ControlPlaneVersion.ActiveVersions` / `Status.DesiredVersionChannels` | [ControlPlaneActiveVersions](#controlplaneactiveversions) copies exact HostedCluster history with per-version/state transition times and desired channels. Completed history and nonzero transition times drive rollout accounting. Desired target and active history can differ while an upgrade is underway. |
