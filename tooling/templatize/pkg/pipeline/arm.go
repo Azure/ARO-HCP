@@ -96,7 +96,7 @@ func newArmClient(subscriptionID, region string, bicepClient *bicep.LSPClient) (
 
 func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgName string, id graph.Identifier, step *types.ARMStep, state *ExecutionState) (Output, DetailsProducer, error) {
 	// Ensure resourcegroup exists
-	err := ensureResourceGroupExists(ctx, a.resourceGroupClient, a.Region, rgName, !options.NoPersist)
+	err := ensureResourceGroupExists(ctx, a.resourceGroupClient, a.Region, rgName, !options.NoPersist, options.NewResourceGroupTags)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
@@ -391,12 +391,30 @@ func computeResourceGroupTags(existingTags map[string]*string, persist bool) map
 	return resultTags
 }
 
-func ensureResourceGroupExists(ctx context.Context, resourceGroupClient *armresources.ResourceGroupsClient, region, rgName string, persist bool) error {
+// newResourceGroupTags determines the tags for a resource group this run creates:
+// the configured creation tags plus the persist tag rules.
+func newResourceGroupTags(creationTags map[string]string, persist bool) map[string]*string {
+	tags := make(map[string]*string, len(creationTags))
+	for key, value := range creationTags {
+		tags[key] = to.Ptr(value)
+	}
+	return computeResourceGroupTags(tags, persist)
+}
+
+// ensureResourceGroupExists creates the resource group if it is missing. creationTags
+// are applied only when the group is created; an existing group only has its persist
+// tag reconciled.
+func ensureResourceGroupExists(ctx context.Context, resourceGroupClient *armresources.ResourceGroupsClient, region, rgName string, persist bool, creationTags map[string]string) error {
 	rg, err := resourceGroupClient.Get(ctx, rgName, nil)
+	var responseErr *azcore.ResponseError
+	if err != nil && (!errors.As(err, &responseErr) || responseErr.StatusCode != http.StatusNotFound) {
+		// Only a missing group may be created: a create on an existing group would
+		// replace its tags with this run's creation tags.
+		return fmt.Errorf("failed to get resource group: %w", err)
+	}
 	if err != nil {
 		// Resource group doesn't exist - create it
-		// We don't have any existing tags, so pass an empty map instead of nil for clarity.
-		tags := computeResourceGroupTags(map[string]*string{}, persist)
+		tags := newResourceGroupTags(creationTags, persist)
 		resourceGroup := armresources.ResourceGroup{
 			Location: to.Ptr(region),
 			Tags:     tags,

@@ -90,6 +90,11 @@ type BaseRunOptions struct {
 	StepCacheDir             string
 	BicepClient              *bicep.LSPClient
 
+	// NewResourceGroupTags are set only on resource groups this run creates.
+	// Existing resource groups keep their tags, so shared groups never pick up
+	// per-run values.
+	NewResourceGroupTags map[string]string
+
 	SkipBicepparamValidation bool
 
 	// SubscriptionIdToAzureConfigDirectory maps a subscription ID to a logged-in Azure CLI config

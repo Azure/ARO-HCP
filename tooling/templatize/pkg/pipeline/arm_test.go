@@ -236,3 +236,41 @@ func TestComputeResourceGroupTags(t *testing.T) {
 		})
 	}
 }
+
+func TestNewResourceGroupTags(t *testing.T) {
+	tests := []struct {
+		name         string
+		creationTags map[string]string
+		persist      bool
+		expectedTags map[string]*string
+	}{
+		{
+			name:         "no creation tags without persist",
+			expectedTags: map[string]*string{},
+		},
+		{
+			name:         "no creation tags with persist",
+			persist:      true,
+			expectedTags: map[string]*string{"persist": to.Ptr("true")},
+		},
+		{
+			name:         "creation tags without persist",
+			creationTags: map[string]string{"jobID.aro-hcp-ci.redhat.com": "2097011220782518272"},
+			expectedTags: map[string]*string{"jobID.aro-hcp-ci.redhat.com": to.Ptr("2097011220782518272")},
+		},
+		{
+			name:         "creation tags with persist",
+			creationTags: map[string]string{"jobID.aro-hcp-ci.redhat.com": "2097011220782518272"},
+			persist:      true,
+			expectedTags: map[string]*string{
+				"jobID.aro-hcp-ci.redhat.com": to.Ptr("2097011220782518272"),
+				"persist":                     to.Ptr("true"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedTags, newResourceGroupTags(tt.creationTags, tt.persist))
+		})
+	}
+}
