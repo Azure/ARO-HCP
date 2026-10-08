@@ -212,7 +212,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:7879b38ac90fe83ec17137af64031400c6fb0e719f6b4533444110f6ade04370 # 1.44.2-20261007-1 (2026-10-07 20:12)
+        digest: sha256:a97a11952ba74d79a356d7f6b26730ace71a5c56888d89939d027e0416dde801 # 1.44.2-20261007-2 (2026-10-07 21:56)
   # Kube Events
   kubeEvents:
     enabled: true
@@ -437,7 +437,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:1a802ae594e5a84687f42f83ea2ac7e7efecb05c0eb33da73ecb9c578b0b8cca # 3d8bb98150d7985f63f01c8c739b4061a905a1fa (2026-10-07 22:02)
+      digest: sha256:058642c58029add6de1b8c4a81410cd45fe5210f709d83a6408ffc3310b8f1c2 # 0f18311657aeef47627b621368c8cc8ce653564f (2026-10-07 23:48)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -571,15 +571,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:e136364d692d38fae386d04b3ffc353e79c845e3403237098217945641152fde # 1.6.2 (2026-10-05 18:28)
+      digest: sha256:bc3ff264188ec8e3cb7e38939fed09987bdcaa471601fa5909cf4bdc986deaa8 # 1.6.2 (2026-10-08 03:06)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:089b210b4ad2a456947e62e7e56b960a4c8eb897e7b0a516c4261403d6bf7b54 # 1.6.2 (2026-10-05 18:28)
+      digest: sha256:ce51594d5b37202343248c74bd60147db483716baecc304b3f759faa5bca8ee6 # 1.6.2 (2026-10-08 03:02)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:f9366e885089db8a2aa95fdac1f536ea9c1ae8f963a3327a815a255c434cb67e # 1.6.2 (2026-10-05 18:28)
+      digest: sha256:91dd875dd9f6d229578a592107a2686b96d32d618e061b512acb50e2dc2f47e9 # 1.6.2 (2026-10-08 03:07)
   # SVC cluster specifics
   svc:
     subscription:
