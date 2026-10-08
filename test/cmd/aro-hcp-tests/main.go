@@ -466,6 +466,10 @@ func setupCli() *cobra.Command {
 		}
 		return defaultValue
 	}
+	integrationParallelism := 24
+	if os.Getenv("ARO_HCP_DEPLOY_ENV") == "int" && strings.EqualFold(os.Getenv("LOCATION"), "westus3") {
+		integrationParallelism = 60
+	}
 
 	containerCount, containerCountSource := parseMIContainerCount()
 	pooledIdentitiesRaw := strings.TrimSpace(os.Getenv(framework.UsePooledIdentitiesEnvvar))
@@ -516,7 +520,7 @@ func setupCli() *cobra.Command {
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(24),
+		Parallelism:   parallelism(integrationParallelism),
 		TestTimeout:   &integrationTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -528,7 +532,7 @@ func setupCli() *cobra.Command {
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(24),
+		Parallelism:   parallelism(integrationParallelism),
 		TestTimeout:   &integrationTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -536,7 +540,7 @@ func setupCli() *cobra.Command {
 		Name:       "integration/parallel/all",
 		Qualifiers: []string{integrationQuery},
 		// Keep the same resource limits as the existing Integration suites.
-		Parallelism:   parallelism(24),
+		Parallelism:   parallelism(integrationParallelism),
 		TestTimeout:   &integrationTestTimeout,
 		ResourcePools: miPools,
 	})
