@@ -48,7 +48,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/swift-recorder/pkg/capture"
 	"github.com/Azure/ARO-HCP/swift-recorder/pkg/discovery"
-	"github.com/Azure/ARO-HCP/swift-recorder/pkg/netwatch"
 	"github.com/Azure/ARO-HCP/swift-recorder/pkg/recorder"
 )
 
@@ -215,7 +214,7 @@ func (o *CompletedOptions) Run(ctx context.Context) error {
 	})
 	netwatchLogger := utils.LoggerFromContext(ctx).WithValues("controller_name", "swift-node-netwatch", "boot_id", o.options.BootID)
 	start(func() error {
-		return netwatch.Run(ctx, netwatch.LogTo(netwatchLogger), netwatch.Options{})
+		return runNetwatch(ctx, netwatchLogger)
 	})
 	start(func() error { return server.Serve(listener) })
 	<-ctx.Done()
