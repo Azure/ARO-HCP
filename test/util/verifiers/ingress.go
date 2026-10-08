@@ -103,8 +103,8 @@ func verifyHyperShiftIngressCertificateWiring(ctx context.Context, kubeClient ku
 	if err != nil {
 		return fmt.Errorf("getting HyperShift ingress secret openshift-ingress/%s: %w", secretName, err)
 	}
-	if secret.Type != corev1.SecretTypeTLS || len(secret.Data[corev1.TLSCertKey]) == 0 || len(secret.Data[corev1.TLSPrivateKeyKey]) == 0 {
-		return fmt.Errorf("HyperShift ingress secret openshift-ingress/%s must contain TLS certificate and key data", secretName)
+	if len(secret.Data[corev1.TLSCertKey]) == 0 || len(secret.Data[corev1.TLSPrivateKeyKey]) == 0 {
+		return fmt.Errorf("HyperShift ingress secret openshift-ingress/%s must contain non-empty tls.crt and tls.key data", secretName)
 	}
 	controller, err := operatorClient.OperatorV1().IngressControllers("openshift-ingress-operator").Get(ctx, "default", metav1.GetOptions{})
 	if err != nil {

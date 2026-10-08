@@ -35,21 +35,29 @@ import (
 func TestHyperShiftIngressCertificateWiring(test *testing.T) {
 	for _, testCase := range []struct {
 		name          string
+		secretType    corev1.SecretType
 		secretMissing bool
+		certMissing   bool
 		keyMissing    bool
 		reference     string
 		wantError     string
 	}{
 		{name: "wired", reference: "default-ingress-cert"},
+		{name: "Opaque secret", secretType: corev1.SecretTypeOpaque, reference: "default-ingress-cert"},
+		{name: "TLS secret", secretType: corev1.SecretTypeTLS, reference: "default-ingress-cert"},
 		{name: "secret missing", secretMissing: true, wantError: "getting HyperShift ingress secret"},
-		{name: "key missing", keyMissing: true, wantError: "must contain TLS certificate and key"},
+		{name: "certificate missing", certMissing: true, wantError: "must contain non-empty tls.crt and tls.key data"},
+		{name: "key missing", keyMissing: true, wantError: "must contain non-empty tls.crt and tls.key data"},
 		{name: "reference missing", wantError: "expected secret"},
 		{name: "ACM reference", reference: "cluster-ingress-cert", wantError: "expected secret"},
 	} {
 		test.Run(testCase.name, func(test *testing.T) {
 			kubeClient := kubefake.NewSimpleClientset()
 			if !testCase.secretMissing {
-				secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "default-ingress-cert", Namespace: "openshift-ingress"}, Type: corev1.SecretTypeTLS, Data: map[string][]byte{corev1.TLSCertKey: []byte("certificate"), corev1.TLSPrivateKeyKey: []byte("key")}}
+				secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "default-ingress-cert", Namespace: "openshift-ingress"}, Type: testCase.secretType, Data: map[string][]byte{corev1.TLSCertKey: []byte("certificate"), corev1.TLSPrivateKeyKey: []byte("key")}}
+				if testCase.certMissing {
+					delete(secret.Data, corev1.TLSCertKey)
+				}
 				if testCase.keyMissing {
 					delete(secret.Data, corev1.TLSPrivateKeyKey)
 				}
