@@ -48,8 +48,3 @@ knownIssues:
     namespace: "open-cluster-management-agent-addon"
     pod: "klusterlet-addon-workmgr-.*"
   reason: "Same ACM addon-agent noise as the existing klusterlet-.* entry above, but the addon manager places this pod in the open-cluster-management-agent-addon namespace, which that entry's namespace pattern does not match. Addon agents are installed after the managed cluster registers and are slow to become ready when provisioning is slow, so this is a downstream symptom rather than an ARO-HCP defect. Across e2e-parallel runs from 2026-09-21 to 2026-09-25 this fired 5 times, each on a different cluster under a different unrelated PR, always as a single transient pod - the only KubePodNotReady offender in that window that recurs independently of the change under test."
-- name: "KubePodNotReady"
-  labels:
-    namespace: "kube-system"
-    pod: "(aks-secrets-store-csi-driver|ama-metrics-node|eraser-aks-system)-.*"
-  reason: "AKS-managed platform DaemonSets installed and lifecycled by the managed control plane, not deployed or configurable by ARO-HCP, so a readiness failure here is not actionable by this repo. Scoped to these specific pod prefixes rather than the whole kube-system namespace because our own workloads (e.g. arohcp-monitor-kube-state-metrics) also run there and must keep alerting. Note this is excluded on ownership grounds rather than frequency: it was observed once, on 2026-09-24, where all three pods went unready together on a single cluster."

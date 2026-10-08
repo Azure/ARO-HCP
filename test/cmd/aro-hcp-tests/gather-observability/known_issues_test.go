@@ -352,6 +352,12 @@ func TestClassifyAlerts(t *testing.T) {
 // must NOT suppress, so narrowing or widening a pattern cannot silently start
 // hiding actionable alerts. Pod names are real values observed in
 // gather-observability run artifacts.
+//
+// The kube-system cases are deliberately negative. AKS installs those pods, but
+// this repository enables and configures the add-ons that own them
+// (azureKeyvaultSecretsProvider, azureMonitorProfile.metrics and
+// securityProfile.imageCleaner in dev-infrastructure/modules/aks-cluster-base.bicep),
+// so a change here can genuinely make them unready and must keep failing CI.
 func TestEmbeddedKnownIssuesClassification(t *testing.T) {
 	t.Parallel()
 	issues, err := parseKnownIssues(defaultKnownIssuesData)
@@ -370,10 +376,10 @@ func TestEmbeddedKnownIssuesClassification(t *testing.T) {
 		{name: "addon workmgr is known", alertName: "KubePodNotReady", namespace: "open-cluster-management-agent-addon", pod: "klusterlet-addon-workmgr-54f7d49479-4gspp", wantKnown: true},
 		{name: "addon workmgr other replicaset is known", alertName: "KubePodNotReady", namespace: "open-cluster-management-agent-addon", pod: "klusterlet-addon-workmgr-749558849-6dgkt", wantKnown: true},
 
-		// AKS-managed platform DaemonSets in kube-system.
-		{name: "aks secrets store csi driver is known", alertName: "KubePodNotReady", namespace: "kube-system", pod: "aks-secrets-store-csi-driver-nffxs", wantKnown: true},
-		{name: "ama metrics node is known", alertName: "KubePodNotReady", namespace: "kube-system", pod: "ama-metrics-node-2szd2", wantKnown: true},
-		{name: "eraser aks system is known", alertName: "KubePodNotReady", namespace: "kube-system", pod: "eraser-aks-system-40199610-vmss000000-j9kbh", wantKnown: true},
+		// Add-ons this repository enables and configures must keep failing CI.
+		{name: "aks secrets store csi driver still alerts", alertName: "KubePodNotReady", namespace: "kube-system", pod: "aks-secrets-store-csi-driver-nffxs", wantKnown: false},
+		{name: "ama metrics node still alerts", alertName: "KubePodNotReady", namespace: "kube-system", pod: "ama-metrics-node-2szd2", wantKnown: false},
+		{name: "eraser aks system still alerts", alertName: "KubePodNotReady", namespace: "kube-system", pod: "eraser-aks-system-40199610-vmss000000-j9kbh", wantKnown: false},
 
 		// Our own workloads also run in kube-system and must keep failing CI.
 		{name: "our kube-state-metrics in kube-system still alerts", alertName: "KubePodNotReady", namespace: "kube-system", pod: "arohcp-monitor-kube-state-metrics-7988dc648c-789nk", wantKnown: false},
@@ -382,12 +388,8 @@ func TestEmbeddedKnownIssuesClassification(t *testing.T) {
 		// A different ACM agent in the same namespace is not covered.
 		{name: "registration agent in addon namespace still alerts", alertName: "KubePodNotReady", namespace: "open-cluster-management-agent-addon", pod: "klusterlet-registration-agent-6f7c9c9c9c-abcde", wantKnown: false},
 
-		// The same pod name outside the scoped namespace is not covered.
-		{name: "ama-metrics-node outside kube-system still alerts", alertName: "KubePodNotReady", namespace: "default", pod: "ama-metrics-node-2szd2", wantKnown: false},
-
-		// The entries are scoped to KubePodNotReady and must not suppress other alerts.
+		// The entry is scoped to KubePodNotReady and must not suppress other alerts.
 		{name: "different alert for addon workmgr still alerts", alertName: "KubePodCrashLooping", namespace: "open-cluster-management-agent-addon", pod: "klusterlet-addon-workmgr-54f7d49479-4gspp", wantKnown: false},
-		{name: "different alert for aks daemonset still alerts", alertName: "KubePodCrashLooping", namespace: "kube-system", pod: "ama-metrics-node-2szd2", wantKnown: false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
