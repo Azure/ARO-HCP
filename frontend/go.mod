@@ -39,7 +39,6 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.6.7 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/onsi/ginkgo/v2 v2.28.3 // indirect
-	github.com/onsi/gomega v1.40.0 // indirect
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.464 // indirect
 	github.com/openshift-online/ocm-api-model/model v0.0.464 // indirect
 	github.com/openshift/api v0.0.0-20260805160557-b61243060d5f // indirect

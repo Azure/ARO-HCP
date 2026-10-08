@@ -1186,7 +1186,7 @@ svc:
     usePlannedQuota: true
 swiftRecorder:
   captureMode: slow
-  enabled: false
+  enabled: true
   image:
     digest: ""
     registry: arohcpsvcdev.azurecr.io
