@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:91b334c34abd5c30371840831058c96d8121a36093f8a50d544999fd541c23a0
+      digest: sha256:13c96932b07337d6dad6d5b7fba293389b5cb2de54bb33c575b281fa00ae9cf0
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
   operator:
     bundle:
-      digest: sha256:ba0a3874aca0d52bc0207506a4e0453c341deda0e767fd2cdf7100c139a74005
+      digest: sha256:d660790fef13c352e29df6a6a289cb7b6b4c959178028c263f0bf199827bb22e
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
 acr:
@@ -100,7 +100,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:7078728ffb6e251a2355d89b66bc977825a51352eee365aa6d0b00e3e0bc2b90
+      digest: sha256:7879b38ac90fe83ec17137af64031400c6fb0e719f6b4533444110f6ade04370
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
   watson:
@@ -202,7 +202,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpperf
   image:
-    digest: sha256:34fc2399af8ea09afd8d7746e8486e6ddb3f3904d257da24100ab91e97aec123
+    digest: sha256:dd374c05c97748d8d4d5c63c72f1cf1a4c1abc1779a8fdfc39120bc133166a16
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -504,7 +504,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:7c9c1add28497198f076d7c754c88d582306daba875c844b7692ab9907602120
+    digest: sha256:1a802ae594e5a84687f42f83ea2ac7e7efecb05c0eb33da73ecb9c578b0b8cca
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true

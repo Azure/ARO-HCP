@@ -3,7 +3,7 @@ global:
   imageOverrides:
     governance_policy_propagator: "governance-policy-propagator-rhel9@sha256:493b3e123b47558af245e4e1774090f44b5689756524863a1e00a2b78582a642"
     governance_policy_addon_controller: "acm-governance-policy-addon-controller-rhel9@sha256:cced1a3be2d4a6c3aa6f3f997419d7bf8854e5464a757db092aa9a39760ddfb3"
-    config_policy_controller: "config-policy-controller-rhel9@sha256:251afd3a04a9b6366330afc0e1360296251be4ff2dc941b7d3a21ddf902cc57b"
+    config_policy_controller: "config-policy-controller-rhel9@sha256:e65a15475058177bae54bf53358c82680390c60869bd9d7ad8334e35130c0ade"
     governance_policy_framework_addon: "acm-governance-policy-framework-addon-rhel9@sha256:c92331a0248a169a67a4a7821b59ff2d71a97f610a7f4f0f6511515c20a59f35"
     klusterlet_addon_controller: "klusterlet-addon-controller-rhel9@sha256:394f9706eeca0c1bbdc583f8506c0b85bf663d947b24f3c7f72569a23341bcb4"
   namespace: multicluster-engine
