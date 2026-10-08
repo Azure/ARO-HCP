@@ -111,6 +111,9 @@ type VMSizeSelector struct {
 	// VMs directly via Azure Compute (e.g. jumpbox) rather than through the
 	// ARO-HCP RP.
 	IgnoreRPAllowlist bool
+	// policyErr preserves constructor errors until the error-returning selection
+	// path, so malformed overrides cannot fall back to historical SKUs.
+	policyErr error
 }
 
 // SelectVMSize queries the Azure Resource SKUs API for the test location and
@@ -119,6 +122,9 @@ type VMSizeSelector struct {
 // candidates were tried, which were skipped, and the final pick) for
 // debuggability.
 func (tc *perItOrDescribeTestContext) SelectVMSize(ctx context.Context, selector VMSizeSelector) (string, error) {
+	if selector.policyErr != nil {
+		return "", selector.policyErr
+	}
 	location := tc.Location()
 
 	skus, err := tc.listVirtualMachineResourceSKUs(ctx, location)
@@ -245,6 +251,9 @@ func cloneResourceSKUSlice(skus []*armcompute.ResourceSKU) []*armcompute.Resourc
 // selectVMSize is the selection logic over a list of Resource SKUs. It returns
 // the selected SKU together with a trace describing how the decision was reached.
 func selectVMSize(skus []*armcompute.ResourceSKU, location string, selector VMSizeSelector) (string, vmSizeSelectionTrace, error) {
+	if selector.policyErr != nil {
+		return "", vmSizeSelectionTrace{}, selector.policyErr
+	}
 	var rpAllowlist sets.Set[string]
 	if !selector.IgnoreRPAllowlist {
 		rpAllowlist = validation.EnabledNodePoolAzureVMSizes()
@@ -590,7 +599,11 @@ func JumpboxVMSizeSelector() VMSizeSelector {
 }
 
 func withVMFamilyPolicy(selector VMSizeSelector, helper bool) VMSizeSelector {
-	policy := e2econfig.VMFamilies(os.Getenv("ARO_HCP_DEPLOY_ENV"), location())
+	policy, err := vmFamilyPolicyFromEnv()
+	if err != nil {
+		selector.policyErr = err
+		return selector
+	}
 	families := policy.WorkerFamilies
 	if helper {
 		families = policy.HelperFamilies
@@ -601,6 +614,20 @@ func withVMFamilyPolicy(selector VMSizeSelector, helper bool) VMSizeSelector {
 		selector.CPUArchitecture = "x64"
 	}
 	return selector
+}
+
+func vmFamilyPolicyFromEnv() (e2econfig.VMFamilyPolicy, error) {
+	value, configured := os.LookupEnv("ARO_HCP_E2E_VM_FAMILY_POLICY")
+	if !configured {
+		return e2econfig.VMFamilyPolicy{}, nil
+	}
+	policy, err := e2econfig.ParseVMFamilyPolicy([]byte(value))
+	if err != nil {
+		return e2econfig.VMFamilyPolicy{}, fmt.Errorf("invalid ARO_HCP_E2E_VM_FAMILY_POLICY: %w", err)
+	}
+	// Validate the selected slot's location before applying its resolved policy.
+	location()
+	return policy, nil
 }
 
 // EphemeralOSDiskWorkerVMSizeSelector selects a general-purpose worker SKU that

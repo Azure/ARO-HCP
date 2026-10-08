@@ -15,7 +15,10 @@
 package framework
 
 import (
+	"context"
 	"errors"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -86,9 +89,11 @@ func TestConfiguredFamilySelection(t *testing.T) {
 	})
 }
 
-func TestShippedFamilyPolicyRoleSizes(t *testing.T) {
-	t.Setenv("ARO_HCP_DEPLOY_ENV", "int")
-	t.Setenv("LOCATION", "WestUS3")
+func TestDirectFamilyPolicyRoleSizes(t *testing.T) {
+	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", `{"worker_families":["standardDSv5Family"],"helper_families":["standardDDSv5Family"]}`)
+	t.Setenv("SELECTED_LOCATION", "")
+	t.Setenv("ARO_HCP_DEPLOY_ENV", "")
+	t.Setenv("LOCATION", "")
 	for _, tt := range []struct {
 		constructor                  func() VMSizeSelector
 		name, family, cpus           string
@@ -114,17 +119,87 @@ func TestShippedFamilyPolicyRoleSizes(t *testing.T) {
 	}
 }
 
+func unsetVMFamilyPolicy(t *testing.T) {
+	t.Helper()
+	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", "")
+	if err := os.Unsetenv("ARO_HCP_E2E_VM_FAMILY_POLICY"); err != nil {
+		t.Fatalf("failed to unset VM family override: %v", err)
+	}
+}
+
 func TestUnconfiguredFamilyPolicyPreservesLegacySelection(t *testing.T) {
-	for _, scope := range []struct{ env, region string }{{"int", "uksouth"}, {"ci01", "westus3"}, {"dev", "westus3"}, {"stg", "westus3"}, {"prod", "westus3"}, {"", "westus3"}} {
-		t.Run(scope.env+"/"+scope.region, func(t *testing.T) {
-			t.Setenv("ARO_HCP_DEPLOY_ENV", scope.env)
-			t.Setenv("LOCATION", scope.region)
-			t.Setenv("DEPLOY_ENV", "int")
-			selector := DefaultWorkerVMSizeSelector()
-			for _, name := range []string{DefaultWorkerVMSize, "Standard_D8s_v4"} {
-				got, _, err := selectVMSize([]*armcompute.ResourceSKU{makeSKU(name, scope.region, withCapability(capabilityVCPUs, "8"))}, scope.region, selector)
-				if err != nil || got != name {
-					t.Fatalf("expected unchanged legacy selection %q, got %q err=%v", name, got, err)
+	for _, override := range []string{"unset", "{}"} {
+		t.Run(override, func(t *testing.T) {
+			unsetVMFamilyPolicy(t)
+			t.Setenv("SELECTED_LOCATION", "")
+			if override != "unset" {
+				t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", override)
+			}
+			for _, tt := range []struct {
+				constructor func() VMSizeSelector
+				preferred   string
+				fallback    string
+				cpus        string
+			}{
+				{DefaultWorkerVMSizeSelector, DefaultWorkerVMSize, "Standard_D8s_v4", "8"},
+				{SmallWorkerVMSizeSelector, SmallWorkerVMSize, "Standard_D4s_v4", "4"},
+				{JumpboxVMSizeSelector, JumpboxVMSize, "Standard_D2s_v5", "2"},
+			} {
+				selector := tt.constructor()
+				if selector.Families != nil || selector.MaxVCPUs != 0 || selector.CPUArchitecture != "" {
+					t.Fatalf("unconfigured role must preserve historical selector constraints: %+v", selector)
+				}
+				for _, name := range []string{tt.preferred, tt.fallback} {
+					got, _, err := selectVMSize([]*armcompute.ResourceSKU{makeSKU(name, testLocation, withCapability(capabilityVCPUs, tt.cpus))}, testLocation, selector)
+					if err != nil || got != name {
+						t.Fatalf("expected unchanged legacy selection %q, got %q err=%v", name, got, err)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestFamilyPolicyOmittedRolePreservesLegacySelection(t *testing.T) {
+	t.Setenv("SELECTED_LOCATION", "")
+	for _, tt := range []struct {
+		policy      string
+		constructor func() VMSizeSelector
+		preferred   string
+		cpus        string
+	}{
+		{`{"helper_families":["helper"]}`, DefaultWorkerVMSizeSelector, DefaultWorkerVMSize, "8"},
+		{`{"helper_families":["helper"]}`, SmallWorkerVMSizeSelector, SmallWorkerVMSize, "4"},
+		{`{"worker_families":["worker"]}`, JumpboxVMSizeSelector, JumpboxVMSize, "2"},
+	} {
+		t.Run(tt.preferred, func(t *testing.T) {
+			t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", tt.policy)
+			selector := tt.constructor()
+			got, _, err := selectVMSize([]*armcompute.ResourceSKU{makeSKU(tt.preferred, testLocation, withCapability(capabilityVCPUs, tt.cpus))}, testLocation, selector)
+			if err != nil || got != tt.preferred || selector.Families != nil {
+				t.Fatalf("expected omitted role to retain historical selection %q, got %q err=%v", tt.preferred, got, err)
+			}
+		})
+	}
+}
+
+func TestMalformedFamilyPolicyCannotFallBack(t *testing.T) {
+	t.Setenv("SELECTED_LOCATION", "")
+	for _, override := range []string{"", " ", "null", "{", `{"worker_families":[]}`, `{"helper_families":null}`, `{"unknown":["family"]}`, `{} {}`} {
+		t.Run(override, func(t *testing.T) {
+			t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", override)
+			for _, constructor := range []func() VMSizeSelector{DefaultWorkerVMSizeSelector, SmallWorkerVMSizeSelector, JumpboxVMSizeSelector} {
+				selector := constructor()
+				skus := []*armcompute.ResourceSKU{makeSKU(selector.Preferred[0], testLocation, withCapability(capabilityVCPUs, "8"))}
+				got, _, err := selectVMSize(skus, testLocation, selector)
+				if got != "" || err == nil || errors.Is(err, ErrNoUsableVMSize) || !strings.Contains(err.Error(), "ARO_HCP_E2E_VM_FAMILY_POLICY") {
+					t.Fatalf("expected actionable configuration error without fallback or skippable exhaustion, got SKU=%q err=%v", got, err)
+				}
+				// A nil context receiver proves validation precedes Azure access.
+				var tc *perItOrDescribeTestContext
+				got, err = tc.SelectVMSize(context.Background(), selector)
+				if got != "" || err == nil || !strings.Contains(err.Error(), "ARO_HCP_E2E_VM_FAMILY_POLICY") {
+					t.Fatalf("expected configuration error before Azure access, got SKU=%q err=%v", got, err)
 				}
 			}
 		})
@@ -132,8 +207,8 @@ func TestUnconfiguredFamilyPolicyPreservesLegacySelection(t *testing.T) {
 }
 
 func TestPinnedSelectorBypassesFamilyPolicy(t *testing.T) {
-	t.Setenv("ARO_HCP_DEPLOY_ENV", "int")
-	t.Setenv("LOCATION", "westus3")
+	t.Setenv("SELECTED_LOCATION", "")
+	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", `{"worker_families":["standardDSv5Family"]}`)
 	selector := VMSizeSelector{Name: "explicit-pin", Preferred: []string{DefaultWorkerVMSize}}
 	got, _, err := selectVMSize([]*armcompute.ResourceSKU{makeSKU(DefaultWorkerVMSize, testLocation)}, testLocation, selector)
 	if err != nil || got != DefaultWorkerVMSize {

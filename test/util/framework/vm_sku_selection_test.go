@@ -421,8 +421,7 @@ func TestSelectVMSize(t *testing.T) {
 // ErrNoUsableVMSize rather than the non-allowlisted SKU, which the RP rejects
 // with InvalidRequestContent.
 func TestSelectVMSizeNeverPicksNonAllowlistedFallback(t *testing.T) {
-	t.Setenv("ARO_HCP_DEPLOY_ENV", "int")
-	t.Setenv("LOCATION", testLocation)
+	unsetVMFamilyPolicy(t)
 
 	skus := []*armcompute.ResourceSKU{
 		makeSKU("Standard_D8lds_v6", testLocation, withCapability(capabilityVCPUs, "8")),
@@ -437,8 +436,7 @@ func TestSelectVMSizeNeverPicksNonAllowlistedFallback(t *testing.T) {
 // non-allowlisted and an allowlisted (but non-preferred) SKU are available, the
 // deterministic fallback selects the allowlisted one.
 func TestSelectVMSizeFallbackPrefersAllowlisted(t *testing.T) {
-	t.Setenv("ARO_HCP_DEPLOY_ENV", "int")
-	t.Setenv("LOCATION", testLocation)
+	unsetVMFamilyPolicy(t)
 
 	skus := []*armcompute.ResourceSKU{
 		makeSKU("Standard_D8lds_v6", testLocation, withCapability(capabilityVCPUs, "8")), // non-allowlisted, usable
@@ -594,10 +592,10 @@ func TestSkuRestrictedInLocation(t *testing.T) {
 	}
 }
 
-func TestSpecializedVMSizeSelectorsInIntegrationWestUS3(t *testing.T) {
+func TestSpecializedVMSizeSelectorsIgnoreFamilyPolicy(t *testing.T) {
 	const location = "westus3"
-	t.Setenv("ARO_HCP_DEPLOY_ENV", "int")
-	t.Setenv("LOCATION", location)
+	t.Setenv("SELECTED_LOCATION", "")
+	t.Setenv("ARO_HCP_E2E_VM_FAMILY_POLICY", `{"worker_families":["standardDSv5Family"],"helper_families":["standardDDSv5Family"]}`)
 	tests := []struct {
 		name        string
 		constructor func() VMSizeSelector

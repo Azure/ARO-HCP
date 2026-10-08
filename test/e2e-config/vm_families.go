@@ -16,155 +16,91 @@ package e2econfig
 
 import (
 	"bytes"
-	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
-	"sync"
-
-	"gopkg.in/yaml.v3"
 )
-
-//go:embed e2e-vm-families.yaml
-var vmFamiliesYAML []byte
 
 // VMFamilyPolicy contains ordered Azure ResourceSKU.Family identifiers. A nil
 // role is unconfigured; an explicitly empty role is invalid.
 type VMFamilyPolicy struct {
-	WorkerFamilies []string `yaml:"worker_families"`
-	HelperFamilies []string `yaml:"helper_families"`
+	WorkerFamilies []string `yaml:"worker_families,omitempty" json:"worker_families,omitempty"`
+	HelperFamilies []string `yaml:"helper_families,omitempty" json:"helper_families,omitempty"`
 }
 
-type vmFamilyEnvironment struct {
-	Defaults VMFamilyPolicy            `yaml:"defaults"`
-	Regions  map[string]VMFamilyPolicy `yaml:"regions"`
-}
-
-// VMFamilyConfig resolves environment defaults and per-role regional overrides.
-type VMFamilyConfig struct {
-	Version      int                            `yaml:"version"`
-	Environments map[string]vmFamilyEnvironment `yaml:"environments"`
-}
-
-// ParseVMFamilyConfig strictly validates a versioned family policy document.
-func ParseVMFamilyConfig(data []byte) (*VMFamilyConfig, error) {
-	// Null is not omission: rejecting it avoids silently inheriting a default
-	// when an author explicitly supplied an empty role.
-	var document yaml.Node
-	if err := yaml.Unmarshal(data, &document); err != nil {
-		return nil, fmt.Errorf("VM family policy: %w", err)
-	}
-	var rejectNullRoles func(*yaml.Node) error
-	rejectNullRoles = func(node *yaml.Node) error {
-		if node.Kind == yaml.MappingNode {
-			for i := 0; i < len(node.Content); i += 2 {
-				key, value := node.Content[i], node.Content[i+1]
-				if (key.Value == "worker_families" || key.Value == "helper_families") && value.Tag == "!!null" {
-					return fmt.Errorf("VM family policy: %s must be a nonempty list", key.Value)
-				}
-			}
+// Validate checks configured roles without modifying their family order.
+func (policy VMFamilyPolicy) Validate() error {
+	for _, role := range [2]struct {
+		name     string
+		families []string
+	}{
+		{"worker_families", policy.WorkerFamilies},
+		{"helper_families", policy.HelperFamilies},
+	} {
+		if role.families == nil {
+			continue
 		}
-		for _, child := range node.Content {
-			if err := rejectNullRoles(child); err != nil {
-				return err
-			}
+		if len(role.families) == 0 {
+			return fmt.Errorf("VM family policy %s must be a nonempty list", role.name)
 		}
-		return nil
+		seen := make(map[string]bool, len(role.families))
+		for _, family := range role.families {
+			if strings.TrimSpace(family) != family || family == "" || seen[family] {
+				return fmt.Errorf("VM family policy %s has empty, whitespace-padded or duplicate family %q", role.name, family)
+			}
+			seen[family] = true
+		}
 	}
-	if err := rejectNullRoles(&document); err != nil {
-		return nil, err
+	return nil
+}
+
+// ParseVMFamilyPolicy strictly parses one resolved JSON object. Omitted roles
+// preserve historical selection; null roles, unknown or duplicate keys, and
+// trailing documents are rejected rather than silently discarding policy.
+func ParseVMFamilyPolicy(data []byte) (VMFamilyPolicy, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	opening, err := decoder.Token()
+	if err != nil {
+		return VMFamilyPolicy{}, fmt.Errorf("VM family policy: %w", err)
 	}
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	var config VMFamilyConfig
-	if err := decoder.Decode(&config); err != nil {
-		return nil, fmt.Errorf("VM family policy: %w", err)
+	if opening != json.Delim('{') {
+		return VMFamilyPolicy{}, fmt.Errorf("VM family policy must be a JSON object")
+	}
+	var policy VMFamilyPolicy
+	for decoder.More() {
+		key, err := decoder.Token()
+		if err != nil {
+			return VMFamilyPolicy{}, fmt.Errorf("VM family policy: %w", err)
+		}
+		var families *[]string
+		switch key {
+		case "worker_families":
+			families = &policy.WorkerFamilies
+		case "helper_families":
+			families = &policy.HelperFamilies
+		default:
+			return VMFamilyPolicy{}, fmt.Errorf("VM family policy has unknown key %q", key)
+		}
+		if *families != nil {
+			return VMFamilyPolicy{}, fmt.Errorf("VM family policy has duplicate key %q", key)
+		}
+		if err := decoder.Decode(families); err != nil {
+			return VMFamilyPolicy{}, fmt.Errorf("VM family policy %s: %w", key, err)
+		}
+		if *families == nil {
+			return VMFamilyPolicy{}, fmt.Errorf("VM family policy %s must be a nonempty list, not null", key)
+		}
+	}
+	if _, err := decoder.Token(); err != nil {
+		return VMFamilyPolicy{}, fmt.Errorf("VM family policy: %w", err)
 	}
 	var extra any
 	if err := decoder.Decode(&extra); err != io.EOF {
-		return nil, fmt.Errorf("VM family policy must contain exactly one YAML document")
+		return VMFamilyPolicy{}, fmt.Errorf("VM family policy must contain exactly one JSON object")
 	}
-	if config.Version != 1 || config.Environments == nil {
-		return nil, fmt.Errorf("VM family policy requires version: 1 and environments")
+	if err := policy.Validate(); err != nil {
+		return VMFamilyPolicy{}, err
 	}
-	validate := func(scope string, policy VMFamilyPolicy) error {
-		for _, role := range [2]struct {
-			name     string
-			families []string
-		}{
-			{"worker_families", policy.WorkerFamilies},
-			{"helper_families", policy.HelperFamilies},
-		} {
-			families := role.families
-			if families == nil {
-				continue
-			}
-			if len(families) == 0 {
-				return fmt.Errorf("VM family policy %s %s must be nonempty", scope, role.name)
-			}
-			seen := make(map[string]bool, len(families))
-			for _, family := range families {
-				if strings.TrimSpace(family) != family || family == "" || seen[family] {
-					return fmt.Errorf("VM family policy %s %s has empty, whitespace-padded or duplicate family %q", scope, role.name, family)
-				}
-				seen[family] = true
-			}
-		}
-		return nil
-	}
-	for name, environment := range config.Environments {
-		if name == "" || strings.TrimSpace(name) != name {
-			return nil, fmt.Errorf("VM family policy has invalid environment %q", name)
-		}
-		if err := validate(name+" defaults", environment.Defaults); err != nil {
-			return nil, err
-		}
-		regions := make(map[string]VMFamilyPolicy, len(environment.Regions))
-		for region, policy := range environment.Regions {
-			key := strings.ToLower(region)
-			if key == "" || strings.TrimSpace(key) != key {
-				return nil, fmt.Errorf("VM family policy has invalid region %q", region)
-			}
-			if _, exists := regions[key]; exists {
-				return nil, fmt.Errorf("VM family policy has duplicate case-insensitive region %q", region)
-			}
-			if err := validate(name+"/"+region, policy); err != nil {
-				return nil, err
-			}
-			regions[key] = policy
-		}
-		environment.Regions = regions
-		config.Environments[name] = environment
-	}
-	return &config, nil
-}
-
-// Resolve replaces only roles supplied by the regional policy. Returned lists
-// belong to the config and must not be modified.
-func (config *VMFamilyConfig) Resolve(environment, region string) VMFamilyPolicy {
-	env := config.Environments[environment]
-	policy := env.Defaults
-	if override, ok := env.Regions[strings.ToLower(region)]; ok {
-		if override.WorkerFamilies != nil {
-			policy.WorkerFamilies = override.WorkerFamilies
-		}
-		if override.HelperFamilies != nil {
-			policy.HelperFamilies = override.HelperFamilies
-		}
-	}
-	return policy
-}
-
-var embeddedVMFamilyConfig = sync.OnceValues(func() (*VMFamilyConfig, error) {
-	return ParseVMFamilyConfig(vmFamiliesYAML)
-})
-
-// VMFamilies resolves the embedded policy, parsed once per binary. Invalid
-// embedded configuration is a build/configuration defect, not SKU unavailability.
-func VMFamilies(environment, region string) VMFamilyPolicy {
-	config, err := embeddedVMFamilyConfig()
-	if err != nil {
-		panic(fmt.Errorf("invalid embedded e2e-vm-families.yaml: %w", err))
-	}
-	return config.Resolve(environment, region)
+	return policy, nil
 }

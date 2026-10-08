@@ -15,69 +15,101 @@
 package e2econfig
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 )
 
-func TestVMFamilyConfigPrecedence(t *testing.T) {
-	config, err := ParseVMFamilyConfig([]byte(`version: 1
-environments:
-  ci01:
-    defaults:
-      worker_families: [first, second]
-      helper_families: [helper]
-    regions:
-      WestUS3:
-        worker_families: [regional]
-      uksouth:
-        helper_families: [regional-helper, fallback-helper]
-  int:
-    regions:
-      westus3:
-        worker_families: [int-worker]
-`))
-	if err != nil {
-		t.Fatalf("expected valid defaults and overrides: %v", err)
-	}
+func TestParseVMFamilyPolicy(t *testing.T) {
 	for _, tt := range []struct {
-		env, region string
-		want        VMFamilyPolicy
+		name string
+		data string
+		want VMFamilyPolicy
 	}{
-		{"ci01", "WESTUS3", VMFamilyPolicy{WorkerFamilies: []string{"regional"}, HelperFamilies: []string{"helper"}}},
-		{"ci01", "uksouth", VMFamilyPolicy{WorkerFamilies: []string{"first", "second"}, HelperFamilies: []string{"regional-helper", "fallback-helper"}}},
-		{"ci01", "centralus", VMFamilyPolicy{WorkerFamilies: []string{"first", "second"}, HelperFamilies: []string{"helper"}}},
-		{"int", "westus3", VMFamilyPolicy{WorkerFamilies: []string{"int-worker"}}},
-		{"int", "uksouth", VMFamilyPolicy{}},
-		{"prod", "westus3", VMFamilyPolicy{}},
+		{"unconfigured", `{}`, VMFamilyPolicy{}},
+		{"worker only", `{"worker_families":["first","second"]}`, VMFamilyPolicy{WorkerFamilies: []string{"first", "second"}}},
+		{"helper only", `{"helper_families":["helper"]}`, VMFamilyPolicy{HelperFamilies: []string{"helper"}}},
+		{"both roles", `{"worker_families":["first","second"],"helper_families":["helper","first"]}`, VMFamilyPolicy{WorkerFamilies: []string{"first", "second"}, HelperFamilies: []string{"helper", "first"}}},
+		{"surrounding whitespace", " \n {\"worker_families\":[\"family\"]} \n ", VMFamilyPolicy{WorkerFamilies: []string{"family"}}},
 	} {
-		t.Run(tt.env+"/"+tt.region, func(t *testing.T) {
-			got := config.Resolve(tt.env, tt.region)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("expected per-role replacement/inheritance %+v, got %+v", tt.want, got)
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseVMFamilyPolicy([]byte(tt.data))
+			if err != nil || !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("expected ordered policy %+v, got %+v err=%v", tt.want, got, err)
+			}
+			data, err := json.Marshal(got)
+			if err != nil {
+				t.Fatalf("failed to serialize resolved policy: %v", err)
+			}
+			roundTrip, err := ParseVMFamilyPolicy(data)
+			if err != nil || !reflect.DeepEqual(roundTrip, tt.want) {
+				t.Fatalf("expected omitted roles and order to survive JSON round trip, got %+v err=%v", roundTrip, err)
 			}
 		})
 	}
 }
 
-func TestVMFamilyConfigRejectsMalformedPolicies(t *testing.T) {
+func TestParseVMFamilyPolicyRejectsMalformedPolicies(t *testing.T) {
 	for name, data := range map[string]string{
-		"missing version":                "environments: {}",
-		"unsupported version":            "version: 2\nenvironments: {}",
-		"missing environments":           "version: 1",
-		"unknown field":                  "version: 1\nenvironments: {}\nworkers: []",
-		"unknown policy field":           "version: 1\nenvironments: {int: {defaults: {workers: [family]}}}",
-		"empty default list":             "version: 1\nenvironments: {int: {defaults: {worker_families: []}}}",
-		"empty override list":            "version: 1\nenvironments: {int: {regions: {westus3: {helper_families: []}}}}",
-		"null override":                  "version: 1\nenvironments: {int: {regions: {westus3: {worker_families: null}}}}",
-		"empty family":                   "version: 1\nenvironments: {int: {defaults: {worker_families: ['']}}}",
-		"duplicate family":               "version: 1\nenvironments: {int: {defaults: {worker_families: [family, family]}}}",
-		"duplicate region ignoring case": "version: 1\nenvironments: {int: {regions: {westus3: {}, WestUS3: {}}}}",
-		"multiple documents":             "version: 1\nenvironments: {}\n---\nversion: 1\nenvironments: {}",
-		"invalid YAML":                   "[",
+		"empty override":         "",
+		"whitespace override":    " \n ",
+		"null object":            `null`,
+		"array object":           `[]`,
+		"string object":          `"policy"`,
+		"number object":          `42`,
+		"unknown key":            `{"workers":["family"]}`,
+		"case changed key":       `{"Worker_Families":["family"]}`,
+		"region resolution":      `{"regions":{}}`,
+		"old environment config": `{"version":1,"environments":{}}`,
+		"duplicate worker key":   `{"worker_families":["first"],"worker_families":["second"]}`,
+		"duplicate helper key":   `{"helper_families":["first"],"helper_families":["second"]}`,
+		"escaped duplicate key":  `{"worker_families":["first"],"worker\u005ffamilies":["second"]}`,
+		"empty worker list":      `{"worker_families":[]}`,
+		"empty helper list":      `{"helper_families":[]}`,
+		"null worker list":       `{"worker_families":null}`,
+		"null helper list":       `{"helper_families":null}`,
+		"string role":            `{"worker_families":"family"}`,
+		"object role":            `{"worker_families":{}}`,
+		"empty family":           `{"worker_families":[""]}`,
+		"null family":            `{"worker_families":[null]}`,
+		"numeric family":         `{"worker_families":[42]}`,
+		"whitespace family":      `{"worker_families":[" family"]}`,
+		"trailing whitespace":    `{"helper_families":["family\t"]}`,
+		"duplicate family":       `{"worker_families":["family","family"]}`,
+		"multiple documents":     `{} {}`,
+		"trailing null document": `{} null`,
+		"trailing garbage":       `{} garbage`,
+		"truncated object":       `{"worker_families":["family"]`,
+		"invalid closing token":  `{"worker_families":["family"]]`,
+		"trailing comma":         `{"worker_families":["family"],}`,
+		"YAML override":          "worker_families: [family]",
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := ParseVMFamilyConfig([]byte(data)); err == nil {
+			if _, err := ParseVMFamilyPolicy([]byte(data)); err == nil {
 				t.Fatal("expected invalid family policy to fail clearly")
+			}
+		})
+	}
+}
+
+func TestVMFamilyPolicyValidate(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		policy  VMFamilyPolicy
+		wantErr bool
+	}{
+		{"nil roles", VMFamilyPolicy{}, false},
+		{"ordered families", VMFamilyPolicy{WorkerFamilies: []string{"second", "first"}}, false},
+		{"same family across roles", VMFamilyPolicy{WorkerFamilies: []string{"family"}, HelperFamilies: []string{"family"}}, false},
+		{"empty workers", VMFamilyPolicy{WorkerFamilies: []string{}}, true},
+		{"empty helpers", VMFamilyPolicy{HelperFamilies: []string{}}, true},
+		{"empty family", VMFamilyPolicy{WorkerFamilies: []string{""}}, true},
+		{"whitespace family", VMFamilyPolicy{HelperFamilies: []string{"family "}}, true},
+		{"duplicate family", VMFamilyPolicy{HelperFamilies: []string{"family", "family"}}, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.policy.Validate(); (err != nil) != tt.wantErr {
+				t.Fatalf("expected validation error=%t, got %v", tt.wantErr, err)
 			}
 		})
 	}
