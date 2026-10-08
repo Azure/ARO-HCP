@@ -618,8 +618,8 @@ spec:
         severity: "4"
         slo: backup-repo-maintenance-saturation
       annotations:
-        summary: "{{ $labels.cluster }}: {{ $value }} Velero backups stuck non-terminal for 3.5+ hours"
-        description: "{{ $value }} Velero backups on management cluster {{ $labels.cluster }} have been in a non-terminal phase (New/Queued/ReadyToStart/InProgress/WaitingForPluginOperations/Finalizing) for over 3.5 hours - well beyond the time a healthy hourly-cron burst should take to drain through the 4 concurrent backup slots. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757's staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC."
+        summary: "{{ $labels.cluster }}: {{ $value }} Velero backups currently non-terminal; backlog above 10 for 3.5+ hours"
+        description: "{{ $value }} Velero backups on management cluster {{ $labels.cluster }} are currently in a non-terminal phase; the cluster-wide count has stayed above 10 for 3.5+ hours. Counted phases: New, Queued, ReadyToStart, InProgress, WaitingForPluginOperations, WaitingForPluginOperationsPartiallyFailed, Finalizing, FinalizingPartiallyFailed. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757's staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
   - name: arohcp_backup_slo_metrics_absent_alerts
     labels:
