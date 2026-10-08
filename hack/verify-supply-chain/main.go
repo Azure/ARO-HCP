@@ -379,30 +379,57 @@ func hasSegment(p, segment string) bool {
 	return false
 }
 
-// report prints the findings. Paths are quoted because git permits any byte in
-// one except NUL and the separator, making an unquoted path a way for the
-// reported-on thing to write the report: a newline forges lines, an ANSI
-// sequence erases those above. Neither changes the exit code, but a security
-// tool whose output its subject can write is not worth reading.
+// remediation is what to actually do about each rule, keyed by rule name. The
+// advice differs in kind and a single blanket line gets most of it wrong: a
+// settings file is unwanted and should go, whereas an alias or a syntax error
+// is usually a legitimate asset in the wrong shape, and telling its author to
+// delete it costs them work the check never meant to reject.
+var remediation = map[string]string{
+	ruleAgentSettings: "Remove these from the commit. They belong in your local working copy only.",
+	ruleEditorConfig:  "Remove these from the commit. They belong in your local working copy only.",
+	ruleConfigNotFile: "Replace the alias with a real file, or move the content out of the configuration path. Do not resolve it to find out what it points at.",
+	ruleInvalidJSON:   "Fix the syntax. Agent configuration must parse as strict JSON: no comments, no trailing commas.",
+	ruleUnreadable:    "Replace the entry with a real file. Its contents could not be read, so the execution-key rule could not judge them.",
+	ruleExecutionKey:  "Do not open or run these files. Report them to the security team before taking any other action.",
+}
+
+// report prints the findings, then what to do about each rule that appeared.
+//
+// Paths are quoted because git permits any byte in one except NUL and the
+// separator, making an unquoted path a way for the reported-on thing to write
+// the report: a newline forges lines, an ANSI sequence erases those above.
+// Neither changes the exit code, but a security tool whose output its subject
+// can write is not worth reading.
 func report(w io.Writer, findings []finding) {
 	fmt.Fprintln(w, "ERROR: supply-chain attack indicators found in tracked files.")
 	fmt.Fprintln(w)
 
-	malware := false
+	var rules []string
 	for _, f := range findings {
 		fmt.Fprintf(w, "  %q (%s): %s\n", f.path, f.rule, f.detail)
 		if f.malware {
-			malware = true
 			fmt.Fprintln(w, `      This matches a known supply-chain attack pattern. Do not run it.`)
 			fmt.Fprintln(w, "      Report it to the security team before taking any other action.")
+		}
+		if !slices.Contains(rules, f.rule) {
+			rules = append(rules, f.rule)
 		}
 	}
 
 	fmt.Fprintln(w)
-	if malware {
-		fmt.Fprintln(w, "Do not interact with the files flagged as attack patterns above.")
+	fmt.Fprintln(w, "What to do:")
+	for _, rule := range rules {
+		advice, ok := remediation[rule]
+		if !ok {
+			// A new rule without advice is a bug, but a blank line here would
+			// hide it. Say so rather than defaulting to "delete the file",
+			// which is the wrong answer for half the rules.
+			advice = "No remediation recorded for this rule; see docs/ci/supply-chain-presubmit.md."
+		}
+		fmt.Fprintf(w, "  %s: %s\n", rule, advice)
 	}
-	fmt.Fprintln(w, `If these files are yours, remove them from the commit — they belong in`)
-	fmt.Fprintln(w, `your local working copy only. See the "Security self-check" bullet in`)
-	fmt.Fprintln(w, "CONTRIBUTING.md.")
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, `See the "Security self-check" bullet in CONTRIBUTING.md, and`)
+	fmt.Fprintln(w, "docs/ci/supply-chain-presubmit.md for why each rule exists.")
 }
