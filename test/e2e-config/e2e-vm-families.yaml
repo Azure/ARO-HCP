@@ -1,0 +1,9 @@
+version: 1
+environments:
+  int:
+    regions:
+      westus3:
+        worker_families:
+        - standardDSv5Family
+        helper_families:
+        - standardDDSv5Family

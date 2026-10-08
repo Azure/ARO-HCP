@@ -293,8 +293,8 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
   subscription/location, applies the selector's capability filters, and returns
   a usable SKU. When the selector requires zones, only SKUs with at least one
   non-restricted zone are considered usable. It prefers the selector's ordered
-  `Preferred` list first (so behaviour is unchanged whenever the historical SKU
-  is available), then falls back to a deterministic, sorted pick.
+  `Preferred` list first, then falls back to a deterministic, sorted pick when
+  the selector permits discovery.
 - Use the named selectors for common shapes: `DefaultWorkerVMSizeSelector()`,
   `SmallWorkerVMSizeSelector()`, `JumpboxVMSizeSelector()`,
   `ARM64NodePoolVMSizeSelector()`, `GPUNodePoolVMSizeSelector()`.
@@ -304,9 +304,42 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
   storage account type comes from the shared `DefaultDiskStorageAccountType`
   constant. Set `VMSize` explicitly only to pin a specific size (for example
   negative tests that assert on a specific SKU).
+- General-purpose family policy is configured in
+  [`test/e2e-config/e2e-vm-families.yaml`](../e2e-config/e2e-vm-families.yaml),
+  embedded in the runner and strictly parsed once per binary. Its schema is
+  `version: 1` and `environments`, keyed by actual `ARO_HCP_DEPLOY_ENV` values:
+  `int`, `ci01` (dev CI), `stg`, and `prod`, not display names such as `stage`.
+  Each environment accepts optional `defaults` and `regions` mappings. A policy
+  contains optional ordered `worker_families` and `helper_families` lists of
+  Azure `ResourceSKU.Family` identifiers, not VM names or name patterns.
+  For example, an environment can supply
+  `defaults: {worker_families: [standardDSv5Family]}` and a regional policy at
+  `regions.westus3.helper_families`. Regional matching is case-insensitive.
+- A regional list **replaces** the corresponding default list; an omitted role
+  inherits its environment default. A role absent from both uses the historical
+  selector unchanged. Explicit empty/null lists, unknown fields, unsupported
+  versions and duplicate case-insensitive regions are configuration errors,
+  not requests to fall back.
+- Configured selectors search families in declared order using actual Azure
+  SKU family metadata. Within each family, usable preferred sizes win, then
+  discovery chooses a deterministic sorted size. Workers must remain in the
+  RP allowlist; helpers use Compute directly. Azure location/zone restrictions
+  and capability checks still apply. Configured sizes require x64 and exactly
+  8 vCPUs for default workers, 4 for small workers, and 2 for helpers, preventing
+  discovery from selecting oversized SKUs such as D128. Exhausting configured
+  families returns `ErrNoUsableVMSize` without falling through to other families.
+- The shipped file configures **only `int` / `westus3`**:
+  `worker_families: [standardDSv5Family]` and
+  `helper_families: [standardDDSv5Family]`, normally selecting `Standard_D8s_v5`,
+  `Standard_D4s_v5`, and `Standard_D2ds_v5`. No environment defaults are enabled.
+  INT UK South, dev CI, STAGE and PROD therefore retain historical behavior.
+  Ephemeral OS disk, GPU, Arm64 selectors and explicit pins bypass this policy.
 
 Only reported **restrictions** are honoured; quota *headroom* (vCPU Usages API)
-is out of scope.
+is out of scope. Alternative families are not enabled by the shipped policy.
+Enabling an additional family requires checking its worker quota, total regional
+quota and workload demand first. Azure SKU metadata and quota approval do not
+reserve physical capacity or guarantee that a later VM allocation succeeds.
 
 ## Updating E2E Timeouts
 

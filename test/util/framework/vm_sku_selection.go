@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -30,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	"github.com/Azure/ARO-HCP/internal/validation"
+	e2econfig "github.com/Azure/ARO-HCP/test/e2e-config"
 )
 
 // ErrNoUsableVMSize is returned by SelectVMSize when no VM size in the target
@@ -44,10 +46,8 @@ import (
 var ErrNoUsableVMSize = errors.New("no unrestricted VM size satisfied the selector in the test location; " +
 	"this typically indicates a VM SKU restriction or quota issue with the test subscription/region, not a product defect")
 
-// Historical default SKUs. They are kept as the first preference in their
-// selectors so behaviour is unchanged whenever they are available and
-// unrestricted in the target subscription/region; selection only diverges when
-// the preferred SKU is genuinely unusable.
+// Historical default SKUs. Unconfigured general-purpose and specialized
+// selectors continue to prefer these independently of the family policy.
 const (
 	DefaultWorkerVMSize = "Standard_D8s_v3"
 	SmallWorkerVMSize   = "Standard_D4s_v3"
@@ -66,24 +66,34 @@ const (
 	capabilityEphemeralOSDiskSupported = "EphemeralOSDiskSupported"
 )
 
-// VMSizeSelector describes the requirements a VM size must satisfy. SelectVMSize
-// tries Preferred entries in order first, then falls back to a deterministic
-// (sorted) pick among the remaining SKUs that match NamePattern and the
-// capability constraints. A nil NamePattern disables the fallback, limiting
-// selection to the Preferred entries (preferred-only selection).
+var (
+	defaultWorkerVMSizePattern = regexp.MustCompile(`^Standard_D[4-8](s_v[3456]|as_v[45])$`)
+	smallWorkerVMSizePattern   = regexp.MustCompile(`^Standard_D[2-4](s_v[3456]|as_v[45])$`)
+	jumpboxVMSizePattern       = regexp.MustCompile(`^Standard_D[2-4][^p]*s_v[3456]$`)
+)
+
+// VMSizeSelector describes the requirements a VM size must satisfy. Configured
+// Families are searched in order, preferring named SKUs within each family.
+// Otherwise SelectVMSize tries Preferred entries first and then deterministic
+// NamePattern discovery. A nil NamePattern disables legacy fallback discovery.
 type VMSizeSelector struct {
 	// Name identifies the selector in logs and errors, e.g. "default-worker".
 	Name string
 	// Preferred is an ordered list of SKU names to try before any discovery.
 	Preferred []string
-	// NamePattern, when set, restricts fallback discovery candidates to SKU
-	// names matching the pattern. It does not constrain Preferred entries.
-	// When nil, no fallback discovery is performed: selection is limited to the
-	// Preferred entries, and SelectVMSize returns ErrNoUsableVMSize if none of
-	// them are usable.
+	// NamePattern restricts fallback discovery when Families is nil. It does
+	// not constrain Preferred entries. Without Families, a nil NamePattern
+	// limits selection to Preferred and returns ErrNoUsableVMSize if none are
+	// usable.
 	NamePattern *regexp.Regexp
 	// MinVCPUs, when > 0, requires the SKU to advertise at least this many vCPUs.
 	MinVCPUs int
+	// MaxVCPUs, when > 0, requires the SKU to advertise at most this many vCPUs.
+	MaxVCPUs int
+	// Families, when non-nil, replaces name-pattern discovery with ordered
+	// ResourceSKU.Family selection. Preferred SKUs are tried within each family.
+	// An empty configured list fails closed, never falling back to legacy SKUs.
+	Families []string
 	// CPUArchitecture, when set (e.g. "x64" or "Arm64"), requires the SKU's
 	// CPUArchitectureType capability to match (case-insensitive).
 	CPUArchitecture string
@@ -156,6 +166,9 @@ type vmSizePreferredAttempt struct {
 // writer so CI logs clearly show the selection path.
 func logVMSizeSelection(selector VMSizeSelector, location string, trace vmSizeSelectionTrace, selErr error) {
 	fmt.Fprintf(ginkgo.GinkgoWriter, "VM size selection for selector %q in %s:\n", selector.Name, location)
+	if selector.Families != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "  configured families (in order): %v\n", selector.Families)
+	}
 	for _, attempt := range trace.preferredAttempts {
 		switch {
 		case attempt.usable:
@@ -238,6 +251,9 @@ func selectVMSize(skus []*armcompute.ResourceSKU, location string, selector VMSi
 	}
 
 	var trace vmSizeSelectionTrace
+	if selector.Families != nil {
+		return selectVMSizeInFamilies(skus, location, selector, rpAllowlist)
+	}
 
 	usable := map[string]struct{}{}
 	for _, sku := range skus {
@@ -294,6 +310,52 @@ func selectVMSize(skus []*armcompute.ResourceSKU, location string, selector VMSi
 	return "", trace, fmt.Errorf("selector %q matched no usable VM size in %s: %w", selector.Name, location, ErrNoUsableVMSize)
 }
 
+func selectVMSizeInFamilies(skus []*armcompute.ResourceSKU, location string, selector VMSizeSelector, allowlist sets.Set[string]) (string, vmSizeSelectionTrace, error) {
+	var trace vmSizeSelectionTrace
+	for _, family := range selector.Families {
+		usable := func(sku *armcompute.ResourceSKU) bool {
+			return sku != nil && sku.Name != nil && sku.Family != nil &&
+				*sku.Family == family && skuUsable(sku, location, selector)
+		}
+		// Family order wins over a preferred SKU in a later family. Exact CPU
+		// bounds prevent lexical discovery from choosing D128 instead of D8.
+		for _, preferred := range selector.Preferred {
+			found := false
+			for _, candidate := range skus {
+				if candidate != nil && candidate.Name != nil && *candidate.Name == preferred &&
+					usable(candidate) && (allowlist == nil || allowlist.Has(preferred)) {
+					found = true
+					break
+				}
+			}
+			trace.preferredAttempts = append(trace.preferredAttempts, vmSizePreferredAttempt{
+				name: preferred, usable: found, notInRPAllowlist: allowlist != nil && !allowlist.Has(preferred),
+			})
+			if found {
+				trace.selected = preferred
+				return preferred, trace, nil
+			}
+		}
+		for _, sku := range skus {
+			if !usable(sku) {
+				continue
+			}
+			if allowlist != nil && !allowlist.Has(*sku.Name) {
+				trace.filteredByRPAllowlist++
+				continue
+			}
+			trace.fallbackCandidates = append(trace.fallbackCandidates, *sku.Name)
+		}
+		if len(trace.fallbackCandidates) > 0 {
+			sort.Strings(trace.fallbackCandidates)
+			trace.selected = trace.fallbackCandidates[0]
+			trace.viaFallback = true
+			return trace.selected, trace, nil
+		}
+	}
+	return "", trace, fmt.Errorf("selector %q matched no usable VM size in configured families %v in %s: %w", selector.Name, selector.Families, location, ErrNoUsableVMSize)
+}
+
 // skuUsable reports whether a single SKU satisfies the location, restriction and
 // capability constraints (it intentionally ignores NamePattern, which only
 // narrows fallback discovery).
@@ -304,9 +366,9 @@ func skuUsable(sku *armcompute.ResourceSKU, location string, selector VMSizeSele
 	if skuRestrictedInLocation(sku, location) {
 		return false
 	}
-	if selector.MinVCPUs > 0 {
+	if selector.MinVCPUs > 0 || selector.MaxVCPUs > 0 {
 		vcpus, ok := skuCapabilityInt(sku, capabilityVCPUs)
-		if !ok || vcpus < selector.MinVCPUs {
+		if !ok || vcpus < selector.MinVCPUs || (selector.MaxVCPUs > 0 && vcpus > selector.MaxVCPUs) {
 			return false
 		}
 	}
@@ -466,8 +528,8 @@ func skuCapabilityInt(sku *armcompute.ResourceSKU, name string) (int, bool) {
 }
 
 // DefaultWorkerVMSizeSelector selects the general-purpose worker SKU used by the
-// default node pool. Standard_D8s_v3 is preferred to preserve historical
-// behaviour; the fallback keeps the D-series general-purpose, >=8 vCPU shape.
+// default node pool. Without a configured family policy, Standard_D8s_v3 is
+// preferred to preserve historical behaviour with bounded D-series fallback.
 //
 // Candidates are restricted to SKU families that are enabled in the ARO-HCP RP
 // instance-type allowlist (see cluster-service
@@ -483,13 +545,14 @@ func skuCapabilityInt(sku *armcompute.ResourceSKU, name string) (int, bool) {
 // enabled only for v4/v5 (as_v3 and as_v6 are NOT allowlisted). The pattern
 // also excludes the non-allowlisted local-disk ("ds", "lds", "ads") and Arm64
 // "p" (e.g. Standard_D8ps_v6) variants.
+// Configured family policy instead requires exactly 8 x64 vCPUs.
 func DefaultWorkerVMSizeSelector() VMSizeSelector {
-	return VMSizeSelector{
+	return withVMFamilyPolicy(VMSizeSelector{
 		Name:        "default-worker",
 		Preferred:   []string{DefaultWorkerVMSize, "Standard_D8s_v5", "Standard_D8as_v5", "Standard_D8s_v6"},
-		NamePattern: regexp.MustCompile(`^Standard_D[4-8](s_v[3456]|as_v[45])$`),
+		NamePattern: defaultWorkerVMSizePattern,
 		MinVCPUs:    8,
-	}
+	}, false)
 }
 
 // SmallWorkerVMSizeSelector selects a smaller general-purpose worker SKU used by
@@ -500,13 +563,14 @@ func DefaultWorkerVMSizeSelector() VMSizeSelector {
 // rationale. The fallback pattern is capped at D4 to keep provisioning fast and
 // quota use low. MinVCPUs=4 additionally excludes the 2-vCPU (D2) sizes the
 // [2-4] range would otherwise admit.
+// Configured family policy instead requires exactly 4 x64 vCPUs.
 func SmallWorkerVMSizeSelector() VMSizeSelector {
-	return VMSizeSelector{
+	return withVMFamilyPolicy(VMSizeSelector{
 		Name:        "small-worker",
 		Preferred:   []string{SmallWorkerVMSize, "Standard_D4s_v5", "Standard_D4as_v5", "Standard_D4s_v6"},
-		NamePattern: regexp.MustCompile(`^Standard_D[2-4](s_v[3456]|as_v[45])$`),
+		NamePattern: smallWorkerVMSizePattern,
 		MinVCPUs:    4,
-	}
+	}, false)
 }
 
 // JumpboxVMSizeSelector selects a small general-purpose SKU used for throwaway
@@ -514,14 +578,29 @@ func SmallWorkerVMSizeSelector() VMSizeSelector {
 //
 // The fallback pattern is capped at D4 to keep provisioning fast and quota use
 // low. The [^p] exclusion prevents matching Arm64 variants.
+// Configured family policy instead requires exactly 2 x64 vCPUs.
 func JumpboxVMSizeSelector() VMSizeSelector {
-	return VMSizeSelector{
+	return withVMFamilyPolicy(VMSizeSelector{
 		Name:              "jumpbox",
 		Preferred:         []string{JumpboxVMSize, "Standard_D2s_v4", "Standard_D2ds_v5", "Standard_D2lds_v6"},
-		NamePattern:       regexp.MustCompile(`^Standard_D[2-4][^p]*s_v[3456]$`),
+		NamePattern:       jumpboxVMSizePattern,
 		MinVCPUs:          2,
 		IgnoreRPAllowlist: true,
+	}, true)
+}
+
+func withVMFamilyPolicy(selector VMSizeSelector, helper bool) VMSizeSelector {
+	policy := e2econfig.VMFamilies(os.Getenv("ARO_HCP_DEPLOY_ENV"), location())
+	families := policy.WorkerFamilies
+	if helper {
+		families = policy.HelperFamilies
 	}
+	if families != nil {
+		selector.Families = families
+		selector.MaxVCPUs = selector.MinVCPUs
+		selector.CPUArchitecture = "x64"
+	}
+	return selector
 }
 
 // EphemeralOSDiskWorkerVMSizeSelector selects a general-purpose worker SKU that
