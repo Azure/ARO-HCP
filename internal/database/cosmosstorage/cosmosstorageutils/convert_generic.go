@@ -19,6 +19,8 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
 const operationTimeToLive = 604800 // 7 days
@@ -138,6 +140,16 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 			ret.SetResourceID(cosmosObj.ResourceID)
 		} else {
 			return nil, fmt.Errorf("internalObj is missing a resourceID: %T: %q", cosmosObj, cosmosObj.ID)
+		}
+	}
+
+	if rollout, ok := any(ret).(*fleetapi.ControlPlaneVersionRollout); ok {
+		// Legacy documents encode the profile in their name. CosmosRolloutVersionMigration
+		// persists the converted identity through a read/write cycle.
+		if rollout.Spec.Version == (coreapi.VersionProfile{}) {
+			if profile, err := fleetapihelpers.RolloutVersionFromName(rollout.ResourceID.Name); err == nil {
+				rollout.Spec.Version = profile
+			}
 		}
 	}
 

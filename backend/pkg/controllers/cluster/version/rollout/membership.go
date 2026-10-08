@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -44,10 +45,11 @@ func clusterMinor(serviceProviderCluster *coreapi.ServiceProviderCluster) (strin
 // channel group, are not matched (there is no default channel group).
 func serviceProviderClustersForChannel(ctx context.Context, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, yStreamChannel string) ([]*coreapi.ServiceProviderCluster, error) {
 	logger := utils.LoggerFromContext(ctx).WithValues("ystreamChannel", yStreamChannel)
-	channelGroup, minor, ok := parseYStreamChannel(yStreamChannel)
-	if !ok {
-		return nil, fmt.Errorf("invalid y-stream channel %q", yStreamChannel)
+	profile, err := fleetapihelpers.RolloutVersionFromName(yStreamChannel)
+	if err != nil {
+		return nil, fmt.Errorf("invalid y-stream channel %q: %w", yStreamChannel, err)
 	}
+	channelGroup, minor := profile.ChannelGroup, profile.ID
 
 	clusters, err := clusterLister.List(ctx)
 	if err != nil {
