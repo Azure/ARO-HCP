@@ -347,10 +347,6 @@ func logResourceEvent(ctx context.Context, eventType string, gvr schema.GroupVer
 		logger.Error(nil, "Unexpected object type in resource watcher", "event", eventType, "gvr", gvr.String())
 		return
 	}
-	if gvr.Group == "secret-sync.x-k8s.io" && gvr.Resource == "secretsyncs" {
-		u = u.DeepCopy()
-		unstructured.RemoveNestedField(u.Object, "status", "syncHash")
-	}
 	logger.Info("resource event",
 		"snapshotType", "kubernetes",
 		"event", eventType,
