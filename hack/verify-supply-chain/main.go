@@ -286,17 +286,32 @@ func checkPaths(files []trackedFile) []finding {
 	return findings
 }
 
-// agentJSONFiles returns the tracked JSON subject to the execution-key rule.
-// Selection is by path alone: unreadable entries are selected too, so that the
-// caller refuses them. Dropping them here would be the bypass.
+// agentJSONFiles returns the tracked JSON subject to the execution-key rule:
+// exactly the names checkPaths already blocks. Reading them decides whether the
+// report says "must not be committed" or "matches confirmed malware", so this
+// escalates severity rather than detecting anything new.
+//
+// Deliberately not every .json under an agent directory. Nothing auto-loads a
+// skill's fixtures or manifests, so a command key in one is far more likely to
+// be a documented example than an attack — and telling an author their test
+// data is confirmed malware is the one mistake this rule must not make. The
+// route it appears to cover it cannot: a malicious skill carries its
+// instruction in SKILL.md, which is markdown this check does not read.
+//
+// Keyed on the filename, not the directory, so .claude/skills/x/settings.json
+// is still escalated. An allowlisted directory would have been a safe harbour.
+//
+// Unreadable entries are selected too, so that the caller refuses them.
+// Dropping them here would be the bypass.
 func agentJSONFiles(files []trackedFile) []trackedFile {
 	var out []trackedFile
 	for _, f := range files {
 		lower := strings.ToLower(f.path)
+		base := path.Base(lower)
 		switch {
-		case mcpConfigFiles[path.Base(lower)]:
+		case mcpConfigFiles[base]:
 			out = append(out, f)
-		case hasSegment(lower, agentConfigDir) && path.Ext(lower) == ".json":
+		case hasSegment(lower, agentConfigDir) && agentSettingsFiles[base]:
 			out = append(out, f)
 		}
 	}
