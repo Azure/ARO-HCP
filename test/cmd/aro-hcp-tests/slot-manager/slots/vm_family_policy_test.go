@@ -23,7 +23,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	e2econfig "github.com/Azure/ARO-HCP/test/e2e-config"
+	"github.com/Azure/ARO-HCP/test/pkg/vmfamily"
 )
 
 func TestCatalogVMFamilyPolicyPoolIsolation(t *testing.T) {
@@ -60,7 +60,7 @@ environments:
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := e2econfig.VMFamilyPolicy{}
+		want := vmfamily.VMFamilyPolicy{}
 		if subscription == "limited-sub" {
 			want.WorkerFamilies = []string{"standardDSv5Family"}
 			want.HelperFamilies = []string{"standardDDSv5Family"}
@@ -111,9 +111,9 @@ func TestCatalogRejectsMalformedVMFamilyPolicy(t *testing.T) {
 func TestCatalogValidatesProgrammaticVMFamilyPolicy(t *testing.T) {
 	t.Parallel()
 	for _, policy := range []PoolVMFamilyPolicy{
-		{VMFamilyPolicy: e2econfig.VMFamilyPolicy{WorkerFamilies: []string{}}},
-		{Regions: map[string]e2econfig.VMFamilyPolicy{"westus3": {HelperFamilies: []string{}}}},
-		{Regions: map[string]e2econfig.VMFamilyPolicy{" ": {}}},
+		{VMFamilyPolicy: vmfamily.VMFamilyPolicy{WorkerFamilies: []string{}}},
+		{Regions: map[string]vmfamily.VMFamilyPolicy{"westus3": {HelperFamilies: []string{}}}},
+		{Regions: map[string]vmfamily.VMFamilyPolicy{" ": {}}},
 	} {
 		catalog := loadCatalogFromYAML(t, dedicatedCatalog)
 		catalog.Environments["dev"].Pools[0].VMFamilyPolicy = policy
@@ -135,26 +135,26 @@ func TestCatalogValidatesProgrammaticVMFamilyPolicy(t *testing.T) {
 func TestRuntimeVMFamilyPolicyShellExport(t *testing.T) {
 	t.Parallel()
 	policy := PoolVMFamilyPolicy{
-		VMFamilyPolicy: e2econfig.VMFamilyPolicy{
+		VMFamilyPolicy: vmfamily.VMFamilyPolicy{
 			WorkerFamilies: []string{"standardDSv5Family", "standardDSv6Family"},
 			HelperFamilies: []string{"standardDDSv5Family"},
 		},
-		Regions: map[string]e2econfig.VMFamilyPolicy{
+		Regions: map[string]vmfamily.VMFamilyPolicy{
 			"centralus": {WorkerFamilies: []string{"standardDASv5Family"}},
 			"eastus2":   {HelperFamilies: []string{"standardDADSv5Family"}},
 		},
 	}
-	shellPolicy := e2econfig.VMFamilyPolicy{WorkerFamilies: []string{"family'$(printf unsafe)`printf unsafe`"}}
+	shellPolicy := vmfamily.VMFamilyPolicy{WorkerFamilies: []string{"family'$(printf unsafe)`printf unsafe`"}}
 	for _, tc := range []struct {
 		name   string
 		region string
 		policy PoolVMFamilyPolicy
-		want   e2econfig.VMFamilyPolicy
+		want   vmfamily.VMFamilyPolicy
 	}{
 		{"default", "westus3", policy, policy.VMFamilyPolicy},
-		{"worker replacement inherits helper", "centralus", policy, e2econfig.VMFamilyPolicy{WorkerFamilies: []string{"standardDASv5Family"}, HelperFamilies: []string{"standardDDSv5Family"}}},
-		{"helper replacement inherits worker", "eastus2", policy, e2econfig.VMFamilyPolicy{WorkerFamilies: policy.WorkerFamilies, HelperFamilies: []string{"standardDADSv5Family"}}},
-		{"no policy clears inherited policy", "centralus", PoolVMFamilyPolicy{}, e2econfig.VMFamilyPolicy{}},
+		{"worker replacement inherits helper", "centralus", policy, vmfamily.VMFamilyPolicy{WorkerFamilies: []string{"standardDASv5Family"}, HelperFamilies: []string{"standardDDSv5Family"}}},
+		{"helper replacement inherits worker", "eastus2", policy, vmfamily.VMFamilyPolicy{WorkerFamilies: policy.WorkerFamilies, HelperFamilies: []string{"standardDADSv5Family"}}},
+		{"no policy clears inherited policy", "centralus", PoolVMFamilyPolicy{}, vmfamily.VMFamilyPolicy{}},
 		{"shell metacharacters remain literal", "centralus", PoolVMFamilyPolicy{VMFamilyPolicy: shellPolicy}, shellPolicy},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -191,7 +191,7 @@ func TestRuntimeVMFamilyPolicyShellExport(t *testing.T) {
 			if !ok || profile != "profile'$(printf unsafe)" {
 				t.Fatalf("shell interpolated exported values: %q", output)
 			}
-			got, err := e2econfig.ParseVMFamilyPolicy([]byte(data))
+			got, err := vmfamily.ParseVMFamilyPolicy([]byte(data))
 			if err != nil {
 				t.Fatalf("export is not a strict resolved policy: %v", err)
 			}
