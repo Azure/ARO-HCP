@@ -833,7 +833,7 @@ tests:
         severity: "4"
         slo: backup-metrics-absent
       exp_annotations:
-        summary: "int-eastus-mgmt-1: no Velero backup metrics reported at all"
+        summary: "no Velero backup metrics reported at all"
         description: "Management cluster int-eastus-mgmt-1 is in the underlay-cluster inventory but has reported zero velero_backup_attempt_total samples for 15m. Every other backup alert in this file depends on this metric existing; its absence means Velero itself, its ServiceMonitor, or the whole cluster's metrics pipeline may be down, not just an individual backup failing."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
 # A service cluster absent from the inventory filter must never fire - svc
