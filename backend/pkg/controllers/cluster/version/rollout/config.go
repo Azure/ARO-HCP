@@ -20,6 +20,23 @@ import (
 	"github.com/blang/semver/v4"
 )
 
+// minimumBackendVersion bounds prospective Cincinnati seeding.
+// Raise it only after the retired minor's clusters have drained.
+const minimumBackendVersion = "4.20"
+
+// atLeastBackendVersion compares the major and minor components of valid versions.
+func atLeastBackendVersion(version string) bool {
+	parsed, err := semver.ParseTolerant(version)
+	if err != nil {
+		return false
+	}
+	floor, err := semver.ParseTolerant(minimumBackendVersion)
+	if err != nil {
+		return false
+	}
+	return parsed.Major > floor.Major || (parsed.Major == floor.Major && parsed.Minor >= floor.Minor)
+}
+
 // RolloutConfig holds the rollout policy. Production values are hardcoded (see
 // NewDefaultRolloutConfig); it stays a struct only so tests can exercise the
 // pure decision logic with different values.

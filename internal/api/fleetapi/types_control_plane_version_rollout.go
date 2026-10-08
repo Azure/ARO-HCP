@@ -49,7 +49,7 @@ type ControlPlaneVersionRolloutSpec struct {
 	// Version identifies the minor version and channel group coordinated by this
 	// rollout. ID is a canonical major.minor version; the resource name is the
 	// corresponding Cincinnati channel name.
-	// Written by: ControlPlaneVersionRolloutSeeding, CosmosRolloutVersionMigration (legacy profiles)
+	// Written by: ControlPlaneVersionRolloutSeeding, ControlPlaneVersionCincinnatiSeeding, CosmosRolloutVersionMigration (legacy profiles)
 	Version coreapi.VersionProfile `json:"version"`
 
 	// BestExactVersion is selected from the y-stream channel by recency and its

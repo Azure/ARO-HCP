@@ -5,9 +5,10 @@ This plan maps the fleet rollout design originally authored on the
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: the seven rollout controllers, Cosmos storage, informers, and backend wiring
-> are implemented. They run unconditionally. Production policy is hardcoded;
-> risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
+> Status: eight rollout controllers, Cosmos storage, informers, structured-profile
+> migration, and backend wiring are implemented. Controllers run unconditionally.
+> Production policy is hardcoded; risk filtering, environment configuration,
+> and the Admin API pin setter remain follow-ups.
 
 ## 1. Background: the pipeline before this change
 
@@ -101,9 +102,7 @@ constants), `partition.go` (resource-id builders), `ProviderNamespacePartitionKe
 
 `Spec.Version` is populated on creation: `stable-4.21` has `ID: "4.21"` and
 `ChannelGroup: "stable"`. Create/update validation requires agreement with the
-name. Existing consumers continue parsing channel names; this storage migration
-does not switch consumers to the profile or add discovery, new floor policy, or
-catalog retirement.
+name. Selection/assignment consumers parse channel names.
 
 Shared Cosmos conversion fills absent/zero legacy profiles from valid names
 before Get/List results reach callers or informer caches, without a storage write.
@@ -155,18 +154,29 @@ type RolloutConfig struct {
 Production defaults are `CanaryPercentage=6`, `RollingPercentage=12`, one hour
 of readiness, and a two-hour upgrade timeout unless overridden for a minor.
 `GetZStreamOffset` selects one version behind for stable and zero for other graph
-channels. Nightly versions come from the experimental exact-version override;
-they neither seed rollouts nor query Cincinnati.
+channels. Nightly assignments come from the experimental exact-version override.
+Independent Cincinnati discovery seeds rollouts for allowed groups including
+`nightly`.
+
+The separate backend lifecycle floor is hardcoded to `4.20`, comparing major/minor
+only. It bounds prospective Cincinnati seeding. The per-channel exact-version
+`MinimumVersions` policy governs best-version selection.
 
 ## 5. Controllers
 
-All seven rollout controllers run in the `backend` binary. Four are per-cluster (use
-`controllerutils.NewClusterWatchingController` + `HCPClusterKey`); three are
-per-`ControlPlaneVersionRollout` (use a new fleet watching controller keyed by
-the rollout channel name, or `genericWatchingController[T]` on the rollout
-resource type + interval resync).
+All eight rollout controllers run in the `backend` binary. Four are per-cluster (use
+`controllerutils.NewClusterWatchingController` + `HCPClusterKey`); four are
+per-`ControlPlaneVersionRollout`, using the existing generic fleet watching
+controller keyed by channel name with informer resync. Cincinnati seeding also
+uses an external-discovery periodic path. Profile migration runs in a separate
+controller.
 
-Every controller follows the house pattern: a syncer struct holding listers +
+The [cluster registry](../../backend/pkg/controllers/cluster/registration.go) assigns
+one worker for `ControlPlaneVersionCincinnatiSeeding`. The backend registry totals
+111 launches (110 with `HasRealFPA=false`); the per-cluster seeder uses 20 workers.
+Cincinnati seeding uses registration-tracked cache sync under backend leader election.
+
+Existing selection/assignment controllers follow the house pattern: a syncer struct holding listers +
 DB clients (interfaces), a `New…Controller` constructor, and a `SyncOnce`
 implementing the read → `DeepCopy` → mutate → `equality.Semantic.DeepEqual`
 skip → `Replace` (treating `IsPreconditionFailedError` as a benign no-op) loop.
@@ -271,12 +281,27 @@ An older writer can subsequently drop the unknown field. Read compatibility
 still works, but migration does not rewrite a completed key again in that
 process; an ordinary replacement or process restart can persist it again.
 
+### 5.10 Cincinnati Seeding (per-rollout)
+
+`ControlPlaneVersionCincinnatiSeeding` uses the generic rollout watcher with 5m
+resync and an additional rollout-delete handler for repair. Its `Run` waits for
+the tracked rollout cache, then runs external discovery with
+`wait.JitterUntilWithContext` (5-minute period, 0.1 jitter, sliding=true): immediately,
+then 5-5.5 minutes after each pass completes. Discovery enqueues channel keys;
+the generic worker reconciles. Cancellation stops the discovery loop, discovery
+failures wait for the next pass, and worker errors follow normal queue retry.
+
+The graph-data archive client has a one-minute deadline and validates bounded
+in-memory input before returning profiles. Unsupported upstream channel groups
+are skipped; allowed experimental groups, including nightly, are accepted.
+Discovered profiles at/above `4.20` are normalized, deduplicated and enqueued.
+`SyncOnce` rechecks the floor and live-reads the target, creating it only if absent
+with `Spec.Version` populated and best/status unset. It preserves existing documents
+and retries create races. Discovery proactively seeds channels for future clusters.
+
 ## 6. Ownership and cutover
 
-This implementation deliberately replaces `ControlPlaneDesiredVersion`; all
-seven rollout controllers run unconditionally. The earlier feature-flag proposal
-was removed during review. Restoring it would reintroduce the removed owner and
-is not part of this change.
+All eight rollout controllers run unconditionally.
 
 `OperationClusterUpdate` observes the desired version resolved on the SPC by the
 current assignment controllers. It reports incompatible forced overrides directly,
@@ -315,7 +340,8 @@ Implemented:
 
 - Fleet API, validation of supported channel groups and major/minor names,
   Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
-- Seven controllers, backend registration under leader election, and unit tests.
+- Eight rollout controllers, including Cincinnati seeding,
+  backend registration under leader election, and unit tests.
 - Structured rollout version profiles, shared read compatibility, and the separate
   `CosmosRolloutVersionMigration` controller for persisted backfill.
 - Shared Cincinnati selection with the existing per-channel offset policy.
