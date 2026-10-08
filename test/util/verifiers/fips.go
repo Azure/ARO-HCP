@@ -179,14 +179,13 @@ func checkNodeFIPSMode(ctx context.Context, kubeClient *kubernetes.Clientset, no
 	}
 
 	// Read pod logs. The pod already reached PodSucceeded, so any GetLogs
-	// failure is transient and worth retrying. ~2s, 4s, 8s, 16s between
-	// attempts (capped at 30s), about a minute total. Retries stop early
+	// failure is transient and worth retrying. 2s, 4s, 8s, 16s, 32s between
+	// six attempts, about a minute total. Retries stop early
 	// if the test context is cancelled.
 	logBackoff := wait.Backoff{
 		Duration: 2 * time.Second,
 		Factor:   2.0,
-		Steps:    5,
-		Cap:      30 * time.Second,
+		Steps:    6,
 	}
 	var logs []byte
 	logAttempt := 0
