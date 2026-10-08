@@ -122,7 +122,7 @@ clouds:
           # E2E
           e2e:
             regionTest:
-              prowJobName: branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel
+              prowJobName: branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel-all
           # Cluster Service
           clustersService:
             deployDebugJobs: true
