@@ -10,12 +10,12 @@ This page documents the threat model, the reasoning behind each rule, and the sc
 |---|---|---|
 | `agent-settings` | `settings.json`, `settings.local.json`, `mcp.json` under any `.claude/` segment; `mcp.json` / `.mcp.json` by basename at any path | These grant an agent standing permission to execute things. The project-scoped `.mcp.json` sits at the repository root with no `.claude` segment to key off, so it is matched by name wherever it appears — which also covers `.cursor/mcp.json` and `.vscode/mcp.json`. |
 | `editor-config` | anything under a `.vscode/` segment; any `*.code-workspace` at any path | Several files under `.vscode/` execute on folder open. A `.code-workspace` carries the same payload in one document, under a name of the author's choosing, usually at the repository root. |
-| `execution-key` | a `command` or `hooks` key anywhere inside agent JSON | This is the confirmed real-world malware pattern, and is reported as such. |
-| `invalid-json` | agent JSON that does not parse | See [Malformed JSON is refused](#malformed-json-is-refused-not-scanned-harder). |
+| `execution-key` | a `command` or `hooks` key inside one of the agent settings files above | This is the confirmed real-world malware pattern, and is reported as such. Only auto-loaded names are parsed — see [Only auto-discovered config is parsed](#only-auto-discovered-config-is-parsed). |
+| `invalid-json` | one of those same files, when it does not parse | See [Malformed JSON is refused](#malformed-json-is-refused-not-scanned-harder). |
 | `config-not-a-file` | a `.claude/` or `.vscode/` path whose index mode is not a regular file | See [Path aliases are refused](#path-aliases-are-refused-not-resolved). |
 | `unreadable` | agent JSON whose index mode is not a regular file | Same reason, reported against the content rule rather than the path rule. |
 
-Exit code is 1 when any violation is found, 2 on an internal error.
+The compiled verifier exits 1 when any violation is found and 2 on an internal error. That distinction does not survive `make verify-supply-chain`: the target runs `go run`, which prints `exit status 2` to stderr but itself exits 1, and Make then reports a generic recipe failure. Read the stderr line, not `$?`, or run the binary directly if you need to branch on it.
 
 ## Threat model and scope
 
@@ -24,7 +24,7 @@ The check defends against a specific, narrow thing: **a PR that commits configur
 It is deliberately **not** a general-purpose malware scanner, and a green check is not a clean bill of health. The following are explicitly out of scope and remain the reviewer's job:
 
 - **Other agent vendors.** Beyond MCP configuration, which is matched vendor-neutrally by filename, coverage is limited to the agents this repository actually configures. Enumerating vendor directories is a list that is wrong the week a new tool ships while looking complete, so the boundary is stated here rather than implied by a longer list.
-- **The contents of `.claude/skills/`.** CONTRIBUTING.md tells contributors to commit shared tooling there, and skill content is markdown that a human reads. Judging which files may live under an agent directory is left to review.
+- **The contents of `.claude/skills/`,** including its JSON. CONTRIBUTING.md tells contributors to commit shared tooling there. Fixtures, manifests and test data are not parsed for execution keys — see [Only auto-discovered config is parsed](#only-auto-discovered-config-is-parsed) — so a `command` key in a skill asset reaches review unflagged.
 - **Agent instruction files.** `AGENTS.md` and `.github/copilot-instructions.md` are legitimately tracked here. They are a prompt-injection surface, not an execution surface, and are not what this check is about.
 - **CI/CD configuration.** `.github/workflows/`, `Makefile`, `*pipeline.yaml` and `Dockerfile` changes are not covered. Call them out explicitly in your PR description.
 
@@ -57,6 +57,16 @@ Git records `frontend/.claude -> config` as a **single** index entry, with no ex
 Resolving the alias would mean judging bytes the diff does not contain, which is the opposite of what this check is for. So the entry is refused on the strength of what git records about it, and a human decides. The rule keys on "is not a regular file" rather than on a list of modes, so an entry type nobody anticipated is refused too.
 
 **Reviewers should not resolve these by hand either.** The target may sit outside the diff, or be a device file; a submodule means fetching a repository the author chose. Report the path and its mode and require the alias be removed.
+
+### Only auto-discovered config is parsed
+
+The execution-key rule reads exactly the files the path rules already block by name. It is a **severity escalation**, not a detector: those files are refused either way, and parsing them decides whether the report says "must not be committed" or "matches confirmed malware".
+
+It originally read every `.json` below any `.claude` segment, which swept in skill assets. A manifest documenting example commands, or test data for a skill about Claude Code hooks, was reported as confirmed malware and its author told to contact the security team. A skill that documents hooks *must* contain a `hooks` key; that is not a signal.
+
+The breadth was not buying coverage either. Nothing auto-loads a skill's fixtures, so for one to execute anything a `SKILL.md` has to instruct the agent to read and act on it — and `SKILL.md` is markdown this check does not read. An attacker with that much control writes the command in the markdown. The rule was charging false positives on the team's own tooling for the appearance of covering a route it structurally cannot cover.
+
+The alternative considered was allowlisting `.claude/skills/**`. That was rejected: it exempts a *place*, so a real `settings.json` dropped inside `.claude/skills/x/` would be blocked by path but lose the malware escalation. Keying on the filename instead means an auto-loaded name is escalated wherever it sits, and no directory is a safe harbour.
 
 ### Malformed JSON is refused, not scanned harder
 
@@ -103,8 +113,11 @@ Add the name to the existing list rather than adding a rule:
 - a new MCP config spelling → `mcpConfigFiles`
 - a new JSON key that makes config self-executing → `executionKeys`
 - a new agent or editor configuration directory → `agentConfigDir` / `editorConfigDir`
+- a new editor workspace file extension → `workspaceConfigExt`
 
-`TestRepositoryIsClean` runs the rules against every tracked file, so a change that would flag existing content fails immediately rather than on the next contributor's PR.
+`agentSettingsFiles` and `mcpConfigFiles` now drive two rules each: a name on either list is blocked by path *and* parsed for execution keys. That is deliberate — one list, so a newly auto-loaded filename cannot be blocked without also being escalated, or escalated without being blocked. Adding a rule that reads content without a corresponding path rule would reintroduce the split that made skill assets look like malware.
+
+Whichever you add, add a case to `TestCheckPaths` or `TestAgentJSONFiles` with it. `TestRepositoryIsClean` runs the rules against every tracked file, so a change that would flag existing content fails immediately rather than on the next contributor's PR.
 
 ## Known limitations
 
