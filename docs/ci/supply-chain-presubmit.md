@@ -15,6 +15,8 @@ This page documents the threat model, the reasoning behind each rule, and the sc
 | `config-not-a-file` | a `.claude/` or `.vscode/` path whose index mode is not a regular file | See [Path aliases are refused](#path-aliases-are-refused-not-resolved). |
 | `unreadable` | agent JSON whose index mode is not a regular file | Same reason, reported against the content rule rather than the path rule. |
 
+One entry can match a path rule and a content rule at once, and both are reported. They say different things: the path rule that the file may not be committed, the content rule what the scan made of its bytes — or, for `invalid-json` and `unreadable`, that it could not judge them at all. That second line is the only place the report distinguishes a misplaced `settings.json` from one whose syntax was broken to get a `command` key past the decoder.
+
 The compiled verifier exits 1 when any violation is found and 2 on an internal error. That distinction does not survive `make verify-supply-chain`: the target runs `go run`, which prints `exit status 2` to stderr but itself exits 1, and Make then reports a generic recipe failure. Read the stderr line, not `$?`, or run the binary directly if you need to branch on it.
 
 ## Threat model and scope
