@@ -97,7 +97,7 @@ tests:
         long_window: 1h
         short_window: 5m
       exp_annotations:
-        summary: "mgmt-1: no successful hourly backup for ns-hc-stuck in over 2h"
+        summary: "no successful hourly backup for ns-hc-stuck in over 2h"
         description: "No successful Velero hourly backup for HostedCluster namespace ns-hc-stuck on management cluster mgmt-1 in over 2 hours (hourly cadence is 1h; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
         correlationId: "userJourneyBackupAvailability1h5m/mgmt-1/ns-hc-stuck"
@@ -130,7 +130,7 @@ tests:
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "mgmt-1: no successful hourly backup for ns-hc-stuck in over 6h"
+        summary: "no successful hourly backup for ns-hc-stuck in over 6h"
         description: "No successful Velero hourly backup for HostedCluster namespace ns-hc-stuck on management cluster mgmt-1 in over 6 hours. No recent restore point for this HC; investigate before this ages further."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
         correlationId: "userJourneyBackupAvailability6h30m/mgmt-1/ns-hc-stuck"
@@ -147,7 +147,7 @@ tests:
         long_window: 1h
         short_window: 5m
       exp_annotations:
-        summary: "mgmt-1: no successful hourly backup for ns-hc-stuck in over 2h"
+        summary: "no successful hourly backup for ns-hc-stuck in over 2h"
         description: "No successful Velero hourly backup for HostedCluster namespace ns-hc-stuck on management cluster mgmt-1 in over 2 hours (hourly cadence is 1h; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
         correlationId: "userJourneyBackupAvailability1h5m/mgmt-1/ns-hc-stuck"
@@ -176,10 +176,47 @@ tests:
         long_window: 3d
         short_window: 6h
       exp_annotations:
-        summary: "mgmt-1: no successful hourly backup for ns-hc-stuck in over 24h"
+        summary: "no successful hourly backup for ns-hc-stuck in over 24h"
         description: "No successful Velero hourly backup for HostedCluster namespace ns-hc-stuck on management cluster mgmt-1 in over 24 hours. Daily and weekly tiers on this HC are also at risk once their own cadences lapse."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
         correlationId: "userJourneyBackupAvailability3d6h/mgmt-1/ns-hc-stuck"
+# ========================================
+# Availability recovery: alert fires when last-success is stale, then
+# resolves after a new successful backup resets the timestamp. Proves the
+# alert is not sticky once the underlying issue clears.
+# ========================================
+- interval: 1m
+  input_series:
+  # Timestamp stuck at 0 for first 130m, then jumps to near-current at 131m
+  # (simulates a new successful backup completing). After the jump the lag
+  # drops well below 2h so the 1h5m tier should resolve.
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-2", schedule="ns-hc-recovery-hourly"}'
+    values: "0+0x131 7860+0x30"
+  alert_rule_test:
+  # At 125m: lag = 125*60 = 7500s > 7200s (2h) -> alert fires
+  - eval_time: 125m
+    alertname: userJourneyBackupAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyBackupAvailability1h5m
+        cluster: mgmt-2
+        hosted_cluster_namespace: ns-hc-recovery
+        component: slo
+        severity: "4"
+        slo: backup-availability
+        long_window: 1h
+        short_window: 5m
+      exp_annotations:
+        summary: "no successful hourly backup for ns-hc-recovery in over 2h"
+        description: "No successful Velero hourly backup for HostedCluster namespace ns-hc-recovery on management cluster mgmt-2 in over 2 hours (hourly cadence is 1h; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further."
+        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
+        correlationId: "userJourneyBackupAvailability1h5m/mgmt-2/ns-hc-recovery"
+  # At 135m: last_successful_timestamp = 7860 (set at t=131m = 7860s),
+  # current time = 135*60 = 8100s, lag = 8100 - 7860 = 240s << 7200s ->
+  # alert resolves
+  - eval_time: 135m
+    alertname: userJourneyBackupAvailability1h5m
+    exp_alerts: []
 # ========================================
 # Errors: fast burn (>7.2% failed-attempt share, sustained 1h and 5m).
 # Ratio is now computed directly over the raw counters per window (not the
@@ -212,7 +249,7 @@ tests:
         long_window: 1h
         short_window: 5m
       exp_annotations:
-        summary: "mgmt-1: Velero backup failure rate critically high (>7.2%)"
+        summary: "Velero backup failure rate critically high (>7.2%)"
         description: "Velero backup failed-attempt share on management cluster mgmt-1 is above 7.2% on both the 1h and 5m windows (14.4x burn of the 99.5% success / 0.5% error budget)."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
 # Note: a sustained 10% error rate (as above) also satisfies the medium and
@@ -255,7 +292,7 @@ tests:
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "mgmt-1: Velero backup failure rate elevated (>3.0%)"
+        summary: "Velero backup failure rate elevated (>3.0%)"
         description: "Velero backup failed-attempt share on management cluster mgmt-1 is above 3.0% on both the 6h and 30m windows (6x burn)."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
 # ========================================
@@ -292,6 +329,27 @@ tests:
     alertname: userJourneyBackupErrors1h5m
     exp_alerts: []
 # ========================================
+# Errors volume guard: ratio breaches fast-burn threshold (100% failures)
+# but only 2 attempts in the 1h window - below the >= 3 floor.
+# The alert must NOT fire despite the high error ratio.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_attempt_total{cluster="mgmt-10", schedule="ns-low-vol-hourly"}'
+    values: "0 0 2+0x78"
+  - series: 'velero_backup_success_total{cluster="mgmt-10", schedule="ns-low-vol-hourly"}'
+    values: "0x80"
+  - series: 'velero_backup_failure_total{cluster="mgmt-10", schedule="ns-low-vol-hourly"}'
+    values: "0 0 2+0x78"
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-10", schedule="ns-low-vol-hourly"}'
+    values: "0x80"
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-10", schedule="ns-low-vol-hourly"}'
+    values: "0x80"
+  alert_rule_test:
+  - eval_time: 62m
+    alertname: userJourneyBackupErrors1h5m
+    exp_alerts: []
+# ========================================
 # Errors: slow burn (>0.5%, sustained 3d and 6h) - below the fast/medium
 # floors so only the slow tier fires. Sampled at 1m (not 5m or hourly): a
 # [5m]/[30m]/etc. rate() needs multiple raw points comfortably inside every
@@ -324,7 +382,7 @@ tests:
         long_window: 3d
         short_window: 6h
       exp_annotations:
-        summary: "mgmt-1: Velero backup failure rate exceeds SLO (>0.5%)"
+        summary: "Velero backup failure rate exceeds SLO (>0.5%)"
         description: "Velero backup failed-attempt share on management cluster mgmt-1 is above the 0.5% SLO boundary on both the 3d and 6h windows (1x burn)."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
   - eval_time: 73h
@@ -364,7 +422,7 @@ tests:
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "mgmt-1: Velero backup p99 duration above SLO (>20m)"
+        summary: "Velero backup p99 duration above SLO (>20m)"
         description: "Velero backup p99 duration on management cluster mgmt-1 is above 20 minutes on both the 6h and 30m windows (SLO: p99 < 20m, inside the 10m CSI snapshot / 15m item-operation timeouts)."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
 # ========================================
@@ -419,7 +477,7 @@ tests:
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "mgmt-1: Velero backup p99 duration above SLO (>20m)"
+        summary: "Velero backup p99 duration above SLO (>20m)"
         description: "Velero backup p99 duration on management cluster mgmt-1 is above 20 minutes on both the 6h and 30m windows (SLO: p99 < 20m, inside the 10m CSI snapshot / 15m item-operation timeouts)."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
 # ========================================
@@ -473,7 +531,7 @@ tests:
         severity: "4"
         slo: backup-traffic
       exp_annotations:
-        summary: "mgmt-1: Velero backup attempts collapsed below 10% of 1d baseline"
+        summary: "Velero backup attempts collapsed below 10% of 1d baseline"
         description: "Velero backup attempt rate on management cluster mgmt-1 is below 10% of its 1-day average, sustained across a 2h window (more than one full hourly cadence cycle) for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC's problem."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
 # ========================================
@@ -516,7 +574,7 @@ tests:
         severity: "4"
         slo: backup-storage-availability
       exp_annotations:
-        summary: "mgmt-1: Velero backups failing fleet-wide - possible storage location outage"
+        summary: "Velero backups failing fleet-wide - possible storage location outage"
         description: "Over 80% of Velero schedules on management cluster mgmt-1 had a failed last run, sustained for 15m, across at least 3 distinct HostedClusters on mgmt-1. PROXY signal for a BackupStorageLocation outage (no direct BSL-phase metric exists yet - see ARO-29949); also fires for other fleet-wide causes (e.g. a bad Velero/plugin rollout) - check `kubectl get backupstoragelocation -n velero` on the MC before assuming it is specifically storage."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
 # ========================================
@@ -593,7 +651,7 @@ tests:
         severity: "4"
         slo: backup-storage-availability
       exp_annotations:
-        summary: "mgmt-9: Velero backups failing fleet-wide - possible storage location outage"
+        summary: "Velero backups failing fleet-wide - possible storage location outage"
         description: "Over 80% of Velero schedules on management cluster mgmt-9 had a failed last run, sustained for 15m, across at least 3 distinct HostedClusters on mgmt-9. PROXY signal for a BackupStorageLocation outage (no direct BSL-phase metric exists yet - see ARO-29949); also fires for other fleet-wide causes (e.g. a bad Velero/plugin rollout) - check `kubectl get backupstoragelocation -n velero` on the MC before assuming it is specifically storage."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
 # ========================================
@@ -658,7 +716,7 @@ tests:
         severity: "4"
         slo: backup-repo-maintenance-saturation
       exp_annotations:
-        summary: "mgmt-1: 11 Velero backups currently non-terminal; backlog above 10 for 3.5+ hours"
+        summary: "11 Velero backups currently non-terminal; backlog above 10 for 3.5+ hours"
         description: "11 Velero backups on management cluster mgmt-1 are currently in a non-terminal phase; the cluster-wide count has stayed above 10 for 3.5+ hours. Counted phases: New, Queued, ReadyToStart, InProgress, WaitingForPluginOperations, WaitingForPluginOperationsPartiallyFailed, Finalizing, FinalizingPartiallyFailed. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757's staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
 # ========================================
@@ -703,7 +761,7 @@ tests:
         severity: "4"
         slo: backup-repo-maintenance-saturation
       exp_annotations:
-        summary: "mgmt-5: 11 Velero backups currently non-terminal; backlog above 10 for 3.5+ hours"
+        summary: "11 Velero backups currently non-terminal; backlog above 10 for 3.5+ hours"
         description: "11 Velero backups on management cluster mgmt-5 are currently in a non-terminal phase; the cluster-wide count has stayed above 10 for 3.5+ hours. Counted phases: New, Queued, ReadyToStart, InProgress, WaitingForPluginOperations, WaitingForPluginOperationsPartiallyFailed, Finalizing, FinalizingPartiallyFailed. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757's staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
 # ========================================
@@ -750,7 +808,7 @@ tests:
         severity: "4"
         slo: backup-repo-maintenance-saturation
       exp_annotations:
-        summary: "mgmt-6: 11 Velero backups currently non-terminal; backlog above 10 for 3.5+ hours"
+        summary: "11 Velero backups currently non-terminal; backlog above 10 for 3.5+ hours"
         description: "11 Velero backups on management cluster mgmt-6 are currently in a non-terminal phase; the cluster-wide count has stayed above 10 for 3.5+ hours. Counted phases: New, Queued, ReadyToStart, InProgress, WaitingForPluginOperations, WaitingForPluginOperationsPartiallyFailed, Finalizing, FinalizingPartiallyFailed. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757's staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
 # ========================================
