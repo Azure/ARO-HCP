@@ -536,6 +536,67 @@ func TestReportEscapesControlCharactersInPaths(t *testing.T) {
 	}
 }
 
+// TestReportGivesPerRuleRemediation pins that the advice matches the rule. A
+// single blanket "remove these from the commit" was wrong for most of them: an
+// alias under .claude/skills/ is usually a legitimate asset in the wrong shape,
+// and deleting it is not the fix.
+func TestReportGivesPerRuleRemediation(t *testing.T) {
+	var buf bytes.Buffer
+	report(&buf, []finding{
+		{path: ".vscode/settings.json", rule: ruleEditorConfig, detail: "d"},
+		{path: ".claude/skills/x/assets", rule: ruleConfigNotFile, detail: "d"},
+	})
+	got := buf.String()
+
+	for _, want := range []string{
+		"editor-config: Remove these from the commit.",
+		"config-not-a-file: Replace the alias with a real file",
+		"Do not resolve it to find out what it points at.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected report to contain %q, got:\n%s", want, got)
+		}
+	}
+
+	// The alias must not be told to delete its content.
+	alias := got[strings.Index(got, "config-not-a-file: "):]
+	if strings.Contains(alias, "local working copy only") {
+		t.Errorf("alias advice still says to remove the file, got:\n%s", got)
+	}
+}
+
+// TestEveryRuleHasRemediation keeps the advice in step with the rules. A rule
+// added without an entry prints a placeholder rather than silently inheriting
+// advice that does not apply to it; add both together.
+func TestEveryRuleHasRemediation(t *testing.T) {
+	for _, rule := range []string{
+		ruleAgentSettings,
+		ruleEditorConfig,
+		ruleExecutionKey,
+		ruleInvalidJSON,
+		ruleUnreadable,
+		ruleConfigNotFile,
+	} {
+		if remediation[rule] == "" {
+			t.Errorf("rule %q has no remediation", rule)
+		}
+	}
+	if len(remediation) != 6 {
+		t.Errorf("remediation has %d entries, expected 6 — add the new rule to this test", len(remediation))
+	}
+}
+
+// TestReportNamesAnUnmappedRule pins the placeholder. The failure mode this
+// guards against is a blank line that reads as "nothing to do here".
+func TestReportNamesAnUnmappedRule(t *testing.T) {
+	var buf bytes.Buffer
+	report(&buf, []finding{{path: "x", rule: "brand-new-rule", detail: "d"}})
+
+	if !strings.Contains(buf.String(), "No remediation recorded") {
+		t.Errorf("expected a placeholder for an unmapped rule, got:\n%s", buf.String())
+	}
+}
+
 func TestReportOmitsMalwareWarningWhenNotApplicable(t *testing.T) {
 	var buf bytes.Buffer
 	report(&buf, []finding{
