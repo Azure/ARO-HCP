@@ -332,7 +332,7 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 	}
 }
 
-func TestStageAllSuiteIncludesFastAndSlow(t *testing.T) {
+func TestCombinedParallelAllSuitesIncludeFastAndSlow(t *testing.T) {
 	listNames := func(suite string) map[string]bool {
 		t.Helper()
 		output, err := os.CreateTemp(t.TempDir(), "suite-names-*.txt")
@@ -368,25 +368,48 @@ func TestStageAllSuiteIncludesFastAndSlow(t *testing.T) {
 		return names
 	}
 
-	fast := listNames("stage/parallel")
-	slow := listNames("stage/parallel/slow")
-	all := listNames("stage/parallel/all")
-	if len(fast) == 0 || len(slow) == 0 {
-		t.Fatalf("expected nonempty fast and Slow suites, got %d and %d", len(fast), len(slow))
+	cases := []struct {
+		env  string
+		fast string
+		slow string
+		all  string
+	}{
+		{
+			env:  "Integration",
+			fast: "integration/parallel",
+			slow: "integration/parallel/slow",
+			all:  "integration/parallel/all",
+		},
+		{
+			env:  "Stage",
+			fast: "stage/parallel",
+			slow: "stage/parallel/slow",
+			all:  "stage/parallel/all",
+		},
 	}
-	for name := range slow {
-		if fast[name] {
-			t.Fatalf("test %q belongs to both fast and Slow suites", name)
-		}
-		fast[name] = true
-	}
-	if len(all) != len(fast) {
-		t.Fatalf("combined Stage suite has %d tests, expected %d", len(all), len(fast))
-	}
-	for name := range fast {
-		if !all[name] {
-			t.Fatalf("combined Stage suite is missing %q", name)
-		}
+	for _, tc := range cases {
+		t.Run(tc.env, func(t *testing.T) {
+			fast := listNames(tc.fast)
+			slow := listNames(tc.slow)
+			all := listNames(tc.all)
+			if len(fast) == 0 || len(slow) == 0 {
+				t.Fatalf("expected nonempty fast and Slow suites, got %d and %d", len(fast), len(slow))
+			}
+			for name := range slow {
+				if fast[name] {
+					t.Fatalf("test %q belongs to both fast and Slow suites", name)
+				}
+				fast[name] = true
+			}
+			if len(all) != len(fast) {
+				t.Fatalf("combined %s suite has %d tests, expected %d", tc.env, len(all), len(fast))
+			}
+			for name := range fast {
+				if !all[name] {
+					t.Fatalf("combined %s suite is missing %q", tc.env, name)
+				}
+			}
+		})
 	}
 }
 

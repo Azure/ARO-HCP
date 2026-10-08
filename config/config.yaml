@@ -212,7 +212,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:7078728ffb6e251a2355d89b66bc977825a51352eee365aa6d0b00e3e0bc2b90 # 1.44.2-20261006-1 (2026-10-06 16:53)
+        digest: sha256:7879b38ac90fe83ec17137af64031400c6fb0e719f6b4533444110f6ade04370 # 1.44.2-20261007-1 (2026-10-07 20:12)
   # Kube Events
   kubeEvents:
     enabled: true
@@ -437,7 +437,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:7c9c1add28497198f076d7c754c88d582306daba875c844b7692ab9907602120 # 677a841149d56ac1c68f1b2c5b40a2bcbe4a2d6e (2026-10-06 20:11)
+      digest: sha256:1a802ae594e5a84687f42f83ea2ac7e7efecb05c0eb33da73ecb9c578b0b8cca # 3d8bb98150d7985f63f01c8c739b4061a905a1fa (2026-10-07 22:02)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -931,6 +931,8 @@ defaults:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       san: ''
       contentType: x-pkcs12
+    alertProcessingRules:
+      deploy: false
   # Session Gate
   sessiongate:
     image:
@@ -1139,12 +1141,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:ba0a3874aca0d52bc0207506a4e0453c341deda0e767fd2cdf7100c139a74005 # v2.17.4-478 (2026-10-07 00:52)
+        digest: sha256:d660790fef13c352e29df6a6a289cb7b6b4c959178028c263f0bf199827bb22e # v2.17.4-480 (2026-10-07 20:22)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:91b334c34abd5c30371840831058c96d8121a36093f8a50d544999fd541c23a0 # v2.17.4-520 (2026-10-06 20:08)
+        digest: sha256:13c96932b07337d6dad6d5b7fba293389b5cb2de54bb33c575b281fa00ae9cf0 # v2.17.4-522 (2026-10-07 20:08)
   # Cluster Service
   clustersService:
     image:
@@ -1590,6 +1592,8 @@ clouds:
             regionalSubdomain: '{{ .ctx.region }}'
           # Admin API
           adminApi:
+            alertProcessingRules:
+              deploy: true
             cert:
               san: 'admin.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           # Sessiongate
@@ -1687,6 +1691,10 @@ clouds:
                 privateLinkLocation: westus3
         # this is the personal DEV environment
         defaults:
+          # Admin API
+          adminApi:
+            alertProcessingRules:
+              deploy: true
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1761,6 +1769,10 @@ clouds:
               profile: "development"
       perf:
         defaults:
+          # Admin API
+          adminApi:
+            alertProcessingRules:
+              deploy: true
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1799,6 +1811,10 @@ clouds:
               profile: "ci"
       ci00:
         defaults:
+          # Admin API
+          adminApi:
+            alertProcessingRules:
+              deploy: true
           # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
           # Remove this image switch after dedicated image onboarding (stage 2).
           swiftRecorder:
@@ -1901,6 +1917,10 @@ clouds:
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
+          # Admin API
+          adminApi:
+            alertProcessingRules:
+              deploy: true
           # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
           # Remove this image switch after dedicated image onboarding (stage 2).
           swiftRecorder:
