@@ -167,6 +167,18 @@ resource arohcpClusterDeletionSloWindowedRecordingRules 'Microsoft.AlertsManagem
         expression: 'errors:backend_cluster_deletion_operation:failed_1h / clamp_min(errors:backend_cluster_deletion_operation:total_1h, 1)'
       }
       {
+        record: 'errors:backend_cluster_deletion_operation:failed_5m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 300)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_cluster_deletion_operation:total_5m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 300))'
+      }
+      {
+        record: 'errors:backend_cluster_deletion_operation:error_rate_5m'
+        expression: 'errors:backend_cluster_deletion_operation:failed_5m / clamp_min(errors:backend_cluster_deletion_operation:total_5m, 1)'
+      }
+      {
         record: 'errors:backend_cluster_deletion_operation:failed_6h'
         expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 21600)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
       }
@@ -177,6 +189,18 @@ resource arohcpClusterDeletionSloWindowedRecordingRules 'Microsoft.AlertsManagem
       {
         record: 'errors:backend_cluster_deletion_operation:error_rate_6h'
         expression: 'errors:backend_cluster_deletion_operation:failed_6h / clamp_min(errors:backend_cluster_deletion_operation:total_6h, 1)'
+      }
+      {
+        record: 'errors:backend_cluster_deletion_operation:failed_30m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 1800)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_cluster_deletion_operation:total_30m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 1800))'
+      }
+      {
+        record: 'errors:backend_cluster_deletion_operation:error_rate_30m'
+        expression: 'errors:backend_cluster_deletion_operation:failed_30m / clamp_min(errors:backend_cluster_deletion_operation:total_30m, 1)'
       }
       {
         record: 'errors:backend_cluster_deletion_operation:failed_3d'
@@ -217,6 +241,18 @@ resource arohcpClusterDeletionSloWindowedLatencyRecordingRules 'Microsoft.Alerts
         expression: 'errors:backend_cluster_deletion_operation:latency_slow_1h / clamp_min(errors:backend_cluster_deletion_operation:latency_total_1h, 1)'
       }
       {
+        record: 'errors:backend_cluster_deletion_operation:latency_slow_5m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 1800 and max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1 and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 300) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)'
+      }
+      {
+        record: 'errors:backend_cluster_deletion_operation:latency_total_5m'
+        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1 and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 300)'
+      }
+      {
+        record: 'errors:backend_cluster_deletion_operation:latency_error_rate_5m'
+        expression: 'errors:backend_cluster_deletion_operation:latency_slow_5m / clamp_min(errors:backend_cluster_deletion_operation:latency_total_5m, 1)'
+      }
+      {
         record: 'errors:backend_cluster_deletion_operation:latency_slow_6h'
         expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 1800 and max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1 and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 21600) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)'
       }
@@ -227,6 +263,18 @@ resource arohcpClusterDeletionSloWindowedLatencyRecordingRules 'Microsoft.Alerts
       {
         record: 'errors:backend_cluster_deletion_operation:latency_error_rate_6h'
         expression: 'errors:backend_cluster_deletion_operation:latency_slow_6h / clamp_min(errors:backend_cluster_deletion_operation:latency_total_6h, 1)'
+      }
+      {
+        record: 'errors:backend_cluster_deletion_operation:latency_slow_30m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 1800 and max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1 and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 1800) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)'
+      }
+      {
+        record: 'errors:backend_cluster_deletion_operation:latency_total_30m'
+        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1 and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 1800)'
+      }
+      {
+        record: 'errors:backend_cluster_deletion_operation:latency_error_rate_30m'
+        expression: 'errors:backend_cluster_deletion_operation:latency_slow_30m / clamp_min(errors:backend_cluster_deletion_operation:latency_total_30m, 1)'
       }
       {
         record: 'errors:backend_cluster_deletion_operation:latency_slow_3d'
