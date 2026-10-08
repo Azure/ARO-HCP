@@ -44,6 +44,11 @@ EXTRA_ARGS="--region ${LOCATION}"
 if [[ "${ARO_HCP_PROVISION_ABORT_IF_EXISTS:-true}" == "true" ]]; then
   EXTRA_ARGS+=" --abort-if-regional-exist"
 fi
+# Set by build-config-override.sh. Only resource groups this run creates get the
+# tag, so pre-existing shared groups never carry a run's ID.
+if [[ -n "${RUN_COST_TAG_VALUE:-}" ]]; then
+  EXTRA_ARGS+=" --new-resource-group-tags=${RUN_COST_TAG_KEY}=${RUN_COST_TAG_VALUE}"
+fi
 
 STEP_NAME="${PROVISION_STEP_NAME:-entrypoint}"
 STEP_NAME="${STEP_NAME//[^a-zA-Z0-9_-]/}"

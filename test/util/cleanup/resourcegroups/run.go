@@ -104,6 +104,12 @@ func (o *Options) discoverResourceGroups(ctx context.Context, resourceGroupsClie
 			if resourceGroup.Name == nil || resourceGroup.Location == nil {
 				return nil, fmt.Errorf("resource group discovered by job ID is missing name or location")
 			}
+			// A managed resource group, such as an HCP cluster's, is deleted through its
+			// owner. Deleting it directly would remove resources from a live cluster.
+			if resourceGroup.ManagedBy != nil && *resourceGroup.ManagedBy != "" {
+				logger.Info("Skipping managed resource group; it is deleted with its owner", "name", *resourceGroup.Name, "managedBy", *resourceGroup.ManagedBy)
+				continue
+			}
 			names = append(names, *resourceGroup.Name)
 			locations[*resourceGroup.Name] = *resourceGroup.Location
 		}

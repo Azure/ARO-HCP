@@ -49,6 +49,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ConfigOutputFile, "config-output", opts.ConfigOutputFile, "If provided, the rendered configuration will be written to this file. Supports .gz extension for gzip compression.")
 
 	cmd.Flags().BoolVar(&opts.Persist, "persist-tag", opts.Persist, "toggle if persist tag should be set")
+	cmd.Flags().StringToStringVar(&opts.NewResourceGroupTags, "new-resource-group-tags", opts.NewResourceGroupTags, "Tags (key=value,...) set on resource groups this run creates. Existing resource groups keep their tags.")
 	cmd.Flags().IntVar(&opts.DeploymentTimeoutSeconds, "deployment-timeout-seconds", opts.DeploymentTimeoutSeconds, "Timeout in Seconds to wait for previous deployments of the pipeline to finish")
 	cmd.Flags().BoolVar(&opts.AbortIfRegionalExist, "abort-if-regional-exist", opts.AbortIfRegionalExist, "Abort deployment if regional resource groups already exist (concurrent execution prevention)")
 	cmd.Flags().BoolVar(&opts.SkipBicepparamValidation, "skip-bicepparam-validation", opts.SkipBicepparamValidation, "Skip validation of bicepparam templates for simple field access.")
@@ -60,6 +61,7 @@ type RawOptions struct {
 	*entrypointutils.RawOptions
 
 	Persist                  bool
+	NewResourceGroupTags     map[string]string
 	DeploymentTimeoutSeconds int
 	AbortIfRegionalExist     bool
 	SkipBicepparamValidation bool
@@ -85,6 +87,7 @@ type completedOptions struct {
 	*entrypointutils.Options
 
 	NoPersist                bool
+	NewResourceGroupTags     map[string]string
 	DeploymentTimeoutSeconds int
 	AbortIfRegionalExist     bool
 	SkipBicepparamValidation bool
@@ -100,6 +103,10 @@ type Options struct {
 }
 
 func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
+	if err := validateNewResourceGroupTags(o.NewResourceGroupTags); err != nil {
+		return nil, err
+	}
+
 	validated, err := o.RawOptions.Validate(ctx)
 	if err != nil {
 		return nil, err
@@ -124,6 +131,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			Options: completed,
 
 			NoPersist:                !o.Persist,
+			NewResourceGroupTags:     maps.Clone(o.NewResourceGroupTags),
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 			AbortIfRegionalExist:     o.AbortIfRegionalExist,
 			SkipBicepparamValidation: o.SkipBicepparamValidation,
@@ -173,6 +181,7 @@ func (o *Options) Run(ctx context.Context) error {
 			Cloud:                                o.Cloud,
 			Configuration:                        o.Config,
 			NoPersist:                            o.NoPersist,
+			NewResourceGroupTags:                 o.NewResourceGroupTags,
 			DeploymentTimeoutSeconds:             o.DeploymentTimeoutSeconds,
 			StepCacheDir:                         o.StepCacheDir,
 			BicepClient:                          o.BicepClient,
@@ -229,4 +238,26 @@ func (o *Options) writeConfigOutput() error {
 
 	_, err = f.Write(data)
 	return err
+}
+
+// validateNewResourceGroupTags rejects tags that Azure would refuse or that conflict
+// with the persist tag, which --persist-tag manages.
+func validateNewResourceGroupTags(tags map[string]string) error {
+	for key, value := range tags {
+		switch {
+		case strings.TrimSpace(key) == "":
+			return fmt.Errorf("--new-resource-group-tags: tag names must not be blank")
+		case strings.EqualFold(key, "persist"):
+			return fmt.Errorf("--new-resource-group-tags: use --persist-tag to manage the persist tag")
+		case strings.ContainsAny(key, `<>%&\?/`):
+			return fmt.Errorf("--new-resource-group-tags: tag name %q must not contain any of <>%%&\\?/", key)
+		case len(key) > 512:
+			return fmt.Errorf("--new-resource-group-tags: tag name %q exceeds 512 characters", key)
+		case strings.TrimSpace(value) == "":
+			return fmt.Errorf("--new-resource-group-tags: tag %q must have a value", key)
+		case len(value) > 256:
+			return fmt.Errorf("--new-resource-group-tags: value of tag %q exceeds 256 characters", key)
+		}
+	}
+	return nil
 }

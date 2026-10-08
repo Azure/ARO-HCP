@@ -248,6 +248,9 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 		if err != nil {
 			return nil, fmt.Errorf("failed waiting for deployment %q in resourcegroup=%q to finish: %w", cfg.deploymentName, cfg.resourceGroup, err)
 		}
+		if deploysHCPCluster(cfg.template) {
+			tc.tagManagedResourceGroupsWithJobID(ctx, cfg.resourceGroup)
+		}
 
 		return &resp.DeploymentExtended, nil
 

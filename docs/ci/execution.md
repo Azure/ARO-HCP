@@ -309,6 +309,18 @@ For every environment, each test or spec that creates Azure resources gets its o
 
 For tests that create HCP clusters, the RP creates the cluster resource back into that test's resource group. Not every test reaches this point; negative and validation tests may only exercise API behavior without creating a cluster.
 
+### Run Cost Attribution
+
+In DEV, each Prow job tags the resource groups it owns with `jobID.aro-hcp-ci.redhat.com=<BUILD_ID>`. Cost Management tag inheritance on the E2E subscriptions then applies that tag to the usage records of everything inside those groups, so one filter shows a job's spend across subscriptions:
+
+- `hack/ci/build-config-override.sh` adds the tag to the service and management AKS cluster tags of per-run environments (those whose resource names derive from `BUILD_ID` in `tooling/templatize/settings.yaml`); AKS copies them onto each node resource group. Long-lived environments such as `cspr` are never tagged
+- `hack/ci/provision-environment.sh` passes `--new-resource-group-tags` to templatize, which tags only the resource groups the run creates, never pre-existing shared ones
+- the E2E framework tags each test resource group at creation, and the managed resource group of each HCP cluster when the RP first reports the cluster `Succeeded`, whichever API a test creates it through, and again before cleanup. Managed resource groups are tagged only when their cluster's parent resource group carries the job's tag; this tagging is best effort and never fails a test
+
+Shared resources such as the leased identity pools, global Key Vault, and registries are never tagged with a job ID.
+
+The deprovision step also uses the tag to find an aborted job's test resource groups (`cleanup resource-groups --job-id`). It skips tagged managed resource groups, which the RP deletes along with their cluster.
+
 ### Cleanup Handoff
 
 Once a test has created resources, cleanup responsibility moves into one of three deliberately different paths:

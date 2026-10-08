@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
@@ -75,6 +76,11 @@ type perBinaryInvocationTestContext struct {
 	// target the same location, so a suite-wide cache avoids repeatedly burning
 	// per-test timeout budget on the same ARM call.
 	virtualMachineResourceSKUsByLocation map[string][]*armcompute.ResourceSKU
+
+	// managedResourceGroupJobIDPolicy is shared by every RP client so that each
+	// managed resource group is tagged once per suite run.
+	managedResourceGroupJobIDPolicyOnce sync.Once
+	managedResourceGroupJobIDPolicy     *managedResourceGroupJobIDPolicy
 }
 
 type CleanupFunc func(ctx context.Context) error
@@ -269,10 +275,37 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 			&sanitizeAuthHeaderPolicy{},
 		}
 	}
+	if jobIDPolicy := tc.getManagedResourceGroupJobIDPolicy(); jobIDPolicy != nil {
+		clientOpts.PerCallPolicies = append(clientOpts.PerCallPolicies, jobIDPolicy)
+	}
 
 	return &azcorearm.ClientOptions{
 		ClientOptions: clientOpts,
 	}
+}
+
+// getManagedResourceGroupJobIDPolicy returns the suite-wide policy that tags managed
+// resource groups with the Prow job ID, or nil outside Prow.
+func (tc *perBinaryInvocationTestContext) getManagedResourceGroupJobIDPolicy() *managedResourceGroupJobIDPolicy {
+	tc.managedResourceGroupJobIDPolicyOnce.Do(func() {
+		jobID := prowJobID()
+		if jobID == "" {
+			return
+		}
+		tc.managedResourceGroupJobIDPolicy = &managedResourceGroupJobIDPolicy{
+			tagger: &jobManagedResourceGroupTagger{
+				jobID: jobID,
+				clientFactory: func(subscriptionID string) (*armresources.ClientFactory, error) {
+					credentials, err := tc.getAzureCredentials()
+					if err != nil {
+						return nil, err
+					}
+					return armresources.NewClientFactory(subscriptionID, credentials, tc.getClientFactoryOptions())
+				},
+			},
+		}
+	})
+	return tc.managedResourceGroupJobIDPolicy
 }
 
 // default transport taken judiciously from azcore library to mimick their behavior when no transporter is provided

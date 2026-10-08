@@ -88,7 +88,7 @@ func runArmStackStep(
 	}
 	getOperationsClient := NewCachedOperationsClientGetter(executionTarget.GetSubscriptionID(), operationsClient, cred, nil)
 
-	if err := ensureResourceGroupExists(ctx, resourceGroupClient, executionTarget.GetRegion(), executionTarget.GetResourceGroup(), !options.NoPersist); err != nil {
+	if err := ensureResourceGroupExists(ctx, resourceGroupClient, executionTarget.GetRegion(), executionTarget.GetResourceGroup(), !options.NoPersist, options.NewResourceGroupTags); err != nil {
 		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
 
