@@ -57,7 +57,7 @@ spec:
               (
                 (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"})
                 and
-                backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1
+                backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"provisioning|updating|deleting"} == 1
               ) > 7200
             )[6h:5m]
           )
@@ -128,7 +128,7 @@ spec:
         short_window: 5m
       annotations:
         summary: "{{ $labels.cluster }}: Node Pool operations failing fast (>72% of recent operations)"
-        description: "More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
+        description: "More than 72% of completed node pool operations (create/update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # Medium Burn. 6x burn: >30% failures over 6h, >=5 completions.
     - alert: userJourneyNodePoolErrors6h30m
