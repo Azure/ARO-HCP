@@ -79,6 +79,36 @@ tests:
   - eval_time: 7m
     alertname: userJourneyNodePoolSaturationQueueDepth
 # ========================================
+# Test 10: Stuck create operation — provisioning for > 2 hours
+# ========================================
+# start_time is 0 (epoch). At eval_time=150m (9000s), delta = 9000 > 7200 threshold.
+# The alert has for: 15m, so it fires after the threshold is crossed for 15 minutes.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/c2/np/stuck-create", subscription_id="sub-c2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x155"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/c2/np/stuck-create", subscription_id="sub-c2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x155"
+  alert_rule_test:
+  # At 150m (9000s), time() - 0 = 9000 > 7200, and for: 15m is satisfied
+  - eval_time: 150m
+    alertname: userJourneyNodePoolStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        operation_type: "create"
+        phase: "provisioning"
+        resource_id: "/sub/c2/np/stuck-create"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        severity: "4"
+        exclude_internal_subscriptions: "true"
+        subscription_id: "sub-c2"
+      exp_annotations:
+        summary: "mgmt-1: Node Pool operation for /sub/c2/np/stuck-create stuck in provisioning for over 2 hours"
+        description: "Node pool operation for /sub/c2/np/stuck-create has been in provisioning phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+# ========================================
 # Test 12: Stuck delete operation
 # ========================================
 # Verifies that delete operations stuck for >2h also trigger the alert.
@@ -332,7 +362,7 @@ tests:
         short_window: 5m
       exp_annotations:
         summary: "mgmt-1: Node Pool operations failing fast (>72% of recent operations)"
-        description: "More than 72% of completed node pool operations (update/delete) on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
+        description: "More than 72% of completed node pool operations (create/update/delete) on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # Volume guard: a single recent failed node pool op (ratio 100% but one failure)
 # must NOT fire, because failed_1h < 3 and the 6h/3d completion floors are unmet.
@@ -746,7 +776,7 @@ tests:
         short_window: 5m
       exp_annotations:
         summary: "mgmt-1: Node Pool operations failing fast (>72% of recent operations)"
-        description: "More than 72% of completed node pool operations (update/delete) on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
+        description: "More than 72% of completed node pool operations (create/update/delete) on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # At 115m, failures have aged out of the 5m short window → alert resolves
   - eval_time: 115m

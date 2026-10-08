@@ -42,6 +42,36 @@ tests:
     exp_samples:
     - labels: 'errors:backend_nodepool_operation:error_rate{cluster="mgmt-1"}'
       value: 0.2
+# Verify create operations are counted by the instantaneous recording rules.
+- interval: 1m
+  input_series:
+  # 3 succeeded creates, 2 failed creates
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/c1/np/a", subscription_id="sub-c1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/c1/np/b", subscription_id="sub-c1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/c1/np/c", subscription_id="sub-c1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/c1/np/d", subscription_id="sub-c1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/c1/np/e", subscription_id="sub-c1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: "errors:backend_nodepool_operation:succeeded_total"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:succeeded_total{cluster="mgmt-1"}'
+      value: 3
+  - expr: "errors:backend_nodepool_operation:terminal_total"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:terminal_total{cluster="mgmt-1"}'
+      value: 5
+  - expr: "errors:backend_nodepool_operation:error_rate"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate{cluster="mgmt-1"}'
+      value: 0.4
 # ========================================
 # Windowed recording rule tests (stateless, last_transition-windowed)
 # ========================================
