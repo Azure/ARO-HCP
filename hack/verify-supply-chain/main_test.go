@@ -37,7 +37,21 @@ func TestCheckPaths(t *testing.T) {
 		{name: "deeply nested agent settings", path: "a/b/c/.claude/settings.json", rule: ruleAgentSettings},
 		{name: "local agent settings", path: ".claude/settings.local.json", rule: ruleAgentSettings},
 		{name: "agent mcp config", path: ".claude/mcp.json", rule: ruleAgentSettings},
+		{name: "agent hooks config", path: ".claude/hooks.json", rule: ruleAgentSettings},
 		{name: "editor settings", path: ".vscode/settings.json", rule: ruleEditorConfig},
+
+		// Other agents the same way. The settings filenames are matched under
+		// any agent directory rather than per vendor: hooks.json is Cursor's
+		// spelling, but a name meaning "run this" is not worth waiting for a
+		// second vendor to adopt before listing.
+		{name: "cursor hooks config", path: ".cursor/hooks.json", rule: ruleAgentSettings},
+		{name: "cursor settings", path: ".cursor/settings.json", rule: ruleAgentSettings},
+		{name: "nested cursor hooks config", path: "frontend/.cursor/hooks.json", rule: ruleAgentSettings},
+		{name: "copilot settings", path: ".copilot/settings.json", rule: ruleAgentSettings},
+		{name: "copilot mcp config", path: ".copilot/mcp.json", rule: ruleAgentSettings},
+		{name: "uppercased cursor directory", path: ".Cursor/hooks.json", rule: ruleAgentSettings},
+		{name: "symlinked cursor directory", path: "frontend/.cursor", mode: modeSymlink, rule: ruleConfigNotFile},
+		{name: "submodule at copilot directory", path: ".copilot", mode: modeSubmodule, rule: ruleConfigNotFile},
 		{name: "editor extensions", path: ".vscode/extensions.json", rule: ruleEditorConfig},
 		{name: "nested editor tasks", path: "a/b/.vscode/tasks.json", rule: ruleEditorConfig},
 		{name: "editor launch", path: ".vscode/launch.json", rule: ruleEditorConfig},
@@ -136,6 +150,15 @@ func TestCheckPaths(t *testing.T) {
 		{name: "symlink in similarly named directory", path: "notclaude/link", mode: modeSymlink},
 		{name: "submodule outside config directories", path: "vendor/thirdparty", mode: modeSubmodule},
 
+		// Cursor rules are instruction files, not execution config: the same
+		// prompt-injection surface as AGENTS.md, which this repository tracks
+		// legitimately and this check deliberately does not read.
+		{name: "cursor rules file", path: ".cursor/rules/style.mdc"},
+		{name: "cursor readme", path: ".cursor/README.md"},
+		// The settings filenames only mean anything under an agent directory.
+		{name: "unrelated hooks file", path: "config/hooks.json"},
+		{name: "similarly named agent directory", path: "notcursor/hooks.json"},
+
 		{name: "similarly named file", path: "config/mcp.json.tmpl"},
 		// The workspace rule is the final extension, not a substring: docs
 		// about workspace files are ordinary content.
@@ -215,6 +238,11 @@ func TestAgentJSONFiles(t *testing.T) {
 		// a project-scoped server entry still reaches the content rules.
 		".mcp.json",
 		".cursor/mcp.json",
+		// Escalated under every agent directory, not just .claude: an
+		// execution key in one vendor's settings file reads the same as in
+		// another's.
+		".cursor/hooks.json",
+		".copilot/settings.json",
 
 		// Not selected. Nothing auto-loads a skill's fixtures or manifests, so
 		// a command key in one is a documented example far more often than an
@@ -247,6 +275,8 @@ func TestAgentJSONFiles(t *testing.T) {
 		".Claude/Settings.JSON",
 		".mcp.json",
 		".cursor/mcp.json",
+		".cursor/hooks.json",
+		".copilot/settings.json",
 		"frontend/.claude/settings.json",
 		"frontend/.mcp.json",
 		"a/.claude/mcp.json",

@@ -8,11 +8,11 @@ This page documents the threat model, the reasoning behind each rule, and the sc
 
 | Rule | Matches | Why |
 |---|---|---|
-| `agent-settings` | `settings.json`, `settings.local.json`, `mcp.json` under any `.claude/` segment; `mcp.json` / `.mcp.json` by basename at any path | These grant an agent standing permission to execute things. The project-scoped `.mcp.json` sits at the repository root with no `.claude` segment to key off, so it is matched by name wherever it appears — which also covers `.cursor/mcp.json` and `.vscode/mcp.json`. |
+| `agent-settings` | `settings.json`, `settings.local.json`, `mcp.json`, `hooks.json` under any `.claude/`, `.copilot/` or `.cursor/` segment; `mcp.json` / `.mcp.json` by basename at any path | These grant an agent standing permission to execute things. The project-scoped `.mcp.json` sits at the repository root with no agent segment to key off, so it is matched by name wherever it appears — which also covers `.vscode/mcp.json`. The filenames are matched under every agent directory rather than per vendor: `hooks.json` is Cursor's spelling today, and a name that means "run this" under one agent is not worth waiting for a second to adopt. |
 | `editor-config` | anything under a `.vscode/` segment; any `*.code-workspace` at any path | Several files under `.vscode/` execute on folder open. A `.code-workspace` carries the same payload in one document, under a name of the author's choosing, usually at the repository root. |
 | `execution-key` | a `command` or `hooks` key inside one of the agent settings files above | This is the confirmed real-world malware pattern, and is reported as such. Only auto-loaded names are parsed — see [Only auto-discovered config is parsed](#only-auto-discovered-config-is-parsed). |
 | `invalid-json` | one of those same files, when it does not parse | See [Malformed JSON is refused](#malformed-json-is-refused-not-scanned-harder). |
-| `config-not-a-file` | a `.claude/` or `.vscode/` path whose index mode is not a regular file | See [Path aliases are refused](#path-aliases-are-refused-not-resolved). |
+| `config-not-a-file` | any agent or editor configuration path whose index mode is not a regular file | See [Path aliases are refused](#path-aliases-are-refused-not-resolved). |
 | `unreadable` | agent JSON whose index mode is not a regular file | Same reason, reported against the content rule rather than the path rule. |
 
 One entry can match a path rule and a content rule at once, and both are reported. They say different things: the path rule that the file may not be committed, the content rule what the scan made of its bytes — or, for `invalid-json` and `unreadable`, that it could not judge them at all. That second line is the only place the report distinguishes a misplaced `settings.json` from one whose syntax was broken to get a `command` key past the decoder.
@@ -25,9 +25,9 @@ The check defends against a specific, narrow thing: **a PR that commits configur
 
 It is deliberately **not** a general-purpose malware scanner, and a green check is not a clean bill of health. The following are explicitly out of scope and remain the reviewer's job:
 
-- **Other agent vendors.** Beyond MCP configuration, which is matched vendor-neutrally by filename, coverage is limited to the agents this repository actually configures. Enumerating vendor directories is a list that is wrong the week a new tool ships while looking complete, so the boundary is stated here rather than implied by a longer list.
+- **Agent vendors beyond `.claude/`, `.copilot/` and `.cursor/`.** Those three are the directories a contributor here plausibly has configured, which is where an accidental commit comes from; within them the settings filenames are matched vendor-neutrally, so a name one agent adds is covered for all three at once. The list stops there on purpose. Enumerating vendors is a list that goes stale the week a new tool ships while still looking complete, and a longer one would imply a completeness this cannot have — so the boundary is stated here instead. A fourth vendor's directory passes until someone adds it; MCP configuration is the exception, matched by filename at any path and so already covered wherever it sits.
 - **The contents of `.claude/skills/`,** including its JSON. CONTRIBUTING.md tells contributors to commit shared tooling there. Fixtures, manifests and test data are not parsed for execution keys — see [Only auto-discovered config is parsed](#only-auto-discovered-config-is-parsed) — so a `command` key in a skill asset reaches review unflagged. The exception is a file *named* like agent settings: `.claude/skills/x/settings.json` is blocked and parsed like any other, because the rules key on the filename and no directory is a safe harbour.
-- **Agent instruction files.** `AGENTS.md` and `.github/copilot-instructions.md` are legitimately tracked here. They are a prompt-injection surface, not an execution surface, and are not what this check is about.
+- **Agent instruction files.** `AGENTS.md`, `.github/copilot-instructions.md` and `.cursor/rules/` are legitimately tracked here. They are a prompt-injection surface, not an execution surface, and are not what this check is about. Note the asymmetry with `.vscode/`, which is blocked wholesale: an agent directory is a place this repository expects content, so only the named files in it are rejected.
 - **CI/CD configuration.** `.github/workflows/`, `Makefile`, `*pipeline.yaml` and `Dockerfile` changes are not covered. Call them out explicitly in your PR description.
 
 ## Design decisions
@@ -114,7 +114,7 @@ Add the name to the existing list rather than adding a rule:
 - a new auto-loaded agent config filename → `agentSettingsFiles`
 - a new MCP config spelling → `mcpConfigFiles`
 - a new JSON key that makes config self-executing → `executionKeys`
-- a new agent or editor configuration directory → `agentConfigDir` / `editorConfigDir`
+- a new agent or editor configuration directory → `agentConfigDirs` / `editorConfigDirs`
 - a new editor workspace file extension → `workspaceConfigExt`
 
 `agentSettingsFiles` and `mcpConfigFiles` now drive two rules each: a name on either list is blocked by path *and* parsed for execution keys. That is deliberate — one list, so a newly auto-loaded filename cannot be blocked without also being escalated, or escalated without being blocked. Adding a rule that reads content without a corresponding path rule would reintroduce the split that made skill assets look like malware.

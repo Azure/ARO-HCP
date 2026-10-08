@@ -38,22 +38,37 @@ import (
 	"strings"
 )
 
-// Matched as whole path segments at any depth: .gitignore anchors these at the
-// root, so frontend/.claude/settings.json would otherwise go unnoticed.
-const (
-	agentConfigDir  = ".claude"
-	editorConfigDir = ".vscode"
+// Matched as whole path segments at any depth: .gitignore anchors /.claude and
+// /.vscode at the root, so frontend/.claude/settings.json would otherwise go
+// unnoticed, and the other vendors are not ignored anywhere.
+//
+// This is a short list of agents by deliberate choice, not an attempt at an
+// index of them: enumerating vendors is a list that goes stale the week a new
+// tool ships while still looking complete. What it covers is the directories a
+// contributor to this repository plausibly has configured, which is where an
+// accidental commit comes from. Coverage for the rest is the filename rules
+// below, which are vendor-neutral, and human review.
+var (
+	agentConfigDirs  = []string{".claude", ".copilot", ".cursor"}
+	editorConfigDirs = []string{".vscode"}
 )
+
+// configDirs is every directory the alias rule guards, agent and editor alike.
+var configDirs = slices.Concat(agentConfigDirs, editorConfigDirs)
 
 // Matched by extension at any path: a workspace file carries what .vscode/
 // does, under a name of the author's choosing and usually at the repo root.
 const workspaceConfigExt = ".code-workspace"
 
 // agentSettingsFiles grant an agent standing permission to execute things.
+// Matched under any agent directory rather than per vendor: hooks.json is
+// Cursor's spelling today, and a name that means "run this" under one agent is
+// not something to wait for a second vendor to adopt before listing.
 var agentSettingsFiles = map[string]bool{
 	"settings.json":       true,
 	"settings.local.json": true,
 	"mcp.json":            true,
+	"hooks.json":          true,
 }
 
 // mcpConfigFiles name an MCP server set, every entry of which carries a command
@@ -249,7 +264,7 @@ func checkPaths(files []trackedFile) []finding {
 				rule:   ruleAgentSettings,
 				detail: "MCP server configuration must not be committed",
 			})
-		case hasSegment(lower, agentConfigDir) && agentSettingsFiles[base]:
+		case hasAnySegment(lower, agentConfigDirs...) && agentSettingsFiles[base]:
 			findings = append(findings, finding{
 				path:   p,
 				rule:   ruleAgentSettings,
@@ -271,7 +286,7 @@ func checkPaths(files []trackedFile) []finding {
 		// frontend/.claude/settings.json is never a tracked path that any
 		// filename rule could match — yet it is what an agent resolves and
 		// reads. Keyed on readableBlob so an unanticipated mode is refused too.
-		case !readableBlob(f) && (hasSegment(lower, agentConfigDir) || hasSegment(lower, editorConfigDir)):
+		case !readableBlob(f) && hasAnySegment(lower, configDirs...):
 			findings = append(findings, finding{
 				path:   p,
 				rule:   ruleConfigNotFile,
@@ -282,7 +297,7 @@ func checkPaths(files []trackedFile) []finding {
 		// enumerating has only to miss once, and the set of files VS Code
 		// executes on folder open is Microsoft's to grow. Nothing under
 		// .vscode/ is legitimately tracked here.
-		case hasSegment(lower, editorConfigDir):
+		case hasAnySegment(lower, editorConfigDirs...):
 			findings = append(findings, finding{
 				path:   p,
 				rule:   ruleEditorConfig,
@@ -318,7 +333,7 @@ func agentJSONFiles(files []trackedFile) []trackedFile {
 		switch {
 		case mcpConfigFiles[base]:
 			out = append(out, f)
-		case hasSegment(lower, agentConfigDir) && agentSettingsFiles[base]:
+		case hasAnySegment(lower, agentConfigDirs...) && agentSettingsFiles[base]:
 			out = append(out, f)
 		}
 	}
@@ -375,11 +390,12 @@ func findExecutionKey(node any) (string, bool) {
 	return "", false
 }
 
-// hasSegment matches a whole path element, so ".claude" matches
-// "frontend/.claude/x" but not "notclaude/x". Callers pass a lowercased path.
-func hasSegment(p, segment string) bool {
+// hasAnySegment matches a whole path element against any of segments, so
+// ".claude" matches "frontend/.claude/x" but not "notclaude/x" or
+// "x/.claude.bak". Callers pass a lowercased path.
+func hasAnySegment(p string, segments ...string) bool {
 	for _, part := range strings.Split(p, "/") {
-		if part == segment {
+		if slices.Contains(segments, part) {
 			return true
 		}
 	}
