@@ -1,5 +1,8 @@
 using '../templates/svc-cluster.bicep'
 
+param useLeasedInfrastructureIdentities = {{ .infrastructureIdentities.useLeased }}
+param infrastructureIdentityResourceGroup = '{{ .infrastructureIdentities.serviceResourceGroup }}'
+
 // AKS
 param systemPoolOnly = {{ .svc.aks.systemPoolOnly }}
 param kubernetesVersion = '{{ .svc.aks.kubernetesVersion }}'

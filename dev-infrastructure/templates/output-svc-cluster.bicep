@@ -12,6 +12,12 @@ param logsMSI string
 @description('The name of the Admin API managed identity')
 param adminApiMIName string
 
+param useLeasedInfrastructureIdentities bool = false
+param infrastructureIdentityResourceGroup string = ''
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities
+  ? infrastructureIdentityResourceGroup
+  : resourceGroup().name)
+
 // These must match the same vars in modules/metrics/datacollection.bicep
 var dceName = safeTake('MSProm-${location}-${aksClusterName}', 44)
 var dcrName = safeTake('MSProm-${location}-${aksClusterName}', 44)
@@ -26,14 +32,17 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' existing = {
 
 resource prometheusUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
   name: 'prometheus'
+  scope: identityScope
 }
 
 resource logsUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
   name: logsMSI
+  scope: identityScope
 }
 
 resource adminApiUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
   name: adminApiMIName
+  scope: identityScope
 }
 
 output dcrRemoteWriteUrl string = '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${dcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
@@ -41,3 +50,6 @@ output hcpDcrRemoteWriteUrl string = 'NONE'
 output prometheusUAMIClientId string = prometheusUAMI.properties.clientId
 output clusterLogPrincipalId string = logsUAMI.properties.principalId
 output adminApiPrincipalId string = adminApiUAMI.properties.principalId
+output identityResourceGroup string = useLeasedInfrastructureIdentities
+  ? infrastructureIdentityResourceGroup
+  : resourceGroup().name

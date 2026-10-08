@@ -23,6 +23,11 @@ param pullAcrResourceIds array = []
 @description('Workload identities (namespace/serviceAccountName) that need a federated credential on the cluster OIDC issuer')
 param workloadIdentities array
 
+@description('Reference workload and image-puller identities from a persistent resource group.')
+param useLeasedInfrastructureIdentities bool = false
+
+param infrastructureIdentityResourceGroup string = ''
+
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-04-02-preview' existing = {
   name: aksClusterName
 }
@@ -69,7 +74,7 @@ resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' exis
 ]
 
 resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [
-  for i in range(0, length(workloadIdentities)): {
+  for i in range(0, length(workloadIdentities)): if (!useLeasedInfrastructureIdentities) {
     parent: uami[i]
     name: '${workloadIdentities[i].value.uamiName}-${location}-fedcred'
     properties: {
@@ -86,17 +91,28 @@ resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federate
 //  A C R   P U L L   C O N T R O L L E R
 //
 
-resource pullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+resource pullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (!useLeasedInfrastructureIdentities) {
   location: location
   name: 'image-puller'
 }
+
+// Avoid declaring the same identity twice when the leased RG is empty in default mode.
+var leasedPullerIdentityId = resourceId(
+  subscription().subscriptionId,
+  infrastructureIdentityResourceGroup,
+  'Microsoft.ManagedIdentity/userAssignedIdentities',
+  'image-puller'
+)
+var pullerIdentityPrincipalId = useLeasedInfrastructureIdentities
+  ? reference(leasedPullerIdentityId, '2023-01-31').principalId
+  : pullerIdentity!.properties.principalId
 
 module acrPullerRoles 'acr/acr-permissions.bicep' = [
   for acrRef in acrReferences: {
     name: guid(acrRef.name, aksCluster.id, acrPullRoleDefinitionId, 'puller-identity')
     scope: resourceGroup(acrRef.resourceGroup.subscriptionId, acrRef.resourceGroup.name)
     params: {
-      principalIds: [pullerIdentity.properties.principalId]
+      principalIds: [pullerIdentityPrincipalId]
       acrName: acrRef.name
       grantPullAccess: true
     }
@@ -105,7 +121,7 @@ module acrPullerRoles 'acr/acr-permissions.bicep' = [
 
 @batchSize(1)
 resource puller_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [
-  for i in range(0, length(workloadIdentities)): {
+  for i in range(0, length(workloadIdentities)): if (!useLeasedInfrastructureIdentities) {
     parent: pullerIdentity
     name: '${workloadIdentities[i].value.uamiName}-${location}-puller-fedcred'
     properties: {
@@ -117,6 +133,16 @@ resource puller_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federa
     }
   }
 ]
+
+module leasedFederatedCredentials 'managed-identity-federated-credentials.bicep' = if (useLeasedInfrastructureIdentities) {
+  name: 'infrastructure-identity-federated-credentials'
+  scope: resourceGroup(infrastructureIdentityResourceGroup)
+  params: {
+    location: location
+    oidcIssuerUrl: aksCluster.properties.oidcIssuerProfile.issuerURL
+    workloadIdentities: workloadIdentities
+  }
+}
 
 // grant aroDevopsMsi the aksClusterAdmin role on the aksCluster so it can
 // deploy services to the cluster

@@ -3978,6 +3978,33 @@
         "sreServiceTag"
       ]
     },
+    "infrastructureIdentities": {
+      "type": "object",
+      "description": "Opt-in references to leased, pre-created infrastructure managed identities.",
+      "properties": {
+        "useLeased": {
+          "type": "boolean",
+          "description": "Use pre-created infrastructure identities instead of creating identities in ephemeral cluster resource groups."
+        },
+        "serviceResourceGroup": {
+          "type": "string",
+          "description": "Persistent resource group containing the service-cluster identity bundle in the service deployment subscription.",
+          "maxLength": 90,
+          "pattern": "^$|^[A-Za-z0-9._()\\-]*[A-Za-z0-9_()\\-]$"
+        },
+        "managementResourceGroups": {
+          "type": "string",
+          "description": "Comma-separated explicit stamp-to-resource-group mappings in each management deployment subscription, for example 1=rg-a,2=rg-b.",
+          "pattern": "^$|^[0-9]+=[A-Za-z0-9._()\\-]{0,89}[A-Za-z0-9_()\\-](,[0-9]+=[A-Za-z0-9._()\\-]{0,89}[A-Za-z0-9_()\\-])*$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "useLeased",
+        "serviceResourceGroup",
+        "managementResourceGroups"
+      ]
+    },
     "keyVaultDNSSuffix": {
       "type": "string"
     },
@@ -4036,6 +4063,7 @@
   "additionalProperties": false,
   "required": [
     "administration",
+    "infrastructureIdentities",
     "azureGeoShortId",
     "cloudEnvironmentName",
     "kvCertOfficerPrincipalId",
@@ -4074,6 +4102,14 @@
     "genevaHealthFunction"
   ],
   "x-cel-validations": [
+    {
+      "rule": "!self.infrastructureIdentities.useLeased || (self.infrastructureIdentities.serviceResourceGroup != '' && self.infrastructureIdentities.managementResourceGroups != '')",
+      "message": "infrastructure identity reuse requires serviceResourceGroup and managementResourceGroups"
+    },
+    {
+      "rule": "!self.infrastructureIdentities.useLeased || (',' + self.infrastructureIdentities.managementResourceGroups + ',').contains(',' + self.mgmt.stampIdentifier + '=')",
+      "message": "infrastructure identity reuse requires an explicit resource-group mapping for the current management stamp"
+    },
     {
       "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01']",
       "message": "svc.aks.systemPoolOnly is supported only in ci00 and ci01"

@@ -4,12 +4,21 @@ param imagePullerMsiName string
 @description('The name of the Kube Applier MSI')
 param kubeApplierMsiName string
 
+param useLeasedInfrastructureIdentities bool = false
+param managementIdentityResourceGroups string = ''
+param stampIdentifier string
+import * as mi from '../modules/managed-identities.bicep'
+var identityResourceGroup = useLeasedInfrastructureIdentities
+  ? mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier)
+  : resourceGroup().name
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? identityResourceGroup : resourceGroup().name)
+
 //
 //   I M A G E   P U L L E R   L O O K U P
 //
 
 resource imagePullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: imagePullerMsiName
 }
 
@@ -21,7 +30,7 @@ output imagePullerMsiTenantId string = imagePullerIdentity.properties.tenantId
 //
 
 resource kubeApplierIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: kubeApplierMsiName
 }
 

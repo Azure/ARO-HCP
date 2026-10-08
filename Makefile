@@ -33,12 +33,12 @@ all: test lint
 # `export` is needed (rather than the `VAR=value command` form) because the
 # go list | xargs go test pipeline runs go test in a subprocess of xargs;
 # without export the env var only reaches go list.
-test: envtest-setup
+test: envtest-setup test-infrastructure
 	@export KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR))"; \
 		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test
 
-test-unit: envtest-setup
+test-unit: envtest-setup test-infrastructure
 	@export KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR))"; \
 		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test-unit
@@ -407,11 +407,14 @@ update-helm-fixtures:
 	UPDATE=true $(MAKE) -C swift-recorder test-deploy
 .PHONY: update-helm-fixtures
 
-test-helm-fixtures:
+test-infrastructure:
+	BICEP="$(BICEP)" go test -C dev-infrastructure system_pool_only_test.go infrastructure_identities_test.go
+.PHONY: test-infrastructure
+
+test-helm-fixtures: test-infrastructure
 	$(MAKE) -C tooling/helmtest test
 	$(MAKE) -C swift-recorder test-deploy
 	$(MAKE) -C observability/prometheus test
-	go test -C dev-infrastructure system_pool_only_test.go
 .PHONY: test-helmcharts
 
 verify-materialize:
