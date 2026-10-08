@@ -654,7 +654,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "Required value", FieldPath: "identity.type"},
-				{Message: "Unsupported value", FieldPath: "identity.state"},
+				{Message: "Unsupported value", FieldPath: "identity.type"},
 			},
 		},
 		{
@@ -665,7 +665,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "Unsupported value", FieldPath: "identity.state"},
+				{Message: "Unsupported value", FieldPath: "identity.type"},
 			},
 		},
 		{
