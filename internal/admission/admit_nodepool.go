@@ -51,6 +51,10 @@ type NodePoolAdmissionContext struct {
 	Cluster                 *coreapi.Cluster
 	ServiceProviderNodePool *coreapi.ServiceProviderNodePool
 	ServiceProviderCluster  *coreapi.ServiceProviderCluster
+	// ClusterNodePools is every node pool for the parent cluster, including the one
+	// being updated. It is populated on UPDATE only and is used to enforce the
+	// cluster-wide minimum worker-node floor in admitReplicas.
+	ClusterNodePools []*coreapi.NodePool
 }
 
 // MutateNodePool applies admission-time mutations to a node pool (e.g. defaulting
@@ -235,7 +239,7 @@ func admitNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmi
 
 	errs = append(errs, admitNodePoolVersion(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToNodePoolPropertiesVersion))...)
 	errs = append(errs, admitNodePoolPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, validation.ToNodePoolPropertiesPlatform))...)
-
+	errs = append(errs, admitReplicas(ctx, admissionContext, op, fldPath.Child("replicas"), newObj, oldObj)...)
 	return errs
 }
 
@@ -275,6 +279,60 @@ func admitNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmiss
 	}
 
 	return errs
+}
+
+// admitReplicas reduces the chances (not guaranteed) that updates drive the cluster
+// to zero worker nodes. Zero nodes blocks cluster workloads like the ingress operator
+// (see https://redhat.atlassian.net/browse/OCPBUGS-85364). Fixed replicas=0 is forced
+// zero; autoscaling min=0 is not (autoscaler keeps pods schedulable).
+//
+// Rejects capacity-removing updates (fixed >0→0 or autoscaling max>0→0) only when no
+// other pool provides capacity. Label/version changes and pre-existing zero pools pass.
+//
+// Limitation: Cached state allows concurrent updates to race. Both pools providing
+// capacity can receive concurrent reduce-capacity updates, each see old state, both
+// pass, and leave the cluster at zero. Mitigated by operation timeout retries and
+// manual customer recovery. Only runs on UPDATE; CREATE is additive.
+func admitReplicas(_ context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolProperties) field.ErrorList {
+	if op.Type != operation.Update || oldObj == nil {
+		return nil
+	}
+
+	// Act only when this update takes a capacity-providing pool to a forced zero.
+	if canRunWorkerNodes(newObj) || !canRunWorkerNodes(oldObj) {
+		return nil
+	}
+
+	// The cluster is fine as long as any other node pool still provides capacity.
+	// The lister copy of the pool under update carries its stored (old) state, so
+	// skip it.
+	existingNodePoolID := admissionContext.OriginalNodePool.ID
+	for _, np := range admissionContext.ClusterNodePools {
+
+		if strings.EqualFold(np.ID.String(), existingNodePoolID.String()) {
+			continue
+		}
+		if canRunWorkerNodes(&np.Properties) {
+			return nil
+		}
+	}
+
+	return field.ErrorList{field.Forbidden(
+		fldPath,
+		"cannot scale this node pool down to zero replicas.",
+	)}
+}
+
+// canRunWorkerNodes reports whether a node pool can run at least one worker node,
+// now or via autoscaling. A fixed-size pool can when Replicas>0. An autoscaling
+// pool can when it is allowed to run nodes (Max>0) even if Min=0, because the
+// cluster autoscaler keeps nodes that running workloads need and can scale up from
+// zero; it is never a forced zero.
+func canRunWorkerNodes(np *coreapi.NodePoolProperties) bool {
+	if np.AutoScaling != nil {
+		return np.AutoScaling.Max > 0
+	}
+	return np.Replicas > 0
 }
 
 // validateNodePoolVersionChange validates that a node pool version change is valid, at both CREATE and UPDATE time.

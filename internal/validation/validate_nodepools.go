@@ -125,7 +125,7 @@ func ToNodePoolPropertiesPlatform(oldObj *coreapi.NodePoolProperties) *coreapi.N
 	return &oldObj.Platform
 }
 
-func toNodePoolPropertiesReplicas(oldObj *coreapi.NodePoolProperties) *int32 {
+func ToNodePoolPropertiesReplicas(oldObj *coreapi.NodePoolProperties) *int32 {
 	return &oldObj.Replicas
 }
 
@@ -163,9 +163,9 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, validateNodePoolPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, ToNodePoolPropertiesPlatform))...)
 
 	//Replicas                int32                   `json:"replicas,omitempty"`
-	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("replicas"), &newObj.Replicas, safe.Field(oldObj, toNodePoolPropertiesReplicas), 0)...)
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("replicas"), &newObj.Replicas, safe.Field(oldObj, ToNodePoolPropertiesReplicas), 0)...)
 	// Validate max=200 only when availabilityZone is unset. When availabilityZone is set, no maximum limit applies.
-	errs = append(errs, MaximumIfNoAZ(ctx, op, fldPath.Child("replicas"), &newObj.Replicas, safe.Field(oldObj, toNodePoolPropertiesReplicas), MaxNodePoolNodes, newObj.Platform.AvailabilityZone)...)
+	errs = append(errs, MaximumIfNoAZ(ctx, op, fldPath.Child("replicas"), &newObj.Replicas, safe.Field(oldObj, ToNodePoolPropertiesReplicas), MaxNodePoolNodes, newObj.Platform.AvailabilityZone)...)
 
 	if newObj.AutoScaling != nil && newObj.Replicas > 0 {
 		errs = append(errs, field.Invalid(fldPath.Child("replicas"), &newObj.AutoScaling.Min, "cannot specify replicas when autoScaling is enabled"))
