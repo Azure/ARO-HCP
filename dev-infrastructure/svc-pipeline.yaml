@@ -537,7 +537,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: regionRG
     - name: MI_RESOURCE_GROUP
-      configRef: svc.rg
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: identityResourceGroup
     - name: PG_SERVER_NAME
       configRef: clustersService.postgres.name
     - name: DATABASE_NAME
@@ -550,7 +553,7 @@ resourceGroups:
       configRef: clustersService.postgres.deploy
     dependsOn:
     - resourceGroup: service
-      step: cluster
+      step: cluster-output
     - resourceGroup: service
       step: subscription-output
   - name: maestro-postgres-access
@@ -571,7 +574,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: regionRG
     - name: MI_RESOURCE_GROUP
-      configRef: svc.rg
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: identityResourceGroup
     - name: PG_SERVER_NAME
       configRef: maestro.postgres.name
     - name: DATABASE_NAME
@@ -584,7 +590,7 @@ resourceGroups:
       configRef: maestro.postgres.deploy
     dependsOn:
     - resourceGroup: service
-      step: cluster
+      step: cluster-output
     - resourceGroup: service
       step: subscription-output
   - name: oidc-storage-setup

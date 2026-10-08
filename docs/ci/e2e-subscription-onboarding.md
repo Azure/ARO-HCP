@@ -92,13 +92,15 @@ A brand-new subscription typically has no Azure resource providers registered be
 
 6. Extend the DEV bootstrap RBAC and quota-monitoring inventory.
    - Add the subscription name and ID to `config/config-dev-ci.yaml` under `ci.dev.e2eSubscriptions`.
-   - That list now feeds the `dev-ci` RBAC parameter templates directly, so a brand-new subscription does not require extra per-index template edits.
+   - That list feeds both the `dev-ci` RBAC grants and Cost Management tag-inheritance rollout. A new hosted-cluster subscription needs no per-index template edits. The E2E infrastructure subscription opts in separately via `costTagInheritance: true`; do not enable it for the global infrastructure subscription.
    - In the same `config/config-dev-ci.yaml`, also add the subscription to the `opstool.tenantQuota` tenant's `subscriptions` list so the `tenant-quota-collector` tracks it. List the same `regions` the pool runs in; the collector retrieves the Role Assignment quota limit directly from Azure.
    - In a normal onboarding flow, `homeSubscription`, `sharedPrincipals`, and `msiMockPool.principals` should not need to change.
-   - Apply the **privileged** customer-subscription grants (custom roles + shared-principal role assignments on the new subscription). This requires **Owner** on the target subscription, so it is **not** run by the `dev-ci` postsubmit — ask an OWNERS-group member to run it from the repo root:
+   - Apply the **privileged** customer-subscription grants, createdAt tag policy, and Cost Management tag inheritance. The rollout requires **Owner** for subscription-scoped RBAC; its operator also needs permission to edit Cost Management settings on every target subscription (Cost Management Contributor). It is **not** run by the `dev-ci` postsubmit — ask an OWNERS-group member with the required access to run it from the repo root:
      - `make dev-ci-privileged-local-run`
+   - Before deploying the billing setting, the pipeline registers `Microsoft.CostManagement` on the same hosted-cluster and opted-in infrastructure subscriptions and waits for `Registered`. The sibling general-provider branch does not cover the E2E infrastructure subscription or order itself before the billing deployment.
 
 7. Validate the end-to-end path.
+   - Read back `GET /subscriptions/<id>/providers/Microsoft.CostManagement/settings/taginheritance?api-version=2025-03-01` for each target subscription. Confirm `kind: taginheritance` and `properties.preferContainerTags: false`; a missing setting or failed readback means onboarding is incomplete. Inherited tags appear in Cost Management usage records, not on the Azure resources themselves; usage records can take 8–24 hours to update.
    - Confirm `slot-manager acquire` can resolve the new pool using the updated cluster profile inventory.
    - Run a DEV rehearsal expected to target the new shard.
    - Verify customer-resource creation in the new subscription succeeds without Azure `AuthorizationFailed` errors.
@@ -126,6 +128,8 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
 - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
+- `dev-infrastructure/configurations/cost-tag-inheritance.tmpl.bicepparam`
+- `dev-infrastructure/templates/cost-tag-inheritance-subscription.bicep`
 - [Dev-CI Topology](dev-ci-topology.md)
 - [CI Identity Leasing](identity-leasing.md)
 

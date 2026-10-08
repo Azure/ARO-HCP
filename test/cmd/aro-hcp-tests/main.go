@@ -532,6 +532,14 @@ func setupCli() *cobra.Command {
 		TestTimeout:   &integrationTestTimeout,
 		ResourcePools: miPools,
 	})
+	ext.AddSuite(e.Suite{
+		Name:       "integration/parallel/all",
+		Qualifiers: []string{integrationQuery},
+		// Keep the same resource limits as the existing Integration suites.
+		Parallelism:   parallelism(24),
+		TestTimeout:   &integrationTestTimeout,
+		ResourcePools: miPools,
+	})
 
 	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
 	stageTestTimeout := 150 * time.Minute
@@ -553,6 +561,14 @@ func setupCli() *cobra.Command {
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism:   parallelism(34),
+		TestTimeout:   &stageTestTimeout,
+		ResourcePools: miPools,
+	})
+	ext.AddSuite(e.Suite{
+		Name:       "stage/parallel/all",
+		Qualifiers: []string{stageQuery},
+		// Keep the same resource limits as the existing Stage suites.
 		Parallelism:   parallelism(34),
 		TestTimeout:   &stageTestTimeout,
 		ResourcePools: miPools,

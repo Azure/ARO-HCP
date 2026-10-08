@@ -90,6 +90,7 @@ func TestRolloutSeedingSyncer_SyncOnce(t *testing.T) {
 
 		got, err := mockFleet.ControlPlaneVersionRollouts().Get(ctx, "stable-4.21")
 		require.NoError(t, err, "expected the rollout to have been created")
+		assert.Equal(t, coreapi.VersionProfile{ID: "4.21", ChannelGroup: "stable"}, got.Spec.Version)
 		assert.Nil(t, got.Spec.BestExactVersion, "a freshly seeded rollout has no best version")
 	})
 

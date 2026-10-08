@@ -104,6 +104,23 @@ param auditLogsEventHubName string
 @description('Resource ID of the event hub authorization rule for AKS audit logs')
 param auditLogsEventHubAuthRuleId string
 
+@description('Reference pre-created workload and image-puller identities instead of creating them in the management resource group.')
+param useLeasedInfrastructureIdentities bool = false
+
+@description('Comma-separated explicit stamp-to-resource-group mappings, for example 1=rg-a,2=rg-b.')
+param managementIdentityResourceGroups string = ''
+
+param stampIdentifier string
+
+var infrastructureIdentityResourceGroup = useLeasedInfrastructureIdentities
+  ? mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier)
+  : ''
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities
+  ? infrastructureIdentityResourceGroup
+  : resourceGroup().name)
+
+import * as mi from '../modules/managed-identities.bicep'
+
 // The ManagedCluster resource + its node pools are created by the aks-cluster-create Go
 // tool (dev-infrastructure/scripts/aks-cluster-create), which runs as its own pipeline
 // step before this one -- see the "cluster-create" step in mgmt-pipeline.yaml. Everything
@@ -124,6 +141,8 @@ module managedIdentities '../modules/managed-identities.bicep' = {
   params: {
     location: location
     manageIdentityNames: [for wi in workloadIdentities: wi.value.uamiName]
+    useLeasedIdentities: useLeasedInfrastructureIdentities
+    identityResourceGroupName: infrastructureIdentityResourceGroup
   }
 }
 
@@ -168,6 +187,8 @@ module aksPostConfig '../modules/aks-cluster-post.bicep' = {
     deploymentMsiId: globalMSIId
     pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
     workloadIdentities: workloadIdentities
+    useLeasedInfrastructureIdentities: useLeasedInfrastructureIdentities
+    infrastructureIdentityResourceGroup: infrastructureIdentityResourceGroup
   }
   dependsOn: [
     managedIdentities
@@ -182,6 +203,7 @@ output aksClusterName string = aksClusterName
 
 resource prometheusUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: 'prometheus'
+  scope: identityScope
   dependsOn: [
     managedIdentities
   ]
@@ -215,6 +237,7 @@ module underlayClusterMetric '../modules/metrics/underlay-clusters-metric.bicep'
 
 resource logsUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: logsMSI
+  scope: identityScope
   dependsOn: [
     managedIdentities
   ]
@@ -293,6 +316,7 @@ module genevaClusterLogsCertCSIAccess '../modules/keyvault/key-vault-secret-acce
 
 resource maestroConsumerUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: 'maestro-consumer'
+  scope: identityScope
   dependsOn: [
     managedIdentities
   ]
@@ -352,6 +376,7 @@ module cosmosDbPrivateEndpoint '../modules/private-endpoint.bicep' = if (rpCosmo
 
 resource veleroUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: 'velero'
+  scope: identityScope
   dependsOn: [
     managedIdentities
   ]

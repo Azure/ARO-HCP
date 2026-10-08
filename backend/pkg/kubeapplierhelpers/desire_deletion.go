@@ -156,3 +156,28 @@ func EnsureApplyDesireRemoved(
 	// Delete not yet successful; wait.
 	return false, nil
 }
+
+// PurgeApplyDesire retires an ApplyDesire by deleting its Cosmos document
+// directly, leaving the object it applied (or the field it manages on a
+// foreign-owned object) untouched on the management cluster.
+//
+// Per the ApplyDesire contract (internal/api/kubeapplierapi/types_apply_desire.go):
+// "Deleting an ApplyDesire from Cosmos has no effect on the kube object that
+// was applied or deleted. To stop reconciliation, remove the desire document."
+// Unlike EnsureApplyDesireRemoved (which flips the desire to Type=Delete so the
+// kube-applier deletes spec.targetItem), PurgeApplyDesire never touches the
+// applied target. Use it for desires whose target must outlive the desire
+// document — e.g. an on-demand backup that must remain a valid restore point
+// until Velero expires it at its own TTL, or a desire that manages fields on an
+// object with a foreign-controlled lifecycle (so flipping to Type=Delete
+// would delete that whole object instead of merely stopping reconciliation).
+func PurgeApplyDesire(
+	ctx context.Context,
+	desireName string,
+	applyCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
+) error {
+	if err := applyCRUD.Delete(ctx, strings.ToLower(desireName)); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("purge ApplyDesire %s: %w", desireName, err))
+	}
+	return nil
+}

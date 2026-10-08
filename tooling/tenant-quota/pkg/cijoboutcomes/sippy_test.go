@@ -129,6 +129,26 @@ func TestOutcomeForDropsSippysOwnTests(t *testing.T) {
 	if !outcome.FinishedAt.IsZero() {
 		t.Errorf("FinishedAt must come from artifacts, got %v", outcome.FinishedAt)
 	}
+	if outcome.ADOBuildID != "" {
+		t.Errorf("ADO build ID must come from artifacts, got %q", outcome.ADOBuildID)
+	}
+}
+
+func TestOutcomeJSONKeepsProwAndADOBuildIDsSeparate(t *testing.T) {
+	for _, adoBuildID := range []string{"181589814", ""} {
+		outcome := ciJobOutcome{BuildID: "2100631679885381632", ADOBuildID: adoBuildID}
+		payload, err := encodeRows([]ciJobOutcome{outcome})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var row map[string]any
+		if err := json.NewDecoder(payload).Decode(&row); err != nil {
+			t.Fatal(err)
+		}
+		if row["buildId"] != outcome.BuildID || row["adoBuildId"] != adoBuildID {
+			t.Fatalf("unexpected build IDs in encoded outcome: %v", row)
+		}
+	}
 }
 
 // Sippy reports an aborted run as neither succeeded nor, necessarily, failed.

@@ -59,9 +59,11 @@ type ClusterImageRegistryProfile struct {
 
 // ClusterResourceStatus represents the observed status of the cluster resource.
 type ClusterResourceStatus struct {
-	// READ-ONLY; The observed active versions of the cluster. During upgrades, both the previous and target versions may be active
-	// simultaneously until the rollout completes, so this array can contain more than one
-	// entry. The ordering of entries has no meaning.
+	// READ-ONLY; The observed active versions of the cluster.
+	// During upgrades, both the previous and target versions may be
+	// active simultaneously until the rollout completes, so this
+	// array can contain more than one entry. The ordering of entries
+	// has no meaning.
 	ActiveVersions []*ClusterActiveVersion
 
 	// READ-ONLY; The conditions on the resource
@@ -95,8 +97,9 @@ type ConsoleProfile struct {
 	URL *string
 }
 
-// ContainerRegistryProfile - Azure Container Registry configuration for a cluster. Configures how worker nodes authenticate
-// container image pulls from Azure Container Registry (ACR).
+// ContainerRegistryProfile - Azure Container Registry configuration for a cluster.
+// Configures how worker nodes authenticate container image pulls
+// from Azure Container Registry (ACR).
 type ContainerRegistryProfile struct {
 	// The user-assigned managed identity used for container registry image pulls.
 	ManagedIdentity *string
@@ -458,9 +461,11 @@ type ImageDigestMirror struct {
 	// contacted in parallel, so this should be considered a preference rather than a guarantee
 	// of ordering.
 	// mirrors uses one of the following formats:
-	// * host[:port]
-	// * host[:port]/namespace[/namespace...]
-	// * host[:port]/namespace[/namespace...]/repo
+	//
+	//   - host[:port]
+	//   - host[:port]/namespace[/namespace...]
+	//   - host[:port]/namespace[/namespace...]/repo
+	//
 	// for more information about the format, see:
 	// https://github.com/containers/image/blob/main/docs/containers-registries.conf.5.md#choosing-a-registry-toml-table
 	Mirrors []*string
@@ -469,10 +474,12 @@ type ImageDigestMirror struct {
 	// Setting source to a registry hostname, e.g. docker.io, quay.io, or registry.redhat.io,
 	// will match the image pull specification of the corresponding registry.
 	// source uses one of the following formats:
-	// * host[:port]
-	// * host[:port]/namespace[/namespace...]
-	// * host[:port]/namespace[/namespace...]/repo
-	// * [*.]host
+	//
+	//   - host[:port]
+	//   - host[:port]/namespace[/namespace...]
+	//   - host[:port]/namespace[/namespace...]/repo
+	//   - [*.]host
+	//
 	// for more information about the format, see:
 	// https://github.com/containers/image/blob/main/docs/containers-registries.conf.5.md#choosing-a-registry-toml-table
 	Source *string
@@ -588,16 +595,18 @@ type NodePoolActiveVersion struct {
 type NodePoolAutoScaling struct {
 	// The maximum number of nodes in the node pool.
 	// Validation:
-	// - Minimum: 0 (must be >= min)
-	// - Maximum: 200 (only when availabilityZone is not specified)
-	// - No maximum when availabilityZone is specified
+	//
+	//   - Minimum: 0 (must be >= min)
+	//   - Maximum: 200 (only when availabilityZone is not specified)
+	//   - No maximum when availabilityZone is specified
 	Max *int32
 
 	// The minimum number of nodes in the node pool.
 	// Validation:
-	// - Minimum: 0
-	// - Maximum: 200 (only when availabilityZone is not specified)
-	// - No maximum when availabilityZone is specified
+	//
+	//   - Minimum: 0
+	//   - Maximum: 200 (only when availabilityZone is not specified)
+	//   - No maximum when availabilityZone is specified
 	Min *int32
 }
 
@@ -613,16 +622,19 @@ type NodePoolListResult struct {
 // NodePoolPlatformProfile - Azure node pool platform configuration
 type NodePoolPlatformProfile struct {
 	// REQUIRED; The VM size according to the documentation:
-	// - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
+	//
+	//   - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
 	VMSize *string
 
 	// The availability zone for the node pool.
 	// Please read the documentation to see which regions support availability zones
-	// - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
+	//
+	//   - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
 	AvailabilityZone *string
 
 	// Whether to enable host based OS and data drive encryption.
-	// - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
+	//
+	//   - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
 	EnableEncryptionAtHost *bool
 
 	// The settings and configuration options for OSDisk
@@ -667,9 +679,10 @@ type NodePoolProperties struct {
 
 	// The number of worker nodes, it cannot be used together with autoscaling.
 	// Validation:
-	// - Minimum: 0
-	// - Maximum: 200 (only when availabilityZone is not specified)
-	// - No maximum when availabilityZone is specified
+	//
+	//   - Minimum: 0
+	//   - Maximum: 200 (only when availabilityZone is not specified)
+	//   - No maximum when availabilityZone is specified
 	Replicas *int32
 
 	// Taints for the nodes.
@@ -687,9 +700,9 @@ type NodePoolProperties struct {
 
 // NodePoolResourceStatus represents the observed status of the nodepool resource.
 type NodePoolResourceStatus struct {
-	// READ-ONLY; The observed active versions of the node pool. During upgrades, it is common for multiple versions to be active
-	// at the same time while old nodes are drained and replaced. The ordering of entries has
-	// no meaning.
+	// READ-ONLY; The observed active versions of the node pool.
+	// During upgrades, it is common for multiple versions to be active at the same time
+	// while old nodes are drained and replaced. The ordering of entries has no meaning.
 	ActiveVersions []*NodePoolActiveVersion
 
 	// READ-ONLY; The conditions on the resource
@@ -704,6 +717,8 @@ type NodePoolVersionProfile struct {
 	// ChannelGroup is the name of the set to which this version belongs.
 	// Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
+	// This property is intended to be updateable, but that support is not yet
+	// complete. Until then, changing this value after node pool creation is rejected.
 	ChannelGroup *string
 }
 
@@ -780,11 +795,13 @@ type OperatorsAuthenticationProfile struct {
 // OsDiskProfile - The settings and configuration options for OSDisk
 type OsDiskProfile struct {
 	// The type of the disk storage account
-	// - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+	//
+	//   - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 	DiskStorageAccountType *DiskStorageAccountType
 
 	// The type of the OS disk.
-	// - https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+	//
+	//   - https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
 	DiskType *OsDiskType
 
 	// The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.
@@ -829,54 +846,16 @@ type PlatformProfile struct {
 	// identifier per RFC 4122.
 	ManagedResourceGroup *string
 
-	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
+	// READ-ONLY; URL for the OIDC provider to be used for authentication
+	// to authenticate against user Azure cloud account
 	IssuerURL *string
 
-	// Azure Container Registry configuration for authenticating image pulls on the cluster's worker nodes.
+	// Azure Container Registry configuration for authenticating image pulls
+	// on the cluster's worker nodes.
 	ContainerRegistry *ContainerRegistryProfile
 
 	// The core outgoing configuration
 	OutboundType *OutboundType
-}
-
-// PlatformProfileUpdate - Azure specific configuration
-type PlatformProfileUpdate struct {
-	// Azure Container Registry configuration for authenticating image pulls on the cluster's worker nodes.
-	ContainerRegistry *ContainerRegistryProfile
-
-	// The configuration that the operators of the cluster have to authenticate to Azure
-	OperatorsAuthentication *OperatorsAuthenticationProfile
-}
-
-// ProxyResource - The resource model definition for a Azure Resource Manager proxy resource. It will not have tags and a
-// location
-type ProxyResource struct {
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
-}
-
-// Resource - Common fields that are returned in the response for all Azure Resource Manager resources
-type Resource struct {
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
 }
 
 // RoleDefinition - A single role definition required by a given operator
@@ -1042,5 +1021,7 @@ type VersionProfile struct {
 	// ChannelGroup is the name of the set to which this version belongs.
 	// Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
+	// This property is intended to be updateable, but that support is not yet
+	// complete. Until then, changing this value after cluster creation is rejected.
 	ChannelGroup *string
 }

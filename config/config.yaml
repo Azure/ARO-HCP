@@ -35,6 +35,14 @@ defaults:
     readerGroupId: ""
     releaseManagementGroupId: ""
     sreServiceTag: "CorpNetSaw"
+  infrastructureIdentities:
+    # Persistent infrastructure identity reuse is opt-in. The future slot-manager
+    # handler will populate these resource-group names through a CI config override.
+    # Each deployment resolves identities in its own subscription.
+    useLeased: false
+    serviceResourceGroup: ""
+    # Explicit stamp mapping: "1=resource-group-a,2=resource-group-b".
+    managementResourceGroups: ""
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
@@ -173,7 +181,7 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/command/runtime
-      digest: sha256:161971cdd3bfe66be6a9b96d67fabf8c4b54a88b841add1aaced26b0a00358b4 # master.260914.1 (2026-09-14 00:00)
+      digest: sha256:37df117f1179d78fd372fd35878d53ff30dfb350fb571fb197f3a2bee48bd157 # master.261001.6 (2026-10-01 00:00)
   # Arobit
   arobit:
     forwarder:
@@ -187,6 +195,22 @@ defaults:
           memory: 256Mi
         limits:
           memory: 1248Mi
+    watson:
+      image:
+        registry: mcr.microsoft.com
+        repository: azure-watson/agent/azlinux3
+        digest: sha256:8e5ef3e76be33794cef7460712eb9ff0c73bce8b8e5ffc33c5c6bfe0762f5db0 # 1.24.128.0
+      securityContext:
+        privileged: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 512Mi
+      volumes:
+        crashdumpHostPath: /home/docker/azure-watson
     kusto:
       enabled: false
       buffering: true
@@ -196,14 +220,14 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:8dcdcbb193278f21587a96cb958ab100c6140c2284b1e95a98ddf749d3cc0703 # 1.44.2-20261002-1 (2026-10-02 12:48)
+        digest: sha256:a97a11952ba74d79a356d7f6b26730ace71a5c56888d89939d027e0416dde801 # 1.44.2-20261007-2 (2026-10-07 21:56)
   # Kube Events
   kubeEvents:
     enabled: true
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:54b14654077ec8c910ff0eeeda191bb45421c6496b2211751fbfd13b38779a46 # 20260927.1 (2026-09-27 03:25)
+      digest: sha256:7c0c84fdd1dde7d32754d602c60e7432108ecef850d5bcd2efc549110fbda458 # 20261004.1 (2026-10-04 03:26)
     k8s:
       namespace: monitoring
       serviceAccountName: ke-serviceaccount
@@ -421,7 +445,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:c94fd6357b05fd18ba1a0a39628488eb2f2246610b7c230640077eb92ca92b07 # 32651930f2fb6eb1e634d0378247cf0c2e320884 (2026-10-02 13:40)
+      digest: sha256:058642c58029add6de1b8c4a81410cd45fe5210f709d83a6408ffc3310b8f1c2 # 0f18311657aeef47627b621368c8cc8ce653564f (2026-10-07 23:48)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -555,15 +579,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:8d1d01d0f429208b83725ab55beb358aee024f9c1b1511ea940fee220b0bb7fe # 1.6.2 (2026-10-01 18:37)
+      digest: sha256:63da51d11d7d7ed5268e35cce0a989fca95aa3cf2685480f123ba02b3e9f7886 # 1.6.2 (2026-10-08 11:04)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:9d772e6ec41a99a9807e8a579010b9c2c0824d40d418e7dd7643782f09fab8fe # 1.6.2 (2026-10-01 22:37)
+      digest: sha256:6c602c5fcba58d5b7e4138f207b6115647ebfd5272de9c46239ec5929e3b3edd # 1.6.2 (2026-10-08 07:21)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:894c2b85eb6db3381e03cd9cc5b84dc518ba043e5c0f331a5eeaebfc3f806ffb # 1.6.2 (2026-10-01 22:37)
+      digest: sha256:252e09e815befd045e6c27f2d0af8ff991ef9189764a396cd2bfdf6c8585437c # 1.6.2 (2026-10-08 07:20)
   # SVC cluster specifics
   svc:
     subscription:
@@ -607,11 +631,9 @@ defaults:
     # IstioUpgrade) via config path svc.istio.versions — not read by bicep,
     # because passing revisions through ARM would overwrite upgrades the
     # pipeline step had already applied.
-    # istioctlVersion and targetVersion will be removed in a future cleanup.
+
     istio:
-      istioctlVersion: 1.31.1 # 1.31.1 (2026-09-21 14:45)
       tag: "prod-stable"
-      targetVersion: "asm-1-29"
       versions: "asm-1-29"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
@@ -712,6 +734,8 @@ defaults:
           sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8 # v0.42.4 (2026-07-30 13:37)
   # MGMT cluster specifics
   mgmt:
+    scheduling:
+      role: infra
     stamps:
       count: 1
     defaultStorageClassSkuName: "PremiumV2_LRS"
@@ -915,6 +939,8 @@ defaults:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       san: ''
       contentType: x-pkcs12
+    alertProcessingRules:
+      deploy: false
   # Session Gate
   sessiongate:
     image:
@@ -1090,7 +1116,7 @@ defaults:
         image:
           registry: mcr.microsoft.com
           repository: azurelinux/base/nginx
-          digest: sha256:3a8316d42c6491dbc15f2cf59985901365c7c402d3a0649abe695a4a6554654e # 1.30.4-1-azl3.0.20260923 (2026-09-23 21:03)
+          digest: sha256:f60f8c38a8bda8509b4308df13d4faeefd68268632e4d383164b50fd0ef46dd8 # 1.30.4-1-azl3.0.20261005 (2026-10-06 14:27)
     eventGrid:
       name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
@@ -1116,25 +1142,25 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:9af415e086251e94f471e03844ce768bed6493653b6cabdaff68acf99573679d # 548e3487a36df54031a355019bc3a224e930273d (2026-09-22 14:09)
+      digest: sha256:ccc6c4381bbbc6a7af65d4c3886e20baea76f7bb95ea6048b33ee31e8046e5cb # 43ab9a8fb83760ba9752f80db3067053737b59cb (2026-10-06 15:58)
   # ACM
   acm:
     operator:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:0caf9b648dd1df7c47c4ece294cb41ce559a16d45c42e26a0a111cfa8932d948 # v2.17.4-474 (2026-10-01 20:21)
+        digest: sha256:27948c8a15407f5e7e20a80850fcdaaf34a94964ca8a8e65879d9a80fc91ab49 # v2.17.4-481 (2026-10-08 14:10)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:d88f1b5db1d00985843e95b2f000f043b5b42ef5784739f6b03c21628faccaa8 # v2.17.4-513 (2026-10-01 20:07)
+        digest: sha256:5c3445cf3f2fd18873bebb089bf9c7b2ca00da7faf065df20157d1163ff5b37b # v2.17.4-523 (2026-10-08 14:21)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:121e06178cc3409527db431010ff8fdad083a7a8bd5dc065cdb7bb83963c37b6 # Bump CS to run against latest CS version.
+      digest: sha256:c6ff7c0adc99cb5c1435aeb07c9466e64b5f41bb91285eb39c8938b5e0e0e508 # c5925ad62e93ddddef7bd861c1f69893324688a5 (2026-10-08 09:05)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1574,6 +1600,8 @@ clouds:
             regionalSubdomain: '{{ .ctx.region }}'
           # Admin API
           adminApi:
+            alertProcessingRules:
+              deploy: true
             cert:
               san: 'admin.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           # Sessiongate
@@ -1671,6 +1699,10 @@ clouds:
                 privateLinkLocation: westus3
         # this is the personal DEV environment
         defaults:
+          # Admin API
+          adminApi:
+            alertProcessingRules:
+              deploy: true
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1745,6 +1777,10 @@ clouds:
               profile: "development"
       perf:
         defaults:
+          # Admin API
+          adminApi:
+            alertProcessingRules:
+              deploy: true
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1783,6 +1819,10 @@ clouds:
               profile: "ci"
       ci00:
         defaults:
+          # Admin API
+          adminApi:
+            alertProcessingRules:
+              deploy: true
           # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
           # Remove this image switch after dedicated image onboarding (stage 2).
           swiftRecorder:
@@ -1885,6 +1925,10 @@ clouds:
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
+          # Admin API
+          adminApi:
+            alertProcessingRules:
+              deploy: true
           # Temporary bootstrap: the PR-built mgmt-agent image carries /swift-recorder.
           # Remove this image switch after dedicated image onboarding (stage 2).
           swiftRecorder:

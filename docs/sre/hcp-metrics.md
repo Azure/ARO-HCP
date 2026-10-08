@@ -102,29 +102,9 @@ The new metric will appear in the `hcps-REGION` Azure Monitor Workspace after th
 
 ### Adding a new Grafana dashboard
 
-1. Create a JSON dashboard file in the appropriate folder under `observability/grafana-dashboards/`. For HCP metrics, use `kas-monitor/`.
+See [docs/grafana-dashboards.md](../grafana-dashboards.md) for details on creating and editing Grafana dashboards.
 
-2. If you created a new folder, register it in `observability/observability.yaml`:
-   ```yaml
-   grafana-dashboards:
-     dashboardFolders:
-     - name: My New Folder
-       path: ./grafana-dashboards/my-new-folder
-   ```
-
-3. Use template variables for datasource and cluster selection. Recommended regex filters:
-
-   | Variable | Regex | Shows |
-   |----------|-------|-------|
-   | datasource | `^Managed_Prometheus_hcps-.*$` | HCP data sources |
-   | datasource | `^Managed_Prometheus_services-.*$` | Service data sources |
-   | cluster | `^.*-mgmt-\\d+$` | Management clusters |
-   | cluster | `^.*-svc-\\d+$` | Service clusters |
-
-4. Deploy:
-   ```bash
-   make infra.monitoring DEPLOY_ENV=pers
-   ```
+Note: For HCP metrics, use dashboard folder `observability/grafana-dashboards/kas-monitor/`.
 
 ### Adding a new alert rule
 

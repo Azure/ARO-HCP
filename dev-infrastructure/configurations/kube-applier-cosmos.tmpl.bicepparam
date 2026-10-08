@@ -1,5 +1,9 @@
 using '../templates/kube-applier-cosmos.bicep'
 
+param useLeasedInfrastructureIdentities = {{ .infrastructureIdentities.useLeased }}
+param managementIdentityResourceGroups = '{{ .infrastructureIdentities.managementResourceGroups }}'
+param stampIdentifier = '{{ .mgmt.stampIdentifier }}'
+
 param rpCosmosDbAccountId = '__rpCosmosDbAccountId__'
 
 // Kube Applier

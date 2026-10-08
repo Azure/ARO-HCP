@@ -275,6 +275,20 @@ spec:
         app: kube-applier
         azure.workload.identity/use: "true"
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - "infra"
+      tolerations:
+      - key: "infra"
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
       topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: 'topology.kubernetes.io/zone'

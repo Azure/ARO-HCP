@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: multicluster-engine-x5d5x8b93c5mh334chde54vpu6bfnweigxlxg6wtmnd
+  name: multicluster-engin-1uvphjce71u56svbcc2clabak6w9emmb0lztezsifgog
 rules:
 - apiGroups:
   - ""
@@ -2540,6 +2540,7 @@ rules:
   - networking.k8s.io
   resources:
   - ingresses
+  - networkpolicies
   verbs:
   - create
   - delete
@@ -2548,14 +2549,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - networkpolicies
-  verbs:
-  - create
-  - get
-  - update
 - apiGroups:
   - notificationhubs.azure.com
   resources:

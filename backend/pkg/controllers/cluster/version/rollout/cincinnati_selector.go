@@ -23,6 +23,7 @@ import (
 	"github.com/blang/semver/v4"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -51,10 +52,11 @@ func NewCincinnatiBestVersionSelector() BestVersionSelector {
 // TODO: filter platform/control-plane risks from Cincinnati conditional updates.
 func (s cincinnatiBestVersionSelector) BestExactVersionForChannel(ctx context.Context, yStreamChannel string) (*semver.Version, error) {
 	logger := utils.LoggerFromContext(ctx)
-	channelGroup, minor, ok := parseYStreamChannel(yStreamChannel)
-	if !ok {
-		return nil, fmt.Errorf("invalid y-stream channel %q", yStreamChannel)
+	profile, err := fleetapihelpers.RolloutVersionFromName(yStreamChannel)
+	if err != nil {
+		return nil, fmt.Errorf("invalid y-stream channel %q: %w", yStreamChannel, err)
 	}
+	channelGroup, minor := profile.ChannelGroup, profile.ID
 	// Nightly builds are assigned through the experimental exact-version
 	// override; Cincinnati does not publish a graph for them.
 	if channelGroup == "nightly" {

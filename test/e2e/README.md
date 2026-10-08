@@ -125,6 +125,19 @@ Or `integration/parallel` test suite:
 $ ./test/aro-hcp-tests run-suite "integration/parallel" --junit-path="junit.xml"
 ```
 
+The `integration/parallel/all` and `stage/parallel/all` suites select the union
+of their fast (`integration/parallel` / `stage/parallel`) and Slow
+(`integration/parallel/slow` / `stage/parallel/slow`) suites. Each retains its
+environment exclusions and runs both Slow-labeled and non-Slow tests in one
+suite:
+
+```bash
+./test/aro-hcp-tests list tests --suite "integration/parallel/all" --output names
+./test/aro-hcp-tests run-suite "integration/parallel/all"
+./test/aro-hcp-tests list tests --suite "stage/parallel/all" --output names
+./test/aro-hcp-tests run-suite "stage/parallel/all"
+```
+
 ### Test cases with per-run cluster
 > **Important**
 > - You can use the `FALLBACK_TO_BICEP` environment variable to populate the e2esetup models and run tests that require e2esetup to be present.
@@ -195,6 +208,30 @@ Set the **CUSTOMER_SUBSCRIPTION** environment variable to the **name** of the Az
 
 ### Artifact Directory (ARTIFACT_DIR)
 Set the **ARTIFACT_DIR** environment variable to specify the directory where test artifacts and logs will be saved. This is especially useful in CI environments to collect and persist test outputs.
+
+When a versioned `CreateNodePoolFromParam` helper fails during bringup, it gathers
+an Azure failure bundle before returning the original error. Each failure gets
+its own `azure-failure-<nodepool>-<timestamp>-<suffix>/` directory beneath the
+test's artifact directory, including VM console logs. Collection has a single
+five-minute budget independent of the failed provisioning context.
+
+The bundle contains full typed Azure networking objects from the supplied
+customer and managed resource groups: load balancers, NICs, VNets/subnets, NSGs,
+route tables, NAT gateways, public IPs, private endpoints and DNS zone groups,
+and private DNS zones, records and VNet links. Worker NIC effective routes and
+effective NSGs are queried best-effort. VM summaries and instance views exclude
+bootstrap data, extension settings and credential-bearing URLs. Console logs
+and instance views are gathered independently. References outside those two
+resource groups are not followed; no Kubernetes collection or active network
+probe is added.
+
+Start with `manifest.json` for collection times, operation status, errors and
+artifact paths. Successful pages are retained even if later requests fail or
+the deadline expires. Empty results are distinguished from failed or skipped
+operations. Effective-state queries require the NIC diagnostic action
+permissions and may be unavailable during early VM provisioning. This bundle
+captures configuration at failure time, not historical packet delivery or the
+backend selected for an individual connection.
 
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.

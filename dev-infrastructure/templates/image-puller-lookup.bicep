@@ -1,12 +1,21 @@
 @description('The name of the Image Puller MSI')
 param imagePullerMsiName string
 
+param useLeasedInfrastructureIdentities bool = false
+param managementIdentityResourceGroups string = ''
+param stampIdentifier string
+import * as mi from '../modules/managed-identities.bicep'
+var identityResourceGroup = useLeasedInfrastructureIdentities
+  ? mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier)
+  : resourceGroup().name
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? identityResourceGroup : resourceGroup().name)
+
 //
 //   I M A G E   P U L L E R   L O O K U P
 //
 
 resource imagePullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: imagePullerMsiName
 }
 
