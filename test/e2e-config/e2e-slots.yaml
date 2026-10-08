@@ -118,7 +118,7 @@ environments:
         e2e_identities:
           allocation: dedicated
           resource_group_prefix: aro-hcp-msi-container-int-westus3-shard0
-          resource_group_count: 20
+          resource_group_count: 60
   stg:
     deployment_environment:
       name: stg
