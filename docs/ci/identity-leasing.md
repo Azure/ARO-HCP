@@ -111,6 +111,11 @@ Downstream steps source `${SHARED_DIR}/aro-hcp-slot.env` and map
 `SELECTED_LOCATION` to the runtime `LOCATION` they consume. The test framework
 receives `LEASED_MSI_CONTAINERS` through this contract rather than directly from
 a ci-operator lease.
+The same contract supplies `ARO_HCP_E2E_VM_FAMILY_POLICY`, resolved from the
+acquired pool's optional `vm_family_policy` against its runtime region. Pools
+without policy export `{}`. The suite rejects a subsequent location override
+that differs from `SELECTED_LOCATION`, so select the desired region during
+acquisition rather than after sourcing the contract.
 
 The acquire step mounts cluster-profile credentials. Slot-manager authenticates
 directly from the selected profile; a prior `az login` is not required. See

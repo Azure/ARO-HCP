@@ -106,6 +106,9 @@ var azureRetryOptions = policy.RetryOptions{
 // AZURE_CLIENT_SECRET
 func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
+		if _, err := vmFamilyPolicyFromEnv(); err != nil {
+			panic(err)
+		}
 		invocationContextInstance = &perBinaryInvocationTestContext{
 			artifactDir:                          artifactDir(),
 			sharedDir:                            SharedDir(),
@@ -402,8 +405,15 @@ func subscriptionName() string {
 
 // location returns the Azure location to use, like "uksouth"
 func location() string {
-	// can't use gomega in this method since it is used outside of It()
-	return os.Getenv("LOCATION")
+	// Slot-manager resolved the policy for SELECTED_LOCATION. A downstream
+	// override must not apply that subscription/region policy somewhere else.
+	value := os.Getenv("LOCATION")
+	if _, supplied := os.LookupEnv("ARO_HCP_E2E_VM_FAMILY_POLICY"); supplied {
+		if selected := os.Getenv("SELECTED_LOCATION"); selected != "" && !strings.EqualFold(value, selected) {
+			panic(fmt.Errorf("LOCATION %q differs from slot-selected SELECTED_LOCATION %q; acquire a slot for the desired region before applying ARO_HCP_E2E_VM_FAMILY_POLICY", value, selected))
+		}
+	}
+	return value
 }
 
 // testUserClientID returns the value of AZURE_CLIENT_ID environment variable

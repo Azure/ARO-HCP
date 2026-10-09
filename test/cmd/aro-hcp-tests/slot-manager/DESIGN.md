@@ -562,6 +562,7 @@ Core exports include:
 - `CUSTOMER_SUBSCRIPTION`;
 - `SELECTED_CLUSTER_PROFILE_DIR`;
 - `SELECTED_LOCATION`;
+- `ARO_HCP_E2E_VM_FAMILY_POLICY`;
 - `ARO_HCP_E2E_SLOT_NAME`; and
 - `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`.
 
@@ -576,6 +577,49 @@ file is atomically published.
 
 The contract contains no credentials. Downstream steps source it and use the
 acquired values without re-resolving pool behavior.
+
+### Pool VM family policy
+
+An optional `vm_family_policy` on a catalog pool keeps quota-related selection
+constraints beside the customer subscription binding. There is no separate
+policy file, schema version, or embedded environment resolver. For example:
+
+```yaml
+vm_family_policy:
+  worker_families: [standardDSv5Family]
+  helper_families: [standardDDSv5Family]
+  regions:
+    centralus:
+      worker_families: [standardDASv5Family]
+```
+
+The top-level role lists are pool defaults. Each regional list replaces only
+that role; an omitted role inherits the pool default. Region keys are lowercase
+Azure region names. Resolution matches `AcquiredSlotState.RuntimeRegion`
+case-insensitively, never the identity asset's provisioning region. This also
+applies to weighted and runtime-selected pools.
+
+The unresolved pool policy is carried in the expanded slot and acquired state.
+`AddCoreRuntimeExports` validates it and publishes only the resolved
+`worker_families`/`helper_families` JSON object. An unconfigured pool exports `{}`
+to overwrite any inherited policy. Omitted roles preserve historical selector
+behavior; supplied empty/null role lists, duplicate or unknown fields, and
+invalid region mappings are rejected. An omitted or null whole catalog policy
+means no policy.
+The shared resolved policy type and strict JSON parser live in
+`test/pkg/vmfamily`; the pool-specific YAML and regional resolution code stays
+with slot-manager. `test/e2e-config` contains only configuration data.
+
+Consumers already source the contract. The suite parses
+`ARO_HCP_E2E_VM_FAMILY_POLICY` without environment or region lookup and rejects a
+downstream `LOCATION` differing from `SELECTED_LOCATION`. Region overrides must
+therefore be supplied at acquisition, before policy resolution. Local runs can
+provide the JSON variable directly without a slot contract.
+
+Only the `int` pool `westus3-shard0` currently declares policy. The UK South pool
+is unchanged. See [VM selection](../../../e2e/README.md#selecting-vm-sizes-skus)
+for ordered family search, exact role-size bounds, and specialized-selector
+exceptions.
 
 ## E2E identity asset
 

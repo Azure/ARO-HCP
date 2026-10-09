@@ -15,6 +15,7 @@
 package slots
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -247,12 +248,20 @@ func AddCoreRuntimeExports(contract *RuntimeContractBuilder, state *AcquiredSlot
 	if strings.TrimSpace(selectedClusterProfileDir) == "" {
 		return errors.New("selected cluster profile dir is empty")
 	}
+	if err := state.Slot.VMFamilyPolicy.Validate(); err != nil {
+		return fmt.Errorf("invalid slot vm_family_policy: %w", err)
+	}
+	policyJSON, err := json.Marshal(state.Slot.VMFamilyPolicy.Resolve(state.RuntimeRegion))
+	if err != nil {
+		return fmt.Errorf("failed to encode runtime VM family policy: %w", err)
+	}
 	coreExports := map[string]string{
 		"ARO_HCP_E2E_SLOT_NAME":          state.Slot.ResourceName,
 		"ARO_HCP_E2E_SLOT_RESOURCE_TYPE": state.Slot.ResourceType,
 		"CUSTOMER_SUBSCRIPTION":          customerSubscription,
 		"SELECTED_CLUSTER_PROFILE_DIR":   selectedClusterProfileDir,
 		"SELECTED_LOCATION":              state.RuntimeRegion,
+		"ARO_HCP_E2E_VM_FAMILY_POLICY":   string(policyJSON),
 	}
 	if customerSubscription != state.Slot.Subscriptions.E2E.Name {
 		return errors.New("customer subscription does not match resolved slot")

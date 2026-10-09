@@ -117,15 +117,16 @@ type SlotAssets struct {
 }
 
 type Pool struct {
-	Name          string            `yaml:"name,omitempty"`
-	DeployEnv     string            `yaml:"-"`
-	Subscriptions PoolSubscriptions `yaml:"subscriptions,omitempty"`
-	SlotAssets    SlotAssets        `yaml:"slot_assets,omitempty"`
-	Region        string            `yaml:"region,omitempty"`
-	Regions       []string          `yaml:"regions,omitempty"`
-	RegionMode    RegionMode        `yaml:"region_mode,omitempty"`
-	ResourceType  string            `yaml:"resource_type"`
-	SlotCount     int               `yaml:"slot_count"`
+	Name           string             `yaml:"name,omitempty"`
+	DeployEnv      string             `yaml:"-"`
+	Subscriptions  PoolSubscriptions  `yaml:"subscriptions,omitempty"`
+	SlotAssets     SlotAssets         `yaml:"slot_assets,omitempty"`
+	Region         string             `yaml:"region,omitempty"`
+	Regions        []string           `yaml:"regions,omitempty"`
+	RegionMode     RegionMode         `yaml:"region_mode,omitempty"`
+	ResourceType   string             `yaml:"resource_type"`
+	SlotCount      int                `yaml:"slot_count"`
+	VMFamilyPolicy PoolVMFamilyPolicy `yaml:"vm_family_policy,omitempty"`
 }
 
 const (
@@ -162,6 +163,7 @@ type ExpandedSlot struct {
 	IdentityContainerCount  int                   `yaml:"identity_container_count"`
 	Subscriptions           ResolvedSubscriptions `yaml:"subscriptions,omitempty"`
 	Assets                  ResolvedAssets        `yaml:"assets,omitempty"`
+	VMFamilyPolicy          PoolVMFamilyPolicy    `yaml:"vm_family_policy,omitempty"`
 }
 
 func LoadCatalog(path string) (*Catalog, error) {
@@ -346,6 +348,10 @@ func validatePool(environmentName string, pool *Pool) error {
 		return fmt.Errorf("environment %q has empty deployment_environment.infrastructure_subscription for pool %q", environmentName, pool.Name)
 	}
 
+	if err := pool.VMFamilyPolicy.Validate(); err != nil {
+		return fmt.Errorf("environment %q pool %q vm_family_policy: %w", environmentName, pool.Name, err)
+	}
+
 	if pool.SlotAssets.InfrastructureIdentities == nil {
 		pool.Subscriptions.Infrastructure = ""
 	}
@@ -519,6 +525,7 @@ func ExpandSlotsForPool(environment string, pool Pool) []ExpandedSlot {
 			ResourceType:      pool.ResourceType,
 			ResourceName:      fmt.Sprintf("%s-%0*d", pool.ResourceType, defaultSlotIndexWidth, i),
 			SlotIndex:         i,
+			VMFamilyPolicy:    pool.VMFamilyPolicy,
 		}
 		slot.Subscriptions = ResolvedSubscriptions{
 			E2E:            ResolvedSubscription{Name: pool.Subscriptions.E2E},

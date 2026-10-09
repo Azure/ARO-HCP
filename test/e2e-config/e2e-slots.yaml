@@ -114,6 +114,15 @@ environments:
       region_mode: fixed
       resource_type: aro-hcp-int-westus3-shard0-slot
       slot_count: 1
+      vm_family_policy:
+        worker_families:
+        - StandardDsv6Family
+        - standardDSv5Family
+        - standardDASv5Family
+        helper_families:
+        - StandardDdsv6Family
+        - standardDDSv5Family
+        - standardDADSv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
