@@ -276,7 +276,7 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 					continue
 				}
 
-				// ARO-26973: Enable forwarding of control plane metrics to the hosted
+				// Enable forwarding of control plane metrics to the hosted
 				// cluster's monitoring stack so customers get visibility into their
 				// control plane without manual intervention.
 				if err := ensureHostedClusterMonitoring(&unstructuredObj); err != nil {
@@ -378,11 +378,6 @@ func ensureHostedClusterAnnotations(hostedCluster *unstructured.Unstructured) er
 // HostedCluster. This enables forwarding of control plane metrics (e.g. kube-apiserver,
 // etcd) from the management cluster into the hosted cluster's own monitoring stack, so
 // customers get visibility into their control plane without manual intervention.
-//
-// Note: HyperShift also supports enabling this via the deprecated
-// hypershift.openshift.io/enable-metrics-forwarding annotation, but spec.monitoring.metricsForwarding
-// is the supported, non-deprecated mechanism going forward, so the backend sets it directly.
-// https://github.com/openshift/hypershift/blob/main/api/hypershift/v1beta1/hostedcluster_types.go
 func ensureHostedClusterMonitoring(hostedCluster *unstructured.Unstructured) error {
 	if err := unstructured.SetNestedField(
 		hostedCluster.Object, string(v1beta1.MetricsForwardingModeForward),
