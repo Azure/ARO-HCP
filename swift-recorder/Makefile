@@ -63,7 +63,3 @@ deploy: build-and-push
 	$(YQ) -i '.clouds.dev.environments.$(DEPLOY_ENV).defaults.swiftRecorder.enabled = true' $(OVERRIDE_CONFIG_FILE)
 	$(MAKE) -C .. pipeline/SwiftRecorder OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
-
-test-deploy: $(TEMPLATIZE) $(YQ) $(HELM)
-	TEMPLATIZE=$(abspath $(TEMPLATIZE)) YQ=$(YQ) HELM=$(HELM) bash testdata/test-deploy.sh
-.PHONY: test-deploy

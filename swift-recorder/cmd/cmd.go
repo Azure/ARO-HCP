@@ -38,6 +38,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -48,23 +49,28 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/swift-recorder/pkg/capture"
 	"github.com/Azure/ARO-HCP/swift-recorder/pkg/discovery"
+	"github.com/Azure/ARO-HCP/swift-recorder/pkg/probe"
 	"github.com/Azure/ARO-HCP/swift-recorder/pkg/recorder"
+	"github.com/Azure/ARO-HCP/swift-recorder/pkg/routercheck"
 )
 
 type RawOptions struct {
 	recorder.Config
-	HealthAddress string
-	Kubeconfig    string
-	CNILog        string
-	BootIDFile    string
-	LogVerbosity  int
+	HealthAddress   string
+	Kubeconfig      string
+	CNILog          string
+	BootIDFile      string
+	LogVerbosity    int
+	RuntimeEndpoint string
 }
 
 type ValidatedOptions struct{ options RawOptions }
 type CompletedOptions struct {
-	options    RawOptions
-	factory    informers.SharedInformerFactory
-	controller *recorder.Controller
+	options          RawOptions
+	factory          informers.SharedInformerFactory
+	controller       *recorder.Controller
+	routerController *routercheck.Controller
+	closeRuntime     func() error
 }
 
 func NewRootCmd() *cobra.Command {
@@ -74,7 +80,7 @@ func NewRootCmd() *cobra.Command {
 		PostSuccessCapture: 10 * time.Second, SampleInterval: time.Second, CaptureTimeout: 500 * time.Millisecond,
 		EpisodeTimeout: 15 * time.Minute, MaxPods: 32, MaxBufferBytes: 16 * 1024 * 1024, MaxRecordBytes: 64 * 1024,
 		NetNSDir: "/var/run/netns",
-	}, HealthAddress: ":8091", CNILog: "/host/var/log/azure-vnet.log", BootIDFile: "/host/boot-id"}
+	}, HealthAddress: ":8091", CNILog: "/host/var/log/azure-vnet.log", BootIDFile: "/host/boot-id", RuntimeEndpoint: "unix:///run/containerd/containerd.sock"}
 	controller := &cobra.Command{Use: "controller", Short: "Record live namespace state during SWIFT startup", Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			validated, err := o.Validate()
@@ -111,15 +117,22 @@ func NewRootCmd() *cobra.Command {
 	f.IntVar(&o.MaxBufferBytes, "max-buffer-bytes", o.MaxBufferBytes, "Node-wide encoded observation buffer budget")
 	f.IntVar(&o.MaxRecordBytes, "max-record-bytes", o.MaxRecordBytes, "Maximum encoded capture record")
 	f.IntVar(&o.LogVerbosity, "log-verbosity", 0, "Nonnegative log verbosity")
+	f.StringVar(&o.RuntimeEndpoint, "runtime-endpoint", o.RuntimeEndpoint, "CRI Unix socket used for router sandbox discovery")
 	root.AddCommand(controller)
 	var namespacePath string
 	helper := &cobra.Command{Use: "capture", Hidden: true, Args: cobra.NoArgs, RunE: func(_ *cobra.Command, _ []string) error { return runCapture(namespacePath) }}
 	helper.Flags().StringVar(&namespacePath, "path", "", "Network namespace path")
 	root.AddCommand(helper)
+	root.AddCommand(&cobra.Command{Use: "router-probe", Hidden: true, Args: cobra.NoArgs, RunE: func(command *cobra.Command, _ []string) error {
+		return runRouterProbe(command.InOrStdin(), command.OutOrStdout())
+	}})
 	return root
 }
 
 func (o *RawOptions) Validate() (*ValidatedOptions, error) {
+	if err := routercheck.ValidateEndpoint(o.RuntimeEndpoint); err != nil {
+		return nil, err
+	}
 	if o.NodeName == "" || o.ClusterName == "" || o.Region == "" || o.Environment == "" {
 		return nil, fmt.Errorf("node-name, cluster-name, region and environment are required")
 	}
@@ -180,10 +193,41 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 	if err != nil {
 		return nil, err
 	}
-	return &CompletedOptions{options: options, factory: factory, controller: ctrl}, nil
+	completed := &CompletedOptions{options: options, factory: factory, controller: ctrl}
+	// Build clients lazily; runtime/API availability is checked by each pass.
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		cleanupCtx, cancel := context.WithCancel(ctx)
+		cancel()
+		_ = ctrl.Run(cleanupCtx)
+		return nil, err
+	}
+	runtime, conn, err := routercheck.NewRuntime(options.RuntimeEndpoint, options.NetNSDir)
+	if err != nil {
+		cleanupCtx, cancel := context.WithCancel(ctx)
+		cancel()
+		_ = ctrl.Run(cleanupCtx)
+		return nil, err
+	}
+	completed.routerController, err = routercheck.New(routercheck.Config{
+		NodeName: options.NodeName, ClusterName: options.ClusterName, Region: options.Region, Environment: options.Environment,
+		BootID: options.BootID, Executable: options.Executable, MaxRecordBytes: options.MaxRecordBytes,
+	}, factory.Core().V1().Pods(), client, dynamicClient, runtime, probe.Execute)
+	if err != nil {
+		_ = conn.Close()
+		cleanupCtx, cancel := context.WithCancel(ctx)
+		cancel()
+		_ = ctrl.Run(cleanupCtx)
+		return nil, err
+	}
+	completed.closeRuntime = conn.Close
+	return completed, nil
 }
 
 func (o *CompletedOptions) Run(ctx context.Context) error {
+	if o.closeRuntime != nil {
+		defer func() { _ = o.closeRuntime() }()
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	listener, err := net.Listen("tcp", o.options.HealthAddress)
@@ -191,17 +235,22 @@ func (o *CompletedOptions) Run(ctx context.Context) error {
 		// New allocates a workqueue even before the controller starts.
 		cancel()
 		_ = o.controller.Run(ctx)
+		if o.routerController != nil {
+			_ = o.routerController.Run(ctx)
+		}
 		return err
 	}
 	var tailReady atomic.Bool
-	mux := newMux(func() bool { return tailReady.Load() && o.controller.Ready() })
+	mux := newMux(func() bool {
+		return tailReady.Load() && o.controller.Ready() && (o.routerController == nil || o.routerController.Ready())
+	})
 	// This is a host-network listener: bound both connection count and lifetime.
 	listener = netutil.LimitListener(listener, 64)
 	server := &http.Server{
 		Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Second,
 		WriteTimeout: 10 * time.Second, IdleTimeout: 15 * time.Second, MaxHeaderBytes: 16 * 1024,
 	}
-	errorsCh := make(chan error, 4)
+	errorsCh := make(chan error, 5)
 	var wg sync.WaitGroup
 	start := func(run func() error) {
 		wg.Add(1)
@@ -209,6 +258,9 @@ func (o *CompletedOptions) Run(ctx context.Context) error {
 	}
 	o.factory.Start(ctx.Done())
 	start(func() error { return o.controller.Run(ctx) })
+	if o.routerController != nil {
+		start(func() error { return o.routerController.Run(ctx) })
+	}
 	start(func() error {
 		return discovery.Tail(ctx, o.options.CNILog, o.controller.ObserveAttempt, func() { tailReady.Store(true) })
 	})
