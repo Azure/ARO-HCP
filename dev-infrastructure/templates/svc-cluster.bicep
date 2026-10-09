@@ -459,6 +459,9 @@ param useLeasedInfrastructureIdentities bool = false
 @description('Resource group containing the pre-created service infrastructure identities in the service deployment subscription.')
 param infrastructureIdentityResourceGroup string = ''
 
+@description('Name of the pre-created service AKS control-plane identity. Required when useLeasedInfrastructureIdentities is true.')
+param leasedAksIdentityName string = ''
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
@@ -550,12 +553,16 @@ resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAss
   location: location
 }
 
+var aksClusterUserDefinedManagedIdentityName = useLeasedInfrastructureIdentities
+  ? leasedAksIdentityName
+  : aksClusterUserDefinedManagedIdentity.name
+
 // A second resource declaration can alias the created identity when leasing is disabled.
 var leasedAksClusterUserDefinedManagedIdentityId = resourceId(
   subscription().subscriptionId,
   infrastructureIdentityResourceGroup,
   'Microsoft.ManagedIdentity/userAssignedIdentities',
-  '${aksClusterName}-msi'
+  aksClusterUserDefinedManagedIdentityName
 )
 var aksClusterUserDefinedManagedIdentityPrincipalId = useLeasedInfrastructureIdentities
   ? reference(leasedAksClusterUserDefinedManagedIdentityId, '2023-01-31').principalId
@@ -721,7 +728,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     enableSwiftV2Nodepools: false
     upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
     upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
-    aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
+    aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentityName
   }
   dependsOn: [
     managedIdentities

@@ -37,12 +37,14 @@ defaults:
     sreServiceTag: "CorpNetSaw"
   infrastructureIdentities:
     # Persistent infrastructure identity reuse is opt-in. The future slot-manager
-    # handler will populate these resource-group names through a CI config override.
+    # handler will populate these resource groups and stable AKS identity names.
     # Each deployment resolves identities in its own subscription.
     useLeased: false
     serviceResourceGroup: ""
+    serviceAksIdentityName: ""
     # Explicit stamp mapping: "1=resource-group-a,2=resource-group-b".
     managementResourceGroups: ""
+    managementAksIdentityNames: ""
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
