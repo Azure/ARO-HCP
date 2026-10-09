@@ -1892,12 +1892,12 @@
   group: kusto-logs-age-rules
   alert: KustoLogsDataStale
   occurrence: 1
-  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or (kusto_logs_age_in_seconds{table="systemdlogs"} > 3600 and on (cluster) (sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0))
   plan:
-    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or (kusto_logs_age_in_seconds{table="systemdlogs"} > 3600 and on (cluster) (sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0))
     conditions:
       - expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600
-        path: root/or:left/or:left
+        path: root/or:left
         queries:
           - expression: kusto_logs_age_in_seconds{table!="systemdlogs"}
             role: signal
@@ -1905,23 +1905,23 @@
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600
-        path: root/or:left/or:right
+      - expression: kusto_logs_age_in_seconds{table="systemdlogs"} > 3600
+        path: root/or:right/and:left
         queries:
-          - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"}
+          - expression: kusto_logs_age_in_seconds{table="systemdlogs"}
             role: signal
         thresholds:
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
-        path: root/or:right
+      - expression: sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0
+        path: root/or:right/and:right
         queries:
-          - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"}
+          - expression: sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m]))
             role: signal
         thresholds:
           - operator: '>'
-            value: 7200
+            value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
   group: leaderelection
@@ -9668,12 +9668,22 @@
   group: kusto-logs-age-rules
   alert: KustoLogsDataStale
   occurrence: 1
-  input: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster!~".*-svc-.*"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster=~".*-svc-.*"} > 7200
+  input: |
+    kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600
+    or (
+      kusto_logs_age_in_seconds{table="systemdlogs"} > 3600
+      and on (cluster)
+      (
+        sum by (cluster) (
+          increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])
+        ) > 0
+      )
+    )
   plan:
-    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
+    expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or (kusto_logs_age_in_seconds{table="systemdlogs"} > 3600 and on (cluster) (sum by (cluster) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0))
     conditions:
       - expression: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600
-        path: root/or:left/or:left
+        path: root/or:left
         queries:
           - expression: kusto_logs_age_in_seconds{table!="systemdlogs"}
             role: signal
@@ -9681,23 +9691,23 @@
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600
-        path: root/or:left/or:right
+      - expression: kusto_logs_age_in_seconds{table="systemdlogs"} > 3600
+        path: root/or:right/and:left
         queries:
-          - expression: kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"}
+          - expression: kusto_logs_age_in_seconds{table="systemdlogs"}
             role: signal
         thresholds:
           - operator: '>'
             value: 3600
         unsupported: ""
-      - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200
-        path: root/or:right
+      - expression: sum by (cluster) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0
+        path: root/or:right/and:right
         queries:
-          - expression: kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"}
+          - expression: sum by (cluster) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m]))
             role: signal
         thresholds:
           - operator: '>'
-            value: 7200
+            value: 0
         unsupported: ""
 - source: observability/alerts/leaderelection-prometheusRule.yaml
   group: leaderelection
