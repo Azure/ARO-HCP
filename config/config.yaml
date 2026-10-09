@@ -220,7 +220,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:a97a11952ba74d79a356d7f6b26730ace71a5c56888d89939d027e0416dde801 # 1.44.2-20261007-2 (2026-10-07 21:56)
+        digest: sha256:ca32a8359b097f7134a4c2cf464724ea7f12f8d297060f004bce1ffb7fc1daec # 1.44.2-20261009-1 (2026-10-09 02:23)
   # Kube Events
   kubeEvents:
     enabled: true
@@ -324,7 +324,7 @@ defaults:
     providerImage:
       registry: mcr.microsoft.com
       repository: oss/v2/azure/secrets-store/provider-azure
-      digest: sha256:519f3891316ae4e00900b0ff0b67885ee9295c126f4cd79f38018b1747d3ea5f # v1.8.2 (2026-09-23 04:58)
+      digest: sha256:aa826b4f84538c16f5e20f4d8ad3f8e25e9968f0e12eb713f37bd9cd818faee0 # v1.8.2 (2026-10-08 11:54)
     k8s:
       namespace: secret-sync-controller
       serviceAccountName: secrets-store-sync-controller-manager
@@ -445,7 +445,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:058642c58029add6de1b8c4a81410cd45fe5210f709d83a6408ffc3310b8f1c2 # 0f18311657aeef47627b621368c8cc8ce653564f (2026-10-07 23:48)
+      digest: sha256:a8b9b1f905fec099348b56b6733c09cb365aad79560e34303ade7db6687b163a # 629dfa6c2efa07045233598291f952eb1d1ef0b5 (2026-10-08 18:38)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -1149,18 +1149,18 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:27948c8a15407f5e7e20a80850fcdaaf34a94964ca8a8e65879d9a80fc91ab49 # v2.17.4-481 (2026-10-08 14:10)
+        digest: sha256:0ed591044cc458ba8467ce2c49b4e6aba3426ec78a16dbc94ac404251796154b # v2.17.4-483 (2026-10-09 14:10)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:5c3445cf3f2fd18873bebb089bf9c7b2ca00da7faf065df20157d1163ff5b37b # v2.17.4-523 (2026-10-08 14:21)
+        digest: sha256:8b1e9ca5f9c76c2be22345dfce8f313cccf9847aaf1d4e9e9749825bde490064 # v2.17.4-525 (2026-10-09 14:20)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:c6ff7c0adc99cb5c1435aeb07c9466e64b5f41bb91285eb39c8938b5e0e0e508 # c5925ad62e93ddddef7bd861c1f69893324688a5 (2026-10-08 09:05)
+      digest: sha256:18670fcebdc5fd1a4348cd0becb96de60d5693548f275717196662293f9900f0 # af108718005da2142be082de856dd7d79e79c5bc (2026-10-09 14:07)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
