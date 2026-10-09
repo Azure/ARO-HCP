@@ -167,13 +167,17 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
 			By("verifying control plane reached desired version and cluster remains viable")
+			// Built once, outside the polling loop: the y-stream verifier remembers the last
+			// clusterversion it logged so an unchanged observation is not re-logged
+			// (delta-only logging, test/AGENTS.md). A verifier constructed inside the closure
+			// would be a fresh value on every poll with nothing to compare against.
+			kubeAPIServerUpgraded := verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion)
+			yStreamUpgraded := verifiers.VerifyHostedControlPlaneYStreamUpgrade(installVersionId, upgradeVersionId)
 			Eventually(func() error {
-				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
-					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion),
-					verifiers.VerifyHostedControlPlaneYStreamUpgrade(
-						installVersionId,
-						upgradeVersionId))
-			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
+				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig, kubeAPIServerUpgraded, yStreamUpgraded)
+			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed(),
+				"control plane of cluster %q did not reach %s within %s", clusterName, upgradeVersionId,
+				framework.HCPClusterVersionUpgradeTimeout)
 		},
 		Entry("from 4.20 minor to 4.21 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),
 		Entry("from 4.21 minor to 4.22 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22"),

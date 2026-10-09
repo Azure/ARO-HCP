@@ -232,10 +232,14 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
 			By("verifying control plane reached the target minor")
+			// Built once, outside the polling loop, so the y-stream verifier can suppress
+			// repeated identical clusterversion lines (delta-only logging, test/AGENTS.md).
+			kubeAPIServerUpgraded := verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion)
+			yStreamUpgraded := verifiers.VerifyHostedControlPlaneYStreamUpgrade(installVersionId, upgradeVersionId)
 			Eventually(func() error {
 				return errors.Join(
-					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion).Verify(ctx, adminRESTConfig),
-					verifiers.VerifyHostedControlPlaneYStreamUpgrade(installVersionId, upgradeVersionId).Verify(ctx, adminRESTConfig),
+					kubeAPIServerUpgraded.Verify(ctx, adminRESTConfig),
+					yStreamUpgraded.Verify(ctx, adminRESTConfig),
 				)
 			}).WithContext(ctx).WithTimeout(framework.HCPClusterVersionUpgradeTimeout).WithPolling(2*time.Minute).Should(Succeed(), "control plane did not reach %s on cluster %q with deny-pod ValidatingAdmissionPolicy", upgradeVersionId, clusterName)
 
