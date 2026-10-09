@@ -1023,9 +1023,9 @@ func TestEnsureHostedClusterAnnotations(t *testing.T) {
 
 func TestEnsureHostedClusterMonitoring(t *testing.T) {
 	tests := []struct {
-		name          string
-		inputSpec     map[string]interface{}
-		expectedMode  string
+		name         string
+		inputSpec    map[string]interface{}
+		expectedMode string
 	}{
 		{
 			name:         "sets metrics forwarding mode to Forward when spec is empty",
