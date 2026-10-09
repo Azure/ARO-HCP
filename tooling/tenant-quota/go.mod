@@ -54,8 +54,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260812190735-a8b44e9f9fed // indirect
-	github.com/openshift-online/ocm-api-model/clientapi v0.0.464 // indirect
-	github.com/openshift-online/ocm-sdk-go v0.1.509 // indirect
+	github.com/openshift-online/ocm-api-model/clientapi v0.0.468 // indirect
+	github.com/openshift-online/ocm-sdk-go v0.1.512 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/samber/lo v1.53.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
