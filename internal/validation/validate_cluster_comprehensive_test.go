@@ -528,6 +528,7 @@ func TestValidateClusterCreate(t *testing.T) {
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
 						// Visibility is omitted (empty string) - EnsureDefaults will fill it in before validation
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -556,7 +557,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: "InvalidVisibility",
+						Visibility:   "InvalidVisibility",
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -578,7 +580,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -597,7 +600,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPrivate,
+						Visibility:   metadataapi.KeyVaultVisibilityPrivate,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -1944,7 +1948,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPrivate,
+						Visibility:   metadataapi.KeyVaultVisibilityPrivate,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -1960,7 +1965,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -2007,6 +2013,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 						},
 					},
 				}
+				c.EnsureDefaults()
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{},
@@ -2019,7 +2026,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -2035,7 +2043,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -2056,7 +2065,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -2072,7 +2082,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -2727,11 +2738,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "immutable KMS keyVaultType - clearing rejected on update",
+			name: "legacy empty KMS keyVaultType defaulted before update does not change against ManagedHSM old - rejected",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.22"
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = ""
+				c.EnsureDefaults()
 				return c
 			}(),
 			oldCluster: func() *coreapi.Cluster {
@@ -2836,7 +2848,8 @@ func createValidCluster() *coreapi.Cluster {
 	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility: metadataapi.KeyVaultVisibilityPublic,
+			Visibility:   metadataapi.KeyVaultVisibilityPublic,
+			KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 			ActiveKey: coreapi.KmsKey{
 				Name:      coreapitesting.TestKMSKeyName,
 				VaultName: coreapitesting.TestKMSKeyVaultName,
@@ -2887,7 +2900,8 @@ func createValidCluster() *coreapi.Cluster {
 	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility: metadataapi.KeyVaultVisibilityPublic,
+			Visibility:   metadataapi.KeyVaultVisibilityPublic,
+			KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 			ActiveKey: coreapi.KmsKey{
 				Name:      "test-key",
 				VaultName: "test-vault",

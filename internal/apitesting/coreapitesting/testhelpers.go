@@ -99,7 +99,8 @@ func MinimumValidClusterTestCase() *coreapi.Cluster {
 	resource.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility: metadataapi.KeyVaultVisibilityPublic,
+			Visibility:   metadataapi.KeyVaultVisibilityPublic,
+			KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 			ActiveKey: coreapi.KmsKey{
 				Name:      TestKMSKeyName,
 				VaultName: TestKMSKeyVaultName,
@@ -117,7 +118,8 @@ func MinimumValidClusterTestCase() *coreapi.Cluster {
 	resource.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility: metadataapi.KeyVaultVisibilityPublic,
+			Visibility:   metadataapi.KeyVaultVisibilityPublic,
+			KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 			ActiveKey: coreapi.KmsKey{
 				Name:      "test-key",
 				VaultName: "test-vault",
