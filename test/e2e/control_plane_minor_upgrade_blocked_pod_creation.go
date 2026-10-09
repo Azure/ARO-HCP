@@ -237,7 +237,7 @@ var _ = Describe("Customer", func() {
 					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion).Verify(ctx, adminRESTConfig),
 					verifiers.VerifyHostedControlPlaneYStreamUpgrade(installVersionId, upgradeVersionId).Verify(ctx, adminRESTConfig),
 				)
-			}).WithContext(ctx).WithTimeout(framework.HCPClusterVersionUpgradeTimeout).WithPolling(2*time.Minute).Should(Succeed(), "control plane did not reach %s on cluster %q with deny-pod ValidatingAdmissionPolicy", upgradeVersionId, clusterName)
+			}).WithContext(ctx).WithTimeout(framework.HCPClusterVersionUpgradeTimeout).WithPolling(framework.StandardPollInterval).Should(Succeed(), "control plane did not reach %s on cluster %q with deny-pod ValidatingAdmissionPolicy", upgradeVersionId, clusterName)
 
 			By("verifying cluster API remains reachable after control plane upgrade")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)

@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/onsi/ginkgo/v2"
@@ -27,11 +29,55 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/test/util/framework"
 )
+
+// renderClusterVersionHistory renders status.history as one compact line, e.g.
+// `4.21.13=Partial started=01:24:16; 4.20.20=Completed started=00:36:22 completed=01:24:16`.
+//
+// The started/completed stamps are what ARO-26775 needed to attribute a 45 minute timeout to a
+// phase, and are exactly what the previous rendering dropped.
+func renderClusterVersionHistory(history []configv1.UpdateHistory) string {
+	if len(history) == 0 {
+		return "<empty>"
+	}
+	entries := make([]string, 0, len(history))
+	for _, historyEntry := range history {
+		entry := fmt.Sprintf("%s=%s", historyEntry.Version, historyEntry.State)
+		if !historyEntry.StartedTime.IsZero() {
+			entry += " started=" + historyEntry.StartedTime.UTC().Format(time.TimeOnly)
+		}
+		if historyEntry.CompletionTime != nil && !historyEntry.CompletionTime.IsZero() {
+			entry += " completed=" + historyEntry.CompletionTime.UTC().Format(time.TimeOnly)
+		}
+		entries = append(entries, entry)
+	}
+	return strings.Join(entries, "; ")
+}
+
+// renderClusterVersionProgress returns the Progressing condition's message, which reports how far
+// through the rollout the CVO is ("Working towards 4.21.13: 150 of 900 done").
+func renderClusterVersionProgress(conditions []configv1.ClusterOperatorStatusCondition) string {
+	for _, condition := range conditions {
+		if condition.Type == configv1.OperatorProgressing {
+			return fmt.Sprintf("Progressing=%s: %s", condition.Status, condition.Message)
+		}
+	}
+	return ""
+}
+
+// clusterVersionSummary is the one-line state dump logged while waiting and appended to failures,
+// so a Prow log alone shows which phase consumed the budget.
+func clusterVersionSummary(status configv1.ClusterVersionStatus) string {
+	summary := "history is " + renderClusterVersionHistory(status.History)
+	if progress := renderClusterVersionProgress(status.Conditions); progress != "" {
+		summary += "; " + progress
+	}
+	return summary
+}
 
 type verifyHostedControlPlaneZStreamUpgradeOnly struct {
 	initialVersion string
@@ -58,7 +104,7 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, 
 	}
 
 	ginkgo.GinkgoLogr.Info("Retrieved openshift cluster version history",
-		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
+		"clusterversion", clusterVersionSummary(clusterVersion.Status))
 
 	uniqueVersionSet := map[string]bool{}
 	var uniqueVersions []string
@@ -87,10 +133,12 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, 
 		}
 	}
 	if !sawInitial {
-		return fmt.Errorf("install version %q not found in clusterversion/version status.history; cannot confirm the z-stream upgrade started from it", v.initialVersion)
+		return fmt.Errorf("install version %q not found in clusterversion/version status.history; cannot confirm the z-stream upgrade started from it; %s",
+			v.initialVersion, clusterVersionSummary(clusterVersion.Status))
 	}
 	if !sawUpgrade {
-		return fmt.Errorf("no version in clusterversion/version status.history is greater than initial %q", v.initialVersion)
+		return fmt.Errorf("no version in clusterversion/version status.history is greater than initial %q; %s",
+			v.initialVersion, clusterVersionSummary(clusterVersion.Status))
 	}
 	// The automated z-stream upgrade must move the control plane off the pinned install version, so
 	// the history must contain at least two unique versions: the install version and the latest
@@ -132,7 +180,7 @@ func (v verifyHostedControlPlaneYStreamUpgrade) Verify(ctx context.Context, admi
 	}
 
 	ginkgo.GinkgoLogr.Info("clusterversion status after y-stream upgrade",
-		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
+		"clusterversion", clusterVersionSummary(clusterVersion.Status))
 
 	parsedPreviousMinor := metadataapi.Must(semver.ParseTolerant(v.previousMinor))
 	parsedTargetMinor := metadataapi.Must(semver.ParseTolerant(v.targetMinor))
@@ -154,10 +202,12 @@ func (v verifyHostedControlPlaneYStreamUpgrade) Verify(ctx context.Context, admi
 		}
 	}
 	if !previousMinorFound {
-		return fmt.Errorf("clusterversion status.history has no version in previous minor %q", v.previousMinor)
+		return fmt.Errorf("clusterversion status.history has no version in previous minor %q; %s",
+			v.previousMinor, clusterVersionSummary(clusterVersion.Status))
 	}
 	if !targetMinorFound {
-		return fmt.Errorf("clusterversion status.history has no version in target minor %q", v.targetMinor)
+		return fmt.Errorf("clusterversion status.history has no version in target minor %q; %s",
+			v.targetMinor, clusterVersionSummary(clusterVersion.Status))
 	}
 	return nil
 }
@@ -186,9 +236,10 @@ func (v verifyKubeAPIServerServerVersionUpgraded) Verify(ctx context.Context, ad
 		return fmt.Errorf("get kube-apiserver ServerVersion: %w", err)
 	}
 	if reflect.DeepEqual(v.preUpgrade, postUpgrade) {
-		ginkgo.GinkgoLogr.Info("kube-apiserver ServerVersion unchanged from pre-upgrade",
-			"preUpgrade", v.preUpgrade, "postUpgrade", postUpgrade)
-		return fmt.Errorf("kube-apiserver ServerVersion not updated (unchanged from pre-upgrade)")
+		// Naming the version is the point: the previous message said only "not updated", which
+		// left a reader unable to tell a stalled rollout from a bad pre-upgrade reading.
+		return fmt.Errorf("expected the kube-apiserver ServerVersion to change from the pre-upgrade %q, still observing %q",
+			v.preUpgrade.GitVersion, postUpgrade.GitVersion)
 	}
 	return nil
 }
