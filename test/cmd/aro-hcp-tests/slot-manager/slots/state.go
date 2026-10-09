@@ -26,6 +26,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 const acquiredSlotStateVersion = 2
@@ -266,7 +268,7 @@ func AddCoreRuntimeExports(contract *RuntimeContractBuilder, state *AcquiredSlot
 	if customerSubscription != state.Slot.Subscriptions.E2E.Name {
 		return errors.New("customer subscription does not match resolved slot")
 	}
-	coreExports["ARO_HCP_DEPLOY_ENV"] = state.Slot.DeployEnvironment
+	coreExports[leaseenv.RuntimeDeployEnvironment] = state.Slot.DeployEnvironment
 	if state.Slot.RequiresInfrastructureSubscription() {
 		coreExports["INFRA_SUBSCRIPTION_ID"] = state.Slot.Subscriptions.Infrastructure.ID
 	}

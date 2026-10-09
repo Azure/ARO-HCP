@@ -40,11 +40,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/test/pkg/filelock"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 const (
 	UsePooledIdentitiesEnvvar = "POOLED_IDENTITIES"
-	LeasedMSIContainersEnvvar = "LEASED_MSI_CONTAINERS"
 	E2ECustomRolePrefix       = "E2E-Test-CustomRole-"
 )
 
@@ -354,9 +354,9 @@ func (tc *perItOrDescribeTestContext) DeleteUserAssignedIdentities(ctx context.C
 	// The env var lists every container in the pool, so this also rejects containers
 	// leased by another spec, which tc.leasedIdentityContainers() would not catch. It is
 	// unset in non-pooled mode, where the loop is a no-op.
-	for _, pooledResourceGroup := range strings.Fields(os.Getenv(LeasedMSIContainersEnvvar)) {
+	for _, pooledResourceGroup := range strings.Fields(os.Getenv(leaseenv.MSIContainers)) {
 		if strings.EqualFold(pooledResourceGroup, resourceGroup) {
-			return fmt.Errorf("refusing to delete user-assigned identities in resource group %q: it is a shared identity container listed in %s; this helper may only be used on dedicated identities the test created itself (useMsiPool=false)", resourceGroup, LeasedMSIContainersEnvvar)
+			return fmt.Errorf("refusing to delete user-assigned identities in resource group %q: it is a shared identity container listed in %s; this helper may only be used on dedicated identities the test created itself (useMsiPool=false)", resourceGroup, leaseenv.MSIContainers)
 		}
 	}
 
@@ -936,9 +936,9 @@ func newLeasedIdentityPoolState(path string) (*leasedIdentityPoolState, error) {
 		return &state, nil
 	}
 
-	leasedRGs := strings.Fields(strings.TrimSpace(os.Getenv(LeasedMSIContainersEnvvar)))
+	leasedRGs := strings.Fields(strings.TrimSpace(os.Getenv(leaseenv.MSIContainers)))
 	if len(leasedRGs) == 0 {
-		return &leasedIdentityPoolState{}, fmt.Errorf("expected envvar %s to not be empty", LeasedMSIContainersEnvvar)
+		return &leasedIdentityPoolState{}, fmt.Errorf("expected envvar %s to not be empty", leaseenv.MSIContainers)
 	}
 
 	if err := state.initializeUnlocked(leasedRGs); err != nil {

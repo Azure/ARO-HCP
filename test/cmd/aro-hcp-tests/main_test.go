@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/e2eidentities"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/testutil"
@@ -411,7 +412,7 @@ func TestSuiteConcurrencyMetadata(t *testing.T) {
 			for _, override := range []string{"unset", "", "1", "60"} {
 				t.Run(fmt.Sprintf("pooled=%s/lease=%q/override=%s", pooled, lease, override), func(t *testing.T) {
 					t.Setenv(framework.UsePooledIdentitiesEnvvar, pooled)
-					t.Setenv(framework.LeasedMSIContainersEnvvar, lease)
+					t.Setenv(leaseenv.MSIContainers, lease)
 					t.Setenv("ARO_HCP_SUITE_PARALLELISM", override)
 					if override == "unset" {
 						if err := os.Unsetenv("ARO_HCP_SUITE_PARALLELISM"); err != nil {
@@ -489,7 +490,7 @@ func sourceIdentityLease(t *testing.T) string {
 		if key == "ARO_HCP_SUITE_PARALLELISM" {
 			t.Fatalf("lease unexpectedly published global user override %q", value)
 		}
-		if key == framework.LeasedMSIContainersEnvvar {
+		if key == leaseenv.MSIContainers {
 			lease = value
 		}
 	}
@@ -589,9 +590,9 @@ func TestSuiteConcurrencyUsesActualRunner(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			t.Setenv(framework.LeasedMSIContainersEnvvar, strings.Repeat("container ", 75))
+			t.Setenv(leaseenv.MSIContainers, strings.Repeat("container ", 75))
 			if tc.acquired {
-				t.Setenv(framework.LeasedMSIContainersEnvvar, acquiredLease)
+				t.Setenv(leaseenv.MSIContainers, acquiredLease)
 			}
 			count, _ := parseMIContainerCount()
 			var pools map[string]int
@@ -730,9 +731,9 @@ func TestAcquiredLeaseUpgradeCohortUsesActualRunner(t *testing.T) {
 			if err := os.Unsetenv("ARO_HCP_SUITE_PARALLELISM"); err != nil {
 				t.Fatal(err)
 			}
-			t.Setenv(framework.LeasedMSIContainersEnvvar, lease)
+			t.Setenv(leaseenv.MSIContainers, lease)
 			count, source := parseMIContainerCount()
-			if source != framework.LeasedMSIContainersEnvvar || count != 2 {
+			if source != leaseenv.MSIContainers || count != 2 {
 				t.Fatalf("acquired count/source = %d/%s", count, source)
 			}
 			workers, err := parseSuiteConcurrency(count)

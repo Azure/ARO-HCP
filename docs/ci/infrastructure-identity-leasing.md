@@ -40,3 +40,43 @@ Reuse requires valid resource-group and identity names, including mappings for
 the management stamp being deployed. Missing configuration fails validation
 rather than falling back to a cluster-derived identity name. These settings do
 not create or validate the contents of a persistent identity pool.
+
+## CI override generation
+
+`test/aro-hcp-tests infra build-config-override` generates CI configuration
+overrides offline, without Azure credentials or E2E suite initialization. The
+sourced `hack/ci/build-config-override.sh` adapter uses the existing binary at
+`test/aro-hcp-tests` in the source checkout; `ARO_HCP_TESTS_BINARY` can select an
+explicit binary for local use.
+
+The root CLI still validates `ARO_HCP_SUITE_PARALLELISM` during construction;
+when supplied, it must be empty or a positive integer, even for offline commands.
+
+`LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE` supplies a JSON object with the four
+resource-group and identity-name fields above. Its management fields are objects
+keyed by stamp number and must contain the same non-empty set of stamps. A valid
+bundle enables reuse; without it, no infrastructure identity override is emitted.
+
+The command preserves service-image, MSI mock, and ARM-helper overrides, merges
+Hypershift overrides last, and publishes `config-override.yaml` in the shared
+directory only after all inputs pass validation. Unrecognized `*_IMAGE`
+environment variables fail generation rather than silently ignoring new or
+misspelled image overrides. Go lease publishers and consumers share the
+environment contract in `test/pkg/leaseenv`.
+
+CI image overrides also supply their source registries to
+`USE_OC_LOGIN_REGISTRIES`. The sourced adapter exports the resulting list so
+ARO-Tools can authenticate with `oc registry login` when mirroring those images
+into ACR. This authentication handoff is derived from the image overrides, not
+a separate CLI option.
+
+Baseline provisioning retains scripts, configuration, and catalogs from the
+selected baseline revision. Templatize validates the merged configuration
+against its schema during provisioning.
+
+For a local invocation after building `test/aro-hcp-tests`:
+
+```bash
+DEPLOY_ENV=ci01 SHARED_DIR=/path/to/existing/shared-directory \
+  test/aro-hcp-tests infra build-config-override --source-dir "$PWD"
+```

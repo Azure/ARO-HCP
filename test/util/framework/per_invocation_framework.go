@@ -44,6 +44,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azclient"
 )
@@ -444,7 +445,7 @@ func MIMockPrincipalID() string {
 // pooled CI job (LEASED_MSI_MOCK_SP) from the in-repo pool catalog, so tests grant data-plane roles
 // to the principal the deployed operators actually authenticate as. Returns "" when not in pooled CI.
 func leasedMockPrincipalID() string {
-	leased := os.Getenv("LEASED_MSI_MOCK_SP")
+	leased := os.Getenv(leaseenv.MSIMockSP)
 	configFile := os.Getenv("ARO_HCP_CONFIG_FILE")
 	if leased == "" || configFile == "" {
 		return ""

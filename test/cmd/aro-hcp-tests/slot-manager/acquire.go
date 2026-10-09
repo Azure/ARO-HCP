@@ -35,6 +35,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	testutilframework "github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -54,7 +55,7 @@ func DefaultAcquireOptions() *RawAcquireOptions {
 		ClusterProfileDir:      strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
 		ClusterProfileDirs:     splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
 		Environment:            strings.TrimSpace(os.Getenv("ARO_HCP_SLOT_ENV")),
-		DeployEnv:              strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")),
+		DeployEnv:              strings.TrimSpace(os.Getenv(leaseenv.RuntimeDeployEnvironment)),
 		AllowedSubscriptions:   allowedSubscriptions,
 		AllowedLocations:       allowedLocations,
 		SelectedLocation:       selectedLocation,

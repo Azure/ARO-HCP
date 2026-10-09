@@ -26,6 +26,7 @@ import (
 
 	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -71,15 +72,15 @@ func parseMIContainersLabel(spec *et.ExtensionTestSpec) (int, bool) {
 // space-delimited entries in LEASED_MSI_CONTAINERS, or
 // DefaultMIContainerCount when the envvar is unset or empty.
 func parseMIContainerCount() (int, string) {
-	v := os.Getenv(framework.LeasedMSIContainersEnvvar)
+	v := os.Getenv(leaseenv.MSIContainers)
 	if v == "" {
-		return DefaultMIContainerCount, fmt.Sprintf("default (%s not set)", framework.LeasedMSIContainersEnvvar)
+		return DefaultMIContainerCount, fmt.Sprintf("default (%s not set)", leaseenv.MSIContainers)
 	}
 	count := len(strings.Fields(v))
 	if count == 0 {
-		return DefaultMIContainerCount, fmt.Sprintf("default (%s empty)", framework.LeasedMSIContainersEnvvar)
+		return DefaultMIContainerCount, fmt.Sprintf("default (%s empty)", leaseenv.MSIContainers)
 	}
-	return count, framework.LeasedMSIContainersEnvvar
+	return count, leaseenv.MSIContainers
 }
 
 func miDemandPriority(spec *et.ExtensionTestSpec) int {

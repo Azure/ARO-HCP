@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 	"github.com/Azure/ARO-HCP/test/e2e"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -164,7 +165,7 @@ func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) e
 // PublishLease publishes the exact resolved identity container names.
 func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
 	containers := request.AcquiredSlotState.Slot.IdentityContainerNames()
-	return contract.Add(string(h.Kind()), "LEASED_MSI_CONTAINERS", strings.Join(containers, " "))
+	return contract.Add(string(h.Kind()), leaseenv.MSIContainers, strings.Join(containers, " "))
 }
 
 func azurePoolDependencies() (azcore.TokenCredential, subscriptionIDResolverFunc, error) {
