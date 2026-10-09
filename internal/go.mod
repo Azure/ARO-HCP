@@ -2,8 +2,11 @@ module github.com/Azure/ARO-HCP/internal
 
 go 1.26.0
 
+replace github.com/Azure/ARO-HCP/billingapi => ../billingapi
+
 require (
 	dario.cat/mergo v1.0.1
+	github.com/Azure/ARO-HCP/billingapi v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0

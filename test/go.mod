@@ -87,6 +87,7 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
+	github.com/Azure/ARO-HCP/billingapi v0.0.0-00010101000000-000000000000 // indirect
 	github.com/Azure/ARO-Tools/pipelines v0.0.0-20261015161319-19f2993c1807 // indirect
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261015161319-19f2993c1807 // indirect
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261015161319-19f2993c1807 // indirect
@@ -409,6 +410,8 @@ replace github.com/Azure/ARO-HCP/admin/server => ../admin/server
 replace github.com/Azure/ARO-HCP/backend => ../backend
 
 replace github.com/Azure/ARO-HCP/internal => ../internal
+
+replace github.com/Azure/ARO-HCP/billingapi => ../billingapi
 
 replace github.com/Azure/ARO-HCP/tooling/templatize => ../tooling/templatize
 
