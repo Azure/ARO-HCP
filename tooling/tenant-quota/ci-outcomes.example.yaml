@@ -1,5 +1,8 @@
 # Collector-only runtime config. No tenant credentials or Key Vault access needed.
 # Keep Kusto settings even for --inspect-artifacts; they are validated, not used.
+# Migration: deploy the Kusto schema scripts (including ciDiscoveredJobs,
+# ciProcessedJobs and the updated ciJobOutcomes mapping) before the collector.
+# Historical sippyRelease/testFailures values remain; new rows leave them empty/null.
 exitOnPanic: false
 ciJobOutcomes:
   enabled: false
@@ -15,10 +18,23 @@ ciJobOutcomes:
   testResults:
     table: ciTestResults
     ingestionMapping: ciTestResultsMapping
-  sippyURI: https://sippy.dptools.openshift.org
+  discovered:
+    table: ciDiscoveredJobs
+    ingestionMapping: ciDiscoveredJobsMapping
+  processed:
+    table: ciProcessedJobs
+    ingestionMapping: ciProcessedJobsMapping
+  gcsBucket: test-platform-results-public
   jobFilter: e2e-parallel
-  releases:
-  - Presubmits
-  - aro-integration
-  - aro-stage
-  - aro-production
+  interval: 15m
+  discoveryInterval: 30m
+  completionDelay: 15m
+  window: 24h
+  # Optional explicit RFC3339 startup boundary; bootstrap is separate.
+  startupSince: ""
+  repairInterval: 12h
+  overlap: 10m
+  workers: 10
+  discoveryWorkers: 2
+  cacheSize: 20000
+  cacheTTL: 15m

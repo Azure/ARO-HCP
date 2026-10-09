@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -34,15 +35,21 @@ const (
 	DefaultProwInterval  = 5 * time.Minute
 	DefaultProwRetention = 24 * time.Hour
 
-	DefaultCIJobOutcomesInterval = 5 * time.Minute
+	DefaultCIJobOutcomesGCSBucket         = "test-platform-results-public"
+	DefaultCIJobOutcomesInterval          = 15 * time.Minute
+	DefaultCIJobOutcomesDiscoveryInterval = 30 * time.Minute
+	DefaultCIJobOutcomesCompletionDelay   = 15 * time.Minute
 	// DefaultCIJobOutcomesWindow is the minimum lookback on startup and repair polls.
-	DefaultCIJobOutcomesWindow         = 24 * time.Hour
-	DefaultCIJobOutcomesRepairInterval = 12 * time.Hour
-	DefaultCIJobOutcomesOverlap        = 3 * time.Hour
-	DefaultCIJobOutcomesWorkers        = 10
-	DefaultCIJobOutcomesCacheSize      = 20000
-	DefaultCIJobOutcomesCacheTTL       = 15 * time.Minute
+	DefaultCIJobOutcomesWindow           = 24 * time.Hour
+	DefaultCIJobOutcomesRepairInterval   = 12 * time.Hour
+	DefaultCIJobOutcomesOverlap          = 10 * time.Minute
+	DefaultCIJobOutcomesWorkers          = 10
+	DefaultCIJobOutcomesDiscoveryWorkers = 2
+	DefaultCIJobOutcomesCacheSize        = 20000
+	DefaultCIJobOutcomesCacheTTL         = 15 * time.Minute
 )
+
+var gcsBucketPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
 
 type Config struct {
 	ExitOnPanic bool           `yaml:"exitOnPanic"`
@@ -80,30 +87,44 @@ type CIJobOutcomesConfig struct {
 	Outcomes    KustoTableConfig `yaml:"outcomes"`
 	TestNames   KustoTableConfig `yaml:"testNames"`
 	TestResults KustoTableConfig `yaml:"testResults"`
+	Discovered  KustoTableConfig `yaml:"discovered"`
+	Processed   KustoTableConfig `yaml:"processed"`
 
-	SippyURI       string   `yaml:"sippyURI"`
-	Releases       []string `yaml:"releases"`
-	JobFilter      string   `yaml:"jobFilter"`
-	Interval       string   `yaml:"interval,omitempty"`
-	Window         string   `yaml:"window,omitempty"`
-	StartupSince   string   `yaml:"startupSince,omitempty"`
-	RepairInterval string   `yaml:"repairInterval,omitempty"`
-	Overlap        string   `yaml:"overlap,omitempty"`
-	Workers        *int     `yaml:"workers,omitempty"`
-	// CacheSize and CacheTTL bound both Sippy metadata and recent submissions.
+	GCSBucket         string `yaml:"gcsBucket,omitempty"`
+	JobFilter         string `yaml:"jobFilter"`
+	Interval          string `yaml:"interval,omitempty"`
+	DiscoveryInterval string `yaml:"discoveryInterval,omitempty"`
+	CompletionDelay   string `yaml:"completionDelay,omitempty"`
+	Window            string `yaml:"window,omitempty"`
+	StartupSince      string `yaml:"startupSince,omitempty"`
+	RepairInterval    string `yaml:"repairInterval,omitempty"`
+	Overlap           string `yaml:"overlap,omitempty"`
+	Workers           *int   `yaml:"workers,omitempty"`
+	DiscoveryWorkers  *int   `yaml:"discoveryWorkers,omitempty"`
+	// CacheSize and CacheTTL bound recent-submission caches.
 	CacheSize *int   `yaml:"cacheSize,omitempty"`
 	CacheTTL  string `yaml:"cacheTTL,omitempty"`
 
-	intervalDuration       time.Duration
-	windowDuration         time.Duration
-	startupSince           time.Time
-	repairIntervalDuration time.Duration
-	overlapDuration        time.Duration
-	cacheTTLDuration       time.Duration
+	intervalDuration          time.Duration
+	discoveryIntervalDuration time.Duration
+	completionDelayDuration   time.Duration
+	windowDuration            time.Duration
+	startupSince              time.Time
+	repairIntervalDuration    time.Duration
+	overlapDuration           time.Duration
+	cacheTTLDuration          time.Duration
 }
 
 func (c *CIJobOutcomesConfig) GetInterval() time.Duration {
 	return c.intervalDuration
+}
+
+func (c *CIJobOutcomesConfig) GetDiscoveryInterval() time.Duration {
+	return c.discoveryIntervalDuration
+}
+
+func (c *CIJobOutcomesConfig) GetCompletionDelay() time.Duration {
+	return c.completionDelayDuration
 }
 
 func (c *CIJobOutcomesConfig) GetWindow() time.Duration {
@@ -136,11 +157,24 @@ func (c *CIJobOutcomesConfig) GetCacheSize() int {
 	return *c.CacheSize
 }
 
+func (c *CIJobOutcomesConfig) GetDiscoveryWorkers() int {
+	if c.DiscoveryWorkers == nil {
+		return DefaultCIJobOutcomesDiscoveryWorkers
+	}
+	return *c.DiscoveryWorkers
+}
+
 func (c *CIJobOutcomesConfig) GetCacheTTL() time.Duration {
 	return c.cacheTTLDuration
 }
 
 func (c *CIJobOutcomesConfig) validate() error {
+	if c.GCSBucket == "" {
+		c.GCSBucket = DefaultCIJobOutcomesGCSBucket
+	}
+	if !gcsBucketPattern.MatchString(c.GCSBucket) {
+		return fmt.Errorf("ciJobOutcomes.gcsBucket must be a bucket name, not a URL or path, got %q", c.GCSBucket)
+	}
 	c.startupSince = time.Time{}
 	if c.StartupSince != "" {
 		parsed, err := time.Parse(time.RFC3339, c.StartupSince)
@@ -150,6 +184,12 @@ func (c *CIJobOutcomesConfig) validate() error {
 		c.startupSince = parsed
 	}
 	if err := parseDuration(c.Interval, DefaultCIJobOutcomesInterval, &c.intervalDuration, "ciJobOutcomes.interval"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.DiscoveryInterval, DefaultCIJobOutcomesDiscoveryInterval, &c.discoveryIntervalDuration, "ciJobOutcomes.discoveryInterval"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.CompletionDelay, DefaultCIJobOutcomesCompletionDelay, &c.completionDelayDuration, "ciJobOutcomes.completionDelay"); err != nil {
 		return err
 	}
 	if err := parseDuration(c.Window, DefaultCIJobOutcomesWindow, &c.windowDuration, "ciJobOutcomes.window"); err != nil {
@@ -167,6 +207,9 @@ func (c *CIJobOutcomesConfig) validate() error {
 	if c.GetWorkers() <= 0 {
 		return fmt.Errorf("ciJobOutcomes.workers must be positive, got %d", c.GetWorkers())
 	}
+	if c.GetDiscoveryWorkers() <= 0 {
+		return fmt.Errorf("ciJobOutcomes.discoveryWorkers must be positive, got %d", c.GetDiscoveryWorkers())
+	}
 	if c.GetCacheSize() <= 0 {
 		return fmt.Errorf("ciJobOutcomes.cacheSize must be positive, got %d", c.GetCacheSize())
 	}
@@ -182,6 +225,8 @@ func (c *CIJobOutcomesConfig) validate() error {
 		"ciJobOutcomes.outcomes":    c.Outcomes,
 		"ciJobOutcomes.testNames":   c.TestNames,
 		"ciJobOutcomes.testResults": c.TestResults,
+		"ciJobOutcomes.discovered":  c.Discovered,
+		"ciJobOutcomes.processed":   c.Processed,
 	} {
 		required[prefix+".table"] = table.Table
 		required[prefix+".ingestionMapping"] = table.IngestionMapping
@@ -198,18 +243,9 @@ func (c *CIJobOutcomesConfig) validate() error {
 	for name, value := range map[string]string{
 		"ciJobOutcomes.clusterURI":   c.ClusterURI,
 		"ciJobOutcomes.ingestionURI": c.IngestionURI,
-		"ciJobOutcomes.sippyURI":     c.SippyURI,
 	} {
 		if err := validateHTTPURL(value); err != nil {
 			return fmt.Errorf("%s %w", name, err)
-		}
-	}
-	if len(c.Releases) == 0 {
-		return fmt.Errorf("ciJobOutcomes.releases requires at least one release")
-	}
-	for i, release := range c.Releases {
-		if strings.TrimSpace(release) == "" {
-			return fmt.Errorf("ciJobOutcomes.releases[%d] must not be empty", i)
 		}
 	}
 	return nil

@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -37,72 +35,73 @@ import (
 )
 
 const CIJobOutcomesControllerName = "ci-job-outcomes"
+const CIJobDiscoveryControllerName = "ci-job-discovery"
 const CollectorName = CIJobOutcomesControllerName
 
 type BuildID string
 
-func (id BuildID) AddLoggerValues(logger logr.Logger) logr.Logger {
-	return logger.WithValues("buildId", string(id))
-}
-
-var _ utils.LoggableKey = BuildID("")
-
-type runMetadata struct {
-	run     sippyRun
-	release string
-}
-
-// Writer owns a queue of build IDs, not artifact payloads. All caches may be
-// evicted without losing work: Sippy recovers metadata and Kusto owns deduplication.
+// Writer owns two URI queues and one shared client lifetime. Kusto tables are
+// the durable work ledger; the cache only suppresses recently accepted writes.
 type Writer struct {
-	name       string
-	config     *config.Config
-	logger     logr.Logger
-	client     *http.Client
-	queue      workqueue.TypedRateLimitingInterface[BuildID]
-	batches    *ttlCache[string, struct{}]
-	metadata   *ttlCache[BuildID, runMetadata]
-	metrics    writerMetrics
-	lastRepair map[string]time.Time // discovery goroutine only
-	dryRun     bool
-	report     func(BatchReport)
+	name, discoveryName     string
+	config                  *config.Config
+	logger, discoveryLogger logr.Logger
+	client                  *http.Client
+	gcs                     *GCSClient
+	queue, discoveryQueue   workqueue.TypedRateLimitingInterface[JobURI]
+	batches                 *ttlCache[string, struct{}]
+	metrics                 writerMetrics
+	lastRepair              map[string]time.Time // discovery goroutine only, keyed by listing prefix
+	now                     func() time.Time
+	dryRun                  bool
+	report                  func(BatchReport)
 
 	initialize         func(context.Context) error
 	initializeReadOnly func(context.Context) error
 	closeClients       func()
-	cursor             func(context.Context, string) (time.Time, error)
+	jobCursor          func(context.Context, GCSJob) (string, error)
+	pendingJobs        func(context.Context) ([]JobURI, error)
+	discoveredExists   func(context.Context, JobURI) (bool, error)
+	processedExists    func(context.Context, BuildID) (bool, error)
+	submitDiscovery    func(context.Context, []DiscoveredJob, string) error
+	submitProcessed    func(context.Context, BuildID) error
 	tagExists          func(context.Context, batchKind, BuildID) (bool, error)
 	submit             func(context.Context, batchKind, BuildID, *bytes.Buffer) error
+	completion         func(context.Context, *http.Client, string) (*prowCompletion, error)
 	jobDetail          func(context.Context, *http.Client, string) (runDetail, error)
 	e2eRows            func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error)
 	observabilityRows  func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error)
 }
 
 func NewWriter(cfg *config.Config, logger *slog.Logger) *Writer {
-	w := &Writer{
-		name: CIJobOutcomesControllerName, config: cfg,
-		logger: logr.FromSlogHandler(logger.Handler()).WithValues(utils.LogValues{}.AddControllerName(CIJobOutcomesControllerName)...),
-		client: &http.Client{Timeout: 2 * time.Minute},
-		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.NewTypedItemExponentialFailureRateLimiter[BuildID](time.Second, 5*time.Minute),
-			workqueue.TypedRateLimitingQueueConfig[BuildID]{Name: CIJobOutcomesControllerName}),
-		batches:  newTTLCache[string, struct{}](cfg.CIJobOutcomes.GetCacheSize(), cfg.CIJobOutcomes.GetCacheTTL()),
-		metadata: newTTLCache[BuildID, runMetadata](cfg.CIJobOutcomes.GetCacheSize(), cfg.CIJobOutcomes.GetCacheTTL()),
-		metrics:  newWriterMetrics(), lastRepair: map[string]time.Time{},
-		jobDetail: fetchJobOutcomeDetail, e2eRows: fetchE2ERows, observabilityRows: fetchObservabilityRows,
+	newQueue := func(name string) workqueue.TypedRateLimitingInterface[JobURI] {
+		return workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.NewTypedItemExponentialFailureRateLimiter[JobURI](time.Second, 5*time.Minute),
+			workqueue.TypedRateLimitingQueueConfig[JobURI]{Name: name})
 	}
+	base := logr.FromSlogHandler(logger.Handler())
+	w := &Writer{
+		name: CIJobOutcomesControllerName, discoveryName: CIJobDiscoveryControllerName, config: cfg,
+		logger:          base.WithValues(utils.LogValues{}.AddControllerName(CIJobOutcomesControllerName)...),
+		discoveryLogger: base.WithValues(utils.LogValues{}.AddControllerName(CIJobDiscoveryControllerName)...),
+		client:          &http.Client{Timeout: 2 * time.Minute},
+		queue:           newQueue(CIJobOutcomesControllerName), discoveryQueue: newQueue(CIJobDiscoveryControllerName),
+		batches: newTTLCache[string, struct{}](cfg.CIJobOutcomes.GetCacheSize(), cfg.CIJobOutcomes.GetCacheTTL()),
+		metrics: newWriterMetrics(), lastRepair: map[string]time.Time{}, now: time.Now,
+		completion: fetchProwCompletion, jobDetail: fetchJobOutcomeDetail,
+		e2eRows: fetchE2ERows, observabilityRows: fetchObservabilityRows,
+	}
+	w.gcs = &GCSClient{Client: w.client, Bucket: cfg.CIJobOutcomes.GCSBucket, JobFilter: cfg.CIJobOutcomes.JobFilter}
 	w.initialize = w.initializeKusto
 	w.initializeReadOnly = func(ctx context.Context) error { return w.initializeKustoClients(ctx, false) }
 	return w
 }
 
-// Start blocks until cancellation and joins all workers before closing clients.
-// The caller configures the process-wide panic policy and workqueue metrics.
+// Start joins both controllers before closing their shared clients.
 func (w *Writer) Start(ctx context.Context) {
 	defer utilruntime.HandleCrash()
-	ctx = utils.ContextWithControllerName(ctx, w.name)
-	ctx = utils.ContextWithLogger(ctx, w.logger)
 	defer w.queue.ShutDown()
+	defer w.discoveryQueue.ShutDown()
 	for ctx.Err() == nil {
 		err := func() (err error) {
 			defer utilruntime.HandleCrashWithContext(ctx, func(_ context.Context, value any) { err = fmt.Errorf("initialization panic: %v", value) })
@@ -125,58 +124,91 @@ func (w *Writer) Start(ctx context.Context) {
 		return
 	}
 	var workers sync.WaitGroup
-	for range w.config.CIJobOutcomes.GetWorkers() {
+	for _, controller := range []struct {
+		name    string
+		logger  logr.Logger
+		workers int
+		process func(context.Context) bool
+		loop    func(context.Context)
+	}{
+		{w.name, w.logger, w.config.CIJobOutcomes.GetWorkers(), w.processNext, w.processingLoop},
+		{w.discoveryName, w.discoveryLogger, w.config.CIJobOutcomes.GetDiscoveryWorkers(), w.processNextDiscovery, w.discoveryLoop},
+	} {
+		controllerCtx := utils.ContextWithLogger(utils.ContextWithControllerName(ctx, controller.name), controller.logger)
+		for range controller.workers {
+			workers.Add(1)
+			go func() {
+				defer utilruntime.HandleCrash()
+				defer workers.Done()
+				for controller.process(controllerCtx) {
+				}
+			}()
+		}
 		workers.Add(1)
 		go func() {
 			defer utilruntime.HandleCrash()
 			defer workers.Done()
-			for w.processNext(ctx) {
-			}
+			controller.loop(controllerCtx)
 		}()
 	}
-	workers.Add(1)
-	go func() {
-		defer utilruntime.HandleCrash()
-		defer workers.Done()
-		w.discoveryLoop(ctx)
-	}()
 	<-ctx.Done()
 	w.queue.ShutDown()
+	w.discoveryQueue.ShutDown()
 	workers.Wait()
 }
 
 func (w *Writer) processNext(ctx context.Context) bool {
-	id, shutdown := w.queue.Get()
+	return w.processNextQueue(ctx, w.queue, w.reconcile)
+}
+
+func (w *Writer) processNextDiscovery(ctx context.Context) bool {
+	return w.processNextQueue(ctx, w.discoveryQueue, func(ctx context.Context, uri JobURI) (time.Duration, error) {
+		if err := w.reconcileDiscovery(ctx, uri); err != nil {
+			return 0, err
+		}
+		// Acceptance is not visibility. After cache expiry, reconcile checks the
+		// live row and either finishes or resubmits failed asynchronous ingestion.
+		if _, accepted := w.batches.get(discoveryTag(uri)); accepted {
+			return w.config.CIJobOutcomes.GetInterval(), nil
+		}
+		return 0, nil
+	})
+}
+
+func (w *Writer) processNextQueue(ctx context.Context, queue workqueue.TypedRateLimitingInterface[JobURI], reconcile func(context.Context, JobURI) (time.Duration, error)) bool {
+	uri, shutdown := queue.Get()
 	if shutdown {
 		return false
 	}
-	defer w.queue.Done(id)
+	defer queue.Done(uri)
 	if ctx.Err() != nil {
-		w.queue.Forget(id)
+		queue.Forget(uri)
 		return false
 	}
-	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), id)
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), uri)
 	ctx = utils.ContextWithLogger(ctx, logger)
-	// Recovery belongs inside the loop, so a recovered reconcile cannot remove
-	// a worker permanently. The handler turns a panic into an ordinary retry.
-	err := func() (err error) {
+	delay, err := func() (delay time.Duration, err error) {
+		// Recover inside the loop: nonfatal panics must not retire a worker.
 		defer utilruntime.HandleCrashWithContext(ctx, func(_ context.Context, value any) { err = fmt.Errorf("reconcile panic: %v", value) })
-		return w.reconcile(ctx, id)
+		return reconcile(ctx, uri)
 	}()
 	if err != nil && ctx.Err() == nil {
 		logger.Error(err, "Reconcile failed; retrying")
-		w.queue.AddRateLimited(id)
+		queue.AddRateLimited(uri)
 	} else {
-		w.queue.Forget(id)
+		queue.Forget(uri)
+		if delay > 0 && ctx.Err() == nil {
+			queue.AddAfter(uri, delay)
+		}
 	}
 	return ctx.Err() == nil
 }
 
 func (w *Writer) discoveryLoop(ctx context.Context) {
-	ticker := time.NewTicker(w.config.CIJobOutcomes.GetInterval())
+	ticker := time.NewTicker(w.config.CIJobOutcomes.GetDiscoveryInterval())
 	defer ticker.Stop()
 	for {
-		w.discover(ctx, time.Now().UTC())
+		w.discover(ctx, w.now().UTC())
 		select {
 		case <-ctx.Done():
 			return
@@ -187,164 +219,183 @@ func (w *Writer) discoveryLoop(ctx context.Context) {
 
 func (w *Writer) discover(ctx context.Context, now time.Time) {
 	defer utilruntime.HandleCrashWithContext(ctx)
-	for _, release := range w.config.CIJobOutcomes.Releases {
+	jobs, err := w.gcs.ListJobs(ctx)
+	if err != nil {
+		utils.LoggerFromContext(ctx).Error(err, "List job names failed")
+		return
+	}
+	for _, job := range jobs {
 		if ctx.Err() != nil {
 			return
 		}
-		if err := w.discoverRelease(ctx, release, now); err != nil {
-			w.logger.Error(err, "Discovery failed; retrying next poll", "release", release)
+		if err := w.discoverJob(ctx, job, now); err != nil {
+			utils.LoggerFromContext(ctx).Error(err, "Discovery failed; retrying next poll", "jobName", job.Name, "prefix", job.Prefix)
 		}
 	}
 }
 
-func (w *Writer) discoverRelease(ctx context.Context, release string, now time.Time) (err error) {
+func (w *Writer) discoverJob(ctx context.Context, job GCSJob, now time.Time) (err error) {
 	defer utilruntime.HandleCrashWithContext(ctx, func(_ context.Context, value any) { err = fmt.Errorf("discovery panic: %v", value) })
+	start := time.Now()
 	settings := w.config.CIJobOutcomes
-	cursor, err := w.cursor(ctx, release)
+	since, mode, fetched, enqueued := now.Add(-settings.GetWindow()), "incremental", 0, 0
+	defer func() {
+		utils.LoggerFromContext(ctx).Info("Discovery scan", "jobName", job.Name, "prefix", job.Prefix, "since", since, "until", now,
+			"mode", mode, "fetched", fetched, "enqueueAttempts", enqueued, "queueDepth", w.discoveryQueue.Len(), "duration", time.Since(start), "error", err)
+	}()
+	cursor, err := w.jobCursor(ctx, job)
 	if err != nil {
 		return err
 	}
-	repair := w.lastRepair[release].IsZero() || !now.Before(w.lastRepair[release].Add(settings.GetRepairInterval()))
-	since := cursor
-	if since.IsZero() {
-		since = now.Add(-settings.GetWindow())
-	} else {
-		since = cursor.Add(-settings.GetOverlap())
+	if cursor != "" {
+		since, err = BuildIDTime(cursor)
+		if err != nil {
+			return err
+		}
+		since = since.Add(-settings.GetOverlap())
 	}
+	repair := w.lastRepair[job.Prefix].IsZero() || !now.Before(w.lastRepair[job.Prefix].Add(settings.GetRepairInterval()))
 	if repair {
+		mode = "repair"
 		if floor := now.Add(-settings.GetWindow()); floor.Before(since) {
 			since = floor
 		}
 	}
-	if startupSince := settings.GetStartupSince(); w.lastRepair[release].IsZero() && !startupSince.IsZero() && startupSince.Before(since) {
-		since = startupSince
+	if startup := settings.GetStartupSince(); w.lastRepair[job.Prefix].IsZero() && !startup.IsZero() && startup.Before(since) {
+		since, mode = startup, "startup"
 	}
-	runs, err := fetchRuns(ctx, w.client, settings.SippyURI, release, settings.JobFilter, since)
+	if since.After(now) {
+		since = now
+	}
+	err = w.gcs.ListRuns(ctx, job, since, now, func(uri JobURI) error {
+		fetched++
+		// Never subtract accepted cache entries: replay repairs failed ingestion.
+		w.discoveryQueue.Add(uri)
+		enqueued++
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-	slices.SortFunc(runs, func(a, b sippyRun) int {
-		if order := a.Timestamp.Compare(b.Timestamp.Time); order != 0 {
-			return order
-		}
-		return strings.Compare(a.ProwID, b.ProwID)
-	})
-	for _, run := range runs {
-		if run.Timestamp.IsZero() || run.Timestamp.Before(since) || run.ProwID == "" {
-			continue
-		}
-		if !validRun(ctx, run, BuildID(run.ProwID)) {
-			continue
-		}
-		id := BuildID(run.ProwID)
-		if run.hasTerminalOutcome() {
-			w.metadata.put(id, runMetadata{run: run, release: release})
-		}
-		// Never subtract completed outcomes or cache entries here. Each source
-		// has its own tag and a later repair must be able to fill missing batches.
-		w.queue.Add(id)
-	}
 	if repair {
-		w.lastRepair[release] = now
+		w.lastRepair[job.Prefix] = now
 	}
-	w.metrics.discovery.WithLabelValues(release).Set(float64(now.Unix()))
+	w.metrics.discovery.WithLabelValues(w.discoveryName).Set(float64(now.Unix()))
 	return nil
 }
 
-func validRun(ctx context.Context, run sippyRun, id BuildID) bool {
-	info, err := snapshot.ParseProwURL(run.URL)
-	if err != nil || info.ProwID != string(id) || run.ProwID != string(id) {
-		utils.LoggerFromContext(ctx).Info("Skipping malformed or mismatched Sippy run", "buildId", id, "url", run.URL, "error", err)
-		return false
+func (w *Writer) reconcileDiscovery(ctx context.Context, uri JobURI) error {
+	row, err := JobReference(uri)
+	if err != nil {
+		return err
 	}
-	return true
+	if row.JobURI != uri {
+		return fmt.Errorf("noncanonical job URI %q", uri)
+	}
+	tag := discoveryTag(uri)
+	if _, accepted := w.batches.get(tag); accepted {
+		w.metrics.cacheHits.WithLabelValues("batches").Inc()
+		return nil
+	}
+	exists, err := w.discoveredExists(ctx, uri)
+	if err != nil || exists {
+		return err
+	}
+	if err := w.submitDiscovery(ctx, []DiscoveredJob{row}, tag); err != nil {
+		w.metrics.submissions.WithLabelValues(string(discoveredBatch), "error").Inc()
+		return err
+	}
+	w.metrics.submissions.WithLabelValues(string(discoveredBatch), "accepted").Inc()
+	w.batches.put(tag, struct{}{})
+	return nil
 }
 
-func (w *Writer) lookupMetadata(ctx context.Context, id BuildID) (runMetadata, error) {
-	if value, ok := w.metadata.get(id); ok && value.run.hasTerminalOutcome() {
-		w.metrics.cacheHits.WithLabelValues("metadata").Inc()
-		return value, nil
-	}
-	var failures []error
-	settings := w.config.CIJobOutcomes
-	for _, release := range settings.Releases {
-		runs, err := fetchRunByID(ctx, w.client, settings.SippyURI, release, string(id))
-		if err != nil {
-			failures = append(failures, err)
-			continue
+func (w *Writer) processingLoop(ctx context.Context) {
+	ticker := time.NewTicker(w.config.CIJobOutcomes.GetInterval())
+	defer ticker.Stop()
+	for {
+		w.discoverPending(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 		}
-		for _, run := range runs {
-			if run.ProwID != string(id) {
+	}
+}
+
+func (w *Writer) discoverPending(ctx context.Context) {
+	defer utilruntime.HandleCrashWithContext(ctx)
+	start := time.Now()
+	jobs, err := w.pendingJobs(ctx)
+	enqueued := 0
+	if err == nil {
+		for _, uri := range jobs {
+			canonical, validationErr := CanonicalJobURI(string(uri))
+			if validationErr != nil || canonical != uri {
+				utils.LoggerFromContext(ctx).Error(fmt.Errorf("invalid canonical job URI %q: %v", uri, validationErr), "Skipping invalid discovered row")
 				continue
 			}
-			value := runMetadata{run: run, release: release}
-			if validRun(ctx, run, id) && run.hasTerminalOutcome() {
-				w.metadata.put(id, value)
-			}
-			return value, nil
+			w.queue.Add(uri)
+			enqueued++
 		}
+		w.metrics.discovery.WithLabelValues(w.name).Set(float64(w.now().Unix()))
+	} else {
+		utils.LoggerFromContext(ctx).Error(err, "Pending job scan failed; retrying next poll")
 	}
-	return runMetadata{}, errors.Join(append(failures, fmt.Errorf("sippy metadata not found for %s", id))...)
+	utils.LoggerFromContext(ctx).Info("Pending job scan", "mode", "pending", "window", "all", "fetched", len(jobs), "enqueueAttempts", enqueued,
+		"queueDepth", w.queue.Len(), "duration", time.Since(start), "error", err)
 }
 
-func (w *Writer) reconcile(ctx context.Context, id BuildID) error {
-	ctx = snapshot.WithProwArtifactProblemHandler(ctx, func(source, reason string) {
-		w.metrics.artifacts.WithLabelValues(source, reason).Inc()
-	})
+func (w *Writer) reconcile(ctx context.Context, uri JobURI) (time.Duration, error) {
+	row, err := JobReference(uri)
+	if err != nil {
+		return 0, err
+	}
+	if row.JobURI != uri {
+		return 0, fmt.Errorf("noncanonical job URI %q", uri)
+	}
+	id := BuildID(row.BuildID)
+	if exists, err := w.processedExists(ctx, id); err != nil || exists {
+		return 0, err
+	}
+	ctx = snapshot.WithProwArtifactProblemHandler(ctx, func(source, reason string) { w.metrics.artifacts.WithLabelValues(source, reason).Inc() })
+	delay := w.config.CIJobOutcomes.GetInterval()
+	completion, err := w.completion(ctx, w.client, string(uri))
+	if err != nil {
+		return 0, err
+	}
+	if completion == nil || w.now().Before(completion.FinishedAt.Add(w.config.CIJobOutcomes.GetCompletionDelay())) {
+		w.reportBatch(runBatch, id, "pending", 0, nil, nil)
+		return delay, nil
+	}
+	info, _ := uri.Info() // JobReference already validated this URI.
 	missing := map[batchKind]bool{}
+	handled := map[batchKind]bool{}
 	var failures []error
 	for _, kind := range batchKinds {
-		if _, ok := w.batches.get(kind.tag(id)); ok {
-			w.metrics.cacheHits.WithLabelValues("batches").Inc()
-			w.reportBatch(kind, id, "existing", 0, nil, nil)
-			continue
-		}
+		// Accepted submissions are never completion proof, even within the TTL.
 		exists, err := w.tagExists(ctx, kind, id)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("check %s: %w", kind, err))
 			w.reportBatch(kind, id, "error", 0, nil, err)
 			continue
 		}
-		// Live tags are not cached as submissions: after eviction the next
-		// reconcile checks the current Kusto state again before any download.
-		missing[kind] = !exists
 		if exists {
+			handled[kind] = true
 			w.reportBatch(kind, id, "existing", 0, nil, nil)
+		} else if _, accepted := w.batches.get(kind.tag(id)); accepted {
+			w.metrics.cacheHits.WithLabelValues("batches").Inc()
+			w.reportBatch(kind, id, "pending", 0, nil, nil)
+		} else {
+			missing[kind] = true
 		}
-	}
-	if !missing[runBatch] && !missing[testsBatch] && !missing[namesBatch] && !missing[observabilityTestsBatch] && !missing[observabilityNamesBatch] {
-		return errors.Join(failures...)
-	}
-	metadata, err := w.lookupMetadata(ctx, id)
-	if err == nil && !validRun(ctx, metadata.run, id) {
-		if w.report == nil {
-			return errors.Join(failures...)
-		}
-		err = fmt.Errorf("malformed or mismatched Sippy metadata for %s", id)
-	}
-	if err != nil {
-		for _, kind := range batchKinds {
-			if missing[kind] {
-				w.reportBatch(kind, id, "error", 0, nil, err)
-			}
-		}
-		return errors.Join(append(failures, err)...)
 	}
 	if missing[runBatch] {
-		// The immutable run tag must not capture a pending Sippy verdict, even
-		// if Prow already has a completion record. Other batches are independent.
-		if !metadata.run.hasTerminalOutcome() {
-			err := fmt.Errorf("job outcome pending: Sippy overall_result %q for %s is not terminal", metadata.run.OverallResult, id)
-			failures = append(failures, err)
-			w.reportBatch(runBatch, id, "error", 0, nil, err)
-		} else if detail, err := w.jobDetail(ctx, w.client, metadata.run.URL); err != nil {
+		if detail, err := w.jobDetail(ctx, w.client, info.URL); err != nil {
 			failures = append(failures, fmt.Errorf("job outcome: %w", err))
 			w.reportBatch(runBatch, id, "error", 0, nil, err)
 		} else {
-			outcome := outcomeFor(metadata.run, metadata.release)
-			outcome.SvcCluster, outcome.MgmtCluster = detail.SvcCluster, detail.MgmtCluster
-			outcome.FinishedAt, outcome.ADOBuildID = detail.FinishedAt, detail.ADOBuildID
-			failures = append(failures, submitBatch(ctx, w, runBatch, id, []ciJobOutcome{outcome}))
+			failures = append(failures, submitBatch(ctx, w, runBatch, id, []ciJobOutcome{outcomeForProw(info, *completion, detail)}))
 		}
 	}
 	for _, source := range []struct {
@@ -357,7 +408,7 @@ func (w *Writer) reconcile(ctx context.Context, id BuildID) error {
 		if !missing[source.tests] && !missing[source.names] {
 			continue
 		}
-		tests, names, err := source.fetch(ctx, w.client, metadata.run.URL)
+		tests, names, err := source.fetch(ctx, w.client, info.URL)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", source.tests, err))
 			if missing[source.tests] && tests == nil {
@@ -369,43 +420,67 @@ func (w *Writer) reconcile(ctx context.Context, id BuildID) error {
 		}
 		if missing[source.tests] && (err == nil || tests != nil) {
 			failures = append(failures, submitBatch(ctx, w, source.tests, id, tests))
+			handled[source.tests] = len(tests) == 0
 		}
 		if missing[source.names] && (err == nil || names != nil) {
 			failures = append(failures, submitBatch(ctx, w, source.names, id, names))
+			handled[source.names] = len(names) == 0
 		}
 	}
-	return errors.Join(failures...)
+	if err := errors.Join(failures...); err != nil {
+		return 0, err
+	}
+	for _, kind := range batchKinds {
+		if !handled[kind] {
+			return delay, nil
+		}
+	}
+	if w.dryRun {
+		w.reportBatch(processedBatch, id, "would-submit", 1, nil, nil)
+		return 0, nil
+	}
+	err = w.submitProcessed(ctx, id)
+	result := "accepted"
+	if err != nil {
+		result = "error"
+	}
+	w.metrics.submissions.WithLabelValues(string(processedBatch), result).Inc()
+	if err != nil {
+		w.reportBatch(processedBatch, id, "error", 1, nil, err)
+		return 0, err
+	}
+	w.reportBatch(processedBatch, id, "submitted", 1, nil, nil)
+	// Keep checking until the acknowledgment itself becomes visible.
+	return delay, nil
 }
 
 func submitBatch[T any](ctx context.Context, w *Writer, kind batchKind, id BuildID, rows []T) error {
-	if rows == nil {
-		w.reportBatch(kind, id, "unavailable", 0, nil, nil)
+	if len(rows) == 0 {
+		status := "empty"
+		if rows == nil {
+			status = "unavailable"
+		}
+		w.reportBatch(kind, id, status, 0, nil, nil)
 		return nil
 	}
-	if len(rows) != 0 {
-		payload, err := encodeRows(rows)
-		if err == nil && w.dryRun {
-			w.reportBatch(kind, id, "would-submit", len(rows), payload, nil)
-			return nil
-		}
-		if err == nil {
-			err = w.submit(ctx, kind, id, payload)
-		}
-		result := "accepted"
-		if err != nil {
-			result = "error"
-		}
-		w.metrics.submissions.WithLabelValues(string(kind), result).Inc()
-		if err != nil {
-			w.reportBatch(kind, id, "error", len(rows), nil, err)
-			return fmt.Errorf("submit %s: %w", kind, err)
-		}
-		w.reportBatch(kind, id, "submitted", len(rows), nil, nil)
-	} else {
-		w.reportBatch(kind, id, "empty", 0, nil, nil)
+	payload, err := encodeRows(rows)
+	if err == nil && w.dryRun {
+		w.reportBatch(kind, id, "would-submit", len(rows), payload, nil)
+		return nil
 	}
-	// Valid checked-empty sources are cached only in memory. Absent or malformed
-	// sources return nil slices and must remain eligible for the next reconcile.
+	if err == nil {
+		err = w.submit(ctx, kind, id, payload)
+	}
+	result := "accepted"
+	if err != nil {
+		result = "error"
+	}
+	w.metrics.submissions.WithLabelValues(string(kind), result).Inc()
+	if err != nil {
+		w.reportBatch(kind, id, "error", len(rows), nil, err)
+		return fmt.Errorf("submit %s: %w", kind, err)
+	}
+	w.reportBatch(kind, id, "submitted", len(rows), nil, nil)
 	w.batches.put(kind.tag(id), struct{}{})
 	return nil
 }

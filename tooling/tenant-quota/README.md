@@ -27,85 +27,177 @@ The detailed startup, configuration, credentials, and rendered deployment behavi
 
 The service listens on port `8080` and exposes `/healthz`, `/readyz`, `/version`, and `/metrics`.
 
-## CI Outcomes Controller
+## CI Discovery And Outcomes
 
-The CI outcomes controller polls Sippy every `ciJobOutcomes.interval` (default `5m`). For each release it reads Kusto's maximum `startedAt` among completed jobs and subtracts `overlap` (default `3h`) to form the polling cursor. On startup and every `repairInterval` (`12h`), it polls from `min(cursor, now - window)`, where `window` is the repair lookback (`24h`). An empty release starts with that repair lookback. The window is not a cap on recovery after an outage: an older cursor still wins.
+Two independent URI-keyed controllers share Kusto clients. Discovery enumerates
+public GCS job names and runs under the configured bucket and job-name filter:
+PR directory aliases, batch presubmits, branch jobs, and periodic jobs. It follows
+all listing pages without recursively listing artifacts. There are no Sippy calls.
+Each listing scope has a Kusto-derived maximum build-ID cursor with overlap,
+periodic repair, and an optional `startupSince` override. Discovery writes
+canonical `jobUri`, `buildId`, and `jobName` rows to `ciDiscoveredJobs`.
 
-Set optional `ciJobOutcomes.startupSince` to an RFC3339 timestamp (for example, `"2026-09-15T00:00:00Z"`) to extend startup discovery for a backfill. It defaults to empty. Until each release's first successful discovery scan, the controller uses `min(derived since, startupSince)`; an earlier cursor or repair lookback still wins. Failed scans retry with the override. Subsequent polls use normal cursor overlap and periodic repair lookbacks, ignoring `startupSince`. There is no persisted cursor or startup checkpoint: every process restart repeats the override until you remove it or set it to empty. A successful discovery only means runs were enqueued, not that ingestion finished.
+Processing selects discovered URIs whose build IDs are absent from `ciProcessedJobs`,
+without an age cutoff. It waits for Prow completion and `completionDelay`, then
+reconciles the independent `run`, `tests`, `names`, `observability-tests`, and
+`observability-names` batches. Only visible semantic tags (or handled empty/absent
+sources) permit the processed acknowledgment. Accepted submissions are not proof
+of visibility. The bounded TTL cache suppresses recent submissions, not pending
+work. Errors retry; incomplete or settling jobs are rescheduled normally.
 
-This is bounded recovery, not a durable completeness watermark. A restart can lose pending runs older than both the current overlap and repair window; asynchronously failed submissions outside those windows likewise require an explicit wider backfill. Sippy exposes job start time, so unusually late completions or imports can also fall outside discovery. In-process retries do not expire when a run ages out of a discovery window.
+Deploy the `ciDiscoveredJobs` and `ciProcessedJobs` tables and mappings, plus updated
+outcomes/results mappings, before ingestion or controller rollout. The outcomes,
+test names, and test results tables retain their existing semantic batch identities.
+Observability failures are independent of E2E results. See the
+[schema sources](../../dev-infrastructure/modules/logs/kusto/tables/) and
+[`ci-outcomes.example.yaml`](ci-outcomes.example.yaml) for current settings.
 
-Discovered runs are sorted and enqueued unconditionally, rather than subtracting runs already present in Kusto. A rate-limited workqueue drives `workers` (`10`) concurrent reconciles. There is no per-pass or per-reconcile timeout; the top-level collector `timeout` remains unchanged for other collectors. Transient failures retry indefinitely until success or process shutdown. Permanent errors, including HTTP 404 and malformed artifacts, are logged and forgotten rather than retried.
+Metrics expose both queues, retries, processing duration, and submission failures.
+`exitOnPanic` controls whether recovered panics terminate the process; the CLI uses
+the same policy. Discovery repair is not a completeness watermark: old missing
+discovery rows still require a wider explicit scan. Once discovery rows are visible,
+the pending-work anti-join survives restarts and late completion.
 
-Ingestion uses immutable semantic batch tags for `run`, `tests`, and `names`, plus independent `observability-tests` and `observability-names` batches. Retrying a semantic batch reuses its identity so Kusto can suppress duplicate ingestion. The controller does not call ingestion `Wait` or retain completion tracking; successful submission is not a claim that the rows are already queryable. Cursor overlap and repair polls allow missing batches to be submitted again.
+## One-Shot CLI
 
-Sippy metadata and recently submitted batches use bounded, expiring in-memory caches. Each cache is limited by the same `cacheSize` (`20000` entries) and `cacheTTL` (`15m`) settings; neither is a durable checkpoint. Eviction, expiry, or restart can cause another submission, which remains safe through semantic batch tags. Worker/cache sizes and durations must be positive. The collector requests and limits `1Gi` of memory.
+Run from `tooling/tenant-quota`. Both commands dispatch before service startup,
+never load tenant secrets or start an HTTP server, and require `--config` pointing
+at runtime YAML. All CI config is validated even when the collector is disabled.
+Neither command polls, reads live cursors, or retries selected keys. Failures do not
+prevent independent keys from being attempted. Both default to read-only; only
+explicit `--ingest` permits writes. `--dry-run=false` is rejected.
 
-Controller and workqueue metrics are exposed through `/metrics` alongside the other collectors. Use queue depth, retries, processing duration, and ingestion submission failures to distinguish a growing backlog from healthy duplicate suppression. Recovered controller panics are logged and counted; top-level `exitOnPanic` defaults to `false` and can be set to `true` to terminate on panic instead of continuing. Local configuration and the Helm ConfigMap use the same setting.
-
-The existing Kusto tables remain the storage contract: `ciJobOutcomes` for runs, `ciTestNames` for names, and `ciTestResults` for results. The final `ciTestResults.message` string column carries failure or diagnostic text, including observability test details. [`ciTestResultsMapping`](../../dev-infrastructure/modules/logs/kusto/tables/ciTestResults.kql) maps it from the JSON `message` field; absent messages are empty. Apply the updated table and mapping before rolling out the writer. No additional tables or schemas are required.
-
-E2E results retain their existing JSON-derived fields and skip filtering. Observability ingests only failed/error cases from `junit_alerts.xml`, including collection-completeness failures, using `alerts.json.timeWindow` as the evaluated interval. Passing and known-issue skipped alerts are not copied. Old `run-<buildID>` and `tests-<buildID>` tags remain authoritative; previously ingested E2E messages are not backfilled. Observability tags are separate so old E2E ingestion cannot suppress new observability batches.
-
-## One-Shot CI Outcomes CLI
-
-Run from `tooling/tenant-quota`. The CLI dispatches before service startup and never
-loads tenant secrets, contacts Key Vault, or starts an HTTP server. Use rendered
-runtime YAML, or the collector-only [`ci-outcomes.example.yaml`](ci-outcomes.example.yaml).
-All CI settings are validated even if `ciJobOutcomes.enabled` is `false`.
+The collector-only [`ci-outcomes.example.yaml`](ci-outcomes.example.yaml) selects
+bucket `test-platform-results-public` and job-name substring `e2e-parallel`, with
+Kusto database `ServiceLogs`. Its `enabled: false` disables daemon collection, not
+these commands. Discovery previews do not use the configured Kusto endpoints.
 
 ```bash
-go build -o tenant-quota-collector .
+# Exact artifact inspection, with no Kusto or Azure credentials.
+go run . ci-outcomes --config ci-outcomes.example.yaml \
+  --job-uri gs://test-platform-results-public/logs/periodic-ci-Azure-ARO-HCP-test/1976270000000000123 \
+  --inspect-artifacts
 
-# Default dry-run: live Kusto tag checks, then JSON rows for missing batches.
-AZURE_TOKEN_CREDENTIALS=AzureCLICredential ./tenant-quota-collector ci-outcomes \
-  --config ci-outcomes.example.yaml --build-id 123 --build-id 456
+# Scoped discovery preview, with no Kusto or Azure credentials.
+go run . ci-discovery --config ci-outcomes.example.yaml \
+  --since 2026-10-08T00:00:00Z --until 2026-10-09T00:00:00Z \
+  --limit 100 --workers 1
 
-# Public artifact inspection: no Kusto queries or Azure credentials, ignoring tags.
-./tenant-quota-collector ci-outcomes --config ci-outcomes.example.yaml \
-  --release Presubmits --since 2026-10-08T00:00:00Z \
-  --until 2026-10-09T00:00:00Z --limit 5 --inspect-artifacts --workers 2
-
-# Explicit opt-in ingestion, with the same selection and reconciliation logic.
-AZURE_TOKEN_CREDENTIALS=AzureCLICredential ./tenant-quota-collector ci-outcomes \
-  --config ci-outcomes.example.yaml --build-id 123 --ingest
+# Exact outcome ingestion (substitute a real URI selected by discovery).
+AZURE_TOKEN_CREDENTIALS=AzureCLICredential go run . ci-outcomes \
+  --config ci-outcomes.example.yaml --job-uri gs://BUCKET/logs/JOB/BUILD_ID --ingest
 ```
 
-Select either repeatable `--build-id` flags or repeatable `--release` flags with
-all of `--since`, `--until`, and positive `--limit`. The interval applies to **job
-start**, inclusive at `since` and exclusive at `until`, not completion or ingestion.
-Candidates from all selected releases are sorted by start time, build ID, and
-release, then deduplicated by ID before the global limit. Exact IDs use the existing
-Sippy exact-ID API across configured releases; they are deduplicated and sorted.
-There is no polling, repair, cursor expansion, or controller retry: each key is
-attempted once. Failed keys do not prevent other selected keys from being attempted.
-`--workers` defaults to the runtime config; use `--workers 1` for ordered output.
+`ci-outcomes` requires repeatable `--job-uri gs://...` flags. Canonical URIs are
+deduplicated and sorted; one trailing slash is accepted. `--build-id` and `--release`
+are no longer supported. Default read-only processing checks live processed rows
+and batch tags using only a query client, never ingestors or mapping changes.
+`--inspect-artifacts` bypasses Kusto and its credentials, ignoring existing rows
+and tags; it cannot be combined with `--ingest`.
 
-Dry-run constructs only a query client and checks live semantic extent tags on
-each invocation. It does not construct ingestors or check ingestion mappings.
-`--ingest` additionally requires deployed schema mappings and ingestion permissions.
-`--inspect-artifacts` bypasses Kusto entirely and rejects `--ingest`; configured
-Kusto settings are still validated but not used. `--dry-run` is optional and cannot
-be combined with `--ingest`. Azure-backed modes use the existing default credential
-chain and require `AZURE_TOKEN_CREDENTIALS` (for example, `AzureCLICredential` after
-logging into the appropriate dev tenant).
+`ci-discovery` accepts optional repeatable exact `--job-name` selectors. By default
+it selects all names matching the configured bucket/filter and supported scopes.
+It requires `--since`, explicit `--until`, and positive `--limit`. Bounds are
+inclusive and apply to **build-ID snowflake time**, not artifact start/completion
+or ingestion time: a run exactly at `--until` is included. Every page of every
+selected scope is read. Canonical references are deduplicated by URI and sorted by
+ascending numeric build ID, then canonical URI as the tie-breaker, **before** the
+global limit is applied. Validated 19-digit IDs can be compared lexicographically
+without numeric conversion. Thus `--limit 3` selects the earliest three references,
+not the first three PR paths. Exact `ci-outcomes --job-uri` selection retains URI
+ordering; only discovery requires chronological ordering.
+Different URIs sharing a build ID remain distinct discovery rows. Unknown selected
+names are errors. Dry-run reports rows without Kusto access; ordinary `--ingest`
+uses the shared per-URI discovery reconcile to skip already visible rows.
 
-Logs go to stderr; stdout contains JSONL reports with `buildID`, semantic `tag`,
-`table`, `status`, and `rows` (row count). Status is `existing`, `empty`,
-`unavailable`, `would-submit`, `submitted`, or `error`. Dry-run `would-submit`
-reports always include the exact JSON rows in `payload`. `existing` reports have
-zero rows because their artifacts are not read; unavailable sources are distinct
-from valid empty sources. A source may report an error and still emit usable
-partial batches, following the controller's artifact behavior. Build-level error
-reports additionally summarize failed reconciles. Selection, initialization,
-reconciliation, output, cancellation, and recovered panic errors produce a nonzero
-exit. Permanent absent/malformed sources retain the controller's skip semantics
-and are reported as unavailable rather than retried. `submitted` means queued,
-not confirmed queryable. Signal cancellation and `exitOnPanic` use the service's
-existing policy and panic metrics handlers. Kusto HTTP requests, including SDK
-background auth metadata and resource discovery, are bound to the command or
-controller lifetime. SDK resource-discovery retry sleeps are not interruptible,
-so cancellation can still delay return after the HTTP request has stopped.
+`--all-history` replaces `--since`, never `--until`. Without `--bulk`, it still
+requires a positive limit. `--workers` must be positive when supplied and defaults
+to the corresponding controller's configured count. Use `--workers 1` for ordered
+per-key reports. Bulk mode does not use per-key workers.
+
+Logs go to stderr. Stdout contains JSONL `BatchReport` objects with optional
+`jobUri`, `buildID`, `tag`, `table`, `status`, `rows`, and dry-run `payload` rows.
+Statuses include `existing`, `empty`, `unavailable`, `would-submit`, `submitted`,
+`pending`, `waiting`, and `error`. `pending` describes incomplete/settling work;
+`waiting` indicates that reconciliation requested a future check. Both return
+normally without waiting or looping. Re-run explicitly or let the daemon continue.
+`submitted` means accepted for queued ingestion, not confirmed queryable. Processed
+acknowledgment previews may have no payload. Source failures can coexist with usable
+partial batches. Selection, initialization, reconciliation, output, cancellation,
+and recovered panic errors produce a nonzero exit. Azure-backed modes use the
+existing credential chain, for example `AZURE_TOKEN_CREDENTIALS=AzureCLICredential`.
+SDK retry sleeps may delay cancellation even after HTTP requests stop.
+
+For a compact discovery preview summary (three rows if at least three match):
+
+```bash
+go run . ci-discovery --config ci-outcomes.example.yaml \
+  --since 2026-10-08T00:00:00Z --until 2026-10-09T00:00:00Z \
+  --limit 3 --workers 1 > discovery-preview.jsonl
+jq -s '{reports: length, rows: (map(.rows) | add // 0), statuses: (map(.status) | unique)}' \
+  discovery-preview.jsonl
+# Example summary: {"reports":3,"rows":3,"statuses":["would-submit"]}
+jq -r '.payload[] | [.buildId, .jobUri] | @tsv' discovery-preview.jsonl
+# IDs ascend numerically; equal IDs are ordered by canonical URI.
+```
+
+## Pre-Deployment Bootstrap
+
+The ad hoc script is only a wrapper around `ci-discovery --all-history --bulk`.
+It has no alternate GCS parser, persisted replay state, or secret handling. Supply
+an explicit fixed `--until`; omitting it is an error. Bulk mode rejects `--limit`
+and enumerates **all supported history** through that bound, across all configured
+matching scopes (or explicit job names). The core currently supports canonical
+19-digit snowflakes; older unsupported IDs fail rather than being silently skipped.
+All rows are held in memory, canonicalized, deduplicated, and sorted by ascending
+build ID then canonical URI (the same order as bounded discovery) before one
+submission via the shared discovery writer. Any listing failure prevents that
+submission. Empty selections submit nothing. The batch tag hashes the exact sorted
+row content, so identical reruns reuse the same identity. Changed selections may
+overlap earlier batches; queries should use distinct URIs rather than raw counts.
+
+```bash
+# Safe default: one JSONL report containing all candidate rows, no Azure access.
+bash scripts/backfill-ci-discovery.sh --config ci-outcomes.example.yaml \
+  --until 2026-10-09T00:00:00Z > discovery-preview.jsonl
+
+# Only after reviewing the preview and deploying Kusto schemas:
+AZURE_TOKEN_CREDENTIALS=AzureCLICredential \
+  bash scripts/backfill-ci-discovery.sh --config ci-outcomes.example.yaml \
+  --until 2026-10-09T00:00:00Z --ingest > discovery-submitted.jsonl
+
+# Preview count and exact URI manifest for verification:
+jq '.rows' discovery-preview.jsonl
+jq -r '.payload[].jobUri' discovery-preview.jsonl
+# One bulk report, unlike the per-key reports above:
+jq '{status, rows, tag}' discovery-preview.jsonl
+# Example shape: {"status":"would-submit","rows":1234,"tag":"discovered-bulk-<sha256>"}
+```
+
+The command does **not** wait for ingestion visibility. Before deploying the daemon,
+verify the preview manifest against Kusto, not just command success. For exact
+verification, load the preview's URI list into `Expected` (a Kusto `datatable`,
+or a temporary query input for large manifests), then count and anti-join:
+
+```kusto
+let Expected = datatable(jobUri:string) [
+  // Insert every URI from the preview manifest, not just this example.
+  'gs://BUCKET/logs/JOB/BUILD_ID'
+];
+let Visible = ciDiscoveredJobs | distinct jobUri;
+Expected | join kind=leftanti Visible on jobUri
+// Must return zero rows. Also compare Expected | count with:
+// Expected | join kind=inner Visible on jobUri | count
+```
+
+After rollout, monitor the durable processing backlog independently:
+
+```kusto
+ciDiscoveredJobs
+| distinct jobUri, buildId
+| join kind=leftanti (ciProcessedJobs | distinct buildId) on buildId
+| summarize pendingJobs=count()
+```
 
 ## Deployment Layout
 

@@ -72,15 +72,32 @@ func TestTenantQuotaCIJobOutcomes(t *testing.T) {
 			var testConfig map[string]any
 			require.NoError(t, yaml.Unmarshal(resolved, &testConfig))
 			expected := map[string]any{
-				"interval": "5m", "window": "24h", "repairInterval": "12h", "overlap": "3h",
+				"interval": "15m", "window": "24h", "repairInterval": "12h", "overlap": "10m",
 				"workers": float64(10), "cacheSize": float64(20000), "cacheTTL": "15m",
+				"discoveryInterval": "30m", "completionDelay": "15m", "discoveryWorkers": float64(2),
+				"gcsBucket":    "test-platform-results-public",
 				"startupSince": "",
 			}
+			if tc.values == "values.yaml.tmpl" {
+				expected["jobFilter"] = "e2e-parallel"
+				for field, table := range map[string]string{
+					"outcomes": "ciJobOutcomes", "testNames": "ciTestNames", "testResults": "ciTestResults",
+					"discovered": "ciDiscoveredJobs", "processed": "ciProcessedJobs",
+				} {
+					expected[field] = map[string]any{"table": table, "ingestionMapping": table + "Mapping"}
+				}
+			}
 			if tc.custom {
-				expected = map[string]any{
+				for key, value := range map[string]any{
 					"interval": "1m", "window": "48h", "repairInterval": "6h", "overlap": "2h",
 					"workers": float64(3), "cacheSize": float64(100), "cacheTTL": "2m",
+					"discoveryInterval": "5m", "completionDelay": "3m", "discoveryWorkers": float64(4),
+					"gcsBucket":    "custom-results",
+					"discovered":   map[string]any{"table": "customDiscovered", "ingestionMapping": "customDiscoveryMapping"},
+					"processed":    map[string]any{"table": "customProcessed", "ingestionMapping": "customProcessingMapping"},
 					"startupSince": "2026-09-15T00:00:00Z",
+				} {
+					expected[key] = value
 				}
 				tenantQuota := testConfig["opstool"].(map[string]any)["tenantQuota"].(map[string]any)
 				tenantQuota["exitOnPanic"] = true
@@ -133,6 +150,8 @@ func TestTenantQuotaCIJobOutcomes(t *testing.T) {
 			require.Equal(t, "24h", runtime["cacheTTL"], "global collector cache TTL is unchanged")
 			outcomes := runtime["ciJobOutcomes"].(map[string]any)
 			require.NotContains(t, outcomes, "timeout", "CI reconciles have no timeout")
+			require.NotContains(t, outcomes, "sippyURI", "discovery reads GCS directly")
+			require.NotContains(t, outcomes, "releases", "discovery does not depend on Sippy releases")
 			for key, value := range expected {
 				require.Equal(t, value, outcomes[key], "controller setting %s", key)
 			}
@@ -152,7 +171,16 @@ func TestTenantQuotaCIJobOutcomes(t *testing.T) {
 		value any
 	}{
 		{field: "workers", value: 0},
+		{field: "discoveryWorkers", value: 0},
+		{field: "discoveryWorkers", value: -1},
 		{field: "cacheSize", value: 0},
+		{field: "gcsBucket", value: "gs://test-platform-results-public"},
+		{field: "gcsBucket", value: "https://storage.googleapis.com/test-platform-results-public"},
+		{field: "gcsBucket", value: "bucket/path"},
+		{field: "gcsBucket", value: "bucket name"},
+		{field: "gcsBucket", value: ""},
+		{field: "sippyURI", value: "https://sippy.dptools.openshift.org"},
+		{field: "releases", value: []string{"Presubmits"}},
 		{field: "timeout", value: "10m"},
 		{field: "startupSince", value: "not-a-date"},
 		{field: "startupSince", value: "2026-09-31T00:00:00Z"},

@@ -28,11 +28,6 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
 )
 
-// Sippy is a discovery source, not a complete one: it reports that a run
-// happened and whether it passed, but not the clusters it provisioned, when it
-// finished, or how long each of its tests took. All of that is in the run's own
-// Prow artifacts, so the rows are completed from there.
-//
 // The artifact readers are hcpctl's - see tooling/hcpctl/pkg/snapshot - because
 // they already encode where each file lives, how the artifact directory is
 // named per job, and how test timing metadata is stitched onto test results.
@@ -52,10 +47,11 @@ type prowFinished struct {
 	Result    string `json:"result"`
 }
 
-// runDetail is what a run's artifacts add to what Sippy already reported.
+// runDetail is optional enrichment, never evidence that a run has completed.
 type runDetail struct {
 	SvcCluster  string
 	MgmtCluster string
+	StartedAt   time.Time
 	FinishedAt  time.Time
 	ADOBuildID  string
 }
@@ -73,11 +69,9 @@ func fetchJobOutcomeDetail(ctx context.Context, client *http.Client, prowURL str
 
 	var failures []error
 
-	adoBuildID, err := fetchADOBuildID(ctx, client, info.GCSBucket, info.GCSPrefix)
-	if err = enrichmentError(ctx, err); err != nil {
+	detail, err = fetchProwRunMetadata(ctx, client, info.GCSBucket, info.GCSPrefix)
+	if err != nil {
 		failures = append(failures, err)
-	} else {
-		detail.ADOBuildID = adoBuildID
 	}
 
 	// Only runs that provision their own clusters have a config.yaml artifact.
@@ -94,13 +88,6 @@ func fetchJobOutcomeDetail(ctx context.Context, client *http.Client, prowURL str
 			detail.SvcCluster = jobConfig.ServiceClusterName
 			detail.MgmtCluster = jobConfig.ManagementClusterName
 		}
-	}
-
-	finishedAt, err := fetchFinishedAt(ctx, client, info.GCSBucket, info.GCSPrefix)
-	if err = enrichmentError(ctx, err); err != nil {
-		failures = append(failures, err)
-	} else {
-		detail.FinishedAt = finishedAt
 	}
 
 	return detail, errors.Join(failures...)
@@ -206,8 +193,7 @@ func fetchJSONArtifact(ctx context.Context, client *http.Client, url string, int
 // Only tests that ran are kept. A suite skips a large share of its specs
 // depending on what the run exercises, and a skipped test has no timings and no
 // outcome to attribute, so recording them would roughly double the table to say
-// nothing. Sippy's own synthetic tests are dropped for the same reason they are
-// dropped from the failure counts: they describe Sippy, not the run.
+// nothing. Sippy's synthetic tests describe Sippy, not the run, and are dropped.
 func testRowsFor(buildID string, results []snapshot.TestResult) ([]ciTestResult, []ciTestName) {
 	if results == nil {
 		return nil, nil

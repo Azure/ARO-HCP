@@ -17,10 +17,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,11 +49,15 @@ func TestMainDispatch(t *testing.T) {
 		{"", "read config file", true},
 		{"--help", "Usage: tenant-quota-collector", false},
 		{"-h", "Usage: tenant-quota-collector", false},
-		{"ci-outcomes --help", "job START", false},
+		{"ci-outcomes --help", "job-uri", false},
+		{"ci-discovery --help", "all-history", false},
 		{"ci-outcome", "unknown command or arguments", true},
 		{"--unknown", "unknown command or arguments", true},
 		{"--help unexpected", "unknown command or arguments", true},
 		{"ci-outcomes --unknown", "flag provided but not defined", true},
+		{"ci-discovery --unknown", "flag provided but not defined", true},
+		{"ci-outcomes --build-id 123", "flag provided but not defined", true},
+		{"ci-discovery --release Presubmits", "flag provided but not defined", true},
 	} {
 		t.Run(tc.args, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -79,46 +83,78 @@ func TestMainDispatch(t *testing.T) {
 }
 
 func TestCIOutcomesFlags(t *testing.T) {
-	interval := "--release Presubmits --since 2026-10-08T00:00:00Z --until 2026-10-09T00:00:00Z --limit 10"
+	uri := "gs://test-platform-results-public/logs/periodic-ci-Azure-ARO-HCP-test/1976270000000000123"
+	selection := "--job-uri " + uri
 	for _, args := range []string{
-		"", "--build-id 123 --release Presubmits", "--build-id 123 --limit 0", "--build-id 123 --workers 0",
-		"--build-id 123 --workers -1", "--build-id 123 --dry-run=false", "--build-id 123 --dry-run --ingest",
-		"--build-id 123 --inspect-artifacts --ingest", "--release Presubmits", "--since yesterday", "--unknown",
-		interval + " --limit 0", interval + " --limit -1", interval + " --until 2026-10-08T00:00:00Z",
-		interval + " --until 2026-10-07T00:00:00Z", interval + " positional",
+		"", "--build-id 123", "--release Presubmits", "--since yesterday", "--unknown",
+		selection + " --limit 0", selection + " --workers 0", selection + " --workers -1",
+		selection + " --dry-run=false", selection + " --dry-run --ingest", selection + " --inspect-artifacts --ingest",
+		selection + " positional", "--job-uri https://example.com", selection + "/artifacts", selection + "?query",
 	} {
 		t.Run(args, func(t *testing.T) {
 			_, _, err := parseCIOutcomes(append([]string{"--config", "runtime.yaml"}, strings.Fields(args)...), io.Discard)
 			require.Error(t, err)
 		})
 	}
-	_, _, err := parseCIOutcomes([]string{"--build-id", "123"}, io.Discard)
+	_, _, err := parseCIOutcomes([]string{"--job-uri", uri}, io.Discard)
 	require.ErrorContains(t, err, "--config")
-	_, _, err = parseCIOutcomes([]string{"--config", "runtime.yaml", "--build-id", ""}, io.Discard)
+	_, _, err = parseCIOutcomes([]string{"--config", "runtime.yaml", "--job-uri", ""}, io.Discard)
 	require.Error(t, err)
-	for _, args := range []string{"--build-id 123", "--build-id 123 --dry-run", "--build-id 123 --inspect-artifacts", interval} {
+	for _, args := range []string{selection, selection + " --dry-run", selection + " --inspect-artifacts"} {
 		path, options, err := parseCIOutcomes(append([]string{"--config", "runtime.yaml"}, strings.Fields(args)...), io.Discard)
 		require.NoError(t, err)
 		require.Equal(t, "runtime.yaml", path)
 		require.False(t, options.Ingest, "only explicit --ingest may write")
 	}
-	_, options, err := parseCIOutcomes([]string{"--config", "runtime.yaml", "--build-id", "123", "--build-id", "456", "--ingest", "--workers", "2"}, io.Discard)
+	_, options, err := parseCIOutcomes([]string{"--config", "runtime.yaml", "--job-uri", uri, "--job-uri", uri + "/", "--ingest", "--workers", "2"}, io.Discard)
 	require.NoError(t, err)
 	require.True(t, options.Ingest)
-	require.Equal(t, []cijoboutcomes.BuildID{"123", "456"}, options.BuildIDs)
+	require.Equal(t, []cijoboutcomes.JobURI{cijoboutcomes.JobURI(uri), cijoboutcomes.JobURI(uri)}, options.JobURIs)
 	require.Equal(t, 2, options.Workers)
-	_, options, err = parseCIOutcomes(append([]string{"--config", "runtime.yaml"}, strings.Fields(interval+" --release aro-stage")...), io.Discard)
+}
+
+func TestCIDiscoveryFlags(t *testing.T) {
+	interval := "--since 2026-10-08T00:00:00Z --until 2026-10-09T00:00:00Z --limit 10"
+	bulk := "--all-history --bulk --until 2026-10-09T00:00:00Z"
+	for _, args := range []string{
+		"", "--all-history --bulk", interval + " --all-history", interval + " --bulk",
+		interval + " --until 2026-10-08T00:00:00Z", interval + " --limit 0", interval + " --limit -1",
+		interval + " --workers 0", interval + " --workers -1", interval + " --inspect-artifacts",
+		interval + " --dry-run=false", interval + " --dry-run --ingest", interval + " positional",
+		bulk + " --since 2026-10-08T00:00:00Z", bulk + " --limit 0", bulk + " --limit 1",
+		"--all-history --until 2026-10-09T00:00:00Z", "--since yesterday", "--release Presubmits", "--build-id 123",
+	} {
+		t.Run(args, func(t *testing.T) {
+			_, _, err := parseCICommand("ci-discovery", append([]string{"--config", "runtime.yaml"}, strings.Fields(args)...), io.Discard)
+			require.Error(t, err)
+		})
+	}
+	for _, args := range []string{interval, bulk, "--all-history --until 2026-10-09T00:00:00Z --limit 10"} {
+		_, options, err := parseCICommand("ci-discovery", append([]string{"--config", "runtime.yaml"}, strings.Fields(args)...), io.Discard)
+		require.NoError(t, err)
+		require.True(t, options.Discovery)
+		require.False(t, options.Ingest)
+	}
+	_, options, err := parseCICommand("ci-discovery", append([]string{"--config", "runtime.yaml"}, strings.Fields(interval+" --job-name first --job-name second --ingest --workers 3")...), io.Discard)
 	require.NoError(t, err)
-	require.Equal(t, []string{"Presubmits", "aro-stage"}, options.Releases)
+	require.Equal(t, []string{"first", "second"}, options.JobNames)
+	require.True(t, options.Ingest)
+	require.Equal(t, 3, options.Workers)
 	require.Equal(t, 24*time.Hour, options.Until.Sub(options.Since))
 }
 
-func TestCIOutcomesHelpNeedsNoConfig(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	err := runCIOutcomes(t.Context(), []string{"--help"}, &stdout, &stderr, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	require.NoError(t, err)
-	require.Empty(t, stdout.String())
-	require.Contains(t, stderr.String(), "job START")
+func TestCIHelpNeedsNoConfig(t *testing.T) {
+	for _, command := range []string{"ci-outcomes", "ci-discovery"} {
+		var stdout, stderr bytes.Buffer
+		err := runCommand(t.Context(), []string{command, "--help"}, &stdout, &stderr, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		require.NoError(t, err)
+		require.Empty(t, stdout.String())
+		require.Contains(t, stderr.String(), "config")
+		if command == "ci-discovery" {
+			require.Contains(t, stderr.String(), "inclusive fixed upper bound")
+			require.Contains(t, stderr.String(), "ascending build ID sort, URI tie-break")
+		}
+	}
 }
 
 func TestCIOutcomesRunsWithoutTenantSecretsOrAzureCredentials(t *testing.T) {
@@ -129,23 +165,27 @@ func TestCIOutcomesRunsWithoutTenantSecretsOrAzureCredentials(t *testing.T) {
 	})
 	t.Setenv("AZURE_TOKEN_CREDENTIALS", "invalid-credential")
 	t.Setenv("SECRETS_STORE_PATH", "/does-not-exist")
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/api/jobs/runs", r.URL.Path)
-		_, _ = w.Write([]byte(`{"rows":[]}`))
-	}))
-	defer server.Close()
-	data, err := os.ReadFile("ci-outcomes.example.yaml")
-	require.NoError(t, err)
-	path := filepath.Join(t.TempDir(), "runtime.yaml")
-	require.NoError(t, os.WriteFile(path, bytes.ReplaceAll(data, []byte("https://sippy.dptools.openshift.org"), []byte(server.URL)), 0600))
+	originalTransport := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = originalTransport })
+	http.DefaultTransport = cliTransport(func(r *http.Request) (*http.Response, error) {
+		require.Equal(t, "storage.googleapis.com", r.URL.Host, "no Sippy, Kusto, or Azure calls")
+		if strings.Contains(r.URL.Path, "/storage/v1/") {
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{}`))}, nil
+		}
+		return nil, errors.New("artifact request failed")
+	})
 	var output bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	args := []string{"--config", path, "--inspect-artifacts", "--release", "Presubmits", "--since", "2026-10-08T00:00:00Z", "--until", "2026-10-09T00:00:00Z", "--limit", "1"}
-	require.NoError(t, runCIOutcomes(t.Context(), args, &output, io.Discard, logger))
-	args = []string{"--config", path, "--inspect-artifacts", "--build-id", "123"}
-	require.ErrorContains(t, runCIOutcomes(t.Context(), args, &output, io.Discard, logger), "metadata not found", "partial work errors propagate to main's nonzero exit")
+	args := []string{"ci-discovery", "--config", "ci-outcomes.example.yaml", "--all-history", "--bulk", "--until", "2026-10-09T00:00:00Z"}
+	require.NoError(t, runCommand(t.Context(), args, &output, io.Discard, logger))
+	args = []string{"--config", "ci-outcomes.example.yaml", "--inspect-artifacts", "--job-uri", "gs://test-platform-results-public/logs/periodic-ci-Azure-ARO-HCP-test/1976270000000000123"}
+	require.ErrorContains(t, runCIOutcomes(t.Context(), args, &output, io.Discard, logger), "artifact request failed", "partial work errors propagate to main's nonzero exit")
 	require.Contains(t, output.String(), `"status":"error"`)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	require.ErrorIs(t, runCIOutcomes(ctx, args, io.Discard, io.Discard, logger), context.Canceled)
 }
+
+type cliTransport func(*http.Request) (*http.Response, error)
+
+func (f cliTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

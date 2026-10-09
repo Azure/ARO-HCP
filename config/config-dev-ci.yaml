@@ -182,25 +182,30 @@ clouds:
             testResults:
               table: "ciTestResults"
               ingestionMapping: "ciTestResultsMapping"
-            sippyURI: "https://sippy.dptools.openshift.org"
+            discovered:
+              table: "ciDiscoveredJobs"
+              ingestionMapping: "ciDiscoveredJobsMapping"
+            processed:
+              table: "ciProcessedJobs"
+              ingestionMapping: "ciProcessedJobsMapping"
+            gcsBucket: "test-platform-results-public"
             jobFilter: "e2e-parallel"
-            interval: "5m"
+            # Process discovered jobs independently of GCS discovery.
+            interval: "15m"
+            discoveryInterval: "30m"
+            completionDelay: "15m"
             # Minimum lookback on startup and periodic repair polls.
             window: "24h"
-            # Optional RFC3339 lookback extension on each process startup.
+            # Optional explicit RFC3339 startup boundary; bootstrap is separate.
             startupSince: ""
             repairInterval: "12h"
-            # Re-read before each release's Kusto cursor to cover late results.
-            overlap: "3h"
+            # Re-read before each job's discovery cursor to cover late results.
+            overlap: "10m"
             workers: 10
-            # Bounds both Sippy metadata and recent-submission caches.
+            discoveryWorkers: 2
+            # Bounds recent-submission caches.
             cacheSize: 20000
             cacheTTL: "15m"
-            releases:
-            - "Presubmits"
-            - "aro-integration"
-            - "aro-stage"
-            - "aro-production"
           prow:
             enabled: true
             baseURL: "https://prow.ci.openshift.org"

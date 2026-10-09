@@ -172,7 +172,7 @@ func TestOneShotCancelsSDKMetadataRequest(t *testing.T) {
 		return nil, r.Context().Err()
 	})
 	done := make(chan error, 1)
-	go func() { done <- w.RunOnce(ctx, OneShotOptions{BuildIDs: []BuildID{"123"}}, io.Discard) }()
+	go func() { done <- w.RunOnce(ctx, OneShotOptions{JobURIs: []JobURI{testJobURI}}, io.Discard) }()
 	select {
 	case <-entered:
 	case <-time.After(time.Second):
