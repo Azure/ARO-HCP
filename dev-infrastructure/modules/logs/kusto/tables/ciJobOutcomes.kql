@@ -27,6 +27,11 @@
 // from prowjob.json, empty when absent or on existing rows. Deploy this schema
 // and mapping before the writer; previously recorded runs are not backfilled.
 //
+// GCS discovery migration: deploy this mapping and the ciDiscoveredJobs and
+// ciProcessedJobs schema scripts before deploying the collector. sippyRelease
+// and testFailures remain physical columns to preserve historical values, but
+// are no longer mapped or sent by the writer. New rows leave them empty/null.
+//
 // Only runs that provision their own clusters carry cluster names. Runs against
 // a promoted environment use clusters that already exist, and their telemetry
 // lives in that environment's own Kusto rather than here, so both columns are
@@ -59,11 +64,9 @@ with (
   {"column":"mgmtCluster","path":"$['mgmtCluster']","datatype":"string"},
   {"column":"jobName","path":"$['jobName']","datatype":"string"},
   {"column":"prowUrl","path":"$['prowUrl']","datatype":"string"},
-  {"column":"sippyRelease","path":"$['sippyRelease']","datatype":"string"},
   {"column":"family","path":"$['family']","datatype":"string"},
   {"column":"overallResult","path":"$['overallResult']","datatype":"string"},
   {"column":"failed","path":"$['failed']","datatype":"bool"},
-  {"column":"testFailures","path":"$['testFailures']","datatype":"int"},
   {"column":"startedAt","path":"$['startedAt']","datatype":"datetime"},
   {"column":"finishedAt","path":"$['finishedAt']","datatype":"datetime"},
   {"column":"adoBuildId","path":"$['adoBuildId']","datatype":"string"}
