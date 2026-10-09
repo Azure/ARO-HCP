@@ -16,8 +16,8 @@ package verifiers
 
 import (
 	"context"
-	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -115,8 +115,9 @@ func TestDefaultIngressCertificateEmptyRouteHost(test *testing.T) {
 }
 
 func TestIngressCertificateTLSHandshake(test *testing.T) {
-	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	require.NoError(test, err)
+	publicKey := &privateKey.PublicKey
 	template := &x509.Certificate{
 		Subject:      pkix.Name{CommonName: "reserved.hcp.osadev.cloud"},
 		DNSNames:     []string{"*.apps.cluster.example.com"},
