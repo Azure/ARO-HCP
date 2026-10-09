@@ -1,0 +1,9 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: mgmt-agent-snapshot-pvc-finalizer-cleanup
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+spec:
+  policyName: mgmt-agent-snapshot-pvc-finalizer-cleanup
+  validationActions: [Deny]

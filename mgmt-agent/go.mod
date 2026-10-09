@@ -11,6 +11,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4
 	github.com/go-logr/logr v1.4.4
 	github.com/google/go-cmp v0.7.0
+	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.0
 	github.com/openshift/hypershift v0.1.76
 	github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.88.0
