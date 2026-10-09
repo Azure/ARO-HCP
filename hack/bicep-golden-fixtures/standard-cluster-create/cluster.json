@@ -539,7 +539,7 @@
       "type": "Microsoft.Authorization/roleAssignments"
     },
     {
-      "apiVersion": "2025-12-23-preview",
+      "apiVersion": "2026-09-01-preview",
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix')))]",
         "[extensionResourceId(resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName')), 'Microsoft.Authorization/roleAssignments', guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cp-cloud-controller-manager-{1}', parameters('clusterName'), variables('randomSuffix'))), variables('cloudControllerManagerRoleId'), resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))))]",
