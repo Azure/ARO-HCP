@@ -115,11 +115,13 @@ spec:
             exit 0
           fi
 
-          echo "Patching azure-cns CPU: request $CURRENT_REQ->$DESIRED_REQ, removing limit"
-          kubectl patch daemonset azure-cns -n kube-system --type=json -p='[
-            {"op": "replace", "path": "/spec/template/spec/containers/0/resources/requests/cpu", "value": "'"$DESIRED_REQ"'"},
-            {"op": "remove", "path": "/spec/template/spec/containers/0/resources/limits/cpu"}
-          ]'
+          PATCH='[{"op": "replace", "path": "/spec/template/spec/containers/0/resources/requests/cpu", "value": "'"$DESIRED_REQ"'"}]'
+          if [ -n "$CURRENT_LIM" ]; then
+            PATCH='[{"op": "replace", "path": "/spec/template/spec/containers/0/resources/requests/cpu", "value": "'"$DESIRED_REQ"'"},{"op": "remove", "path": "/spec/template/spec/containers/0/resources/limits/cpu"}]'
+          fi
+
+          echo "Patching azure-cns CPU: request $CURRENT_REQ->$DESIRED_REQ, limit=${CURRENT_LIM:-(none)}->removed"
+          kubectl patch daemonset azure-cns -n kube-system --type=json -p="$PATCH"
           echo "Patch applied successfully"
       restartPolicy: OnFailure
       serviceAccountName: azure-cns-cpu-patcher
