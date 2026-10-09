@@ -1406,6 +1406,8 @@ Validates that the CAPZ control-plane operator identity has `Microsoft.ManagedId
 
 Requires Succeeded provisioning, a ClusterUID and no billing reference. Creates a Billing-container document and sets cluster `BillingDocumentCosmosID`.
 
+The persisted billing fields are defined in the public [billingapi Go module](../billingapi/README.md), shared with HCP Billing. The RP's storage wrapper adds Cosmos metadata and informer behavior without nesting the JSON. The external HCP Billing service owns `lastBillingTimeOfVMEvent` (compute batch-processing watermark) and `lastBillingTimeOfMngtEvent` (hosting interval end); the RP preserves these optional timestamps in reads, deep copies and diagnostic snapshots.
+
 #### BackfillClusterUID
 
 [Source](../backend/pkg/controllers/mismatch/backfill_cluster_uid.go) · **Trigger:** Cluster; 60m.

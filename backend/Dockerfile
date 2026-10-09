@@ -4,10 +4,12 @@ ARG PLATFORM
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS builder
 ENV GOTOOLCHAIN=local
 COPY internal/go.mod internal/go.sum internal/
+COPY billingapi/go.mod billingapi/go.sum billingapi/
 COPY backend/go.mod backend/go.sum backend/
 RUN cd backend && go mod download
 WORKDIR /app
 COPY internal/ internal/
+COPY billingapi/ billingapi/
 COPY --exclude=backend/aro-hcp-backend backend/ backend/
 ARG ARO_HCP_REVISION
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
