@@ -130,6 +130,10 @@ func NewAdminAPI(
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient).ServeHTTP)),
 	)
 	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("POST", "/controlplaneversionpin"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPVersionPinHandler(resourcesDBClient).ServeHTTP)),
+	)
+	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("GET", "/backupschedules"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPGetBackupScheduleHandler(resourcesDBClient, kubeApplierDBClients).ServeHTTP)),
 	)
@@ -141,6 +145,10 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("GET", "/backups"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPGetOnDemandBackupsHandler(resourcesDBClient, kubeApplierDBClients).ServeHTTP)),
 	)
+
+	// Fleet version management routes
+	middlewareMux.Handle("POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin",
+		errorutils.ReportError(hcp.NewFleetVersionPinHandler(resourcesDBClient).ServeHTTP))
 
 	// Stamp management routes
 	middlewareMux.Handle("GET /admin/v1/stamps",
