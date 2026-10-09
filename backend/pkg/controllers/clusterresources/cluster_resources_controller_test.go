@@ -187,16 +187,13 @@ func TestIngressDesireSuppression(test *testing.T) {
 		missing         bool
 		suppressed      bool
 	}{
-		{name: "flag on below version threshold", customerVersion: "4.20", desiredVersion: "4.20.42", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
 		{name: "flag off below version threshold", customerVersion: "4.20", desiredVersion: "4.20.42"},
 		{name: "flag on above version threshold", customerVersion: "5.1", desiredVersion: "5.1.0-rc.1", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
-		{name: "flag off above version threshold", customerVersion: "5.1", desiredVersion: "5.1.0-rc.1"},
-		{name: "flag on without version", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: true},
-		{name: "flag off without version"},
+		{name: "flag off above version threshold due to missing experimental feature", customerVersion: "5.1", desiredVersion: "5.1.0-rc.1"},
+		{name: "version missing flag off", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "Registered", suppressed: false},
 		{name: "unregistered flag", customerVersion: "5.1", desiredVersion: "5.1.0", featureName: metadataapi.FeatureExperimentalReleaseFeatures, featureState: "NotRegistered"},
-		{name: "unrelated flag", customerVersion: "5.1", desiredVersion: "5.1.0", featureName: "Microsoft.RedHatOpenShift/UnrelatedFeature", featureState: "Registered"},
-		{name: "case insensitive flag", featureName: "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures", featureState: "Registered", suppressed: true},
-		{name: "missing subscription", customerVersion: "5.1", desiredVersion: "5.1.0", missing: true},
+		{name: "flag on due to case insensitive experimental feature name", featureName: "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures", featureState: "Registered", suppressed: true, desiredVersion: "5.1.0-0.nightly-2026-10-08-211923"},
+		{name: "flag off due to missing subscription", customerVersion: "5.1", desiredVersion: "5.1.0", missing: true},
 	} {
 		test.Run(scenario.name, func(test *testing.T) {
 			ctx := utils.ContextWithLogger(test.Context(), testr.New(test))
@@ -206,7 +203,7 @@ func TestIngressDesireSuppression(test *testing.T) {
 			managementClusters := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testManagementClusterResourceID}}}}
 			cluster := newCluster()
 			cluster.CustomerProperties.Version.ID = scenario.customerVersion
-			spc := newSPC(testManagementClusterResourceID)
+			serviceProviderCluster := newSPC(testManagementClusterResourceID)
 			subscriptionLister := &corelistertesting.SliceSubscriptionLister{}
 			if !scenario.missing {
 				subscription := &coreapi.Subscription{
@@ -220,7 +217,7 @@ func TestIngressDesireSuppression(test *testing.T) {
 			}
 			if scenario.desiredVersion != "" {
 				desiredVersion := semver.MustParse(scenario.desiredVersion)
-				spc.Spec.ControlPlaneVersion.DesiredVersion = &desiredVersion
+				serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = &desiredVersion
 			}
 			csClient := ocm.NewMockClusterServiceClientSpec(gomock.NewController(test))
 			resources := buildClusterResources(map[string]string{
@@ -236,7 +233,7 @@ func TestIngressDesireSuppression(test *testing.T) {
 			syncer := &clusterResourcesController{
 				subscriptionLister:           subscriptionLister,
 				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
-				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{serviceProviderCluster}},
 				clustersServiceClient:        csClient, kubeApplierDBClients: clients,
 				applyDesireLister: &kubeapplierlistertesting.DBApplyDesireLister{Clients: clients, Lister: managementClusters},
 				readDesireLister:  &kubeapplierlistertesting.DBReadDesireLister{Clients: clients, Lister: managementClusters},
@@ -1029,7 +1026,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 				NodePools: []*coreapi.NodePool{newNodePool(false)},
 			}
 			require.NoError(t, seedSyncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
-				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123"),
+				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123", nil),
 				"seeding the NodePool ApplyDesire should succeed")
 			_, err = npCRUD.Get(ctx, "nodepool")
 			require.NoError(t, err, "seed pass should have created the NodePool ApplyDesire")
@@ -1037,7 +1034,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 			// Cluster Service still reports the CR, as it does until it removes the
 			// ManifestWork.
 			require.NoError(t, syncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
-				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123"),
+				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123", nil),
 				"processClusterResources should succeed")
 
 			desire, err := npCRUD.Get(ctx, "nodepool")

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	semver "github.com/blang/semver/v4"
 	ocmv1 "open-cluster-management.io/api/work/v1"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -154,7 +155,7 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	}
 
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
-	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID); err != nil {
+	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID, spc.Spec.ControlPlaneVersion.DesiredVersion); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster resources: %w", err))
 	}
 
@@ -164,7 +165,7 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 // fetchAndProcessClusterResources calls the Cluster Service SDK to get cluster resources information
 // and processes the resources.
 func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context.Context,
-	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID) error {
+	key controllerutils.HCPClusterKey, managementCluster *azcorearm.ResourceID, clusterServiceID metadataapi.InternalID, version *semver.Version) error {
 	// Get cluster resources from the Cluster Service SDK
 	resources, err := c.clustersServiceClient.GetClusterResources(ctx, clusterServiceID)
 	if err != nil {
@@ -172,7 +173,7 @@ func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context
 	}
 
 	if resources != nil {
-		if err := c.processClusterResources(ctx, key, managementCluster, resources, clusterServiceID.ID()); err != nil {
+		if err := c.processClusterResources(ctx, key, managementCluster, resources, clusterServiceID.ID(), version); err != nil {
 			return utils.TrackError(fmt.Errorf("failed to process cluster resources: %w", err))
 		}
 	}
@@ -182,7 +183,8 @@ func (c *clusterResourcesController) fetchAndProcessClusterResources(ctx context
 
 // processClusterResources converts each resource to ApplyDesire documents
 func (c *clusterResourcesController) processClusterResources(ctx context.Context, key controllerutils.HCPClusterKey,
-	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string) error {
+	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string,
+	version *semver.Version) error {
 
 	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
 	if kubeApplierDBClient == nil {
@@ -201,7 +203,7 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
 	}
-	suppress := subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures)
+	hasExperimentalFeature := subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures)
 	resourceMap := resources.Resources()
 	desiredResourceIDs := make(map[string]bool, len(resourceMap))
 	var errs []error
@@ -240,8 +242,11 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		// Unset the ManagedCluster CR and ACM-path ingress bits because HyperShift
 		// manages the ingress certificate when the subscription's experimental
 		// release-features AFEC is registered. This ugly, intentional temporal shim
-		// is flag-gated, not version-gated, and is not the end state; CS still emits them all.
-		if suppressLegacyIngressDesire(classified.desireName, suppress) {
+		// is flag-gated and has to be applied only to 5.1 >= clusters until the CPO
+		// override with https://github.com/openshift/hypershift/pull/9132 for all versions
+		// up to 4.20 is released.
+		// CS still emits them all, we do this to allow ourselves testing.
+		if hasExperimentalFeature && version != nil && suppressLegacyIngressDesire(classified.desireName, *version) {
 			continue
 		}
 
