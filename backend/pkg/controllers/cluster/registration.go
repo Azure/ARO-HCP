@@ -990,16 +990,29 @@ func registerIngressCertificateController() controllerconfig.ControllerRegistrat
 	}
 }
 
-func registerTLSCertificatesController() controllerconfig.ControllerRegistration {
+func registerKubeAPIServerTLSCertificateController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateTLSCertificatesController, false),
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateKubeAPIServerTLSCertificateController, false),
 	}
 }
 
-func instantiateTLSCertificatesController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+func instantiateKubeAPIServerTLSCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
-	return clusterazureresources.NewTLSCertificatesController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
+	return clusterazureresources.NewKubeAPIServerTLSCertificateController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
+		managementClusterLister, controllerContext.BackendIdentityAzureClients), nil
+}
+
+func registerIngressTLSCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateIngressTLSCertificateController, false),
+	}
+}
+
+func instantiateIngressTLSCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterazureresources.NewIngressTLSCertificateController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
 		managementClusterLister, controllerContext.BackendIdentityAzureClients), nil
 }
 
@@ -1282,7 +1295,8 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterplacement.PendingCleanupControllerName)] = registerPendingCleanupController()
 	registry[strings.ToLower(clusterbackups.BackupScheduleControllerName)] = registerBackupScheduleController()
 	registry[strings.ToLower(clusterk8sresources.IngressCertificateControllerName)] = registerIngressCertificateController()
-	registry[strings.ToLower(clusterazureresources.TLSCertificatesControllerName)] = registerTLSCertificatesController()
+	registry[strings.ToLower(clusterazureresources.KubeAPIServerTLSCertificateControllerName)] = registerKubeAPIServerTLSCertificateController()
+	registry[strings.ToLower(clusterazureresources.IngressTLSCertificateControllerName)] = registerIngressTLSCertificateController()
 	registry[strings.ToLower(clusteridentity.FetchMSIIdentitiesInfoControllerName)] = registerFetchMSIIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)] = registerFetchDataPlaneOperatorsManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()

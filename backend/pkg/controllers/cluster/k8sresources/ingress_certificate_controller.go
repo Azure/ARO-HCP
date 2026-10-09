@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
@@ -113,8 +115,20 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 		return utils.TrackError(err)
 	}
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return syncer.syncDeletion(ctx, applyCRUD, readCRUD)
+		return syncer.ensureSecretSyncDesiresDeleted(ctx, applyCRUD, readCRUD)
 	}
+	return syncer.ensureSecretSyncDesiresCreated(ctx, key, cluster, serviceProviderCluster, managementClusterID, applyCRUD, readCRUD)
+}
+
+func (syncer *ingressCertificateSyncer) ensureSecretSyncDesiresCreated(
+	ctx context.Context,
+	key controllerutils.HCPClusterKey,
+	cluster *coreapi.Cluster,
+	serviceProviderCluster *coreapi.ServiceProviderCluster,
+	managementClusterID *azcorearm.ResourceID,
+	applyCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
+	readCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire],
+) error {
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
 		return nil
 	}
@@ -128,12 +142,12 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if managementCluster.Status.HostedClustersSecretsKeyVaultURL == "" || managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID == "" {
+	if len(managementCluster.Status.HostedClustersSecretsKeyVaultURL) == 0 || len(managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID) == 0 {
 		return utils.TrackError(fmt.Errorf("management cluster is missing hosted clusters secrets Key Vault URL or managed identity client ID"))
 	}
 	applyDesires, readDesires, err := buildIngressCertificateDesires(
 		key, managementCluster, serviceProviderCluster.Status.HostedClusterNamespace,
-		cluster.ServiceProviderProperties.ClusterServiceID.ID(), syncer.serviceTenantID, syncer.cloudName, serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference,
+		syncer.serviceTenantID, syncer.cloudName, serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference,
 	)
 	if err != nil {
 		return utils.TrackError(err)
@@ -159,7 +173,7 @@ func (syncer *ingressCertificateSyncer) SyncOnce(ctx context.Context, key contro
 	if hostedCluster.Spec.OperatorConfiguration.IngressOperator == nil {
 		hostedCluster.Spec.OperatorConfiguration.IngressOperator = &hsv1beta1.IngressOperatorSpec{}
 	}
-	hostedCluster.Spec.OperatorConfiguration.IngressOperator.DefaultCertificate.Name = "default-ingress-tls-cert-" + cluster.ServiceProviderProperties.ClusterServiceID.ID()
+	hostedCluster.Spec.OperatorConfiguration.IngressOperator.DefaultCertificate.Name = controllerutils.ServiceProviderDefaultIngressWildcardServingCertName
 	return syncer.persistIfChanged(ctx, key, serviceProviderCluster, replacement)
 }
 
@@ -187,12 +201,15 @@ func (syncer *ingressCertificateSyncer) needsWork(cluster *coreapi.Cluster, serv
 	return serviceProviderCluster.Status.AzureResources.IngressCertificate != nil && serviceProviderCluster.Status.AzureResources.IngressCertificate.AzureReference != nil && serviceProviderCluster.Status.HostedClusterNamespace != ""
 }
 
-func (syncer *ingressCertificateSyncer) syncDeletion(
+// ensureSecretSyncDesiresDeleted ensures that the secret sync desires for the ingress certificate are purged from the database.
+// No need to ensure that they are removed from the management cluster since these is done in cascade when the
+// hosted cluster namespace is deleted
+func (syncer *ingressCertificateSyncer) ensureSecretSyncDesiresDeleted(
 	ctx context.Context,
 	applyCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
 	readCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire],
 ) error {
-	for _, name := range []string{ingressSecretProviderClassDesireName, ingressSecretSyncDesireName} {
+	for _, name := range []string{ingressSecretProviderClassDesireName, kubeapplierhelpers.IngressSecretSyncDesireName} {
 		if err := applyCRUD.Delete(ctx, name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 			return utils.TrackError(fmt.Errorf("delete ingress certificate ApplyDesire %s: %w", name, err))
 		}

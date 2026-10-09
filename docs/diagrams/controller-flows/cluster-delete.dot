@@ -12,7 +12,7 @@ digraph cluster_delete {
   credentials [label="Credential request / revocation\ndeletion controllers", fillcolor="#e6f0fa", color="#35648a"];
   children [label="Node-pool and external-auth\ndeletion flows complete", fillcolor="#e4f2e5", color="#4c8053"];
   group [label="EnsureManagedResourceGroup", fillcolor="#e6f0fa", color="#35648a"];
-  certificates [label="TLSCertificates\nclear KAS + ingress references\nno Key Vault mutations", fillcolor="#e6f0fa", color="#35648a"];
+  certificates [label="KubeAPIServerTLSCertificate +\nIngressTLSCertificate\neach: GET its own vault ref;\n404 clears that reference\nread-only, no Key Vault deletes", fillcolor="#e6f0fa", color="#35648a"];
   cleanup [label="ClusterChildResourcesCleanup\nController", fillcolor="#e6f0fa", color="#35648a"];
   final [label="ClusterDeletionController", fillcolor="#e6f0fa", color="#35648a"];
   op [label="OperationClusterDelete", fillcolor="#e6f0fa", color="#35648a"];

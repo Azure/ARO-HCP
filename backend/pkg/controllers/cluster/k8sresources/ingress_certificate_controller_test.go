@@ -140,10 +140,10 @@ func TestIngressCertificateContentsAndIdempotence(test *testing.T) {
 		require.Equal(test, IngressCertificateControllerName, desire.Tags[kubeapplierapi.TagControllerName])
 		require.True(test, strings.EqualFold(fixture.cluster.ResourceID.String(), desire.ResourceID.Parent.String()))
 		require.Equal(test, "hosted-cluster-namespace", desire.Spec.TargetItem.Namespace)
-		require.Equal(test, "default-ingress-tls-cert-abc123", desire.Spec.TargetItem.Name)
+		require.Equal(test, controllerutils.ServiceProviderDefaultIngressWildcardServingCertName, desire.Spec.TargetItem.Name)
 		var content map[string]any
 		require.NoError(test, json.Unmarshal(desire.Spec.ServerSideApply.KubeContent.Raw, &content))
-		require.Equal(test, map[string]any{"name": "default-ingress-tls-cert-abc123", "namespace": "hosted-cluster-namespace"}, content["metadata"])
+		require.Equal(test, map[string]any{"name": controllerutils.ServiceProviderDefaultIngressWildcardServingCertName, "namespace": "hosted-cluster-namespace"}, content["metadata"])
 		spec, err := json.Marshal(content["spec"])
 		require.NoError(test, err)
 		switch content["kind"] {
@@ -154,7 +154,7 @@ func TestIngressCertificateContentsAndIdempotence(test *testing.T) {
 		case "SecretSync":
 			require.Equal(test, "secret-sync.x-k8s.io/v1alpha1", content["apiVersion"])
 			require.Equal(test, "secretsyncs", desire.Spec.TargetItem.Resource)
-			require.JSONEq(test, `{"serviceAccountName":"default","secretProviderClassName":"default-ingress-tls-cert-abc123","secretObject":{"type":"kubernetes.io/tls","data":[{"sourcePath":"ingress-tls-cert-abc123","targetKey":"tls.key"},{"sourcePath":"ingress-tls-cert-abc123","targetKey":"tls.crt"}]}}`, string(spec))
+			require.JSONEq(test, `{"secretSyncControllerName":"","serviceAccountName":"default","secretProviderClassName":"`+controllerutils.ServiceProviderDefaultIngressWildcardServingCertName+`","secretObject":{"type":"kubernetes.io/tls","data":[{"sourcePath":"ingress-tls-cert-abc123","targetKey":"tls.key"},{"sourcePath":"ingress-tls-cert-abc123","targetKey":"tls.crt"}]}}`, string(spec))
 		default:
 			test.Fatalf("unexpected kind: %v", content["kind"])
 		}
@@ -389,7 +389,7 @@ func TestIngressCertificatePersistsDesiredHostedCluster(test *testing.T) {
 			require.NoError(test, fixture.syncer.SyncOnce(ctx, fixture.key))
 			actual, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(test, err)
-			require.Equal(test, "default-ingress-tls-cert-abc123", actual.Spec.DesiredHostedCluster.Spec.OperatorConfiguration.IngressOperator.DefaultCertificate.Name)
+			require.Equal(test, controllerutils.ServiceProviderDefaultIngressWildcardServingCertName, actual.Spec.DesiredHostedCluster.Spec.OperatorConfiguration.IngressOperator.DefaultCertificate.Name)
 			require.Equal(test, original.Status, actual.Status)
 			require.Equal(test, original, before)
 			if state != "nil" {

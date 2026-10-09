@@ -94,7 +94,7 @@ func TestDefaultIngressCertificateEnvironment(test *testing.T) {
 	} {
 		test.Run(testCase.environment, func(test *testing.T) {
 			test.Setenv("AROHCP_ENV", testCase.environment)
-			verifier := VerifyDefaultIngressCertificate("app.apps.cluster.example.com", "*.apps.cluster.example.com", time.Minute).(defaultIngressCertificateVerifier)
+			verifier := VerifyDefaultIngressCertificate("app.apps.cluster.example.com", "*.apps.cluster.example.com", time.Minute).(ingressCertificateVerifier)
 			require.Equal(test, testCase.selfSigned, verifier.selfSigned)
 			require.Equal(test, testCase.selfSigned, verifier.tlsConfig().InsecureSkipVerify)
 		})
@@ -158,7 +158,7 @@ func TestIngressCertificateTLSHandshake(test *testing.T) {
 			if wildcard == "" {
 				wildcard = "*.apps.cluster.example.com"
 			}
-			verifier := defaultIngressCertificateVerifier{routeHost: "app.apps.cluster.example.com", ingressWildcard: wildcard, selfSigned: testCase.selfSigned, roots: testCase.roots, expectedLeaf: testCase.expectedLeaf}
+			verifier := ingressCertificateVerifier{routeHost: "app.apps.cluster.example.com", ingressWildcard: wildcard, selfSigned: testCase.selfSigned, roots: testCase.roots, expectedLeaf: testCase.expectedLeaf}
 			tlsConfig := verifier.tlsConfig()
 			require.Equal(test, testCase.selfSigned, tlsConfig.InsecureSkipVerify)
 			tlsConfig.ServerName = verifier.routeHost

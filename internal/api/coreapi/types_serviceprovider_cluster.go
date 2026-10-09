@@ -485,10 +485,10 @@ type AzureResources struct {
 	// DenyAssignments tracks the deny assignments applied to the cluster's resources.
 	DenyAssignments DenyAssignmentReferences `json:"denyAssignments,omitempty"`
 	// KubeAPIServerCertificate tracks the TLS certificate created for the kube-apiserver.
-	// Written by: TLSCertificates
+	// Written by: KubeAPIServerTLSCertificate
 	KubeAPIServerCertificate *TLSCertificate `json:"kubeAPIServerCertificate,omitempty"`
 	// IngressCertificate tracks the TLS certificate created for ingress.
-	// Written by: TLSCertificates
+	// Written by: IngressTLSCertificate
 	IngressCertificate *TLSCertificate `json:"ingressCertificate,omitempty"`
 	// ManagedResourceGroup tracks the managed resource group for the cluster.
 	// Written by: EnsureManagedResourceGroup
@@ -557,10 +557,10 @@ type DenyAssignmentReference struct {
 // TLSCertificate tracks a single TLS certificate through its provisioning lifecycle.
 type TLSCertificate struct {
 	// PendingReference identifies a certificate not yet confirmed to be provisioned in Azure.
-	// Written by: TLSCertificates
+	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
 	PendingReference *AzureTLSCertificateReference `json:"pendingReference,omitempty"`
 	// AzureReference identifies a certificate confirmed to be provisioned in Azure.
-	// Written by: TLSCertificates
+	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
 	AzureReference *AzureTLSCertificateReference `json:"azureReference,omitempty"`
 }
 
@@ -568,10 +568,10 @@ type TLSCertificate struct {
 // +k8s:deepcopy-gen=true
 type AzureTLSCertificateReference struct {
 	// KeyVaultURL mirrors the hosted-cluster secrets Key Vault URL of the management cluster.
-	// Written by: TLSCertificates
+	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
 	KeyVaultURL string `json:"keyVaultURL,omitempty"`
 	// CertificateName is the name of the certificate created in that vault.
-	// Written by: TLSCertificates
+	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
 	CertificateName string `json:"certificateName"`
 }
 

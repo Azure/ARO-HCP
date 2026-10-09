@@ -70,7 +70,7 @@ var letsEncryptStagingCAs embed.FS
 // Pinned upstream cert-manager release. Bump deliberately; do not float to :latest.
 const certManagerManifestURL = "https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml"
 
-var _ = Describe("Customer", func() {
+var _ = Describe("ARO-HCP", func() {
 	DescribeTable("should serve the default ingress certificate and allow a customer ingress certificate",
 		labels.RequireNothing,
 		labels.High,

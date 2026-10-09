@@ -37,6 +37,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// ServiceProviderDefaultIngressWildcardServingCertName is the Key Vault/secret name used for the
+// default ingress wildcard serving certificate stamped onto HostedCluster.Spec.OperatorConfiguration.
+// IngressOperator.DefaultCertificate.Name. It is shared by k8sresources.IngressCertificateController
+// (which crafts the DesiredHostedCluster field) and clusterresources.ClusterResourcesController
+// (which stamps a temporary override onto the applied HostedCluster CR during the ACM-to-CPO
+// migration; see the TEMPORARY comment at its call site).
+const ServiceProviderDefaultIngressWildcardServingCertName = "service-provider-default-ingress-wildcard-serving-cert"
+
 type Controller interface {
 	QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error
 	SyncOnce(ctx context.Context, keyObj any) error
