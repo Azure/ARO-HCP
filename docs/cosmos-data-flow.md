@@ -1421,6 +1421,12 @@ Validates that the CAPZ control-plane operator identity has `Microsoft.ManagedId
 
 Requires Succeeded provisioning, a ClusterUID and no billing reference. Creates a Billing-container document and sets cluster `BillingDocumentCosmosID`.
 
+The Billing document also exposes optional `lastBillingTimeOfVMEvent` (compute
+batch-processing watermark) and `lastBillingTimeOfMngtEvent` (hosting interval end)
+timestamps. The external HCP Billing service owns and patches these fields after
+successful usage processing; ARO-HCP preserves them in typed reads, informer deep
+copies and diagnostic snapshots. An absent watermark remains nil.
+
 #### BackfillClusterUID
 
 [Source](../backend/pkg/controllers/mismatch/backfill_cluster_uid.go) · **Trigger:** Cluster; 60m.
