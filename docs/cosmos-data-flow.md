@@ -1466,7 +1466,7 @@ persist it again.
 
 [Source](../backend/pkg/controllers/mismatch/delete_orphaned_cosmos.go) · **Trigger:** Subscription; 60m.
 
-Scans Resources and kube-applier documents and deletes orphaned children whose parent resources no longer exist.
+Scans Resources and kube-applier documents and deletes orphaned children whose parent resources no longer exist. The parent inventory is listed once per sweep and can be stale by the time kube-applier documents are listed, so each kube-applier document is deleted only after a live Cosmos not-found recheck of its parent.
 
 #### MissingResourceID
 
