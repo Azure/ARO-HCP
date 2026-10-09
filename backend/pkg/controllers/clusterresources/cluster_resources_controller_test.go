@@ -334,7 +334,7 @@ func TestSyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name:    "sets backend-managed annotations only on HostedCluster",
+			name:    "sets backend-managed annotations and monitoring config only on HostedCluster",
 			cluster: newCluster(),
 			dbResources: []any{
 				newSPC(testManagementClusterResourceID),
@@ -372,6 +372,16 @@ func TestSyncOnce(t *testing.T) {
 
 				assert.Equal(t, "10m", annotations["hypershift.openshift.io/machine-health-check-node-startup-timeout"],
 					"HostedCluster should have the MHC annotation")
+
+				// Verify HostedCluster has metrics forwarding enabled via spec.monitoring
+				spec, ok := hcContent["spec"].(map[string]interface{})
+				require.True(t, ok, "spec field should be a map")
+				monitoring, ok := spec["monitoring"].(map[string]interface{})
+				require.True(t, ok, "spec.monitoring field should be a map")
+				metricsForwarding, ok := monitoring["metricsForwarding"].(map[string]interface{})
+				require.True(t, ok, "spec.monitoring.metricsForwarding field should be a map")
+				assert.Equal(t, "Forward", metricsForwarding["mode"],
+					"HostedCluster should have metrics forwarding mode set to Forward")
 
 				// Verify Secret does NOT have the annotation
 				secretDesire, err := crud.Get(ctx, "ocppullsecret")
@@ -1007,6 +1017,71 @@ func TestEnsureHostedClusterAnnotations(t *testing.T) {
 			actualAnnotations := hostedCluster.GetAnnotations()
 			assert.Equal(t, tt.expectedAnnotations, actualAnnotations,
 				"annotations should match expected")
+		})
+	}
+}
+
+func TestEnsureHostedClusterMonitoring(t *testing.T) {
+	tests := []struct {
+		name          string
+		inputSpec     map[string]interface{}
+		expectedMode  string
+	}{
+		{
+			name:         "sets metrics forwarding mode to Forward when spec is empty",
+			inputSpec:    map[string]interface{}{},
+			expectedMode: "Forward",
+		},
+		{
+			name: "preserves other spec fields when setting metrics forwarding mode",
+			inputSpec: map[string]interface{}{
+				"release": map[string]interface{}{
+					"image": "quay.io/example/release:test",
+				},
+			},
+			expectedMode: "Forward",
+		},
+		{
+			name: "overwrites existing metrics forwarding mode with Forward",
+			inputSpec: map[string]interface{}{
+				"monitoring": map[string]interface{}{
+					"metricsForwarding": map[string]interface{}{
+						"mode": "None",
+					},
+				},
+			},
+			expectedMode: "Forward",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hostedCluster := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "hypershift.openshift.io/v1beta1",
+					"kind":       "HostedCluster",
+					"metadata": map[string]interface{}{
+						"name":      testClusterName,
+						"namespace": "test-namespace",
+					},
+					"spec": tt.inputSpec,
+				},
+			}
+
+			err := ensureHostedClusterMonitoring(hostedCluster)
+			require.NoError(t, err)
+
+			mode, found, err := unstructured.NestedString(hostedCluster.Object, "spec", "monitoring", "metricsForwarding", "mode")
+			require.NoError(t, err, "reading spec.monitoring.metricsForwarding.mode should not error")
+			require.True(t, found, "spec.monitoring.metricsForwarding.mode should be set")
+			assert.Equal(t, tt.expectedMode, mode, "metrics forwarding mode should match expected")
+
+			if release, ok := tt.inputSpec["release"]; ok {
+				actualRelease, found, err := unstructured.NestedMap(hostedCluster.Object, "spec", "release")
+				require.NoError(t, err)
+				require.True(t, found, "pre-existing spec.release should be preserved")
+				assert.Equal(t, release, actualRelease, "other spec fields should be untouched")
+			}
 		})
 	}
 }
