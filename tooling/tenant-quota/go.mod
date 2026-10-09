@@ -122,3 +122,5 @@ replace (
 	github.com/Azure/ARO-HCP/tooling/metricscache => ../metricscache
 	github.com/Azure/ARO-HCP/tooling/utilitytypes => ../utilitytypes
 )
+
+replace github.com/Azure/ARO-HCP/billingapi => ../../billingapi

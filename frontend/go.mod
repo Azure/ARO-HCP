@@ -24,6 +24,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
+	github.com/Azure/ARO-HCP/billingapi v0.0.0-00010101000000-000000000000 // indirect
 	github.com/Azure/retry v0.0.0-20250701224816-85c6a88f883d // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
@@ -165,3 +166,5 @@ require (
 )
 
 replace github.com/Azure/ARO-HCP/internal => ../internal
+
+replace github.com/Azure/ARO-HCP/billingapi => ../billingapi

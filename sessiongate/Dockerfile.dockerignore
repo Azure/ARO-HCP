@@ -6,6 +6,7 @@
 !vendor/**
 !admin/**
 !backend/**
+!billingapi/**
 !dev-infrastructure/scripts/**
 !fleet/**
 !frontend/**
