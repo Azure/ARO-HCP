@@ -165,8 +165,7 @@ type Session struct {
 	seenUsageKeys   map[string]struct{}
 }
 
-// CreateSession creates a new Copilot session for an analysis run.
-func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, cfg SessionConfig) (*Session, error) {
+func (c *CopilotClient) buildSessionConfig(ctx context.Context, cfg SessionConfig) (*copilot.SessionConfig, error) {
 	sessionCfg := &copilot.SessionConfig{
 		Model:               cfg.Model,
 		SystemMessage:       cfg.SystemMessage,
@@ -191,14 +190,26 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 		if err != nil {
 			return nil, fmt.Errorf("acquiring Entra token for BYOK copilot session: %w", err)
 		}
+		// Reasoning with function tools requires Responses on newer models.
 		sessionCfg.Provider = &copilot.ProviderConfig{
 			Type:        "azure",
+			WireAPI:     "responses",
 			BaseURL:     c.cfg.ModelEndpoint,
 			BearerToken: token.Token,
 		}
 		if sessionCfg.Model == "" {
 			sessionCfg.Model = c.cfg.ModelDeployment
 		}
+	}
+
+	return sessionCfg, nil
+}
+
+// CreateSession creates a new Copilot session for an analysis run.
+func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, cfg SessionConfig) (*Session, error) {
+	sessionCfg, err := c.buildSessionConfig(ctx, cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	session, err := c.inner.CreateSession(ctx, sessionCfg)
