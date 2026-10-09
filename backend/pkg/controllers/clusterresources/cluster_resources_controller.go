@@ -31,6 +31,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -268,6 +269,14 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		default:
 			crud = applyDesireCRUD
 
+			// Ensure backend-managed annotations on HostedCluster before creating ApplyDesire
+			if classified.desireName == DesireNameHostedCluster {
+				if err := ensureHostedClusterAnnotations(&unstructuredObj); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to reconcile HostedCluster annotations for %s: %w", resourceKey, err)))
+					continue
+				}
+			}
+
 			desire, err = buildClusterResourceApplyDesire(
 				key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 				classified.desireName, managementCluster, target, &unstructuredObj, tags,
@@ -338,6 +347,23 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 	}
 
 	return errors.Join(errs...)
+}
+
+// ensureHostedClusterAnnotations sets backend-managed annotations on a HostedCluster.
+// This allows the backend to manage annotations that are not set by Clusters Service.
+func ensureHostedClusterAnnotations(hostedCluster *unstructured.Unstructured) error {
+	annotations := hostedCluster.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+
+	// Set the hypershift machine health check node startup timeout to 10m which controls
+	// how long the machine health check will wait before auto-repairing an unhealthy node.
+	// https://github.com/openshift/hypershift/blob/main/api/hypershift/v1beta1/hostedcluster_types.go#L368-L371
+	annotations[v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation] = "10m"
+
+	hostedCluster.SetAnnotations(annotations)
+	return nil
 }
 
 type classifiedResource struct {
