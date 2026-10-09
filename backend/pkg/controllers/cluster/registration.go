@@ -740,6 +740,25 @@ func instantiateContainerRegistryPullCredentialsValidationController(controllerC
 	), nil
 }
 
+func registerEtcdEncryptionKMSKeyAccessValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateEtcdEncryptionKMSKeyAccessValidationController, true),
+	}
+}
+
+func instantiateEtcdEncryptionKMSKeyAccessValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
+	return clustervalidation.NewNamedClusterValidationController(
+		clustervalidation.ClusterValidationEtcdEncryptionKMSKeyAccessValidationControllerName,
+		validationutils.NewEtcdEncryptionKMSKeyAccessValidation(unionReadDesireLister),
+		controllerContext.ResourcesDBClient,
+		serviceProviderClusterLister,
+		controllerContext.BackendInformers,
+	), nil
+}
+
 func registerCreateClusterScopedReadDesiresController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1214,6 +1233,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clustervalidation.ClusterValidationControlPlaneIdentitiesPermissionsClusterValidationControllerName)] = registerControlPlaneIdentitiesPermissionsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationDataPlaneIdentitiesPermissionsValidationControllerName)] = registerDataPlaneIdentitiesPermissionsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationContainerRegistryPullCredentialsPermissionValidationControllerName)] = registerContainerRegistryPullCredentialsValidationController()
+	registry[strings.ToLower(clustervalidation.ClusterValidationEtcdEncryptionKMSKeyAccessValidationControllerName)] = registerEtcdEncryptionKMSKeyAccessValidationController()
 	registry[strings.ToLower(clusterreaddesires.CreateClusterScopedReadDesiresControllerName)] = registerCreateClusterScopedReadDesiresController()
 	registry[strings.ToLower(clustercreation.CreateServiceProviderClusterControllerName)] = registerCreateServiceProviderClusterController()
 	registry[strings.ToLower(clusterdeletion.CleanOrphanedClusterManagedResourceGroupControllerName)] = registerCleanOrphanedClusterManagedResourceGroupController()
