@@ -255,7 +255,7 @@ func TestIngressDesireSuppression(test *testing.T) {
 					name, found, err := unstructured.NestedString(hostedCluster.Object, "spec", "operatorConfiguration", "ingressOperator", "defaultCertificate", "name")
 					require.NoError(test, err)
 					require.True(test, found)
-					require.Equal(test, "default-ingress-tls-cert-abc123", name)
+					require.Equal(test, controllerutils.ServiceProviderDefaultIngressWildcardServingCertName, name)
 				}
 				if scenario.suppressed {
 					require.Contains(test, []string{strings.ToLower("HostedCluster"), strings.ToLower("KubeAPIServerServingCertSecretSync"), strings.ToLower("BoundServiceAccountSigningKeySecretProviderClass")}, desire.ResourceID.Name)

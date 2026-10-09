@@ -521,7 +521,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 						return tc.readDesireLister
 					}
 					return &kubeapplierlistertesting.SliceReadDesireLister{
-						Desires: []*kubeapplierapi.ReadDesire{succeededDesire(t)},
+						Desires: []*kubeapplierapi.ReadDesire{succeededDesire(t), operationtesting.NewIngressSecretSyncReadDesire(t)},
 					}
 				}(),
 			}
@@ -864,6 +864,7 @@ func TestDetermineOperationState(t *testing.T) {
 							},
 						},
 					}),
+					operationtesting.NewIngressSecretSyncReadDesire(t),
 				},
 			},
 			expectedState:     coreapi.ProvisioningStateSucceeded,

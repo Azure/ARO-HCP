@@ -28,7 +28,8 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
-type defaultIngressCertificateVerifier struct {
+type ingressCertificateVerifier struct {
+	verifierName    string
 	routeHost       string
 	ingressWildcard string
 	selfSigned      bool
@@ -38,28 +39,25 @@ type defaultIngressCertificateVerifier struct {
 }
 
 func VerifyDefaultIngressCertificate(routeHost, ingressWildcard string, timeout time.Duration) HostedClusterVerifier {
-	return defaultIngressCertificateVerifier{routeHost: routeHost, ingressWildcard: ingressWildcard, selfSigned: framework.IsDevelopmentEnvironment(), timeout: timeout}
+	return ingressCertificateVerifier{verifierName: "VerifyDefaultIngressCertificate", routeHost: routeHost, ingressWildcard: ingressWildcard, selfSigned: framework.IsDevelopmentEnvironment(), timeout: timeout}
 }
 
 func VerifyCustomIngressCertificate(routeHost, ingressWildcard string, certificate *x509.Certificate, roots *x509.CertPool, timeout time.Duration) HostedClusterVerifier {
-	return defaultIngressCertificateVerifier{routeHost: routeHost, ingressWildcard: ingressWildcard, expectedLeaf: certificate, roots: roots, timeout: timeout}
+	return ingressCertificateVerifier{verifierName: "VerifyCustomIngressCertificate", routeHost: routeHost, ingressWildcard: ingressWildcard, expectedLeaf: certificate, roots: roots, timeout: timeout}
 }
 
-func (verifier defaultIngressCertificateVerifier) Name() string {
-	if verifier.expectedLeaf != nil {
-		return "VerifyCustomIngressCertificate"
-	}
-	return "VerifyDefaultIngressCertificate"
+func (verifier ingressCertificateVerifier) Name() string {
+	return verifier.verifierName
 }
 
-func (verifier defaultIngressCertificateVerifier) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+func (verifier ingressCertificateVerifier) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
 	if verifier.timeout <= 0 {
 		return fmt.Errorf("%s: timeout must be > 0, got %s", verifier.Name(), verifier.timeout)
 	}
-	if verifier.routeHost == "" {
+	if len(verifier.routeHost) == 0 {
 		return fmt.Errorf("%s: route host must not be empty", verifier.Name())
 	}
-	if verifier.ingressWildcard == "" {
+	if len(verifier.ingressWildcard) == 0 {
 		return fmt.Errorf("%s: ingress wildcard must not be empty", verifier.Name())
 	}
 	if err := framework.WaitForDNSResolution(ctx, verifier.routeHost, framework.DNSResolutionTimeout); err != nil {
@@ -97,7 +95,7 @@ func (verifier defaultIngressCertificateVerifier) Verify(ctx context.Context, ad
 		})
 }
 
-func (verifier defaultIngressCertificateVerifier) tlsConfig() *tls.Config {
+func (verifier ingressCertificateVerifier) tlsConfig() *tls.Config {
 	return &tls.Config{
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: verifier.selfSigned,

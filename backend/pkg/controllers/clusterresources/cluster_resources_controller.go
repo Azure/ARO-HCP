@@ -232,7 +232,7 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			// ingress via the flag. Apply the CPO override before re-pointing IngressController.
 			// TEMPORARY for this controller's lifetime: remove this stamp once the
 			// backend owns crafting the Desired HostedCluster CR.
-			if err := unstructured.SetNestedField(unstructuredObj.Object, "default-ingress-tls-cert-"+clusterServiceID,
+			if err := unstructured.SetNestedField(unstructuredObj.Object, controllerutils.ServiceProviderDefaultIngressWildcardServingCertName,
 				"spec", "operatorConfiguration", "ingressOperator", "defaultCertificate", "name"); err != nil {
 				errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster ingress certificate: %w", err)))
 				continue

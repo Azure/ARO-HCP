@@ -18,8 +18,8 @@ import semver "github.com/blang/semver/v4"
 
 // minVersionForLegacyIngressDesire is the minimum version for which the legacy ingress desire is suppressed
 // until the CPO override with https://github.com/openshift/hypershift/pull/9132 for all versions
-// up to 4.20 is released.
-var minVersionForLegacyIngressDesire = semver.MustParse("5.1.0")
+// up to 4.20 is released. We set it to 5.1 because the PR 9132 was merged in 5.1.0.
+var minVersionForLegacyIngressDesire = semver.Version{Major: 5, Minor: 1}
 
 func suppressLegacyIngressDesire(desireName string, version semver.Version) bool {
 	var versionMajorMinor = semver.Version{Major: version.Major, Minor: version.Minor}
