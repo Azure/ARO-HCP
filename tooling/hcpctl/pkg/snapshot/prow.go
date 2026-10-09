@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os/exec"
 	"path/filepath"
@@ -371,17 +372,27 @@ func fetchNonPRJobConfig(ctx context.Context, info *ProwJobInfo, sdpPipelinesDir
 // FetchProwJobTestResults downloads test results and timing metadata from a
 // Prow job's GCS artifacts. This is independent of the config resolution path.
 func FetchProwJobTestResults(ctx context.Context, info *ProwJobInfo) ([]TestResult, error) {
-	logger := logr.FromContextOrDiscard(ctx)
-
 	gcsClient, err := storage.NewClient(ctx, option.WithoutAuthentication())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GCS client: %w", err)
 	}
 	defer gcsClient.Close()
 
+	return fetchProwJobTestResults(ctx, gcsClient, info, nil)
+}
+
+func fetchProwJobTestResults(ctx context.Context, gcsClient *storage.Client, info *ProwJobInfo, strictClient *http.Client) ([]TestResult, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+	strict := strictClient != nil
+
 	// Find the artifact directory.
 	artifactDir, err := findArtifactDir(ctx, gcsClient, info.GCSBucket, info.JobName, info.GCSPrefix)
 	if err != nil {
+		if strict && artifactAbsent(err) {
+			logger.Info("No test artifact directory found", "error", err)
+			ReportProwArtifactProblem(ctx, "e2e", "absent")
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to find artifact directory: %w", err)
 	}
 	logger.V(1).Info("Found artifact directory", "dir", artifactDir)
@@ -396,29 +407,70 @@ func FetchProwJobTestResults(ctx context.Context, info *ProwJobInfo) ([]TestResu
 	testResultsPrefix := fmt.Sprintf("%s/%s/artifacts/extension_test_result_e2e_", artifactPrefix, testStep)
 	testResultFiles, err := listObjects(ctx, gcsClient, info.GCSBucket, testResultsPrefix)
 	if err != nil {
+		if strict && artifactAbsent(err) {
+			ReportProwArtifactProblem(ctx, "e2e", "absent")
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to list test result files: %w", err)
 	}
 	if len(testResultFiles) == 0 {
+		if strict {
+			logger.Info("No test result files found", "prefix", testResultsPrefix)
+			ReportProwArtifactProblem(ctx, "e2e", "absent")
+			return nil, nil
+		}
 		return nil, fmt.Errorf("no extension_test_result_e2e_*.json files found under %s", testResultsPrefix)
 	}
 
 	var allResults extensiontests.ExtensionTestResults
 	for _, objPath := range testResultFiles {
-		data, err := downloadObject(ctx, gcsClient, info.GCSBucket, objPath)
+		data, err := downloadProwObject(ctx, gcsClient, strictClient, info.GCSBucket, objPath)
 		if err != nil {
+			if strict && !artifactAbsent(err) {
+				return nil, err
+			}
 			logger.Error(err, "Failed to download test result file, skipping", "path", objPath)
+			if strict {
+				ReportProwArtifactProblem(ctx, "e2e", "absent")
+				return nil, nil
+			}
 			continue
 		}
 		var results extensiontests.ExtensionTestResults
 		if err := json.Unmarshal(data, &results); err != nil {
 			logger.Error(err, "Failed to parse test result file, skipping", "path", objPath)
+			if strict {
+				ReportProwArtifactProblem(ctx, "e2e", "malformed")
+				return nil, nil
+			}
 			continue
+		}
+		if strict {
+			if results == nil {
+				logger.Info("Null test result file, skipping source", "path", objPath)
+				ReportProwArtifactProblem(ctx, "e2e", "malformed")
+				return nil, nil
+			}
+			for _, result := range results {
+				if result == nil || strings.TrimSpace(result.Name) == "" ||
+					(result.Result != extensiontests.ResultPassed && result.Result != extensiontests.ResultFailed && result.Result != extensiontests.ResultSkipped) {
+					logger.Info("Test result missing name or valid verdict, skipping source", "path", objPath)
+					ReportProwArtifactProblem(ctx, "e2e", "malformed")
+					return nil, nil
+				}
+			}
 		}
 		allResults = append(allResults, results...)
 	}
 
 	// Convert all test results.
 	var tests []TestResult
+	if strict {
+		tests = make([]TestResult, 0, len(allResults))
+		if len(allResults) == 0 {
+			return tests, nil
+		}
+	}
 	numFailed := 0
 	for _, result := range allResults {
 		tr := TestResult{
@@ -444,7 +496,10 @@ func FetchProwJobTestResults(ctx context.Context, info *ProwJobInfo) ([]TestResu
 	logger.Info("Found test results", "total", len(tests), "failed", numFailed)
 
 	// Enrich test results with timing boundaries from timing metadata.
-	testTimings := fetchTestTimings(ctx, gcsClient, info.GCSBucket, artifactPrefix, logger)
+	testTimings, err := fetchTestTimings(ctx, gcsClient, info.GCSBucket, artifactPrefix, logger, strictClient)
+	if err != nil {
+		return tests, err
+	}
 	for i := range tests {
 		if t, ok := testTimings[tests[i].Name]; ok {
 			tests[i].SetupFinishTime = t.SetupFinishTime
@@ -505,17 +560,26 @@ func deriveSetupTestBoundary(steps []timing.StepTimingMetadata) (setupFinishTime
 // returns a map from test name to the derived timing boundaries. The top-level
 // finishedAt marks when cleanup began. Steps whose name contains "identity
 // container" are treated as setup; the remaining steps are the test itself.
-func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, bucket, artifactPrefix string, logger logr.Logger) map[string]testTimingBoundaries {
+func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, bucket, artifactPrefix string, logger logr.Logger, strictClient *http.Client) (map[string]testTimingBoundaries, error) {
 	prefix := fmt.Sprintf("%s/%stiming-metadata-", artifactPrefix, timingMetadataPath)
 	logger.V(1).Info("Fetching timing metadata", "prefix", prefix)
 	files, err := listObjects(ctx, gcsClient, bucket, prefix)
 	if err != nil {
+		if strictClient != nil && !artifactAbsent(err) {
+			return nil, err
+		}
 		logger.V(1).Info("Could not list timing metadata files, skipping timing enrichment", "err", err)
-		return nil
+		if strictClient != nil {
+			ReportProwArtifactProblem(ctx, "timing", "absent")
+		}
+		return nil, nil
 	}
 	if len(files) == 0 {
 		logger.V(1).Info("No timing metadata files found")
-		return nil
+		if strictClient != nil {
+			ReportProwArtifactProblem(ctx, "timing", "absent")
+		}
+		return nil, nil
 	}
 
 	result := make(map[string]testTimingBoundaries)
@@ -528,9 +592,15 @@ func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, bucket, ar
 			continue
 		}
 
-		data, err := downloadObject(ctx, gcsClient, bucket, objPath)
+		data, err := downloadProwObject(ctx, gcsClient, strictClient, bucket, objPath)
 		if err != nil {
+			if strictClient != nil && !artifactAbsent(err) {
+				return nil, err
+			}
 			logger.V(1).Info("Failed to download timing metadata file, skipping", "path", objPath, "err", err)
+			if strictClient != nil {
+				ReportProwArtifactProblem(ctx, "timing", "absent")
+			}
 			continue
 		}
 
@@ -539,12 +609,18 @@ func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, bucket, ar
 			gzipReader, err := gzip.NewReader(bytes.NewReader(data))
 			if err != nil {
 				logger.V(1).Info("Failed to create gzip reader for timing metadata, skipping", "path", objPath, "err", err)
+				if strictClient != nil {
+					ReportProwArtifactProblem(ctx, "timing", "malformed")
+				}
 				continue
 			}
 			timingBytes, err = io.ReadAll(gzipReader)
 			gzipReader.Close()
 			if err != nil {
 				logger.V(1).Info("Failed to decompress timing metadata, skipping", "path", objPath, "err", err)
+				if strictClient != nil {
+					ReportProwArtifactProblem(ctx, "timing", "malformed")
+				}
 				continue
 			}
 		} else {
@@ -554,10 +630,17 @@ func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, bucket, ar
 		var tm timing.SpecTimingMetadata
 		if err := yaml.Unmarshal(timingBytes, &tm); err != nil {
 			logger.V(1).Info("Failed to unmarshal timing metadata, skipping", "path", objPath, "err", err)
+			if strictClient != nil {
+				ReportProwArtifactProblem(ctx, "timing", "malformed")
+			}
 			continue
 		}
 
 		testName := strings.Join(tm.Identifier, " ")
+		if strictClient != nil && strings.TrimSpace(testName) == "" {
+			ReportProwArtifactProblem(ctx, "timing", "malformed")
+			continue
+		}
 		boundaries := testTimingBoundaries{}
 
 		if tm.FinishedAt != "" {
@@ -566,6 +649,9 @@ func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, bucket, ar
 				boundaries.CleanupStartTime = t
 			} else {
 				logger.Error(err, "Failed to parse finishedAt from timing metadata, skipping", "path", objPath)
+				if strictClient != nil {
+					ReportProwArtifactProblem(ctx, "timing", "malformed")
+				}
 			}
 		}
 
@@ -574,7 +660,7 @@ func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, bucket, ar
 	}
 
 	logger.V(1).Info("Loaded test timing boundaries from timing metadata", "count", len(result))
-	return result
+	return result, nil
 }
 
 // resourceGroupRegex matches log lines like:
@@ -668,7 +754,7 @@ func findArtifactDir(ctx context.Context, gcsClient *storage.Client, bucket, job
 	}
 
 	if bestMatch == "" {
-		return "", fmt.Errorf("no artifact directory found matching a suffix of job name %q under %s", jobName, prefix)
+		return "", fmt.Errorf("no artifact directory found matching a suffix of job name %q under %s: %w", jobName, prefix, storage.ErrObjectNotExist)
 	}
 	return bestMatch, nil
 }
