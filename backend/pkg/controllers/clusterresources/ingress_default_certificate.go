@@ -14,13 +14,22 @@
 
 package clusterresources
 
-func suppressLegacyIngressDesire(desireName string, suppress bool) bool {
-	if !suppress {
+import semver "github.com/blang/semver/v4"
+
+// minVersionForLegacyIngressDesire is the minimum version for which the legacy ingress desire is suppressed
+// until the CPO override with https://github.com/openshift/hypershift/pull/9132 for all versions
+// up to 4.20 is released.
+var minVersionForLegacyIngressDesire = semver.MustParse("5.1.0")
+
+func suppressLegacyIngressDesire(desireName string, version semver.Version) bool {
+	var versionMajorMinor = semver.Version{Major: version.Major, Minor: version.Minor}
+	if versionMajorMinor.LT(minVersionForLegacyIngressDesire) {
 		return false
 	}
+
 	switch desireName {
-	case "ManagedCluster", "DefaultIngressConfigMap",
-		"DefaultIngressWildcardCertSecretSync", "DefaultIngressWildcardCertSecretProviderClass":
+	case DesireNameManagedCluster, DesireNameDefaultIngressConfigMap,
+		DesireNameDefaultIngressWildcardCertSecretSync, DesireNameDefaultIngressWildcardCertSecretProviderClass:
 		return true
 	default:
 		return false
