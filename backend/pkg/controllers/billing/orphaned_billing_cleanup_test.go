@@ -33,7 +33,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -46,17 +45,12 @@ func newTestBillingDocument(billingDocID, subscriptionID, resourceGroupName, clu
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	return &billingcosmosstorage.BillingDocument{
-		BaseDocument: cosmosstorageutils.BaseDocument{
-			ID: billingDocID,
-		},
-		SubscriptionID: subscriptionID,
-		TenantID:       testTenantID,
-		Location:       testAzureLocation,
-		ResourceID:     resourceID,
-		CreationTime:   mustParseTime("2025-01-15T10:30:00Z"),
-		DeletionTime:   deletedAt,
-	}
+	doc := billingcosmosstorage.NewBillingDocument(billingDocID, resourceID)
+	doc.TenantID = testTenantID
+	doc.Location = testAzureLocation
+	doc.CreationTime = mustParseTime("2025-01-15T10:30:00Z")
+	doc.DeletionTime = deletedAt
+	return doc
 }
 
 func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {

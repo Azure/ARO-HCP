@@ -16,6 +16,7 @@ package serverutils
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +26,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/billingapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
@@ -33,6 +35,44 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func TestBillingDocumentSharedContract(t *testing.T) {
+	const persisted = `{
+		"id":"billing-doc", "subscriptionId":"sub", "creationTime":"2026-10-09T09:00:00Z",
+		"deletionTime":"2026-10-09T12:00:00Z", "location":"eastus", "tenantId":"tenant",
+		"resourceId":"/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
+		"managedResourceGroup":"/subscriptions/sub/resourceGroups/managed-rg",
+		"lastBillingTimeOfVMEvent":"2026-10-09T10:00:00Z", "lastBillingTimeOfMngtEvent":"2026-10-09T11:00:00Z",
+		"ttl":3600, "_rid":"cosmos-rid", "_self":"self", "_etag":"etag", "_attachments":"attachments", "_ts":123
+	}`
+	var stored billingcosmosstorage.BillingDocument
+	require.NoError(t, json.Unmarshal([]byte(persisted), &stored))
+	require.Equal(t, "billing-doc", stored.ID, "embedded ID must not conflict with Cosmos metadata")
+	var shared billingapi.BillingDocument
+	require.NoError(t, json.Unmarshal([]byte(persisted), &shared))
+	require.Equal(t, shared, stored.BillingDocument)
+	snapshot, err := json.Marshal(&stored)
+	require.NoError(t, err)
+	require.JSONEq(t, persisted, string(snapshot), "the RP wrapper must preserve the flat wire contract and storage metadata")
+
+	copied := stored.DeepCopy()
+	require.Equal(t, stored, *copied)
+	*copied.DeletionTime = copied.DeletionTime.Add(time.Hour)
+	*copied.LastBillingTimeOfVMEvent = copied.LastBillingTimeOfVMEvent.Add(time.Hour)
+	*copied.LastBillingTimeOfMngtEvent = copied.LastBillingTimeOfMngtEvent.Add(time.Hour)
+	copied.ResourceID.Parent.Name = "changed"
+	require.Equal(t, shared, stored.BillingDocument, "mutating a copy must not change the informer object")
+
+	for _, input := range []string{`{}`, `{"deletionTime":null,"resourceId":null,"lastBillingTimeOfVMEvent":null,"lastBillingTimeOfMngtEvent":null}`} {
+		var doc billingcosmosstorage.BillingDocument
+		require.NoError(t, json.Unmarshal([]byte(input), &doc))
+		copy := doc.DeepCopy()
+		require.Nil(t, copy.DeletionTime)
+		require.Nil(t, copy.ResourceID)
+		require.Nil(t, copy.LastBillingTimeOfVMEvent)
+		require.Nil(t, copy.LastBillingTimeOfMngtEvent)
+	}
+}
 
 func TestDumpBillingToLogger(t *testing.T) {
 	ctx := context.Background()

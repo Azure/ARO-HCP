@@ -22,41 +22,35 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/billingapi"
 )
 
 // BillingDocument records timestamps of Hosted Control Plane OpenShift cluster
 // creation and deletion for the purpose of customer billing.
 type BillingDocument struct {
-	cosmosstorageutils.BaseDocument
+	billingapi.BillingDocument
 
-	// The cluster creation time represents the time when the cluster was provisioned successfully
-	CreationTime time.Time `json:"creationTime,omitempty"`
-	// The cluster deletion time
-	DeletionTime *time.Time `json:"deletionTime,omitempty"`
-
-	// The location of the HCP cluster
-	Location string `json:"location,omitempty"`
-	// The tenant ID of the HCP cluster
-	TenantID string `json:"tenantId,omitempty"`
-	// The subscription ID of the HCP cluster (also the partition key)
-	SubscriptionID string `json:"subscriptionId,omitempty"`
-	// The HCP cluster ARM resource ID
-	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
-	// The ARM resource ID of the managed resource group of the HCP cluster
-	ManagedResourceGroup string `json:"managedResourceGroup,omitempty"`
+	// Storage-only metadata stays local. Embedding BaseDocument here would
+	// duplicate the shared contract's id field and make JSON encoding ambiguous.
+	TimeToLive        int         `json:"ttl,omitempty"`
+	CosmosResourceID  string      `json:"_rid,omitempty"`
+	CosmosSelf        string      `json:"_self,omitempty"`
+	CosmosETag        azcore.ETag `json:"_etag,omitempty"`
+	CosmosAttachments string      `json:"_attachments,omitempty"`
+	CosmosTimestamp   int         `json:"_ts,omitempty"`
 }
 
 func NewBillingDocument(id string, resourceID *azcorearm.ResourceID) *BillingDocument {
 	return &BillingDocument{
-		BaseDocument: cosmosstorageutils.BaseDocument{
-			ID: id,
+		BillingDocument: billingapi.BillingDocument{
+			ID:             id,
+			SubscriptionID: resourceID.SubscriptionID,
+			ResourceID:     resourceID,
 		},
-		SubscriptionID: resourceID.SubscriptionID,
-		ResourceID:     resourceID,
 	}
 }
 
@@ -104,15 +98,7 @@ func (in *BillingDocument) DeepCopy() *BillingDocument {
 	out := new(BillingDocument)
 	*out = *in
 
-	if in.DeletionTime != nil {
-		out.DeletionTime = new(time.Time)
-		*out.DeletionTime = *in.DeletionTime
-	}
-
-	if in.ResourceID != nil {
-		out.ResourceID = new(azcorearm.ResourceID)
-		*out.ResourceID = *in.ResourceID
-	}
+	out.BillingDocument = *in.BillingDocument.DeepCopy()
 
 	return out
 }
@@ -136,7 +122,6 @@ func (in *BillingDocumentList) DeepCopy() *BillingDocumentList {
 	if in.Items != nil {
 		out.Items = make([]BillingDocument, len(in.Items))
 		for i := range in.Items {
-			in.Items[i].DeepCopy()
 			out.Items[i] = *in.Items[i].DeepCopy()
 		}
 	}

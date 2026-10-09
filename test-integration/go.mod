@@ -29,6 +29,7 @@ require (
 )
 
 require (
+	github.com/Azure/ARO-HCP/billingapi v0.0.0-00010101000000-000000000000 // indirect
 	github.com/Azure/azure-kusto-go v0.16.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertprocessingrules/armalertprocessingrules v0.1.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2 v2.2.0 // indirect
@@ -189,6 +190,8 @@ replace github.com/Azure/ARO-HCP/backend => ../backend
 replace github.com/Azure/ARO-HCP/frontend => ../frontend
 
 replace github.com/Azure/ARO-HCP/internal => ../internal
+
+replace github.com/Azure/ARO-HCP/billingapi => ../billingapi
 
 replace github.com/Azure/ARO-HCP/kube-applier => ../kube-applier
 
