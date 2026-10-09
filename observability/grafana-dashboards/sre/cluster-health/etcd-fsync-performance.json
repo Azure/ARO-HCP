@@ -59,11 +59,20 @@
   ],
   "panels": [
     {
-      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
       "id": 1,
       "options": {
-        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### etcd Fsync Performance Dashboard\n\nDisk-level etcd analysis beyond P99 — covering latency distribution, tail latencies, throughput, DB size/fragmentation, read/write operation rates, and fleet-wide comparison.\n\n**Complements** `etcd-availability.json` (fleet SLO violators) and `per-cluster-drill-in.json` (single-cluster P99). This dashboard adds:\n- Full latency distribution heatmaps (WAL fsync + backend commit)\n- Tail latency percentiles (P99, P99.9, P99.99)\n- Fsync operation rate (ops/sec) and latency vs throughput correlation\n- DB size, in-use size, fragmentation %, quota usage\n- Read/write/delete operation rates and slow request tracking\n- Per-pod breakdown for noisy-neighbor detection\n- Fleet-wide per-cluster comparison\n\n**SLO targets:** WAL fsync P99 < 10ms, backend commit P99 < 25ms.",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "### etcd Fsync Performance Dashboard\n\nDisk-level etcd fsync analysis \u2014 covering latency distribution, tail latencies, throughput correlation, and per-pod breakdown.\n\n**Complements** `etcd-availability.json` (fleet SLO violators, DB size, leader stability) and `per-cluster-drill-in.json` (single-cluster P99, DB size). This dashboard adds:\n- Full latency distribution heatmaps (WAL fsync + backend commit)\n- Tail latency percentiles (P99, P99.9, P99.99)\n- Fsync operation rate (ops/sec) and latency vs throughput correlation\n- Per-pod breakdown for noisy-neighbor detection\n\n**SLO targets:** WAL fsync P99 < 10ms, backend commit P99 < 25ms.",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -78,22 +87,38 @@
       "description": "Current WAL fsync P99 for the selected HCP namespace",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.008 },
-              { "color": "red", "value": 0.01 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.008
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
             ]
           },
           "unit": "s"
         },
         "overrides": []
       },
-      "gridPos": { "h": 5, "w": 4, "x": 8, "y": 0 },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
       "id": 2,
       "options": {
         "colorMode": "background",
@@ -101,14 +126,23 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "percentChangeColorMode": "standard",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "instant": true,
@@ -124,25 +158,41 @@
         "type": "prometheus",
         "uid": "$ds_hcps"
       },
-      "description": "Current WAL fsync P99.9 for the selected HCP namespace — catches intermittent disk stalls invisible at P99",
+      "description": "Current WAL fsync P99.9 for the selected HCP namespace \u2014 catches intermittent disk stalls invisible at P99",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.015 },
-              { "color": "red", "value": 0.025 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.015
+              },
+              {
+                "color": "red",
+                "value": 0.025
+              }
             ]
           },
           "unit": "s"
         },
         "overrides": []
       },
-      "gridPos": { "h": 5, "w": 4, "x": 12, "y": 0 },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
       "id": 3,
       "options": {
         "colorMode": "background",
@@ -150,14 +200,23 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "percentChangeColorMode": "standard",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.999, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "instant": true,
@@ -176,22 +235,38 @@
       "description": "Current backend commit P99 for the selected HCP namespace",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.020 },
-              { "color": "red", "value": 0.025 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.02
+              },
+              {
+                "color": "red",
+                "value": 0.025
+              }
             ]
           },
           "unit": "s"
         },
         "overrides": []
       },
-      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 0 },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
       "id": 4,
       "options": {
         "colorMode": "background",
@@ -199,14 +274,23 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "percentChangeColorMode": "standard",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "instant": true,
@@ -225,20 +309,30 @@
       "description": "Current fsync operation rate (ops/sec) for the selected HCP namespace",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 1,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "blue", "value": null }
+              {
+                "color": "blue",
+                "value": null
+              }
             ]
           },
           "unit": "ops"
         },
         "overrides": []
       },
-      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 0 },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
       "id": 5,
       "options": {
         "colorMode": "background",
@@ -246,14 +340,23 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "percentChangeColorMode": "standard",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "sum(rate(etcd_disk_wal_fsync_duration_seconds_count{namespace=~\"$namespace\"}[5m]))",
           "instant": true,
@@ -266,7 +369,12 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
       "id": 10,
       "title": "WAL Fsync Latency Distribution",
       "type": "row"
@@ -276,17 +384,29 @@
         "type": "prometheus",
         "uid": "$ds_hcps"
       },
-      "description": "Heatmap of WAL fsync latency distribution over time. Shows the full shape of the latency distribution — not just P99. Dense bands at high latencies indicate sustained disk pressure, while sparse outliers indicate intermittent stalls.",
+      "description": "Heatmap of WAL fsync latency distribution over time. Shows the full shape of the latency distribution \u2014 not just P99. Dense bands at high latencies indicate sustained disk pressure, while sparse outliers indicate intermittent stalls.",
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "scaleDistribution": { "type": "log", "log": 2 }
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "scaleDistribution": {
+              "type": "log",
+              "log": 2
+            }
           }
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 6 },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
       "id": 11,
       "options": {
         "calculate": false,
@@ -300,11 +420,23 @@
           "scheme": "Oranges",
           "steps": 64
         },
-        "exemplars": { "color": "rgba(255,0,255,0.7)" },
-        "filterValues": { "le": 1e-9 },
-        "legend": { "show": true },
-        "rowsFrame": { "layout": "auto" },
-        "tooltip": { "mode": "single", "showColorScale": false, "yHistogram": true },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-09
+        },
+        "legend": {
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "tooltip": {
+          "mode": "single",
+          "showColorScale": false,
+          "yHistogram": true
+        },
         "yAxis": {
           "axisPlacement": "left",
           "decimals": 0,
@@ -314,7 +446,10 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval]))",
           "format": "heatmap",
@@ -335,13 +470,25 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "scaleDistribution": { "type": "log", "log": 2 }
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "scaleDistribution": {
+              "type": "log",
+              "log": 2
+            }
           }
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 6 },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
       "id": 12,
       "options": {
         "calculate": false,
@@ -355,11 +502,23 @@
           "scheme": "Purples",
           "steps": 64
         },
-        "exemplars": { "color": "rgba(255,0,255,0.7)" },
-        "filterValues": { "le": 1e-9 },
-        "legend": { "show": true },
-        "rowsFrame": { "layout": "auto" },
-        "tooltip": { "mode": "single", "showColorScale": false, "yHistogram": true },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-09
+        },
+        "legend": {
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "tooltip": {
+          "mode": "single",
+          "showColorScale": false,
+          "yHistogram": true
+        },
         "yAxis": {
           "axisPlacement": "left",
           "decimals": 0,
@@ -369,7 +528,10 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval]))",
           "format": "heatmap",
@@ -383,7 +545,12 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
       "id": 20,
       "title": "Tail Latency Analysis",
       "type": "row"
@@ -396,7 +563,9 @@
       "description": "WAL fsync tail latency percentiles over time (P50, P90, P99, P99.9, P99.99). Divergence between P99 and P99.9/P99.99 indicates intermittent disk stalls that P99-only monitoring misses.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -407,15 +576,24 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
             "thresholdsStyle": {
               "mode": "dashed",
               "line": true
@@ -425,32 +603,83 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "transparent", "value": null },
-              { "color": "red", "value": 0.01 }
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
             ]
           },
           "unit": "s"
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "P50" },
-            "properties": [{ "id": "custom.lineWidth", "value": 1 }, { "id": "custom.fillOpacity", "value": 0 }]
+            "matcher": {
+              "id": "byName",
+              "options": "P50"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "P99.99" },
-            "properties": [{ "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } }]
+            "matcher": {
+              "id": "byName",
+              "options": "P99.99"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              }
+            ]
           }
         ]
       },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 17 },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 17
+      },
       "id": 21,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "P50",
@@ -458,7 +687,10 @@
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.9, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "P90",
@@ -466,7 +698,10 @@
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "P99",
@@ -474,7 +709,10 @@
           "refId": "C"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.999, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "P99.9",
@@ -482,7 +720,10 @@
           "refId": "D"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.9999, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "P99.99",
@@ -490,7 +731,7 @@
           "refId": "E"
         }
       ],
-      "title": "WAL Fsync Tail Latencies (P50 → P99.99)",
+      "title": "WAL Fsync Tail Latencies (P50 \u2192 P99.99)",
       "type": "timeseries"
     },
     {
@@ -501,7 +742,9 @@
       "description": "Backend commit tail latency percentiles over time (P50, P90, P99, P99.9, P99.99). SLO threshold at 25ms.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -512,15 +755,24 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
             "thresholdsStyle": {
               "mode": "dashed",
               "line": true
@@ -530,32 +782,83 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "transparent", "value": null },
-              { "color": "red", "value": 0.025 }
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.025
+              }
             ]
           },
           "unit": "s"
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "P50" },
-            "properties": [{ "id": "custom.lineWidth", "value": 1 }, { "id": "custom.fillOpacity", "value": 0 }]
+            "matcher": {
+              "id": "byName",
+              "options": "P50"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "P99.99" },
-            "properties": [{ "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } }]
+            "matcher": {
+              "id": "byName",
+              "options": "P99.99"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              }
+            ]
           }
         ]
       },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 17 },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 17
+      },
       "id": 22,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "P50",
@@ -563,7 +866,10 @@
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.9, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "P90",
@@ -571,7 +877,10 @@
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "P99",
@@ -579,7 +888,10 @@
           "refId": "C"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.999, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "P99.9",
@@ -587,7 +899,10 @@
           "refId": "D"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.9999, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "P99.99",
@@ -595,12 +910,17 @@
           "refId": "E"
         }
       ],
-      "title": "Backend Commit Tail Latencies (P50 → P99.99)",
+      "title": "Backend Commit Tail Latencies (P50 \u2192 P99.99)",
       "type": "timeseries"
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
       "id": 30,
       "title": "Fsync Throughput & Correlation",
       "type": "row"
@@ -613,7 +933,9 @@
       "description": "WAL fsync and backend commit operation rates over time. High throughput combined with high latency indicates sustained disk pressure rather than intermittent stalls.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -624,32 +946,70 @@
             "drawStyle": "line",
             "fillOpacity": 20,
             "gradientMode": "opacity",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "unit": "ops"
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 28 },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
       "id": 31,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "sum(rate(etcd_disk_wal_fsync_duration_seconds_count{namespace=~\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "WAL fsync ops/sec",
@@ -657,7 +1017,10 @@
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "sum(rate(etcd_disk_backend_commit_duration_seconds_count{namespace=~\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "Backend commit ops/sec",
@@ -676,7 +1039,9 @@
       "description": "WAL fsync P99 latency overlaid with fsync operation rate. When latency rises with constant throughput, the disk is degrading. When both rise together, the workload is increasing.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -687,44 +1052,106 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "unit": "s"
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "WAL fsync ops/sec" },
+            "matcher": {
+              "id": "byName",
+              "options": "WAL fsync ops/sec"
+            },
             "properties": [
-              { "id": "custom.axisPlacement", "value": "right" },
-              { "id": "unit", "value": "ops" },
-              { "id": "custom.drawStyle", "value": "bars" },
-              { "id": "custom.fillOpacity", "value": 30 },
-              { "id": "custom.lineWidth", "value": 0 },
-              { "id": "color", "value": { "fixedColor": "light-blue", "mode": "fixed" } }
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "ops"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 30
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "light-blue",
+                  "mode": "fixed"
+                }
+              }
             ]
           }
         ]
       },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 28 },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
       "id": 32,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "WAL fsync P99",
@@ -732,7 +1159,10 @@
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "sum(rate(etcd_disk_wal_fsync_duration_seconds_count{namespace=~\"$namespace\"}[5m]))",
           "legendFormat": "WAL fsync ops/sec",
@@ -745,142 +1175,12 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 },
-      "id": 40,
-      "title": "Fleet-Wide Per-Cluster Comparison",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "datasource",
-        "uid": "-- Mixed --"
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 38
       },
-      "description": "WAL fsync P99 latency per cluster across the fleet. Each line represents one cluster's P99. Quickly identify which clusters have disk-related latency issues.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 5,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": {
-              "mode": "dashed",
-              "line": true
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "transparent", "value": null },
-              { "color": "red", "value": 0.01 }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 39 },
-      "id": 41,
-      "options": {
-        "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_fleet" },
-          "editorMode": "code",
-          "expr": "max by (cluster) (histogram_quantile(0.99, sum by (cluster, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{cluster!=\"\"}[5m]))))",
-          "legendFormat": "{{cluster}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "WAL Fsync P99 per Cluster (Fleet)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "datasource",
-        "uid": "-- Mixed --"
-      },
-      "description": "Backend commit P99 latency per cluster across the fleet. Identifies clusters with slow disk commit performance.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 5,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": {
-              "mode": "dashed",
-              "line": true
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "transparent", "value": null },
-              { "color": "red", "value": 0.025 }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 39 },
-      "id": 42,
-      "options": {
-        "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_fleet" },
-          "editorMode": "code",
-          "expr": "max by (cluster) (histogram_quantile(0.99, sum by (cluster, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{cluster!=\"\"}[5m]))))",
-          "legendFormat": "{{cluster}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Backend Commit P99 per Cluster (Fleet)",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 49 },
       "id": 50,
       "title": "Per-Pod Breakdown",
       "type": "row"
@@ -893,7 +1193,9 @@
       "description": "WAL fsync P99 per etcd pod in the selected HCP namespace. Asymmetry between pods may indicate a node-local disk issue rather than a fleet-wide problem.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -904,15 +1206,24 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
             "thresholdsStyle": {
               "mode": "dashed",
               "line": true
@@ -922,23 +1233,48 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "transparent", "value": null },
-              { "color": "red", "value": 0.01 }
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
             ]
           },
           "unit": "s"
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 50 },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 39
+      },
       "id": 51,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "histogram_quantile(0.99, sum by (le, pod) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval])))",
           "legendFormat": "{{pod}}",
@@ -957,7 +1293,9 @@
       "description": "Fsync operation rate per etcd pod. Uneven distribution may indicate leader imbalance or asymmetric write load.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -968,32 +1306,70 @@
             "drawStyle": "line",
             "fillOpacity": 20,
             "gradientMode": "opacity",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "unit": "ops"
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 50 },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 39
+      },
       "id": 52,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
           "editorMode": "code",
           "expr": "sum by (pod) (rate(etcd_disk_wal_fsync_duration_seconds_count{namespace=~\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "{{pod}}",
@@ -1003,538 +1379,17 @@
       ],
       "title": "Fsync Rate per etcd Pod",
       "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 60 },
-      "id": 60,
-      "title": "DB Size & Health — Scenarios 2 (Helm bloat), 4 (Job garbage), 5 (High-cardinality CRs), 9 (No defrag)",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-      "description": "Current etcd DB total allocated size. Approaches 8 GB hard quota.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "decimals": 2,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 2 },
-              { "color": "red", "value": 6 }
-            ]
-          },
-          "unit": "decgbytes"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 5, "w": 5, "x": 0, "y": 61 },
-      "id": 61,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "max(etcd_mvcc_db_total_size_in_bytes{namespace=~\"$namespace\"}) / 1073741824",
-          "instant": true,
-          "legendFormat": "DB Total Size",
-          "refId": "A"
-        }
-      ],
-      "title": "DB Total Size",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-      "description": "Actual data in DB (excludes fragmented space). Compare with total size to detect fragmentation.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "decimals": 2,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 1.5 },
-              { "color": "red", "value": 5 }
-            ]
-          },
-          "unit": "decgbytes"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 5, "w": 5, "x": 5, "y": 61 },
-      "id": 62,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "max(etcd_mvcc_db_total_size_in_use_in_bytes{namespace=~\"$namespace\"}) / 1073741824",
-          "instant": true,
-          "legendFormat": "DB In-Use Size",
-          "refId": "A"
-        }
-      ],
-      "title": "DB In-Use Size",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-      "description": "Percentage of DB allocated to fragmented (wasted) space. High fragmentation means defrag is needed. >40% is critical.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "decimals": 1,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 20 },
-              { "color": "red", "value": 40 }
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 5, "w": 5, "x": 10, "y": 61 },
-      "id": 63,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "(1 - max(etcd_mvcc_db_total_size_in_use_in_bytes{namespace=~\"$namespace\"}) / max(etcd_mvcc_db_total_size_in_bytes{namespace=~\"$namespace\"})) * 100",
-          "instant": true,
-          "legendFormat": "DB Fragmentation %",
-          "refId": "A"
-        }
-      ],
-      "title": "DB Fragmentation",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-      "description": "DB size as % of the 8 GB quota. At 100% the cluster goes read-only (NOSPACE alarm). SRE alert fires at 80%.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "decimals": 1,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 75 },
-              { "color": "red", "value": 90 }
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 5, "w": 5, "x": 15, "y": 61 },
-      "id": 64,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "max(etcd_mvcc_db_total_size_in_bytes{namespace=~\"$namespace\"}) / max(etcd_server_quota_backend_bytes{namespace=~\"$namespace\"}) * 100",
-          "instant": true,
-          "legendFormat": "DB % of Quota",
-          "refId": "A"
-        }
-      ],
-      "title": "DB % of Quota",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-      "description": "Current key-value put operation rate. High put rate combined with high WAL fsync latency indicates write saturation.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "decimals": 1,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "blue", "value": null }
-            ]
-          },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 61 },
-      "id": 65,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "sum(rate(etcd_mvcc_put_total{namespace=~\"$namespace\"}[5m]))",
-          "instant": true,
-          "legendFormat": "Put Rate",
-          "refId": "A"
-        }
-      ],
-      "title": "Put Rate (ops/sec)",
-      "type": "stat"
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 66 },
-      "id": 70,
-      "title": "DB Size Growth Over Time",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-      "description": "DB growth over time. When total size approaches quota (8 GB default), etcd will trigger NOSPACE and go read-only. Gap between total and in-use indicates fragmented space needing defrag.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "dashed", "line": true }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "transparent", "value": null },
-              { "color": "red", "value": 6.4 }
-            ]
-          },
-          "unit": "decgbytes"
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "8 GB Quota" },
-            "properties": [
-              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
-              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
-              { "id": "custom.fillOpacity", "value": 0 }
-            ]
-          }
-        ]
-      },
-      "gridPos": { "h": 10, "w": 14, "x": 0, "y": 67 },
-      "id": 71,
-      "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "max(etcd_mvcc_db_total_size_in_bytes{namespace=~\"$namespace\"}) / 1073741824",
-          "legendFormat": "DB Total Size",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "max(etcd_mvcc_db_total_size_in_use_in_bytes{namespace=~\"$namespace\"}) / 1073741824",
-          "legendFormat": "DB In-Use Size",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "max(etcd_server_quota_backend_bytes{namespace=~\"$namespace\"}) / 1073741824",
-          "legendFormat": "8 GB Quota",
-          "range": true,
-          "refId": "C"
-        }
-      ],
-      "title": "DB Total Size, In-Use Size & Quota",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-      "description": "Rising fragmentation after compaction without defrag. Run `etcdctl defrag` when this exceeds 30%.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "dashed", "line": true }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "transparent", "value": null },
-              { "color": "red", "value": 0.4 }
-            ]
-          },
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 10, "w": 10, "x": 14, "y": 67 },
-      "id": 72,
-      "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "1 - max(etcd_mvcc_db_total_size_in_use_in_bytes{namespace=~\"$namespace\"}) / max(etcd_mvcc_db_total_size_in_bytes{namespace=~\"$namespace\"})",
-          "legendFormat": "Fragmentation Ratio",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "DB Fragmentation Ratio Over Time",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 77 },
-      "id": 80,
-      "title": "Read & Write Operation Rate — Scenario 8 (Abusive LIST clients)",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-      "description": "Range read rate vs put rate. Abusive LIST clients show massive range read spike with low put rate — this is pure read pressure, not write pressure. High range reads also cause backend commit latency spikes.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 78 },
-      "id": 81,
-      "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "sum(rate(etcd_mvcc_range_total{namespace=~\"$namespace\"}[$__rate_interval]))",
-          "legendFormat": "Range Reads (ops/sec)",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "sum(rate(etcd_mvcc_put_total{namespace=~\"$namespace\"}[$__rate_interval]))",
-          "legendFormat": "Puts (ops/sec)",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "sum(rate(etcd_mvcc_delete_total{namespace=~\"$namespace\"}[$__rate_interval]))",
-          "legendFormat": "Deletes (ops/sec)",
-          "range": true,
-          "refId": "C"
-        }
-      ],
-      "title": "Key Operation Rate (Reads vs Writes)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-      "description": "Requests exceeding 300ms usually indicate disk pressure or network issues. Leader changes (election count rate) indicate instability.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "ops"
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "Leader Changes/sec" },
-            "properties": [
-              { "id": "custom.axisPlacement", "value": "right" },
-              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
-            ]
-          }
-        ]
-      },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 78 },
-      "id": 82,
-      "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "sum(rate(etcd_server_slow_apply_total{namespace=~\"$namespace\"}[$__rate_interval]))",
-          "legendFormat": "Slow Applies (>300ms)",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "$ds_hcps" },
-          "editorMode": "code",
-          "expr": "sum(rate(etcd_server_leader_changes_seen_total{namespace=~\"$namespace\"}[$__rate_interval]))",
-          "legendFormat": "Leader Changes/sec",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "Slow Requests (>300ms) & Leader Changes",
-      "type": "timeseries"
     }
   ],
   "preload": false,
   "refresh": "5m",
   "schemaVersion": 41,
-  "tags": ["etcd", "fsync", "disk", "sre"],
+  "tags": [
+    "etcd",
+    "fsync",
+    "disk",
+    "sre"
+  ],
   "templating": {
     "list": [
       {
@@ -1547,24 +1402,6 @@
         "options": [],
         "query": "prometheus",
         "queryValue": "",
-        "refresh": 1,
-        "regex": "^Managed_Prometheus_hcps-(?![a-z]{2,3}$).+$",
-        "skipUrlSync": false,
-        "type": "datasource"
-      },
-      {
-        "allowCustomValue": false,
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0,
-        "includeAll": true,
-        "label": "Fleet HCPs Datasource",
-        "multi": true,
-        "name": "ds_fleet",
-        "options": [],
-        "query": "prometheus",
         "refresh": 1,
         "regex": "^Managed_Prometheus_hcps-(?![a-z]{2,3}$).+$",
         "skipUrlSync": false,
