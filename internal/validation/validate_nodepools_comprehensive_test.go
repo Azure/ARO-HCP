@@ -59,7 +59,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "valid nodepool with autoscaling min=0 - create",
+			name: "autoscaling min zero - create",
 			nodePool: func() *coreapi.NodePool {
 				np := createValidNodePool()
 				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{
@@ -69,7 +69,9 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Replicas = 0
 				return np
 			}(),
-			expectErrors: []utils.ExpectedError{},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 1", FieldPath: "properties.autoScaling.min"},
+			},
 		},
 		{
 			name: "valid nodepool with labels - create",
@@ -553,7 +555,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "must be greater than or equal to 0", FieldPath: "properties.autoScaling.min"},
+				{Message: "must be greater than or equal to 1", FieldPath: "properties.autoScaling.min"},
 			},
 		},
 		{
@@ -585,7 +587,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "must be greater than or equal to 0", FieldPath: "properties.autoScaling.min"},
+				{Message: "must be greater than or equal to 1", FieldPath: "properties.autoScaling.min"},
 			},
 		},
 		{
@@ -1386,6 +1388,46 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			oldNodePool: createValidNodePool(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "cannot specify replicas when autoScaling is enabled", FieldPath: "properties.replicas"},
+			},
+		},
+		{
+			name: "autoscaling min zero - update",
+			newNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{
+					Min: 0,
+					Max: 5,
+				}
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 1", FieldPath: "properties.autoScaling.min"},
+			},
+		},
+		{
+			name: "unchanged autoscaling min zero is rejected - update",
+			newNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{
+					Min: 0,
+					Max: 5,
+				}
+				return np
+			}(),
+			oldNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{
+					Min: 0,
+					Max: 5,
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 1", FieldPath: "properties.autoScaling.min"},
 			},
 		},
 		{

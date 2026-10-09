@@ -1029,11 +1029,11 @@ model NodePoolAutoScaling {
   /**
    * The minimum number of nodes in the node pool.
    * Validation:
-   * - Minimum: 0
+   * - Minimum: 1
    * - Maximum: 200 (only when availabilityZone is not specified)
    * - No maximum when availabilityZone is specified
    */
-  @minValue(0)
+  @minValue(1)
   min?: int32;
 
   /**
