@@ -38,6 +38,15 @@ type BillingDocument struct {
 	// The cluster deletion time
 	DeletionTime *time.Time `json:"deletionTime,omitempty"`
 
+	// LastBillingTimeOfVMEvent is the compute event batch-processing watermark.
+	// Nil means no watermark has been persisted yet.
+	// Written by: HCP Billing service after successful compute usage processing.
+	LastBillingTimeOfVMEvent *time.Time `json:"lastBillingTimeOfVMEvent,omitempty"`
+	// LastBillingTimeOfMngtEvent is the end of the last successfully billed hosting interval.
+	// Nil means no watermark has been persisted yet.
+	// Written by: HCP Billing service after successful hosting usage processing.
+	LastBillingTimeOfMngtEvent *time.Time `json:"lastBillingTimeOfMngtEvent,omitempty"`
+
 	// The location of the HCP cluster
 	Location string `json:"location,omitempty"`
 	// The tenant ID of the HCP cluster
@@ -107,6 +116,16 @@ func (in *BillingDocument) DeepCopy() *BillingDocument {
 	if in.DeletionTime != nil {
 		out.DeletionTime = new(time.Time)
 		*out.DeletionTime = *in.DeletionTime
+	}
+
+	if in.LastBillingTimeOfVMEvent != nil {
+		out.LastBillingTimeOfVMEvent = new(time.Time)
+		*out.LastBillingTimeOfVMEvent = *in.LastBillingTimeOfVMEvent
+	}
+
+	if in.LastBillingTimeOfMngtEvent != nil {
+		out.LastBillingTimeOfMngtEvent = new(time.Time)
+		*out.LastBillingTimeOfMngtEvent = *in.LastBillingTimeOfMngtEvent
 	}
 
 	if in.ResourceID != nil {
