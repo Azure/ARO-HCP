@@ -7,10 +7,10 @@ set -euo pipefail
 
 NAMESPACE="observability"
 
-if kubectl get namespace "${NAMESPACE}" &>/dev/null; then
-  echo "Deleting orphaned namespace '${NAMESPACE}'..."
-  kubectl delete namespace "${NAMESPACE}" --ignore-not-found
-  echo "Namespace cleanup complete."
-else
-  echo "Namespace '${NAMESPACE}' does not exist. Nothing to do."
-fi
+echo "Listing remaining resources in '${NAMESPACE}' (if any)..."
+kubectl get deployments,services,configmaps -n "${NAMESPACE}" --ignore-not-found
+
+echo "Deleting namespace '${NAMESPACE}' (if present)..."
+kubectl delete namespace "${NAMESPACE}" --ignore-not-found --timeout=10m
+
+echo "Namespace '${NAMESPACE}' is absent."
