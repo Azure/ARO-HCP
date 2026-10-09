@@ -385,6 +385,14 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster autoscaling for %s: %w", resourceKey, err)))
 					continue
 				}
+
+				// ARO-26973: Enable forwarding of control plane metrics to the hosted
+				// cluster's monitoring stack so customers get visibility into their
+				// control plane without manual intervention.
+				if err := ensureHostedClusterMonitoring(&unstructuredObj); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to reconcile HostedCluster monitoring for %s: %w", resourceKey, err)))
+					continue
+				}
 			}
 
 			desire, err = buildClusterResourceApplyDesire(
@@ -525,6 +533,25 @@ func removeNullUsernamePrefixes(hostedCluster *unstructured.Unstructured) error 
 	if changed {
 		return unstructured.SetNestedSlice(hostedCluster.Object, providers,
 			"spec", "configuration", "authentication", "oidcProviders")
+	}
+	return nil
+}
+
+// ensureHostedClusterMonitoring sets backend-managed monitoring configuration on a
+// HostedCluster. This enables forwarding of control plane metrics (e.g. kube-apiserver,
+// etcd) from the management cluster into the hosted cluster's own monitoring stack, so
+// customers get visibility into their control plane without manual intervention.
+//
+// Note: HyperShift also supports enabling this via the deprecated
+// hypershift.openshift.io/enable-metrics-forwarding annotation, but spec.monitoring.metricsForwarding
+// is the supported, non-deprecated mechanism going forward, so the backend sets it directly.
+// https://github.com/openshift/hypershift/blob/main/api/hypershift/v1beta1/hostedcluster_types.go
+func ensureHostedClusterMonitoring(hostedCluster *unstructured.Unstructured) error {
+	if err := unstructured.SetNestedField(
+		hostedCluster.Object, string(v1beta1.MetricsForwardingModeForward),
+		"spec", "monitoring", "metricsForwarding", "mode",
+	); err != nil {
+		return fmt.Errorf("failed to set spec.monitoring.metricsForwarding.mode: %w", err)
 	}
 	return nil
 }
