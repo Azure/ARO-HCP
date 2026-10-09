@@ -39,6 +39,8 @@ type RawOptions struct {
 	IncludeLocations []string
 	ExcludeLocations []string
 	Tracked          bool
+	JobID            string
+	JobIDSet         bool
 	SharedDir        string
 	FPAClientID      string
 	FPACertPath      string
@@ -55,6 +57,7 @@ type ValidatedOptions struct {
 }
 
 type completedOptions struct {
+	JobID            string
 	ResourceGroups   []string
 	DryRun           bool
 	IsDevelopment    bool
@@ -93,6 +96,12 @@ func DefaultOptions() *RawOptions {
 }
 
 func (o *RawOptions) Validate() (*ValidatedOptions, error) {
+	if (o.JobIDSet || o.JobID != "") && strings.TrimSpace(o.JobID) == "" {
+		return nil, fmt.Errorf("--job-id must not be blank")
+	}
+	if o.JobID != "" && (len(o.ResourceGroups) > 0 || o.DeleteExpired) {
+		return nil, fmt.Errorf("--job-id is mutually exclusive with --resource-group and --expired")
+	}
 
 	if o.Concurrency <= 0 {
 		return nil, fmt.Errorf("concurrency must be greater than zero")
@@ -111,7 +120,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		{
 			memberFlags:      sets.New("--resource-group", "--expired", "--tracked"),
 			exclusivityGroup: true,
-			oneOfGroup:       true,
+			oneOfGroup:       o.JobID == "",
 			seenFlags:        sets.New[string](),
 		},
 		{
@@ -222,7 +231,7 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 			resourceGroups = append(resourceGroups, rg)
 		}
 
-		if len(resourceGroups) == 0 {
+		if len(resourceGroups) == 0 && o.JobID == "" {
 			return nil, fmt.Errorf("no %s* files found in %q", prefix, o.SharedDir)
 		}
 	} else {
@@ -240,6 +249,7 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 
 	return &Options{
 		completedOptions: &completedOptions{
+			JobID:            o.JobID,
 			ResourceGroups:   resourceGroups,
 			DryRun:           o.DryRun,
 			CleanupWorkflow:  framework.CleanupWorkflow(o.CleanupWorkflow),
