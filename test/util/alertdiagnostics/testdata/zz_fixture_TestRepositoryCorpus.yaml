@@ -567,17 +567,57 @@
         workqueue_depth{namespace="aro-hcp"}
       )
     ) > 10
+    unless on (name, cluster) (
+      workqueue_depth{namespace="aro-hcp",name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)"}
+      and on (cluster) (
+        max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
+      )
+    )
   plan:
-    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
+    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))
     conditions:
-      - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
-        path: root
+      - expression: (max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10) unless on (name, cluster) ((workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)))
+        path: root/unless:left
         queries:
-          - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"}))
+          - expression: (max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"}))) unless on (name, cluster) ((workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)))
             role: signal
         thresholds:
           - operator: '>'
             value: 10
+        unsupported: ""
+- source: backend/alerts/backend-prometheusRule.yaml
+  group: backend
+  alert: BackendControllerQueueDepthHigh
+  occurrence: 2
+  input: |
+    max by (name, cluster) (
+      max without(prometheus_replica) (
+        workqueue_depth{namespace="aro-hcp",name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)"}
+      )
+    ) > 10
+    and on (cluster) (
+      max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
+    )
+  plan:
+    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10 and on (cluster) (max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)
+    conditions:
+      - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10
+        path: root/and:left
+        queries:
+          - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 10
+        unsupported: ""
+      - expression: max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
+        path: root/and:right
+        queries:
+          - expression: max by (cluster) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"})
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
         unsupported: ""
 - source: backend/alerts/backend-prometheusRule.yaml
   group: backend
@@ -1191,18 +1231,44 @@
   group: backend
   alert: BackendControllerQueueDepthHigh
   occurrence: 1
-  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
+  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))
   plan:
-    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
+    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))
     conditions:
-      - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10
-        path: root
+      - expression: (max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10) unless on (name, cluster) ((workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)))
+        path: root/unless:left
         queries:
-          - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"}))
+          - expression: (max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"}))) unless on (name, cluster) ((workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)))
             role: signal
         thresholds:
           - operator: '>'
             value: 10
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
+  group: backend
+  alert: BackendControllerQueueDepthHigh
+  occurrence: 2
+  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10 and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)
+  plan:
+    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10 and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)
+    conditions:
+      - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10
+        path: root/and:left
+        queries:
+          - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 10
+        unsupported: ""
+      - expression: max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1
+        path: root/and:right
+        queries:
+          - expression: max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"})
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
   group: backend

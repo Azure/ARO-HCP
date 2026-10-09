@@ -625,12 +625,40 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           correlationId: 'BackendControllerQueueDepthHigh/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts.md#backend-queue-depth-thresholds'
           summary: 'Backend controller workqueue {{ $labels.name }} depth is high'
           title: 'Backend controller workqueue {{ $labels.name }} depth is high'
         }
-        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10'
+        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))'
         for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'BackendControllerQueueDepthHigh'
+        enabled: true
+        labels: {
+          component: 'backend'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'BackendControllerQueueDepthHigh/{{ $labels.cluster }}/{{ $labels.name }}'
+          description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 90 minutes. Insecure mock managed identities are enabled; CheckAccessV2 throughput is limited by CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS = 4.5.'
+          info: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 90 minutes. Insecure mock managed identities are enabled; CheckAccessV2 throughput is limited by CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS = 4.5.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts.md#backend-queue-depth-thresholds'
+          summary: 'Backend controller workqueue {{ $labels.name }} depth is high'
+          title: 'Backend controller workqueue {{ $labels.name }} depth is high'
+        }
+        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10 and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)'
+        for: 'PT1H30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {

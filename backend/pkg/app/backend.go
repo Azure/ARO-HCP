@@ -68,7 +68,10 @@ type BackendOptions struct {
 	MaestroSourceEnvironmentIdentifier string
 	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
 	// HasRealFPA indicates the backend runs against a real First Party Application rather than the
-	// insecure MI mock. Controllers that create Azure resources only a real FPA can create (e.g.
+	// insecure MI mock. This is the inverse of the command-line flag
+	// InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock
+	// and is also exposed through backend_insecure_mock_managed_identities_enabled.
+	// Controllers that create Azure resources only a real FPA can create (e.g.
 	// deny assignments) are disabled when this is false (dev/int environments).
 	HasRealFPA                                          bool
 	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
@@ -136,6 +139,19 @@ func (o *BackendOptions) NewBackend() (*Backend, error) {
 	}
 	if err := o.validate(); err != nil {
 		return nil, err
+	}
+	// Expose the configured identity mode on every replica, including followers.
+	// CheckAccessV2 callers in mock mode share the much lower ARM Permissions
+	// Manager rate limit, so queue-depth alerts allow them more time to drain.
+	mockIdentities := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "backend_insecure_mock_managed_identities_enabled",
+		Help: "Whether InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock is enabled (1) or disabled (0).",
+	})
+	if !o.HasRealFPA {
+		mockIdentities.Set(1)
+	}
+	if err := o.MetricsRegisterer.Register(mockIdentities); err != nil {
+		return nil, fmt.Errorf("failed to register backend identity mode metric: %w", err)
 	}
 	return &Backend{
 		clock:   utilsclock.RealClock{},
