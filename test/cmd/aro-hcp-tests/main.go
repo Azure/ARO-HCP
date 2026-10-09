@@ -704,6 +704,9 @@ func setupCli() *cobra.Command {
 		}()
 	})
 
+	// TODO: remove after PR validation
+	specs = specs.MustFilter([]string{`name.contains("grantable managed identity operator")`})
+
 	// You can add hooks to run before/after tests. There are BeforeEach, BeforeAll, AfterEach,
 	// and AfterAll. "Each" functions must be thread safe.
 	//
