@@ -1,0 +1,24 @@
+# Collector-only runtime config. No tenant credentials or Key Vault access needed.
+# Keep Kusto settings even for --inspect-artifacts; they are validated, not used.
+exitOnPanic: false
+ciJobOutcomes:
+  enabled: false
+  clusterURI: https://hcp-dev-us-2.eastus2.kusto.windows.net
+  ingestionURI: https://ingest-hcp-dev-us-2.eastus2.kusto.windows.net
+  database: ServiceLogs
+  outcomes:
+    table: ciJobOutcomes
+    ingestionMapping: ciJobOutcomesMapping
+  testNames:
+    table: ciTestNames
+    ingestionMapping: ciTestNamesMapping
+  testResults:
+    table: ciTestResults
+    ingestionMapping: ciTestResultsMapping
+  sippyURI: https://sippy.dptools.openshift.org
+  jobFilter: e2e-parallel
+  releases:
+  - Presubmits
+  - aro-integration
+  - aro-stage
+  - aro-production

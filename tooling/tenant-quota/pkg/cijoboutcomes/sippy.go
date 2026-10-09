@@ -38,6 +38,17 @@ type sippyRun struct {
 	Timestamp       sippyTimestamp `json:"timestamp"`
 }
 
+// hasTerminalOutcome follows Sippy's JobOverallResult codes in
+// pkg/apis/sippyprocessing/v1/types.go. R is running; f is legacy unknown.
+func (r sippyRun) hasTerminalOutcome() bool {
+	switch r.OverallResult {
+	case "S", "F", "I", "U", "N", "n", "A":
+		return true
+	default:
+		return false
+	}
+}
+
 // sippyTimestamp decodes the time a run started.
 //
 // Sippy reports it as an RFC 3339 string, but has historically reported Unix
@@ -80,13 +91,23 @@ type sippyResponse struct {
 	Rows []sippyRun `json:"rows"`
 }
 
-// fetchRuns lists a release's e2e runs that started after the given time.
+// fetchRuns includes the cursor timestamp so equal-start runs cannot fall in a gap.
 func fetchRuns(ctx context.Context, client *http.Client, endpoint, release, jobFilter string, since time.Time) ([]sippyRun, error) {
+	return queryRuns(ctx, client, endpoint, release, []map[string]string{
+		{"columnField": "name", "operatorValue": "contains", "value": jobFilter},
+		{"columnField": "timestamp", "operatorValue": ">=", "value": since.UTC().Format(time.RFC3339Nano)},
+	})
+}
+
+func fetchRunByID(ctx context.Context, client *http.Client, endpoint, release, id string) ([]sippyRun, error) {
+	return queryRuns(ctx, client, endpoint, release, []map[string]string{
+		{"columnField": "prow_id", "operatorValue": "=", "value": id},
+	})
+}
+
+func queryRuns(ctx context.Context, client *http.Client, endpoint, release string, items []map[string]string) ([]sippyRun, error) {
 	filter, err := json.Marshal(map[string]any{
-		"items": []map[string]string{
-			{"columnField": "name", "operatorValue": "contains", "value": jobFilter},
-			{"columnField": "timestamp", "operatorValue": ">", "value": since.UTC().Format(time.RFC3339)},
-		},
+		"items":        items,
 		"linkOperator": "and",
 	})
 	if err != nil {

@@ -48,17 +48,60 @@ func TestTenantQuotaCIJobOutcomes(t *testing.T) {
 	require.NoError(t, err)
 	cfg, err := resolver.GetRegionConfiguration("westus3")
 	require.NoError(t, err)
+	// The standalone schema describes layers, not the flattened runtime config.
+	validateSchema := func(configuration map[string]any) error {
+		return resolver.ValidateSchema(map[string]any{
+			"clouds": map[string]any{"dev": map[string]any{"defaults": configuration}},
+		})
+	}
+	require.NoError(t, validateSchema(cfg))
 	resolved, err := yaml.Marshal(cfg)
 	require.NoError(t, err)
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(configPath, resolved, 0600))
-
-	for _, values := range []string{"values.yaml.tmpl", "values.yaml"} {
-		t.Run(values, func(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		values           string
+		custom           bool
+		omitStartupSince bool
+	}{
+		{name: "deployed", values: "values.yaml.tmpl"},
+		{name: "defaults", values: "values.yaml"},
+		{name: "custom controller settings", values: "values.yaml.tmpl", custom: true},
+		{name: "omitted startup since", values: "values.yaml.tmpl", omitStartupSince: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var testConfig map[string]any
+			require.NoError(t, yaml.Unmarshal(resolved, &testConfig))
+			expected := map[string]any{
+				"interval": "5m", "window": "24h", "repairInterval": "12h", "overlap": "3h",
+				"workers": float64(10), "cacheSize": float64(20000), "cacheTTL": "15m",
+				"startupSince": "",
+			}
+			if tc.custom {
+				expected = map[string]any{
+					"interval": "1m", "window": "48h", "repairInterval": "6h", "overlap": "2h",
+					"workers": float64(3), "cacheSize": float64(100), "cacheTTL": "2m",
+					"startupSince": "2026-09-15T00:00:00Z",
+				}
+				tenantQuota := testConfig["opstool"].(map[string]any)["tenantQuota"].(map[string]any)
+				tenantQuota["exitOnPanic"] = true
+				outcomes := tenantQuota["ciJobOutcomes"].(map[string]any)
+				for key, value := range expected {
+					outcomes[key] = value
+				}
+			}
+			if tc.omitStartupSince {
+				outcomes := testConfig["opstool"].(map[string]any)["tenantQuota"].(map[string]any)["ciJobOutcomes"].(map[string]any)
+				delete(outcomes, "startupSince")
+			}
+			data, err := yaml.Marshal(testConfig)
+			require.NoError(t, err)
+			require.NoError(t, validateSchema(testConfig))
+			configPath := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(configPath, data, 0600))
 			manifest, err := runTest(t.Context(), &internal.Settings{ConfigPath: configPath}, internal.TestCase{
 				Name:         "tenant-quota",
 				Namespace:    "tenant-quota",
-				Values:       filepath.Join(chartDir, values),
+				Values:       filepath.Join(chartDir, tc.values),
 				HelmChartDir: chartDir,
 			})
 			require.NoError(t, err)
@@ -78,18 +121,51 @@ func TestTenantQuotaCIJobOutcomes(t *testing.T) {
 			pod := deployment.Spec.Template
 			require.Equal(t, "true", pod.Labels["azure.workload.identity/use"])
 			require.Len(t, pod.Spec.Containers, 1)
+			require.Equal(t, "1Gi", pod.Spec.Containers[0].Resources.Requests.Memory().String())
+			require.Equal(t, "1Gi", pod.Spec.Containers[0].Resources.Limits.Memory().String())
 			require.Contains(t, pod.Spec.Containers[0].Env, corev1.EnvVar{
 				Name: "AZURE_TOKEN_CREDENTIALS", Value: "WorkloadIdentityCredential",
 			})
-			if values == "values.yaml.tmpl" {
-				local, err := config.PreprocessFile(filepath.Join(chartDir, "config.yaml.tmpl"), cfg)
+			var runtime map[string]any
+			require.NoError(t, yaml.Unmarshal([]byte(cm.Data["config.yaml"]), &runtime))
+			require.Equal(t, tc.custom, runtime["exitOnPanic"])
+			require.Equal(t, "30s", runtime["timeout"], "global collector timeout is unchanged")
+			require.Equal(t, "24h", runtime["cacheTTL"], "global collector cache TTL is unchanged")
+			outcomes := runtime["ciJobOutcomes"].(map[string]any)
+			require.NotContains(t, outcomes, "timeout", "CI reconciles have no timeout")
+			for key, value := range expected {
+				require.Equal(t, value, outcomes[key], "controller setting %s", key)
+			}
+			if tc.values == "values.yaml.tmpl" {
+				local, err := config.PreprocessFile(filepath.Join(chartDir, "config.yaml.tmpl"), testConfig)
 				require.NoError(t, err)
 				require.YAMLEq(t, string(local), cm.Data["config.yaml"])
 			} else {
-				var defaults map[string]any
-				require.NoError(t, yaml.Unmarshal([]byte(cm.Data["config.yaml"]), &defaults))
-				require.Equal(t, map[string]any{"enabled": false}, defaults["ciJobOutcomes"])
+				expected["enabled"] = false
+				require.Equal(t, expected, outcomes)
 			}
+		})
+	}
+
+	for _, tc := range []struct {
+		field string
+		value any
+	}{
+		{field: "workers", value: 0},
+		{field: "cacheSize", value: 0},
+		{field: "timeout", value: "10m"},
+		{field: "startupSince", value: "not-a-date"},
+		{field: "startupSince", value: "2026-09-31T00:00:00Z"},
+		{field: "startupSince", value: "2026-09-15"},
+	} {
+		t.Run("schema rejects "+tc.field, func(t *testing.T) {
+			var invalid map[string]any
+			require.NoError(t, yaml.Unmarshal(resolved, &invalid))
+			outcomes := invalid["opstool"].(map[string]any)["tenantQuota"].(map[string]any)["ciJobOutcomes"].(map[string]any)
+			outcomes[tc.field] = tc.value
+			err := validateSchema(invalid)
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.field)
 		})
 	}
 }

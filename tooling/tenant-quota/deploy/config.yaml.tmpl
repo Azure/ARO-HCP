@@ -15,6 +15,7 @@
 interval: "5m"
 timeout: "30s"
 cacheTTL: "24h"
+exitOnPanic: {{ .opstool.tenantQuota.exitOnPanic }}
 prow:
   enabled: {{ .opstool.tenantQuota.prow.enabled }}
   baseURL: "{{ .opstool.tenantQuota.prow.baseURL }}"
@@ -48,8 +49,13 @@ ciJobOutcomes:
   sippyURI: "{{ .opstool.tenantQuota.ciJobOutcomes.sippyURI }}"
   jobFilter: "{{ .opstool.tenantQuota.ciJobOutcomes.jobFilter }}"
   interval: "{{ .opstool.tenantQuota.ciJobOutcomes.interval }}"
-  timeout: "{{ .opstool.tenantQuota.ciJobOutcomes.timeout }}"
   window: "{{ .opstool.tenantQuota.ciJobOutcomes.window }}"
+  startupSince: "{{ with index .opstool.tenantQuota.ciJobOutcomes "startupSince" }}{{ . }}{{ end }}"
+  repairInterval: "{{ .opstool.tenantQuota.ciJobOutcomes.repairInterval }}"
+  overlap: "{{ .opstool.tenantQuota.ciJobOutcomes.overlap }}"
+  workers: {{ .opstool.tenantQuota.ciJobOutcomes.workers }}
+  cacheSize: {{ .opstool.tenantQuota.ciJobOutcomes.cacheSize }}
+  cacheTTL: "{{ .opstool.tenantQuota.ciJobOutcomes.cacheTTL }}"
   releases:
 {{- range .opstool.tenantQuota.ciJobOutcomes.releases }}
   - "{{ . }}"

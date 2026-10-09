@@ -53,6 +53,7 @@ type ciTestResult struct {
 	TestID           string    `json:"testId"`
 	Result           string    `json:"result"`
 	Failed           bool      `json:"failed"`
+	Message          string    `json:"message"`
 	ResourceGroup    string    `json:"resourceGroup"`
 	StartedAt        time.Time `json:"startedAt"`
 	FinishedAt       time.Time `json:"finishedAt"`
