@@ -630,6 +630,55 @@ No writes to Cosmos Resources container.
 
 No writes to Cosmos Resources container.
 
+### Admin API: POST ControlPlaneVersionPin
+
+**Path:** `POST /admin/v1/hcp/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourceName}/controlplaneversionpin`
+**Handler:** `HCPVersionPinHandler` ([controlplaneversionpin.go](../admin/server/handlers/hcp/controlplaneversionpin.go))
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `Cluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (rejects requests for deleting clusters)</li><li>`CustomerProperties.Version.ID` (cluster release line, used to reject cross-minor pins)</li><li>`CustomerProperties.Version.ChannelGroup` (used to reject an auto-release threshold for nightly clusters)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ActualHostedCluster.Status.ControlPlaneVersion.History` (newest-first control-plane history; pins at or above the latest entry are allowed, while lower targets require the immediately previous distinct `Completed` version)</li><li>Full document for preservation of other fields; never created by this endpoint</li></ul> |
+
+| Object | Fields Written |
+|--------|---------------|
+| `ServiceProviderCluster` | <ul><li>**`Spec.PinnedVersion.ExactVersion`** = parsed semver from request, or nil to clear</li><li>**`Spec.PinnedVersion.UntilExactVersion`** = parsed semver from request, or nil</li></ul> |
+
+The request body must contain exactly one JSON object. Top-level `null`, other
+non-object values, unknown fields and trailing data return HTTP 400 before any
+database access. Whitespace around the object and explicit null version fields
+inside a clear request are accepted.
+
+Both setting and clearing a pin return HTTP 409 if the cluster is being deleted
+or its provider document is missing; neither operation creates that document.
+Setting a pin on a nightly cluster is allowed without `untilExactVersion`;
+nightly channels have no fleet best version to trigger auto-release, so a
+threshold returns HTTP 400 and the pin must be cleared explicitly. Setting a
+pin equal to or above the latest control-plane history version holds or
+advances the cluster. A lower target requires the immediately previous distinct
+`Completed` version and otherwise returns HTTP 400 before any write. Partial
+attempts and repeated latest-version entries are skipped when selecting that
+rollback target. Without mirrored control-plane history, the pin is accepted
+because there is no observed version against which to classify a rollback.
+The latest observed history entry and each `Completed` entry examined for a
+rollback must not contain build metadata; these entries return HTTP 400 because
+semantic-version comparisons ignore `+build`.
+Neither guest version history nor `Status.ControlPlaneVersion.ActiveVersions`
+substitutes for control-plane history. Clearing a pin does not require
+observed history. The field is present in HyperShift 4.22 and was backported to
+[release-4.20](https://github.com/openshift/hypershift/pull/9055) and
+[release-4.21](https://github.com/openshift/hypershift/pull/9054). These backports
+appear in OpenShift 4.20.33 and 4.21.28 release payloads. The field may be
+absent before observation or when the deployed management-cluster HyperShift
+operator predates support. The hosted cluster's minor version alone does not
+establish which rollback targets are safe once control-plane history is available.
+
+All other `Spec` and `Status` fields are preserved via `DeepCopy`
+before modification; replacement uses the read document's ETag. If another writer
+changes the document before replacement, the handler returns HTTP 409 `Conflict`
+with a retry message, preserving the concurrent update. Both set and clear
+requests leave retrying to the caller.
+
 ---
 
 ## 2. Complete Controller Catalog
@@ -1925,7 +1974,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 |---|---|
 | Service-provider cluster `Spec.ControlPlaneVersion.DesiredVersion` / `DesiredVersionLastTransitionTime` | [Initial assignment](#initialnormalclusterdesiredversion), [minor-version assignment](#minorupgradenormalclusterdesiredversion), [normal rollout](#zstreamprogressivedesiredversionrollout) and [forced assignment](#forcedclusterdesiredversion) write the target and transition time. Initial assignment also backfills a missing/zero time without changing the target. Cluster creation, upgrade dispatch and operation completion consume desired state; it is not an observed version. |
 | Cluster `ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` | Frontend admission projects the AFEC-gated `aro-hcp.experimental.cluster.z-stream-update-policy` tag; its only valid value is `Immediate`. Removing the tag or AFEC clears the policy. [Forced assignment](#forcedclusterdesiredversion) follows the desired channel's best z-stream without progressive gates, after pins and exact overrides. |
-| Service-provider cluster `Spec.PinnedVersion` | SRE supplies `ExactVersion` and optional `UntilExactVersion`. [Forced assignment](#forcedclusterdesiredversion) clears the pin once channel best reaches the release threshold. Pins precede experimental exact versions and normal assignment. |
+| Service-provider cluster `Spec.PinnedVersion` | [Admin API ControlPlaneVersionPin](#admin-api-post-controlplaneversionpin) sets `ExactVersion` and optional `UntilExactVersion`; sending a nil `ExactVersion` clears the pin. [Forced assignment](#forcedclusterdesiredversion) also clears the pin once channel best reaches the release threshold. Pins precede experimental exact versions and normal assignment. |
 | Fleet `ControlPlaneVersionRollout.Spec.Version.{ID,ChannelGroup}` | [Seeding](#controlplaneversionrolloutseeding) sets the profile on creation. Shared Cosmos conversion fills absent/zero legacy profiles on read; [migration](#cosmosrolloutversionmigration) and ordinary rollout replacements persist them. Consumers still parse channel names. |
 | Fleet `ControlPlaneVersionRollout.Spec.BestExactVersion` | [Seeding](#controlplaneversionrolloutseeding) creates requested/pinned channel documents without a best version. [Best selection](#controlplaneversionbestversionselection) owns the target; assignment controllers consume it. |
 | Fleet rollout status count maps | [Status collector](#controlplaneversionstatuscollector) alone persists desired, mismatched, failed, achieved and successful counts. Normal assignment recomputes its own snapshot counts to avoid collector lag. |
