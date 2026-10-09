@@ -27,8 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
@@ -37,364 +35,194 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 )
 
+const testBuildID BuildID = "1976270000000000123"
+const testJobURI JobURI = "gs://test-platform-results-public/logs/periodic-ci-Azure-ARO-HCP-test/1976270000000000123"
+
 func newTestWriter(t *testing.T) *Writer {
 	t.Helper()
 	cfg := &config.Config{CIJobOutcomes: config.CIJobOutcomesConfig{
-		Releases: []string{"Presubmits", "4.21"}, JobFilter: "ARO-HCP", SippyURI: "https://sippy.invalid",
+		JobFilter:   "ARO-HCP",
 		Outcomes:    config.KustoTableConfig{Table: "ciJobOutcomes", IngestionMapping: "ciJobOutcomesMapping"},
 		TestResults: config.KustoTableConfig{Table: "ciTestResults", IngestionMapping: "ciTestResultsMapping"},
 		TestNames:   config.KustoTableConfig{Table: "ciTestNames", IngestionMapping: "ciTestNamesMapping"},
+		Discovered:  config.KustoTableConfig{Table: "ciDiscoveredJobs", IngestionMapping: "ciDiscoveredJobsMapping"},
+		Processed:   config.KustoTableConfig{Table: "ciProcessedJobs", IngestionMapping: "ciProcessedJobsMapping"},
 	}, Tenants: []config.TenantConfig{{TenantID: "t", ServicePrincipalClientId: "c", KeyVaultSecretName: "s"}}}
 	require.NoError(t, cfg.Validate())
 	w := NewWriter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	w.tagExists = func(context.Context, batchKind, BuildID) (bool, error) { return false, nil }
 	w.submit = func(context.Context, batchKind, BuildID, *bytes.Buffer) error { return nil }
-	w.cursor = func(context.Context, string) (time.Time, error) { return time.Time{}, nil }
+	w.jobCursor = func(context.Context, GCSJob) (string, error) { return "", nil }
+	w.pendingJobs = func(context.Context) ([]JobURI, error) { return nil, nil }
+	w.discoveredExists = func(context.Context, JobURI) (bool, error) { return false, nil }
+	w.processedExists = func(context.Context, BuildID) (bool, error) { return false, nil }
+	w.submitDiscovery = func(context.Context, []DiscoveredJob, string) error { return nil }
+	w.submitProcessed = func(context.Context, BuildID) error { return nil }
+	w.completion = func(context.Context, *http.Client, string) (*prowCompletion, error) {
+		return &prowCompletion{Result: "FAILURE", FinishedAt: w.now().Add(-time.Hour)}, nil
+	}
 	w.jobDetail = func(context.Context, *http.Client, string) (runDetail, error) { return runDetail{}, nil }
 	w.e2eRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
-		return []ciTestResult{{BuildID: "123", TestID: "e2e"}}, []ciTestName{{TestID: "e2e", Name: "full name"}}, nil
+		return []ciTestResult{{BuildID: string(testBuildID), TestID: "e2e"}}, []ciTestName{{TestID: "e2e", Name: "full name"}}, nil
 	}
-	w.observabilityRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
-		return []ciTestResult{{BuildID: "123", TestID: "alert", Message: "firing"}}, []ciTestName{{TestID: "alert", Name: "alert name"}}, nil
-	}
+	w.observabilityRows = w.e2eRows
 	t.Cleanup(w.queue.ShutDown)
+	t.Cleanup(w.discoveryQueue.ShutDown)
 	return w
-}
-
-func testRun(id string, at time.Time) sippyRun {
-	return sippyRun{ProwID: id, Job: "periodic-ARO-HCP", URL: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ARO-HCP/" + id, OverallResult: "S", Succeeded: true, Timestamp: sippyTimestamp{Time: at}}
-}
-
-func seedRun(w *Writer, id BuildID) {
-	w.metadata.put(id, runMetadata{run: testRun(string(id), time.Now()), release: "Presubmits"})
 }
 
 func testContext(t *testing.T, w *Writer) context.Context {
 	return utils.ContextWithLogger(t.Context(), w.logger)
 }
 
-func TestWriterUsesConfiguredCaches(t *testing.T) {
-	cfg := newTestWriter(t).config
-	size := 7
-	cfg.CIJobOutcomes.CacheSize = &size
-	cfg.CIJobOutcomes.CacheTTL = "2m"
-	require.NoError(t, cfg.Validate())
-	w := NewWriter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	t.Cleanup(w.queue.ShutDown)
-	require.Equal(t, size, w.batches.capacity)
-	require.Equal(t, 2*time.Minute, w.batches.ttl)
-	require.Equal(t, size, w.metadata.capacity)
-	require.Equal(t, 2*time.Minute, w.metadata.ttl)
-}
-
-func TestMappingsGuardNewFields(t *testing.T) {
-	for _, field := range []string{"adoBuildId", "message"} {
-		for _, tc := range []struct{ name, mapping, wantErr string }{
-			{"flat", `[{"column":"%s","datatype":"string","path":"$['%s']"}]`, ""},
-			{"properties", `[{"Column":"%s","DataType":"string","Properties":{"Path":"$['%s']"}}]`, ""},
-			{"old", `[]`, "deploy the Kusto schema migration first"},
-			{"wrong path", `[{"Column":"%s","DataType":"string","Properties":{"Path":"$.wrong"}}]`, "deploy the Kusto schema migration first"},
-			{"wrong type", `[{"Column":"%s","DataType":"long","Properties":{"Path":"$['%s']"}}]`, "deploy the Kusto schema migration first"},
-			{"malformed", `{`, "failed to decode"},
-		} {
-			t.Run(field+"/"+tc.name, func(t *testing.T) {
-				mapping := strings.ReplaceAll(tc.mapping, "%s", field)
-				encoded, err := json.Marshal(mapping)
-				require.NoError(t, err)
-				w := newTestWriter(t)
-				client, err := azkustodata.New(azkustodata.NewConnectionStringBuilder("http://localhost"),
-					azkustodata.WithHttpClient(&http.Client{Transport: ingestionTransport(func(r *http.Request) (*http.Response, error) {
-						if r.Method == http.MethodGet {
-							return &http.Response{StatusCode: http.StatusNotFound, Body: http.NoBody}, nil
-						}
-						var request struct{ CSL string }
-						require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-						require.Contains(t, request.CSL, "ingestion json mapping")
-						body := fmt.Sprintf(`{"Tables":[{"TableName":"Table","Columns":[{"ColumnName":"Mapping","ColumnType":"string"}],"Rows":[[%s]]}]}`, encoded)
-						return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
-					})}))
-				require.NoError(t, err)
-				t.Cleanup(func() { require.NoError(t, client.Close()) })
-				err = w.checkMapping(t.Context(), client, w.config.CIJobOutcomes.TestResults, field)
-				if tc.wantErr == "" {
-					require.NoError(t, err)
-				} else {
-					require.ErrorContains(t, err, tc.wantErr)
-				}
-			})
-		}
+func TestReconcileRequiresLiveCompletionNotAcceptedCache(t *testing.T) {
+	w := newTestWriter(t)
+	checked, submitted, acknowledgments := 0, 0, 0
+	visible := map[batchKind]bool{}
+	w.tagExists = func(_ context.Context, kind batchKind, _ BuildID) (bool, error) { checked++; return visible[kind], nil }
+	w.submit = func(context.Context, batchKind, BuildID, *bytes.Buffer) error { submitted++; return nil }
+	w.submitProcessed = func(context.Context, BuildID) error { acknowledgments++; return nil }
+	ctx := testContext(t, w)
+	for range 2 {
+		delay, err := w.reconcile(ctx, testJobURI)
+		require.NoError(t, err)
+		require.Equal(t, 15*time.Minute, delay)
+		require.Zero(t, acknowledgments, "accepted cache cannot acknowledge invisible ingestion")
 	}
+	require.Equal(t, 10, checked, "all five tags must be checked on every reconcile")
+	require.Equal(t, 5, submitted, "accepted cache suppresses only resubmission")
+	for _, kind := range batchKinds {
+		visible[kind] = true
+	}
+	delay, err := w.reconcile(ctx, testJobURI)
+	require.NoError(t, err)
+	require.Equal(t, 15*time.Minute, delay, "ack remains pending until its row is visible")
+	require.Equal(t, 1, acknowledgments)
+	w.processedExists = func(context.Context, BuildID) (bool, error) { return true, nil }
+	w.completion = func(context.Context, *http.Client, string) (*prowCompletion, error) {
+		t.Fatal("processed job downloaded")
+		return nil, nil
+	}
+	delay, err = w.reconcile(ctx, testJobURI)
+	require.NoError(t, err)
+	require.Zero(t, delay)
+	require.Equal(t, 15, checked)
 }
 
-func TestKustoCursorQueryResponse(t *testing.T) {
-	for _, tc := range []struct {
-		name      string
-		rows      string
-		column    string
-		want      time.Time
-		wantError string
-	}{
-		{name: "cursor with metadata", rows: `[["2026-10-08T12:34:56.1234567Z"]]`, column: "cursor", want: time.Date(2026, 10, 8, 12, 34, 56, 123456700, time.UTC)},
-		{name: "null max with metadata", rows: `[[null]]`, column: "cursor"},
-		{name: "empty primary with metadata", rows: `[]`, column: "cursor"},
-		{name: "no primary table"},
-		{name: "missing primary column is an error", rows: `[[null]]`, column: "wrong", wantError: "column cursor not found"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Exercise the SDK's v2 decoder, including the metadata tables that
-			// Query returns alongside the primary result even for a null max().
-			primary := ""
-			if tc.rows != "" {
-				var rows []json.RawMessage
-				require.NoError(t, json.Unmarshal([]byte(tc.rows), &rows))
-				primary = fmt.Sprintf(`
-,{"FrameType":"TableHeader","TableId":1,"TableKind":"PrimaryResult","TableName":"PrimaryResult","Columns":[{"ColumnName":%q,"ColumnType":"datetime"}]}
-,{"FrameType":"TableFragment","TableFragmentType":"DataAppend","TableId":1,"Rows":%s}
-,{"FrameType":"TableCompletion","TableId":1,"RowCount":%d}`, tc.column, tc.rows, len(rows))
-			}
-			body := `[{"FrameType":"DataSetHeader","IsProgressive":false,"Version":"v2.0","IsFragmented":true,"ErrorReportingPlacement":"EndOfTable"}
-,{"FrameType":"DataTable","TableId":0,"TableKind":"QueryProperties","TableName":"@ExtendedProperties","Columns":[{"ColumnName":"TableId","ColumnType":"int"},{"ColumnName":"Key","ColumnType":"string"},{"ColumnName":"Value","ColumnType":"dynamic"}],"Rows":[[1,"Visualization","{\"Visualization\":null}"]]}` + primary + `
-,{"FrameType":"DataTable","TableId":2,"TableKind":"QueryCompletionInformation","TableName":"QueryCompletionInformation","Columns":[{"ColumnName":"Timestamp","ColumnType":"datetime"},{"ColumnName":"Level","ColumnType":"int"},{"ColumnName":"LevelName","ColumnType":"string"},{"ColumnName":"StatusCode","ColumnType":"int"},{"ColumnName":"StatusCodeName","ColumnType":"string"},{"ColumnName":"EventType","ColumnType":"int"},{"ColumnName":"EventTypeName","ColumnType":"string"},{"ColumnName":"Payload","ColumnType":"string"}],"Rows":[["2026-10-08T12:35:00Z",4,"Info",0,"S_OK (0)",4,"QueryInfo","{\"Count\":1,\"Text\":\"Query completed successfully\"}"]]}
-,{"FrameType":"DataSetCompletion","HasErrors":false,"Cancelled":false}
-]
-`
+func TestAcceptedCacheExpiryAllowsRepair(t *testing.T) {
+	w := newTestWriter(t)
+	require.Equal(t, 20000, w.batches.capacity)
+	require.Equal(t, 15*time.Minute, w.batches.ttl)
+	now := time.Now()
+	w.batches.now = func() time.Time { return now }
+	submissions := 0
+	w.submit = func(context.Context, batchKind, BuildID, *bytes.Buffer) error { submissions++; return nil }
+	for range 2 {
+		_, err := w.reconcile(testContext(t, w), testJobURI)
+		require.NoError(t, err)
+	}
+	require.Equal(t, 5, submissions)
+	now = now.Add(15 * time.Minute)
+	_, err := w.reconcile(testContext(t, w), testJobURI)
+	require.NoError(t, err)
+	require.Equal(t, 10, submissions)
+	require.Equal(t, "run-123", runTag("123"))
+	require.Equal(t, "tests-123", testsTag("123"))
+	require.NotEqual(t, discoveryTag(testJobURI), discoveryTag(testJobURI+"1"))
+	require.Equal(t, "processed-"+string(testBuildID), processedBatch.tag(testBuildID))
+}
+
+func TestRootCompletionGateAndNativeOutcome(t *testing.T) {
+	for _, body := range []string{"", `{}`, `{"result":"R","timestamp":1}`, `{"result":"FAILURE","timestamp":0}`} {
+		t.Run(body, func(t *testing.T) {
 			w := newTestWriter(t)
-			w.config.CIJobOutcomes.ClusterURI = "http://localhost"
-			w.config.CIJobOutcomes.Database = "ServiceLogs"
-			queries := 0
+			w.completion = fetchProwCompletion
 			w.client.Transport = ingestionTransport(func(r *http.Request) (*http.Response, error) {
-				if r.Method == http.MethodGet {
-					return &http.Response{StatusCode: http.StatusNotFound, Body: http.NoBody}, nil
+				require.Equal(t, "/test-platform-results-public/logs/periodic-ci-Azure-ARO-HCP-test/1976270000000000123/finished.json", r.URL.Path)
+				status := http.StatusOK
+				if body == "" {
+					status = http.StatusNotFound
 				}
-				require.Equal(t, "/v2/rest/query", r.URL.Path)
-				var request struct{ DB, CSL string }
-				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-				require.Equal(t, "ServiceLogs", request.DB)
-				require.Equal(t, cursorQuery(w.config.CIJobOutcomes, "Presubmits").String(), request.CSL)
-				queries++
-				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+				return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(body))}, nil
 			})
-			require.NoError(t, w.initializeKustoWithCredential(t.Context(), false, nil))
-			t.Cleanup(w.closeClients)
-			cursor, err := w.cursor(t.Context(), "Presubmits")
-			if tc.wantError != "" {
-				require.ErrorContains(t, err, tc.wantError)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tc.want, cursor)
+			w.tagExists = func(context.Context, batchKind, BuildID) (bool, error) {
+				t.Fatal("pending root passed gate")
+				return false, nil
 			}
-			require.Equal(t, 1, queries)
+			delay, err := w.reconcile(testContext(t, w), testJobURI)
+			require.NoError(t, err)
+			require.Equal(t, 15*time.Minute, delay)
 		})
 	}
-}
-
-func TestReconcileIndependentBatches(t *testing.T) {
 	w := newTestWriter(t)
-	seedRun(w, "123")
-	checked := []batchKind{}
-	w.tagExists = func(_ context.Context, kind batchKind, _ BuildID) (bool, error) {
-		checked = append(checked, kind)
-		return kind == runBatch || kind == testsBatch, nil
-	}
-	w.jobDetail = func(context.Context, *http.Client, string) (runDetail, error) {
-		t.Fatal("existing outcome downloaded")
-		return runDetail{}, nil
-	}
-	var submissions []batchKind
-	failed := true
+	now := time.Now().UTC().Truncate(time.Second)
+	w.now = func() time.Time { return now }
+	w.completion = fetchProwCompletion
+	w.client.Transport = ingestionTransport(func(r *http.Request) (*http.Response, error) {
+		body := fmt.Sprintf(`{"result":"FAILURE","timestamp":%d}`, now.Add(-14*time.Minute).Unix())
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})
+	submitted := 0
 	w.submit = func(_ context.Context, kind batchKind, _ BuildID, payload *bytes.Buffer) error {
-		submissions = append(submissions, kind)
-		require.GreaterOrEqual(t, len(checked), 5, "all tags must be checked before downloads/submissions")
-		if kind == namesBatch {
-			require.Contains(t, payload.String(), "full name")
-		}
-		if kind == observabilityTestsBatch && failed {
-			return errors.New("unavailable")
+		submitted++
+		if kind == runBatch {
+			var outcome ciJobOutcome
+			require.NoError(t, json.NewDecoder(payload).Decode(&outcome))
+			require.Equal(t, "FAILURE", outcome.OverallResult)
+			require.True(t, outcome.Failed)
+			require.Equal(t, string(testBuildID), outcome.BuildID)
+			require.Equal(t, now.Add(-15*time.Minute), outcome.FinishedAt)
 		}
 		return nil
 	}
-	require.ErrorContains(t, w.reconcile(testContext(t, w), "123"), "unavailable")
-	require.Equal(t, []batchKind{namesBatch, observabilityTestsBatch, observabilityNamesBatch}, submissions)
-	_, cached := w.batches.get(observabilityTestsBatch.tag("123"))
-	require.False(t, cached, "failed submission must not enter cache")
-	failed = false
-	submissions = nil
-	// Successful batches are suppressed even while extent tags lag visibility.
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
-	require.Equal(t, []batchKind{observabilityTestsBatch}, submissions)
-	require.Equal(t, float64(1), testutil.ToFloat64(w.metrics.submissions.WithLabelValues(string(observabilityTestsBatch), "error")))
-	registry := prometheus.NewRegistry()
-	w.RegisterMetrics(registry)
-	families, err := registry.Gather()
+	_, err := w.reconcile(testContext(t, w), testJobURI)
 	require.NoError(t, err)
-	require.NotEmpty(t, families)
+	require.Zero(t, submitted, "settlement delay applies to all sources")
+	w.client.Transport = ingestionTransport(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`{"result":"FAILURE","timestamp":%d}`, now.Add(-15*time.Minute).Unix())))}, nil
+	})
+	_, err = w.reconcile(testContext(t, w), testJobURI)
+	require.NoError(t, err)
+	require.Equal(t, 5, submitted)
 }
 
-func TestPendingOutcomeRefreshesWithinTTLWithoutBlockingIndependentBatches(t *testing.T) {
-	for _, result := range []string{"R", "", "f", "unknown"} {
-		for _, injectCache := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/cached=%t", result, injectCache), func(t *testing.T) {
-				w := newTestWriter(t)
-				now := time.Now().UTC()
-				w.metadata.now = func() time.Time { return now }
-				w.batches.now = func() time.Time { return now }
-				run := testRun("123", now)
-				run.OverallResult = result
-				// Neither boolean is allowed to override a nonterminal verdict.
-				run.Failed, run.Succeeded = true, true
-				if injectCache {
-					w.metadata.put("123", runMetadata{run: run, release: "Presubmits"})
-				}
-				reads, detailReads := 0, 0
-				w.client.Transport = ingestionTransport(func(*http.Request) (*http.Response, error) {
-					reads++
-					return respondRuns(t, run), nil
-				})
-				w.jobDetail = func(context.Context, *http.Client, string) (runDetail, error) {
-					detailReads++
-					return runDetail{FinishedAt: now}, nil
-				}
-				var submitted []batchKind
-				var outcome ciJobOutcome
-				w.submit = func(_ context.Context, kind batchKind, _ BuildID, payload *bytes.Buffer) error {
-					submitted = append(submitted, kind)
-					if kind == runBatch {
-						require.NoError(t, json.NewDecoder(payload).Decode(&outcome))
-					}
-					return nil
-				}
-				var reports []BatchReport
-				w.report = func(report BatchReport) { reports = append(reports, report) }
-				for range 2 {
-					reports = nil
-					require.ErrorContains(t, w.reconcile(testContext(t, w), "123"), "job outcome pending")
-					var runReports []BatchReport
-					for _, report := range reports {
-						if report.Tag == runTag("123") {
-							runReports = append(runReports, report)
-						}
-					}
-					require.Len(t, runReports, 1)
-					require.Equal(t, "error", runReports[0].Status)
-					require.Contains(t, runReports[0].Error, "job outcome pending")
-					_, cached := w.batches.get(runTag("123"))
-					require.False(t, cached, "pending outcomes must not consume the immutable run tag")
-				}
-				require.Equal(t, 2, reads, "pending metadata must be refreshed without cache expiry")
-				require.Zero(t, detailReads, "a nonzero finishedAt must not override pending Sippy metadata")
-				require.Equal(t, []batchKind{testsBatch, namesBatch, observabilityTestsBatch, observabilityNamesBatch}, submitted)
-				run.OverallResult, run.Failed, run.Succeeded = "F", false, false
-				run.FailedTestNames = []string{"final failure"}
-				require.NoError(t, w.reconcile(testContext(t, w), "123"))
-				require.Equal(t, 3, reads)
-				require.Equal(t, 1, detailReads)
-				require.Equal(t, []batchKind{testsBatch, namesBatch, observabilityTestsBatch, observabilityNamesBatch, runBatch}, submitted)
-				require.Equal(t, "F", outcome.OverallResult)
-				require.Equal(t, 1, outcome.TestFailures)
-				require.True(t, outcome.Failed)
-				require.Equal(t, now, outcome.FinishedAt)
-				require.NoError(t, w.reconcile(testContext(t, w), "123"))
-				require.Len(t, submitted, 5, "accepted batches must not be resubmitted")
-			})
-		}
-	}
-}
-
-func TestTerminalOutcomeWithMissingFinishedRecord(t *testing.T) {
-	for _, result := range []string{"F", "A"} {
-		t.Run(result, func(t *testing.T) {
-			w := newTestWriter(t)
-			// Exercise the API JSON fixture, not just an injected metadata value.
-			body := fmt.Sprintf(`{"rows":[{"prow_id":"123","job":"periodic-ARO-HCP","url":%q,"overall_result":%q,"failed":false,"succeeded":false}]}`, artifactTestURL, result)
-			artifacts := artifactClient(t, nil, map[string]int{
-				artifactTestPrefix + "/prowjob.json":  http.StatusNotFound,
-				artifactTestPrefix + "/finished.json": http.StatusNotFound,
-			})
-			var requested []string
-			w.client.Transport = ingestionTransport(func(r *http.Request) (*http.Response, error) {
-				if r.URL.Host == "sippy.invalid" {
-					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
-				}
-				requested = append(requested, r.URL.Path)
-				return artifacts.Transport.RoundTrip(r)
-			})
-			w.jobDetail = fetchJobOutcomeDetail
-			var submitted []batchKind
-			w.submit = func(_ context.Context, kind batchKind, _ BuildID, payload *bytes.Buffer) error {
-				submitted = append(submitted, kind)
-				if kind == runBatch {
-					var outcome ciJobOutcome
-					require.NoError(t, json.NewDecoder(payload).Decode(&outcome))
-					require.Equal(t, result, outcome.OverallResult)
-					require.True(t, outcome.Failed)
-					require.Zero(t, outcome.FinishedAt)
-					require.Empty(t, outcome.ADOBuildID)
-					require.Empty(t, outcome.SvcCluster)
-					require.Empty(t, outcome.MgmtCluster)
-				}
-				return nil
-			}
-			require.NoError(t, w.reconcile(testContext(t, w), "123"))
-			require.Equal(t, batchKinds[:], submitted)
-			require.Contains(t, requested, "/test-platform-results/"+artifactTestPrefix+"/finished.json")
-			require.Equal(t, float64(2), testutil.ToFloat64(w.metrics.artifacts.WithLabelValues("job", "absent")))
-			_, cached := w.batches.get(runTag("123"))
-			require.True(t, cached, "terminal Sippy metadata is sufficient without a completion record")
-		})
-	}
-}
-
-func TestCompleteTagsNeedNoMetadataOrDownloads(t *testing.T) {
+func TestRestartRepairsFailedIngestion(t *testing.T) {
 	w := newTestWriter(t)
-	var checked []batchKind
-	w.tagExists = func(_ context.Context, kind batchKind, _ BuildID) (bool, error) {
-		checked = append(checked, kind)
-		return true, nil
-	}
-	w.client.Transport = ingestionTransport(func(*http.Request) (*http.Response, error) { t.Fatal("metadata downloaded"); return nil, nil })
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
-	require.Equal(t, batchKinds[:], checked)
-}
-
-func TestEvictedAcceptanceRechecksLiveTagsAndRepairsMissingBatch(t *testing.T) {
-	w := newTestWriter(t)
-	seedRun(w, "123")
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
-	// Simulate restart/eviction: queued acceptance is not proof of durable
-	// ingestion, so a missing extent must cause a new submission.
+	_, err := w.reconcile(testContext(t, w), testJobURI)
+	require.NoError(t, err)
 	w.batches = newTTLCache[string, struct{}](20000, 15*time.Minute)
-	w.tagExists = func(_ context.Context, kind batchKind, _ BuildID) (bool, error) {
-		return kind != namesBatch, nil
-	}
-	w.jobDetail = func(context.Context, *http.Client, string) (runDetail, error) {
-		t.Fatal("existing outcome downloaded")
-		return runDetail{}, nil
-	}
-	w.observabilityRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
-		t.Fatal("existing observability batches downloaded")
-		return nil, nil, nil
-	}
+	w.tagExists = func(_ context.Context, kind batchKind, _ BuildID) (bool, error) { return kind != testsBatch, nil }
 	var submitted []batchKind
 	w.submit = func(_ context.Context, kind batchKind, _ BuildID, _ *bytes.Buffer) error {
 		submitted = append(submitted, kind)
 		return nil
 	}
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
-	require.Equal(t, []batchKind{namesBatch}, submitted)
+	w.submitProcessed = func(context.Context, BuildID) error { t.Fatal("missing tests acknowledged"); return nil }
+	delay, err := w.reconcile(testContext(t, w), testJobURI)
+	require.NoError(t, err)
+	require.Equal(t, 15*time.Minute, delay)
+	require.Equal(t, []batchKind{testsBatch}, submitted)
 }
 
-func TestSourceFailuresDoNotBlockObservability(t *testing.T) {
-	for _, source := range []string{"job", "e2e", "tag"} {
+func TestIndependentSourceFailuresAndOptionalEmpty(t *testing.T) {
+	for _, source := range []string{"job", "e2e", "tag", "submission"} {
 		t.Run(source, func(t *testing.T) {
 			w := newTestWriter(t)
-			seedRun(w, "123")
 			failure := errors.New("transient")
+			var submitted []batchKind
+			w.submit = func(_ context.Context, kind batchKind, _ BuildID, _ *bytes.Buffer) error {
+				if source == "submission" && kind == testsBatch {
+					return failure
+				}
+				submitted = append(submitted, kind)
+				return nil
+			}
 			switch source {
 			case "job":
 				w.jobDetail = func(context.Context, *http.Client, string) (runDetail, error) { return runDetail{}, failure }
 			case "e2e":
 				w.e2eRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
-					return nil, nil, failure
+					return nil, []ciTestName{{Name: "still usable"}}, failure
 				}
 			case "tag":
 				w.tagExists = func(_ context.Context, kind batchKind, _ BuildID) (bool, error) {
@@ -404,143 +232,214 @@ func TestSourceFailuresDoNotBlockObservability(t *testing.T) {
 					return false, nil
 				}
 			}
-			var submitted []batchKind
-			w.submit = func(_ context.Context, kind batchKind, _ BuildID, _ *bytes.Buffer) error {
-				submitted = append(submitted, kind)
-				return nil
-			}
-			require.ErrorContains(t, w.reconcile(testContext(t, w), "123"), "transient")
+			w.submitProcessed = func(context.Context, BuildID) error { t.Fatal("transient failure acknowledged"); return nil }
+			_, err := w.reconcile(testContext(t, w), testJobURI)
+			require.ErrorIs(t, err, failure)
 			require.Contains(t, submitted, observabilityTestsBatch)
 			require.Contains(t, submitted, observabilityNamesBatch)
+			if source == "e2e" {
+				require.Contains(t, submitted, namesBatch)
+			}
 		})
 	}
+	for _, empty := range []bool{false, true} {
+		w := newTestWriter(t)
+		w.tagExists = func(_ context.Context, kind batchKind, _ BuildID) (bool, error) { return kind == runBatch, nil }
+		w.e2eRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
+			if empty {
+				return []ciTestResult{}, []ciTestName{}, nil
+			}
+			return nil, nil, nil
+		}
+		w.observabilityRows = w.e2eRows
+		acks := 0
+		w.submitProcessed = func(context.Context, BuildID) error { acks++; return nil }
+		_, err := w.reconcile(testContext(t, w), testJobURI)
+		require.NoError(t, err)
+		require.Equal(t, 1, acks, "settled optional absent/malformed/empty sources are terminally handled")
+		require.Zero(t, w.batches.size(), "only accepted writes may enter the cache")
+	}
 }
 
-func TestEmptySourcesAreOnlyCachedTemporarily(t *testing.T) {
+func TestDiscoveryUsesLiveRowsNotTags(t *testing.T) {
 	w := newTestWriter(t)
-	seedRun(w, "123")
-	now := time.Now()
-	w.batches.now = func() time.Time { return now }
-	reads, submitted := 0, 0
-	w.e2eRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
-		reads++
-		return []ciTestResult{}, []ciTestName{}, nil
+	checks, submissions := 0, 0
+	w.tagExists = func(context.Context, batchKind, BuildID) (bool, error) {
+		t.Fatal("discovery checked tag instead of row")
+		return false, nil
 	}
-	w.observabilityRows = w.e2eRows
-	w.submit = func(context.Context, batchKind, BuildID, *bytes.Buffer) error { submitted++; return nil }
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
-	require.Equal(t, 2, reads)
-	require.Equal(t, 1, submitted, "empty sources must not produce persistent markers")
-	now = now.Add(w.config.CIJobOutcomes.GetCacheTTL())
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
-	require.Equal(t, 4, reads)
-}
-
-func TestMismatchedMetadataCannotEmit(t *testing.T) {
-	w := newTestWriter(t)
-	w.metadata.put("123", runMetadata{run: testRun("456", time.Now())})
-	w.submit = func(context.Context, batchKind, BuildID, *bytes.Buffer) error {
-		t.Fatal("mismatched ID submitted")
-		return nil
+	w.discoveredExists = func(_ context.Context, uri JobURI) (bool, error) {
+		checks++
+		require.Equal(t, testJobURI, uri)
+		return checks > 1, nil
 	}
-	w.jobDetail = func(context.Context, *http.Client, string) (runDetail, error) {
-		t.Fatal("mismatched URL downloaded")
-		return runDetail{}, nil
-	}
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
-	require.Zero(t, w.batches.size(), "malformed metadata must not populate the batch cache")
-}
-
-func TestSkippedSourcesAreNotCached(t *testing.T) {
-	w := newTestWriter(t)
-	seedRun(w, "123")
-	fetchRows := w.e2eRows
-	reads := 0
-	w.e2eRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
-		reads++
-		return nil, nil, nil
-	}
-	w.observabilityRows = w.e2eRows
-	var submitted []batchKind
-	w.submit = func(_ context.Context, kind batchKind, _ BuildID, _ *bytes.Buffer) error {
-		submitted = append(submitted, kind)
+	w.submitDiscovery = func(_ context.Context, rows []DiscoveredJob, tag string) error {
+		submissions++
+		require.Equal(t, []DiscoveredJob{{JobURI: testJobURI, BuildID: string(testBuildID), JobName: "periodic-ci-Azure-ARO-HCP-test"}}, rows)
+		require.Equal(t, discoveryTag(testJobURI), tag)
 		return nil
 	}
 	for range 2 {
-		require.NoError(t, w.reconcile(testContext(t, w), "123"))
-		require.Equal(t, 1, w.batches.size(), "only the submitted outcome may be cached")
+		require.NoError(t, w.reconcileDiscovery(testContext(t, w), testJobURI))
 	}
-	require.Equal(t, 4, reads, "nil sources must be rechecked without waiting for cache expiry")
-	require.Equal(t, []batchKind{runBatch}, submitted)
-	w.e2eRows, w.observabilityRows = fetchRows, fetchRows
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
-	require.Equal(t, batchKinds[:], submitted, "later valid artifacts must be submitted immediately")
+	require.Equal(t, 1, checks)
+	require.Equal(t, 1, submissions)
+	w.batches = newTTLCache[string, struct{}](20000, 15*time.Minute)
+	require.NoError(t, w.reconcileDiscovery(testContext(t, w), testJobURI))
+	require.Equal(t, 2, checks)
+	require.Equal(t, 1, submissions, "bulk bootstrap rows must suppress a per-URI submission without a matching tag")
 }
 
-func TestEnrichmentFailureStillSubmitsNames(t *testing.T) {
-	for _, testsKind := range []batchKind{testsBatch, observabilityTestsBatch} {
-		t.Run(string(testsKind), func(t *testing.T) {
-			w := newTestWriter(t)
-			seedRun(w, "123")
-			failure := errors.New("enrichment unavailable")
-			failed := true
-			fetch := func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
-				names := []ciTestName{{TestID: "test", Name: "valid name"}}
-				if failed {
-					return nil, names, failure
-				}
-				return []ciTestResult{{BuildID: "123", TestID: "test"}}, names, nil
-			}
-			if testsKind == testsBatch {
-				w.e2eRows = fetch
-			} else {
-				w.observabilityRows = fetch
-			}
-			var submitted []batchKind
-			w.submit = func(_ context.Context, kind batchKind, _ BuildID, _ *bytes.Buffer) error {
-				submitted = append(submitted, kind)
-				return nil
-			}
-			require.ErrorIs(t, w.reconcile(testContext(t, w), "123"), failure)
-			for _, kind := range batchKinds {
-				_, cached := w.batches.get(kind.tag("123"))
-				if kind == testsKind {
-					require.NotContains(t, submitted, kind)
-					require.False(t, cached, "nil tests must not be cached")
-				} else {
-					require.Contains(t, submitted, kind, "names and independent sources must be submitted")
-					require.True(t, cached)
-				}
-			}
-			failed = false
-			submitted = nil
-			require.NoError(t, w.reconcile(testContext(t, w), "123"))
-			require.Equal(t, []batchKind{testsKind}, submitted, "retry only the failed enrichment batch")
-		})
-	}
-}
-
-func TestMalformedMetadataIsNotCached(t *testing.T) {
+func TestRejectNoncanonicalKeys(t *testing.T) {
 	w := newTestWriter(t)
-	run := testRun("123", time.Now())
-	run.URL = "malformed"
-	reads := 0
-	w.client.Transport = ingestionTransport(func(*http.Request) (*http.Response, error) {
-		reads++
-		return respondRuns(t, run), nil
-	})
-	var submitted []batchKind
-	w.submit = func(_ context.Context, kind batchKind, _ BuildID, _ *bytes.Buffer) error {
-		submitted = append(submitted, kind)
-		return nil
+	w.processedExists = func(context.Context, BuildID) (bool, error) { t.Fatal("invalid URI queried"); return false, nil }
+	w.discoveredExists = func(context.Context, JobURI) (bool, error) { t.Fatal("invalid URI queried"); return false, nil }
+	for _, uri := range []JobURI{"bad", testJobURI + "/", testJobURI + "/artifacts"} {
+		_, err := w.reconcile(testContext(t, w), uri)
+		require.Error(t, err)
+		require.Error(t, w.reconcileDiscovery(testContext(t, w), uri))
 	}
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
-	require.Empty(t, submitted)
-	require.Zero(t, w.metadata.size())
-	require.Zero(t, w.batches.size())
-	run = testRun("123", time.Now())
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
-	require.Equal(t, 2, reads, "corrected metadata must be fetched immediately")
-	require.Equal(t, batchKinds[:], submitted)
+}
+
+func TestKustoQueriesUseExactScopedIntegerCursor(t *testing.T) {
+	w := newTestWriter(t)
+	for _, job := range []GCSJob{
+		{Name: "pull-ci-Azure-ARO-HCP-test", Prefix: "pr-logs/directory/pull-ci-Azure-ARO-HCP-test/", Aliases: true},
+		{Name: "pull-ci-Azure-ARO-HCP-test", Prefix: "pr-logs/pull/batch/pull-ci-Azure-ARO-HCP-test/"},
+		{Name: "periodic-ci-Azure-ARO-HCP-test", Prefix: "logs/periodic-ci-Azure-ARO-HCP-test/"},
+	} {
+		query := cursorQuery(w.config.CIJobOutcomes, job).String()
+		require.Contains(t, query, "jobName == ")
+		require.Contains(t, query, "max(tolong(buildId))")
+		require.Contains(t, query, "toscalar(")
+		require.Contains(t, query, "tostring(maximum)")
+		if job.Aliases {
+			require.Contains(t, query, `jobUri startswith_cs "gs://test-platform-results-public/pr-logs/pull/"`)
+			require.Contains(t, query, `not(jobUri startswith_cs "gs://test-platform-results-public/pr-logs/pull/batch/")`)
+			require.NotContains(t, query, "directory/")
+		} else {
+			require.Contains(t, query, "gs://test-platform-results-public/"+job.Prefix)
+		}
+	}
+	query := pendingJobsQuery(w.config.CIJobOutcomes).String()
+	require.Contains(t, query, "join kind=leftanti")
+	require.Contains(t, query, "distinct jobUri")
+	require.NotContains(t, query, "ago(")
+	require.NotContains(t, query, "take ")
+	for _, field := range []string{"adoBuildId", "message", "jobUri", "buildId", "jobName"} {
+		require.NoError(t, validateMapping(fmt.Sprintf(`[{"Column":%q,"DataType":"string","Properties":{"Path":"$['%s']"}}]`, field, field), field))
+		require.Error(t, validateMapping("[]", field))
+	}
+}
+
+func kustoResult(column, rows string) string {
+	var decoded []json.RawMessage
+	_ = json.Unmarshal([]byte(rows), &decoded)
+	return fmt.Sprintf(`[{"FrameType":"DataSetHeader","IsProgressive":false,"Version":"v2.0","IsFragmented":true,"ErrorReportingPlacement":"EndOfTable"}
+,{"FrameType":"DataTable","TableId":0,"TableKind":"QueryProperties","TableName":"metadata","Columns":[{"ColumnName":"ignore","ColumnType":"string"}],"Rows":[["not a primary row"]]}
+,{"FrameType":"TableHeader","TableId":1,"TableKind":"PrimaryResult","TableName":"PrimaryResult","Columns":[{"ColumnName":%q,"ColumnType":"string"}]}
+,{"FrameType":"TableFragment","TableFragmentType":"DataAppend","TableId":1,"Rows":%s}
+,{"FrameType":"TableCompletion","TableId":1,"RowCount":%d}
+,{"FrameType":"DataSetCompletion","HasErrors":false,"Cancelled":false}
+]`, column, rows, len(decoded))
+}
+
+func TestKustoProductionReadHooks(t *testing.T) {
+	w := newTestWriter(t)
+	w.config.CIJobOutcomes.ClusterURI = "http://localhost"
+	w.config.CIJobOutcomes.Database = "ServiceLogs"
+	column, rows := "cursor", `[["1976270000000000123"]]`
+	w.client.Transport = ingestionTransport(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet {
+			return &http.Response{StatusCode: http.StatusNotFound, Body: http.NoBody}, nil
+		}
+		require.Equal(t, "/v2/rest/query", r.URL.Path, "read-only initialization must never construct ingestors or mutate schemas")
+		var request struct {
+			CSL        string
+			Properties json.RawMessage
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		require.Contains(t, string(request.Properties), `"notruncation":true`)
+		require.Contains(t, string(request.Properties), "servertimeout")
+		_, deadline := r.Context().Deadline()
+		require.True(t, deadline)
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(kustoResult(column, rows)))}, nil
+	})
+	require.NoError(t, w.initializeKustoWithCredential(t.Context(), false, nil))
+	t.Cleanup(w.closeClients)
+	job := GCSJob{Name: "periodic-ci-Azure-ARO-HCP-test", Prefix: "logs/periodic-ci-Azure-ARO-HCP-test/"}
+	cursor, err := w.jobCursor(t.Context(), job)
+	require.NoError(t, err)
+	require.Equal(t, string(testBuildID), cursor, "snowflake must survive without float precision loss")
+	rows = `[[""]]`
+	cursor, err = w.jobCursor(t.Context(), job)
+	require.NoError(t, err)
+	require.Empty(t, cursor)
+	column, rows = "jobUri", fmt.Sprintf(`[[%q],[%q]]`, testJobURI, testJobURI+"1")
+	jobs, err := w.pendingJobs(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, []JobURI{testJobURI, testJobURI + "1"}, jobs)
+	column, rows = "found", `[]`
+	exists, err := w.discoveredExists(t.Context(), testJobURI)
+	require.NoError(t, err)
+	require.False(t, exists, "metadata rows are not discovery rows")
+	rows = `[["yes"]]`
+	exists, err = w.processedExists(t.Context(), testBuildID)
+	require.NoError(t, err)
+	require.True(t, exists)
+	column = "wrong"
+	_, err = w.pendingJobs(t.Context())
+	require.ErrorContains(t, err, "column jobUri not found")
+}
+
+func TestPendingQueryRejectsPartialAndMissingPrimaryResults(t *testing.T) {
+	for _, partial := range []bool{false, true} {
+		w := newTestWriter(t)
+		w.config.CIJobOutcomes.ClusterURI = "http://localhost"
+		body := kustoResult("jobUri", fmt.Sprintf(`[[%q]]`, testJobURI))
+		if partial {
+			body = strings.Replace(body, `"HasErrors":false`, `"HasErrors":true,"OneApiErrors":[{"error":{"code":"LimitsExceeded","message":"partial results","@permanent":false}}]`, 1)
+		} else {
+			start := strings.Index(body, `,{"FrameType":"TableHeader"`)
+			end := strings.Index(body, `,{"FrameType":"DataSetCompletion"`)
+			body = body[:start] + body[end:]
+		}
+		w.client.Transport = ingestionTransport(func(r *http.Request) (*http.Response, error) {
+			if r.Method == http.MethodGet {
+				return &http.Response{StatusCode: http.StatusNotFound, Body: http.NoBody}, nil
+			}
+			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+		})
+		require.NoError(t, w.initializeKustoWithCredential(t.Context(), false, nil))
+		t.Cleanup(w.closeClients)
+		jobs, err := w.pendingJobs(t.Context())
+		require.Error(t, err)
+		require.Empty(t, jobs, "never enqueue an incomplete result set")
+	}
+}
+
+func TestMappingQueriesAndGuards(t *testing.T) {
+	w := newTestWriter(t)
+	for _, target := range []config.KustoTableConfig{w.target(discoveredBatch), w.target(processedBatch), w.target(testsBatch)} {
+		for _, field := range []string{"buildId", "message"} {
+			mapping, err := json.Marshal(fmt.Sprintf(`[{"Column":%q,"DataType":"string","Path":"$['%s']"}]`, field, field))
+			require.NoError(t, err)
+			client, err := azkustodata.New(azkustodata.NewConnectionStringBuilder("http://localhost"), azkustodata.WithHttpClient(&http.Client{
+				Transport: ingestionTransport(func(r *http.Request) (*http.Response, error) {
+					if r.Method == http.MethodGet {
+						return &http.Response{StatusCode: http.StatusNotFound, Body: http.NoBody}, nil
+					}
+					var request struct{ CSL string }
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+					require.Contains(t, request.CSL, target.Table)
+					require.Contains(t, request.CSL, target.IngestionMapping)
+					body := fmt.Sprintf(`{"Tables":[{"TableName":"Table","Columns":[{"ColumnName":"Mapping","ColumnType":"string"}],"Rows":[[%s]]}]}`, mapping)
+					return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+				}),
+			}))
+			require.NoError(t, err)
+			require.NoError(t, w.checkMapping(t.Context(), client, target, field))
+			require.NoError(t, client.Close())
+		}
+	}
 }

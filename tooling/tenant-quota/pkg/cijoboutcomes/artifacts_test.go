@@ -96,24 +96,7 @@ func TestTestRowsForEmitsEachNameOnce(t *testing.T) {
 	}
 }
 
-// The id has to be reproducible from the name alone: it is computed
-// independently on every pass and after every restart, and rows written weeks
-// apart must still join.
-func TestTestIDForIsStableAndDistinct(t *testing.T) {
-	first := testIDFor("installs a cluster")
-	if first != testIDFor("installs a cluster") {
-		t.Error("the same name must always yield the same id")
-	}
-	if first == testIDFor("installs a cluster ") {
-		t.Error("names differing only in trailing space must not collide")
-	}
-	if first == "" {
-		t.Error("id must not be empty")
-	}
-}
-
-// A terminal Sippy run may lack finished.json. Missing enrichment leaves a zero
-// timestamp; readiness for outcome ingestion is checked separately against Sippy.
+// The legacy timestamp reader leaves missing completion records unset.
 func TestFetchFinishedAtToleratesAMissingRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
@@ -387,11 +370,11 @@ func TestE2ETimingLoggerRetainsSourceContext(t *testing.T) {
 func TestFetchJobOutcomeDetailDoesNotReadTestSources(t *testing.T) {
 	for _, body := range []string{`{"metadata":{"annotations":{"ev2.rollout/build":"00123"}}}`, `{`} {
 		objects := map[string]string{
-			artifactTestPrefix + "/prowjob.json":  body,
-			artifactTestPrefix + "/finished.json": `{"timestamp":1787696844}`,
+			artifactTestPrefix + "/prowjob.json": body,
+			artifactTestPrefix + "/started.json": `{"timestamp":1787696844}`,
 		}
 		detail, err := fetchJobOutcomeDetail(t.Context(), artifactClient(t, objects, nil), artifactTestURL)
-		if err != nil || detail.FinishedAt.IsZero() {
+		if err != nil || detail.StartedAt.IsZero() || !detail.FinishedAt.IsZero() {
 			t.Fatalf("detail=%+v err=%v", detail, err)
 		}
 		if body != "{" && detail.ADOBuildID != "00123" {
@@ -418,10 +401,9 @@ func TestFetchJobOutcomeDetailPRConfig(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			objects := map[string]string{
-				prefix + "/prowjob.json":  `{}`,
-				prefix + "/finished.json": `{}`,
-				prefix + "/artifacts/":    `{"prefixes":["` + root + `"]}`,
-				configPath:                tc.config,
+				prefix + "/prowjob.json": `{"status":{"startTime":"2026-01-01T00:00:00Z"}}`,
+				prefix + "/artifacts/":   `{"prefixes":["` + root + `"]}`,
+				configPath:               tc.config,
 			}
 			statuses := map[string]int{configPath: tc.status}
 			if tc.fallback {
@@ -456,12 +438,12 @@ func TestFetchJobOutcomeDetailPRConfig(t *testing.T) {
 }
 
 func TestJobArtifactProblemReporting(t *testing.T) {
-	for _, filename := range []string{"prowjob.json", "finished.json"} {
+	for _, filename := range []string{"prowjob.json", "started.json"} {
 		for _, reason := range []string{"absent", "malformed", "transient"} {
 			t.Run(filename+"/"+reason, func(t *testing.T) {
 				objects := map[string]string{
-					artifactTestPrefix + "/prowjob.json":  `{}`,
-					artifactTestPrefix + "/finished.json": `{}`,
+					artifactTestPrefix + "/prowjob.json": `{}`,
+					artifactTestPrefix + "/started.json": `{"timestamp":1787696844}`,
 				}
 				path := artifactTestPrefix + "/" + filename
 				statuses := map[string]int{}
@@ -478,6 +460,12 @@ func TestJobArtifactProblemReporting(t *testing.T) {
 				_, err := fetchJobOutcomeDetail(ctx, artifactClient(t, objects, statuses), artifactTestURL)
 				if (err != nil) != (reason == "transient") {
 					t.Fatalf("unexpected error: %v", err)
+				}
+				if filename == "started.json" {
+					if len(problems) == 0 || problems[0] != "job/malformed" {
+						t.Fatalf("missing startTime must be diagnosed: %v", problems)
+					}
+					problems = problems[1:]
 				}
 				if reason == "transient" {
 					if len(problems) != 0 {

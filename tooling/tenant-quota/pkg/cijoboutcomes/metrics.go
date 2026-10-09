@@ -25,7 +25,7 @@ type writerMetrics struct {
 
 func newWriterMetrics() writerMetrics {
 	return writerMetrics{
-		discovery:   prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "ci_job_outcomes_discovery_last_success_timestamp_seconds", Help: "Last successful discovery by Sippy release."}, []string{"release"}),
+		discovery:   prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "ci_job_outcomes_discovery_last_success_timestamp_seconds", Help: "Last successful scan by controller."}, []string{"controller"}),
 		submissions: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "ci_job_outcomes_submissions_total", Help: "Synchronous batch submissions, not asynchronous ingestion completion."}, []string{"batch", "result"}),
 		cacheHits:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "ci_job_outcomes_cache_hits_total", Help: "Cache hits by cache."}, []string{"cache"}),
 		artifacts:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "ci_job_outcomes_artifact_problems_total", Help: "Permanent artifact problems, not scheduled for retry."}, []string{"source", "reason"}),
@@ -39,7 +39,7 @@ func (w *Writer) RegisterMetrics(registerer prometheus.Registerer) {
 		name string
 		size func() int
 	}{
-		{"batches", w.batches.size}, {"metadata", w.metadata.size},
+		{"batches", w.batches.size},
 	} {
 		registerer.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Name: "ci_job_outcomes_cache_size", Help: "Unexpired cache entries.", ConstLabels: prometheus.Labels{"cache": cache.name},

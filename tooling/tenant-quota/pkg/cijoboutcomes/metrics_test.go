@@ -31,17 +31,16 @@ func TestMetricsTrackAcceptanceAndLiveCacheSize(t *testing.T) {
 	w := newTestWriter(t)
 	now := time.Now()
 	w.batches.now = func() time.Time { return now }
-	w.metadata.now = func() time.Time { return now }
 	registry := prometheus.NewRegistry()
 	w.RegisterMetrics(registry)
-	seedRun(w, "123")
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
+	_, err := w.reconcile(testContext(t, w), testJobURI)
+	require.NoError(t, err)
+	_, err = w.reconcile(testContext(t, w), testJobURI)
+	require.NoError(t, err)
 	for _, kind := range batchKinds {
 		require.Equal(t, float64(1), testutil.ToFloat64(w.metrics.submissions.WithLabelValues(string(kind), "accepted")))
 	}
 	require.Equal(t, float64(5), testutil.ToFloat64(w.metrics.cacheHits.WithLabelValues("batches")))
-	require.Equal(t, float64(1), testutil.ToFloat64(w.metrics.cacheHits.WithLabelValues("metadata")))
 	cacheSizes := func() map[string]float64 {
 		families, err := registry.Gather()
 		require.NoError(t, err)
@@ -56,18 +55,18 @@ func TestMetricsTrackAcceptanceAndLiveCacheSize(t *testing.T) {
 		}
 		return sizes
 	}
-	require.Equal(t, map[string]float64{"batches": 5, "metadata": 1}, cacheSizes())
+	require.Equal(t, map[string]float64{"batches": 5}, cacheSizes())
 	now = now.Add(15 * time.Minute)
-	require.Equal(t, map[string]float64{"batches": 0, "metadata": 0}, cacheSizes(), "scrapes exclude expired entries even when no work is arriving")
+	require.Equal(t, map[string]float64{"batches": 0}, cacheSizes(), "scrapes exclude expired entries even when no work is arriving")
 }
 
 func TestPermanentArtifactProblemsAreCounted(t *testing.T) {
 	w := newTestWriter(t)
-	seedRun(w, "123")
 	w.e2eRows = func(ctx context.Context, _ *http.Client, _ string) ([]ciTestResult, []ciTestName, error) {
 		snapshot.ReportProwArtifactProblem(ctx, "e2e", "malformed")
 		return nil, nil, nil
 	}
-	require.NoError(t, w.reconcile(testContext(t, w), "123"))
+	_, err := w.reconcile(testContext(t, w), testJobURI)
+	require.NoError(t, err)
 	require.Equal(t, float64(1), testutil.ToFloat64(w.metrics.artifacts.WithLabelValues("e2e", "malformed")))
 }

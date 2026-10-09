@@ -22,12 +22,16 @@ prow:
   excludeJobs: []
 ciJobOutcomes:
   enabled: false
-  interval: "5m"
+  gcsBucket: "test-platform-results-public"
+  interval: "15m"
+  discoveryInterval: "30m"
+  completionDelay: "15m"
   window: "24h"
   startupSince: ""
   repairInterval: "12h"
-  overlap: "3h"
+  overlap: "10m"
   workers: 10
+  discoveryWorkers: 2
   cacheSize: 20000
   cacheTTL: "15m"
 tenants: []

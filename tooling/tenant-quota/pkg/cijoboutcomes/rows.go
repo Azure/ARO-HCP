@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
 )
 
 // The JSON tags on these types are the paths the tables' ingestion mappings
@@ -31,11 +33,9 @@ type ciJobOutcome struct {
 	MgmtCluster   string    `json:"mgmtCluster"`
 	JobName       string    `json:"jobName"`
 	ProwURL       string    `json:"prowUrl"`
-	SippyRelease  string    `json:"sippyRelease"`
 	Family        string    `json:"family"`
 	OverallResult string    `json:"overallResult"`
 	Failed        bool      `json:"failed"`
-	TestFailures  int       `json:"testFailures"`
 	StartedAt     time.Time `json:"startedAt"`
 	FinishedAt    time.Time `json:"finishedAt"`
 	ADOBuildID    string    `json:"adoBuildId"`
@@ -101,29 +101,19 @@ func familyFor(prowURL, jobName string) string {
 	}
 }
 
-// outcomeFor converts a Sippy run into the run row stored for it.
-//
-// Sippy is the discovery source and knows only what it collects itself: the
-// cluster names and finish times are filled in later from the run's artifacts,
-// and stay empty when those are unavailable.
-func outcomeFor(run sippyRun, sippyRelease string) ciJobOutcome {
-	failures := 0
-	for _, name := range run.FailedTestNames {
-		if strings.Contains(name, sippySyntheticTestMarker) {
-			continue
-		}
-		failures++
-	}
-
+// outcomeForProw keeps the root completion record authoritative over enrichment.
+func outcomeForProw(info *snapshot.ProwJobInfo, completion prowCompletion, detail runDetail) ciJobOutcome {
 	return ciJobOutcome{
-		BuildID:       run.ProwID,
-		JobName:       run.Job,
-		ProwURL:       run.URL,
-		SippyRelease:  sippyRelease,
-		Family:        familyFor(run.URL, run.Job),
-		OverallResult: run.OverallResult,
-		Failed:        !run.Succeeded,
-		TestFailures:  failures,
-		StartedAt:     run.Timestamp.UTC(),
+		BuildID:       info.ProwID,
+		JobName:       info.JobName,
+		ProwURL:       info.URL,
+		Family:        familyFor(info.URL, info.JobName),
+		OverallResult: completion.Result,
+		Failed:        completion.Result != "SUCCESS",
+		StartedAt:     detail.StartedAt.UTC(),
+		FinishedAt:    completion.FinishedAt.UTC(),
+		SvcCluster:    detail.SvcCluster,
+		MgmtCluster:   detail.MgmtCluster,
+		ADOBuildID:    detail.ADOBuildID,
 	}
 }

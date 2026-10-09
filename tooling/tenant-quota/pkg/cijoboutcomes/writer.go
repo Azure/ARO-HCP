@@ -18,6 +18,7 @@ package cijoboutcomes
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -41,6 +42,8 @@ const (
 	namesBatch              batchKind = "names"
 	observabilityTestsBatch batchKind = "observability-tests"
 	observabilityNamesBatch batchKind = "observability-names"
+	discoveredBatch         batchKind = "discovered"
+	processedBatch          batchKind = "processed"
 )
 
 var batchKinds = [...]batchKind{runBatch, testsBatch, namesBatch, observabilityTestsBatch, observabilityNamesBatch}
@@ -49,8 +52,16 @@ func (kind batchKind) tag(id BuildID) string { return string(kind) + "-" + strin
 func runTag(id string) string                { return runBatch.tag(BuildID(id)) }
 func testsTag(id string) string              { return testsBatch.tag(BuildID(id)) }
 
+func discoveryTag(uri JobURI) string {
+	return fmt.Sprintf("discovered-%x", sha256.Sum256([]byte(uri)))
+}
+
 func (w *Writer) target(kind batchKind) config.KustoTableConfig {
 	switch kind {
+	case discoveredBatch:
+		return w.config.CIJobOutcomes.Discovered
+	case processedBatch:
+		return w.config.CIJobOutcomes.Processed
 	case runBatch:
 		return w.config.CIJobOutcomes.Outcomes
 	case namesBatch, observabilityNamesBatch:
@@ -121,12 +132,17 @@ func (w *Writer) initializeKustoWithCredential(ctx context.Context, ingest bool,
 			column string
 		}{
 			{settings.Outcomes, "adoBuildId"}, {settings.TestResults, "message"},
+			{settings.Discovered, "jobUri"}, {settings.Discovered, "buildId"}, {settings.Discovered, "jobName"},
+			{settings.Processed, "buildId"},
 		} {
 			if err := w.checkMapping(ctx, client, guard.target, guard.column); err != nil {
 				return err
 			}
 		}
-		for _, target := range []config.KustoTableConfig{settings.Outcomes, settings.TestNames, settings.TestResults} {
+		for _, target := range []config.KustoTableConfig{settings.Outcomes, settings.TestNames, settings.TestResults, settings.Discovered, settings.Processed} {
+			if _, exists := targets[target.Table]; exists {
+				continue
+			}
 			ingestor, err := azkustoingest.New(
 				azkustodata.NewConnectionStringBuilder(settings.IngestionURI).WithTokenCredential(credential),
 				azkustoingest.WithHttpClient(&httpClient),
@@ -137,27 +153,38 @@ func (w *Writer) initializeKustoWithCredential(ctx context.Context, ingest bool,
 			targets[target.Table] = &tableIngestor{name: target.Table, mapping: target.IngestionMapping, ingestor: ingestor}
 		}
 	}
-	w.cursor = func(ctx context.Context, release string) (time.Time, error) {
-		dataset, err := client.Query(ctx, settings.Database, cursorQuery(settings, release))
+	w.jobCursor = func(ctx context.Context, job GCSJob) (string, error) {
+		values, err := queryStrings(ctx, client, settings.Database, cursorQuery(settings, job), "cursor")
 		if err != nil {
-			return time.Time{}, err
+			return "", err
 		}
-		for _, table := range dataset.Tables() {
-			// Query also returns metadata tables, including when max() is null.
-			if !table.IsPrimaryResult() {
-				continue
-			}
-			for _, row := range table.Rows() {
-				value, err := row.DateTimeByName("cursor")
-				if err != nil {
-					return time.Time{}, err
-				}
-				if value != nil {
-					return *value, nil
-				}
-			}
+		if len(values) != 1 {
+			return "", fmt.Errorf("expected one cursor, got %d", len(values))
 		}
-		return time.Time{}, nil
+		return values[0], nil
+	}
+	w.pendingJobs = func(ctx context.Context) ([]JobURI, error) {
+		values, err := queryStrings(ctx, client, settings.Database, pendingJobsQuery(settings), "jobUri")
+		if err != nil {
+			return nil, err
+		}
+		uris := make([]JobURI, 0, len(values))
+		for _, value := range values {
+			uris = append(uris, JobURI(value))
+		}
+		return uris, nil
+	}
+	rowExists := func(ctx context.Context, target config.KustoTableConfig, column, key string) (bool, error) {
+		statement := kql.New("").AddTable(target.Table).AddLiteral(" | where ").AddColumn(column).
+			AddLiteral(" == ").AddString(key).AddLiteral(" | take 1 | project found = 'yes'")
+		rows, err := queryStrings(ctx, client, settings.Database, statement, "found")
+		return len(rows) > 0, err
+	}
+	w.discoveredExists = func(ctx context.Context, uri JobURI) (bool, error) {
+		return rowExists(ctx, settings.Discovered, "jobUri", string(uri))
+	}
+	w.processedExists = func(ctx context.Context, id BuildID) (bool, error) {
+		return rowExists(ctx, settings.Processed, "buildId", string(id))
 	}
 	w.tagExists = func(ctx context.Context, kind batchKind, id BuildID) (bool, error) {
 		statement := extentTagQuery(w.target(kind).Table, kind.tag(id))
@@ -166,7 +193,7 @@ func (w *Writer) initializeKustoWithCredential(ctx context.Context, ingest bool,
 			return false, err
 		}
 		for _, table := range dataset.Tables() {
-			if len(table.Rows()) > 0 {
+			if table.IsPrimaryResult() && len(table.Rows()) > 0 {
 				return true, nil
 			}
 		}
@@ -175,6 +202,14 @@ func (w *Writer) initializeKustoWithCredential(ctx context.Context, ingest bool,
 	if ingest {
 		w.submit = func(ctx context.Context, kind batchKind, id BuildID, payload *bytes.Buffer) error {
 			return ingestPayload(ctx, targets[w.target(kind).Table], payload, kind.tag(id))
+		}
+		w.submitDiscovery = func(ctx context.Context, rows []DiscoveredJob, tag string) error {
+			return ingestRows(ctx, targets[settings.Discovered.Table], rows, tag)
+		}
+		w.submitProcessed = func(ctx context.Context, id BuildID) error {
+			return ingestRows(ctx, targets[settings.Processed.Table], []struct {
+				BuildID BuildID `json:"buildId"`
+			}{{id}}, processedBatch.tag(id))
 		}
 	}
 	w.closeClients = closeClients
@@ -248,12 +283,54 @@ func extentTagQuery(table, tag string) *kql.Builder {
 		AddLiteral("] extents where tags has ").AddString("ingest-by:" + tag).AddLiteral(" | project ExtentId")
 }
 
-func cursorQuery(settings config.CIJobOutcomesConfig, release string) *kql.Builder {
-	return kql.New("").AddTable(settings.Outcomes.Table).
-		AddLiteral(" | where sippyRelease == ").AddString(release).
-		AddLiteral(" and jobName contains ").AddString(settings.JobFilter).
-		AddLiteral(" and finishedAt > ").AddDateTime(time.Time{}).
-		AddLiteral(" | summarize cursor = max(startedAt)")
+func cursorQuery(settings config.CIJobOutcomesConfig, job GCSJob) *kql.Builder {
+	query := kql.New("print cursor = toscalar(").AddTable(settings.Discovered.Table).
+		AddLiteral(" | where jobName == ").AddString(job.Name)
+	prefix := "gs://" + settings.GCSBucket + "/"
+	if job.Aliases {
+		query.AddLiteral(" and jobUri startswith_cs ").AddString(prefix + "pr-logs/pull/").
+			AddLiteral(" and not(jobUri startswith_cs ").AddString(prefix + "pr-logs/pull/batch/").AddLiteral(")")
+	} else {
+		query.AddLiteral(" and jobUri startswith_cs ").AddString(prefix + job.Prefix)
+	}
+	// Convert on the server: JSON numeric decoding must never round a snowflake.
+	return query.AddLiteral(" | summarize maximum = max(tolong(buildId)) | project tostring(maximum))")
+}
+
+func pendingJobsQuery(settings config.CIJobOutcomesConfig) *kql.Builder {
+	return kql.New("").AddTable(settings.Discovered.Table).
+		AddLiteral(" | distinct jobUri, buildId | join kind=leftanti (").AddTable(settings.Processed.Table).
+		AddLiteral(" | distinct buildId) on buildId | distinct jobUri")
+}
+
+// Query consumes the entire response before returning. The SDK rejects partial
+// failures, and notruncation prevents the default row/byte caps losing old work.
+func queryStrings(ctx context.Context, client *azkustodata.Client, database string, statement *kql.Builder, column string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	dataset, err := client.Query(ctx, database, statement, azkustodata.NoTruncation(), azkustodata.ServerTimeout(2*time.Minute))
+	if err != nil {
+		return nil, err
+	}
+	var values []string
+	primary := false
+	for _, table := range dataset.Tables() {
+		if !table.IsPrimaryResult() {
+			continue
+		}
+		primary = true
+		for _, row := range table.Rows() {
+			value, err := row.StringByName(column)
+			if err != nil {
+				return nil, err
+			}
+			values = append(values, value)
+		}
+	}
+	if !primary {
+		return nil, fmt.Errorf("query returned no primary result")
+	}
+	return values, nil
 }
 
 func (w *Writer) checkMapping(ctx context.Context, client *azkustodata.Client, target config.KustoTableConfig, column string) error {
@@ -264,6 +341,9 @@ func (w *Writer) checkMapping(ctx context.Context, client *azkustodata.Client, t
 		return fmt.Errorf("read %s mapping: %w", target.Table, err)
 	}
 	for _, table := range dataset.Tables() {
+		if !table.IsPrimaryResult() {
+			continue
+		}
 		if rows := table.Rows(); len(rows) > 0 {
 			mapping, err := rows[0].StringByName("Mapping")
 			if err != nil {
