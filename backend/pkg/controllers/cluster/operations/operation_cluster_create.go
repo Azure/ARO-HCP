@@ -241,6 +241,11 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, currState.WithSource("servingCABundle"))
 	}
+	if currState, err := c.serviceProviderDefaultIngressServingCertificateStatus(ctx, operation); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.WithSource("defaultIngressServingCertificate"))
+	}
 	if currState, err := c.roleAssignmentsOperationStatus(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
@@ -462,6 +467,58 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "ServingCABundle not yet populated"), nil
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+}
+
+// serviceProviderDefaultIngressServingCertificateStatus blocks cluster creation until
+// the ingress wildcard certificate's SecretSync has synced the TLS Secret at least once
+// (a True "SecretCreated" condition). "SecretCreated" is the condition type
+// secrets-store-sync-controller sets on SecretSync.Status.Conditions once it has synced
+// the Secret:
+// https://github.com/kubernetes-sigs/secrets-store-sync-controller/blob/v0.0.5/internal/controller/conditions.go#L30.
+// As an example, an observed SecretSync.Status once synced looks like:
+//
+//	{
+//		"conditions": [
+//			{
+//				"lastTransitionTime": "2026-10-09T18:04:41.0000000Z",
+//				"message": "Secret created successfully.",
+//				"reason": "CreateSuccessful",
+//				"status": "True",
+//				"type": "SecretCreated"
+//			},
+//			{
+//				"lastTransitionTime": "2026-10-09T18:04:41.0000000Z",
+//				"message": "Secret contains last observed values.",
+//				"reason": "SecretUpToDate",
+//				"status": "True",
+//				"type": "SecretUpdated"
+//			}
+//		],
+//		"lastSuccessfulSyncTime": "2026-10-09T18:04:41.0000000Z",
+//		"syncHash": "v1:9965d9a30245cf20e300a5417c01268bb5557980f10e2c51de479a09b3cd7584"
+//	}
+func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificateStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	secretSync, observed, err := kubeapplierhelpers.GetCachedIngressSecretSyncForCluster(
+		ctx, c.readDesireLister, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if !observed {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "default ingress certificate not yet observed"), nil
+	}
+	if secretSync == nil {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "default ingress certificate not yet observed"), nil
+	}
+
+	if meta.IsStatusConditionTrue(secretSync.Status.Conditions, "SecretCreated") {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+	// Don't expose the SecretSync's own condition details on the operation; just log
+	// them for diagnostics.
+	logger.Info("ingress SecretSync is not synced", "secretSync.Status.Conditions", secretSync.Status.Conditions)
+	return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "default ingress certificate not yet synced"), nil
 }
 
 // roleAssignmentsOperationStatus blocks cluster creation until the managed

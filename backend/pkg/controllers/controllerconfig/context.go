@@ -38,7 +38,8 @@ import (
 )
 
 type ControllerContext struct {
-	AzureLocation                                       string
+	AzureLocation string
+	// ServiceTenantID is the ID of the tenant where the service is running on
 	ServiceTenantID                                     string
 	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
 	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
