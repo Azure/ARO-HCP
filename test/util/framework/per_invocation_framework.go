@@ -369,8 +369,8 @@ func msiPoolStateFilePath() string {
 }
 
 func skipCleanup() bool {
-	ret, _ := strconv.ParseBool(os.Getenv("ARO_E2E_SKIP_CLEANUP"))
-	return ret
+	// Retain the cluster and its resource group for inspection in this PR.
+	return true
 }
 
 // artifactDir returns the value of ARTIFACT_DIR environment variable, which is spot to save info in CI
