@@ -1172,14 +1172,14 @@ func BuildHCPClusterFromParams20240610(
 	parameters ClusterParams20240610,
 	location string,
 ) hcpsdk20240610preview.HcpOpenShiftCluster {
-
+	versionID, tags := buildControlPlaneVersion(parameters.OpenshiftVersionId, parameters.Tags)
 	return hcpsdk20240610preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: parameters.Identity,
-		Tags:     parameters.Tags,
+		Tags:     tags,
 		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20240610preview.VersionProfile{
-				ID:           to.Ptr(parameters.OpenshiftVersionId),
+				ID:           to.Ptr(versionID),
 				ChannelGroup: to.Ptr(parameters.ChannelGroup),
 			},
 			Platform: &hcpsdk20240610preview.PlatformProfile{

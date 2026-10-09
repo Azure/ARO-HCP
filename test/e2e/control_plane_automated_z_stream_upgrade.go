@@ -59,7 +59,7 @@ var _ = Describe("Service Provider", func() {
 			tc := framework.NewTestContext()
 
 			// Install one z-stream behind the channel tip (normalOffset+1) so the backend has a newer
-			// z-stream to automatically upgrade to once the customer pins the bare minor version. If the
+			// z-stream to automatically upgrade to once the exact-version pin is removed. If the
 			// channel has no release at that offset (err) or none is resolved (nil), there is no
 			// automated z-stream upgrade to exercise, so skip.
 			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
@@ -138,23 +138,24 @@ var _ = Describe("Service Provider", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
 			By(fmt.Sprintf("removing the exact version pin and enabling immediate z-stream updates for %s", minorVersion))
-			// The install version was pinned through version.id, so sending a bare
-			// minor clears that internal pin without an exact-version tag to remove.
+			// The install version was pinned through the exact-version tag, so the PATCH
+			// must send that tag as an explicit null to follow the bare minor line again;
+			// tags are applied as a JSON merge patch, so omitting it would preserve the pin.
 			// Retain Immediate from the progressive rollout test: production fleet
 			// canary readiness can outlast this test's upgrade timeout.
+			versionLine, upgradeTags := framework.ControlPlaneExactVersionPatchTags(minorVersion)
+			upgradeTags[metadataapi.TagClusterZStreamUpdatePolicy] = to.Ptr(string(coreapi.ImmediateZStreamUpdatePolicy))
 			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
-				Tags: map[string]*string{
-					metadataapi.TagClusterZStreamUpdatePolicy: to.Ptr(string(coreapi.ImmediateZStreamUpdatePolicy)),
-				},
+				Tags: upgradeTags,
 				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20240610preview.VersionProfile{
-						ID:           to.Ptr(minorVersion),
+						ID:           to.Ptr(versionLine),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
 			}
 			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to enable immediate z-stream updates for cluster %q on minor version %s", clusterName, minorVersion)
+			Expect(err).NotTo(HaveOccurred(), "failed to remove the exact-version pin and enable immediate z-stream updates for cluster %q on minor version %s", clusterName, minorVersion)
 
 			By("verifying that only a z-stream upgrade was performed")
 			Eventually(func() error {

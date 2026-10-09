@@ -1,4 +1,5 @@
 {
+	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lowered-exact-version-pin",
 	"identity": {
 		"type": "UserAssigned",
 		"userAssignedIdentities": {
@@ -13,16 +14,20 @@
 			"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity": {}
 		}
 	},
-	"name": "nightly-full-version",
+	"location": "fake-location",
+	"name": "lowered-exact-version-pin",
 	"properties": {
 		"api": {
 			"visibility": "Public"
 		},
+		"autoscaling": {
+			"maxNodeProvisionTimeSeconds": 900,
+			"maxPodGracePeriodSeconds": 600,
+			"podPriorityThreshold": -10
+		},
 		"clusterImageRegistry": {
 			"state": "Disabled"
 		},
-		"console": {},
-		"dns": {},
 		"etcd": {
 			"dataEncryption": {
 				"customerManaged": {
@@ -71,10 +76,20 @@
 			"outboundType": "LoadBalancer",
 			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
 		},
+		"provisioningState": "Accepted",
 		"version": {
 			"channelGroup": "nightly",
-			"id": "4.20.0-0.nightly-2026-08-05-123456"
+			"id": "4.20"
 		}
+	},
+	"systemData": {
+		"createdBy": "Unknown-ARO-HCP-frontend",
+		"createdByType": "Application",
+		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+		"lastModifiedByType": "Application"
+	},
+	"tags": {
+		"aro-hcp.experimental.cluster.control-plane-exact-version": "4.20.0-0.nightly-2026-08-05-123456"
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }
