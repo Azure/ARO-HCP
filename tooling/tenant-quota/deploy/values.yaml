@@ -6,6 +6,7 @@ imageRepository: "tenant-quota-collector"
 imageTag: ""
 imageDigest: ""
 msiClientId: ""
+exitOnPanic: false
 secretProvider:
   keyVault: ""
   msiClientId: ""
@@ -21,4 +22,12 @@ prow:
   excludeJobs: []
 ciJobOutcomes:
   enabled: false
+  interval: "5m"
+  window: "24h"
+  startupSince: ""
+  repairInterval: "12h"
+  overlap: "3h"
+  workers: 10
+  cacheSize: 20000
+  cacheTTL: "15m"
 tenants: []

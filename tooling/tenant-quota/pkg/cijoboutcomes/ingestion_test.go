@@ -40,6 +40,76 @@ func (f ingestionTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return f(r)
 }
 
+func TestIngestPayloadHTTPRequestTimeout(t *testing.T) {
+	for _, stage := range []string{"upload", "queue"} {
+		t.Run(stage, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			timedOut := make(chan error, 1)
+			client := &http.Client{Timeout: 50 * time.Millisecond, Transport: ingestionTransport(func(r *http.Request) (*http.Response, error) {
+				if (stage == "upload" && r.Method == http.MethodPut) || (stage == "queue" && r.URL.Path == "/queue/messages") {
+					<-r.Context().Done()
+					if ctx.Err() == nil {
+						timedOut <- r.Context().Err()
+					}
+					// Only cancel ingestion after the HTTP timeout fires, to skip SDK retry delays.
+					cancel()
+					return nil, r.Context().Err()
+				}
+				var body string
+				status := http.StatusOK
+				switch {
+				case r.URL.Path == "/v1/rest/mgmt":
+					var request struct {
+						Query string `json:"csl"`
+					}
+					if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+						return nil, err
+					}
+					switch request.Query {
+					case ".get kusto identity token":
+						body = `{"Tables":[{"TableName":"Table","Columns":[{"ColumnName":"AuthorizationContext","ColumnType":"string"}],"Rows":[["test"]]}]}`
+					case ".get ingestion resources":
+						body = `{"Tables":[{"TableName":"Table","Columns":[{"ColumnName":"ResourceTypeName","ColumnType":"string"},{"ColumnName":"StorageRoot","ColumnType":"string"}],"Rows":[["TempStorage","https://storage.invalid/container"],["SecuredReadyForAggregationQueue","https://storage.invalid/queue"]]}]}`
+					default:
+						return nil, fmt.Errorf("unexpected management command: %s", request.Query)
+					}
+				case r.Method == http.MethodPut:
+					if _, err := io.Copy(io.Discard, r.Body); err != nil {
+						return nil, err
+					}
+					status = http.StatusCreated
+				default:
+					return nil, fmt.Errorf("unexpected request: %s %s", r.Method, r.URL)
+				}
+				return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+			})}
+			ingestor, err := azkustoingest.New(azkustodata.NewConnectionStringBuilder("http://localhost"),
+				azkustoingest.WithHttpClient(client), azkustoingest.WithDefaultDatabase("ServiceLogs"),
+				azkustoingest.WithDefaultTable("ciJobOutcomes"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, ingestor.Close()) })
+			target := &tableIngestor{name: "ciJobOutcomes", mapping: "ciJobOutcomesMapping", ingestor: ingestor}
+			result := make(chan error, 1)
+			go func() {
+				result <- ingestPayload(ctx, target, bytes.NewBufferString("{\"buildId\":\"123\"}\n"), runTag("123"))
+			}()
+			select {
+			case err := <-result:
+				require.ErrorContains(t, err, "queue rows for ciJobOutcomes")
+			case <-time.After(5 * time.Second):
+				t.Fatal("ingestPayload did not return after the HTTP request timeout")
+			}
+			select {
+			case err := <-timedOut:
+				require.ErrorIs(t, err, context.DeadlineExceeded, "the HTTP client must time out the stalled request before ingestion is canceled")
+			default:
+				t.Fatal("ingestion failed without timing out the stalled request")
+			}
+		})
+	}
+}
+
 func TestIngestRowsWireFormat(t *testing.T) {
 	for _, tc := range []struct {
 		table, tag string

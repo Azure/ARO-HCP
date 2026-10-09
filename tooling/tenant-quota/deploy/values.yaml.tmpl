@@ -2,6 +2,7 @@ imageRegistry: "{{ .opstool.tenantQuota.image.registry }}"
 imageRepository: "{{ .opstool.tenantQuota.image.repository }}"
 imageDigest: "{{ .opstool.tenantQuota.image.digest }}"
 msiClientId: "__tenantQuotaUAMIClientId__"
+exitOnPanic: {{ .opstool.tenantQuota.exitOnPanic }}
 secretProvider:
   keyVault: "__keyVaultName__"
   msiClientId: "__tenantQuotaUAMIClientId__"
@@ -39,8 +40,13 @@ ciJobOutcomes:
   sippyURI: "{{ .opstool.tenantQuota.ciJobOutcomes.sippyURI }}"
   jobFilter: "{{ .opstool.tenantQuota.ciJobOutcomes.jobFilter }}"
   interval: "{{ .opstool.tenantQuota.ciJobOutcomes.interval }}"
-  timeout: "{{ .opstool.tenantQuota.ciJobOutcomes.timeout }}"
   window: "{{ .opstool.tenantQuota.ciJobOutcomes.window }}"
+  startupSince: "{{ with index .opstool.tenantQuota.ciJobOutcomes "startupSince" }}{{ . }}{{ end }}"
+  repairInterval: "{{ .opstool.tenantQuota.ciJobOutcomes.repairInterval }}"
+  overlap: "{{ .opstool.tenantQuota.ciJobOutcomes.overlap }}"
+  workers: {{ .opstool.tenantQuota.ciJobOutcomes.workers }}
+  cacheSize: {{ .opstool.tenantQuota.ciJobOutcomes.cacheSize }}
+  cacheTTL: "{{ .opstool.tenantQuota.ciJobOutcomes.cacheTTL }}"
   releases:
 {{- range .opstool.tenantQuota.ciJobOutcomes.releases }}
   - "{{ . }}"

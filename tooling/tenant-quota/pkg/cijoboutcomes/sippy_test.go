@@ -20,6 +20,29 @@ import (
 	"time"
 )
 
+func TestHasTerminalOutcome(t *testing.T) {
+	for _, tc := range []struct {
+		result   string
+		terminal bool
+	}{
+		{"S", true}, {"F", true}, {"I", true}, {"U", true},
+		{"N", true}, {"n", true}, {"A", true},
+		{"R", false}, {"", false}, {"f", false}, {"unknown", false},
+		{"s", false}, {" S", false}, {"S ", false},
+	} {
+		t.Run(tc.result, func(t *testing.T) {
+			for _, failed := range []bool{false, true} {
+				for _, succeeded := range []bool{false, true} {
+					run := sippyRun{OverallResult: tc.result, Failed: failed, Succeeded: succeeded}
+					if got := run.hasTerminalOutcome(); got != tc.terminal {
+						t.Errorf("hasTerminalOutcome(%+v) = %v, want %v", run, got, tc.terminal)
+					}
+				}
+			}
+		})
+	}
+}
+
 // Sippy reports the start time as an RFC 3339 string today, but has reported
 // Unix milliseconds in the past. Decoding must survive either, because a silent
 // decode failure stops ingestion for every run.
