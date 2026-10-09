@@ -271,7 +271,7 @@ namespace Microsoft.RedHatOpenShift {
     operatorsAuthentication: OperatorsAuthenticationProfile;
 
     /** Azure Container Registry configuration for authenticating image pulls on the cluster's worker nodes. */
-    @added(Versions.v2026_10_01_preview)
+    @added(Versions.v2026_10_01)
     containerRegistry?: ContainerRegistryProfile;
   }
 

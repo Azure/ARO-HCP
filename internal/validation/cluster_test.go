@@ -732,6 +732,10 @@ func TestClusterValidate(t *testing.T) {
 					Message:   "supported values: \"Private\", \"Public\"",
 					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
 				},
+				{
+					Message:   "supported values: \"KeyVault\", \"ManagedHSM\"",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType",
+				},
 			},
 		},
 

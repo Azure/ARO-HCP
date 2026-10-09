@@ -18,7 +18,7 @@ require (
 	github.com/go-logr/logr v1.4.4
 	github.com/google/go-cmp v0.7.0
 	github.com/openshift-online/maestro v0.0.0-20260213014104-081c1f6df17b
-	github.com/openshift-online/ocm-sdk-go v0.1.509
+	github.com/openshift-online/ocm-sdk-go v0.1.512
 	github.com/prometheus/client_golang v1.24.1
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
@@ -81,8 +81,8 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo/v2 v2.28.3 // indirect
 	github.com/onsi/gomega v1.40.0 // indirect
-	github.com/openshift-online/ocm-api-model/clientapi v0.0.464 // indirect
-	github.com/openshift-online/ocm-api-model/model v0.0.464 // indirect
+	github.com/openshift-online/ocm-api-model/clientapi v0.0.468 // indirect
+	github.com/openshift-online/ocm-api-model/model v0.0.468 // indirect
 	github.com/openshift/api v0.0.0-20260805160557-b61243060d5f // indirect
 	github.com/openshift/hypershift/api v0.0.0-20260911144647-689ab808b174 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
