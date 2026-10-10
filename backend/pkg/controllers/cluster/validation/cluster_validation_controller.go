@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -149,7 +150,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	_, err = c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
 		return nil
@@ -158,7 +159,6 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	existingServiceProviderCluster := cachedServiceProviderCluster.DeepCopy()
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
@@ -171,6 +171,15 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 
 	if result.Outcome.Type != validationutils.OutcomeTypePassed {
 		logger.Info("Validation outcome", "validation", c.validation.Name(), "result", result)
+	}
+
+	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	existingServiceProviderCluster, err := serviceProviderClustersCosmosClient.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil // Never recreate a deleted SPC to publish a result.
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to refresh ServiceProviderCluster: %w", err))
 	}
 
 	replacement := existingServiceProviderCluster.DeepCopy()
@@ -190,7 +199,6 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 
 	if !equality.Semantic.DeepEqual(existingServiceProviderCluster, replacement) {
-		serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 		_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 		if cosmosstorageutils.IsPreconditionFailedError(err) {
 			// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.

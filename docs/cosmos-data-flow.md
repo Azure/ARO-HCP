@@ -1347,6 +1347,22 @@ Polls the Cluster Service credential request, publishes the credential result an
 
 ### Backend: validation instances
 
+All cluster validators read Cluster live, skip missing/deleting clusters, and use cached
+SPC only as an existence guard. They read Subscription once and call `Validate` once.
+After checking the result, the syncer reads SPC live and merges only
+its own `Status.Validations` condition, preserving concurrent fields and using the latest
+owned condition for Unknown suppression. Skipped removes that condition; unchanged
+results avoid a write. A missing live SPC returns nil without recreation or cooldown;
+read errors propagate.
+
+Each reconcile attempts at most one ETag-conditional Replace, with no internal retry.
+A 412 returns nil without a cooldown, relying on informer updates for another validation.
+The actual Replace result is honored even if cancellation races its completion. Successful
+or unchanged persistence retains existing cooldown/requeue/reporting policy. Input and
+lifecycle checks are best-effort, not atomic with publication: Cluster and Subscription
+are not reread, so input changes, deletion, or recreation during validation can race the
+result. The SPC ETag protects its merge, not a cross-document snapshot.
+
 #### ClusterValidationAlwaysSuccessValidation
 
 [Source](../backend/pkg/utils/validationutils/always_success_validation.go) · **Trigger:** Cluster; 1m; result-based retry.
