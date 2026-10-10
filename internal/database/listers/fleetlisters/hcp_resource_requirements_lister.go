@@ -48,6 +48,6 @@ func (lister *informerBasedHCPResourceRequirementsLister) List(ctx context.Conte
 }
 
 func (lister *informerBasedHCPResourceRequirementsLister) Get(ctx context.Context) (*fleetapi.HCPResourceRequirements, error) {
-	key := fleetapihelpers.ToHCPResourceRequirementsResourceIDString("default")
+	key := fleetapihelpers.ToHCPResourceRequirementsResourceIDString(fleetapi.HCPResourceRequirementsResourceName)
 	return listerutils.GetByKey[fleetapi.HCPResourceRequirements](lister.indexer, key)
 }
