@@ -41,14 +41,11 @@ spec:
   # and the region dimension used by downstream alerts and dashboards.
   #
   # No-data behavior: when all canary series disappear, sum/count returns empty
-  # (no series), consistent with kube-apiserver SLI pattern. A separate absent()
-  # alert should detect canary liveness (follow-up in ARO-25969).
-  #
-  # On-call routing sequencing: burn-rate alerts (MWMBR) and the canary-absence
-  # alert are delivered in ARO-25969; the Ingress runbook and TSG will be
-  # published alongside those alerts. Until ARO-25969 merges, no on-call paging
-  # path exists for these SLI series -- these recording rules are a foundation
-  # only and do not route any alerts by themselves.
+  # (no series), consistent with kube-apiserver SLI pattern. A separate
+  # userJourneyIngressCanaryAbsent alert (see
+  # ingress-availability-slo-prometheusRule.yaml) detects this case directly
+  # against the raw metric, since a missing series cannot be observed through
+  # these recording rules by definition.
   - name: arohcp_ingress_availability_slo_recording_rules
     interval: 1m
     rules:
@@ -63,10 +60,107 @@ spec:
         /
         count by (_id, cluster, region) (ingress_canary_route_reachable)
     # Error rate derived from the availability SLI.
-    # Used by burn-rate alert expressions (ARO-25969).
+    # Instantaneous (last-scrape) value only -- kept for dashboards / SLI
+    # reporting. NOT used for alerting: see the windowed group below.
     - record: errors:ingress_canary:error_rate
       expr: |
         1 - availability:ingress_canary:ratio
+  # ========================================
+  # Ingress Availability SLO Recording Rules: Windowed Errors (burn-rate, volume-aware)
+  # ========================================
+  # errors:ingress_canary:error_rate above is instantaneous: it reflects only the
+  # samples returned by the last scrape. A true multi-window multi-burn-rate
+  # (MWMBR) alert requires BOTH a short-window and a long-window error rate to
+  # independently cross the same threshold (see
+  # ingress-availability-slo-prometheusRule.yaml) -- the short window confirms
+  # the burn is still active right now (so a recovered incident stops paging
+  # once the short window clears), and the long window confirms the burn has
+  # done enough damage to the error budget to matter (so a single blip that
+  # ages out of the short window doesn't re-fire on its own). Gating only a
+  # `for:` duration on an instantaneous ratio provides neither property, and
+  # with few redundant canary routes a single failed observation (e.g. 1 of 2,
+  # a 50% instantaneous ratio) can exceed every threshold outright regardless
+  # of real history. This follows the same paired short/long window design as
+  # UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml.
+  #
+  # Windows needed across the three burn-rate tiers: 5m, 30m, 1h, 6h, 3d.
+  # Tier pairing (see the alert file): fast=1h/5m, medium=6h/30m, slow=3d/6h --
+  # note 6h is reused as both the medium tier's long window and the slow
+  # tier's short window, so it is only computed once here.
+  #
+  # These records accumulate real observation counts over each window via
+  # sum_over_time/count_over_time (the metric is a gauge sampled on scrape,
+  # not a counter, so rate()/increase() do not apply). The alert layer
+  # additionally requires a volume floor on *_total_W for each window in the
+  # pair, so a sparse or freshly-started window cannot page.
+  - name: arohcp_ingress_availability_slo_windowed_recording_rules
+    interval: 1m
+    rules:
+    # --- 5m window (fast burn, short) ---
+    - record: errors:ingress_canary:succeeded_5m
+      expr: |
+        sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[5m]))
+    - record: errors:ingress_canary:total_5m
+      expr: |
+        sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[5m]))
+    - record: errors:ingress_canary:failed_5m
+      expr: |
+        errors:ingress_canary:total_5m - errors:ingress_canary:succeeded_5m
+    - record: errors:ingress_canary:error_rate_5m
+      expr: |
+        errors:ingress_canary:failed_5m / clamp_min(errors:ingress_canary:total_5m, 1)
+    # --- 30m window (medium burn, short) ---
+    - record: errors:ingress_canary:succeeded_30m
+      expr: |
+        sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[30m]))
+    - record: errors:ingress_canary:total_30m
+      expr: |
+        sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[30m]))
+    - record: errors:ingress_canary:failed_30m
+      expr: |
+        errors:ingress_canary:total_30m - errors:ingress_canary:succeeded_30m
+    - record: errors:ingress_canary:error_rate_30m
+      expr: |
+        errors:ingress_canary:failed_30m / clamp_min(errors:ingress_canary:total_30m, 1)
+    # --- 1h window (fast burn, long) ---
+    - record: errors:ingress_canary:succeeded_1h
+      expr: |
+        sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[1h]))
+    - record: errors:ingress_canary:total_1h
+      expr: |
+        sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[1h]))
+    - record: errors:ingress_canary:failed_1h
+      expr: |
+        errors:ingress_canary:total_1h - errors:ingress_canary:succeeded_1h
+    - record: errors:ingress_canary:error_rate_1h
+      expr: |
+        errors:ingress_canary:failed_1h / clamp_min(errors:ingress_canary:total_1h, 1)
+    # --- 6h window (medium burn long / slow burn short) ---
+    - record: errors:ingress_canary:succeeded_6h
+      expr: |
+        sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[6h]))
+    - record: errors:ingress_canary:total_6h
+      expr: |
+        sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[6h]))
+    - record: errors:ingress_canary:failed_6h
+      expr: |
+        errors:ingress_canary:total_6h - errors:ingress_canary:succeeded_6h
+    - record: errors:ingress_canary:error_rate_6h
+      expr: |
+        errors:ingress_canary:failed_6h / clamp_min(errors:ingress_canary:total_6h, 1)
+    # --- 3d window (slow burn, long) ---
+    - record: errors:ingress_canary:succeeded_3d
+      expr: |
+        sum by (_id, cluster, region) (sum_over_time(ingress_canary_route_reachable[3d]))
+    - record: errors:ingress_canary:total_3d
+      expr: |
+        sum by (_id, cluster, region) (count_over_time(ingress_canary_route_reachable[3d]))
+    - record: errors:ingress_canary:failed_3d
+      expr: |
+        errors:ingress_canary:total_3d - errors:ingress_canary:succeeded_3d
+    - record: errors:ingress_canary:error_rate_3d
+      expr: |
+        errors:ingress_canary:failed_3d / clamp_min(errors:ingress_canary:total_3d, 1)
   # ========================================
   # Ingress Latency SLO Recording Rules
   # ========================================
@@ -82,6 +176,10 @@ spec:
   #   _id, cluster, container, endpoint, environment, host, instance, job,
   #   le, namespace, pod, prometheus, prometheus_replica, region
   # Histogram buckets: 25, 50, 100, 200, 400, 800, 1600, +Inf (milliseconds)
+  #
+  # 99.5% of checks within 200ms is closer to a P99 latency objective than a
+  # P95 one (99.5% is much nearer 99% than 95%), so alerts on this SLI are
+  # named LatencyP99 (see ingress-availability-slo-prometheusRule.yaml).
   - name: arohcp_ingress_latency_slo_recording_rules
     interval: 1m
     rules:
@@ -95,7 +193,84 @@ spec:
         /
         sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="+Inf"}[5m]))
     # Error rate derived from the latency SLI.
-    # Used by burn-rate alert expressions (ARO-25969).
+    # Instantaneous (5m rate) value only -- kept for dashboards / SLI
+    # reporting. NOT used for alerting: see the windowed group below.
     - record: errors:ingress_canary_latency:error_rate
       expr: |
         1 - latency:ingress_canary:ratio
+  # ========================================
+  # Ingress Latency SLO Recording Rules: Windowed Errors (burn-rate, volume-aware)
+  # ========================================
+  # Same paired short/long window rationale as the availability windowed group
+  # above. ingress_canary_check_duration_bucket is a cumulative histogram
+  # counter, so increase() over each window is used directly (no rate()
+  # normalization needed, unlike the instantaneous 5m SLI). Same window/tier
+  # pairing as availability: fast=1h/5m, medium=6h/30m, slow=3d/6h.
+  - name: arohcp_ingress_latency_slo_windowed_recording_rules
+    interval: 1m
+    rules:
+    # --- 5m window (fast burn, short) ---
+    - record: errors:ingress_canary_latency:total_5m
+      expr: |
+        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[5m]))
+    - record: errors:ingress_canary_latency:fast_5m
+      expr: |
+        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[5m]))
+    - record: errors:ingress_canary_latency:slow_5m
+      expr: |
+        errors:ingress_canary_latency:total_5m - errors:ingress_canary_latency:fast_5m
+    - record: errors:ingress_canary_latency:error_rate_5m
+      expr: |
+        errors:ingress_canary_latency:slow_5m / clamp_min(errors:ingress_canary_latency:total_5m, 1)
+    # --- 30m window (medium burn, short) ---
+    - record: errors:ingress_canary_latency:total_30m
+      expr: |
+        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[30m]))
+    - record: errors:ingress_canary_latency:fast_30m
+      expr: |
+        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[30m]))
+    - record: errors:ingress_canary_latency:slow_30m
+      expr: |
+        errors:ingress_canary_latency:total_30m - errors:ingress_canary_latency:fast_30m
+    - record: errors:ingress_canary_latency:error_rate_30m
+      expr: |
+        errors:ingress_canary_latency:slow_30m / clamp_min(errors:ingress_canary_latency:total_30m, 1)
+    # --- 1h window (fast burn, long) ---
+    - record: errors:ingress_canary_latency:total_1h
+      expr: |
+        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[1h]))
+    - record: errors:ingress_canary_latency:fast_1h
+      expr: |
+        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[1h]))
+    - record: errors:ingress_canary_latency:slow_1h
+      expr: |
+        errors:ingress_canary_latency:total_1h - errors:ingress_canary_latency:fast_1h
+    - record: errors:ingress_canary_latency:error_rate_1h
+      expr: |
+        errors:ingress_canary_latency:slow_1h / clamp_min(errors:ingress_canary_latency:total_1h, 1)
+    # --- 6h window (medium burn long / slow burn short) ---
+    - record: errors:ingress_canary_latency:total_6h
+      expr: |
+        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[6h]))
+    - record: errors:ingress_canary_latency:fast_6h
+      expr: |
+        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[6h]))
+    - record: errors:ingress_canary_latency:slow_6h
+      expr: |
+        errors:ingress_canary_latency:total_6h - errors:ingress_canary_latency:fast_6h
+    - record: errors:ingress_canary_latency:error_rate_6h
+      expr: |
+        errors:ingress_canary_latency:slow_6h / clamp_min(errors:ingress_canary_latency:total_6h, 1)
+    # --- 3d window (slow burn, long) ---
+    - record: errors:ingress_canary_latency:total_3d
+      expr: |
+        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[3d]))
+    - record: errors:ingress_canary_latency:fast_3d
+      expr: |
+        sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[3d]))
+    - record: errors:ingress_canary_latency:slow_3d
+      expr: |
+        errors:ingress_canary_latency:total_3d - errors:ingress_canary_latency:fast_3d
+    - record: errors:ingress_canary_latency:error_rate_3d
+      expr: |
+        errors:ingress_canary_latency:slow_3d / clamp_min(errors:ingress_canary_latency:total_3d, 1)
