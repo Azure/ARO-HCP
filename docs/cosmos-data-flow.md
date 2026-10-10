@@ -41,10 +41,6 @@ concurrent Cluster Service delete dispatch, and the cluster-delete diagram.
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
 
-Fleet snapshot update baseline: `aaecc6f130c7` plus review fixes; scope:
-HCPResourceRequirements is included in the shared Fleet informer snapshot sources.
-This adds no controller or resource lifecycle edge, so the lifecycle diagrams are unchanged.
-
 - [Cosmos request attribution](#request-unit-ru-attribution)
 - [Endpoint writes](#1-frontend-endpoint-writes)
 - [Controller catalog](#2-complete-controller-catalog)
@@ -83,31 +79,6 @@ also emit snapshots. Logging reuses the objects already read by the informer and
 makes no additional Cosmos queries. The backend Cosmos dump controllers and Fleet's
 StampDataDump controller have been removed; Clusters Service state dumps and explicit
 frontend/admin request-triggered dumps remain.
-
-### Fleet informer snapshot sources
-
-The [shared Fleet informer bundle](../internal/database/informers/fleetinformers/fleet_types.go)
-starts a [change-feed informer](../internal/database/informers/fleetinformers/fleet_informers.go)
-for each of these five types. All use the snapshot container label `fleet`
-(`objectMetadata.cosmosContainer`) for the Cosmos **Fleet** container:
-
-| Fleet type | Resource type | Resource name |
-| --- | --- | --- |
-| `Stamp` | `Microsoft.RedHatOpenShift/stamps` | Stamp identifier |
-| `ManagementCluster` | `Microsoft.RedHatOpenShift/stamps/managementClusters` | `default`, beneath each stamp |
-| `ManagementClusterScheduling` | `Microsoft.RedHatOpenShift/stamps/managementClusters/scheduling` | `default`, beneath each management cluster |
-| `ControlPlaneVersionRollout` | `Microsoft.RedHatOpenShift/controlPlaneVersionRollouts` | Y-stream channel |
-| `HCPResourceRequirements` | `Microsoft.RedHatOpenShift/hcpResourceRequirements` | Fleet-wide singleton `default` |
-
-The HCPResourceRequirements global lister filters by resource type without a fixed
-partition key. Its initial list and two-minute relists emit the singleton at
-`/providers/Microsoft.RedHatOpenShift/hcpResourceRequirements/default` into the
-`cosmosResourceSnapshots` logging flow; change-feed events also emit snapshots when
-it changes. The cache lister uses the same
-[`HCPResourceRequirementsResourceName` constant](../internal/api/fleetapi/registry.go)
-as the [controller writer](../fleet/pkg/controllers/hcpresourcerequirements/controller.go).
-
-### Snapshot fields and cadence
 
 Snapshots retain `snapshotType=cosmos`, `currentResourceID`, `objectMetadata`, and
 `content`, plus the inherited context fields and per-item `subscription_id`,
