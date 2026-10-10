@@ -1,14 +1,34 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
+{{- if .SeedFromIdentity }}
+// Identity-seeded (from-cluster): the HostedCluster namespace/name are prerequisites
+// for the hypershift/* log and event queries. cosmosResourceSnapshots is a change feed,
+// so scan history up to the window end rather than within the window, otherwise an idle
+// cluster with no in-window readdesire changes yields no metadata and those queries
+// return nothing.
+| where timestamp <= {{ kqlDatetime .FullEndTime }}
+{{- else }}
 | where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
+{{- end }}
 {{- if and .ServiceClusterName .ManagementClusterName }}
 | where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
 {{- end }}
 | where subscriptionID == '{{ .SubscriptionID }}'
 | where resourceGroup =~ '{{ .ResourceGroup }}'
-| where resourceID startswith '{{ .ClusterResourceID }}'
+| where resourceID =~ '{{ .ClusterResourceID }}' or resourceID startswith '{{ .ClusterResourceID }}/'
 | where resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
+{{- if .SeedFromIdentity }}
+// The all-history scan can span a delete+recreate under the same ARM resource id, whose
+// readdesires carry different HostedCluster namespaces/names. Collapse each readdesires
+// doc to its latest snapshot and drop it if that snapshot is soft-deleted, so the
+// dependent hypershift/* queries key off the current namespace/name, not a stale one
+// (matching the cosmosResourceDiscovery latest-snapshot collapse).
+| extend deletionTimestamp=tostring(content.deletionTimestamp)
+| summarize arg_max(tolong(content._ts), content, deletionTimestamp) by resourceID
+| where isempty(deletionTimestamp)
+{{- else }}
 | summarize content=take_any(content) by etag=tostring(content._etag)
 | sort by tolong(content._ts) asc
+{{- end }}
 | extend content = parse_json(content)
 | extend manifest = content.properties.status.kubeContent
 | where manifest.kind == 'HostedCluster'

@@ -45,6 +45,16 @@ type Manifest struct {
 	// KustoDatabase is the Kusto database used for queries.
 	KustoDatabase string `json:"kusto_database"`
 
+	// SeedMode records how resource discovery was seeded: "request" (from frontend
+	// ARM request logs, the from-resource default) or "identity" (from a cluster
+	// resource id or subscription+resource group, the from-cluster entrypoint).
+	SeedMode string `json:"seed_mode,omitempty"`
+
+	// ClusterResourceID is the ARM resource id of the snapshotted cluster. Set when
+	// discovery was identity-seeded (from-cluster); empty for request-seeded runs
+	// where the cluster is discovered per-resource instead.
+	ClusterResourceID string `json:"cluster_resource_id,omitempty"`
+
 	// Phases lists the per-phase manifests for the test and cleanup phases.
 	Phases []PhaseManifest `json:"phases"`
 
