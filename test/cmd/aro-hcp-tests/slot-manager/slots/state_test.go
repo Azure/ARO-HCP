@@ -211,6 +211,47 @@ func TestE2EOnlyStateAndRuntimeOmitInfrastructure(t *testing.T) {
 	}
 }
 
+func TestAdmittedIdentityContainersPreserveOwnership(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name     string
+		admitted []string
+		wantErr  bool
+	}{
+		{name: "pending admission"},
+		{name: "safe subset", admitted: []string{"identities-00-00", "identities-00-02"}},
+		{name: "foreign container", admitted: []string{"other"}, wantErr: true},
+		{name: "duplicate container", admitted: []string{"identities-00-00", "identities-00-00"}, wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			state := resolvedTestState()
+			state.Slot.IdentityContainerPrefix = "identities-00"
+			state.Slot.IdentityContainerCount = 3
+			state.Slot.AssetRequirements = []AssetRequirement{{Kind: KindE2EIdentities, Allocation: AllocationDedicated}}
+			owned := identityContainerNames(state.Slot.IdentityContainerPrefix, state.Slot.IdentityContainerCount)
+			state.Slot.Assets.E2EIdentities = &ResolvedE2EIdentitiesAsset{Allocation: AllocationDedicated, ResourceGroups: owned}
+			state.AdmittedIdentityContainers = test.admitted
+			if err := state.Validate(); (err != nil) != test.wantErr {
+				t.Fatalf("validation error=%v, want error=%t", err, test.wantErr)
+			}
+			dir := t.TempDir()
+			if err := WriteAcquiredSlotState(dir, state); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := LoadAcquiredSlotState(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(loaded.Slot.IdentityContainerNames(), owned) || !reflect.DeepEqual(loaded.AdmittedIdentityContainers, test.admitted) || !reflect.DeepEqual(loaded.Leases, state.Leases) {
+				t.Fatalf("ownership or admitted subset changed after persistence: %+v", loaded)
+			}
+			if err := loaded.ValidateForRelease(); err != nil {
+				t.Fatalf("admission eligibility must not prevent lease release: %v", err)
+			}
+		})
+	}
+}
+
 func TestRuntimeContractShellIdentifiers(t *testing.T) {
 	t.Parallel()
 	for _, key := range []string{"NAME", "_name", "Name_01"} {

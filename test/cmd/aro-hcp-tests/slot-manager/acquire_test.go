@@ -33,7 +33,46 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/util/framework"
 )
+
+func TestIdentityConsumerGuardFlagAndEnvironment(t *testing.T) {
+	for _, test := range []struct {
+		name, env, flag, want string
+		invalid               bool
+	}{
+		{name: "default", want: "enforce"},
+		{name: "audit environment", env: "audit", want: "audit"},
+		{name: "flag overrides environment", env: "audit", flag: "--identity-consumer-guard=enforce", want: "enforce"},
+		{name: "audit flag", flag: "--identity-consumer-guard=audit", want: "audit"},
+		{name: "empty flag restores enforcement", env: "audit", flag: "--identity-consumer-guard=", want: "enforce"},
+		{name: "invalid environment", env: "off", invalid: true},
+		{name: "invalid flag", flag: "--identity-consumer-guard=false", invalid: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv(framework.IdentityConsumerGuardEnvvar, test.env)
+			options := DefaultAcquireOptions()
+			command := &cobra.Command{}
+			if err := BindAcquireOptions(options, command); err != nil {
+				t.Fatal(err)
+			}
+			if test.flag != "" {
+				if err := command.ParseFlags([]string{test.flag}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			mode, err := framework.IdentityConsumerGuardMode(options.IdentityConsumerGuardMode)
+			if (err != nil) != test.invalid || mode != test.want {
+				t.Fatalf("guard mode %q, error %v; want %q, invalid %t", mode, err, test.want, test.invalid)
+			}
+			if test.invalid {
+				if _, err := options.Validate(); err == nil || !strings.Contains(err.Error(), framework.IdentityConsumerGuardEnvvar) {
+					t.Fatalf("invalid guard policy was not rejected before acquisition: %v", err)
+				}
+			}
+		})
+	}
+}
 
 func TestAcquireAdmissionFlagAndEnvironment(t *testing.T) {
 	for _, test := range []struct {

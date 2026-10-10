@@ -123,8 +123,20 @@ func (h *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) e
 	return admitE2EIdentityLease(ctx, request)
 }
 
+// PublishLease exports admitted containers and the guard policy used by test teardown.
 func (h *Handler) PublishLease(_ context.Context, request assets.LeaseRequest, contract *slots.RuntimeContractBuilder) error {
-	return contract.Add(string(h.Kind()), "LEASED_MSI_CONTAINERS", strings.Join(request.AcquiredSlotState.Slot.IdentityContainerNames(), " "))
+	mode, err := framework.IdentityConsumerGuardMode(request.IdentityConsumerGuardMode)
+	if err != nil {
+		return err
+	}
+	if err := contract.Add(string(h.Kind()), framework.IdentityConsumerGuardEnvvar, mode); err != nil {
+		return err
+	}
+	containers := request.AcquiredSlotState.AdmittedIdentityContainers
+	if len(containers) == 0 {
+		return fmt.Errorf("no admitted identity containers to publish")
+	}
+	return contract.Add(string(h.Kind()), "LEASED_MSI_CONTAINERS", strings.Join(containers, " "))
 }
 
 func azurePoolDependencies() (azcore.TokenCredential, subscriptionIDResolverFunc, error) {
