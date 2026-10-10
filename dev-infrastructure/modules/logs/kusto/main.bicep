@@ -90,6 +90,15 @@ var allServiceLogsTablesKQL = {
   maestroMqttConnections: loadTextContent('tables/maestroMqttConnections.kql')
 }
 
+var allServiceLogsFunctionsKQL = [
+  loadTextContent('functions/triage/resolvers/resolveClusterId.kql')
+  loadTextContent('functions/triage/resolvers/resolveResourceId.kql')
+]
+
+var allHostedControlPlaneLogsFunctionsKQL = [
+  loadTextContent('functions/triage/hcp/hcpComponentLogs.kql')
+]
+
 var allCustomerLogsTablesKQL = {
   containerlogs: loadTextContent('tables/containerLogs.kql')
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
@@ -203,6 +212,36 @@ module monitoringEventsTables 'script.bicep' = [
   }
 ]
 
+// 3b. Create Functions (depend on tables)
+// Functions are concatenated into a single script per database to stay within
+// the 50-script-per-cluster limit. Each .kql file is a complete .create-or-alter
+// statement; .execute database script handles multiple statements natively.
+module serviceLogsFunctions 'script.bicep' = {
+  name: 'serviceLogsFunctions'
+  params: {
+    kustoName: kustoName
+    databaseName: db.serviceLogs
+    scriptName: 'serviceLogsFunctions'
+    scriptContent: join(allServiceLogsFunctionsKQL, '\n')
+    principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
+    continueOnErrors: false
+  }
+  dependsOn: [serviceLogsTables]
+}
+
+module hostedControlPlaneLogsFunctions 'script.bicep' = {
+  name: 'hostedControlPlaneLogsFunctions'
+  params: {
+    kustoName: kustoName
+    databaseName: db.hostedControlPlaneLogs
+    scriptName: 'hostedControlPlaneLogsFunctions'
+    scriptContent: join(allHostedControlPlaneLogsFunctionsKQL, '\n')
+    principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
+    continueOnErrors: false
+  }
+  dependsOn: [hostedControlPlaneLogsTables]
+}
+
 // 4. User-add scripts per database (one script resource per dSTS group)
 module databaseUserScripts 'database-users.bicep' = [
   for (database, i) in databases: {
@@ -256,7 +295,9 @@ module removePermission 'script.bicep' = [
     dependsOn: [
       databaseUserScripts
       serviceLogsTables
+      serviceLogsFunctions
       hostedControlPlaneLogsTables
+      hostedControlPlaneLogsFunctions
       monitoringEventsTables
       grafanaServiceLogsAccess
     ]
