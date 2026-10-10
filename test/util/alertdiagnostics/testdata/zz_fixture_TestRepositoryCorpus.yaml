@@ -10714,27 +10714,18 @@
   group: prow-ci-alerts
   alert: ProwCIHealthcheckProvisionSuccessRateLow
   occurrence: 1
-  input: label_replace((sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"}) / sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})), "region", "$1", "job_name", ".*-provision-(.*)") > 0.40 and on (job_name) sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}) >= 5
+  input: label_replace(prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}, "region", "$1", "job_name", ".*-provision-(.*)") >= 6
   plan:
-    expression: label_replace((sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"}) / sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})), "region", "$1", "job_name", ".*-provision-(.*)") > 0.4 and on (job_name) sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}) >= 5
+    expression: label_replace(prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}, "region", "$1", "job_name", ".*-provision-(.*)") >= 6
     conditions:
-      - expression: label_replace((sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"}) / sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})), "region", "$1", "job_name", ".*-provision-(.*)") > 0.4
-        path: root/and:left
+      - expression: label_replace(prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}, "region", "$1", "job_name", ".*-provision-(.*)") >= 6
+        path: root
         queries:
-          - expression: label_replace((sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"}) / sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})), "region", "$1", "job_name", ".*-provision-(.*)")
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.4
-        unsupported: ""
-      - expression: sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}) >= 5
-        path: root/and:right
-        queries:
-          - expression: sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})
+          - expression: label_replace(prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}, "region", "$1", "job_name", ".*-provision-(.*)")
             role: signal
         thresholds:
           - operator: '>='
-            value: 5
+            value: 6
         unsupported: ""
 - source: tooling/tenant-quota/alerting.bicep
   group: prow-ci-alerts
