@@ -69,7 +69,7 @@ tests:
         alertname: userJourneyFrontendErrors1h5m
         cluster: svc-1
         component: slo
-        severity: "3"
+        severity: "2"
         slo: frontend-errors
         long_window: 1h
         short_window: 5m
@@ -140,7 +140,7 @@ tests:
         alertname: userJourneyFrontendErrors6h30m
         cluster: svc-1
         component: slo
-        severity: "3"
+        severity: "2"
         slo: frontend-errors
         long_window: 6h
         short_window: 30m
