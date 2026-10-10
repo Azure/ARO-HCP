@@ -1,0 +1,53 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.SVC.CleanupPrometheus
+rolloutName: SVC Prometheus Cleanup Rollout
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: service
+  resourceGroup: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: cleanup-prometheus
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: ./cleanup-prometheus.sh
+    workingDir: ./scripts
+    variables:
+    - name: MONITORING_API_GROUP
+      configRef: svc.monitoringApiGroup
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Server
+      resourceGroup: service
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.ClusterService
+      resourceGroup: service
+      step: deploy-cs-debug-jobs
+    - serviceGroup: Microsoft.Azure.ARO.HCP.RP.Backend
+      resourceGroup: service
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.RP.Frontend
+      resourceGroup: service
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.SessionGate
+      resourceGroup: service
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.AdminAPI
+      resourceGroup: service
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet
+      resourceGroup: service
+      step: deploy
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId

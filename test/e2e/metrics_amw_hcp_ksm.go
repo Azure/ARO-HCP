@@ -103,16 +103,28 @@ var _ = Describe("Engineering", func() {
 			endpoint, err := promutil.LookupPrometheusEndpoint(ctx, cred, subscriptionID, regionRGStr, hcpWorkspaceNameStr)
 			Expect(err).NotTo(HaveOccurred(), "failed to look up HCP Prometheus endpoint")
 
+			svcWorkspaceNameStr, err := config.GetStringByPath(serviceConfig, "monitoring.svcWorkspaceName")
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve monitoring.svcWorkspaceName")
+			svcEndpoint, err := promutil.LookupPrometheusEndpoint(ctx, cred, subscriptionID, regionRGStr, svcWorkspaceNameStr)
+			Expect(err).NotTo(HaveOccurred(), "failed to look up SVC Prometheus endpoint")
+
 			type metricCheck struct {
 				query       string
 				description string
+				endpoint    string
 			}
 
 			// Note, using ingresscontroller_info for now, other metrics can be added later.
 			checks := []metricCheck{
 				{
 					query:       `ingresscontroller_info{hostedcontrolplane=~".+", container="kube-state-metrics"}`,
-					description: "ingresscontroller_info from kube-state-metrics",
+					description: "ingresscontroller_info from kube-state-metrics (HCP AMW)",
+					endpoint:    endpoint,
+				},
+				{
+					query:       `hostedClusterAPI_valid_azure_kms_config`,
+					description: "ksm-crs hostedClusterAPI valid azure kms config (SVC AMW)",
+					endpoint:    svcEndpoint,
 				},
 			}
 
@@ -136,7 +148,7 @@ var _ = Describe("Engineering", func() {
 						continue
 					}
 
-					resp, err := promutil.QueryRange(ctx, httpClient, cred, endpoint, c.query, start, now, "60s")
+					resp, err := promutil.QueryRange(ctx, httpClient, cred, c.endpoint, c.query, start, now, "60s")
 					g.Expect(err).NotTo(HaveOccurred(), "Prometheus query_range failed for %s", c.description)
 					if err != nil {
 						return

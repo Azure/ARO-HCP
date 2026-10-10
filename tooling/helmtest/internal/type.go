@@ -59,6 +59,7 @@ type Settings struct {
 	Replace                       []Replace
 	ResourceRequestsAllowlist     []string // Components exempt from requiring resources.requests.memory
 	ResourceMemoryLimitsAllowlist []string // Components exempt from requiring resources.limits.memory
+	MetricsRoutingLabelAllowlist  []string // ServiceMonitors/PodMonitors exempt from requiring microsoft_metrics_include_label=service
 }
 
 type Replace struct {

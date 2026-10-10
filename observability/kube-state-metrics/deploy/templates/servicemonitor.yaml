@@ -1,0 +1,23 @@
+{{- if eq .Values.monitoringApiGroup "azmonitoring.coreos.com" }}
+apiVersion: {{ .Values.monitoringApiGroup }}/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-state-metrics-crs
+  namespace: '{{ .Release.Namespace }}'
+  labels:
+    app.kubernetes.io/name: kube-state-metrics-crs
+spec:
+  endpoints:
+  - port: http-metrics
+    interval: 30s
+    metricRelabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics-crs
+  namespaceSelector:
+    matchNames:
+    - '{{ .Release.Namespace }}'
+{{- end }}

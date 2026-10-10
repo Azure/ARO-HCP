@@ -1,4 +1,5 @@
 schedulingRole: "{{ .mgmt.scheduling.role }}"
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 pullBinding:
   registry: "{{ .acr.svc.name }}.azurecr.io"
   scope: "repository:{{ .kubeApplier.image.repository }}:pull"

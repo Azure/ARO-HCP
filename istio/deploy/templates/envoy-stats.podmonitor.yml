@@ -1,4 +1,4 @@
-apiVersion: monitoring.coreos.com/v1
+apiVersion: {{ .Values.monitoringApiGroup }}/v1
 kind: PodMonitor
 metadata:
   name: envoy-stats
@@ -19,3 +19,7 @@ spec:
   - interval: 15s
     path: /stats/prometheus
     port: http-envoy-prom
+    metricRelabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label

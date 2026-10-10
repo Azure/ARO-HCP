@@ -1,4 +1,4 @@
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: clusterlifecycle-state-metrics-v2
@@ -7,6 +7,10 @@ spec:
   endpoints:
   - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
     interval: 60s
+    metricRelabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
     port: https
     scheme: https
     scrapeTimeout: 10s

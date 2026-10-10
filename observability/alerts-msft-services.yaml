@@ -2,7 +2,6 @@ prometheusRules:
   # The msft bicep needs alerts from both HCP and main observability rules sources
   rulesFolders:
   - alerts/kubernetesControlPlane-prometheusRule.yaml
-  - alerts/prometheus-prometheusRule.yaml
   - ../frontend/alerts/mise-prometheusRule.yaml
   - alerts/msi-credential-refresher-prometheusRule.yaml
   testDependencies:

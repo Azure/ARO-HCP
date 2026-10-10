@@ -1,4 +1,4 @@
-apiVersion: monitoring.coreos.com/v1
+apiVersion: {{ .Values.monitoringApiGroup }}/v1
 kind: PodMonitor
 metadata:
   labels:
@@ -10,6 +10,10 @@ spec:
   podMetricsEndpoints:
   - port: metrics
     path: /metrics
+    metricRelabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
   selector:
     matchLabels:
       app.kubernetes.io/name: acrpull
