@@ -15,11 +15,18 @@
 package fleetinformers
 
 import (
+	"context"
 	"testing"
+	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type informerWithSyncState struct {
@@ -38,6 +45,7 @@ func newFleetInformersWithSyncState(synced bool) *fleetInformers {
 		managementClusterInformer:           informer,
 		managementClusterSchedulingInformer: informer,
 		controlPlaneVersionRolloutInformer:  informer,
+		hcpResourceRequirementsInformer:     informer,
 	}
 }
 
@@ -55,6 +63,9 @@ func TestFleetInformersHasSynced(t *testing.T) {
 		{"ControlPlaneVersionRollouts", func(informers *fleetInformers) {
 			informers.controlPlaneVersionRolloutInformer = unsyncedInformer
 		}},
+		{"HCPResourceRequirements", func(informers *fleetInformers) {
+			informers.hcpResourceRequirementsInformer = unsyncedInformer
+		}},
 	}
 
 	require.True(t, newFleetInformersWithSyncState(true).HasSynced())
@@ -67,4 +78,42 @@ func TestFleetInformersHasSynced(t *testing.T) {
 			require.False(t, informers.HasSynced())
 		})
 	}
+}
+
+func TestFleetInformersHCPResourceRequirements(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	ctx = utils.ContextWithLogger(ctx, logr.Discard())
+	client := fleetcosmosstoragetesting.NewMockFleetDBClient()
+	requirements, err := fleetcosmosstorage.GetOrCreateHCPResourceRequirements(ctx, client, "default")
+	require.NoError(t, err)
+	informers := NewFleetInformers(ctx, client.GlobalListers(), client)
+	informer, lister := informers.HCPResourceRequirements()
+	require.NotNil(t, informer)
+	require.NotNil(t, lister)
+
+	_, err = lister.Get(ctx)
+	require.Error(t, err)
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		informers.RunWithContext(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-finished:
+		case <-time.After(5 * time.Second):
+			t.Error("fleet informers did not stop after cancellation")
+		}
+	})
+	require.True(t, cache.WaitForCacheSync(ctx.Done(), informers.HasSynced))
+
+	actual, err := lister.Get(ctx)
+	require.NoError(t, err)
+	require.Equal(t, requirements, actual)
+	listed, err := lister.List(ctx)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	require.Equal(t, actual, listed[0])
 }
