@@ -227,6 +227,55 @@ else
   echo "No infrastructure identity bundle provided; infrastructure identities will be created in deployment resource groups"
 fi
 
+# --- Run cost attribution ---
+# Prow sets BUILD_ID to the job's unique ID. Tag this run's AKS clusters with it:
+# AKS copies cluster tags onto each cluster's node resource group, and Cost
+# Management tag inheritance on the E2E subscriptions then attributes the node
+# pools' spend to the run. provision-environment.sh applies the same tag to the
+# resource groups templatize creates; the e2e framework tags hosted clusters'
+# managed resource groups.
+# Only environments whose resource names derive from BUILD_ID belong to a single
+# run. Long-lived environments such as cspr also source this script and must not
+# carry the ID of whichever job deployed them last.
+RUN_COST_TAG_KEY="jobID.aro-hcp-ci.redhat.com"
+RUN_COST_TAG_VALUE=""
+RUN_REGION_SHORT_OVERRIDE=$(DEPLOY_ENV="${DEPLOY_ENV}" yq '.environments[] | select(.name == strenv(DEPLOY_ENV)) | .defaults.regionShortOverride // ""' tooling/templatize/settings.yaml)
+if [[ "${RUN_REGION_SHORT_OVERRIDE}" == *'${BUILD_ID'* ]]; then
+  RUN_COST_TAG_VALUE="${BUILD_ID:-}"
+fi
+if [[ -n "${RUN_COST_TAG_VALUE}" ]]; then
+  if [[ ! "${RUN_COST_TAG_VALUE}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "ERROR: BUILD_ID '${RUN_COST_TAG_VALUE}' is not a valid cost attribution tag value" >&2
+    exit 1
+  fi
+  SERVICE_CONFIG_FILE="${CONFIG_FILE:-config/config.yaml}"
+  for cluster_kind in svc mgmt; do
+    # Effective tags before this override: environment, then cloud, then global defaults.
+    base_tags=$(yq "
+      .clouds.dev.environments.${DEPLOY_ENV}.defaults.${cluster_kind}.aks.tags //
+      .clouds.dev.defaults.${cluster_kind}.aks.tags //
+      .defaults.${cluster_kind}.aks.tags // \"\"
+    " "${SERVICE_CONFIG_FILE}")
+    run_tag_list=()
+    IFS=',' read -r -a base_tag_list <<< "${base_tags}"
+    for tag in "${base_tag_list[@]}"; do
+      tag_key="${tag%%=*}"
+      # Azure tag names are case-insensitive, so drop the job ID key in any casing.
+      if [[ -n "${tag}" && "${tag_key,,}" != "${RUN_COST_TAG_KEY,,}" ]]; then
+        run_tag_list+=("${tag}")
+      fi
+    done
+    run_tag_list+=("${RUN_COST_TAG_KEY}=${RUN_COST_TAG_VALUE}")
+    _YQ_AKS_TAGS="$(IFS=','; echo "${run_tag_list[*]}")"
+    export _YQ_AKS_TAGS
+    yq -i ".clouds.dev.environments.${DEPLOY_ENV}.defaults.${cluster_kind}.aks.tags = strenv(_YQ_AKS_TAGS)" "${OVERRIDE_CONFIG_FILE}"
+    unset _YQ_AKS_TAGS
+  done
+  echo "Run cost attribution: tagging this run's resources with ${RUN_COST_TAG_KEY}=${RUN_COST_TAG_VALUE}"
+else
+  echo "Not a per-run environment or no BUILD_ID set, skipping run cost attribution tags"
+fi
+
 # Healthcheck workflows provision without leases and don't need E2E-sized clusters.
 # Override minCount to 1 so healthcheck clusters stay small.
 if [[ -z "${LEASED_MSI_CONTAINERS:-}" ]]; then

@@ -270,6 +270,14 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
+	// Attribute the managed resource groups of clusters created outside the framework's
+	// create helpers before the RP deletes them. Only this test's own resource groups
+	// qualify: the shared cleanup path below also serves periodic jobs that reap other
+	// jobs' leftovers, so it must not tag anything.
+	for _, resourceGroupName := range resourceGroupNames {
+		tc.tagManagedResourceGroupsWithJobID(ctx, resourceGroupName)
+	}
+
 	opts := CleanupResourceGroupsOptions{
 		ResourceGroupNames: resourceGroupNames,
 		Timeout:            60 * time.Minute,
@@ -521,7 +529,21 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 }
 
 func (tc *perItOrDescribeTestContext) findManagedResourceGroups(ctx context.Context, ResourceGroupName string) ([]string, error) {
-	managedResourceGroups := []string{}
+	resourceGroups, err := tc.listManagedResourceGroups(ctx, ResourceGroupName)
+	if err != nil {
+		return nil, err
+	}
+	managedResourceGroups := make([]string, 0, len(resourceGroups))
+	for _, rg := range resourceGroups {
+		managedResourceGroups = append(managedResourceGroups, *rg.Name)
+	}
+	return managedResourceGroups, nil
+}
+
+// listManagedResourceGroups returns the managed resource groups whose owner is an HCP
+// cluster in the parent resource group.
+func (tc *perItOrDescribeTestContext) listManagedResourceGroups(ctx context.Context, parentResourceGroupName string) ([]*armresources.ResourceGroup, error) {
+	managedResourceGroups := []*armresources.ResourceGroup{}
 	clientFactory, err := tc.GetARMResourcesClientFactory(ctx)
 	if err != nil {
 		return nil, err
@@ -534,16 +556,8 @@ func (tc *perItOrDescribeTestContext) findManagedResourceGroups(ctx context.Cont
 			return nil, fmt.Errorf("failed to list resource groups while discovering managed groups: %w", err)
 		}
 		for _, rg := range page.Value {
-			if rg.ManagedBy == nil {
-				continue
-			}
-
-			// Match managed resource groups whose owner is an HCP resource in the parent resource group
-			if strings.Contains(
-				strings.ToLower(*rg.ManagedBy),
-				strings.ToLower("/resourceGroups/"+ResourceGroupName+"/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/"),
-			) {
-				managedResourceGroups = append(managedResourceGroups, *rg.Name)
+			if rg != nil && rg.Name != nil && managedByHCPClusterIn(rg.ManagedBy, parentResourceGroupName) {
+				managedResourceGroups = append(managedResourceGroups, rg)
 			}
 		}
 	}

@@ -72,7 +72,7 @@ func TestDiscoverResourceGroups(t *testing.T) {
 						if testCase.failJob {
 							return nil, failure
 						}
-						body = `{"value":[{"name":"both","location":"westus3","tags":{"jobID.aro-hcp-ci.redhat.com":"123"}},{"name":"TAGGED","location":"eastus","tags":{"jobID.aro-hcp-ci.redhat.com":"123"}}]}`
+						body = `{"value":[{"name":"both","location":"westus3","tags":{"jobID.aro-hcp-ci.redhat.com":"123"}},{"name":"TAGGED","location":"eastus","tags":{"jobID.aro-hcp-ci.redhat.com":"123"}},{"name":"cluster--managed","location":"westus3","managedBy":"/subscriptions/subscription/resourceGroups/both/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster","tags":{"jobID.aro-hcp-ci.redhat.com":"123"}}]}`
 					} else if testCase.failTracked {
 						return nil, failure
 					}
