@@ -1,5 +1,0 @@
-# DO NOT USE THIS QUEUE, IT'S BEING REMOVED
-prometheusRules:
-  rulesFolders: []
-  untestedRules: []
-  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPPrometheusAlertingRules.bicep
