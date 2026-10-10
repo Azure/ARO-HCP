@@ -54,6 +54,12 @@ param svcMonitorName string
 @description('Name of the Azure Monitor Workspace for hosted control planes')
 param hcpMonitorName string
 
+@description('Export daily AMW usage logs for long-lived environments in supported preview regions')
+param metricsUsageInsightsEnabled bool
+
+@description('Name of the regional Log Analytics workspace shared by both AMWs')
+param metricsUsageInsightsWorkspaceName string
+
 import { determineZoneRedundancyForRegion } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
 
@@ -152,12 +158,24 @@ module rpCosmosAccount '../modules/rp-cosmos-account.bicep' = {
 //   M O N I T O R I N G
 //
 
+module metricsUsageInsightsWorkspace '../modules/monitor/log-analytics-workspace.bicep' = if (metricsUsageInsightsEnabled) {
+  name: 'amw-usage-workspace'
+  params: {
+    workspaceName: metricsUsageInsightsWorkspaceName
+    location: location
+    retentionInDays: 90
+  }
+}
+
 module svcMonitor '../modules/metrics/monitor.bicep' = {
   name: 'svc-monitor'
   params: {
     grafanaResourceId: grafanaResourceId
     monitorName: svcMonitorName
     purpose: 'services'
+    metricsUsageInsightsWorkspaceId: metricsUsageInsightsEnabled
+      ? metricsUsageInsightsWorkspace!.outputs.workspaceId
+      : ''
   }
 }
 
@@ -167,6 +185,9 @@ module hcpMonitor '../modules/metrics/monitor.bicep' = {
     grafanaResourceId: grafanaResourceId
     monitorName: hcpMonitorName
     purpose: 'hcps'
+    metricsUsageInsightsWorkspaceId: metricsUsageInsightsEnabled
+      ? metricsUsageInsightsWorkspace!.outputs.workspaceId
+      : ''
   }
 }
 
