@@ -331,7 +331,7 @@ func TestAzureFailureBundleScopesAndIndependentCategories(t *testing.T) {
 }
 
 func TestAzureFailureBundleEffectiveNetworkErrors(t *testing.T) {
-	for _, scenario := range []string{"begin error", "poll error", "empty", "deadline", "NSG begin error", "NSG poll error"} {
+	for _, scenario := range []string{"begin error", "poll error", "empty", "deadline", "NSG begin error", "NSG poll error", "NSG failed state", "NSG invalid result", "NSG deadline", "NSG final GET transport error"} {
 		t.Run(scenario, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
@@ -340,6 +340,7 @@ func TestAzureFailureBundleEffectiveNetworkErrors(t *testing.T) {
 				require.NoError(t, err)
 				var requests []string
 				var lock sync.Mutex
+				finalResultError := errors.New("final result transport failure")
 				prefix := "/subscriptions/" + fakeSubscriptionID + "/resourceGroups/managed/providers/Microsoft.Network/networkInterfaces/nic/"
 				transport := &fakeTransport{do: func(req *http.Request) (*http.Response, error) {
 					lock.Lock()
@@ -360,17 +361,35 @@ func TestAzureFailureBundleEffectiveNetworkErrors(t *testing.T) {
 						}
 					case "/poll":
 						assert.Equal(t, http.MethodGet, req.Method)
-						if scenario == "deadline" {
+						if scenario == "NSG final GET transport error" {
+							return azureBundleResponse(req, http.StatusOK, `{"status":"Succeeded"}`)
+						}
+						if scenario == "deadline" || scenario == "NSG deadline" {
 							<-req.Context().Done()
 							return nil, req.Context().Err()
 						}
+						if scenario == "NSG failed state" {
+							return azureBundleResponse(req, http.StatusOK, `{"properties":{"provisioningState":"Failed"},"error":{"code":"NicNotReady"}}`)
+						}
 						return azureBundleResponse(req, http.StatusBadRequest, `{"error":{"code":"NicNotReady"}}`)
+					case "/result":
+						assert.Equal(t, http.MethodGet, req.Method)
+						return nil, finalResultError
 					case prefix + "effectiveNetworkSecurityGroups":
 						assert.Equal(t, http.MethodPost, req.Method)
+						if scenario == "NSG final GET transport error" {
+							resp, err := azureBundleResponse(req, http.StatusAccepted, `{}`)
+							resp.Header.Set("Azure-AsyncOperation", req.URL.ResolveReference(&url.URL{Path: "/poll"}).String())
+							resp.Header.Set("Location", req.URL.ResolveReference(&url.URL{Path: "/result"}).String())
+							return resp, err
+						}
 						if scenario == "NSG begin error" {
 							return azureBundleResponse(req, http.StatusForbidden, `{"error":{"code":"AuthorizationFailed"}}`)
 						}
-						if scenario == "NSG poll error" {
+						if scenario == "NSG invalid result" {
+							return azureBundleResponse(req, http.StatusOK, `{"value":[{"tagMap":{},"effectiveSecurityRules":[{"priority":"invalid"}]}]}`)
+						}
+						if scenario == "NSG poll error" || scenario == "NSG failed state" || scenario == "NSG deadline" {
 							resp, err := azureBundleResponse(req, http.StatusAccepted, `{}`)
 							resp.Header.Set("Location", "https://management.azure.com/poll")
 							return resp, err
@@ -397,10 +416,21 @@ func TestAzureFailureBundleEffectiveNetworkErrors(t *testing.T) {
 				if strings.HasPrefix(scenario, "NSG") {
 					assert.Equal(t, "error", nsg.Status)
 					assert.Empty(t, nsg.Artifacts)
-					if scenario == "NSG poll error" {
+					switch scenario {
+					case "NSG poll error", "NSG failed state", "NSG deadline":
 						wantRequests = append(wantRequests, "GET /poll")
-						assert.Equal(t, "Azure HTTP 400 (NicNotReady)", nsg.Error)
-					} else {
+						wantError := map[string]string{
+							"NSG poll error":   "Azure HTTP 400 (NicNotReady)",
+							"NSG failed state": "Azure HTTP 200 (NicNotReady)",
+							"NSG deadline":     "collection deadline exceeded",
+						}
+						assert.Equal(t, wantError[scenario], nsg.Error)
+					case "NSG invalid result":
+						assert.NotEmpty(t, nsg.Error, "unrelated decoding failures must remain errors")
+					case "NSG final GET transport error":
+						wantRequests = append(wantRequests, "GET /poll", "GET /result")
+						assert.Equal(t, azureFailureError(finalResultError), nsg.Error, "a successful status poll must not hide the final GET failure")
+					default:
 						assert.Equal(t, "Azure HTTP 403 (AuthorizationFailed)", nsg.Error)
 					}
 				} else {
@@ -421,6 +451,86 @@ func TestAzureFailureBundleEffectiveNetworkErrors(t *testing.T) {
 				}
 				assert.Zero(t, routes.Count)
 				assert.Zero(t, nsg.Count)
+			})
+		})
+	}
+}
+
+// Azure returns tagMap as an object, although armnetwork/v6 models it as a
+// string. Exercise decoding after successful Location polling and persistence.
+func TestAzureFailureBundleEffectiveNSGTagMap(t *testing.T) {
+	for _, scenario := range []struct {
+		name         string
+		asynchronous bool
+		tagMap       string
+	}{
+		{name: "immediate object", tagMap: `{"AzureLoadBalancer":["168.63.129.16/32"],"VirtualNetwork":["10.0.0.0/24"]}`},
+		{name: "polled object", asynchronous: true, tagMap: `{"AzureLoadBalancer":["168.63.129.16/32"],"VirtualNetwork":["10.0.0.0/24"]}`},
+		{name: "immediate string", tagMap: `"legacy"`},
+		{name: "polled string", asynchronous: true, tagMap: `"legacy"`},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+				defer cancel()
+				b, err := newAzureFailureBundle(ctx, t.TempDir(), "managed", "managed", "cluster", "pool")
+				require.NoError(t, err)
+				result := `{"value":[{
+					"association":{"subnet":{"id":"/vnets/worker/subnets/default"}},
+					"networkSecurityGroup":{"id":"/nsgs/worker"},
+					"effectiveSecurityRules":[{"name":"allow-ignition","access":"Allow","direction":"Inbound","protocol":"Tcp","priority":100,"destinationPortRange":"22623-22623"}],
+					"tagMap":` + scenario.tagMap + `,
+					"unknown":"https://blob.example/log?sig=BODY_SECRET"
+				}]} `
+				prefix := "/subscriptions/" + fakeSubscriptionID + "/resourceGroups/managed/providers/Microsoft.Network/networkInterfaces/nic/"
+				var polls atomic.Int32
+				transport := &fakeTransport{do: func(req *http.Request) (*http.Response, error) {
+					switch req.URL.Path {
+					case prefix + "effectiveRouteTable":
+						return azureBundleResponse(req, http.StatusOK, `{"value":[]}`)
+					case prefix + "effectiveNetworkSecurityGroups":
+						assert.Equal(t, http.MethodPost, req.Method)
+						assert.Equal(t, "2024-05-01", req.URL.Query().Get("api-version"), "retain the pinned network API version")
+						if scenario.asynchronous {
+							resp, err := azureBundleResponse(req, http.StatusAccepted, `{}`)
+							pollURL := req.URL.ResolveReference(&url.URL{Path: "/poll", RawQuery: "sig=POLL_SECRET"})
+							resp.Header.Set("Location", pollURL.String())
+							return resp, err
+						}
+						return azureBundleResponse(req, http.StatusOK, result)
+					case "/poll":
+						assert.Equal(t, http.MethodGet, req.Method)
+						polls.Add(1)
+						return azureBundleResponse(req, http.StatusOK, result)
+					default:
+						t.Errorf("unexpected effective-network path: %s", req.URL.Path)
+						return nil, errors.New("unexpected request")
+					}
+				}}
+				options := fakeClientOptions(transport)
+				options.Retry.MaxRetries = -1
+				network, err := armnetwork.NewClientFactory(fakeSubscriptionID, &azfake.TokenCredential{}, options)
+				require.NoError(t, err)
+				b.collectEffectiveNetwork(ctx, network, "managed", "nic")
+				op := azureBundleOperation(t, readAzureBundleManifest(t, b.directory), "managed", "effective-network-security-groups", "nic")
+				assert.Equal(t, "success", op.Status)
+				assert.Empty(t, op.Error)
+				assert.Equal(t, 1, op.Count)
+				require.Len(t, op.Artifacts, 1)
+				artifact := readAzureBundleArtifact(t, b.directory, op.Artifacts[0])
+				assert.JSONEq(t, `{"value":[{
+					"association":{"subnet":{"id":"/vnets/worker/subnets/default"}},
+					"networkSecurityGroup":{"id":"/nsgs/worker"},
+					"effectiveSecurityRules":[{"name":"allow-ignition","access":"Allow","direction":"Inbound","protocol":"Tcp","priority":100,"destinationPortRange":"22623-22623"}],
+					"tagMap":`+scenario.tagMap+`
+				}]}`, artifact)
+				assert.NotContains(t, artifact, "SECRET")
+				assert.NotContains(t, readAzureBundleArtifact(t, b.directory, "manifest.json"), "SECRET")
+				if scenario.asynchronous {
+					assert.Equal(t, int32(1), polls.Load())
+				} else {
+					assert.Zero(t, polls.Load())
+				}
 			})
 		})
 	}
@@ -670,8 +780,10 @@ func TestAzureFailureBundleEffectiveNetworkPagination(t *testing.T) {
 					require.NoError(t, err)
 					path := "/subscriptions/" + fakeSubscriptionID + "/resourceGroups/managed/providers/Microsoft.Network/networkInterfaces/nic/"
 					action := "effectiveRouteTable"
+					item := `{}`
 					if operation != "effective-routes" {
 						action = "effectiveNetworkSecurityGroups"
+						item = `{"tagMap":{"VirtualNetwork":["10.0.0.0/24"]}}`
 					}
 					var continuations atomic.Int32
 					transport := &fakeTransport{do: func(req *http.Request) (*http.Response, error) {
@@ -689,7 +801,7 @@ func TestAzureFailureBundleEffectiveNetworkPagination(t *testing.T) {
 							if scenario == "other resource group" {
 								next = strings.Replace(next, "/managed/", "/other/", 1)
 							}
-							return azureBundleResponse(req, http.StatusOK, `{"value":[{}],"nextLink":"`+next+`"}`)
+							return azureBundleResponse(req, http.StatusOK, `{"value":[`+item+`],"nextLink":"`+next+`"}`)
 						}
 						continuations.Add(1)
 						assert.Equal(t, "2", req.URL.Query().Get("page"))
@@ -703,7 +815,7 @@ func TestAzureFailureBundleEffectiveNetworkPagination(t *testing.T) {
 							<-req.Context().Done()
 							return nil, req.Context().Err()
 						default:
-							return azureBundleResponse(req, http.StatusOK, `{"value":[{}]}`)
+							return azureBundleResponse(req, http.StatusOK, `{"value":[`+item+`]}`)
 						}
 					}}
 					options := fakeClientOptions(transport)
@@ -721,7 +833,10 @@ func TestAzureFailureBundleEffectiveNetworkPagination(t *testing.T) {
 					case "success":
 						assert.Equal(t, "success", op.Status)
 						assert.Equal(t, 2, op.Count)
-						assert.Len(t, op.Artifacts, 2)
+						require.Len(t, op.Artifacts, 2)
+						for _, artifact := range op.Artifacts {
+							assert.JSONEq(t, `{"value":[`+item+`]}`, readAzureBundleArtifact(t, b.directory, artifact))
+						}
 					case "outside scope", "other subscription", "other resource group", "no client":
 						assert.Equal(t, "incomplete", op.Status)
 						assert.Zero(t, continuations.Load())
