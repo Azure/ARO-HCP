@@ -549,7 +549,7 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "supported values: \"None\", \"SystemAssigned\", \"SystemAssigned,UserAssigned\", \"UserAssigned\"",
-					FieldPath: "identity.state",
+					FieldPath: "identity.type",
 				},
 			},
 		},
