@@ -17,7 +17,6 @@ package agentpools
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"k8s.io/utils/ptr"
@@ -81,19 +80,19 @@ func ObservedPoolCapacities(pools []*armcontainerservice.ManagedClusterAgentPool
 			return nil, fmt.Errorf("missing SKU metadata for pool %q (%s)", *pool.Name, *pool.VMSize)
 		}
 		spec := compute.NewVMSpecFromSKU(meta)
-		swift := ptr.Deref(pool.Tags[agentpoolspec.SwiftMultiTenancyTag], "") == agentpoolspec.SwiftMultiTenancyEnabledValue
-		if swift && compute.PoolRole(RoleFromAgentPoolProfile(pool)) == compute.PoolRoleWorker {
-			nics, err := strconv.ParseInt(ptr.Deref(pool.Tags[agentpoolspec.SwiftSecondaryNICCountTag], ""), 10, 64)
-			if err != nil || nics <= 0 {
+		swift := agentpoolspec.IsSwiftEnabled(pool.Tags)
+		var secondaryNICs int64
+		if nics, present, err := agentpoolspec.SecondaryNICCount(pool.Tags); present {
+			if err != nil || !swift {
 				return nil, fmt.Errorf("invalid Swift NIC count for pool %q", *pool.Name)
 			}
-			spec.SecondaryNICs = nics
+			secondaryNICs = nics
 		}
 		maxCount := int64(*pool.Count)
 		if *pool.EnableAutoScaling {
 			maxCount = int64(*pool.MaxCount)
 		}
-		observed = append(observed, compute.Pool{Role: compute.PoolRole(RoleFromAgentPoolProfile(pool)), Name: *pool.Name, Spec: spec, MaxCount: int32(maxCount), EnableSwift: swift})
+		observed = append(observed, compute.Pool{Role: compute.PoolRole(RoleFromAgentPoolProfile(pool)), Name: *pool.Name, Spec: spec, MaxCount: int32(maxCount), EnableSwift: swift, SecondaryNICs: secondaryNICs})
 	}
 	return compute.PoolCapacities(observed)
 }
@@ -117,15 +116,15 @@ func ObservedAgentPoolCapacities(pools []armcontainerservice.AgentPool, metadata
 			return nil, fmt.Errorf("missing SKU metadata for pool %q (%s)", *pool.Name, *p.VMSize)
 		}
 		spec := compute.NewVMSpecFromSKU(meta)
-		swift := ptr.Deref(p.Tags[agentpoolspec.SwiftMultiTenancyTag], "") == agentpoolspec.SwiftMultiTenancyEnabledValue
-		if swift && compute.PoolRole(RoleFromAgentPool(pool)) == compute.PoolRoleWorker {
-			nics, err := strconv.ParseInt(ptr.Deref(p.Tags[agentpoolspec.SwiftSecondaryNICCountTag], ""), 10, 64)
-			if err != nil || nics <= 0 {
+		swift := agentpoolspec.IsSwiftEnabled(p.Tags)
+		var secondaryNICs int64
+		if nics, present, err := agentpoolspec.SecondaryNICCount(p.Tags); present {
+			if err != nil || !swift {
 				return nil, fmt.Errorf("invalid Swift NIC count for pool %q", *pool.Name)
 			}
-			spec.SecondaryNICs = nics
+			secondaryNICs = nics
 		}
-		observed = append(observed, compute.Pool{Role: compute.PoolRole(RoleFromAgentPool(pool)), Name: *pool.Name, Spec: spec, MaxCount: int32(PoolMaxCount(pool)), EnableSwift: swift})
+		observed = append(observed, compute.Pool{Role: compute.PoolRole(RoleFromAgentPool(pool)), Name: *pool.Name, Spec: spec, MaxCount: int32(PoolMaxCount(pool)), EnableSwift: swift, SecondaryNICs: secondaryNICs})
 	}
 	return compute.PoolCapacities(observed)
 }

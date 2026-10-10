@@ -153,7 +153,8 @@ func TestCurrentPoolStates(t *testing.T) {
 					Pool: compute.Pool{
 						Role: compute.PoolRoleWorker, Name: "wrk161",
 						AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
-						Spec:              compute.VMSpec{Size: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 3},
+						SecondaryNICs:     3,
+						Spec:              compute.VMSpec{Size: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7},
 						AvailabilityZones: []string{"1"}, MaxCount: 10, OSDiskSizeGB: 256, MaxPods: 225,
 						Labels:      map[string]string{compute.RoleLabel: "worker", "workload": "general"},
 						Taints:      []string{"dedicated=worker:NoSchedule"},
@@ -247,90 +248,47 @@ func makeAgentPool(name, vmSize string, zones []string, osDiskSizeGB, count int3
 	return pool
 }
 
-func TestHasSwiftTags(t *testing.T) {
-	tests := []struct {
-		name string
-		pool armcontainerservice.AgentPool
-		want bool
-	}{
-		{
-			name: "multi-tenancy tag set to true",
-			pool: armcontainerservice.AgentPool{
-				Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
-					Tags: map[string]*string{agentpoolspec.SwiftMultiTenancyTag: ptr.To("true")},
-				},
-			},
-			want: true,
-		},
-		{
-			name: "multi-tenancy tag set to false",
-			pool: armcontainerservice.AgentPool{
-				Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
-					Tags: map[string]*string{agentpoolspec.SwiftMultiTenancyTag: ptr.To("false")},
-				},
-			},
-			want: false,
-		},
-		{
-			name: "tag absent",
-			pool: armcontainerservice.AgentPool{
-				Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
-					Tags: map[string]*string{"other-tag": ptr.To("true")},
-				},
-			},
-			want: false,
-		},
-		{
-			name: "nil tags map",
-			pool: armcontainerservice.AgentPool{
-				Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{},
-			},
-			want: false,
-		},
-		{
-			name: "nil properties",
-			pool: armcontainerservice.AgentPool{},
-			want: false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.want, hasSwiftTags(test.pool))
-		})
-	}
-}
-
 func TestCurrentPoolStatesSwiftNICValidation(t *testing.T) {
 	tests := []struct {
 		name     string
 		tag      *string
+		present  bool
+		swift    bool
 		wantNICs int64
 		wantErr  bool
 	}{
-		{name: "configured count", tag: ptr.To("3"), wantNICs: 3},
-		{name: "missing", wantErr: true},
-		{name: "empty", tag: ptr.To(""), wantErr: true},
-		{name: "malformed", tag: ptr.To("unknown"), wantErr: true},
-		{name: "zero", tag: ptr.To("0"), wantErr: true},
-		{name: "negative", tag: ptr.To("-1"), wantErr: true},
-		{name: "overflow", tag: ptr.To("9223372036854775808"), wantErr: true},
+		{name: "configured count", tag: ptr.To("3"), present: true, swift: true, wantNICs: 3},
+		{name: "missing", swift: true},
+		{name: "present nil", present: true, swift: true, wantErr: true},
+		{name: "empty", tag: ptr.To(""), present: true, swift: true, wantErr: true},
+		{name: "malformed", tag: ptr.To("unknown"), present: true, swift: true, wantErr: true},
+		{name: "zero", tag: ptr.To("0"), present: true, swift: true, wantErr: true},
+		{name: "negative", tag: ptr.To("-1"), present: true, swift: true, wantErr: true},
+		{name: "overflow", tag: ptr.To("9223372036854775808"), present: true, swift: true, wantErr: true},
+		{name: "NICs without Swift", tag: ptr.To("3"), present: true, wantErr: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			pools := []armcontainerservice.AgentPool{{Name: ptr.To("worker"), Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
 				VMSize: ptr.To("sku"), OSDiskSizeGB: ptr.To[int32](32), Count: ptr.To[int32](1), MaxCount: ptr.To[int32](2), EnableAutoScaling: ptr.To(true),
-				NodeLabels: map[string]*string{compute.RoleLabel: ptr.To("worker")}, Tags: map[string]*string{agentpoolspec.SwiftMultiTenancyTag: ptr.To("true"), agentpoolspec.SwiftSecondaryNICCountTag: test.tag},
+				NodeLabels: map[string]*string{compute.RoleLabel: ptr.To("custom")}, Tags: map[string]*string{},
 			}}}
+			if test.swift {
+				pools[0].Properties.Tags[agentpoolspec.SwiftMultiTenancyTag] = ptr.To("true")
+			}
+			if test.present {
+				pools[0].Properties.Tags[agentpoolspec.SwiftSecondaryNICCountTag] = test.tag
+			}
 			metadata := map[string]*skucache.SKUMetadata{"sku": {Name: "sku", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 7}}
 			current, err := currentPoolStates(pools, metadata)
 			if test.wantErr {
-				require.ErrorContains(t, err, "invalid Swift NIC count")
+				require.Error(t, err)
 				require.Nil(t, current, "invalid configured NICs must not return SKU-maximum capacity")
 			} else {
 				require.NoError(t, err)
 				require.Len(t, current, 1)
-				require.Equal(t, test.wantNICs, current[0].Spec.SecondaryNICs)
+				require.Equal(t, test.wantNICs, current[0].SecondaryNICs)
+				require.Equal(t, int64(7), current[0].Spec.SecondaryNICs)
 			}
 		})
 	}

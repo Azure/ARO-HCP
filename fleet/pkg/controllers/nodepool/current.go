@@ -16,7 +16,6 @@ package nodepool
 
 import (
 	"fmt"
-	"strconv"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
@@ -30,10 +29,10 @@ import (
 )
 
 // currentPoolStates projects live AKS agent pools into []PoolState for
-// use by the shadow simulator. Only pools with a role label (system, infra,
-// worker) are included. SKU metadata is used to populate Family and
-// VCPUsPerNode from the pool's VMSize. Invalid configured Swift NIC counts
-// return an error rather than falling back to the SKU maximum, and a pool
+// use by the shadow simulator. Only pools with a nonempty role label are
+// included. SKU metadata supplies the pool's hardware capacity.
+// Invalid configured secondary NIC counts return an error rather than falling
+// back to the SKU maximum, and a pool
 // whose OS disk is not ephemeral is rejected: the pool model carries only a
 // disk size, so a managed-disk pool would otherwise read as converged against
 // a desired spec that agentpoolspec.Build always builds as ephemeral.
@@ -113,21 +112,22 @@ func currentPoolStates(pools []armcontainerservice.AgentPool, skuMetadata map[st
 			maxPods = *pool.Properties.MaxPods
 		}
 
-		enableSwift := hasSwiftTags(pool)
-		if enableSwift && role == compute.PoolRoleWorker {
-			// Capacity protection uses configured NICs, which can differ from
-			// the SKU maximum.
-			nics, err := strconv.ParseInt(ptr.Deref(pool.Properties.Tags[agentpoolspec.SwiftSecondaryNICCountTag], ""), 10, 64)
-			if err != nil || nics <= 0 {
-				return nil, fmt.Errorf("invalid Swift NIC count for pool %q", *pool.Name)
+		var secondaryNICs int64
+		if nics, present, err := agentpoolspec.SecondaryNICCount(pool.Properties.Tags); present {
+			if !agentpoolspec.IsSwiftEnabled(pool.Properties.Tags) {
+				return nil, fmt.Errorf("secondary NIC count for pool %q requires Swift", *pool.Name)
 			}
-			spec.SecondaryNICs = nics
+			if err != nil {
+				return nil, fmt.Errorf("invalid secondary NIC count for pool %q", *pool.Name)
+			}
+			secondaryNICs = nics
 		}
 
 		result = append(result, PoolState{
 			Pool: compute.Pool{
 				Role:              role,
 				AgentPoolMode:     ptr.Deref(pool.Properties.Mode, ""),
+				SecondaryNICs:     secondaryNICs,
 				Name:              *pool.Name,
 				Spec:              spec,
 				AvailabilityZones: zones,
@@ -136,7 +136,7 @@ func currentPoolStates(pools []armcontainerservice.AgentPool, skuMetadata map[st
 				MaxPods:           maxPods,
 				Labels:            labels,
 				Taints:            taints,
-				EnableSwift:       enableSwift,
+				EnableSwift:       agentpoolspec.IsSwiftEnabled(pool.Properties.Tags),
 			},
 			ETag:               etag,
 			ProvisioningState:  provisioningState,
@@ -185,12 +185,4 @@ func poolZonesByRole(pools []armcontainerservice.AgentPool) map[compute.PoolRole
 		result[role] = sets.List(roleZones)
 	}
 	return result
-}
-
-func hasSwiftTags(pool armcontainerservice.AgentPool) bool {
-	if pool.Properties == nil || pool.Properties.Tags == nil {
-		return false
-	}
-	v := pool.Properties.Tags[agentpoolspec.SwiftMultiTenancyTag]
-	return v != nil && *v == agentpoolspec.SwiftMultiTenancyEnabledValue
 }

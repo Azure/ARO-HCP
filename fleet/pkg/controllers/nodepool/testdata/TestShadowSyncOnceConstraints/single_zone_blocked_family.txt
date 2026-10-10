@@ -40,15 +40,15 @@ fully allocated: true
 initial capacity:
   infra:   cpu=192   memory=1536GiB   swiftNICs=0
   system:  cpu=32    memory=256GiB    swiftNICs=0
-  worker:  cpu=1344  memory=10752GiB  swiftNICs=0
+  worker:  cpu=1344  memory=10752GiB  swiftNICs=294
 
 role-zone floor:
   infra zone 1:   cpu=8    memory=64GiB    swiftNICs=0
   infra zone 2:   cpu=8    memory=64GiB    swiftNICs=0
   system:         cpu=8    memory=64GiB    swiftNICs=0
-  worker zone 1:  cpu=416  memory=3328GiB  swiftNICs=0
-  worker zone 2:  cpu=416  memory=3328GiB  swiftNICs=0
-  worker zone 3:  cpu=416  memory=3328GiB  swiftNICs=0
+  worker zone 1:  cpu=416  memory=3328GiB  swiftNICs=98
+  worker zone 2:  cpu=416  memory=3328GiB  swiftNICs=98
+  worker zone 3:  cpu=416  memory=3328GiB  swiftNICs=98
 
 actions:
   margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
@@ -67,39 +67,39 @@ actions:
     11  Delete            system  system        E8s_v3    1,2,3                     +0c     +0G    +0n  ESv3 96c
     12  SetScalingBounds  infra   infra1        E32s_v3   1      min=1   max=1     +32c   +256G    +0n  ESv3 160c
     13  SetScalingBounds  infra   infra2        E32s_v3   2      min=1   max=1     +32c   +256G    +0n  ESv3 224c
-    14  SetScalingBounds  worker  userswft1     E32s_v3   1      min=6   max=6    +192c  +1536G  +161n  ESv3 480c
-    15  SetScalingBounds  worker  userswft2     E32s_v3   2      min=6   max=6    +192c  +1536G  +161n  ESv3 736c
-    16  SetScalingBounds  worker  userswft3     E32s_v3   3      min=6   max=6    +192c  +1536G  +161n  ESv3 992c
+    14  SetScalingBounds  worker  userswft1     E32s_v3   1      min=6   max=6    +192c  +1536G  +105n  ESv3 480c
+    15  SetScalingBounds  worker  userswft2     E32s_v3   2      min=6   max=6    +192c  +1536G  +105n  ESv3 736c
+    16  SetScalingBounds  worker  userswft3     E32s_v3   3      min=6   max=6    +192c  +1536G  +105n  ESv3 992c
     17  Freeze            infra   infra1        E32s_v3   1      count=1           +32c   +256G    +0n
     18  Freeze            infra   infra2        E32s_v3   2      count=1           +32c   +256G    +0n
-    19  Freeze            worker  userswft1     E32s_v3   1      count=6          +192c  +1536G  +161n
-    20  Freeze            worker  userswft2     E32s_v3   2      count=6          +192c  +1536G  +161n
-    21  Freeze            worker  userswft3     E32s_v3   3      count=6          +192c  +1536G  +161n
+    19  Freeze            worker  userswft1     E32s_v3   1      count=6          +192c  +1536G  +105n
+    20  Freeze            worker  userswft2     E32s_v3   2      count=6          +192c  +1536G  +105n
+    21  Freeze            worker  userswft3     E32s_v3   3      count=6          +192c  +1536G  +105n
     22  Reduce            infra   infra1        E32s_v3   1      count=0            +0c     +0G    +0n  ESv3 1024c
     23  Reduce            infra   infra2        E32s_v3   2      count=0            +0c     +0G    +0n  ESv3 1056c
-    24  Reduce            worker  userswft1     E32s_v3   1      count=5          +160c  +1280G  +161n  ESv3 1088c
-    25  Reduce            worker  userswft1     E32s_v3   1      count=4          +128c  +1024G  +161n  ESv3 1120c
-    26  Reduce            worker  userswft1     E32s_v3   1      count=3           +96c   +768G  +161n  ESv3 1152c
-    27  Reduce            worker  userswft1     E32s_v3   1      count=2           +64c   +512G  +161n  ESv3 1184c
-    28  Reduce            worker  userswft1     E32s_v3   1      count=1           +32c   +256G  +161n  ESv3 1216c
-    29  Reduce            worker  userswft1     E32s_v3   1      count=0            +0c     +0G  +161n  ESv3 1248c
-    30  Reduce            worker  userswft2     E32s_v3   2      count=5          +160c  +1280G  +161n  ESv3 1280c
-    31  Reduce            worker  userswft2     E32s_v3   2      count=4          +128c  +1024G  +161n  ESv3 1312c
-    32  Reduce            worker  userswft2     E32s_v3   2      count=3           +96c   +768G  +161n  ESv3 1344c
-    33  Reduce            worker  userswft2     E32s_v3   2      count=2           +64c   +512G  +161n  ESv3 1376c
-    34  Reduce            worker  userswft2     E32s_v3   2      count=1           +32c   +256G  +161n  ESv3 1408c
-    35  Reduce            worker  userswft2     E32s_v3   2      count=0            +0c     +0G  +161n  ESv3 1440c
-    36  Reduce            worker  userswft3     E32s_v3   3      count=5          +160c  +1280G  +161n  ESv3 1472c
-    37  Reduce            worker  userswft3     E32s_v3   3      count=4          +128c  +1024G  +161n  ESv3 1504c
-    38  Reduce            worker  userswft3     E32s_v3   3      count=3           +96c   +768G  +161n  ESv3 1536c
-    39  Reduce            worker  userswft3     E32s_v3   3      count=2           +64c   +512G  +161n  ESv3 1568c
-    40  Reduce            worker  userswft3     E32s_v3   3      count=1           +32c   +256G  +161n  ESv3 1600c
-    41  Reduce            worker  userswft3     E32s_v3   3      count=0            +0c     +0G  +161n  ESv3 1632c
+    24  Reduce            worker  userswft1     E32s_v3   1      count=5          +160c  +1280G   +98n  ESv3 1088c
+    25  Reduce            worker  userswft1     E32s_v3   1      count=4          +128c  +1024G   +91n  ESv3 1120c
+    26  Reduce            worker  userswft1     E32s_v3   1      count=3           +96c   +768G   +84n  ESv3 1152c
+    27  Reduce            worker  userswft1     E32s_v3   1      count=2           +64c   +512G   +77n  ESv3 1184c
+    28  Reduce            worker  userswft1     E32s_v3   1      count=1           +32c   +256G   +70n  ESv3 1216c
+    29  Reduce            worker  userswft1     E32s_v3   1      count=0            +0c     +0G   +63n  ESv3 1248c
+    30  Reduce            worker  userswft2     E32s_v3   2      count=5          +160c  +1280G   +98n  ESv3 1280c
+    31  Reduce            worker  userswft2     E32s_v3   2      count=4          +128c  +1024G   +91n  ESv3 1312c
+    32  Reduce            worker  userswft2     E32s_v3   2      count=3           +96c   +768G   +84n  ESv3 1344c
+    33  Reduce            worker  userswft2     E32s_v3   2      count=2           +64c   +512G   +77n  ESv3 1376c
+    34  Reduce            worker  userswft2     E32s_v3   2      count=1           +32c   +256G   +70n  ESv3 1408c
+    35  Reduce            worker  userswft2     E32s_v3   2      count=0            +0c     +0G   +63n  ESv3 1440c
+    36  Reduce            worker  userswft3     E32s_v3   3      count=5          +160c  +1280G   +98n  ESv3 1472c
+    37  Reduce            worker  userswft3     E32s_v3   3      count=4          +128c  +1024G   +91n  ESv3 1504c
+    38  Reduce            worker  userswft3     E32s_v3   3      count=3           +96c   +768G   +84n  ESv3 1536c
+    39  Reduce            worker  userswft3     E32s_v3   3      count=2           +64c   +512G   +77n  ESv3 1568c
+    40  Reduce            worker  userswft3     E32s_v3   3      count=1           +32c   +256G   +70n  ESv3 1600c
+    41  Reduce            worker  userswft3     E32s_v3   3      count=0            +0c     +0G   +63n  ESv3 1632c
     42  Delete            infra   infra1        E32s_v3   1                         +0c     +0G    +0n
     43  Delete            infra   infra2        E32s_v3   2                         +0c     +0G    +0n
-    44  Delete            worker  userswft1     E32s_v3   1                         +0c     +0G  +161n
-    45  Delete            worker  userswft2     E32s_v3   2                         +0c     +0G  +161n
-    46  Delete            worker  userswft3     E32s_v3   3                         +0c     +0G  +161n
+    44  Delete            worker  userswft1     E32s_v3   1                         +0c     +0G   +63n
+    45  Delete            worker  userswft2     E32s_v3   2                         +0c     +0G   +63n
+    46  Delete            worker  userswft3     E32s_v3   3                         +0c     +0G   +63n
 
 steps:      46
 converged:  true

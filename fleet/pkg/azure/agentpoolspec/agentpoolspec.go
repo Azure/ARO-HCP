@@ -19,6 +19,7 @@
 package agentpoolspec
 
 import (
+	"fmt"
 	"strconv"
 
 	"k8s.io/utils/ptr"
@@ -40,6 +41,26 @@ const (
 	// when Swift is enabled, and matched by the controller when reading it back.
 	SwiftMultiTenancyEnabledValue = "true"
 )
+
+// IsSwiftEnabled reports whether tags mark the pool as Swift-enabled.
+func IsSwiftEnabled(tags map[string]*string) bool {
+	return ptr.Deref(tags[SwiftMultiTenancyTag], "") == SwiftMultiTenancyEnabledValue
+}
+
+// SecondaryNICCount parses the configured secondary NIC count tag. ok is
+// false when the tag is absent. A present but malformed or non-positive
+// value is reported as an error so callers decide how strictly to treat it.
+func SecondaryNICCount(tags map[string]*string) (count int64, ok bool, err error) {
+	value, present := tags[SwiftSecondaryNICCountTag]
+	if !present {
+		return 0, false, nil
+	}
+	nics, err := strconv.ParseInt(ptr.Deref(value, ""), 10, 64)
+	if err != nil || nics <= 0 {
+		return 0, true, fmt.Errorf("invalid secondary NIC count %q", ptr.Deref(value, ""))
+	}
+	return nics, true, nil
+}
 
 // Build builds the AKS agent pool properties for a desired pool. Used both by
 // the controller's create action (via a live client) and by tools that create
