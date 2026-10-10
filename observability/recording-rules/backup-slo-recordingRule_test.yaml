@@ -1,0 +1,232 @@
+rule_files:
+- backup-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Errors ratio: 10 failures / 100 attempts per minute = 10% error share.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0+100x10"
+  - series: 'velero_backup_success_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0+90x10"
+  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0+10x10"
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0x10"
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0x10"
+  promql_expr_test:
+  - expr: errors:backup:ratio:rate5m{cluster="mgmt-1"}
+    eval_time: 8m
+    exp_samples:
+    - labels: '{__name__="errors:backup:ratio:rate5m", cluster="mgmt-1"}'
+      # 10/100 is not exact in binary floating point - promtool requires the
+      # precise computed value here, matching the established pattern in
+      # frontend-slo-recordingRule_test.yaml (e.g. its 0.9639999999999997).
+      value: 0.09999999999999999
+  - expr: traffic:backup:attempt_rate:rate5m{cluster="mgmt-1"}
+    eval_time: 8m
+    exp_samples:
+    - labels: '{__name__="traffic:backup:attempt_rate:rate5m", cluster="mgmt-1"}'
+      value: 1.6666666666666667
+# ========================================
+# Errors ratio guard: zero attempt volume must emit no sample (not NaN or 0) -
+# avoids a quiet/decommissioned cluster looking like a perfect-or-silent SLI.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_attempt_total{cluster="mgmt-quiet", schedule="ns-a-hourly"}'
+    values: "0x10"
+  - series: 'velero_backup_failure_total{cluster="mgmt-quiet", schedule="ns-a-hourly"}'
+    values: "0x10"
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-quiet", schedule="ns-a-hourly"}'
+    values: "0x10"
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-quiet", schedule="ns-a-hourly"}'
+    values: "0x10"
+  promql_expr_test:
+  - expr: errors:backup:ratio:rate5m{cluster="mgmt-quiet"}
+    eval_time: 8m
+    exp_samples: []
+# ========================================
+# Errors ratio regression: masked-failure-type test. partial_failure_total
+# and validation_failure_total report NO time series at all for this cluster
+# (never incremented - not merely a flat zero, which is a present sample),
+# while attempt/success/failure are all present and real: 10 failures out of
+# 100 attempts per minute. Before applying the "or 0 * attempt" fallback to
+# EACH outcome-type sum individually, plain vector addition dropped the
+# whole numerator the moment any one term had no matching series, masking
+# these 10 real failures as a 0% error rate. With the per-term fallback,
+# the missing types correctly contribute 0 instead of poisoning the sum, and
+# this reads as the true 10%.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_attempt_total{cluster="mgmt-masked", schedule="ns-a-hourly"}'
+    values: "0+100x10"
+  - series: 'velero_backup_success_total{cluster="mgmt-masked", schedule="ns-a-hourly"}'
+    values: "0+90x10"
+  - series: 'velero_backup_failure_total{cluster="mgmt-masked", schedule="ns-a-hourly"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: errors:backup:ratio:rate5m{cluster="mgmt-masked"}
+    eval_time: 8m
+    exp_samples:
+    - labels: '{__name__="errors:backup:ratio:rate5m", cluster="mgmt-masked"}'
+      value: 0.09999999999999999
+# ========================================
+# Latency p99: all observations land in (300,600] - histogram_quantile
+# interpolates a concrete estimate inside that finite bucket.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-hourly", le="300"}'
+    values: "0x10"
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-hourly", le="600"}'
+    values: "0+2x10"
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-hourly", le="+Inf"}'
+    values: "0+2x10"
+  - series: 'velero_backup_duration_seconds_count{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0+2x10"
+  promql_expr_test:
+  - expr: sli:backup:latency_p99:rate5m{cluster="mgmt-1"}
+    eval_time: 8m
+    exp_samples:
+    - labels: '{__name__="sli:backup:latency_p99:rate5m", cluster="mgmt-1"}'
+      value: 597
+# ========================================
+# Storage proxy / HostedCluster-count guard: 3 schedules on 3 distinct
+# HostedClusters (ns-a, ns-b, ns-c), 2 with a failed last run.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-a-hourly"}'
+    values: "0+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-b-hourly"}'
+    values: "0+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-c-hourly"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: sli:backup:last_run_failure:ratio5m{cluster="mgmt-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:backup:last_run_failure:ratio5m", cluster="mgmt-1"}'
+      value: 0.6666666666666666
+  - expr: backup:hostedcluster_count:count{cluster="mgmt-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="backup:hostedcluster_count:count", cluster="mgmt-1"}'
+      value: 3
+# ========================================
+# Storage proxy regression: mixed-cadence dilution. Each of 3 HostedClusters
+# has all 3 schedules (hourly/daily/weekly, config.go:43-45) - only the
+# hourly schedule has failed so far (a storage outage just started); daily
+# and weekly still show their old pre-outage success since their own cron
+# hasn't ticked again yet. Before restricting the ratio to hourly-only, this
+# would read 3 failed / 9 total = 33%, well under the 0.8 threshold -
+# exactly the dilution that could delay detection by up to a week. Scoped to
+# hourly, it correctly reads 3/3 = 100%.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-hourly"}'
+    values: "0+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-daily"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-weekly"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-hourly"}'
+    values: "0+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-daily"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-weekly"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-hourly"}'
+    values: "0+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-daily"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-weekly"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: sli:backup:last_run_failure:ratio5m{cluster="mgmt-9"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:backup:last_run_failure:ratio5m", cluster="mgmt-9"}'
+      value: 1
+# ========================================
+# HostedCluster-count guard regression: ONE HostedCluster with all 3 of its
+# own cadences (hourly/daily/weekly) - must count as 1 distinct HC, not 3
+# schedules, so a downstream >=3 guard does not mistake it for 3 HCs.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-hourly"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-daily"}'
+    values: "1+0x10"
+  - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-weekly"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: backup:hostedcluster_count:count{cluster="mgmt-3"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="backup:hostedcluster_count:count", cluster="mgmt-3"}'
+      value: 1
+# ========================================
+# RepoMaintenance proxy: 3 backups non-terminal (InProgress, Finalizing, and
+# New - queued counts too, matching the dashboard's enqueued-backup query),
+# 1 Completed - Completed must not count.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-a-hourly", phase="InProgress"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-b-hourly", phase="Finalizing"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-c-hourly", phase="New"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-d-hourly", phase="Completed"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: backup:in_progress:count{cluster="mgmt-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="backup:in_progress:count", cluster="mgmt-1"}'
+      value: 3
+# No non-terminal backups anywhere - absent series, not a spurious 0 (see the
+# recording rule's comment on why there is no "or vector(0)" fallback here).
+- interval: 1m
+  input_series:
+  - series: 'velerobackup_phase{cluster="mgmt-2", schedule="ns-a-hourly", phase="Completed"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: backup:in_progress:count{cluster="mgmt-2"}
+    eval_time: 5m
+    exp_samples: []
+# ========================================
+# RepoMaintenance proxy: "Queued"/"ReadyToStart" regression test. These are
+# real, non-terminal velerobackup_phase values (see
+# observability/prometheus/values-mgmt.yaml's phase StateSet and
+# controller_test.go's TestBackupPhases) that must count toward the backlog
+# the same as "New"/"InProgress" - 2 InProgress + 1 Queued + 1 ReadyToStart +
+# 1 Completed (which must not count) = 4.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-a-hourly", phase="InProgress"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-b-hourly", phase="InProgress"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-c-hourly", phase="Queued"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-d-hourly", phase="ReadyToStart"}'
+    values: "1+0x10"
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-e-hourly", phase="Completed"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: backup:in_progress:count{cluster="mgmt-7"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="backup:in_progress:count", cluster="mgmt-7"}'
+      value: 4
