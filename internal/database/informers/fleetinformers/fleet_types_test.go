@@ -16,14 +16,18 @@ package fleetinformers
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr"
+	"github.com/go-logr/logr/funcr"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -83,9 +87,16 @@ func TestFleetInformersHasSynced(t *testing.T) {
 func TestFleetInformersHCPResourceRequirements(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	ctx = utils.ContextWithLogger(ctx, logr.Discard())
+	var captureMutex sync.Mutex
+	var logLines []string
+	logger := funcr.NewJSON(func(line string) {
+		captureMutex.Lock()
+		defer captureMutex.Unlock()
+		logLines = append(logLines, line)
+	}, funcr.Options{})
+	ctx = utils.ContextWithLogger(ctx, logger)
 	client := fleetcosmosstoragetesting.NewMockFleetDBClient()
-	requirements, err := fleetcosmosstorage.GetOrCreateHCPResourceRequirements(ctx, client, "default")
+	requirements, err := fleetcosmosstorage.GetOrCreateHCPResourceRequirements(ctx, client, fleetapi.HCPResourceRequirementsResourceName)
 	require.NoError(t, err)
 	informers := NewFleetInformers(ctx, client.GlobalListers(), client)
 	informer, lister := informers.HCPResourceRequirements()
@@ -116,4 +127,28 @@ func TestFleetInformersHCPResourceRequirements(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
 	require.Equal(t, actual, listed[0])
+
+	captureMutex.Lock()
+	capturedLines := append([]string(nil), logLines...)
+	captureMutex.Unlock()
+	var snapshots []map[string]any
+	for _, line := range capturedLines {
+		var entry map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &entry))
+		if entry["snapshotType"] == "cosmos" {
+			snapshots = append(snapshots, entry)
+		}
+	}
+	require.Len(t, snapshots, 1, "the initial list must emit the singleton snapshot")
+	snapshot := snapshots[0]
+	require.Equal(t, "cosmos", snapshot["snapshotType"])
+	require.Equal(t, "dumping resourceID "+requirements.ResourceID.String(), snapshot["msg"])
+	require.Equal(t, requirements.ResourceID.String(), snapshot["currentResourceID"])
+	metadata, ok := snapshot["objectMetadata"].(map[string]any)
+	require.True(t, ok, "snapshot must contain structured objectMetadata")
+	require.Equal(t, "fleet", metadata["cosmosContainer"])
+	require.Equal(t, strings.ToLower(fleetapi.HCPResourceRequirementsResourceType.String()), metadata["resourceType"])
+	require.Equal(t, requirements.ResourceID.String(), metadata["resourceID"])
+	require.Equal(t, fleetapi.HCPResourceRequirementsResourceName, metadata["resourceName"])
+	require.NotEmpty(t, snapshot["content"])
 }
