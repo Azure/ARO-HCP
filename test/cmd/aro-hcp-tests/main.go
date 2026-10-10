@@ -250,6 +250,20 @@ func registerEV2RetryCatcher(specs et.ExtensionTestSpecs) {
 	})
 }
 
+func registerRPResourceCollector(specs et.ExtensionTestSpecs) {
+	if !isRunSuiteProcess() {
+		return
+	}
+
+	// This runs at true end-of-run and captures resources still present;
+	// per-test cleanup may have already deleted some resources.
+	specs.AddAfterAll(func() {
+		if err := framework.CollectRPResourcesAtEndOfRun(context.Background()); err != nil {
+			fmt.Fprintf(os.Stderr, "WARNING: RP resource collection was incomplete: %v\n", err)
+		}
+	})
+}
+
 // ev2SuiteSummary is the basic shape of a suite run, reported under ev2SuiteSummaryKey
 // alongside the retry facts so a human (or a future dashboard) can see run size/duration
 // without opening the Prow job UI. Field names are deliberately short (no repeated ev2-/
@@ -765,6 +779,7 @@ func setupCli() *cobra.Command {
 	// })
 
 	registerEV2RetryCatcher(specs)
+	registerRPResourceCollector(specs)
 
 	ext.AddSpecs(specs)
 	registry.Register(ext)
