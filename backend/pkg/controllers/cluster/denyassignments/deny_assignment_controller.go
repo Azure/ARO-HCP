@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"strings"
 	"time"
 
@@ -207,39 +208,28 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 		return utils.TrackError(fmt.Errorf("failed to create deny assignments client: %w", err))
 	}
 
-	// Delete any deny assignments whose type is no longer required.
+	// Reconcile the required deny assignments BEFORE deleting any that are no longer required. The
+	// deny assignments protect the managed resource group, so deleting the legacy per-service
+	// assignments before the consolidated "complete" assignment is confirmed in place would leave the
+	// resource group momentarily unprotected if its create/update failed. We therefore ensure the
+	// required assignments first and only delete stale ones once the required set is confirmed present
+	// in AzureResources.
 	replacement := serviceProviderCluster.DeepCopy()
-	var staleDeletionErrs []error
-	for _, existing := range serviceProviderCluster.Status.AzureResources.DenyAssignments.AzureResources {
-		if _, isRequired := requiredDenyAssignmentReferenceByType[existing.DenyAssignmentType]; !isRequired {
-			if err := c.deleteDenyAssignment(ctx, genericResourcesClient, existing.DenyAssignmentResourceID); err != nil {
-				staleDeletionErrs = append(staleDeletionErrs, utils.TrackError(fmt.Errorf("failed to delete stale deny assignment %s: %w", existing.DenyAssignmentType, err)))
-				continue
-			}
-			logger.Info("Deleted stale deny assignment from Azure", "denyAssignmentType", existing.DenyAssignmentType)
-			replacement.Status.AzureResources.DenyAssignments.AzureResources = removeDenyAssignmentRef(replacement.Status.AzureResources.DenyAssignments.AzureResources, existing.DenyAssignmentType)
-		}
-	}
-	for _, pending := range serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources {
-		if _, isRequired := requiredDenyAssignmentReferenceByType[pending.DenyAssignmentType]; !isRequired {
-			if err := c.deleteDenyAssignment(ctx, genericResourcesClient, pending.DenyAssignmentResourceID); err != nil {
-				staleDeletionErrs = append(staleDeletionErrs, utils.TrackError(fmt.Errorf("failed to delete stale pending deny assignment %s: %w", pending.DenyAssignmentType, err)))
-				continue
-			}
-			logger.Info("Deleted stale pending deny assignment from Azure", "denyAssignmentType", pending.DenyAssignmentType)
-			replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = removeDenyAssignmentRef(replacement.Status.AzureResources.DenyAssignments.PendingAzureResources, pending.DenyAssignmentType)
-		}
-	}
-	serviceProviderCluster, replacement, err = replaceServiceProviderClusterIfChanged(ctx, serviceProviderClusterCRUD, serviceProviderCluster, replacement, staleDeletionErrs)
-	if serviceProviderCluster == nil || err != nil {
-		return err
-	}
 
-	// Ensure all existing deny assignments have correct content.
-	// Succeeded stay in AzureResources; failed move to pending for retry.
+	// Split the tracked AzureResources into the refs that are still required (which we ensure) and the
+	// stale ones (which we delete later, once the required set is in place). Stale refs are held out of
+	// ensureDenyAssignmentReferences on purpose: they have no definition and would otherwise surface a
+	// "no definition" error and be shuffled into pending instead of being cleanly deleted.
+	requiredExistingRefs, staleExistingRefs := partitionDenyAssignmentReferences(
+		replacement.Status.AzureResources.DenyAssignments.AzureResources, requiredDenyAssignmentReferenceByType)
+
+	// Ensure the required deny assignments already tracked in AzureResources have correct content.
+	// Succeeded stay in AzureResources; failed move to pending for retry. The stale refs are preserved
+	// in AzureResources untouched, so the resource group keeps its existing protection until the
+	// required set is confirmed present below.
 	ensureExistingSucceeded, ensureExistingFailed, ensureExistingErr := c.ensureDenyAssignmentReferences(ctx, cluster, replacement, denyAssignmentsClient, genericResourcesClient,
-		managedResourceGroupID, denyAssignmentDefinitionsByType, replacement.Status.AzureResources.DenyAssignments.AzureResources)
-	replacement.Status.AzureResources.DenyAssignments.AzureResources = ensureExistingSucceeded
+		managedResourceGroupID, denyAssignmentDefinitionsByType, requiredExistingRefs)
+	replacement.Status.AzureResources.DenyAssignments.AzureResources = appendDenyAssignmentReference(slices.Clone(staleExistingRefs), ensureExistingSucceeded...)
 	replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = appendDenyAssignmentReference(replacement.Status.AzureResources.DenyAssignments.PendingAzureResources, ensureExistingFailed...)
 	serviceProviderCluster, replacement, err = replaceServiceProviderClusterIfChanged(ctx, serviceProviderClusterCRUD, serviceProviderCluster, replacement, []error{ensureExistingErr})
 	if serviceProviderCluster == nil || err != nil {
@@ -264,15 +254,42 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 		return err
 	}
 
-	// Ensure all pending deny assignments exist in Azure with correct content.
-	// Succeeded move to AzureResources; failed stay in pending.
+	// Ensure the required pending deny assignments exist in Azure with correct content.
+	// Succeeded move to AzureResources; failed stay in pending. Obsolete pending refs are held out of
+	// ensureDenyAssignmentReferences on purpose — they have no definition — and kept in pending so the
+	// stale-cleanup below can delete them, instead of being retried forever as "no definition"
+	// failures that would keep the cluster permanently pending.
+	requiredPendingRefs, stalePendingRefs := partitionDenyAssignmentReferences(
+		replacement.Status.AzureResources.DenyAssignments.PendingAzureResources, requiredDenyAssignmentReferenceByType)
 	ensurePendingSucceeded, ensurePendingFailed, ensurePendingErr := c.ensureDenyAssignmentReferences(ctx, cluster, replacement, denyAssignmentsClient, genericResourcesClient,
-		managedResourceGroupID, denyAssignmentDefinitionsByType, replacement.Status.AzureResources.DenyAssignments.PendingAzureResources)
+		managedResourceGroupID, denyAssignmentDefinitionsByType, requiredPendingRefs)
 	replacement.Status.AzureResources.DenyAssignments.AzureResources = appendDenyAssignmentReference(replacement.Status.AzureResources.DenyAssignments.AzureResources, ensurePendingSucceeded...)
-	replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = ensurePendingFailed
+	replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = appendDenyAssignmentReference(stalePendingRefs, ensurePendingFailed...)
 	serviceProviderCluster, replacement, err = replaceServiceProviderClusterIfChanged(ctx, serviceProviderClusterCRUD, serviceProviderCluster, replacement, []error{ensurePendingErr})
 	if serviceProviderCluster == nil || err != nil {
 		return err
+	}
+
+	// Now that the required deny assignments have been ensured, delete any that are no longer required
+	// from BOTH AzureResources and PendingAzureResources — but only once every required type is
+	// confirmed present in AzureResources. If the required "complete" assignment failed to
+	// create/update above, the obsolete assignments are left in place so the managed resource group
+	// keeps its protection; the deletion is retried on the next reconcile.
+	if allRequiredDenyAssignmentsPresent(replacement.Status.AzureResources.DenyAssignments.AzureResources, requiredDenyAssignmentReferenceByType) {
+		var staleDeletionErrs []error
+		for _, stale := range appendDenyAssignmentReference(slices.Clone(staleExistingRefs), stalePendingRefs...) {
+			if err := c.deleteDenyAssignment(ctx, genericResourcesClient, stale.DenyAssignmentResourceID); err != nil {
+				staleDeletionErrs = append(staleDeletionErrs, utils.TrackError(fmt.Errorf("failed to delete stale deny assignment %s: %w", stale.DenyAssignmentType, err)))
+				continue
+			}
+			logger.Info("Deleted stale deny assignment from Azure", "denyAssignmentType", stale.DenyAssignmentType)
+			replacement.Status.AzureResources.DenyAssignments.AzureResources = removeDenyAssignmentRef(replacement.Status.AzureResources.DenyAssignments.AzureResources, stale.DenyAssignmentType)
+			replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = removeDenyAssignmentRef(replacement.Status.AzureResources.DenyAssignments.PendingAzureResources, stale.DenyAssignmentType)
+		}
+		serviceProviderCluster, replacement, err = replaceServiceProviderClusterIfChanged(ctx, serviceProviderClusterCRUD, serviceProviderCluster, replacement, staleDeletionErrs)
+		if serviceProviderCluster == nil || err != nil {
+			return err
+		}
 	}
 
 	if len(replacement.Status.AzureResources.DenyAssignments.PendingAzureResources) == 0 {
@@ -655,4 +672,44 @@ func removeDenyAssignmentRef(slice []coreapi.DenyAssignmentReference, denyAssign
 		}
 	}
 	return result
+}
+
+// partitionDenyAssignmentReferences returns the refs whose types are still required, followed by
+// the obsolete refs whose types are no longer required. Obsolete refs must never be passed to
+// ensureDenyAssignmentReferences — they have no definition, so ensuring them only produces a
+// "no definition" error. Callers hold them aside and delete them from Azure and the status lists
+// only after the required assignments are confirmed in place.
+func partitionDenyAssignmentReferences(
+	refs []coreapi.DenyAssignmentReference,
+	requiredByType map[string]coreapi.DenyAssignmentReference,
+) ([]coreapi.DenyAssignmentReference, []coreapi.DenyAssignmentReference) {
+	var required, obsolete []coreapi.DenyAssignmentReference
+	for _, ref := range refs {
+		if _, isRequired := requiredByType[ref.DenyAssignmentType]; isRequired {
+			required = append(required, ref)
+		} else {
+			obsolete = append(obsolete, ref)
+		}
+	}
+	return required, obsolete
+}
+
+// allRequiredDenyAssignmentsPresent reports whether every required deny assignment type is present in
+// refs (the tracked AzureResources). It gates deletion of stale assignments so the controller never
+// removes the legacy per-service assignments before the consolidated "complete" assignment is
+// confirmed in place, avoiding a window where the managed resource group has no deny assignment.
+func allRequiredDenyAssignmentsPresent(
+	refs []coreapi.DenyAssignmentReference,
+	requiredByType map[string]coreapi.DenyAssignmentReference,
+) bool {
+	presentByType := make(map[string]struct{}, len(refs))
+	for _, ref := range refs {
+		presentByType[ref.DenyAssignmentType] = struct{}{}
+	}
+	for requiredType := range requiredByType {
+		if _, ok := presentByType[requiredType]; !ok {
+			return false
+		}
+	}
+	return true
 }

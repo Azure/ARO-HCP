@@ -841,7 +841,7 @@ Records pending managed resource group intent, gets/creates the Azure resource g
 
 [Source](../backend/pkg/controllers/cluster/denyassignments/deny_assignment_controller.go) · **Trigger:** Cluster; 1m, 12h recheck; optional registration.
 
-Requires a pending/confirmed Cluster Service ID, confirmed managed resource group and resolved identities. Gets, creates/updates and removes stale Azure deny assignments; tracks pending/confirmed IDs and recheck time in the service-provider cluster. Enabled with the real FPA client; skips deleting clusters.
+Requires a pending/confirmed Cluster Service ID, confirmed managed resource group and resolved identities. Ensures one `complete-deny-assignment` before deleting obsolete Azure deny assignments, retaining legacy protection if ensuring the replacement fails. Prunes obsolete references from both pending and confirmed IDs; tracks recheck time in the service-provider cluster. The service managed identity is always excluded, while the KMS identity is excluded only when KMS encryption is enabled. Enabled with the real FPA client; skips deleting clusters.
 
 #### IdentityRoleAssignments
 
