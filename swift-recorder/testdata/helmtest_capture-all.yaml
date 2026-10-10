@@ -1,0 +1,8 @@
+# captureMode "all" must reach the DaemonSet --capture-mode flag.
+values: ../values.yaml
+name: swift-recorder-capture-all
+namespace: swift-recorder
+testData:
+  swiftRecorder:
+    enabled: true
+    captureMode: all
