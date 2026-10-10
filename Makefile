@@ -693,3 +693,9 @@ image-updater:
 update-tool-versions:
 	@$(MAKE) -C dev-infrastructure/openshift-ci update-tool-versions
 .PHONY: update-tool-versions
+
+# Documentation tests
+test-docs:
+	@echo "Running documentation tests..."
+	@./test/docs/personal-dev-readme-test.sh
+.PHONY: test-docs
