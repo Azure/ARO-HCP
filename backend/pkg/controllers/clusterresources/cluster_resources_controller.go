@@ -275,6 +275,14 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to reconcile HostedCluster annotations for %s: %w", resourceKey, err)))
 					continue
 				}
+
+				// Enable forwarding of control plane metrics to the hosted
+				// cluster's monitoring stack so customers get visibility into their
+				// control plane without manual intervention.
+				if err := ensureHostedClusterMonitoring(&unstructuredObj); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to reconcile HostedCluster monitoring for %s: %w", resourceKey, err)))
+					continue
+				}
 			}
 
 			desire, err = buildClusterResourceApplyDesire(
@@ -363,6 +371,20 @@ func ensureHostedClusterAnnotations(hostedCluster *unstructured.Unstructured) er
 	annotations[v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation] = "10m"
 
 	hostedCluster.SetAnnotations(annotations)
+	return nil
+}
+
+// ensureHostedClusterMonitoring sets backend-managed monitoring configuration on a
+// HostedCluster. This enables forwarding of control plane metrics (e.g. kube-apiserver,
+// etcd) from the management cluster into the hosted cluster's own monitoring stack, so
+// customers get visibility into their control plane without manual intervention.
+func ensureHostedClusterMonitoring(hostedCluster *unstructured.Unstructured) error {
+	if err := unstructured.SetNestedField(
+		hostedCluster.Object, string(v1beta1.MetricsForwardingModeForward),
+		"spec", "monitoring", "metricsForwarding", "mode",
+	); err != nil {
+		return fmt.Errorf("failed to set spec.monitoring.metricsForwarding.mode: %w", err)
+	}
 	return nil
 }
 
