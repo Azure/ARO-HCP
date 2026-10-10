@@ -110,6 +110,7 @@ tests:
   # ---------------------------------------------------------------------------
   # FrontendPathMedianLatency — p50 > 250ms, 30m window, light ≥10 req/30m floor.
   # The median is robust at low N, so a single outlier must not fire it.
+  # GET/HEAD only: mutating methods use FrontendPathWriteMedianLatency.
   # ---------------------------------------------------------------------------
 
   input_series:
@@ -155,9 +156,9 @@ tests:
         route: /api/clusters
         cluster: test
       exp_annotations:
-        description: 'The median (p50) of frontend request latency for GET /api/clusters has exceeded 250ms over the past 30 minutes (cluster test).'
+        description: 'The median (p50) of frontend GET/HEAD request latency for GET /api/clusters has exceeded 250ms over the past 30 minutes (cluster test).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend median latency is high: p50 exceeds 250ms for GET /api/clusters on cluster test over the past 30 minutes'
+        summary: 'Frontend GET/HEAD median latency is high: p50 exceeds 250ms for GET /api/clusters on cluster test over the past 30 minutes'
 # Median > 250ms but only ~6 req/30m — the ≥10 volume floor suppresses it.
 - interval: 1m
   input_series:
@@ -235,4 +236,259 @@ tests:
   alert_rule_test:
   - eval_time: 40m
     alertname: FrontendPathMedianLatency
+    exp_alerts: []
+# Cluster-create PUT with a slow median and ample volume must NOT fire the
+# existing 250ms read-path alert (AROSLSRE-2232).
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.25", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathMedianLatency
+    exp_alerts: []
+# Lowercase "put" (if a scrape lowercases method) must also stay silent.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="put", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="put", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="put", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="put", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathMedianLatency
+    exp_alerts: []
+# HEAD is a read method: slow median with volume still fires.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="HEAD", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.25", route="/api/clusters", method="HEAD", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="HEAD", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1.0", route="/api/clusters", method="HEAD", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="HEAD", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="HEAD", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathMedianLatency
+    exp_alerts:
+    - exp_labels:
+        component: frontend
+        severity: warning
+        method: HEAD
+        route: /api/clusters
+        cluster: test
+      exp_annotations:
+        description: 'The median (p50) of frontend GET/HEAD request latency for HEAD /api/clusters has exceeded 250ms over the past 30 minutes (cluster test).'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend GET/HEAD median latency is high: p50 exceeds 250ms for HEAD /api/clusters on cluster test over the past 30 minutes'
+# ---------------------------------------------------------------------------
+# FrontendPathWriteMedianLatency — p50 >200ms, >=5 req/30m.
+# Use frontend histogram buckets. Calibration evidence: docs/frontend-write-latency-alert.md.
+# ---------------------------------------------------------------------------
+# A synthetic below-threshold cluster-create PUT does not fire despite enough volume.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1",route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.2",route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.4",route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.6",route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf",route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathWriteMedianLatency
+    exp_alerts: []
+# Six cluster-create PUTs in 30m with a sustained median above 200ms fire.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.2",route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.4",route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.6",route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.2x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf",route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.2x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.2x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathWriteMedianLatency
+    exp_alerts:
+    - exp_labels:
+        component: frontend
+        severity: warning
+        method: PUT
+        route: /subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername}
+        cluster: test
+      exp_annotations:
+        description: 'The median (p50) of frontend write request latency for PUT /subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername} has exceeded 200ms over the past 30 minutes (cluster test).'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend write p50 exceeds 200ms for PUT /subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{hcpopenshiftclustername} on cluster test over 30m'
+# Other mutating methods and lowercase labels fire; a slow GET is not a write alert.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.2",route="/api/clusters", method="POST", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.4",route="/api/clusters", method="POST", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.6",route="/api/clusters", method="POST", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf",route="/api/clusters", method="POST", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="POST", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.2",route="/api/clusters", method="PATCH", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.4",route="/api/clusters", method="PATCH", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.6",route="/api/clusters", method="PATCH", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf",route="/api/clusters", method="PATCH", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="PATCH", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.2",route="/api/clusters", method="DELETE", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.4",route="/api/clusters", method="DELETE", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.6",route="/api/clusters", method="DELETE", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf",route="/api/clusters", method="DELETE", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="DELETE", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.2",route="/api/clusters", method="put", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.4",route="/api/clusters", method="put", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.6",route="/api/clusters", method="put", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf",route="/api/clusters", method="put", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="put", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.2",route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.4",route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.6",route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf",route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathWriteMedianLatency
+    exp_alerts:
+    - exp_labels:
+        component: frontend
+        severity: warning
+        method: POST
+        route: /api/clusters
+        cluster: test
+      exp_annotations:
+        description: 'The median (p50) of frontend write request latency for POST /api/clusters has exceeded 200ms over the past 30 minutes (cluster test).'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend write p50 exceeds 200ms for POST /api/clusters on cluster test over 30m'
+    - exp_labels:
+        component: frontend
+        severity: warning
+        method: PATCH
+        route: /api/clusters
+        cluster: test
+      exp_annotations:
+        description: 'The median (p50) of frontend write request latency for PATCH /api/clusters has exceeded 200ms over the past 30 minutes (cluster test).'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend write p50 exceeds 200ms for PATCH /api/clusters on cluster test over 30m'
+    - exp_labels:
+        component: frontend
+        severity: warning
+        method: DELETE
+        route: /api/clusters
+        cluster: test
+      exp_annotations:
+        description: 'The median (p50) of frontend write request latency for DELETE /api/clusters has exceeded 200ms over the past 30 minutes (cluster test).'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend write p50 exceeds 200ms for DELETE /api/clusters on cluster test over 30m'
+    - exp_labels:
+        component: frontend
+        severity: warning
+        method: put
+        route: /api/clusters
+        cluster: test
+      exp_annotations:
+        description: 'The median (p50) of frontend write request latency for put /api/clusters has exceeded 200ms over the past 30 minutes (cluster test).'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend write p50 exceeds 200ms for put /api/clusters on cluster test over 30m'
+# Two HA replicas each see three slow writes in 30m: deduped volume stays below five.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.2",route="/api/clusters", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.4",route="/api/clusters", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.6",route="/api/clusters", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf",route="/api/clusters", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.1x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.2",route="/api/clusters", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-1"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.4",route="/api/clusters", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-1"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.6",route="/api/clusters", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-1"}'
+    values: '0+0.1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf",route="/api/clusters", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-1"}'
+    values: '0+0.1x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-1"}'
+    values: '0+0.1x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathWriteMedianLatency
+    exp_alerts: []
+# The excluded operation-results route stays silent, even with a slow median.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.2",route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.4",route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.6",route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf",route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="PUT", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathWriteMedianLatency
     exp_alerts: []
