@@ -38,6 +38,12 @@ func WithSessionProxyClaimHeaderAuthorization(owner sessiongatev1alpha1.Principa
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger := klog.FromContext(r.Context()).WithValues("identity", owner.Name, "identityType", owner.Type)
 		claimValue := r.Header.Get(claimName)
+		if claimValue == "" {
+			logger.Error(fmt.Errorf("missing claim header"), "unauthorized",
+				"header", claimName)
+			http.Error(w, "unauthorized: missing claim header", http.StatusUnauthorized)
+			return
+		}
 		if claimValue != owner.Name {
 			logger.Error(fmt.Errorf("claim validation failed"), "unauthorized",
 				"expected", fmt.Sprintf("%s=%s", claimName, owner.Name), "got", fmt.Sprintf("%s=%s", claimName, claimValue))
