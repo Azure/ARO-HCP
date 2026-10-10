@@ -1196,3 +1196,138 @@ func serviceProviderClusterWithVersions(t *testing.T, versions []string) *coreap
 		},
 	}
 }
+
+// TestAdmitNodePool_ReplicasZeroFloor covers admitReplicas: an update must not
+// take the cluster to a forced zero worker nodes. Only a fixed replicas=0 pool is
+// a forced zero; autoscaling pools (max>0) always count as worker capacity, even
+// at min=0, because the cluster autoscaler keeps nodes that workloads need and can
+// scale up from zero. See https://redhat.atlassian.net/browse/OCPBUGS-85364.
+func TestAdmitNodePool_ReplicasZeroFloor(t *testing.T) {
+	t.Parallel()
+
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
+
+	// makeNodePool builds a node pool with a stable ID derived from name so that
+	// admitReplicas can match the pool under update against its stored copy in the
+	// NodePools list. A non-nil autoScaling means replicas is 0 (mirroring static
+	// validation, which forbids replicas>0 when autoscaling is enabled).
+	makeNodePool := func(name string, replicas int32, autoScaling *coreapi.NodePoolAutoScaling) *coreapi.NodePool {
+		id := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/" + name))
+		return &coreapi.NodePool{
+			CosmosMetadata:  coreapi.CosmosMetadata{ResourceID: id},
+			TrackedResource: coreapi.NewTrackedResource(id, "eastus"),
+			Properties: coreapi.NodePoolProperties{
+				Replicas:    replicas,
+				AutoScaling: autoScaling,
+			},
+		}
+	}
+
+	fixed := func(replicas int32) *coreapi.NodePool { return makeNodePool("workers", replicas, nil) }
+	autoscaling := func(min, max int32) *coreapi.NodePool {
+		return makeNodePool("workers", 0, &coreapi.NodePoolAutoScaling{Min: min, Max: max})
+	}
+
+	forbidden := []utils.ExpectedError{
+		{FieldPath: "properties.replicas", Message: "cannot scale this node pool down to zero replicas"},
+	}
+
+	tests := []struct {
+		name string
+		op   operation.Type
+		// newObj/oldObj are the incoming and stored states of the pool under change.
+		newObj *coreapi.NodePool
+		oldObj *coreapi.NodePool
+		// clusterNodePools is every node pool for the cluster (including the stored
+		// copy of the one under change), as the frontend passes it to admission.
+		clusterNodePools []*coreapi.NodePool
+		expectErrors     []utils.ExpectedError
+	}{
+		{
+			name:             "update: last fixed pool downgraded 3->0 rejected",
+			op:               operation.Update,
+			oldObj:           fixed(3),
+			newObj:           fixed(0),
+			clusterNodePools: []*coreapi.NodePool{fixed(3)},
+			expectErrors:     forbidden,
+		},
+		{
+			name:             "update: last pool converted from autoscaling to fixed 0 rejected",
+			op:               operation.Update,
+			oldObj:           autoscaling(0, 5),
+			newObj:           fixed(0),
+			clusterNodePools: []*coreapi.NodePool{autoscaling(0, 5)},
+			expectErrors:     forbidden,
+		},
+		{
+			name:             "update: downgrade 3->0 allowed when a sibling pool keeps replicas",
+			op:               operation.Update,
+			oldObj:           fixed(3),
+			newObj:           fixed(0),
+			clusterNodePools: []*coreapi.NodePool{fixed(3), makeNodePool("infra", 2, nil)},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:             "update: downgrade 3->0 allowed when the only sibling is autoscaling min=0 (scale-from-zero)",
+			op:               operation.Update,
+			oldObj:           fixed(3),
+			newObj:           fixed(0),
+			clusterNodePools: []*coreapi.NodePool{fixed(3), makeNodePool("infra", 0, &coreapi.NodePoolAutoScaling{Min: 0, Max: 10})},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:             "update: last pool converted from fixed to autoscaling min=0 allowed",
+			op:               operation.Update,
+			oldObj:           fixed(2),
+			newObj:           autoscaling(0, 5),
+			clusterNodePools: []*coreapi.NodePool{fixed(2)},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:             "update: last autoscaling pool min lowered 2->0 allowed",
+			op:               operation.Update,
+			oldObj:           autoscaling(2, 5),
+			newObj:           autoscaling(0, 5),
+			clusterNodePools: []*coreapi.NodePool{autoscaling(2, 5)},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:             "update: non-reducing edit on an already-zero cluster allowed",
+			op:               operation.Update,
+			oldObj:           fixed(0),
+			newObj:           fixed(0),
+			clusterNodePools: []*coreapi.NodePool{fixed(0)},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:             "update: raising replicas 0->2 allowed",
+			op:               operation.Update,
+			oldObj:           fixed(0),
+			newObj:           fixed(2),
+			clusterNodePools: []*coreapi.NodePool{fixed(0)},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:         "create: zero-replica pool allowed (additive, cannot reduce existing capacity)",
+			op:           operation.Create,
+			newObj:       fixed(0),
+			expectErrors: []utils.ExpectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			admissionContext := &NodePoolAdmissionContext{
+				// Empty cluster keeps the subnet VNet check inert (both subnets nil).
+				Cluster:          &coreapi.Cluster{},
+				OriginalNodePool: tt.newObj,
+				ClusterNodePools: tt.clusterNodePools,
+			}
+			errs := AdmitNodePool(context.Background(), admissionContext, operation.Operation{Type: tt.op}, tt.newObj, tt.oldObj)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
