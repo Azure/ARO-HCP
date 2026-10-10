@@ -237,7 +237,8 @@ spec:
       - name: netns
         hostPath:
           path: /var/run/netns
-          type: Directory
+          # Host-network-only nodes may not have created a pod netns yet.
+          type: DirectoryOrCreate
       - name: boot-id
         hostPath:
           path: /proc/sys/kernel/random/boot_id

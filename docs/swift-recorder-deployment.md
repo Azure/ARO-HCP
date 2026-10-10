@@ -120,7 +120,9 @@ No hostPID, privileged container, `NET_ADMIN`, or `NET_RAW` is used.
 | `/proc/sys/kernel/random/boot_id` | `/host/boot-id` for correlation |
 | `/run/containerd` | Same path; `--runtime-endpoint=unix:///run/containerd/containerd.sock` (also CLI default) |
 
-Directories must already exist (`Directory`, not `DirectoryOrCreate`). Namespace
+The netns host directory uses `DirectoryOrCreate` so kubelet can initialize it on
+nodes that have not hosted a pod network namespace yet. Other host directories
+must already exist. Namespace
 mounts propagate into the Pod, never back to the host. Mounting containerd's
 parent directory, not its socket inode, keeps replacement sockets visible after
 runtime restarts. It exposes other runtime-directory contents/sockets, but not
