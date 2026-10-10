@@ -78,7 +78,7 @@ func TestCacheTrackingPreservesInstancesAndIncludesEveryAccessor(t *testing.T) {
 	runnable, err := instantiate(controllerContext)
 	require.NoError(t, err)
 	require.Same(t, controller, runnable, "must not replace controller queueing machinery")
-	require.Equal(t, 17, accessorCount)
+	require.Equal(t, 18, accessorCount)
 	require.Len(t, controller.syncs, accessorCount+1, "includes lister-only dependencies and authoritative union readiness")
 	for _, synced := range controller.syncs {
 		require.False(t, synced(), "unstarted caches must block reconciliation")

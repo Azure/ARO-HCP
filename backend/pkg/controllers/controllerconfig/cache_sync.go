@@ -169,3 +169,9 @@ func (informers *trackingFleetInformers) ControlPlaneVersionRollouts() (cache.Sh
 	informers.tracking.add(informer.HasSynced)
 	return informer, lister
 }
+
+func (informers *trackingFleetInformers) HCPResourceRequirements() (cache.SharedIndexInformer, fleetlisters.HCPResourceRequirementsLister) {
+	informer, lister := informers.FleetInformers.HCPResourceRequirements()
+	informers.tracking.add(informer.HasSynced)
+	return informer, lister
+}
