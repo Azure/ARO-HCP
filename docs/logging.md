@@ -161,6 +161,42 @@ clustersServiceLogs
 
 Follow up read: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/kustoqueries
 
+### Cross-cluster queries (prod)
+
+Prod Kusto clusters are grouped by geography, so a single resource's logs live in exactly one regional cluster. To query across every prod cluster at once (for example, to find which cluster hosts a resource without knowing its geography), use the environment-scoped Kusto entity groups provisioned on every prod cluster:
+
+| Entity group | Database it spans |
+| --- | --- |
+| `AllServiceLogs` | `ServiceLogs` |
+| `AllHostedControlPlaneLogs` | `HostedControlPlaneLogs` |
+| `AllMonitoringEvents` | `MonitoringEvents` |
+
+Entity groups are database scoped. Select the database shown in the table before using its group. For example, `AllMonitoringEvents` resolves from `MonitoringEvents` but not from `ServiceLogs`. The `.show entity_groups` command also lists only the groups defined in the selected database.
+
+`macro-expand` runs the wrapped query on each member cluster and unions the results. Bind the group to an alias and project `$current_cluster_endpoint` to tag each row with its source cluster:
+
+```kql
+macro-expand AllServiceLogs as X
+(
+    X.clustersServiceLogs
+    | where resource_id has "<subscription-id>" and resource_id has "<resource-group>"
+    | distinct cid, SourceCluster = X.$current_cluster_endpoint
+)
+```
+
+A quick membership and connectivity check that returns one row per cluster:
+
+```kql
+macro-expand AllServiceLogs as X
+(
+    X.containerLogs
+    | take 1
+    | project SourceCluster = X.$current_cluster_endpoint
+)
+```
+
+Prefer a single regional cluster for bulk log pulls: a resource lives on one cluster, so fanning a large export across all members only adds cost and hits per-cluster query limits. Use the entity groups for discovery and fleet-wide questions, then run the heavy query against the resolved cluster. The groups are environment scoped and include only clusters tagged for the selected environment.
+
 ## Infrastructure
 
 Kusto infrastructure is defined in `dev-infrastructure/modules/logs/kusto/` and deployed via `dev-infrastructure/kusto-pipeline.yaml`:

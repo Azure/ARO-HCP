@@ -19,6 +19,22 @@ the discovery chain for resolving correlation IDs into the magic strings
 - `HostedControlPlaneLogs` – logs from hosted control plane
 - `ServiceLogs` — logs from service and management clusters (underlay)
 
+## Cross-cluster queries (prod)
+
+- Prod Kusto clusters are split by geography, so a single resource's logs live on exactly one cluster. To query every prod cluster at once, use the environment-scoped entity groups (provisioned on all prod clusters): `AllServiceLogs` spans the `ServiceLogs` database, `AllHostedControlPlaneLogs` spans `HostedControlPlaneLogs`, and `AllMonitoringEvents` spans `MonitoringEvents`.
+- Entity groups are database scoped. Select the matching database before running the query. For example, select `MonitoringEvents` before using `AllMonitoringEvents`. The group will not resolve, or appear in `.show entity_groups`, from another database.
+- `macro-expand <group> as X ( X.<table> | ... )` runs the wrapped query on every member cluster and unions the result; project `X.$current_cluster_endpoint` to tag each row with its source cluster.
+- Use this for discovery when you do not know the home cluster, for example resolving a `cid` from a resource ID fleet-wide:
+  ```kql
+  macro-expand AllServiceLogs as X
+  (
+      X.clustersServiceLogs
+      | where resource_id has '<sub-rg-id>'
+      | distinct cid, SourceCluster = X.$current_cluster_endpoint
+  )
+  ```
+- Prefer a single cluster for heavy log pulls: a resource lives on one cluster, so fanning a large export across all members only adds cost and hits per-cluster query limits. Use the groups for discovery and fleet-wide questions, then run the heavy query against the resolved cluster. The groups are environment scoped and include only clusters tagged for the selected environment.
+
 ## Tables
 
 - `containerLogs` — generic container logs from all pods; used for maestro, hypershift, and any service without a dedicated table
