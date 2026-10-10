@@ -1598,6 +1598,12 @@ Aggregates current CapacityReports with ready HCPs into fleet HCPResourceRequire
 
 Reads Azure Monitor workspace utilization and current metrics-container limits, then raises Azure ingestion limits when thresholds require it. Mutates Azure Monitor accounts/metricsContainers through REST; no Cosmos domain write.
 
+#### AlertProcessingRuleReaping
+
+[Source](../fleet/pkg/controllers/alertprocessingrules/controller.go) · **Trigger:** Periodic; configured interval. Registered only when `--alert-processing-rule-resource-group-id` is set.
+
+Lists `Microsoft.AlertsManagement/actionRules` in the region's alert processing rule resource group and deletes rules that carry the `aroHCPPurpose=alert-processing-rule` tag, have no recurrence, and whose `effectiveUntil` is older than the configured expiry threshold. Reclaims the per-subscription quota of 1000 alert processing rules consumed by expired temporary suppressions. Deletion is idempotent: a rule already removed by a concurrent operator action returns 404 and counts as reaped. Rules failing any criterion — and rules whose schedule cannot be evaluated — are left untouched. Mutates Azure alert processing rules only; no Cosmos domain write.
+
 #### NodePoolController
 
 [Source](../fleet/pkg/controllers/nodepool/controller.go) · **Trigger:** Management-cluster informer, stamp key; 30m resync. Registered only when `fleet.nodePoolPlanning.profile` is set.
@@ -1718,6 +1724,7 @@ The DataplaneController registers ready session credentials, owner and backend A
 | Azure identities, VM SKUs, quota, NSGs, container registry pull MI access and access checks | Identity/validation controllers and SKU cache **observe** | Store resolved identities, validation conditions or memory cache; these checks do not create identities, change NSGs, raise quota or modify managed identities. [ClusterValidationContainerRegistryPullCredentialsPermissionValidation](#clustervalidationcontainerregistrypullcredentialspermissionvalidation) checks CAPZ assign/action permission on pull MI using CheckAccess V2. |
 | Azure VMSS NICs / AKS pool ceilings | [SwiftNICController](#swiftniccontroller) and [ManagementClusterScaleCeilingReportingController](#managementclusterscaleceilingreportingcontroller) **observe** | The former changes Kubernetes Node capacity; the latter writes Cosmos scheduling capacity. Neither changes Azure VM/pool size. |
 | Azure Monitor metrics-container ingestion limits | [AMWIngestionScaling](#amwingestionscaling) reads utilization and updates Azure limits | Periodic fleet controller, outside any single cluster's lifecycle. |
+| Azure alert processing rules (`Microsoft.AlertsManagement/actionRules`) | [AlertProcessingRuleReaping](#alertprocessingrulereaping) lists and deletes expired, tagged, non-recurring rules | Periodic fleet controller, outside any single cluster's lifecycle. Deletes only ARO HCP-owned temporary suppressions past their `effectiveUntil`; delete-not-found is treated as success. |
 | OpenShift update graph | [ControlPlaneVersionBestVersionSelection](#controlplaneversionbestversionselection) **observes** | Selects the channel target in Fleet Cosmos; assignment writes provider intent, while Cluster Service and HyperShift execute upgrades. |
 | Cluster Service cluster/node pool/external auth | Create, update-dispatch, upgrade and delete-dispatch controllers call the external API | ID clearers observe 404; operation pollers observe completion. [ClusterServiceMatchingClusters](#clusterservicematchingclusters) also deletes aged, live-rechecked orphan clusters. |
 | Cluster Service provision shards / Maestro consumers | Fleet registration controllers ensure external registrations | Fleet management-cluster conditions record readiness for placement. Maestro/work-agent and HyperShift are external components, not repository controllers in this catalog. |
