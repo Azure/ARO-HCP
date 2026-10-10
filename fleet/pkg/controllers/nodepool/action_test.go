@@ -28,6 +28,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
@@ -37,14 +39,10 @@ func memoryBytes(value string) int64 {
 }
 
 var (
-	specE32v6   = compute.VMSpec{Size: "Standard_E32ds_v6", Family: "standardEDSv6Family", VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}
-	specE16v6   = compute.VMSpec{Size: "Standard_E16ds_v6", Family: "standardEDSv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}
-	specD4v3    = compute.VMSpec{Size: "Standard_D4s_v3", Family: "standardDSv3Family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 1}
-	specD8v6    = compute.VMSpec{Size: "Standard_D8ds_v6", Family: "standardDDSv6Family", VCPUs: 8, MemoryBytes: memoryBytes("64Gi"), SecondaryNICs: 3}
-	specE8dsV5  = compute.VMSpec{Size: "Standard_E8ds_v5", Family: "standardEDSv5Family", VCPUs: 8, MemoryBytes: memoryBytes("64Gi"), SecondaryNICs: 3}
-	specE16dsV5 = compute.VMSpec{Size: "Standard_E16ds_v5", Family: "standardEDSv5Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}
-	specE32dsV5 = compute.VMSpec{Size: "Standard_E32ds_v5", Family: "standardEDSv5Family", VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}
-	specE32dsV4 = compute.VMSpec{Size: "Standard_E32ds_v4", Family: "standardEDSv4Family", VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}
+	specE32v6 = compute.VMSpec{Size: "Standard_E32ds_v6", Family: "StandardEdsv6Family", VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}
+	specE16v6 = compute.VMSpec{Size: "Standard_E16ds_v6", Family: "StandardEdsv6Family", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}
+	specD4v3  = compute.VMSpec{Size: "Standard_D4s_v3", Family: "standardDSv3Family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 1}
+	specD8v6  = compute.VMSpec{Size: "Standard_D8ds_v6", Family: "StandardDdsv6Family", VCPUs: 8, MemoryBytes: memoryBytes("64Gi"), SecondaryNICs: 3}
 )
 
 // ---------------------------------------------------------------------------
@@ -54,6 +52,8 @@ var (
 func pool(name string, spec compute.VMSpec, zone string, maxCount, osDiskSizeGB int32) compute.Pool {
 	return compute.Pool{
 		Role:              compute.PoolRoleWorker,
+		AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
+		SecondaryNICs:     spec.SecondaryNICs,
 		Name:              name,
 		Spec:              spec,
 		AvailabilityZones: []string{zone},
@@ -70,6 +70,8 @@ func poolState(name string, spec compute.VMSpec, zone string, maxCount, osDiskSi
 	return PoolState{
 		Pool: compute.Pool{
 			Role:              compute.PoolRoleWorker,
+			AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
+			SecondaryNICs:     spec.SecondaryNICs,
 			Name:              name,
 			Spec:              spec,
 			AvailabilityZones: []string{zone},
@@ -90,6 +92,7 @@ func poolState(name string, spec compute.VMSpec, zone string, maxCount, osDiskSi
 func systemPool(name string, spec compute.VMSpec, zone string, maxCount, osDiskSizeGB int32) compute.Pool {
 	return compute.Pool{
 		Role:              compute.PoolRoleSystem,
+		AgentPoolMode:     armcontainerservice.AgentPoolModeSystem,
 		Name:              name,
 		Spec:              spec,
 		AvailabilityZones: []string{zone},
@@ -105,6 +108,7 @@ func systemPoolState(name string, spec compute.VMSpec, zone string, maxCount, os
 	return PoolState{
 		Pool: compute.Pool{
 			Role:              compute.PoolRoleSystem,
+			AgentPoolMode:     armcontainerservice.AgentPoolModeSystem,
 			Name:              name,
 			Spec:              spec,
 			AvailabilityZones: []string{zone},
@@ -309,7 +313,7 @@ func TestCrossFamilyGrowBeforeSqueeze(t *testing.T) {
 		poolState("old1", specD4v3, "1", 6, 100, true, 2),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	create, ok := action.(createAction)
 	require.True(t, ok, "cross-family: should create new pool immediately (independent headroom)")
@@ -325,7 +329,7 @@ func TestSameFamilyGrowBeforeSqueeze(t *testing.T) {
 		poolState("old1", specE32v6, "1", 6, 100, true, 2),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	create, ok := action.(createAction)
 	require.True(t, ok, "same-family with generous budget: should create new pool immediately")
@@ -348,7 +352,7 @@ func TestSameFamilyConstrainedBudget(t *testing.T) {
 	// controller creates the replacement pool throttled to what currently fits
 	// quota (max=2) instead of refusing all progress. old1's 2 running nodes are
 	// accounted via the budget baseline, not double-counted in the ceiling.
-	action := findNextAction(desired, current, tightBudget, compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, tightBudget, transitionFloor{}, compute.NetworkConfig{})
 	create, ok := action.(createAction)
 	require.True(t, ok, "tight budget should still allow a throttled create")
 	assert.Equal(t, "new1", create.poolName())
@@ -369,7 +373,7 @@ func TestFailedUndesiredPoolDoesNotBlock(t *testing.T) {
 		},
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action, "Failed undesired pool should not block")
 	_, isWait := action.(waitAction)
 	assert.False(t, isWait, "should not return waitAction for failed undesired pool")
@@ -390,8 +394,10 @@ func TestUndesiredSystemPoolDeletedDirectly(t *testing.T) {
 		poolState("wrk1", specE32v6, "1", 2, 512, true, 1),
 		systemPoolState("s0old", specD4v3, "1", 1, 128, false, 1),
 	}
+	// Provider mode, not the grouping label, determines the deletion path.
+	current[0].Role, current[2].Role = "control", "legacy"
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	requireAction(t, newDeleteAction("s0old", "Standard_D4s_v3", "1", "etag-s0old"), action)
 }
@@ -408,8 +414,9 @@ func TestUndesiredSystemPoolPreservedWithoutSurvivor(t *testing.T) {
 		poolState("wrk1", specE32v6, "1", 2, 512, true, 1),
 		systemPoolState("s0old", specD4v3, "1", 1, 128, false, 1),
 	}
+	current[1].Role = "custom"
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	assert.Nil(t, action, "must not drain or delete the last system pool")
 }
 
@@ -440,7 +447,7 @@ func TestCreateSeedsMinCountFromTier(t *testing.T) {
 	p.MinCount = 3
 	desired := []compute.Pool{p}
 
-	action := findNextAction(desired, nil, generousBudgets(desired, nil), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, nil, generousBudgets(desired, nil), transitionFloor{}, compute.NetworkConfig{})
 	create, ok := action.(createAction)
 	require.True(t, ok, "expected a create action")
 	assert.Equal(t, int32(3), create.Pool.MinCount)
@@ -457,7 +464,7 @@ func TestCreateReclampsMinToFitHeadroom(t *testing.T) {
 	// One node of headroom (specE32v6 is 32 vCPUs) forces MaxCount to 1.
 	budgets := map[compute.VMFamily]int64{specE32v6.Family: 32}
 
-	action := findNextAction(desired, nil, budgets, compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, nil, budgets, transitionFloor{}, compute.NetworkConfig{})
 	create, ok := action.(createAction)
 	require.True(t, ok, "expected a create action")
 	assert.Equal(t, int32(1), create.Pool.MaxCount)
@@ -474,7 +481,7 @@ func TestUnfreezePreservesLiveMin(t *testing.T) {
 	cur.MinCount = 3
 	current := []PoolState{cur}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	requireAction(t, newUnfreezeAction("w1", "Standard_E32ds_v6", "1", "etag-w1", 3, 6), action)
 }
 
@@ -488,7 +495,7 @@ func TestSetScalingBoundsClampsMinToNewMax(t *testing.T) {
 	cur.MinCount = 4
 	current := []PoolState{cur}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	requireAction(t, newSetScalingBoundsAction("w1", "Standard_E32ds_v6", "1", "etag-w1", 2, 2), action)
 }
 
@@ -503,7 +510,7 @@ func TestMatchedPoolMinNotReset(t *testing.T) {
 	cur.MinCount = 5
 	current := []PoolState{cur}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	assert.Nil(t, action, "must not reset a live MinCount owned by another controller")
 }
 
@@ -521,7 +528,7 @@ func TestFailedDesiredPoolReconcileBeforeMaxCountChange(t *testing.T) {
 		},
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	requireAction(t, newReconcileAction("w1abc", "Standard_E32ds_v6", "1", "etag-w1abc"), action)
 }
@@ -541,7 +548,7 @@ func TestInProgressPoolBlocksAllZones(t *testing.T) {
 		},
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	requireAction(t, newWaitAction("old1", "Standard_D4s_v3", "1", 1*time.Minute), action)
 }
@@ -555,7 +562,7 @@ func TestOperatorReenablesAutoscaler(t *testing.T) {
 		poolState("new1", specE32v6, "1", 6, 512, true, 1),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	setBounds, ok := action.(setScalingBoundsAction)
 	require.True(t, ok, "should squeeze old1 max toward count")
@@ -572,7 +579,7 @@ func TestConfigRollback(t *testing.T) {
 		poolState("w1abc", specE32v6, "1", 2, 512, false, 2),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	requireAction(t, newUnfreezeAction("w1abc", "Standard_E32ds_v6", "1", "etag-w1abc", 1, 6), action)
 }
@@ -606,7 +613,7 @@ func TestDesiredChangesMidReplace(t *testing.T) {
 
 	desired := []compute.Pool{pool("new1", specE32v6, "1", 6, 512)}
 	budgets := generousBudgets(desired, current)
-	action := findNextAction(desired, current, budgets, compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, budgets, transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	create, ok := action.(createAction)
 	require.True(t, ok, "same-family with generous budget: should create new pool immediately")
@@ -628,7 +635,7 @@ func TestNodeFailureDuringDrain(t *testing.T) {
 		poolState("new1", specE32v6, "1", 6, 512, true, 1),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	reduce, ok := action.(reduceAction)
 	require.True(t, ok, "should reduce remaining node")
@@ -643,6 +650,25 @@ func TestMaxCountDecreaseBelowRunning(t *testing.T) {
 		poolState("w1abc", specE32v6, "1", 10, 512, true, 8),
 	}
 	budgets := map[compute.VMFamily]int64{specE32v6.Family: 10 * specE32v6.VCPUs}
+
+	tr := requireSimulation(t, desired, current, budgets, true, 10)
+	require.NoError(t, tr.RejectedPlan)
+	assertConverged(t, desired, tr.finalState())
+	compareGolden(t, formatTrace(tr))
+}
+
+// An autoscaled pool running above its own maximum (e.g. after an external
+// max-count reduction) is not scaled down by the cluster autoscaler, so the
+// controller must drain it to the desired maximum instead of only raising the
+// ceiling toward the desired value.
+func TestCountAboveDesiredMax(t *testing.T) {
+	desired := []compute.Pool{
+		pool("w1abc", specE32v6, "1", 4, 512),
+	}
+	current := []PoolState{
+		poolState("w1abc", specE32v6, "1", 2, 512, true, 5),
+	}
+	budgets := map[compute.VMFamily]int64{specE32v6.Family: 5 * specE32v6.VCPUs}
 
 	tr := requireSimulation(t, desired, current, budgets, true, 10)
 	require.NoError(t, tr.RejectedPlan)
@@ -723,9 +749,9 @@ func TestSameFamilyRebalanceZeroSlack(t *testing.T) {
 	compareGolden(t, formatTrace(tr))
 }
 
-// TestSameFamilyReplace_ZeroSlack_UndesiredPool protects reserved capacity when
-// quota permits a partial replacement but squeezing the old pool would cross
-// the current reconcile's floor. The planner must stop with both pools preserved.
+// TestSameFamilyReplace_ZeroSlack_UndesiredPool replaces a pool when quota only
+// permits a partial replacement: the old pool's ceiling is lowered in steps the
+// floor allows, each freeing quota to grow the replacement, until it converges.
 func TestSameFamilyReplace_ZeroSlack_UndesiredPool(t *testing.T) {
 	desired := []compute.Pool{
 		pool("new1", specE32v6, "1", 6, 512),
@@ -737,8 +763,7 @@ func TestSameFamilyReplace_ZeroSlack_UndesiredPool(t *testing.T) {
 
 	tr := requireSimulation(t, desired, current, budgets, true, 100)
 	require.NoError(t, tr.RejectedPlan)
-	require.False(t, configurationConverged(desired, tr.finalState()))
-	require.Len(t, tr.Steps, 1, "creation fits, but squeezing old1 would cross the capacity floor")
+	assertConverged(t, desired, tr.finalState())
 	compareGolden(t, formatTrace(tr))
 }
 
@@ -750,7 +775,7 @@ func TestMixedState_MatchedMissingUndesired(t *testing.T) {
 	current := []PoolState{
 		poolState("a1", specE32v6, "1", 6, 512, true, 3),
 		poolState("b1", specD4v3, "1", 6, 100, true, 2),
-		poolState("c1", specD4v3, "2", 6, 100, true, 2),
+		poolState("c1", specD4v3, "1", 6, 100, true, 2),
 	}
 	budgets := map[compute.VMFamily]int64{
 		specE32v6.Family: 6 * specE32v6.VCPUs,
@@ -775,7 +800,7 @@ func TestMultipleUndesiredAtDifferentStages(t *testing.T) {
 		poolState("old_empty", specE32v6, "3", 0, 100, false, 0),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	setBounds, ok := action.(setScalingBoundsAction)
 	require.True(t, ok, "should squeeze autoscaled undesired pool first")
@@ -798,7 +823,7 @@ func TestReconcileDesiredBeforeShrinkUndesired(t *testing.T) {
 		poolState("old1", specE32v6, "1", 6, 100, true, 2),
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
 	reconcile, ok := action.(reconcileAction)
 	require.True(t, ok, "should reconcile failed desired pool before shrinking undesired")
@@ -820,7 +845,7 @@ func TestUndesiredPoolCountExceedsMax(t *testing.T) {
 		},
 	}
 
-	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	require.NotNil(t, action, "should not be stuck — undesired pool needs freezing")
 	freeze, ok := action.(freezeAction)
 	require.True(t, ok, "should freeze undesired pool where count > max")
@@ -839,9 +864,9 @@ func TestDeterministicActionSelection(t *testing.T) {
 		poolState("old3", specE32v6, "3", 2, 100, false, 1),
 	}
 
-	first := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	first := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 	for range 20 {
-		again := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+		again := findNextAction(desired, current, generousBudgets(desired, current), transitionFloor{}, compute.NetworkConfig{})
 		assert.Equal(t, first.poolName(), again.poolName(), "action pool should be deterministic")
 		assert.Equal(t, first.kind(), again.kind(), "action type should be deterministic")
 	}
@@ -853,7 +878,7 @@ func TestCompleteTeardownPreservesExisting(t *testing.T) {
 		poolState("a2", specD4v3, "2", 6, 100, true, 3),
 	}
 
-	action := findNextAction(nil, current, generousBudgets(nil, current), compute.CapacityByRole{}, compute.NetworkConfig{})
+	action := findNextAction(nil, current, generousBudgets(nil, current), transitionFloor{}, compute.NetworkConfig{})
 	assert.Nil(t, action, "should preserve existing pools when desired is empty")
 }
 
@@ -1045,130 +1070,14 @@ func TestFindNextAction_InProgressGatesDrift(t *testing.T) {
 	budgets := generousBudgets(desired, drifted("Succeeded"))
 
 	t.Run("in-progress pool gates drift", func(t *testing.T) {
-		action := findNextAction(desired, drifted(provisioningStateUpdating), budgets, compute.CapacityByRole{}, compute.NetworkConfig{})
+		action := findNextAction(desired, drifted(provisioningStateUpdating), budgets, transitionFloor{}, compute.NetworkConfig{})
 		_, isWait := action.(waitAction)
 		assert.True(t, isWait, "drift correction must wait while the pool is in progress")
 	})
 
 	t.Run("settled pool gets drift correction", func(t *testing.T) {
-		action := findNextAction(desired, drifted("Succeeded"), budgets, compute.CapacityByRole{}, compute.NetworkConfig{})
+		action := findNextAction(desired, drifted("Succeeded"), budgets, transitionFloor{}, compute.NetworkConfig{})
 		_, isUpdate := action.(updateConfigAction)
 		assert.True(t, isUpdate, "settled drift must produce an update config action")
 	})
-}
-
-// TestProductionScenario_MigrationToDesired retains the real production snapshot
-// as a rejected plan and exercises a synthetic capacity-preserving migration
-// from the same initial pools. The synthetic case increases desired ceilings
-// and quota; it does not represent the current production profile or quota.
-func TestProductionScenario_MigrationToDesired(t *testing.T) {
-	tests := []struct {
-		name           string
-		infraMax       int32
-		workerE32Max   int32
-		availableEDSv5 int64
-		fullyAllocated bool
-		wantErr        string
-	}{
-		{
-			name:     "real_snapshot_rejected",
-			infraMax: 1, workerE32Max: 5, availableEDSv5: 856,
-			wantErr: "infra capacity",
-		},
-		{
-			name: "capacity_preserving_migration",
-			// Desired EDSv5 capacity is 1,568 vCPUs. A hypothetical quota of
-			// 1,824 leaves 256 for overlap; initial live usage is 584 vCPUs.
-			infraMax: 3, workerE32Max: 12, availableEDSv5: 1240, fullyAllocated: true,
-		},
-		{
-			name: "fully_allocated_downsize",
-			// A new configuration explicitly targets the smaller pool set.
-			infraMax: 1, workerE32Max: 5, availableEDSv5: 856, fullyAllocated: true,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// pool()/poolState() default to the worker role; withRole/withStateRole
-			// stamp the system and infra pools so capacity checks see the real role mix.
-			withRole := func(role compute.PoolRole, p compute.Pool) compute.Pool {
-				p.Role = role
-				p.Labels = map[string]string{compute.RoleLabel: string(role)}
-				return p
-			}
-			withStateRole := func(role compute.PoolRole, s PoolState) PoolState {
-				s.Role = role
-				s.Labels = map[string]string{compute.RoleLabel: string(role)}
-				return s
-			}
-
-			// Names mirror the planner's poolName scheme (prefix s/i/w + zone digit;
-			// spanzones system uses zone 0), with a readable SKU suffix in place of the
-			// real hash.
-			desired := []compute.Pool{
-				{
-					Role:              compute.PoolRoleSystem,
-					Name:              "s0-e8",
-					Spec:              specE8dsV5,
-					AvailabilityZones: []string{"1", "2", "3"},
-					MaxCount:          4,
-					MinCount:          1,
-					OSDiskSizeGB:      128,
-					MaxPods:           100,
-					Labels:            map[string]string{compute.RoleLabel: string(compute.PoolRoleSystem)},
-				},
-				// infra caps at 2 zones (production profile PoolCount: 2).
-				withRole(compute.PoolRoleInfra, pool("i1-e32", specE32dsV5, "1", test.infraMax, 128)),
-				withRole(compute.PoolRoleInfra, pool("i2-e32", specE32dsV5, "2", test.infraMax, 128)),
-				pool("w1-e16", specE16dsV5, "1", 4, 256),
-				pool("w2-e16", specE16dsV5, "2", 4, 256),
-				pool("w3-e16", specE16dsV5, "3", 4, 256),
-				pool("w1-e32", specE32dsV5, "1", test.workerE32Max, 512),
-				pool("w2-e32", specE32dsV5, "2", test.workerE32Max, 512),
-				pool("w3-e32", specE32dsV5, "3", test.workerE32Max, 512),
-			}
-
-			current := []PoolState{
-				{
-					Pool: compute.Pool{
-						Role:              compute.PoolRoleSystem,
-						Name:              "system",
-						Spec:              specE8dsV5,
-						AvailabilityZones: []string{"1", "2", "3"},
-						MaxCount:          4,
-						OSDiskSizeGB:      128,
-					},
-					AutoScalingEnabled: true,
-					Count:              1,
-					ProvisioningState:  "Succeeded",
-					ETag:               "etag-system",
-				},
-				withStateRole(compute.PoolRoleInfra, poolState("infra1", specE32dsV4, "1", 3, 32, true, 1)),
-				withStateRole(compute.PoolRoleInfra, poolState("infra2", specE32dsV4, "2", 3, 32, true, 1)),
-				poolState("userswft1", specE32dsV5, "1", 14, 512, true, 6),
-				poolState("userswft2", specE32dsV5, "2", 14, 512, true, 6),
-				poolState("userswft3", specE32dsV5, "3", 14, 512, true, 6),
-			}
-
-			// Available quota is limit minus live usage in both cases.
-			// EDSv4 is absent (not a production-profile family); its undesired pools
-			// drain out identity-based, without a budget.
-			budgets := map[compute.VMFamily]int64{
-				"standardEDSv5Family": test.availableEDSv5,
-				"standardESv3Family":  100,
-			}
-
-			tr := requireSimulation(t, desired, current, budgets, test.fullyAllocated, 200)
-			if len(test.wantErr) > 0 {
-				require.ErrorContains(t, tr.RejectedPlan, test.wantErr)
-				require.Empty(t, tr.Steps)
-				require.Equal(t, current, tr.finalState())
-			} else {
-				require.NoError(t, tr.RejectedPlan)
-				assertConverged(t, desired, tr.finalState())
-				require.NotEmpty(t, tr.Steps)
-			}
-			compareGolden(t, formatTrace(tr))
-		})
-	}
 }

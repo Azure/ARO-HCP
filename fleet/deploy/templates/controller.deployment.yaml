@@ -65,8 +65,6 @@ spec:
         - "{{ .Values.nodePoolPlanning.profile }}"
         - "--azure-region-availability-zone-count"
         - "{{ .Values.azureRegionAvailabilityZoneCount }}"
-        - "--nodepool-zones"
-        - "{{ .Values.nodePoolPlanning.zones }}"
         ports:
         - name: healthz
           containerPort: 8080

@@ -15,50 +15,56 @@ desired:
   e32z3  worker  Standard_E32ds_v6  zone=3  max=3
 
 budget (vCPUs):
-  standardEDSv6Family:  288
+  StandardEdsv6Family:  288
 
 initial headroom (vCPUs):
-  standardEDSv6Family:  96
+  StandardEdsv6Family:  96
 
 fully allocated: true
 
 initial capacity:
-  system:  cpu=0    memory=0GiB     swiftNICs=0
-  infra:   cpu=0    memory=0GiB     swiftNICs=0
   worker:  cpu=288  memory=2304GiB  swiftNICs=126
 
+role-zone floor:
+  worker zone 1:  cpu=96  memory=768GiB  swiftNICs=21
+  worker zone 2:  cpu=96  memory=768GiB  swiftNICs=21
+  worker zone 3:  cpu=96  memory=768GiB  swiftNICs=21
+
 actions:
-    1.  Create            worker  Standard_E32ds_v6  e32z1   min=1   max=3  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=147  (+84)  EDSv6:      0c remaining
-    2.  SetScalingBounds  worker  Standard_E16ds_v6  e16az1  min=1   max=1  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=352  (+64)  memory=2816GiB  (+512GiB)  swiftNICs=133  (+70)  EDSv6:     32c remaining
-    3.  Create            worker  Standard_E32ds_v6  e32z2   min=1   max=1  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=140  (+77)  EDSv6:      0c remaining
-    4.  SetScalingBounds  worker  Standard_E16ds_v6  e16az2  min=1   max=1  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=352  (+64)  memory=2816GiB  (+512GiB)  swiftNICs=126  (+63)  EDSv6:     32c remaining
-    5.  Create            worker  Standard_E32ds_v6  e32z3   min=1   max=1  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=133  (+70)  EDSv6:      0c remaining
-    6.  SetScalingBounds  worker  Standard_E16ds_v6  e16az3  min=1   max=1  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=352  (+64)  memory=2816GiB  (+512GiB)  swiftNICs=119  (+56)  EDSv6:     32c remaining
-    7.  SetScalingBounds  worker  Standard_E32ds_v6  e32z2   min=1   max=2  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=126  (+63)  EDSv6:      0c remaining
-    8.  SetScalingBounds  worker  Standard_E16ds_v6  e16bz1  min=1   max=1  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=352  (+64)  memory=2816GiB  (+512GiB)  swiftNICs=112  (+49)  EDSv6:     32c remaining
-    9.  SetScalingBounds  worker  Standard_E32ds_v6  e32z2   min=1   max=3  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=119  (+56)  EDSv6:      0c remaining
-   10.  SetScalingBounds  worker  Standard_E16ds_v6  e16bz2  min=1   max=1  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=352  (+64)  memory=2816GiB  (+512GiB)  swiftNICs=105  (+42)  EDSv6:     32c remaining
-   11.  SetScalingBounds  worker  Standard_E32ds_v6  e32z3   min=1   max=2  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=112  (+49)  EDSv6:      0c remaining
-   12.  SetScalingBounds  worker  Standard_E16ds_v6  e16bz3  min=1   max=1  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=352  (+64)  memory=2816GiB  (+512GiB)  swiftNICs=98   (+35)  EDSv6:     32c remaining
-   13.  SetScalingBounds  worker  Standard_E32ds_v6  e32z3   min=1   max=3  floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=105  (+42)  EDSv6:      0c remaining
-   14.  Freeze            worker  Standard_E16ds_v6  e16az1  count=1        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=105  (+42)
-   15.  Freeze            worker  Standard_E16ds_v6  e16az2  count=1        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=105  (+42)
-   16.  Freeze            worker  Standard_E16ds_v6  e16az3  count=1        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=105  (+42)
-   17.  Freeze            worker  Standard_E16ds_v6  e16bz1  count=1        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=105  (+42)
-   18.  Freeze            worker  Standard_E16ds_v6  e16bz2  count=1        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=105  (+42)
-   19.  Freeze            worker  Standard_E16ds_v6  e16bz3  count=1        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=384  (+96)  memory=3072GiB  (+768GiB)  swiftNICs=105  (+42)
-   20.  Reduce            worker  Standard_E16ds_v6  e16az1  count=0        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=368  (+80)  memory=2944GiB  (+640GiB)  swiftNICs=98   (+35)  EDSv6:     16c remaining
-   21.  Reduce            worker  Standard_E16ds_v6  e16az2  count=0        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=352  (+64)  memory=2816GiB  (+512GiB)  swiftNICs=91   (+28)  EDSv6:     32c remaining
-   22.  Reduce            worker  Standard_E16ds_v6  e16az3  count=0        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=336  (+48)  memory=2688GiB  (+384GiB)  swiftNICs=84   (+21)  EDSv6:     48c remaining
-   23.  Reduce            worker  Standard_E16ds_v6  e16bz1  count=0        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=320  (+32)  memory=2560GiB  (+256GiB)  swiftNICs=77   (+14)  EDSv6:     64c remaining
-   24.  Reduce            worker  Standard_E16ds_v6  e16bz2  count=0        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=304  (+16)  memory=2432GiB  (+128GiB)  swiftNICs=70   (+7)   EDSv6:     80c remaining
-   25.  Reduce            worker  Standard_E16ds_v6  e16bz3  count=0        floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=288  (+0)   memory=2304GiB  (+0GiB)    swiftNICs=63   (+0)   EDSv6:     96c remaining
-   26.  Delete            worker  Standard_E16ds_v6  e16az1                 floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=288  (+0)   memory=2304GiB  (+0GiB)    swiftNICs=63   (+0)
-   27.  Delete            worker  Standard_E16ds_v6  e16az2                 floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=288  (+0)   memory=2304GiB  (+0GiB)    swiftNICs=63   (+0)
-   28.  Delete            worker  Standard_E16ds_v6  e16az3                 floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=288  (+0)   memory=2304GiB  (+0GiB)    swiftNICs=63   (+0)
-   29.  Delete            worker  Standard_E16ds_v6  e16bz1                 floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=288  (+0)   memory=2304GiB  (+0GiB)    swiftNICs=63   (+0)
-   30.  Delete            worker  Standard_E16ds_v6  e16bz2                 floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=288  (+0)   memory=2304GiB  (+0GiB)    swiftNICs=63   (+0)
-   31.  Delete            worker  Standard_E16ds_v6  e16bz3                 floor: cpu=288  memory=2304GiB  swiftNICs=63  capacity: cpu=288  (+0)   memory=2304GiB  (+0GiB)    swiftNICs=63   (+0)
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action            role    pool    vm size   zone  change         margin                 quota left
+     1  Create            worker  e32z1   E32ds_v6  1     min=1   max=3    +96c   +768G   +42n  Edsv6 0c
+     2  SetScalingBounds  worker  e16az1  E16ds_v6  1     min=1   max=1    +64c   +512G   +28n  Edsv6 32c
+     3  Create            worker  e32z2   E32ds_v6  2     min=1   max=1    +32c   +256G   +28n  Edsv6 0c
+     4  SetScalingBounds  worker  e16az2  E16ds_v6  2     min=1   max=1     +0c     +0G   +14n  Edsv6 32c
+     5  Create            worker  e32z3   E32ds_v6  3     min=1   max=1    +32c   +256G   +28n  Edsv6 0c
+     6  SetScalingBounds  worker  e16az3  E16ds_v6  3     min=1   max=1     +0c     +0G   +14n  Edsv6 32c
+     7  SetScalingBounds  worker  e32z2   E32ds_v6  2     min=1   max=2    +32c   +256G   +21n  Edsv6 0c
+     8  SetScalingBounds  worker  e16bz1  E16ds_v6  1     min=1   max=1    +32c   +256G   +14n  Edsv6 32c
+     9  SetScalingBounds  worker  e32z2   E32ds_v6  2     min=1   max=3    +64c   +512G   +28n  Edsv6 0c
+    10  SetScalingBounds  worker  e16bz2  E16ds_v6  2     min=1   max=1    +32c   +256G   +14n  Edsv6 32c
+    11  SetScalingBounds  worker  e32z3   E32ds_v6  3     min=1   max=2    +32c   +256G   +21n  Edsv6 0c
+    12  SetScalingBounds  worker  e16bz3  E16ds_v6  3     min=1   max=1     +0c     +0G    +7n  Edsv6 32c
+    13  SetScalingBounds  worker  e32z3   E32ds_v6  3     min=1   max=3    +32c   +256G   +14n  Edsv6 0c
+    14  Freeze            worker  e16az1  E16ds_v6  1     count=1          +32c   +256G   +14n
+    15  Freeze            worker  e16az2  E16ds_v6  2     count=1          +32c   +256G   +14n
+    16  Freeze            worker  e16az3  E16ds_v6  3     count=1          +32c   +256G   +14n
+    17  Freeze            worker  e16bz1  E16ds_v6  1     count=1          +32c   +256G   +14n
+    18  Freeze            worker  e16bz2  E16ds_v6  2     count=1          +32c   +256G   +14n
+    19  Freeze            worker  e16bz3  E16ds_v6  3     count=1          +32c   +256G   +14n
+    20  Reduce            worker  e16az1  E16ds_v6  1     count=0          +16c   +128G    +7n  Edsv6 16c
+    21  Reduce            worker  e16az2  E16ds_v6  2     count=0          +16c   +128G    +7n  Edsv6 32c
+    22  Reduce            worker  e16az3  E16ds_v6  3     count=0          +16c   +128G    +7n  Edsv6 48c
+    23  Reduce            worker  e16bz1  E16ds_v6  1     count=0           +0c     +0G    +0n  Edsv6 64c
+    24  Reduce            worker  e16bz2  E16ds_v6  2     count=0           +0c     +0G    +0n  Edsv6 80c
+    25  Reduce            worker  e16bz3  E16ds_v6  3     count=0           +0c     +0G    +0n  Edsv6 96c
+    26  Delete            worker  e16az1  E16ds_v6  1                       +0c     +0G    +0n
+    27  Delete            worker  e16az2  E16ds_v6  2                       +0c     +0G    +0n
+    28  Delete            worker  e16az3  E16ds_v6  3                       +0c     +0G    +0n
+    29  Delete            worker  e16bz1  E16ds_v6  1                       +0c     +0G    +0n
+    30  Delete            worker  e16bz2  E16ds_v6  2                       +0c     +0G    +0n
+    31  Delete            worker  e16bz3  E16ds_v6  3                       +0c     +0G    +0n
 
 steps:      31
 converged:  true

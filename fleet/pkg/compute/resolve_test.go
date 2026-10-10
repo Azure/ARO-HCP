@@ -18,7 +18,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"maps"
 	"net/http"
+	"os"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -44,8 +50,9 @@ const resolveTestSubscriptionID = "11111111-1111-1111-1111-111111111111"
 // by the official Azure SDK fake transport, mirroring
 // fleet/pkg/azure/skucache's own test helper, so ResolveDesiredPools is
 // exercised against the real *armcompute.ResourceSKUsClient rather than a
-// hand-rolled stand-in.
-func newResolveTestCache(t *testing.T, skus []*armcompute.ResourceSKU, listErr error) *skucache.SKUCache {
+// hand-rolled stand-in. region is the SKUCache's configured region, which
+// isLocationRestricted compares against a SKU's Location-type restrictions.
+func newResolveTestCache(t *testing.T, region string, skus []*armcompute.ResourceSKU, listErr error) *skucache.SKUCache {
 	t.Helper()
 	srv := armcomputefake.ResourceSKUsServer{
 		NewListPager: func(options *armcompute.ResourceSKUsClientListOptions) (resp azfake.PagerResponder[armcompute.ResourceSKUsClientListResponse]) {
@@ -61,7 +68,7 @@ func newResolveTestCache(t *testing.T, skus []*armcompute.ResourceSKU, listErr e
 	}
 	transport := armcomputefake.NewResourceSKUsServerTransport(&srv)
 
-	return skucache.NewSKUCache("eastus", &azfake.TokenCredential{}, &policy.ClientOptions{Transport: transport}, nil)
+	return skucache.NewSKUCache(region, &azfake.TokenCredential{}, &policy.ClientOptions{Transport: transport}, nil)
 }
 
 func resolveTestSKU(name, family string, vcpus int64) *armcompute.ResourceSKU {
@@ -75,6 +82,7 @@ func resolveTestSKU(name, family string, vcpus int64) *armcompute.ResourceSKU {
 		Capabilities: []*armcompute.ResourceSKUCapabilities{
 			{Name: ptr.To("vCPUs"), Value: ptr.To(strconv.FormatInt(vcpus, 10))},
 			{Name: ptr.To("MemoryGB"), Value: ptr.To("64")},
+			{Name: ptr.To("MaxNetworkInterfaces"), Value: ptr.To("4")},
 			{Name: ptr.To("EphemeralOSDiskSupported"), Value: ptr.To("True")},
 			{Name: ptr.To("CachedDiskBytes"), Value: ptr.To(strconv.FormatInt(200*1024*1024*1024, 10))},
 		},
@@ -86,12 +94,12 @@ func testProfile() Profile {
 		Tiers: []TierConfig{
 			{
 				Name:           "wrk",
-				Role:           PoolRoleWorker,
+				Class:          WorkerPools,
 				PoolMode:       PoolModePerZone,
 				Cores:          16,
 				OSDiskSizeGB:   100,
 				MaxNodes:       5,
-				FamilyPriority: []VMFamily{"standardEDSv6Family"},
+				FamilyPriority: []VMFamily{"StandardEdsv6Family"},
 				MaxPods:        225,
 				PoolCount:      3,
 			},
@@ -114,13 +122,13 @@ func TestResolveDesiredPools(t *testing.T) {
 		{
 			name: "happy path allocates pools and passes tier families to fetchQuotaUsage",
 			skus: []*armcompute.ResourceSKU{
-				resolveTestSKU("Standard_E16ds_v6", "standardEDSv6Family", 16),
+				resolveTestSKU("Standard_E16ds_v6", "StandardEdsv6Family", 16),
 			},
 			quotaUsage: map[VMFamily]QuotaUsage{
-				"standardEDSv6Family": {Limit: 1000, CurrentValue: 0},
+				"StandardEdsv6Family": {Limit: 1000, CurrentValue: 0},
 			},
 			wantQuotaCalls:     1,
-			wantAvailableVCPUs: map[VMFamily]int64{"standardEDSv6Family": 1000},
+			wantAvailableVCPUs: map[VMFamily]int64{"StandardEdsv6Family": 1000},
 		},
 		{
 			name:            "SKU metadata fetch error is wrapped",
@@ -131,7 +139,7 @@ func TestResolveDesiredPools(t *testing.T) {
 		{
 			name: "budget computation error is wrapped",
 			skus: []*armcompute.ResourceSKU{
-				resolveTestSKU("Standard_E16ds_v6", "standardEDSv6Family", 16),
+				resolveTestSKU("Standard_E16ds_v6", "StandardEdsv6Family", 16),
 			},
 			quotaErr:        errors.New("quota API unavailable"),
 			wantQuotaCalls:  1,
@@ -141,15 +149,15 @@ func TestResolveDesiredPools(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			skuCache := newResolveTestCache(t, tt.skus, tt.skuErr)
+			skuCache := newResolveTestCache(t, "eastus", tt.skus, tt.skuErr)
 			quotaCalls := 0
 			fetchQuotaUsage := func(_ context.Context, families sets.Set[VMFamily]) (map[VMFamily]QuotaUsage, error) {
 				quotaCalls++
-				assert.True(t, families.Equal(sets.New[VMFamily]("standardEDSv6Family")), "expected fetchQuotaUsage to receive the tier's families, got %v", families)
+				assert.True(t, families.Equal(sets.New[VMFamily]("StandardEdsv6Family")), "expected fetchQuotaUsage to receive the tier's families, got %v", families)
 				return tt.quotaUsage, tt.quotaErr
 			}
 
-			result, err := ResolveDesiredPools(utils.ContextWithLogger(context.Background(), logr.Discard()), skuCache, resolveTestSubscriptionID, testProfile(), allZones, fetchQuotaUsage)
+			result, err := ResolveDesiredPools(utils.ContextWithLogger(context.Background(), logr.Discard()), skuCache, resolveTestSubscriptionID, testProfile(), allZones, nil, fetchQuotaUsage)
 
 			assert.Equal(t, tt.wantQuotaCalls, quotaCalls, "unexpected number of quota fetches")
 			if len(tt.wantErrContains) > 0 {
@@ -222,22 +230,22 @@ func TestResolveDesiredPools_LocationRestrictions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, mode := range []PoolMode{PoolModePerZone, PoolModeRegional} {
 				t.Run(string(mode), func(t *testing.T) {
-					preferred := resolveTestSKU(preferredSize, "standardEDSv6Family", 16)
+					preferred := resolveTestSKU(preferredSize, "StandardEdsv6Family", 16)
 					preferred.Restrictions = []*armcompute.ResourceSKURestrictions{nil, {}, tt.restriction}
 					fallback := resolveTestSKU(fallbackSize, "standardEDSv5Family", 16)
 					if tt.restrictFallback {
 						fallback.Restrictions = preferred.Restrictions
 					}
-					cache := newResolveTestCache(t, []*armcompute.ResourceSKU{preferred, fallback}, nil)
+					cache := newResolveTestCache(t, "eastus", []*armcompute.ResourceSKU{preferred, fallback}, nil)
 					profile := testProfile()
 					profile.Tiers[0].PoolMode = mode
-					profile.Tiers[0].FamilyPriority = []VMFamily{"standardEDSv6Family", "standardEDSv5Family"}
+					profile.Tiers[0].FamilyPriority = []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}
 					result, err := ResolveDesiredPools(
 						utils.ContextWithLogger(context.Background(), logr.Discard()),
-						cache, resolveTestSubscriptionID, profile, allZones,
+						cache, resolveTestSubscriptionID, profile, allZones, nil,
 						func(context.Context, sets.Set[VMFamily]) (map[VMFamily]QuotaUsage, error) {
 							return map[VMFamily]QuotaUsage{
-								"standardEDSv6Family": {Limit: 1000},
+								"StandardEdsv6Family": {Limit: 1000},
 								"standardEDSv5Family": {Limit: 1000},
 							}, nil
 						},
@@ -288,30 +296,30 @@ func TestResolveDesiredPools_UsageDoesNotChangeDesiredPools(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			skuCache := newResolveTestCache(t, []*armcompute.ResourceSKU{
-				resolveTestSKU("Standard_E16ds_v6", "standardEDSv6Family", 16),
+			skuCache := newResolveTestCache(t, "eastus", []*armcompute.ResourceSKU{
+				resolveTestSKU("Standard_E16ds_v6", "StandardEdsv6Family", 16),
 			}, nil)
 			profile := Profile{
 				Tiers: []TierConfig{
 					{
 						Name:           "wrk",
-						Role:           PoolRoleWorker,
+						Class:          WorkerPools,
 						PoolMode:       PoolModeRegional,
 						PoolCount:      1,
 						Cores:          16,
 						OSDiskSizeGB:   100,
 						MaxNodes:       19,
-						FamilyPriority: []VMFamily{"standardEDSv6Family"},
+						FamilyPriority: []VMFamily{"StandardEdsv6Family"},
 						MaxPods:        225,
 					},
 				},
 				BudgetStrategy: SubscriptionQuotaBudget,
 			}
 			result, err := ResolveDesiredPools(utils.ContextWithLogger(context.Background(), logr.Discard()), skuCache,
-				resolveTestSubscriptionID, profile, []string{"1", "2", "3"},
+				resolveTestSubscriptionID, profile, []string{"1", "2", "3"}, nil,
 				func(context.Context, sets.Set[VMFamily]) (map[VMFamily]QuotaUsage, error) {
 					return map[VMFamily]QuotaUsage{
-						"standardEDSv6Family": {Limit: 128, CurrentValue: tt.currentUsage},
+						"StandardEdsv6Family": {Limit: 128, CurrentValue: tt.currentUsage},
 					}, nil
 				})
 			require.NoError(t, err)
@@ -319,57 +327,37 @@ func TestResolveDesiredPools_UsageDoesNotChangeDesiredPools(t *testing.T) {
 			require.False(t, result.FullyAllocated, "nonzero allocation is not complete")
 			require.Len(t, result.Pools, 1)
 			assert.Equal(t, int32(7), result.Pools[0].MaxCount, "total quota reserves one 16-vCPU surge node regardless of current usage")
-			assert.Equal(t, map[VMFamily]int64{"standardEDSv6Family": tt.wantAvailable}, result.AvailableVCPUs)
+			assert.Equal(t, map[VMFamily]int64{"StandardEdsv6Family": tt.wantAvailable}, result.AvailableVCPUs)
 		})
 	}
 }
 
-const productionSubscriptionID = "bc9d60c7-95e2-4e49-8100-85b9cfcb23a0"
+const scenarioSubscriptionID = "33333333-3333-3333-3333-333333333333"
 
-// productionEDSv5SKU builds an EDSv5 Resource SKU as it appears in uksouth:
-// ephemeral OS disk is supported only on the temp/resource disk (no cache or
-// NVMe disk capability), so its size comes from MaxResourceVolumeMB. This is
-// the exact shape that motivated the extractSKUMetadata ResourceDisk fallback.
-func productionEDSv5SKU(name string, vcpus, memoryGB, maxResourceMB, maxNICs int64) *armcompute.ResourceSKU {
-	return &armcompute.ResourceSKU{
-		Name:         ptr.To(name),
-		Family:       ptr.To("standardEDSv5Family"),
-		ResourceType: ptr.To("virtualMachines"),
-		LocationInfo: []*armcompute.ResourceSKULocationInfo{
-			{Zones: []*string{ptr.To("1"), ptr.To("2"), ptr.To("3")}},
-		},
-		Capabilities: []*armcompute.ResourceSKUCapabilities{
-			{Name: ptr.To("vCPUs"), Value: ptr.To(strconv.FormatInt(vcpus, 10))},
-			{Name: ptr.To("MemoryGB"), Value: ptr.To(strconv.FormatInt(memoryGB, 10))},
-			{Name: ptr.To("MaxNetworkInterfaces"), Value: ptr.To(strconv.FormatInt(maxNICs, 10))},
-			{Name: ptr.To("EphemeralOSDiskSupported"), Value: ptr.To("True")},
-			{Name: ptr.To("SupportedEphemeralOSDiskPlacements"), Value: ptr.To("ResourceDisk")},
-			{Name: ptr.To("MaxResourceVolumeMB"), Value: ptr.To(strconv.FormatInt(maxResourceMB, 10))},
-		},
+// runDesiredPoolsScenario resolves desired pools for the given SKUs and the
+// usages fixture in testdata/scenarios/<dir>, under the named profile, and
+// pins a golden report of the allocation. Shared by
+// TestResolveDesiredPools_Scenario and TestResolveDesiredPools_Constraints so
+// the harness — wiring fetchQuotaUsage, resolving, and rendering the golden —
+// exists once; only the SKUs, the fixture directory, the SKUCache's region,
+// and the profile vary between callers. t must be the subtest's *testing.T
+// so the golden path (derived from t.Name()) lands under the caller's own
+// test function.
+func runDesiredPoolsScenario(t *testing.T, dir string, skus []*armcompute.ResourceSKU, region, profileName string) {
+	t.Helper()
+	rawUsages, err := os.ReadFile(filepath.Join("testdata", "scenarios", dir, "scenario-usages.json"))
+	require.NoError(t, err, "reading usages")
+	var usages []*armcompute.Usage
+	require.NoError(t, json.Unmarshal(rawUsages, &usages), "decoding usages")
+
+	skuCache := newResolveTestCache(t, region, skus, nil)
+
+	// Mirrors quota.FetchUsage: a family matches its usage entry by exact name.
+	usage := make(map[VMFamily]QuotaUsage, len(usages))
+	for _, u := range usages {
+		usage[VMFamily(*u.Name.Value)] = QuotaUsage{Limit: *u.Limit, CurrentValue: int64(*u.CurrentValue)}
 	}
-}
-
-// TestResolveDesiredPools_ProductionScenario exercises desire planning against
-// the real uksouth production shape with the production profile: the intended
-// EDSv6 worker family is absent from the region, so allocation falls back to
-// EDSv5 (temp-disk ephemeral). Values are the real subscription's SKUs and
-// quota (EDSv5 limit 1440 / used 584; ESv3 limit 100). Pins the resolved pool
-// set, available vCPUs per family, and allocation failures.
-func TestResolveDesiredPools_ProductionScenario(t *testing.T) {
-	skuCache := newResolveTestCache(t, []*armcompute.ResourceSKU{
-		productionEDSv5SKU("Standard_E8ds_v5", 8, 64, 307200, 4),
-		productionEDSv5SKU("Standard_E16ds_v5", 16, 128, 614400, 8),
-		productionEDSv5SKU("Standard_E32ds_v5", 32, 256, 1228800, 8),
-	}, nil)
-
-	// EDSv6 is absent from usage (unavailable in-region); the planner falls
-	// back through eFamilyPriority to EDSv5. ESv3 has budget but is never
-	// reached because EDSv5 satisfies every tier first.
 	fetchQuotaUsage := func(_ context.Context, families sets.Set[VMFamily]) (map[VMFamily]QuotaUsage, error) {
-		usage := map[VMFamily]QuotaUsage{
-			"standardEDSv5Family": {Limit: 1440, CurrentValue: 584},
-			"standardESv3Family":  {Limit: 100},
-		}
 		result := make(map[VMFamily]QuotaUsage)
 		for family := range families {
 			if u, ok := usage[family]; ok {
@@ -379,25 +367,215 @@ func TestResolveDesiredPools_ProductionScenario(t *testing.T) {
 		return result, nil
 	}
 
-	profile, ok := LookupProfile(ProfileProduction)
-	require.True(t, ok, "production profile must exist")
+	profile, ok := LookupProfile(profileName)
+	require.True(t, ok, "profile %q must exist", profileName)
 
 	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-	result, err := ResolveDesiredPools(ctx, skuCache, productionSubscriptionID, profile, allZones, fetchQuotaUsage)
+	result, err := ResolveDesiredPools(ctx, skuCache, scenarioSubscriptionID, profile, allZones, nil, fetchQuotaUsage)
 	require.NoError(t, err, "resolving desired pools")
 
-	golden := struct {
-		FullyAllocated bool                `json:"fullyAllocated"`
-		AvailableVCPUs map[VMFamily]int64  `json:"availableVCPUs"`
-		Pools          []Pool              `json:"pools"`
-		Failures       []AllocationFailure `json:"failures,omitempty"`
-	}{
-		FullyAllocated: result.FullyAllocated,
-		AvailableVCPUs: result.AvailableVCPUs,
-		Pools:          result.Pools,
-		Failures:       result.Failures,
+	// Quota limits as the planner sees them: only the profile's families.
+	quotaUsages, err := fetchQuotaUsage(ctx, TierFamilies(profile.Tiers))
+	require.NoError(t, err, "fetching quota usage")
+	limits := make(map[VMFamily]int64, len(quotaUsages))
+	for family, u := range quotaUsages {
+		limits[family] = u.Limit
 	}
-	b, err := json.MarshalIndent(golden, "", "  ")
-	require.NoError(t, err)
-	assertGolden(t, string(b)+"\n")
+	assertGolden(t, renderReport(func(w io.Writer) {
+		writeAllocationInputs(w, allZones, profile.Tiers, limits, result.SKUMetadata)
+		fmt.Fprintln(w, "\navailable vCPUs:")
+		for _, family := range slices.Sorted(maps.Keys(result.AvailableVCPUs)) {
+			fmt.Fprintf(w, "  %s:\t%d\n", family, result.AvailableVCPUs[family])
+		}
+		writeAllocationResult(w, result.Pools, result.Failures, result.FullyAllocated)
+	}))
+}
+
+// TestResolveDesiredPools_Scenario exercises desire planning against Resource
+// SKUs and quota usages dumped from real systems, one directory per region
+// under testdata/scenarios, each with the profile its environment runs. The
+// dumps hold the raw ARM responses, trimmed to the tier profiles' families and
+// core counts and to the capabilities skucache reads. Pins the resolved pool
+// set, available vCPUs per family, and allocation failures.
+func TestResolveDesiredPools_Scenario(t *testing.T) {
+	tests := []struct {
+		region  string
+		profile string
+	}{
+		{region: "uksouth", profile: ProfileProduction},
+		// Quota less the running vCPUs of the subscription's other clusters.
+		{region: "westus3", profile: ProfileIntegration},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.region, func(t *testing.T) {
+			rawSKUs, err := os.ReadFile(filepath.Join("testdata", "scenarios", tt.region, "scenario-skus.json"))
+			require.NoError(t, err, "reading Resource SKUs")
+			var skus []*armcompute.ResourceSKU
+			require.NoError(t, json.Unmarshal(rawSKUs, &skus), "decoding Resource SKUs")
+			runDesiredPoolsScenario(t, tt.region, skus, tt.region, tt.profile)
+		})
+	}
+}
+
+// constraintSKURestriction overlays a family-wide SKU restriction onto the
+// shared base catalog (see loadConstraintSKUs), mirroring the
+// armcompute.ResourceSKURestrictions shapes Azure actually returns for a
+// quota/zone-restricted family. A Location restriction excludes the family
+// from the region entirely (isLocationRestricted), independent of pool mode.
+// A Zone restriction only removes the listed zones; PoolModeRegional tiers
+// ignore zone restrictions entirely, so blocking every zone is not
+// equivalent to a Location restriction for a Regional tier.
+type constraintSKURestriction struct {
+	family       VMFamily
+	location     bool
+	blockedZones []string
+}
+
+// constraintSKUSpec names one named condition's deviation from the shared
+// base SKU catalog (testdata/scenarios/constraints-skus-base.json): exclude
+// drops SKU names the condition's source subscription never offered at all
+// (e.g. a generation not yet available in that region); restrictions
+// overlays the quota/zone restrictions Azure reports there.
+type constraintSKUSpec struct {
+	exclude      []string
+	restrictions []constraintSKURestriction
+	// zones overrides the base catalog's zone list for specific SKU names
+	// (keyed by name), for the rare case where a condition's source region
+	// offers a SKU in fewer zones than the catalog's maximum, with no formal
+	// restriction reported (e.g. a constrained-vCPU SKU the test-tenant
+	// region only ever had in one zone).
+	zones map[string][]string
+}
+
+// loadConstraintSKUs builds the Resource SKUs for a named constraint
+// condition from the shared base catalog, applying spec's exclusions and
+// restrictions. region is the Location restriction's value; isLocationRestricted
+// compares it against the SKUCache's own configured region, so both must
+// agree for a Location restriction to take effect.
+func loadConstraintSKUs(t *testing.T, region string, spec constraintSKUSpec) []*armcompute.ResourceSKU {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("testdata", "scenarios", "constraints-skus-base.json"))
+	require.NoError(t, err, "reading constraint SKU base catalog")
+	var skus []*armcompute.ResourceSKU
+	require.NoError(t, json.Unmarshal(raw, &skus), "decoding constraint SKU base catalog")
+
+	excluded := sets.New(spec.exclude...)
+	restrictionsByFamily := make(map[VMFamily]constraintSKURestriction, len(spec.restrictions))
+	for _, r := range spec.restrictions {
+		restrictionsByFamily[r.family] = r
+	}
+
+	result := make([]*armcompute.ResourceSKU, 0, len(skus))
+	for _, sku := range skus {
+		if excluded.Has(*sku.Name) {
+			continue
+		}
+		if override, ok := spec.zones[*sku.Name]; ok {
+			zones := make([]*string, len(override))
+			for i, zone := range override {
+				zones[i] = ptr.To(zone)
+			}
+			sku.LocationInfo[0].Zones = zones
+		}
+		if r, ok := restrictionsByFamily[VMFamily(*sku.Family)]; ok {
+			if r.location {
+				sku.Restrictions = append(sku.Restrictions, &armcompute.ResourceSKURestrictions{
+					Type:       ptr.To(armcompute.ResourceSKURestrictionsTypeLocation),
+					ReasonCode: ptr.To(armcompute.ResourceSKURestrictionsReasonCodeNotAvailableForSubscription),
+					Values:     []*string{ptr.To(region)},
+				})
+			}
+			if len(r.blockedZones) > 0 {
+				zones := make([]*string, len(r.blockedZones))
+				for i, zone := range r.blockedZones {
+					zones[i] = ptr.To(zone)
+				}
+				sku.Restrictions = append(sku.Restrictions, &armcompute.ResourceSKURestrictions{
+					Type:            ptr.To(armcompute.ResourceSKURestrictionsTypeZone),
+					ReasonCode:      ptr.To(armcompute.ResourceSKURestrictionsReasonCodeNotAvailableForSubscription),
+					RestrictionInfo: &armcompute.ResourceSKURestrictionInfo{Zones: zones},
+				})
+			}
+		}
+		result = append(result, sku)
+	}
+	return result
+}
+
+// TestResolveDesiredPools_Constraints exercises layout planning against a
+// fixed set of named quota and SKU-restriction conditions, all running
+// ProfileProduction per config/config.yaml's fleet.nodePoolPlanning default.
+// Every condition shares one SKU catalog (constraints-skus-base.json,
+// deduplicated from the regions each condition was originally sampled from);
+// loadConstraintSKUs overlays only each condition's own deviation from it.
+// The condition it pins — not its provenance — is what the test guards: a
+// failure here means the profile cannot fully allocate against that
+// quota/restriction shape, whether the fixture is sourced from a live
+// subscription or written by hand.
+//
+// Each scenario is named after the condition it pins rather than its source
+// region. `region` still carries a real Azure region name, required for
+// isLocationRestricted to evaluate a condition's Location-type restrictions
+// correctly.
+//
+// canadacentral and switzerlandnorth dumps existed but were dropped: both were
+// byte-identical to each other and nearly identical to australiaeast/
+// tight_quota_margin (same SKU catalog, topology, and outcome, differing only
+// in a quota number), so they added no coverage beyond it.
+func TestResolveDesiredPools_Constraints(t *testing.T) {
+	tests := []struct {
+		dir    string
+		region string
+		spec   constraintSKUSpec
+	}{
+		// Expect full allocation despite the thinnest standardEDSv5Family quota margin of the sampled regions — the margin that once deadlocked infra against worker quota.
+		{dir: "tight_quota_margin", region: "australiaeast", spec: constraintSKUSpec{
+			exclude: []string{
+				"Standard_E16ds_v7", "Standard_E32ds_v7", "Standard_E4ds_v7", "Standard_E8ds_v7",
+			},
+		}},
+		// Expect full allocation: the planner steers the one blocked zone's pool onto a family that is still offered there.
+		{dir: "single_zone_blocked_family", region: "brazilsouth", spec: constraintSKUSpec{
+			restrictions: []constraintSKURestriction{
+				{family: "standardEDSv5Family", blockedZones: []string{"2"}},
+				{family: "StandardEdsv7Family", blockedZones: []string{"1", "3"}},
+			},
+		}},
+		// Expect full allocation with no failures — the control case nothing should ever fail against.
+		{dir: "unrestricted_baseline", region: "centralindia", spec: constraintSKUSpec{
+			exclude: []string{"Standard_E16ds_v7", "Standard_E32ds_v7", "Standard_E4ds_v7", "Standard_E8ds_v7"},
+		}},
+		// Expect partial allocation: sys/inf/wrk16 allocate from scratch, but wrk32 reports InsufficientQuota.
+		{dir: "fresh_cluster_quota_exhausted", region: "eastus", spec: constraintSKUSpec{
+			restrictions: []constraintSKURestriction{
+				{family: "standardEDSv5Family", location: true, blockedZones: allZones},
+				{family: "StandardEdsv6Family", blockedZones: []string{"1", "2", "3"}},
+				{family: "standardESv3Family", location: true, blockedZones: allZones},
+			},
+		}},
+		// Expect full allocation: the planner routes around a family blocked region-wide onto an eligible family and SKU.
+		{dir: "location_blocked_family", region: "eastus2", spec: constraintSKUSpec{
+			restrictions: []constraintSKURestriction{
+				{family: "standardEDSv4Family", location: true, blockedZones: allZones},
+				{family: "standardEDSv5Family", location: true, blockedZones: allZones},
+				{family: "StandardEdsv6Family", blockedZones: []string{"2"}},
+			},
+		}},
+		// Expect full allocation: the planner routes around two blocked zones onto families still offered there.
+		{dir: "zone_blocked_family", region: "westeurope", spec: constraintSKUSpec{
+			exclude: []string{"Standard_E16ds_v7", "Standard_E32ds_v7", "Standard_E4ds_v7", "Standard_E8ds_v7"},
+			restrictions: []constraintSKURestriction{
+				{family: "standardEDSv4Family", blockedZones: []string{"2", "3"}},
+				{family: "standardEDSv5Family", blockedZones: []string{"2", "3"}},
+			},
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.dir, func(t *testing.T) {
+			skus := loadConstraintSKUs(t, tt.region, tt.spec)
+			runDesiredPoolsScenario(t, tt.dir, skus, tt.region, ProfileProduction)
+		})
+	}
 }

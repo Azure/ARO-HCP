@@ -1,0 +1,49 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  (none)
+
+desired:
+  sys07f2007    system  Standard_E4ds_v7   zone=   max=2
+  inf1ffd86f    infra   Standard_E4ds_v7   zone=1  max=2
+  inf2ffd86f    infra   Standard_E4ds_v7   zone=2  max=2
+  wrk1616be3e6  worker  Standard_E16ds_v7  zone=1  max=2
+  wrk1626be3e6  worker  Standard_E16ds_v7  zone=2  max=1
+  wrk1624cff74  worker  Standard_E16ds_v4  zone=2  max=1
+  wrk1634cff74  worker  Standard_E16ds_v4  zone=3  max=2
+
+budget (vCPUs):
+  StandardEdsv6Family:  1640
+  StandardEdsv7Family:  100
+  standardEDSv4Family:  100
+  standardEDSv5Family:  100
+  standardESv3Family:   100
+
+initial headroom (vCPUs):
+  StandardEdsv6Family:  1640
+  StandardEdsv7Family:  100
+  standardEDSv4Family:  100
+  standardEDSv5Family:  100
+  standardESv3Family:   100
+
+fully allocated: false
+
+initial capacity:
+
+actions:
+  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)
+
+     #  action  role    pool          vm size   zone  change         margin                 quota left
+     1  Create  system  sys07f2007    E4ds_v7         min=1   max=2     +8c    +64G    +0n  Edsv7 92c
+     2  Create  infra   inf1ffd86f    E4ds_v7   1     min=1   max=2     +8c    +64G    +0n  Edsv7 84c
+     3  Create  infra   inf2ffd86f    E4ds_v7   2     min=1   max=2     +8c    +64G    +0n  Edsv7 76c
+     4  Create  worker  wrk1616be3e6  E16ds_v7  1     min=2   max=2    +32c   +256G   +14n  Edsv7 44c
+     5  Create  worker  wrk1626be3e6  E16ds_v7  2     min=1   max=1    +16c   +128G    +7n  Edsv7 28c
+     6  Create  worker  wrk1624cff74  E16ds_v4  2     min=1   max=1    +32c   +256G   +14n  EDSv4 84c
+     7  Create  worker  wrk1634cff74  E16ds_v4  3     min=2   max=2    +32c   +256G   +14n  EDSv4 52c
+
+steps:      7
+converged:  true
+outcome:    converged
+reason:     pool configuration matches desired

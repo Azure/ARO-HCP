@@ -1,0 +1,19 @@
+zones: 1,2,3
+
+tiers:
+  sys  system  Regional  mode=System  pools=1  cores=4  maxNodes=3  initialMinNodes=0  osDisk=32GB  maxPods=100  swift=true  attachNICs=false  required=false  families=StandardEdsv6Family,StandardDdsv6Family
+
+quota limits (vCPUs):
+  StandardDdsv6Family:  100
+  StandardEdsv6Family:  0
+
+skus:
+  Standard_D4ds_v6  StandardDdsv6Family  cpu=4  memory=16GiB  nics=1  ephemeralOSDisk=true  ephemeralDisk=200GB  zones=1,2,3
+
+fully allocated: true
+
+pools:
+  sys0b798e7  system  Standard_D4ds_v6  mode=System  cpu=4  memory=16GiB  nics=0  zone=regional  min=1  max=3  osDisk=32GB  maxPods=100  swift=true  labels=aro-hcp.azure.com/role=system  taints=CriticalAddonsOnly=true:NoSchedule
+
+failures:
+  (none)
