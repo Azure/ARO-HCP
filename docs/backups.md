@@ -231,18 +231,21 @@ Two cadence tiers are available, selected at backend deployment time:
 
 All schedules run with volume snapshots enabled. Cadence and retention are selected via `backend.backupCadenceProfile` in [`../config/config.yaml`](../config/config.yaml), set to one of the tier names above (`production` or `testing`, lowercase).
 
+Cadence is independent of whether the schedules actually run. Some environments deploy with `backend.backupScheduleState: Disabled` so that clusters do not pay for instant-access snapshots and datamover restores by default; there the schedules are created but paused, and an individual cluster opts back in with the [backup schedule override tag](#pause-and-resume). See [`../config/config.yaml`](../config/config.yaml) for which environments do this.
+
 ## Pause and Resume
 
-Backup schedules can be paused at two independent levels. Both are expressed as a `BackupScheduleState` of `Enabled` or `Disabled`; a `Disabled` state at either level maps to `spec.paused=true` on the resulting Velero Schedule.
+Three levers govern whether a cluster's Velero Schedules actually run. The first two are expressed as a `BackupScheduleState` of `Enabled` or `Disabled`; the third is an experimental ARM tag that only ever force-enables.
 
 - **Global pause** — Controlled by the backend deployment configuration value `backend.backupScheduleState` in [`../config/config.yaml`](../config/config.yaml). Its default is `Enabled`; setting it to `Disabled` pauses all schedules for all clusters. Takes effect on the next reconciliation cycle after the backend is redeployed.
 - **Per-cluster pause** — Controlled via the [Admin API](#admin-api-reference) for a specific cluster, which sets `spc.Spec.BackupScheduleState` on the cluster's ServiceProviderCluster document in Cosmos DB. The controller picks up the change on its next sync and updates the Velero Schedule accordingly.
+- **Per-cluster override** — The ARM resource tag `aro-hcp.experimental.cluster.backup-schedule-override`, honored only on subscriptions with the `Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures` AFEC registered. The only accepted value is `Enabled`; absent or empty means no override, and any other value is rejected at admission. It lifts the **global** pause for that one cluster and nothing else — it cannot pause a cluster, and it does not defeat the per-cluster admin API pause. This is a test affordance, letting an individual test opt its own cluster into active backups where the deployment keeps schedules off; it is not an SRE tool. Admission projects the tag onto `ExperimentalFeatures.BackupScheduleOverride` on the cluster document, so retracting the tag via an ARM PATCH clears it.
 
-The controller computes the Velero Schedule's pause flag as `globalState == Disabled || clusterState == Disabled` — so if either level is `Disabled`, the schedule is paused. Existing backups and their retention are unaffected by a pause.
+The controller computes the Velero Schedule's pause flag as `clusterState == Disabled || (globalState == Disabled && override != Enabled)` — the admin API pause always wins, and the override only outranks the global pause. Existing backups and their retention are unaffected by a pause.
 
 ### Pause independence and operational impact
 
-The two pause levels have no knowledge of each other. Removing the global pause does **not** clear per-cluster pauses, and pausing or unpausing a cluster via the admin API has no effect on the global pause.
+The pause levels have no knowledge of each other. Removing the global pause does **not** clear per-cluster pauses, and pausing or unpausing a cluster via the admin API has no effect on the global pause.
 
 Practical consequence for incident response:
 
@@ -251,7 +254,9 @@ Practical consequence for incident response:
 3. **Incident resolves; global pause is removed** (`backend.backupScheduleState: Enabled` config change + redeploy) — all clusters that were only globally paused resume. Clusters that were also paused via the admin API remain paused because `spc.Spec.BackupScheduleState` is still `Disabled`. The controller sees `globalState == Disabled` is now false but `clusterState == Disabled` is still true, and keeps their Velero Schedules paused.
 4. **To resume those clusters**, each one requires an explicit admin API call: `PATCH .../backupschedules {"state": "Enabled"}`.
 
-Additionally, the `GET /backupschedules` response surfaces only `spc.Spec.BackupScheduleState` (the per-cluster value). It does not indicate whether the global pause is active. During a global pause, clusters that were not individually paused will show `state: Enabled` in the API response even though their Velero Schedules are paused on the management cluster.
+An overridden cluster is the one asymmetry: it keeps backing up straight through a global pause. To stop it, either pause it via the admin API (which outranks the override) or retract the tag with an ARM PATCH.
+
+Additionally, the `GET /backupschedules` response surfaces only `spc.Spec.BackupScheduleState` (the per-cluster value). It does not indicate whether the global pause is active, nor whether an override is in play. During a global pause, clusters that were not individually paused will show `state: Enabled` in the API response even though their Velero Schedules are paused on the management cluster; conversely an overridden cluster can show `state: Enabled` with schedules genuinely running while its untagged neighbors are paused. The per-schedule `backupExecutionState` field, mirrored back from the management cluster via ReadDesire, is ground truth for whether a given Velero Schedule is `Active` or `Paused`.
 
 ## Admin API Reference
 

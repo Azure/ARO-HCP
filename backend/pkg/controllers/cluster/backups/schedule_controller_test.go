@@ -438,7 +438,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		return cluster
 	}
 
-	newTestServiceProviderCluster := func() *coreapi.ServiceProviderCluster {
+	newTestServiceProviderCluster := func(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceProviderCluster {
 		clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testKey.SubscriptionID +
 				"/resourceGroups/" + testKey.ResourceGroupName +
@@ -447,7 +447,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		serviceProviderClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
 			clusterResourceID.String(), coreapi.ServiceProviderClusterResourceTypeName, coreapi.ServiceProviderClusterResourceName)))
 		controlPlaneNamespace := fmt.Sprintf("%s-%s", hostedClusterNamespace, testDomainPrefix)
-		return &coreapi.ServiceProviderCluster{
+		serviceProviderCluster := &coreapi.ServiceProviderCluster{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   serviceProviderClusterResourceID,
 				PartitionKey: strings.ToLower(testKey.SubscriptionID),
@@ -458,6 +458,37 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				ControlPlaneNamespace:       controlPlaneNamespace,
 			},
 		}
+		for _, opt := range opts {
+			opt(serviceProviderCluster)
+		}
+		return serviceProviderCluster
+	}
+
+	// verifyPaused asserts spec.paused on every Velero Schedule the syncer shipped.
+	verifyPaused := func(want bool) func(t *testing.T, ctx context.Context, _ *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+		return func(t *testing.T, ctx context.Context, _ *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+			t.Helper()
+			applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+			require.NoError(t, err)
+			for _, scheduleConfig := range testBackupConfig.Schedules() {
+				desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, scheduleConfig.Name))
+				applyDesire, err := applyDesireCRUD.Get(ctx, desireName)
+				require.NoError(t, err, "ApplyDesire %s should exist", desireName)
+				require.NotNil(t, applyDesire.Spec.ServerSideApply)
+
+				var got velerov1api.Schedule
+				require.NoError(t, json.Unmarshal(applyDesire.Spec.ServerSideApply.KubeContent.Raw, &got))
+				assert.Equal(t, want, got.Spec.Paused, "%s should have spec.paused=%v", scheduleConfig.Name, want)
+			}
+		}
+	}
+
+	withBackupScheduleOverride := func(c *coreapi.Cluster) {
+		c.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride = coreapi.BackupScheduleStateEnabled
+	}
+
+	withAdminAPIPause := func(spc *coreapi.ServiceProviderCluster) {
+		spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateDisabled
 	}
 
 	// seedHostedClusterReadDesire creates the ReadDesire that mirrors the live
@@ -541,6 +572,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		backupConfig    *BackupConfig
 		syncCount       int
 		clusterOpts     []func(*coreapi.Cluster)
+		spcOpts         []func(*coreapi.ServiceProviderCluster)
 		expectError     bool
 		errorContains   string
 		verify          func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient)
@@ -1151,6 +1183,94 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "deployment-wide Disabled pauses schedules",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(), nil)
+				require.NoError(t, err)
+			},
+			hasPlacement: true,
+			backupConfig: &BackupConfig{
+				BackupScheduleState:  coreapi.BackupScheduleStateDisabled,
+				BackupCadenceProfile: BackupCadenceProduction,
+			},
+			syncCount: 6,
+			verify:    verifyPaused(true),
+		},
+		{
+			name: "admin API pause pauses schedules",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(), nil)
+				require.NoError(t, err)
+			},
+			hasPlacement: true,
+			backupConfig: &BackupConfig{
+				BackupScheduleState:  coreapi.BackupScheduleStateEnabled,
+				BackupCadenceProfile: BackupCadenceProduction,
+			},
+			spcOpts:   []func(*coreapi.ServiceProviderCluster){withAdminAPIPause},
+			syncCount: 6,
+			verify:    verifyPaused(true),
+		},
+		{
+			name: "override lifts the deployment-wide pause",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(withBackupScheduleOverride), nil)
+				require.NoError(t, err)
+			},
+			hasPlacement: true,
+			backupConfig: &BackupConfig{
+				BackupScheduleState:  coreapi.BackupScheduleStateDisabled,
+				BackupCadenceProfile: BackupCadenceProduction,
+			},
+			clusterOpts: []func(*coreapi.Cluster){withBackupScheduleOverride},
+			syncCount:   6,
+			verify:      verifyPaused(false),
+		},
+		{
+			name: "admin API pause outranks the override",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(withBackupScheduleOverride), nil)
+				require.NoError(t, err)
+			},
+			hasPlacement: true,
+			backupConfig: &BackupConfig{
+				BackupScheduleState:  coreapi.BackupScheduleStateDisabled,
+				BackupCadenceProfile: BackupCadenceProduction,
+			},
+			clusterOpts: []func(*coreapi.Cluster){withBackupScheduleOverride},
+			spcOpts:     []func(*coreapi.ServiceProviderCluster){withAdminAPIPause},
+			syncCount:   6,
+			verify:      verifyPaused(true),
+		},
+		{
+			name: "admin API pause re-pauses an overridden cluster",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(withBackupScheduleOverride), nil)
+				require.NoError(t, err)
+			},
+			hasPlacement: true,
+			// seedAllDesiresForConfig ships unpaused Schedules, standing in for the
+			// steady state of a cluster whose override already lifted the
+			// deployment-wide pause.
+			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) ([]*kubeapplierapi.ApplyDesire, []*kubeapplierapi.ReadDesire) {
+				t.Helper()
+				return seedAllDesiresForConfig(t, ctx, mockKubeApplier, testBackupConfig)
+			},
+			backupConfig: &BackupConfig{
+				BackupScheduleState:  coreapi.BackupScheduleStateDisabled,
+				BackupCadenceProfile: BackupCadenceProduction,
+			},
+			clusterOpts: []func(*coreapi.Cluster){withBackupScheduleOverride},
+			spcOpts:     []func(*coreapi.ServiceProviderCluster){withAdminAPIPause},
+			syncCount:   1,
+			verify:      verifyPaused(true),
+		},
 	}
 
 	for _, tt := range tests {
@@ -1177,7 +1297,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 
 			var serviceProviderClusterList []*coreapi.ServiceProviderCluster
 			if tt.hasPlacement {
-				serviceProviderClusterList = []*coreapi.ServiceProviderCluster{newTestServiceProviderCluster()}
+				serviceProviderClusterList = []*coreapi.ServiceProviderCluster{newTestServiceProviderCluster(tt.spcOpts...)}
 			}
 
 			mcLister := &fleetlistertesting.SliceManagementClusterLister{

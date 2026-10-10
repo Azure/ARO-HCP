@@ -142,7 +142,6 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 	hostedClusterNamespace := cachedServiceProviderCluster.Status.HostedClusterNamespace
 	controlPlaneNamespace := cachedServiceProviderCluster.Status.ControlPlaneNamespace
 	managementClusterResourceID := cachedServiceProviderCluster.Status.ManagementClusterResourceID
-	clusterPaused := cachedServiceProviderCluster.Spec.BackupScheduleState == coreapi.BackupScheduleStateDisabled
 
 	kubeApplierClient := c.kubeApplierDBClients.For(ctx, cachedServiceProviderCluster.Status.ManagementClusterResourceID)
 	if kubeApplierClient == nil {
@@ -183,10 +182,16 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 		}
 	}
 
+	// The ARM override can lift the deployment-wide pause, but never the
+	// per-cluster admin API pause; see BackupConfig.SchedulePaused.
+	paused := c.backupConfig.SchedulePaused(
+		cachedServiceProviderCluster.Spec.BackupScheduleState,
+		cachedCluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride,
+	)
+
 	configSchedules := c.backupConfig.Schedules()
 	schedules := make([]*velerov1.Schedule, 0, len(configSchedules))
 	for _, scheduleConfig := range configSchedules {
-		paused := c.backupConfig.BackupScheduleState == coreapi.BackupScheduleStateDisabled || clusterPaused
 		schedule := NewScheduledBackup(resourceID, kmsKeyFingerprint, hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, paused)
 		schedules = append(schedules, schedule)
 	}

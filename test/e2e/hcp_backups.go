@@ -21,10 +21,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -56,6 +57,7 @@ func createBackupTestCluster(ctx context.Context, cfg backupTestClusterConfig) b
 
 	By("creating cluster parameters")
 	clusterParams := framework.NewDefaultClusterParams20251223()
+	clusterParams.Tags[metadataapi.TagClusterBackupScheduleOverride] = to.Ptr(string(coreapi.BackupScheduleStateEnabled))
 	clusterParams.ClusterName = cfg.clusterName
 	managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 	clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -100,7 +102,6 @@ func createBackupTestCluster(ctx context.Context, cfg backupTestClusterConfig) b
 }
 
 var _ = Describe("SRE", func() {
-	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-10-27T00:00:00Z"))
 
 	It("can pause schedules to stop backup execution for an HCP cluster",
 		labels.RequireNothing,
@@ -111,9 +112,6 @@ var _ = Describe("SRE", func() {
 		labels.AroRpApiCompatible,
 		labels.MIContainers(1),
 		func(ctx context.Context) {
-			if time.Now().Before(timeBombDeadline) {
-				Skip(fmt.Sprintf("scheduled backup execution is temporarily disabled until %s", timeBombDeadline.Format(time.RFC3339)))
-			}
 
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
@@ -128,7 +126,7 @@ var _ = Describe("SRE", func() {
 				vnetName:            "pause-bkp-vnet-name",
 				subnetName:          "pause-bkp-vnet-subnet1",
 			})
-			By("verifying backup schedules were created")
+			By("verifying backup schedules were created and are active")
 			Eventually(func() (bool, error) {
 				resp, err := getBackupScheduleViaAdminAPI(ctx, cluster.httpClient, cluster.adminAPIAddr, cluster.resourceID)
 				if err != nil {
@@ -137,9 +135,14 @@ var _ = Describe("SRE", func() {
 				if len(resp.Schedules) == 0 {
 					return false, nil
 				}
+				for _, s := range resp.Schedules {
+					if s.BackupExecutionState != hcp.BackupExecutionStateActive {
+						return false, nil
+					}
+				}
 				return true, nil
 			}, framework.BackupWaitTimeout, framework.BackupWaitInterval).Should(BeTrue(),
-				"schedules should have been created on the mgmt cluster")
+				"schedules should have been created and unpaused on the mgmt cluster")
 
 			By("verifying testing cadence is present before timing-sensitive wait")
 			schedResp, err := getBackupScheduleViaAdminAPI(ctx, cluster.httpClient, cluster.adminAPIAddr, cluster.resourceID)

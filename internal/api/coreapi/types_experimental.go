@@ -53,6 +53,17 @@ type ExperimentalFeatures struct {
 	// and ControlPlaneExactVersion take precedence; unset uses normal rollout.
 	// Written by: Frontend PUT/PATCH Cluster (admission)
 	ZStreamUpdatePolicy ZStreamUpdatePolicy `json:"zStreamUpdatePolicy,omitempty"`
+
+	// BackupScheduleOverride force-enables the cluster's Velero backup Schedules
+	// against the backend's deployment-wide --backup-schedule-state. When set to
+	// BackupScheduleStateEnabled, the backup schedule controller emits Schedules
+	// with spec.paused=false even though the deployment is configured Disabled. The
+	// per-cluster admin API pause (ServiceProviderCluster.Spec.BackupScheduleState)
+	// still wins over this override. It is never set to Disabled: the absence of an
+	// override is the empty value, and admission rejects any tag value other than
+	// "Enabled".
+	// Written by: Frontend PUT/PATCH Cluster (admission)
+	BackupScheduleOverride BackupScheduleState `json:"backupScheduleOverride,omitempty"`
 }
 
 // ZStreamUpdatePolicy controls how automatic z-stream updates are assigned.
