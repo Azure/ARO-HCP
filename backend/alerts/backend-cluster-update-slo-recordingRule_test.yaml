@@ -1,0 +1,285 @@
+rule_files:
+- backend-cluster-update-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# Instantaneous records: 8 succeeded, 2 failed cluster update operations -> error rate 0.2
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/e", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/f", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/g", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/h", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/i", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/j", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:succeeded_total
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:succeeded_total{cluster="mgmt-1"}'
+      value: 8
+  - expr: errors:backend_cluster_update:terminal_total
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:terminal_total{cluster="mgmt-1"}'
+      value: 10
+  - expr: errors:backend_cluster_update:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate{cluster="mgmt-1"}'
+      value: 0.2
+# Only operation_type="update" on hcpOpenShiftClusters is in scope: create, delete
+# and node pool updates are excluded.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d/nodepool/x", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:terminal_total
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:terminal_total{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate{cluster="mgmt-1"}'
+      value: 0
+# Canceled operations are excluded from both numerator and denominator:
+# 1 succeeded, 1 failed, 1 canceled -> terminal_total 2, error rate 0.5.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="canceled", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:succeeded_total
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:succeeded_total{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:terminal_total
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:terminal_total{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_cluster_update:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate{cluster="mgmt-1"}'
+      value: 0.5
+# HA scrapes are deduplicated. The same 3 operations (2 succeeded, 1 failed) are
+# reported by two Prometheus replicas. Without max without (prometheus_replica)
+# the counts would be 4 and 6 rather than 2 and 3, because count() counts series.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:succeeded_total
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:succeeded_total{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_cluster_update:terminal_total
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:terminal_total{cluster="mgmt-1"}'
+      value: 3
+  - expr: errors:backend_cluster_update:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate{cluster="mgmt-1"}'
+      value: 0.3333333333333333
+# Windowed records count only operations whose terminal transition landed inside
+# the window. At 100m (6000s): /veryold transitioned 36000s ago (3d only), /old
+# 6000s ago (6h and 3d), /f1 and /s1 600s ago (all windows).
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/veryold", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/veryold", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-30000x200"
+  - series: 'backend_resource_operation_phase_info{resource_id="/old", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/old", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "_x89 5400x111"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "_x89 5400x111"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:failed_1h
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_1h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:total_1h
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_1h{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_cluster_update:error_rate_1h
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate_1h{cluster="mgmt-1"}'
+      value: 0.5
+  - expr: errors:backend_cluster_update:failed_6h
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_6h{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_cluster_update:total_6h
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_6h{cluster="mgmt-1"}'
+      value: 3
+  - expr: errors:backend_cluster_update:error_rate_6h
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate_6h{cluster="mgmt-1"}'
+      value: 0.6666666666666666
+  - expr: errors:backend_cluster_update:failed_3d
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_3d{cluster="mgmt-1"}'
+      value: 3
+  - expr: errors:backend_cluster_update:total_3d
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_3d{cluster="mgmt-1"}'
+      value: 4
+  - expr: errors:backend_cluster_update:error_rate_3d
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate_3d{cluster="mgmt-1"}'
+      value: 0.75
+# Windowed failure count is pinned to 0 (not absent) when there are no in-window
+# failures, and canceled operations stay out of the windowed denominator.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "0x30"
+  - series: 'backend_resource_operation_phase_info{resource_id="/c1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="canceled", cluster="mgmt-1"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/c1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="canceled", cluster="mgmt-1"}'
+    values: "0x30"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:failed_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_1h{cluster="mgmt-1"}'
+      value: 0
+  - expr: errors:backend_cluster_update:total_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_1h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:error_rate_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate_1h{cluster="mgmt-1"}'
+      value: 0
+# HA dedup holds inside the windowed join: each operation and its transition time
+# are reported by two replicas, but are counted once.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "0x30"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "0x30"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "0x30"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "1x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "0x30"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:failed_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_1h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:total_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_1h{cluster="mgmt-1"}'
+      value: 2
+  - expr: errors:backend_cluster_update:error_rate_1h
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate_1h{cluster="mgmt-1"}'
+      value: 0.5
+# Known limitation: a failed update overwritten by a successful retry is not
+# counted. /a fails at 0m and is retried successfully at 10m; the Backend replaces
+# the failed series, so at 20m the 1h window sees one success and no failure.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x10"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "0x10"
+  - series: 'backend_resource_operation_phase_info{resource_id="/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "_x10 1x20"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "_x10 600x20"
+  promql_expr_test:
+  - expr: errors:backend_cluster_update:failed_1h
+    eval_time: 20m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:failed_1h{cluster="mgmt-1"}'
+      value: 0
+  - expr: errors:backend_cluster_update:total_1h
+    eval_time: 20m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:total_1h{cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:backend_cluster_update:error_rate_1h
+    eval_time: 20m
+    exp_samples:
+    - labels: 'errors:backend_cluster_update:error_rate_1h{cluster="mgmt-1"}'
+      value: 0
