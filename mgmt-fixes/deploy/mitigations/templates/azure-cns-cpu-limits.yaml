@@ -1,6 +1,4 @@
-
----
-# Source: ARO HCP MC Mitigations/templates/azure-cns-cpu-limits.yaml
+{{- if .Values.azureCnsCpuLimits.enabled }}
 # Remove the CPU limit from the azure-cns DaemonSet to eliminate DHCP timeout
 # failures during HCP cluster creation. AKS sets a default CPU limit of 500m;
 # at that ceiling azure-cns is throttled at ~37% on CI management clusters,
@@ -12,13 +10,12 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: azure-cns-cpu-patcher
-  namespace: 'aro-hcp-mitigations'
+  namespace: '{{ .Release.Namespace }}'
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": before-hook-creation
 ---
-# Source: ARO HCP MC Mitigations/templates/azure-cns-cpu-limits.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -39,7 +36,6 @@ rules:
   - get
   - patch
 ---
-# Source: ARO HCP MC Mitigations/templates/azure-cns-cpu-limits.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -56,14 +52,13 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: azure-cns-cpu-patcher
-  namespace: 'aro-hcp-mitigations'
+  namespace: '{{ .Release.Namespace }}'
 ---
-# Source: ARO HCP MC Mitigations/templates/azure-cns-cpu-limits.yaml
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: azure-cns-cpu-limits-patch
-  namespace: 'aro-hcp-mitigations'
+  namespace: '{{ .Release.Namespace }}'
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "1"
@@ -75,7 +70,7 @@ spec:
     spec:
       containers:
       - name: patcher
-        image: "mcr.microsoft.com/aks/command/runtime@sha256:1234567890"
+        image: "{{ .Values.jobImage }}"
         resources:
           requests:
             cpu: 10m
@@ -90,10 +85,10 @@ spec:
           set -e
 
           echo "=== azure-cns CPU limits patcher ==="
-          echo "Desired CPU request=500m, limit=<none (removing)"
+          echo "Desired CPU request={{ .Values.azureCnsCpuLimits.cpuRequest }}, limit=<none (removing)"
           echo "ServiceAccount: $(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)/azure-cns-cpu-patcher"
 
-          DESIRED_REQ="500m"
+          DESIRED_REQ="{{ .Values.azureCnsCpuLimits.cpuRequest }}"
 
           echo "Checking if azure-cns DaemonSet exists in kube-system..."
           DS_NAME=$(kubectl get daemonset azure-cns -n kube-system --ignore-not-found -o name)
@@ -125,3 +120,4 @@ spec:
           echo "Patch applied successfully"
       restartPolicy: OnFailure
       serviceAccountName: azure-cns-cpu-patcher
+{{- end }}
