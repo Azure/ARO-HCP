@@ -708,7 +708,7 @@ containers can reduce parallel throughput even when admission succeeds.
 | Failed or Deleting consumer | Still counts as in use |
 | Matching identity | Exclude its container and continue scanning every page |
 | Missing metadata, malformed reference or failed list request | Stop before cleanup or publication |
-| Unsupported `2026-10-01-preview` API | Stop; do not fall back to an API that hides registry-pull identities |
+| Unsupported `2026-10-01` API | Stop; do not fall back to an API that hides registry-pull identities |
 
 Audit mode logs these findings but selects the full set, even after scan errors.
 Cancellation stops cleanup in both modes.

@@ -30,7 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
-	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -53,7 +53,7 @@ func TestAdmissionFiltersCompleteConsumerInventory(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			groups := []string{"identity-rg-00", "identity-rg-01", "identity-rg-02", "identity-rg-03", "identity-rg-04"}
-			transport := &admissionTransport{fic: true, principals: map[string]string{}}
+			transport := &admissionTransport{principals: map[string]string{}}
 			for i, group := range groups {
 				transport.principals[group] = fmt.Sprintf("aaaaaaaa-0000-0000-0000-%012d", i)
 			}
@@ -145,7 +145,7 @@ func TestAdmissionFiltersCompleteConsumerInventory(t *testing.T) {
 			if test.mode == "audit" {
 				want = groups
 			}
-			if !slices.Equal(state.AdmittedIdentityContainers, want) || transport.identityLists != len(want) || len(transport.deletes) != 2*len(want) {
+			if !slices.Equal(state.AdmittedIdentityContainers, want) || transport.identityLists != len(want) || len(transport.deletes) != len(want) {
 				t.Fatalf("admitted=%v identityLists=%d deletes=%v, want only %v", state.AdmittedIdentityContainers, transport.identityLists, transport.deletes, want)
 			}
 			contract := slots.NewRuntimeContractBuilder()
@@ -162,7 +162,7 @@ func TestAdmissionFiltersCompleteConsumerInventory(t *testing.T) {
 					}
 					for _, path := range transport.deletes {
 						if strings.Contains(path, excluded) {
-							t.Fatalf("deleted excluded container FIC or principal role: %s", path)
+							t.Fatalf("deleted excluded container principal role: %s", path)
 						}
 					}
 				}
@@ -182,7 +182,7 @@ func TestAdmissionProtectsConsumersBeforeAnyDelete(t *testing.T) {
 		"nil HCP", "missing HCP ID", "wrong subscription", "missing properties", "missing profile",
 		"missing service", "nil operator", "empty operator", "invalid operator", "empty identity map",
 		"nil node pool", "missing node pool ID", "wrong node pool parent", "missing node pool value",
-		"cancelled", "deadline", "FIC only", "dev",
+		"cancelled", "deadline", "no role assignments", "dev",
 	} {
 		for _, mode := range []string{"enforce", "audit"} {
 			for _, skipCleanup := range []bool{false, true} {
@@ -212,7 +212,7 @@ func TestAdmissionProtectsConsumersBeforeAnyDelete(t *testing.T) {
 						UserAssignedIdentities: map[string]*hcpsdk.UserAssignedIdentity{owned: {}},
 					}
 					switch scenario {
-					case "Succeeded", "Failed", "Deleting", "Updating", "later cluster page", "FIC only":
+					case "Succeeded", "Failed", "Deleting", "Updating", "later cluster page", "no role assignments":
 						profile.ControlPlaneOperators["operator"] = &owned
 					case "case insensitive":
 						profile.ControlPlaneOperators["operator"] = to.Ptr(strings.ToUpper(owned))
@@ -273,10 +273,10 @@ func TestAdmissionProtectsConsumersBeforeAnyDelete(t *testing.T) {
 					var logs strings.Builder
 					ctx = logr.NewContext(ctx, funcr.New(func(_, message string) { logs.WriteString(message) }, funcr.Options{}))
 					consumerCalls := 0
-					transport := &admissionTransport{fic: true, role: scenario != "FIC only"}
+					transport := &admissionTransport{role: scenario != "no role assignments"}
 					transport.consumerResponse = func(req *http.Request) (any, int, error) {
 						consumerCalls++
-						if req.URL.Query().Get("api-version") != "2026-10-01-preview" {
+						if req.URL.Query().Get("api-version") != "2026-10-01" {
 							t.Fatalf("consumer inventory must expose container registry identities: %s", req.URL)
 						}
 						if scenario == "unsupported API" {
@@ -330,7 +330,7 @@ func TestAdmissionProtectsConsumersBeforeAnyDelete(t *testing.T) {
 					wantSuccess := scenario == "unrelated" || scenario == "other subscription" || scenario == "dev" || scenario == "unrelated registry identity"
 					referenced := false
 					switch scenario {
-					case "Succeeded", "Failed", "Deleting", "Updating", "cluster identity", "data plane", "service", "node pool", "case insensitive", "container registry", "later cluster page", "later node pool page", "FIC only":
+					case "Succeeded", "Failed", "Deleting", "Updating", "cluster identity", "data plane", "service", "node pool", "case insensitive", "container registry", "later cluster page", "later node pool page", "no role assignments":
 						referenced = true
 						wantSuccess = true
 					}
@@ -352,12 +352,11 @@ func TestAdmissionProtectsConsumersBeforeAnyDelete(t *testing.T) {
 					if (!wantSuccess || skipCleanup) && len(transport.deletes) != 0 {
 						t.Fatalf("unsafe or disabled cleanup issued DELETEs: %v", transport.deletes)
 					}
-					wantDeletes := 6
-					if scenario == "FIC only" {
-						wantDeletes = 4
+					wantDeletes := 2
+					if scenario == "no role assignments" {
+						wantDeletes = 0
 					}
 					if referenced && mode == "enforce" {
-						wantDeletes -= 2
 						if got := request.AcquiredSlotState.AdmittedIdentityContainers; len(got) != 1 || got[0] != "identity-rg-00" {
 							t.Fatalf("expected only safe container, got %v", got)
 						}

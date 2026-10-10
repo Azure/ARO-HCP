@@ -372,7 +372,7 @@ Common failure modes:
     to `e2e_identities`
   - other asset kinds still run admission by default; repeated flags or a
     comma-separated list can explicitly disable additional kinds
-  - this skips E2E identity verification and stale FIC/RBAC cleanup, not the
+  - this skips E2E identity verification and stale RBAC cleanup, not the
     ARM consumer check, leasing, structural validation, exports, or release;
     each cleanup skip is logged as a warning
   - clear the parameter after mitigation to restore clean-reuse checks; see the
@@ -385,7 +385,7 @@ Common failure modes:
     before retrying
   - the cleanup opt-out does not bypass this check; DEV skips consumer checks
     during both acquisition and teardown
-  - API version `2026-10-01-preview` and cluster/node-pool list permissions are
+  - API version `2026-10-01` and cluster/node-pool list permissions are
     required; an unsupported API blocks enforcement
 - **slot-manager acquisition or release failure**
   - inspect the acquire/release step logs and `${SHARED_DIR}/aro-hcp-slot-state.yaml`
@@ -434,11 +434,13 @@ to the pool only after successful cleanup.
 
 #### Controls and logs
 
-| Setting | Consumer protection | FIC/RBAC cleanup |
+| Setting | Consumer protection | Identity cleanup |
 | --- | --- | --- |
 | `--identity-consumer-guard=enforce` (default) | Excludes in-use containers; blocks on incomplete scans | Safe containers only |
 | `--identity-consumer-guard=audit` | Logs findings but allows reuse, even after scan errors | Full set |
 | `--disable-asset-admission=e2e_identities` | Guard still applies | Skipped during acquisition only |
+
+Acquisition cleans RBAC only; per-spec teardown also cleans FICs.
 
 The guard flag also reads `ARO_HCP_IDENTITY_CONSUMER_GUARD`. Slot-manager exports
 the selected mode to tests; direct test runs can set the variable themselves.
