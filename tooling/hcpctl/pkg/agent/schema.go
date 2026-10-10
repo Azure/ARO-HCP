@@ -18,43 +18,32 @@ import (
 	"encoding/json"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/internal/tabular"
+	"github.com/Azure/ARO-HCP/tooling/utilitytypes/taxonomy"
 )
 
-// L1 failure taxonomy categories.
+// The failure taxonomy vocabulary is defined in the shared utilitytypes/taxonomy
+// leaf so downstream consumers share the exact contract. It is re-exported here
+// for backwards compatibility with existing agent references.
 const (
-	L1AzureProblems      = "Azure Problems"
-	L1DeploymentFailures = "Deployment Failures"
-	L1ProductFailures    = "Product Failures"
-	L1TestReliability    = "Test Reliability"
+	L1AzureProblems      = taxonomy.L1AzureProblems
+	L1DeploymentFailures = taxonomy.L1DeploymentFailures
+	L1ProductFailures    = taxonomy.L1ProductFailures
+	L1TestReliability    = taxonomy.L1TestReliability
+
+	L2Frontend       = taxonomy.L2Frontend
+	L2ClusterService = taxonomy.L2ClusterService
+	L2Backend        = taxonomy.L2Backend
+	L2Maestro        = taxonomy.L2Maestro
+	L2HyperShift     = taxonomy.L2HyperShift
+	L2RHUpstream     = taxonomy.L2RHUpstream
 )
 
-// ValidL1Categories is the set of allowed L1 taxonomy values.
-var ValidL1Categories = map[string]bool{
-	L1AzureProblems:      true,
-	L1DeploymentFailures: true,
-	L1ProductFailures:    true,
-	L1TestReliability:    true,
-}
-
-// L2 subcategories, valid only when L1 is "Product Failures".
-const (
-	L2Frontend       = "Frontend"
-	L2ClusterService = "Cluster Service"
-	L2Backend        = "Backend"
-	L2Maestro        = "Maestro"
-	L2HyperShift     = "HyperShift"
-	L2RHUpstream     = "RH Upstream"
+var (
+	// ValidL1Categories is the set of allowed L1 taxonomy values.
+	ValidL1Categories = taxonomy.ValidL1Categories
+	// ValidL2Subcategories is the set of allowed L2 taxonomy values.
+	ValidL2Subcategories = taxonomy.ValidL2Subcategories
 )
-
-// ValidL2Subcategories is the set of allowed L2 taxonomy values.
-var ValidL2Subcategories = map[string]bool{
-	L2Frontend:       true,
-	L2ClusterService: true,
-	L2Backend:        true,
-	L2Maestro:        true,
-	L2HyperShift:     true,
-	L2RHUpstream:     true,
-}
 
 // Classification holds the taxonomy classification for an analysis.
 type Classification struct {
