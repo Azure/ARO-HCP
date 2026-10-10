@@ -148,7 +148,7 @@ func TestActualHostedClusterSyncer_ClearsMirrorAfterSuccessfulEmptyObservation(t
 	require.NotNil(t, getServiceProviderCluster(t, ctx, mockResourcesDBClient).Status.ActualHostedCluster)
 
 	syncer.readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{
-		Desires: []*kubeapplierapi.ReadDesire{newHostedClusterReadDesire(t, nil)},
+		Desires: []*kubeapplierapi.ReadDesire{newTestHostedClusterReadDesire(t, nil)},
 	}
 	require.NoError(t, syncer.SyncOnce(ctx, testKey))
 
@@ -195,7 +195,7 @@ func TestActualHostedClusterSyncer_RetainsMirrorWhenUnobserved(t *testing.T) {
 
 					lister := &kubeapplierlistertesting.SliceReadDesireLister{}
 					if !tt.missingReadDesire {
-						desire := newHostedClusterReadDesire(t, tt.hostedCluster)
+						desire := newTestHostedClusterReadDesire(t, tt.hostedCluster)
 						desire.Status.Conditions = nil
 						if tt.conditionStatus != "" {
 							desire.Status.Conditions = []metav1.Condition{{Type: kubeapplierapi.ConditionTypeSuccessful, Status: tt.conditionStatus}}
@@ -272,7 +272,7 @@ func TestActualHostedClusterSyncer_RetractsMirrorWhenDeletingAndHostedClusterGon
 		resourcesDBClient: mockResourcesDBClient,
 		clusterLister:     &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
-			Desires: []*kubeapplierapi.ReadDesire{newHostedClusterReadDesire(t, nil)},
+			Desires: []*kubeapplierapi.ReadDesire{newTestHostedClusterReadDesire(t, nil)},
 		},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 	}
@@ -323,7 +323,7 @@ func newTestSyncer(t *testing.T, mockResourcesDBClient *corecosmosstoragetesting
 		resourcesDBClient: mockResourcesDBClient,
 		clusterLister:     &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
-			Desires: []*kubeapplierapi.ReadDesire{newHostedClusterReadDesire(t, hostedCluster)},
+			Desires: []*kubeapplierapi.ReadDesire{newTestHostedClusterReadDesire(t, hostedCluster)},
 		},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 	}
@@ -338,9 +338,9 @@ func newHostedCluster() *hsv1beta1.HostedCluster {
 	return hostedCluster
 }
 
-// newHostedClusterReadDesire builds a ReadDesire whose Status.KubeContent.Raw
+// newTestHostedClusterReadDesire builds a ReadDesire whose Status.KubeContent.Raw
 // carries the marshaled HostedCluster, as the kube-applier would record it.
-func newHostedClusterReadDesire(t *testing.T, hostedCluster *hsv1beta1.HostedCluster) *kubeapplierapi.ReadDesire {
+func newTestHostedClusterReadDesire(t *testing.T, hostedCluster *hsv1beta1.HostedCluster) *kubeapplierapi.ReadDesire {
 	t.Helper()
 
 	// A nil hostedCluster models a ReadDesire carrying no content, which is how

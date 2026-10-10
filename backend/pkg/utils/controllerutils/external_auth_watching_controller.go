@@ -68,7 +68,9 @@ func NewExternalAuthWatchingController(
 	externalAuthInformer, externalAuthLister := informers.ExternalAuths()
 	controller.externalAuthLister = externalAuthLister
 
-	err := externalAuthGenericWatchingController.QueueForInformers(resyncDuration, externalAuthInformer)
+	serviceProviderExternalAuthInformer, _ := informers.ServiceProviderExternalAuths()
+
+	err := externalAuthGenericWatchingController.QueueForInformers(resyncDuration, externalAuthInformer, serviceProviderExternalAuthInformer)
 	if err != nil {
 		panic(err) // coding error
 	}
