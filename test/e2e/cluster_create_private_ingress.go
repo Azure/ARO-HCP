@@ -25,6 +25,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -36,18 +37,23 @@ import (
 // v2026-09-01-preview API version smoke test — verifying cluster creation,
 // credentials, and cluster health — to avoid creating multiple clusters in CI.
 var _ = Describe("Customer", func() {
-	It("should create a cluster with private ingress using v20260901preview and verify the ingress is internal",
-		labels.RequireNothing,
-		labels.Critical,
-		labels.Positive,
-		labels.AroRpApiCompatible,
+	DescribeTable("should create a cluster with private ingress using v20260901preview and verify the ingress is internal",
 		labels.CreateCluster,
 		labels.MIContainers(1),
-		func(ctx context.Context) {
-			const (
-				customerClusterName  = "private-ingress"
-				customerNodePoolName = "np-1"
-			)
+		func(ctx context.Context, minor string) {
+			channelGroup := framework.DefaultOpenshiftChannelGroup()
+			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
+			clusterInstallVersion, err := resolveNodePoolTestVersion(ctx, channelGroup, minor, normalOffset)
+			if err != nil {
+				Skip(fmt.Sprintf("failed to resolve control plane version for %s-%s: %v", channelGroup, minor, err))
+			}
+			if clusterInstallVersion == "" {
+				Skip(fmt.Sprintf("no control plane version resolved for %s-%s", channelGroup, minor))
+			}
+
+			minorDashed := strings.ReplaceAll(minor, ".", "-")
+			customerClusterName := "pi-" + minorDashed
+			const customerNodePoolName = "np-1"
 
 			tc := framework.NewTestContext()
 
@@ -57,11 +63,13 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "private-ingress", tc.Location())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "private-ingress-"+minorDashed, tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for private ingress test")
 
 			By("creating cluster parameters with private ingress")
 			clusterParams := framework.NewDefaultClusterParams20260901()
+			clusterParams.OpenshiftVersionId = clusterInstallVersion
+			clusterParams.ChannelGroup = channelGroup
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.IngressType = "Private"
@@ -108,6 +116,9 @@ var _ = Describe("Customer", func() {
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
+			// Pin the node pool to the control plane so it cannot request a newer minor.
+			nodePoolParams.OpenshiftVersionId = clusterInstallVersion
+			nodePoolParams.ChannelGroup = channelGroup
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
@@ -171,5 +182,21 @@ var _ = Describe("Customer", func() {
 				"private ingress should not be reachable from outside the VNet, but connection succeeded")
 			GinkgoLogr.Info("Confirmed ingress is not reachable from outside the VNet")
 		},
+		// The supported minor set mirrors nodepool_version_upgrade.go.
+		Entry("for 4.20",
+			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			"4.20"),
+		Entry("for 4.21",
+			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			"4.21"),
+		Entry("for 4.22",
+			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			"4.22"),
+		Entry("for 5.0",
+			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			"5.0"),
+		Entry("for 5.1",
+			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			"5.1"),
 	)
 })
