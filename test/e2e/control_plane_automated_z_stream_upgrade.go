@@ -159,7 +159,7 @@ var _ = Describe("Service Provider", func() {
 			By("verifying that only a z-stream upgrade was performed")
 			Eventually(func() error {
 				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion))
-			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed(), "cluster %q did not automatically advance beyond %s with the Immediate policy", clusterName, installVersion)
+			}, framework.HCPClusterVersionUpgradeTimeout, framework.StandardPollInterval).Should(Succeed(), "cluster %q did not automatically advance beyond %s with the Immediate policy", clusterName, installVersion)
 			GinkgoLogr.Info("z-stream upgrade verification passed", "installVersion", installVersion)
 		},
 

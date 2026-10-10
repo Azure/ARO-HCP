@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -173,7 +172,9 @@ var _ = Describe("Customer", func() {
 					verifiers.VerifyHostedControlPlaneYStreamUpgrade(
 						installVersionId,
 						upgradeVersionId))
-			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
+			}, framework.HCPClusterVersionUpgradeTimeout, framework.StandardPollInterval).Should(Succeed(),
+				"control plane of cluster %q did not reach %s within %s", clusterName, upgradeVersionId,
+				framework.HCPClusterVersionUpgradeTimeout)
 		},
 		Entry("from 4.20 minor to 4.21 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),
 		Entry("from 4.21 minor to 4.22 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22"),
