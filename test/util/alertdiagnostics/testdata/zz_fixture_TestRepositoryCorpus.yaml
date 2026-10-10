@@ -5616,6 +5616,100 @@
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_autoscaler_health_alerts
+  alert: UserJourneyClusterAutoscalerErrors
+  occurrence: 1
+  input: errors:cluster_autoscaler:errors:rate15m > 0
+  plan:
+    expression: errors:cluster_autoscaler:errors:rate15m > 0
+    conditions:
+      - expression: errors:cluster_autoscaler:errors:rate15m > 0
+        path: root
+        queries:
+          - expression: errors:cluster_autoscaler:errors:rate15m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_autoscaler_health_alerts
+  alert: UserJourneyClusterAutoscalerSafetyDisabled
+  occurrence: 1
+  input: health:cluster_autoscaler:safe_to_autoscale == 0
+  plan:
+    expression: health:cluster_autoscaler:safe_to_autoscale == 0
+    conditions:
+      - expression: health:cluster_autoscaler:safe_to_autoscale == 0
+        path: root
+        queries:
+          - expression: health:cluster_autoscaler:safe_to_autoscale
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_autoscaler_health_alerts
+  alert: UserJourneyClusterAutoscalerStalled
+  occurrence: 1
+  input: health:cluster_autoscaler:seconds_since_last_activity > 600
+  plan:
+    expression: health:cluster_autoscaler:seconds_since_last_activity > 600
+    conditions:
+      - expression: health:cluster_autoscaler:seconds_since_last_activity > 600
+        path: root
+        queries:
+          - expression: health:cluster_autoscaler:seconds_since_last_activity
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 600
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_autoscaler_scaling_alerts
+  alert: UserJourneyClusterAutoscalerScaleUpFailures
+  occurrence: 1
+  input: errors:cluster_autoscaler:failed_scale_ups:rate15m > 0
+  plan:
+    expression: errors:cluster_autoscaler:failed_scale_ups:rate15m > 0
+    conditions:
+      - expression: errors:cluster_autoscaler:failed_scale_ups:rate15m > 0
+        path: root
+        queries:
+          - expression: errors:cluster_autoscaler:failed_scale_ups:rate15m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_autoscaler_scaling_alerts
+  alert: UserJourneyClusterAutoscalerScaleUpStuck
+  occurrence: 1
+  input: (pods:cluster_autoscaler:unschedulable_count > 0) and on (cluster, namespace) (nodes:cluster_autoscaler:ready_count < nodes:cluster_autoscaler:max_count)
+  plan:
+    expression: (pods:cluster_autoscaler:unschedulable_count > 0) and on (cluster, namespace) (nodes:cluster_autoscaler:ready_count < nodes:cluster_autoscaler:max_count)
+    conditions:
+      - expression: pods:cluster_autoscaler:unschedulable_count > 0
+        path: root/and:left
+        queries:
+          - expression: pods:cluster_autoscaler:unschedulable_count
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+      - expression: nodes:cluster_autoscaler:ready_count < nodes:cluster_autoscaler:max_count
+        path: root/and:right
+        queries:
+          - expression: nodes:cluster_autoscaler:ready_count
+            role: left
+          - expression: nodes:cluster_autoscaler:max_count
+            role: right
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: rp-userjourney-kas-availability-monitor-rules
   alert: userJourneyKubeApiserverAvailability1h5m
   occurrence: 1
@@ -7423,6 +7517,111 @@
         thresholds:
           - operator: '>'
             value: 0
+        unsupported: ""
+- source: observability/alerts/cluster-autoscaler-slo-prometheusRule.yaml
+  group: arohcp_cluster_autoscaler_health_alerts
+  alert: UserJourneyClusterAutoscalerErrors
+  occurrence: 1
+  input: |
+    errors:cluster_autoscaler:errors:rate15m > 0
+  plan:
+    expression: errors:cluster_autoscaler:errors:rate15m > 0
+    conditions:
+      - expression: errors:cluster_autoscaler:errors:rate15m > 0
+        path: root
+        queries:
+          - expression: errors:cluster_autoscaler:errors:rate15m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/cluster-autoscaler-slo-prometheusRule.yaml
+  group: arohcp_cluster_autoscaler_health_alerts
+  alert: UserJourneyClusterAutoscalerSafetyDisabled
+  occurrence: 1
+  input: |
+    health:cluster_autoscaler:safe_to_autoscale == 0
+  plan:
+    expression: health:cluster_autoscaler:safe_to_autoscale == 0
+    conditions:
+      - expression: health:cluster_autoscaler:safe_to_autoscale == 0
+        path: root
+        queries:
+          - expression: health:cluster_autoscaler:safe_to_autoscale
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+- source: observability/alerts/cluster-autoscaler-slo-prometheusRule.yaml
+  group: arohcp_cluster_autoscaler_health_alerts
+  alert: UserJourneyClusterAutoscalerStalled
+  occurrence: 1
+  input: |
+    health:cluster_autoscaler:seconds_since_last_activity > 600
+  plan:
+    expression: health:cluster_autoscaler:seconds_since_last_activity > 600
+    conditions:
+      - expression: health:cluster_autoscaler:seconds_since_last_activity > 600
+        path: root
+        queries:
+          - expression: health:cluster_autoscaler:seconds_since_last_activity
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 600
+        unsupported: ""
+- source: observability/alerts/cluster-autoscaler-slo-prometheusRule.yaml
+  group: arohcp_cluster_autoscaler_scaling_alerts
+  alert: UserJourneyClusterAutoscalerScaleUpFailures
+  occurrence: 1
+  input: |
+    errors:cluster_autoscaler:failed_scale_ups:rate15m > 0
+  plan:
+    expression: errors:cluster_autoscaler:failed_scale_ups:rate15m > 0
+    conditions:
+      - expression: errors:cluster_autoscaler:failed_scale_ups:rate15m > 0
+        path: root
+        queries:
+          - expression: errors:cluster_autoscaler:failed_scale_ups:rate15m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/cluster-autoscaler-slo-prometheusRule.yaml
+  group: arohcp_cluster_autoscaler_scaling_alerts
+  alert: UserJourneyClusterAutoscalerScaleUpStuck
+  occurrence: 1
+  input: |
+    (
+      pods:cluster_autoscaler:unschedulable_count > 0
+    )
+    and on (cluster, namespace)
+    (
+      nodes:cluster_autoscaler:ready_count < nodes:cluster_autoscaler:max_count
+    )
+  plan:
+    expression: (pods:cluster_autoscaler:unschedulable_count > 0) and on (cluster, namespace) (nodes:cluster_autoscaler:ready_count < nodes:cluster_autoscaler:max_count)
+    conditions:
+      - expression: pods:cluster_autoscaler:unschedulable_count > 0
+        path: root/and:left
+        queries:
+          - expression: pods:cluster_autoscaler:unschedulable_count
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+      - expression: nodes:cluster_autoscaler:ready_count < nodes:cluster_autoscaler:max_count
+        path: root/and:right
+        queries:
+          - expression: nodes:cluster_autoscaler:ready_count
+            role: left
+          - expression: nodes:cluster_autoscaler:max_count
+            role: right
+        thresholds: []
         unsupported: ""
 - source: observability/alerts/cluster-provision-slo-prometheusRule.yaml
   group: arohcp_cluster_provision_slo_latency_alerts

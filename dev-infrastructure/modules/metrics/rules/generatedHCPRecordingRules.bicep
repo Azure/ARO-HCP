@@ -299,3 +299,61 @@ resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prome
     ]
   }
 }
+
+resource arohcpClusterAutoscalerRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_autoscaler_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'nodes:cluster_autoscaler:ready_count'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (cluster_autoscaler_nodes_count{state="ready"}))'
+      }
+      {
+        record: 'nodes:cluster_autoscaler:max_count'
+        expression: 'max by (cluster, namespace, region) (max without (prometheus_replica) (cluster_autoscaler_max_nodes_count))'
+      }
+      {
+        record: 'nodes:cluster_autoscaler:capacity_ratio'
+        expression: 'nodes:cluster_autoscaler:ready_count / clamp_min(nodes:cluster_autoscaler:max_count, 1)'
+      }
+      {
+        record: 'pods:cluster_autoscaler:unschedulable_count'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (cluster_autoscaler_unschedulable_pods_count))'
+      }
+      {
+        record: 'health:cluster_autoscaler:safe_to_autoscale'
+        expression: 'min by (cluster, namespace, region) (max without (prometheus_replica) (cluster_autoscaler_cluster_safe_to_autoscale))'
+      }
+      {
+        record: 'health:cluster_autoscaler:seconds_since_last_activity'
+        expression: 'time() - max by (cluster, namespace, region) (max without (prometheus_replica) (cluster_autoscaler_last_activity{activity="main"}))'
+      }
+      {
+        record: 'errors:cluster_autoscaler:failed_scale_ups:rate15m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(cluster_autoscaler_failed_scale_ups_total[15m])))'
+      }
+      {
+        record: 'errors:cluster_autoscaler:errors:rate15m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(cluster_autoscaler_errors_total[15m])))'
+      }
+      {
+        record: 'nodes:cluster_autoscaler:pending_node_deletions'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (cluster_autoscaler_pending_node_deletions))'
+      }
+      {
+        record: 'nodes:cluster_autoscaler:scaled_up:rate15m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(cluster_autoscaler_scaled_up_nodes_total[15m])))'
+      }
+      {
+        record: 'nodes:cluster_autoscaler:scaled_down:rate15m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(cluster_autoscaler_scaled_down_nodes_total[15m])))'
+      }
+    ]
+  }
+}

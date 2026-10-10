@@ -1,0 +1,466 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "### Cluster Autoscaler SLO Dashboard\n\nHealth and capacity of the HyperShift per-hosted-cluster cluster-autoscaler.\n\n- **cluster** = management cluster, **namespace** = hosted control plane (`ocm-*`).\n- Series exist **only for hosted clusters with at least one autoscaling-enabled NodePool** — HyperShift scales the autoscaler to zero otherwise, so an empty dashboard for a cluster is expected, not a fault.\n\n**Metrics source:** the `nodes:/pods:/health:/errors:cluster_autoscaler:*` recording rules (the dedup across Prometheus agent replicas and the `(cluster, namespace)` aggregation are done in the rules), shared with the `UserJourneyClusterAutoscaler*` alerts. Requires the recording rules to be deployed and evaluated in the target HCP Azure Monitor Workspace.\n\n**Runbook:** https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/cluster-autoscaler.md",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.6.9",
+      "title": "Dashboard Info",
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "1 = autoscaler considers the cluster safe to autoscale; 0 = it has stopped making scaling decisions.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "Unsafe", "color": "red" }, "1": { "text": "Safe", "color": "green" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red" }, { "color": "green", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 4 },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "min(health:cluster_autoscaler:safe_to_autoscale{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "instant": true,
+          "legendFormat": "Safe",
+          "refId": "A"
+        }
+      ],
+      "title": "Safe To Autoscale",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Ready worker nodes the autoscaler currently manages (summed across selected hosted clusters).",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "blue" } ] } }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 4 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum(nodes:cluster_autoscaler:ready_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "instant": true,
+          "legendFormat": "Ready nodes",
+          "refId": "A"
+        }
+      ],
+      "title": "Ready Nodes",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Maximum nodes the autoscaler may scale to (ceiling).",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "purple" } ] } }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 4 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum(nodes:cluster_autoscaler:max_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "instant": true,
+          "legendFormat": "Max nodes",
+          "refId": "A"
+        }
+      ],
+      "title": "Max Nodes (Ceiling)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Fraction of the node ceiling in use. Near 100% means little headroom to absorb new pods.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "max": 1,
+          "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "yellow", "value": 0.8 }, { "color": "red", "value": 1 } ] },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 4, "x": 12, "y": 4 },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "max(nodes:cluster_autoscaler:capacity_ratio{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "instant": true,
+          "legendFormat": "Capacity",
+          "refId": "A"
+        }
+      ],
+      "title": "Capacity Ratio (max)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Pods the scheduler could not place, which the autoscaler is trying to resolve. Sustained > 0 means unmet demand.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 10 } ] } }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 4, "x": 16, "y": 4 },
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum(pods:cluster_autoscaler:unschedulable_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "instant": true,
+          "legendFormat": "Unschedulable",
+          "refId": "A"
+        }
+      ],
+      "title": "Unschedulable Pods",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Worker nodes currently pending deletion by the autoscaler (summed across selected hosted clusters).",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "orange" } ] } }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 4 },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum(nodes:cluster_autoscaler:pending_node_deletions{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "instant": true,
+          "legendFormat": "Pending deletions",
+          "refId": "A"
+        }
+      ],
+      "title": "Pending Node Deletions",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Ready nodes vs the ceiling per hosted cluster. When Ready meets Max with pending pods, the ceiling needs raising.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "id": 8,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum by (namespace) (nodes:cluster_autoscaler:ready_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "legendFormat": "ready — {{namespace}}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "max by (namespace) (nodes:cluster_autoscaler:max_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "legendFormat": "max — {{namespace}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Ready vs Max Nodes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Unschedulable pods over time per hosted cluster.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "id": 9,
+      "options": { "legend": { "calcs": ["max"], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum by (namespace) (pods:cluster_autoscaler:unschedulable_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Unschedulable Pods Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Scale-up and scale-down node events (per-second rate, 15m window) driven by the autoscaler.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "id": 10,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum by (namespace) (nodes:cluster_autoscaler:scaled_up:rate15m{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "legendFormat": "scale up — {{namespace}}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "-sum by (namespace) (nodes:cluster_autoscaler:scaled_down:rate15m{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "legendFormat": "scale down — {{namespace}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Scale Up / Down Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Failed scale-up attempts and internal autoscaler errors (per-second rate, 15m window). Non-zero means the autoscaler cannot satisfy demand.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "id": 11,
+      "options": { "legend": { "calcs": ["max"], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum by (namespace) (errors:cluster_autoscaler:failed_scale_ups:rate15m{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "legendFormat": "failed scale-ups — {{namespace}}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum by (namespace) (errors:cluster_autoscaler:errors:rate15m{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "legendFormat": "errors — {{namespace}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Failed Scale-Ups & Errors",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Seconds since the autoscaler main loop last ran, per hosted cluster. Sustained growth indicates a stalled/absent autoscaler.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 2, "showPoints": "never", "thresholdsStyle": { "mode": "line" } },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "red", "value": 600 } ] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "id": 12,
+      "options": { "legend": { "calcs": ["max"], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "max by (namespace) (health:cluster_autoscaler:seconds_since_last_activity{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Time Since Last Main Loop",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Node capacity utilisation (ready / max) per hosted cluster over time.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never", "thresholdsStyle": { "mode": "line" } },
+          "max": 1,
+          "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "red", "value": 1 } ] },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "id": 13,
+      "options": { "legend": { "calcs": ["max"], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "max by (cluster, namespace) (nodes:cluster_autoscaler:capacity_ratio{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Capacity Ratio Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Current per-hosted-cluster autoscaler state.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" } }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green" } ] } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Safe" }, "properties": [ { "id": "mappings", "value": [ { "type": "value", "options": { "0": { "text": "Unsafe", "color": "red" }, "1": { "text": "Safe", "color": "green" } } } ] }, { "id": "custom.cellOptions", "value": { "type": "color-text" } } ] },
+          { "matcher": { "id": "byName", "options": "Unschedulable" }, "properties": [ { "id": "custom.cellOptions", "value": { "type": "color-background" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "red", "value": 1 } ] } } ] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
+      "id": 14,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "sum by (cluster, namespace) (nodes:cluster_autoscaler:ready_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Ready" },
+        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "max by (cluster, namespace) (nodes:cluster_autoscaler:max_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Max" },
+        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "sum by (cluster, namespace) (pods:cluster_autoscaler:unschedulable_count{cluster=~\"$cluster\", namespace=~\"$namespace\"})", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Unschedulable" },
+        { "datasource": { "type": "prometheus", "uid": "$datasource" }, "editorMode": "code", "expr": "min by (cluster, namespace) (health:cluster_autoscaler:safe_to_autoscale{cluster=~\"$cluster\", namespace=~\"$namespace\"})", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "Safe" }
+      ],
+      "title": "Per-Hosted-Cluster State",
+      "transformations": [
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "job": true },
+            "renameByName": {
+              "cluster": "Management Cluster",
+              "namespace": "Hosted Cluster",
+              "Value #Ready": "Ready",
+              "Value #Max": "Max",
+              "Value #Unschedulable": "Unschedulable",
+              "Value #Safe": "Safe"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["aro-hcp", "cluster-autoscaler", "slo", "user-journey"],
+  "templating": {
+    "list": [
+      {
+        "allowCustomValue": false,
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_hcps-.*$",
+        "type": "datasource"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "$datasource" },
+        "includeAll": true,
+        "multi": true,
+        "name": "cluster",
+        "query": { "qryType": 1, "query": "label_values(health:cluster_autoscaler:safe_to_autoscale, cluster)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "$datasource" },
+        "includeAll": true,
+        "multi": true,
+        "name": "namespace",
+        "query": { "qryType": 1, "query": "label_values(health:cluster_autoscaler:safe_to_autoscale{cluster=~\"$cluster\"}, namespace)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "Cluster Autoscaler SLO",
+  "uid": "cluster-autoscaler-slo",
+  "version": 1
+}
