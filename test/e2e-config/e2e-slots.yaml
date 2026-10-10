@@ -186,9 +186,7 @@ environments:
           resource_group_count: 25
     # Test-Test tenant (MSFT) prod sub "ARO HCP E2E" (403d9de9). Cross-tenant, so
     # identities are provisioned externally (provisioning: unmanaged).
-    # Kept in the pool so the single prod gating job can lease it for the canary
-    # region (eastus2euap), which only this sub is EUAP-onboarded for. The test
-    # step resolves this sub's owning tenant/service principal from the
+    # The test step resolves this sub's owning tenant/service principal from the
     # /var/run/aro-hcp-prod cluster profile via SELECTED_CLUSTER_PROFILE_DIR.
     - name: testtenant
       subscriptions:
