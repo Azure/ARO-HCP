@@ -171,7 +171,9 @@ func NewAdminAPI(
 	}
 
 	// Top-level mux (healthz bypasses all middleware)
+	startupHandler := newHealthzStartupHandler(logger, resourcesDBClient)
 	apiMux := http.NewServeMux()
+	apiMux.HandleFunc("GET /healthz/startup", startupHandler)
 	apiMux.HandleFunc("GET /healthz/ready", healthzReadyHandler)
 	apiMux.HandleFunc("GET /healthz/live", healthzLiveHandler)
 	apiMux.HandleFunc("/", middlewareMux.ServeHTTP)
@@ -180,6 +182,7 @@ func NewAdminAPI(
 	metricsMux.Handle("GET /metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))
 	// keeping these handlers on the metrics mux/listener during the migration to the api mux/listener
 	// remove once we can shift the deployment health checks to the other port
+	metricsMux.HandleFunc("GET /healthz/startup", startupHandler)
 	metricsMux.HandleFunc("GET /healthz/ready", healthzReadyHandler)
 	metricsMux.HandleFunc("GET /healthz/live", healthzLiveHandler)
 
