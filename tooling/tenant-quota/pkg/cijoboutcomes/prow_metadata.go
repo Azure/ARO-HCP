@@ -46,9 +46,10 @@ func fetchProwCompletion(ctx context.Context, client *http.Client, jobURI string
 	if err := fetchJSONArtifact(ctx, client, url, &finished); err != nil {
 		return nil, enrichmentError(ctx, err)
 	}
-	// Prow sidecar.doUpload emits these native uppercase verdicts. Do not
-	// reinterpret a malformed verdict or infer one from the legacy passed flag.
-	switch finished.Result {
+	// Sidecar writes uppercase verdicts, while Crier can write lowercase states.
+	// Keep stored outcomes canonical without inferring them from the passed flag.
+	result := strings.ToUpper(finished.Result)
+	switch result {
 	case "SUCCESS", "FAILURE", "ABORTED", "ERROR":
 	default:
 		return nil, enrichmentError(ctx, fmt.Errorf("%w: invalid result %q in %s", errArtifactMalformed, finished.Result, url))
@@ -56,7 +57,7 @@ func fetchProwCompletion(ctx context.Context, client *http.Client, jobURI string
 	if finished.Timestamp <= 0 || finished.Timestamp > 253402300799 {
 		return nil, enrichmentError(ctx, fmt.Errorf("%w: invalid timestamp %d in %s", errArtifactMalformed, finished.Timestamp, url))
 	}
-	return &prowCompletion{Result: finished.Result, FinishedAt: time.Unix(finished.Timestamp, 0).UTC()}, nil
+	return &prowCompletion{Result: result, FinishedAt: time.Unix(finished.Timestamp, 0).UTC()}, nil
 }
 
 // Read prowjob.json once for both annotations and the preferred start time.

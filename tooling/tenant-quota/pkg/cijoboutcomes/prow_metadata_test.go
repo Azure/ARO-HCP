@@ -40,6 +40,11 @@ func TestFetchProwCompletion(t *testing.T) {
 		{name: "failure", body: `{"timestamp":1787696844,"result":"FAILURE","passed":true}`, wantResult: "FAILURE"},
 		{name: "aborted", body: `{"timestamp":1787696844,"result":"ABORTED"}`, wantResult: "ABORTED"},
 		{name: "error", body: `{"timestamp":1787696844,"result":"ERROR"}`, wantResult: "ERROR"},
+		{name: "lowercase success", body: `{"timestamp":1787696844,"result":"success","passed":false}`, wantResult: "SUCCESS"},
+		{name: "lowercase failure", body: `{"timestamp":1787696844,"result":"failure","passed":true}`, wantResult: "FAILURE"},
+		{name: "lowercase aborted", body: `{"timestamp":1787696844,"result":"aborted"}`, wantResult: "ABORTED"},
+		{name: "lowercase error", body: `{"timestamp":1787696844,"result":"error","metadata":{"uploader":"crier"}}`, wantResult: "ERROR"},
+		{name: "mixed case", body: `{"timestamp":1787696844,"result":"FaIlUrE"}`, wantResult: "FAILURE"},
 		{name: "absent", status: 404, problem: "absent"},
 		{name: "malformed", body: `{`, problem: "malformed"},
 		{name: "empty", body: `{}`, problem: "malformed"},
@@ -56,7 +61,7 @@ func TestFetchProwCompletion(t *testing.T) {
 		{name: "null result", body: `{"timestamp":1787696844,"result":null}`, problem: "malformed"},
 		{name: "unknown result", body: `{"timestamp":1787696844,"result":"unknown"}`, problem: "malformed"},
 		{name: "running result", body: `{"timestamp":1787696844,"result":"RUNNING"}`, problem: "malformed"},
-		{name: "lowercase result", body: `{"timestamp":1787696844,"result":"success"}`, problem: "malformed"},
+		{name: "lowercase pending", body: `{"timestamp":1787696844,"result":"pending"}`, problem: "malformed"},
 		{name: "padded result", body: `{"timestamp":1787696844,"result":" SUCCESS"}`, problem: "malformed"},
 		{name: "network", status: -1, wantErr: true},
 		{name: "body interrupted", status: -2, wantErr: true},
@@ -80,6 +85,16 @@ func TestFetchProwCompletion(t *testing.T) {
 				}
 			} else if got == nil || got.Result != tc.wantResult || got.FinishedAt != time.Unix(1787696844, 0).UTC() {
 				t.Fatalf("completion = %+v, want native result %s and timestamp", got, tc.wantResult)
+			}
+			if got != nil {
+				info, err := snapshot.ParseProwURL(artifactTestURL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				outcome := outcomeForProw(info, *got, runDetail{})
+				if outcome.OverallResult != tc.wantResult || outcome.Failed != (tc.wantResult != "SUCCESS") {
+					t.Fatalf("incorrect normalized outcome: %+v", outcome)
+				}
 			}
 			if tc.problem != "" {
 				if len(problems) != 1 || problems[0] != "job/"+tc.problem || len(logs) == 0 {
