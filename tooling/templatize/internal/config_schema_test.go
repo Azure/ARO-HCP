@@ -128,30 +128,32 @@ func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 			require.Equal(t, "Public", baseline["cloud"], "CEL sees the Azure cloud, not the dev config context")
 			require.Equal(t, environment, baseline["environmentName"])
 
-			wantEnabled := environment != "pers"
 			value, err := baseline.GetByPath("svc.aks.systemPoolOnly")
 			require.NoError(t, err)
-			require.Equal(t, wantEnabled, value)
+			require.Equal(t, true, value)
 			provenance, err := resolver.ValueProvenance(region, "svc.aks.systemPoolOnly")
 			require.NoError(t, err)
 			require.True(t, provenance.DefaultSet)
 			require.Equal(t, false, provenance.Default, "system-pool-only must be opt-in")
-			if wantEnabled {
-				for path, want := range map[string]string{
-					"svc.aks.systemAgentPool.minCount": "3",
-					"svc.aks.systemAgentPool.maxCount": "5",
-					"svc.aks.systemAgentPool.vmSize":   "Standard_D4ds_v6",
-				} {
-					value, err := baseline.GetByPath(path)
-					require.NoError(t, err)
-					require.Equal(t, want, fmt.Sprint(value), path)
-				}
+			wantSystemPool := map[string]string{
+				"svc.aks.systemAgentPool.minCount": "3",
+				"svc.aks.systemAgentPool.maxCount": "5",
+				"svc.aks.systemAgentPool.vmSize":   "Standard_D4ds_v6",
+			}
+			if environment == "pers" {
+				wantSystemPool["svc.aks.systemAgentPool.vmSize"] = "Standard_D4ds_v5"
+				wantSystemPool["svc.aks.systemAgentPool.osDiskSizeGB"] = "64"
+			}
+			for path, want := range wantSystemPool {
+				value, err := baseline.GetByPath(path)
+				require.NoError(t, err)
+				require.Equal(t, want, fmt.Sprint(value), path)
 			}
 
 			t.Run("parameter template", func(t *testing.T) {
 				rendered, err := config.PreprocessFile(filepath.Join(repoRootDir, "dev-infrastructure/configurations/svc-cluster.tmpl.bicepparam"), baseline)
 				require.NoError(t, err)
-				require.Contains(t, strings.Split(string(rendered), "\n"), fmt.Sprintf("param systemPoolOnly = %t", wantEnabled), "render an unquoted Bicep boolean from the resolved config")
+				require.Contains(t, strings.Split(string(rendered), "\n"), "param systemPoolOnly = true", "render an unquoted Bicep boolean from the resolved config")
 			})
 
 			encoded, err := json.Marshal(baseline)
@@ -168,9 +170,9 @@ func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 				{name: "service omitted", cluster: "svc", remove: true},
 				{name: "service enabled ci00", cluster: "svc", value: true, environment: "ci00"},
 				{name: "service enabled ci01", cluster: "svc", value: true, environment: "ci01"},
-				{name: "service enabled pers", cluster: "svc", value: true, environment: "pers", wantError: "svc.aks.systemPoolOnly is supported only in ci00 and ci01"},
-				{name: "service enabled ci02", cluster: "svc", value: true, environment: "ci02", wantError: "svc.aks.systemPoolOnly is supported only in ci00 and ci01"},
-				{name: "service enabled prod", cluster: "svc", value: true, environment: "prod", wantError: "svc.aks.systemPoolOnly is supported only in ci00 and ci01"},
+				{name: "service enabled pers", cluster: "svc", value: true, environment: "pers"},
+				{name: "service enabled ci02", cluster: "svc", value: true, environment: "ci02", wantError: "svc.aks.systemPoolOnly is supported only in ci00, ci01 and pers"},
+				{name: "service enabled prod", cluster: "svc", value: true, environment: "prod", wantError: "svc.aks.systemPoolOnly is supported only in ci00, ci01 and pers"},
 				{name: "service string rejected", cluster: "svc", value: "true", wantError: "at '/svc/aks/systemPoolOnly': got string, want boolean"},
 				{name: "management disabled", cluster: "mgmt", value: false},
 				{name: "management omitted", cluster: "mgmt", remove: true},
