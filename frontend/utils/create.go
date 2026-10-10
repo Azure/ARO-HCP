@@ -29,14 +29,15 @@ import (
 )
 
 const (
-	flagName = "type"
-	cluster  = "cluster"
-	nodePool = "node_pool"
+	flagName     = "type"
+	cluster      = "cluster"
+	nodePool     = "node_pool"
+	externalAuth = "external_auth"
 )
 
 func main() {
 	example := "go run frontend/utils/create.go -type cluster"
-	usage := fmt.Sprintf("type of object you want to create: %v or %v.\nExample: %v\n", cluster, nodePool, example)
+	usage := fmt.Sprintf("type of object you want to create: %v, %v or %v.\nExample: %v\n", cluster, nodePool, externalAuth, example)
 	objectType := flag.String(flagName, cluster, usage)
 	flag.Parse()
 
@@ -50,6 +51,14 @@ func main() {
 
 	if *objectType == nodePool {
 		err := CreateNodePool()
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
+
+	if *objectType == externalAuth {
+		err := CreateExternalAuth()
 		if err != nil {
 			panic(err)
 		}
@@ -98,7 +107,7 @@ func CreateJSONFile() error {
 		return err
 	}
 
-	err = os.WriteFile("cluster.json", data, 0643)
+	err = os.WriteFile("cluster.json", data, 0644)
 	if err != nil {
 		return err
 	}
@@ -134,7 +143,56 @@ func CreateNodePool() error {
 		return err
 	}
 
-	err = os.WriteFile("node_pool.json", data, 0643)
+	err = os.WriteFile("node_pool.json", data, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func CreateExternalAuth() error {
+	groups := api.GroupClaimProfile{
+		Claim: "${OIDC_GROUPS_CLAIM}",
+	}
+
+	externalAuth := api.HCPOpenShiftClusterExternalAuth{
+		Properties: api.HCPOpenShiftClusterExternalAuthProperties{
+			Issuer: api.TokenIssuerProfile{
+				URL:       "https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0",
+				Audiences: []string{"${AZURE_CLIENT_ID}"},
+			},
+			Clients: []api.ExternalAuthClientProfile{{
+				ClientID: "${AZURE_CLIENT_ID}",
+				Component: api.ExternalAuthClientComponentProfile{
+					Name:                api.ExternalAuthConsoleClientComponentName,
+					AuthClientNamespace: "openshift-console",
+				},
+				Type: api.ExternalAuthClientTypeConfidential,
+				ExtraScopes: []string{
+					"openid",
+					"profile",
+				},
+			}},
+			Claim: api.ExternalAuthClaimProfile{
+				Mappings: api.TokenClaimMappingsProfile{
+					Username: api.UsernameClaimProfile{
+						Claim:        "${OIDC_USERNAME_CLAIM}",
+						PrefixPolicy: api.UsernameClaimPrefixPolicyNoPrefix,
+					},
+					Groups: &groups,
+				},
+				ValidationRules: []api.TokenClaimValidationRule{},
+			},
+		},
+	}
+
+	data, err := json.MarshalIndent(externalAuth, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile("external_auth.json", data, 0643)
 	if err != nil {
 		return err
 	}
