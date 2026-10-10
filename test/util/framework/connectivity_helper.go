@@ -56,3 +56,38 @@ func TestHTTPSConnectivity(ctx context.Context, url string, timeout time.Duratio
 
 	return nil
 }
+
+// TestHTTPSConnectivityWithStatus is like TestHTTPSConnectivity but also returns
+// the HTTP response status code (0 if the connection failed before a response was
+// received). Use this when the test needs to assert a specific status code and not
+// just that a TCP/TLS connection was established.
+func TestHTTPSConnectivityWithStatus(ctx context.Context, url string, timeout time.Duration, insecureSkipVerify bool) (int, error) {
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(timeoutCtx, "GET", url, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if insecureSkipVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // caller explicitly opted in
+	}
+
+	client := &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode, nil
+}
