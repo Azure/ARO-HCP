@@ -1079,6 +1079,11 @@ func (in *ExternalAuthServiceProviderProperties) DeepCopyInto(out *ExternalAuthS
 		in, out := &in.ClusterServiceDeletionTimestamp, &out.ClusterServiceDeletionTimestamp
 		*out = (*in).DeepCopy()
 	}
+	if in.ClusterServiceExternalAuthDeleteAccepted != nil {
+		in, out := &in.ClusterServiceExternalAuthDeleteAccepted, &out.ClusterServiceExternalAuthDeleteAccepted
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 
