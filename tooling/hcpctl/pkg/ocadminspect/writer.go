@@ -141,6 +141,30 @@ func (w *FilesystemWriter) writeObjectFile(path string, obj any) error {
 	return nil
 }
 
+// clusterScopedDir returns the root directory for cluster-scoped resources.
+func (w *FilesystemWriter) clusterScopedDir() string {
+	return filepath.Join(w.root, "cluster-scoped-resources")
+}
+
+// WriteClusterScopedResources writes each cluster-scoped resource (e.g. a Node)
+// to its own file at cluster-scoped-resources/<group>/<resource>/<name>.yaml,
+// matching oc adm inspect's layout for non-namespaced resources. Unlike
+// WriteResources for namespaced resources, there is no additional List file.
+func (w *FilesystemWriter) WriteClusterScopedResources(_ context.Context, resources []Resource) error {
+	var errs []error
+	for _, resource := range resources {
+		if resource.Name == "" {
+			continue
+		}
+		group := apiGroup(resource.APIVersion)
+		path := filepath.Join(w.clusterScopedDir(), group, resourcePlural(resource.Kind), resource.Name+".yaml")
+		if err := w.writeObjectFile(path, resource.Object); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return joinErrors(errs)
+}
+
 // WriteEvents writes the namespace's events to core/events.yaml as a YAML
 // sequence of the projected event fields. Like the resource files it is written
 // through writeObjectFile, so it carries the same leading "---" separator.
