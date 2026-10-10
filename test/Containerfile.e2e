@@ -3,6 +3,7 @@ USER root
 WORKDIR /opt/app-root/src/github.com/Azure/ARO-HCP
 COPY . .
 ENV GOFLAGS='-mod=readonly'
+ENV GOPROXY='https://proxy.golang.org|direct'
 RUN make build-hcpctl && \
     make -C tooling/templatize templatize && \
     make -C test/ build && \
