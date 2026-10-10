@@ -931,7 +931,7 @@ Compares desired control-plane size to observed state and updates Cluster Servic
 
 [Source](../backend/pkg/controllers/cluster/backups/schedule_controller.go) · **Trigger:** Cluster and mirrored reads; 5m.
 
-Uses `Spec.BackupState`, placement and namespaces to reconcile Velero schedule ApplyDesires and observed status. Handles pause and deletion; kube-applier performs the Kubernetes writes. Default retention is two days for hourly backups, 30 days for daily backups and 90 days for weekly backups; [configuration](../backend/pkg/controllers/cluster/backups/config.go) also supports a short-retention mode.
+Uses `Spec.BackupState`, placement and namespaces to reconcile Velero schedule ApplyDesires and observed status. Handles pause and deletion; kube-applier performs the Kubernetes writes. Default retention is two days for six-hourly backups, 30 days for daily backups and 90 days for weekly backups; [configuration](../backend/pkg/controllers/cluster/backups/config.go) also supports a short-retention mode.
 
 #### KeyRotationBackup
 
