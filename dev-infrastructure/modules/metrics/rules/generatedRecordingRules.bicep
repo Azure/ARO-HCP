@@ -14,15 +14,89 @@ resource arohcpAccessClusterSloRecordingRules 'Microsoft.AlertsManagement/promet
     rules: [
       {
         record: 'errors:backend_credential_operation:succeeded_total'
-        expression: 'count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})'
+        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
       }
       {
         record: 'errors:backend_credential_operation:terminal_total'
-        expression: 'count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})'
+        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
       }
       {
         record: 'errors:backend_credential_operation:error_rate'
-        expression: '(count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or 0 * count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) / clamp_min(count by (cluster, region) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed|canceled",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}), 1)'
+        expression: '(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))) / clamp_min(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})), 1)'
+      }
+    ]
+  }
+}
+
+resource arohcpAccessClusterSloWindowedRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_access_cluster_slo_windowed_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:backend_credential_operation:failed_5m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 300)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_credential_operation:total_5m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 300))'
+      }
+      {
+        record: 'errors:backend_credential_operation:error_rate_5m'
+        expression: 'errors:backend_credential_operation:failed_5m / clamp_min(errors:backend_credential_operation:total_5m, 1)'
+      }
+      {
+        record: 'errors:backend_credential_operation:failed_30m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 1800)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_credential_operation:total_30m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 1800))'
+      }
+      {
+        record: 'errors:backend_credential_operation:error_rate_30m'
+        expression: 'errors:backend_credential_operation:failed_30m / clamp_min(errors:backend_credential_operation:total_30m, 1)'
+      }
+      {
+        record: 'errors:backend_credential_operation:failed_1h'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 3600)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_credential_operation:total_1h'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 3600))'
+      }
+      {
+        record: 'errors:backend_credential_operation:error_rate_1h'
+        expression: 'errors:backend_credential_operation:failed_1h / clamp_min(errors:backend_credential_operation:total_1h, 1)'
+      }
+      {
+        record: 'errors:backend_credential_operation:failed_6h'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 21600)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_credential_operation:total_6h'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 21600))'
+      }
+      {
+        record: 'errors:backend_credential_operation:error_rate_6h'
+        expression: 'errors:backend_credential_operation:failed_6h / clamp_min(errors:backend_credential_operation:total_6h, 1)'
+      }
+      {
+        record: 'errors:backend_credential_operation:failed_3d'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 259200)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_credential_operation:total_3d'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 259200))'
+      }
+      {
+        record: 'errors:backend_credential_operation:error_rate_3d'
+        expression: 'errors:backend_credential_operation:failed_3d / clamp_min(errors:backend_credential_operation:total_3d, 1)'
       }
     ]
   }
@@ -64,6 +138,30 @@ resource arohcpClusterProvisionSloWindowedRecordingRules 'Microsoft.AlertsManage
     enabled: true
     interval: 'PT1M'
     rules: [
+      {
+        record: 'errors:backend_cluster_provision:failed_5m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="create",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 300)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_cluster_provision:total_5m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="create",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 300))'
+      }
+      {
+        record: 'errors:backend_cluster_provision:error_rate_5m'
+        expression: 'errors:backend_cluster_provision:failed_5m / clamp_min(errors:backend_cluster_provision:total_5m, 1)'
+      }
+      {
+        record: 'errors:backend_cluster_provision:failed_30m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="create",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 1800)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_cluster_provision:total_30m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="create",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 1800))'
+      }
+      {
+        record: 'errors:backend_cluster_provision:error_rate_30m'
+        expression: 'errors:backend_cluster_provision:failed_30m / clamp_min(errors:backend_cluster_provision:total_30m, 1)'
+      }
       {
         record: 'errors:backend_cluster_provision:failed_1h'
         expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="create",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 3600)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
@@ -117,6 +215,110 @@ resource arohcpClusterProvisionLatencyRecordingRules 'Microsoft.AlertsManagement
       {
         record: 'latency:backend_cluster_provision:inflight_duration_seconds'
         expression: 'max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) ((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1)'
+      }
+    ]
+  }
+}
+
+resource arohcpNodepoolSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_nodepool_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:backend_nodepool_operation:succeeded_total'
+        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase="succeeded",resource_type=~".*nodepools"}))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:terminal_total'
+        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:error_rate'
+        expression: '(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase="failed",resource_type=~".*nodepools"})) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}))) / clamp_min(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"})), 1)'
+      }
+      {
+        record: 'nodepool:provision_state:count_by_phase'
+        expression: 'count by (phase, region) (max by (phase, resource_id, subscription_id, region) (backend_nodepool_provision_state))'
+      }
+    ]
+  }
+}
+
+resource arohcpNodepoolSloWindowedRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_nodepool_slo_windowed_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:backend_nodepool_operation:failed_5m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase="failed",resource_type=~".*nodepools"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"})) < 300)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",resource_type=~".*nodepools"}))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:total_5m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"})) < 300))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:error_rate_5m'
+        expression: 'errors:backend_nodepool_operation:failed_5m / clamp_min(errors:backend_nodepool_operation:total_5m, 1)'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:failed_30m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase="failed",resource_type=~".*nodepools"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"})) < 1800)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",resource_type=~".*nodepools"}))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:total_30m'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"})) < 1800))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:error_rate_30m'
+        expression: 'errors:backend_nodepool_operation:failed_30m / clamp_min(errors:backend_nodepool_operation:total_30m, 1)'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:failed_1h'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase="failed",resource_type=~".*nodepools"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"})) < 3600)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",resource_type=~".*nodepools"}))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:total_1h'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"})) < 3600))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:error_rate_1h'
+        expression: 'errors:backend_nodepool_operation:failed_1h / clamp_min(errors:backend_nodepool_operation:total_1h, 1)'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:failed_6h'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase="failed",resource_type=~".*nodepools"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"})) < 21600)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",resource_type=~".*nodepools"}))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:total_6h'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"})) < 21600))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:error_rate_6h'
+        expression: 'errors:backend_nodepool_operation:failed_6h / clamp_min(errors:backend_nodepool_operation:total_6h, 1)'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:failed_3d'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase="failed",resource_type=~".*nodepools"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"})) < 259200)) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",resource_type=~".*nodepools"}))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:total_3d'
+        expression: 'count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type=~"update|delete",resource_type=~".*nodepools"})) < 259200))'
+      }
+      {
+        record: 'errors:backend_nodepool_operation:error_rate_3d'
+        expression: 'errors:backend_nodepool_operation:failed_3d / clamp_min(errors:backend_nodepool_operation:total_3d, 1)'
       }
     ]
   }

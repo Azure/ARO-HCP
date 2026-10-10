@@ -5792,74 +5792,6 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_access_cluster_slo_error_alerts
-  alert: userJourneyAccessClusterErrors1h5m
-  occurrence: 1
-  input: errors:backend_credential_operation:error_rate > 0.72
-  plan:
-    expression: errors:backend_credential_operation:error_rate > 0.72
-    conditions:
-      - expression: errors:backend_credential_operation:error_rate > 0.72
-        path: root
-        queries:
-          - expression: errors:backend_credential_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_access_cluster_slo_error_alerts
-  alert: userJourneyAccessClusterErrors3d
-  occurrence: 1
-  input: errors:backend_credential_operation:error_rate > 0.05
-  plan:
-    expression: errors:backend_credential_operation:error_rate > 0.05
-    conditions:
-      - expression: errors:backend_credential_operation:error_rate > 0.05
-        path: root
-        queries:
-          - expression: errors:backend_credential_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.05
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_access_cluster_slo_error_alerts
-  alert: userJourneyAccessClusterErrors6h30m
-  occurrence: 1
-  input: errors:backend_credential_operation:error_rate > 0.3
-  plan:
-    expression: errors:backend_credential_operation:error_rate > 0.3
-    conditions:
-      - expression: errors:backend_credential_operation:error_rate > 0.3
-        path: root
-        queries:
-          - expression: errors:backend_credential_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_access_cluster_slo_error_alerts
-  alert: userJourneyAccessClusterErrorsDegradation
-  occurrence: 1
-  input: errors:backend_credential_operation:error_rate > 0.15
-  plan:
-    expression: errors:backend_credential_operation:error_rate > 0.15
-    conditions:
-      - expression: errors:backend_credential_operation:error_rate > 0.15
-        path: root
-        queries:
-          - expression: errors:backend_credential_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.15
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_access_cluster_slo_error_alerts
   alert: userJourneyAccessClusterStuckOperation
   occurrence: 1
   input: (((time() - backend_resource_operation_start_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"accepted|provisioning|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) > 3600) unless on (subscription_id) internal_subscription:info
@@ -5883,6 +5815,155 @@
         thresholds:
           - operator: ==
             value: 1
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_access_cluster_slo_windowed_error_alerts
+  alert: userJourneyAccessClusterErrors1h5m
+  occurrence: 1
+  input: errors:backend_credential_operation:failed_1h >= 3 and errors:backend_credential_operation:error_rate_1h > 0.72 and errors:backend_credential_operation:error_rate_5m > 0.72
+  plan:
+    expression: errors:backend_credential_operation:failed_1h >= 3 and errors:backend_credential_operation:error_rate_1h > 0.72 and errors:backend_credential_operation:error_rate_5m > 0.72
+    conditions:
+      - expression: errors:backend_credential_operation:failed_1h >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_credential_operation:failed_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_1h > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_access_cluster_slo_windowed_error_alerts
+  alert: userJourneyAccessClusterErrors3d
+  occurrence: 1
+  input: errors:backend_credential_operation:total_3d >= 10 and errors:backend_credential_operation:failed_3d >= 2 and errors:backend_credential_operation:error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_credential_operation:total_3d >= 10 and errors:backend_credential_operation:failed_3d >= 2 and errors:backend_credential_operation:error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_credential_operation:total_3d >= 10
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_credential_operation:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:backend_credential_operation:failed_3d >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_credential_operation:failed_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_access_cluster_slo_windowed_error_alerts
+  alert: userJourneyAccessClusterErrors6h30m
+  occurrence: 1
+  input: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.3 and errors:backend_credential_operation:error_rate_30m > 0.3
+  plan:
+    expression: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.3 and errors:backend_credential_operation:error_rate_30m > 0.3
+    conditions:
+      - expression: errors:backend_credential_operation:total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_credential_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_6h > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_access_cluster_slo_windowed_error_alerts
+  alert: userJourneyAccessClusterErrorsDegradation
+  occurrence: 1
+  input: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15 and errors:backend_credential_operation:error_rate_30m > 0.15
+  plan:
+    expression: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15 and errors:backend_credential_operation:error_rate_30m > 0.15
+    conditions:
+      - expression: errors:backend_credential_operation:total_6h >= 5
+        path: root/and:left/and:left/and:left
+        queries:
+          - expression: errors:backend_credential_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_credential_operation:failed_6h >= 2
+        path: root/and:left/and:left/and:right
+        queries:
+          - expression: errors:backend_credential_operation:failed_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_6h > 0.15
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_30m > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_cluster_provision_slo_latency_alerts
@@ -5910,12 +5991,12 @@
   group: arohcp_cluster_provision_slo_windowed_error_alerts
   alert: userJourneyClusterProvisionErrors1h5m
   occurrence: 1
-  input: errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72
+  input: errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72 and errors:backend_cluster_provision:error_rate_5m > 0.72
   plan:
-    expression: errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72
+    expression: errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72 and errors:backend_cluster_provision:error_rate_5m > 0.72
     conditions:
       - expression: errors:backend_cluster_provision:failed_1h >= 3
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_cluster_provision:failed_1h
             role: signal
@@ -5924,9 +6005,18 @@
             value: 3
         unsupported: ""
       - expression: errors:backend_cluster_provision:error_rate_1h > 0.72
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_5m
             role: signal
         thresholds:
           - operator: '>'
@@ -5971,35 +6061,9 @@
   group: arohcp_cluster_provision_slo_windowed_error_alerts
   alert: userJourneyClusterProvisionErrors6h30m
   occurrence: 1
-  input: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3
+  input: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3 and errors:backend_cluster_provision:error_rate_30m > 0.3
   plan:
-    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3
-    conditions:
-      - expression: errors:backend_cluster_provision:total_6h >= 5
-        path: root/and:left
-        queries:
-          - expression: errors:backend_cluster_provision:total_6h
-            role: signal
-        thresholds:
-          - operator: '>='
-            value: 5
-        unsupported: ""
-      - expression: errors:backend_cluster_provision:error_rate_6h > 0.3
-        path: root/and:right
-        queries:
-          - expression: errors:backend_cluster_provision:error_rate_6h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_cluster_provision_slo_windowed_error_alerts
-  alert: userJourneyClusterProvisionErrorsDegradation
-  occurrence: 1
-  input: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15
-  plan:
-    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15
+    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3 and errors:backend_cluster_provision:error_rate_30m > 0.3
     conditions:
       - expression: errors:backend_cluster_provision:total_6h >= 5
         path: root/and:left/and:left
@@ -6010,8 +6074,43 @@
           - operator: '>='
             value: 5
         unsupported: ""
-      - expression: errors:backend_cluster_provision:failed_6h >= 2
+      - expression: errors:backend_cluster_provision:error_rate_6h > 0.3
         path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_cluster_provision_slo_windowed_error_alerts
+  alert: userJourneyClusterProvisionErrorsDegradation
+  occurrence: 1
+  input: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15 and errors:backend_cluster_provision:error_rate_30m > 0.15
+  plan:
+    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15 and errors:backend_cluster_provision:error_rate_30m > 0.15
+    conditions:
+      - expression: errors:backend_cluster_provision:total_6h >= 5
+        path: root/and:left/and:left/and:left
+        queries:
+          - expression: errors:backend_cluster_provision:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:failed_6h >= 2
+        path: root/and:left/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:failed_6h
             role: signal
@@ -6020,9 +6119,18 @@
             value: 2
         unsupported: ""
       - expression: errors:backend_cluster_provision:error_rate_6h > 0.15
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:error_rate_30m > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_30m
             role: signal
         thresholds:
           - operator: '>'
@@ -6273,7 +6381,7 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_saturation_alerts
-  alert: UJNodePoolSaturationQueueDepth
+  alert: userJourneyNodePoolSaturationQueueDepth
   occurrence: 1
   input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10
   plan:
@@ -6290,75 +6398,7 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_slo_error_alerts
-  alert: UJNodePoolErrors1h5m
-  occurrence: 1
-  input: errors:backend_nodepool_operation:error_rate > 0.72
-  plan:
-    expression: errors:backend_nodepool_operation:error_rate > 0.72
-    conditions:
-      - expression: errors:backend_nodepool_operation:error_rate > 0.72
-        path: root
-        queries:
-          - expression: errors:backend_nodepool_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_nodepool_slo_error_alerts
-  alert: UJNodePoolErrors3d
-  occurrence: 1
-  input: errors:backend_nodepool_operation:error_rate > 0.05
-  plan:
-    expression: errors:backend_nodepool_operation:error_rate > 0.05
-    conditions:
-      - expression: errors:backend_nodepool_operation:error_rate > 0.05
-        path: root
-        queries:
-          - expression: errors:backend_nodepool_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.05
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_nodepool_slo_error_alerts
-  alert: UJNodePoolErrors6h30m
-  occurrence: 1
-  input: errors:backend_nodepool_operation:error_rate > 0.3
-  plan:
-    expression: errors:backend_nodepool_operation:error_rate > 0.3
-    conditions:
-      - expression: errors:backend_nodepool_operation:error_rate > 0.3
-        path: root
-        queries:
-          - expression: errors:backend_nodepool_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_nodepool_slo_error_alerts
-  alert: UJNodePoolErrorsDegradation
-  occurrence: 1
-  input: errors:backend_nodepool_operation:error_rate > 0.15
-  plan:
-    expression: errors:backend_nodepool_operation:error_rate > 0.15
-    conditions:
-      - expression: errors:backend_nodepool_operation:error_rate > 0.15
-        path: root
-        queries:
-          - expression: errors:backend_nodepool_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.15
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_nodepool_slo_error_alerts
-  alert: UJNodePoolStuckOperation
+  alert: userJourneyNodePoolStuckOperation
   occurrence: 1
   input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
   plan:
@@ -6370,6 +6410,155 @@
           - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
             role: signal
         thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_nodepool_slo_windowed_error_alerts
+  alert: userJourneyNodePoolErrors1h5m
+  occurrence: 1
+  input: errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72
+  plan:
+    expression: errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72
+    conditions:
+      - expression: errors:backend_nodepool_operation:failed_1h >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_nodepool_operation:failed_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_1h > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_nodepool_slo_windowed_error_alerts
+  alert: userJourneyNodePoolErrors3d
+  occurrence: 1
+  input: errors:backend_nodepool_operation:total_3d >= 10 and errors:backend_nodepool_operation:failed_3d >= 2 and errors:backend_nodepool_operation:error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_nodepool_operation:total_3d >= 10 and errors:backend_nodepool_operation:failed_3d >= 2 and errors:backend_nodepool_operation:error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_nodepool_operation:total_3d >= 10
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_nodepool_operation:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:failed_3d >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:failed_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_nodepool_slo_windowed_error_alerts
+  alert: userJourneyNodePoolErrors6h30m
+  occurrence: 1
+  input: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3
+  plan:
+    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3
+    conditions:
+      - expression: errors:backend_nodepool_operation:total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_nodepool_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_6h > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_nodepool_slo_windowed_error_alerts
+  alert: userJourneyNodePoolErrorsDegradation
+  occurrence: 1
+  input: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15
+  plan:
+    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15
+    conditions:
+      - expression: errors:backend_nodepool_operation:total_6h >= 5
+        path: root/and:left/and:left/and:left
+        queries:
+          - expression: errors:backend_nodepool_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:failed_6h >= 2
+        path: root/and:left/and:left/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:failed_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_6h > 0.15
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_30m > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: rp-user-journey-cluster-upgrade-monitor-rules
@@ -7233,78 +7422,6 @@
         unsupported: ""
 - source: observability/alerts/access-cluster-slo-prometheusRule.yaml
   group: arohcp_access_cluster_slo_error_alerts
-  alert: userJourneyAccessClusterErrors1h5m
-  occurrence: 1
-  input: |
-    errors:backend_credential_operation:error_rate > 0.72
-  plan:
-    expression: errors:backend_credential_operation:error_rate > 0.72
-    conditions:
-      - expression: errors:backend_credential_operation:error_rate > 0.72
-        path: root
-        queries:
-          - expression: errors:backend_credential_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-- source: observability/alerts/access-cluster-slo-prometheusRule.yaml
-  group: arohcp_access_cluster_slo_error_alerts
-  alert: userJourneyAccessClusterErrors3d
-  occurrence: 1
-  input: |
-    errors:backend_credential_operation:error_rate > 0.05
-  plan:
-    expression: errors:backend_credential_operation:error_rate > 0.05
-    conditions:
-      - expression: errors:backend_credential_operation:error_rate > 0.05
-        path: root
-        queries:
-          - expression: errors:backend_credential_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.05
-        unsupported: ""
-- source: observability/alerts/access-cluster-slo-prometheusRule.yaml
-  group: arohcp_access_cluster_slo_error_alerts
-  alert: userJourneyAccessClusterErrors6h30m
-  occurrence: 1
-  input: |
-    errors:backend_credential_operation:error_rate > 0.30
-  plan:
-    expression: errors:backend_credential_operation:error_rate > 0.3
-    conditions:
-      - expression: errors:backend_credential_operation:error_rate > 0.3
-        path: root
-        queries:
-          - expression: errors:backend_credential_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: observability/alerts/access-cluster-slo-prometheusRule.yaml
-  group: arohcp_access_cluster_slo_error_alerts
-  alert: userJourneyAccessClusterErrorsDegradation
-  occurrence: 1
-  input: |
-    errors:backend_credential_operation:error_rate > 0.15
-  plan:
-    expression: errors:backend_credential_operation:error_rate > 0.15
-    conditions:
-      - expression: errors:backend_credential_operation:error_rate > 0.15
-        path: root
-        queries:
-          - expression: errors:backend_credential_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.15
-        unsupported: ""
-- source: observability/alerts/access-cluster-slo-prometheusRule.yaml
-  group: arohcp_access_cluster_slo_error_alerts
   alert: userJourneyAccessClusterStuckOperation
   occurrence: 1
   input: |
@@ -7340,6 +7457,177 @@
         thresholds:
           - operator: ==
             value: 1
+        unsupported: ""
+- source: observability/alerts/access-cluster-slo-prometheusRule.yaml
+  group: arohcp_access_cluster_slo_windowed_error_alerts
+  alert: userJourneyAccessClusterErrors1h5m
+  occurrence: 1
+  input: |
+    errors:backend_credential_operation:failed_1h >= 3
+    and
+    errors:backend_credential_operation:error_rate_1h > 0.72
+    and
+    errors:backend_credential_operation:error_rate_5m > 0.72
+  plan:
+    expression: errors:backend_credential_operation:failed_1h >= 3 and errors:backend_credential_operation:error_rate_1h > 0.72 and errors:backend_credential_operation:error_rate_5m > 0.72
+    conditions:
+      - expression: errors:backend_credential_operation:failed_1h >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_credential_operation:failed_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_1h > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: observability/alerts/access-cluster-slo-prometheusRule.yaml
+  group: arohcp_access_cluster_slo_windowed_error_alerts
+  alert: userJourneyAccessClusterErrors3d
+  occurrence: 1
+  input: |
+    errors:backend_credential_operation:total_3d >= 10
+    and
+    errors:backend_credential_operation:failed_3d >= 2
+    and
+    errors:backend_credential_operation:error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_credential_operation:total_3d >= 10 and errors:backend_credential_operation:failed_3d >= 2 and errors:backend_credential_operation:error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_credential_operation:total_3d >= 10
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_credential_operation:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:backend_credential_operation:failed_3d >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_credential_operation:failed_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: observability/alerts/access-cluster-slo-prometheusRule.yaml
+  group: arohcp_access_cluster_slo_windowed_error_alerts
+  alert: userJourneyAccessClusterErrors6h30m
+  occurrence: 1
+  input: |
+    errors:backend_credential_operation:total_6h >= 5
+    and
+    errors:backend_credential_operation:error_rate_6h > 0.30
+    and
+    errors:backend_credential_operation:error_rate_30m > 0.30
+  plan:
+    expression: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.3 and errors:backend_credential_operation:error_rate_30m > 0.3
+    conditions:
+      - expression: errors:backend_credential_operation:total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_credential_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_6h > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: observability/alerts/access-cluster-slo-prometheusRule.yaml
+  group: arohcp_access_cluster_slo_windowed_error_alerts
+  alert: userJourneyAccessClusterErrorsDegradation
+  occurrence: 1
+  input: |
+    errors:backend_credential_operation:total_6h >= 5
+    and
+    errors:backend_credential_operation:failed_6h >= 2
+    and
+    errors:backend_credential_operation:error_rate_6h > 0.15
+    and
+    errors:backend_credential_operation:error_rate_30m > 0.15
+  plan:
+    expression: errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15 and errors:backend_credential_operation:error_rate_30m > 0.15
+    conditions:
+      - expression: errors:backend_credential_operation:total_6h >= 5
+        path: root/and:left/and:left/and:left
+        queries:
+          - expression: errors:backend_credential_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_credential_operation:failed_6h >= 2
+        path: root/and:left/and:left/and:right
+        queries:
+          - expression: errors:backend_credential_operation:failed_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_6h > 0.15
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: errors:backend_credential_operation:error_rate_30m > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_credential_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
         unsupported: ""
 - source: observability/alerts/arobit-prometheusRule.yaml
   group: arobit-rules
@@ -7470,11 +7758,13 @@
     errors:backend_cluster_provision:failed_1h >= 3
     and
     errors:backend_cluster_provision:error_rate_1h > 0.72
+    and
+    errors:backend_cluster_provision:error_rate_5m > 0.72
   plan:
-    expression: errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72
+    expression: errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72 and errors:backend_cluster_provision:error_rate_5m > 0.72
     conditions:
       - expression: errors:backend_cluster_provision:failed_1h >= 3
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_cluster_provision:failed_1h
             role: signal
@@ -7483,9 +7773,18 @@
             value: 3
         unsupported: ""
       - expression: errors:backend_cluster_provision:error_rate_1h > 0.72
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_5m
             role: signal
         thresholds:
           - operator: '>'
@@ -7539,11 +7838,13 @@
     errors:backend_cluster_provision:total_6h >= 5
     and
     errors:backend_cluster_provision:error_rate_6h > 0.30
+    and
+    errors:backend_cluster_provision:error_rate_30m > 0.30
   plan:
-    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3
+    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3 and errors:backend_cluster_provision:error_rate_30m > 0.3
     conditions:
       - expression: errors:backend_cluster_provision:total_6h >= 5
-        path: root/and:left
+        path: root/and:left/and:left
         queries:
           - expression: errors:backend_cluster_provision:total_6h
             role: signal
@@ -7552,9 +7853,18 @@
             value: 5
         unsupported: ""
       - expression: errors:backend_cluster_provision:error_rate_6h > 0.3
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_30m
             role: signal
         thresholds:
           - operator: '>'
@@ -7570,11 +7880,13 @@
     errors:backend_cluster_provision:failed_6h >= 2
     and
     errors:backend_cluster_provision:error_rate_6h > 0.15
+    and
+    errors:backend_cluster_provision:error_rate_30m > 0.15
   plan:
-    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15
+    expression: errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15 and errors:backend_cluster_provision:error_rate_30m > 0.15
     conditions:
       - expression: errors:backend_cluster_provision:total_6h >= 5
-        path: root/and:left/and:left
+        path: root/and:left/and:left/and:left
         queries:
           - expression: errors:backend_cluster_provision:total_6h
             role: signal
@@ -7583,7 +7895,7 @@
             value: 5
         unsupported: ""
       - expression: errors:backend_cluster_provision:failed_6h >= 2
-        path: root/and:left/and:right
+        path: root/and:left/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:failed_6h
             role: signal
@@ -7592,9 +7904,18 @@
             value: 2
         unsupported: ""
       - expression: errors:backend_cluster_provision:error_rate_6h > 0.15
-        path: root/and:right
+        path: root/and:left/and:right
         queries:
           - expression: errors:backend_cluster_provision:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: errors:backend_cluster_provision:error_rate_30m > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_cluster_provision:error_rate_30m
             role: signal
         thresholds:
           - operator: '>'
@@ -9898,7 +10219,7 @@
         unsupported: ""
 - source: observability/alerts/nodepool-slo-prometheusRule.yaml
   group: arohcp_nodepool_saturation_alerts
-  alert: UJNodePoolSaturationQueueDepth
+  alert: userJourneyNodePoolSaturationQueueDepth
   occurrence: 1
   input: |
     max by (name, cluster) (
@@ -9920,79 +10241,7 @@
         unsupported: ""
 - source: observability/alerts/nodepool-slo-prometheusRule.yaml
   group: arohcp_nodepool_slo_error_alerts
-  alert: UJNodePoolErrors1h5m
-  occurrence: 1
-  input: |
-    errors:backend_nodepool_operation:error_rate > 0.72
-  plan:
-    expression: errors:backend_nodepool_operation:error_rate > 0.72
-    conditions:
-      - expression: errors:backend_nodepool_operation:error_rate > 0.72
-        path: root
-        queries:
-          - expression: errors:backend_nodepool_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-- source: observability/alerts/nodepool-slo-prometheusRule.yaml
-  group: arohcp_nodepool_slo_error_alerts
-  alert: UJNodePoolErrors3d
-  occurrence: 1
-  input: |
-    errors:backend_nodepool_operation:error_rate > 0.05
-  plan:
-    expression: errors:backend_nodepool_operation:error_rate > 0.05
-    conditions:
-      - expression: errors:backend_nodepool_operation:error_rate > 0.05
-        path: root
-        queries:
-          - expression: errors:backend_nodepool_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.05
-        unsupported: ""
-- source: observability/alerts/nodepool-slo-prometheusRule.yaml
-  group: arohcp_nodepool_slo_error_alerts
-  alert: UJNodePoolErrors6h30m
-  occurrence: 1
-  input: |
-    errors:backend_nodepool_operation:error_rate > 0.30
-  plan:
-    expression: errors:backend_nodepool_operation:error_rate > 0.3
-    conditions:
-      - expression: errors:backend_nodepool_operation:error_rate > 0.3
-        path: root
-        queries:
-          - expression: errors:backend_nodepool_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.3
-        unsupported: ""
-- source: observability/alerts/nodepool-slo-prometheusRule.yaml
-  group: arohcp_nodepool_slo_error_alerts
-  alert: UJNodePoolErrorsDegradation
-  occurrence: 1
-  input: |
-    errors:backend_nodepool_operation:error_rate > 0.15
-  plan:
-    expression: errors:backend_nodepool_operation:error_rate > 0.15
-    conditions:
-      - expression: errors:backend_nodepool_operation:error_rate > 0.15
-        path: root
-        queries:
-          - expression: errors:backend_nodepool_operation:error_rate
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.15
-        unsupported: ""
-- source: observability/alerts/nodepool-slo-prometheusRule.yaml
-  group: arohcp_nodepool_slo_error_alerts
-  alert: UJNodePoolStuckOperation
+  alert: userJourneyNodePoolStuckOperation
   occurrence: 1
   input: |
     max by (
@@ -10024,6 +10273,177 @@
           - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
             role: signal
         thresholds: []
+        unsupported: ""
+- source: observability/alerts/nodepool-slo-prometheusRule.yaml
+  group: arohcp_nodepool_slo_windowed_error_alerts
+  alert: userJourneyNodePoolErrors1h5m
+  occurrence: 1
+  input: |
+    errors:backend_nodepool_operation:failed_1h >= 3
+    and
+    errors:backend_nodepool_operation:error_rate_1h > 0.72
+    and
+    errors:backend_nodepool_operation:error_rate_5m > 0.72
+  plan:
+    expression: errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72
+    conditions:
+      - expression: errors:backend_nodepool_operation:failed_1h >= 3
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_nodepool_operation:failed_1h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_1h > 0.72
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_5m > 0.72
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_5m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+- source: observability/alerts/nodepool-slo-prometheusRule.yaml
+  group: arohcp_nodepool_slo_windowed_error_alerts
+  alert: userJourneyNodePoolErrors3d
+  occurrence: 1
+  input: |
+    errors:backend_nodepool_operation:total_3d >= 10
+    and
+    errors:backend_nodepool_operation:failed_3d >= 2
+    and
+    errors:backend_nodepool_operation:error_rate_3d > 0.05
+  plan:
+    expression: errors:backend_nodepool_operation:total_3d >= 10 and errors:backend_nodepool_operation:failed_3d >= 2 and errors:backend_nodepool_operation:error_rate_3d > 0.05
+    conditions:
+      - expression: errors:backend_nodepool_operation:total_3d >= 10
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_nodepool_operation:total_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 10
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:failed_3d >= 2
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:failed_3d
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_3d > 0.05
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_3d
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+- source: observability/alerts/nodepool-slo-prometheusRule.yaml
+  group: arohcp_nodepool_slo_windowed_error_alerts
+  alert: userJourneyNodePoolErrors6h30m
+  occurrence: 1
+  input: |
+    errors:backend_nodepool_operation:total_6h >= 5
+    and
+    errors:backend_nodepool_operation:error_rate_6h > 0.30
+    and
+    errors:backend_nodepool_operation:error_rate_30m > 0.30
+  plan:
+    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3
+    conditions:
+      - expression: errors:backend_nodepool_operation:total_6h >= 5
+        path: root/and:left/and:left
+        queries:
+          - expression: errors:backend_nodepool_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_6h > 0.3
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_30m > 0.3
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+- source: observability/alerts/nodepool-slo-prometheusRule.yaml
+  group: arohcp_nodepool_slo_windowed_error_alerts
+  alert: userJourneyNodePoolErrorsDegradation
+  occurrence: 1
+  input: |
+    errors:backend_nodepool_operation:total_6h >= 5
+    and
+    errors:backend_nodepool_operation:failed_6h >= 2
+    and
+    errors:backend_nodepool_operation:error_rate_6h > 0.15
+    and
+    errors:backend_nodepool_operation:error_rate_30m > 0.15
+  plan:
+    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15
+    conditions:
+      - expression: errors:backend_nodepool_operation:total_6h >= 5
+        path: root/and:left/and:left/and:left
+        queries:
+          - expression: errors:backend_nodepool_operation:total_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 5
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:failed_6h >= 2
+        path: root/and:left/and:left/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:failed_6h
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_6h > 0.15
+        path: root/and:left/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_6h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: errors:backend_nodepool_operation:error_rate_30m > 0.15
+        path: root/and:right
+        queries:
+          - expression: errors:backend_nodepool_operation:error_rate_30m
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
         unsupported: ""
 - source: observability/alerts/prometheus-prometheusRule.yaml
   group: prometheus-operator-rules

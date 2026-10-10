@@ -44,7 +44,7 @@ spec:
   # `for` is a short pending duration only, not a substitute for the short
   # window. Slow uses 3d long + 6h short at 1x.
   #
-  # Fast/medium Errors + Latency page Sev 3 (customer-facing UJ).
+  # Fast/medium Errors + Latency page Sev 3 (customer-facing user journey).
   # Slow/traffic/saturation Sev 4 ticket.
   #
   # summary includes {{ $labels.cluster }} (Access / Node Pool convention; prometheus-rules

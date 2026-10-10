@@ -57,23 +57,23 @@ tests:
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/a", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
     values: "1+0x40"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/a", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "0+0x40"
+    values: "0+60x40"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/b", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/b", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "0+0x40"
+    values: "0+60x40"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/c", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/c", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "0+0x40"
+    values: "0+60x40"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/d", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/d", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "0+0x40"
+    values: "0+60x40"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/e", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x40"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/2/cluster/e", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "0+0x40"
+    values: "0+60x40"
   promql_expr_test:
   - expr: errors:backend_cluster_provision:error_rate_1h
     eval_time: 10m
@@ -123,27 +123,27 @@ tests:
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/a", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
     values: "1+0x70"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/a", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "0+0x70"
+    values: "0+60x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/b", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
     values: "1+0x70"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/b", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "0+0x70"
+    values: "0+60x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/c", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
     values: "1+0x70"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/c", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
-    values: "0+0x70"
+    values: "0+60x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/d", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x70"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/d", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "0+0x70"
+    values: "0+60x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/e", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x70"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/e", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "0+0x70"
+    values: "0+60x70"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/f", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
     values: "1+0x70"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/sub/4/cluster/f", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
-    values: "0+0x70"
+    values: "0+60x70"
   promql_expr_test:
   - expr: errors:backend_cluster_provision:error_rate_6h
     eval_time: 10m
@@ -175,6 +175,7 @@ tests:
         component: slo
         long_window: 6h
         severity: "4"
+        short_window: 30m
         slo: cluster-provision-errors
       exp_annotations:
         summary: "mgmt-1: Cluster create operation failure rate exceeds 15% over 6h"
