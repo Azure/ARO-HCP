@@ -6237,41 +6237,6 @@
             value: 0.85
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
-  group: arohcp_frontend_slo_traffic_alerts
-  alert: userJourneyFrontendTrafficDrop
-  occurrence: 1
-  input: (avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5 and sli:frontend:ready:ratio5m > 0
-  plan:
-    expression: (avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5 and sli:frontend:ready:ratio5m > 0
-    conditions:
-      - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-        path: root/and:left/and:left
-        queries:
-          - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[15m])
-            role: left
-          - expression: 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-            role: right
-        thresholds: []
-        unsupported: ""
-      - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5
-        path: root/and:left/and:right
-        queries:
-          - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.5
-        unsupported: ""
-      - expression: sli:frontend:ready:ratio5m > 0
-        path: root/and:right
-        queries:
-          - expression: sli:frontend:ready:ratio5m
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_saturation_alerts
   alert: UJNodePoolSaturationQueueDepth
   occurrence: 1
@@ -8084,49 +8049,6 @@
         thresholds:
           - operator: '>'
             value: 0.85
-        unsupported: ""
-- source: observability/alerts/frontend-slo-prometheusRule.yaml
-  group: arohcp_frontend_slo_traffic_alerts
-  alert: userJourneyFrontendTrafficDrop
-  occurrence: 1
-  input: |
-    (
-      avg_over_time(traffic:frontend_http:request_rate:rate5m[15m])
-      < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-    )
-    and
-    avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5
-    and
-    sli:frontend:ready:ratio5m > 0
-  plan:
-    expression: (avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5 and sli:frontend:ready:ratio5m > 0
-    conditions:
-      - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-        path: root/and:left/and:left
-        queries:
-          - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[15m])
-            role: left
-          - expression: 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-            role: right
-        thresholds: []
-        unsupported: ""
-      - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5
-        path: root/and:left/and:right
-        queries:
-          - expression: avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.5
-        unsupported: ""
-      - expression: sli:frontend:ready:ratio5m > 0
-        path: root/and:right
-        queries:
-          - expression: sli:frontend:ready:ratio5m
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0
         unsupported: ""
 - source: observability/alerts/hcp-test-clusters-prometheusRule.yaml
   group: hcp-test-clusters-rules
