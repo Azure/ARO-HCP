@@ -60,7 +60,7 @@ require (
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
-	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect
+	k8s.io/utils v0.0.0-20260617174310-a95e086a2553 // indirect
 )
 
 replace github.com/Azure/ARO-HCP/internal => ../../internal
