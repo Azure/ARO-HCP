@@ -21,6 +21,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -178,9 +180,12 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				val := "should succeed"
 				update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
 					Identity: toIdentityUpdate(clusterParams.Identity),
-					Tags: map[string]*string{
+					// Per RPC-Patch-V1-04 these tags replace every tag on the cluster, so the
+					// new tag has to ride along with the tags the cluster was created with
+					// rather than be sent on its own.
+					Tags: framework.TagsForPatch(clusterParams.Tags, map[string]*string{
 						"test": &val,
-					},
+					}),
 				}
 				resp, err := framework.UpdateHCPCluster20240610(
 					ctx,
@@ -208,6 +213,16 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(respGet.Tags).ToNot(BeNil(), "GET response Tags was nil")
 				Expect(respGet.Tags["test"]).ToNot(BeNil(), "GET response Tags[\"test\"] was nil")
 				Expect(*respGet.Tags["test"]).To(Equal(val), "GET response Tags[\"test\"] should equal %q after update", val)
+
+				By("verifying the tags the cluster was created with survived the PATCH")
+				// PATCH replaces the whole tag collection, so a body that forgets a
+				// pre-existing tag silently deletes it. Losing the size override stalls the
+				// update and blocks resource group cleanup, so assert it explicitly here
+				// rather than discovering it at teardown.
+				Expect(respGet.Tags[metadataapi.TagClusterSizeOverride]).ToNot(BeNil(),
+					"GET response Tags[%q] was nil; the PATCH dropped a tag the cluster was created with", metadataapi.TagClusterSizeOverride)
+				Expect(*respGet.Tags[metadataapi.TagClusterSizeOverride]).To(Equal(string(coreapi.MinimalControlPlanePodSizing)),
+					"GET response Tags[%q] should still equal %q after update", metadataapi.TagClusterSizeOverride, coreapi.MinimalControlPlanePodSizing)
 			},
 		)
 	})

@@ -270,6 +270,32 @@ func applyCPOImageOverride(tags map[string]*string) {
 	}
 }
 
+// TagsForPatch returns the complete tag set a PATCH body must carry.
+//
+// Per ARM RPC-Patch-V1-04 the tags in a PATCH request replace all existing tags on the
+// resource, so a PATCH that sends only the tag it wants to change deletes every other
+// tag. That includes the experimental tags this suite depends on, above all
+// aro-hcp.experimental.cluster.size-override, whose loss both stalls the update and
+// makes resource group cleanup refuse to delete the cluster.
+//
+// Pass the tags the resource was created with (ClusterParams.Tags) as base and the keys
+// to change as overrides. A nil override value removes that key from the result. The
+// base map is never mutated.
+func TagsForPatch(base, overrides map[string]*string) map[string]*string {
+	tags := maps.Clone(base)
+	if tags == nil {
+		tags = map[string]*string{}
+	}
+	for key, value := range overrides {
+		if value == nil {
+			delete(tags, key)
+			continue
+		}
+		tags[key] = value
+	}
+	return tags
+}
+
 // NodePoolAutoScalingParams contains min/max node counts for nodepool autoscaling
 type NodePoolAutoScalingParams struct {
 	Min int32
