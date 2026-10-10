@@ -457,6 +457,15 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, t 
 						variable: types.Value{Input: &specificStep.IdentityFrom},
 						ref:      fmt.Sprintf("resourceGroups[%d].steps[%d].identityFrom", i, j),
 					})
+				case "SafeFly":
+					specificStep, ok := step.(*types.SafeFlyStep)
+					if !ok {
+						return fmt.Errorf("%s: resourceGroups[%d].steps[%d]: have action %q, expected *types.SafeFlyStep, but got %T", service.ServiceGroup, i, j, step.ActionType(), step)
+					}
+					variables = append(variables, variableRef{
+						variable: specificStep.ShellIdentity,
+						ref:      fmt.Sprintf("resourceGroups[%d].steps[%d].shellIdentity", i, j),
+					})
 				}
 			}
 		}
