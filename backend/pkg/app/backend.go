@@ -73,11 +73,15 @@ type BackendOptions struct {
 	// and is also exposed through backend_insecure_mock_managed_identities_enabled.
 	// Controllers that create Azure resources only a real FPA can create (e.g.
 	// deny assignments) are disabled when this is false (dev/int environments).
-	HasRealFPA                                          bool
-	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
-	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
-	ExitOnPanic                                         bool
-	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
+	HasRealFPA                        bool
+	BackendIdentityAzureClients       *azureclient.BackendIdentityAzureClients
+	BackendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
+	ExitOnPanic                       bool
+	FPAMIDataplaneClientBuilder       azureclient.FPAMIDataplaneClientBuilder
+	// HardcodedIdentity is the identity used for the cluster's control plane operator identities and the cluster's service managed identity when
+	// the Managed Identities Data Plane service is not available.
+	// HardcodedIdentity is nil when the real Managed Identities Data Plane is available.
+	HardcodedIdentity                                   *azureclient.HardcodedIdentity
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	BackupConfig                                        *clusterbackups.BackupConfig
 	SMIClientBuilder                                    azureclient.ServiceManagedIdentityClientBuilder
