@@ -115,7 +115,7 @@ func TestSimulationRunningAboveCeilingDoesNotReleaseQuota(t *testing.T) {
 	// The undesired pool is shrunk only after growth is considered, so its
 	// lowered ceiling is visible to the create decision. All 20 vCPUs are still
 	// running after an external maximum reduction.
-	desired := []compute.Pool{pool("new", specD4v3, "2", 1, 32)}
+	desired := []compute.Pool{pool("new", specD4v3, "1", 1, 32)}
 	current := []PoolState{poolState("old", specD4v3, "1", 2, 32, true, 5)}
 	budgets := map[compute.VMFamily]int64{specD4v3.Family: 0}
 	drained := requireSimulation(t, desired, current, budgets, true, 20)
