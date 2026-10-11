@@ -15,6 +15,7 @@
 interval: "5m"
 timeout: "30s"
 cacheTTL: "24h"
+exitOnPanic: {{ .opstool.tenantQuota.exitOnPanic }}
 prow:
   enabled: {{ .opstool.tenantQuota.prow.enabled }}
   baseURL: "{{ .opstool.tenantQuota.prow.baseURL }}"
@@ -45,15 +46,25 @@ ciJobOutcomes:
   testResults:
     table: "{{ .opstool.tenantQuota.ciJobOutcomes.testResults.table }}"
     ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.testResults.ingestionMapping }}"
-  sippyURI: "{{ .opstool.tenantQuota.ciJobOutcomes.sippyURI }}"
+  discovered:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.discovered.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.discovered.ingestionMapping }}"
+  processed:
+    table: "{{ .opstool.tenantQuota.ciJobOutcomes.processed.table }}"
+    ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.processed.ingestionMapping }}"
+  gcsBucket: "{{ .opstool.tenantQuota.ciJobOutcomes.gcsBucket }}"
   jobFilter: "{{ .opstool.tenantQuota.ciJobOutcomes.jobFilter }}"
   interval: "{{ .opstool.tenantQuota.ciJobOutcomes.interval }}"
-  timeout: "{{ .opstool.tenantQuota.ciJobOutcomes.timeout }}"
+  discoveryInterval: "{{ .opstool.tenantQuota.ciJobOutcomes.discoveryInterval }}"
+  completionDelay: "{{ .opstool.tenantQuota.ciJobOutcomes.completionDelay }}"
   window: "{{ .opstool.tenantQuota.ciJobOutcomes.window }}"
-  releases:
-{{- range .opstool.tenantQuota.ciJobOutcomes.releases }}
-  - "{{ . }}"
-{{- end }}
+  startupSince: "{{ with index .opstool.tenantQuota.ciJobOutcomes "startupSince" }}{{ . }}{{ end }}"
+  repairInterval: "{{ .opstool.tenantQuota.ciJobOutcomes.repairInterval }}"
+  overlap: "{{ .opstool.tenantQuota.ciJobOutcomes.overlap }}"
+  workers: {{ .opstool.tenantQuota.ciJobOutcomes.workers }}
+  discoveryWorkers: {{ .opstool.tenantQuota.ciJobOutcomes.discoveryWorkers }}
+  cacheSize: {{ .opstool.tenantQuota.ciJobOutcomes.cacheSize }}
+  cacheTTL: "{{ .opstool.tenantQuota.ciJobOutcomes.cacheTTL }}"
 tenants:
 {{- range .opstool.tenantQuota.tenants }}
 - tenantId: "{{ .tenantId }}"

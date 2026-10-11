@@ -43,7 +43,7 @@ import (
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
-	hcpsdk20261001preview "github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -266,7 +266,7 @@ func verifyACRPullFromNodes(ctx context.Context, adminRESTConfig *rest.Config, n
 // in test/util/framework/constants.go and CreateClusterCustomerResources20261001, which this test
 // does not control).
 var _ = Describe("Customer", func() {
-	timeBombDeadline := framework.V20261001PreviewDeploymentDeadline
+	timeBombDeadline := framework.V20261001DeploymentDeadline
 
 	It("should be able to create a cluster with ACR pull via managed identity and pull from a private ACR",
 		labels.RequireNothing,
@@ -425,9 +425,9 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name, customerClusterName, clusterResource, framework.ClusterCreationTimeout)
 			if framework.IsAPINotDeployedError(err) {
 				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20261001preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
+					Skip(fmt.Sprintf("v20261001 API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
 				}
-				Fail(fmt.Sprintf("v20261001preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
+				Fail(fmt.Sprintf("v20261001 API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster with containerRegistry set")
 
@@ -570,10 +570,10 @@ var _ = Describe("Customer", func() {
 			By("[day 2] updating containerRegistry.managedIdentity to the day 2 MI via PATCH")
 			updateResp, err := framework.UpdateHCPCluster20261001(ctx, hcpClient,
 				*resourceGroup.Name, customerClusterName,
-				hcpsdk20261001preview.HcpOpenShiftCluster{
-					Properties: &hcpsdk20261001preview.HcpOpenShiftClusterProperties{
-						Platform: &hcpsdk20261001preview.PlatformProfile{
-							ContainerRegistry: &hcpsdk20261001preview.ContainerRegistryProfile{
+				hcpsdk20261001.HcpOpenShiftCluster{
+					Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
+						Platform: &hcpsdk20261001.PlatformProfile{
+							ContainerRegistry: &hcpsdk20261001.ContainerRegistryProfile{
 								ManagedIdentity: to.Ptr(day2MIResourceID),
 							},
 						},
@@ -584,7 +584,7 @@ var _ = Describe("Customer", func() {
 			Expect(updateResp).NotTo(BeNil(), "containerRegistry update response was nil")
 			Expect(updateResp.Properties).NotTo(BeNil(), "containerRegistry update response Properties was nil")
 			Expect(updateResp.Properties.ProvisioningState).NotTo(BeNil(), "containerRegistry update response ProvisioningState was nil")
-			Expect(*updateResp.Properties.ProvisioningState).To(Equal(hcpsdk20261001preview.ProvisioningStateSucceeded),
+			Expect(*updateResp.Properties.ProvisioningState).To(Equal(hcpsdk20261001.ProvisioningStateSucceeded),
 				"cluster provisioning state should be Succeeded after the containerRegistry update")
 
 			By("[day 2] verifying the cluster reports the day 2 MI via GET")

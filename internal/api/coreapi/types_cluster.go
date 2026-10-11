@@ -310,12 +310,19 @@ type CustomerManagedEncryptionProfile struct {
 	Kms            *KmsEncryptionProfile                     `json:"kms,omitempty"`
 }
 
+const (
+	KmsKeyVaultTypeKeyVault   = "KeyVault"
+	KmsKeyVaultTypeManagedHSM = "ManagedHSM"
+)
+
 // KmsEncryptionProfile represents a data encryption configuration for ETCD using
 // customer-managed Key Management Service (KMS) keys.
 // Visibility for the entire struct is "read create".
 type KmsEncryptionProfile struct {
 	Visibility metadataapi.KeyVaultVisibility `json:"visibility,omitempty"`
 	ActiveKey  KmsKey                         `json:"activeKey,omitempty"`
+	// Written by: Frontend PUT Cluster (Create)
+	KeyVaultType string `json:"keyVaultType,omitempty"`
 }
 
 // KmsKey represents an Azure KeyVault secret.
@@ -435,10 +442,13 @@ func (cluster *Cluster) EnsureDefaults() {
 	}
 	// Default KMS Visibility to Public for clusters created via v2024_06_10_preview
 	// (which doesn't expose the visibility field and assumes public KeyVaults).
-	if cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
-		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil &&
-		len(cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility) == 0 {
-		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+	if cm := cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; cm != nil && cm.Kms != nil {
+		if len(cm.Kms.Visibility) == 0 {
+			cm.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+		}
+		if len(cm.Kms.KeyVaultType) == 0 {
+			cm.Kms.KeyVaultType = KmsKeyVaultTypeKeyVault
+		}
 	}
 }
 

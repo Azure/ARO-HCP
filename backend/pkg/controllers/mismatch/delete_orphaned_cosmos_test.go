@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -214,6 +215,58 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSweepOrphanedDesires_StaleParentSnapshot covers a cluster created after the sweep
+// listed the subscription's resources. Its desires are missing from the parent map, but
+// the cluster exists in Cosmos, so they must survive. A desire whose parent is really
+// gone must still be deleted.
+func TestSweepOrphanedDesires_StaleParentSnapshot(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mgmtA := mustParseResourceID(t, "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/"+testMgmtClusterA)
+
+	resourcesClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
+		subscription(t),
+		cluster(t, testLiveCluster),
+		nodePool(t, testLiveCluster, testLiveNodePool),
+	})
+	require.NoError(t, err)
+
+	liveClusterDesire := newApplyDesire(t, mgmtA, kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
+		testSubscriptionID, testResourceGroup, testLiveCluster, "hostedcluster"))
+	liveNodePoolDesire := newApplyDesire(t, mgmtA, kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
+		testSubscriptionID, testResourceGroup, testLiveCluster, testLiveNodePool, "nodepool"))
+	missingClusterDesire := newApplyDesire(t, mgmtA, kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
+		testSubscriptionID, testResourceGroup, testMissingCluster, "hostedcluster"))
+
+	mock, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
+		liveClusterDesire, liveNodePoolDesire, missingClusterDesire,
+	})
+	require.NoError(t, err)
+	kubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+	kubeApplierClients.Register(mgmtA, mock)
+
+	c := &deleteOrphanedCosmosResources{
+		name:                 "DeleteOrphanedCosmosResources",
+		resourcesDBClient:    resourcesClient,
+		kubeApplierDBClients: kubeApplierClients,
+		managementClusterLister: &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{
+			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: mgmtA, PartitionKey: strings.ToLower(mgmtA.SubscriptionID)},
+		}}},
+	}
+
+	// An empty map stands in for a snapshot taken before the live cluster was created.
+	staleSnapshot := map[string]*cosmosstorageutils.TypedDocument{}
+	subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(testSubscriptionID))
+	require.NoError(t, c.sweepOrphanedDesires(ctx, subscriptionResourceID, staleSnapshot))
+
+	_, found := mock.GetDocument(cosmosIDForDesire(t, liveClusterDesire))
+	assert.True(t, found, "desire under a cluster missing from the stale snapshot but present in Cosmos must survive")
+	_, found = mock.GetDocument(cosmosIDForDesire(t, liveNodePoolDesire))
+	assert.True(t, found, "desire under a nodepool missing from the stale snapshot but present in Cosmos must survive")
+	_, found = mock.GetDocument(cosmosIDForDesire(t, missingClusterDesire))
+	assert.False(t, found, "desire under a cluster that is really gone must be deleted")
 }
 
 func cosmosIDForDesire(t *testing.T, d *kubeapplierapi.ApplyDesire) string {

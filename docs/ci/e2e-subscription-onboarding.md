@@ -100,7 +100,7 @@ A brand-new subscription typically has no Azure resource providers registered be
    - Before deploying the billing setting, the pipeline registers `Microsoft.CostManagement` on the same hosted-cluster and opted-in infrastructure subscriptions and waits for `Registered`. The sibling general-provider branch does not cover the E2E infrastructure subscription or order itself before the billing deployment.
 
 7. Validate the end-to-end path.
-   - Read back `GET /subscriptions/<id>/providers/Microsoft.CostManagement/settings/taginheritance?api-version=2025-03-01` for each target subscription. Confirm `kind: taginheritance` and `properties.preferContainerTags: false`; a missing setting or failed readback means onboarding is incomplete. Inherited tags appear in Cost Management usage records, not on the Azure resources themselves; usage records can take 8–24 hours to update.
+   - Read back `GET /subscriptions/<id>/providers/Microsoft.CostManagement/settings/taginheritance?api-version=2025-03-01` for each target subscription. Confirm `name: taginheritance`, `type: Microsoft.CostManagement/Settings`, subscription scope, and `properties.preferContainerTags: false`; a missing setting or failed readback means onboarding is incomplete. The API currently omits `kind` from GET even though it is required in PUT. Inherited tags appear in Cost Management usage records, not on the Azure resources themselves; usage records can take 8–24 hours to update.
    - Confirm `slot-manager acquire` can resolve the new pool using the updated cluster profile inventory.
    - Run a DEV rehearsal expected to target the new shard.
    - Verify customer-resource creation in the new subscription succeeds without Azure `AuthorizationFailed` errors.
@@ -128,8 +128,7 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
 - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
-- `dev-infrastructure/configurations/cost-tag-inheritance.tmpl.bicepparam`
-- `dev-infrastructure/templates/cost-tag-inheritance-subscription.bicep`
+- `dev-infrastructure/scripts/e2e-enable-cost-tag-inheritance.sh` — applies and verifies the billing setting through REST; the provider's GET response lacks `kind`, which causes ARM deployments to report failure after persisting the setting.
 - [Dev-CI Topology](dev-ci-topology.md)
 - [CI Identity Leasing](identity-leasing.md)
 

@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
@@ -180,7 +182,7 @@ func TestGomegaZeroDepthHidesNegativeEqualEnum(t *testing.T) {
 
 func TestGomegaAzureErrorOutput(t *testing.T) {
 	useProductionGomegaFormatting(t)
-	request, err := http.NewRequest(http.MethodGet, "https://example.com/operations/test", nil)
+	request, err := http.NewRequest(http.MethodGet, "https://secret-user:secret-password@example.com/operations/test?sig=secret-query#secret-fragment", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,6 +200,9 @@ func TestGomegaAzureErrorOutput(t *testing.T) {
 			},
 		},
 	}
+	request.Header.Set("Authorization", "Bearer secret-token")
+	request.Header.Set(coreapi.HeaderNameClientRequestID, "client-from-request")
+	responseErr.RawResponse.Header.Set(coreapi.HeaderNameCorrelationRequestID, "correlation-from-response")
 	wrapped := fmt.Errorf("create node pool: %w", fmt.Errorf("poll operation: %w", responseErr))
 	for _, tc := range []struct {
 		name string
@@ -228,15 +233,19 @@ func TestGomegaAzureErrorOutput(t *testing.T) {
 					}
 					output := failures.messages[0]
 					for _, fragment := range append([]string{
-						"node pool must become ready", "GET https://example.com/operations/test",
+						"node pool must become ready",
 						"RESPONSE 200:", "ERROR CODE: DeadlineExceeded", "waiting for nodes",
 						"<Azure error internals omitted>",
+						"Azure request IDs:", "correlation ID: correlation-from-response", "client request ID: client-from-request",
 					}, tc.want...) {
 						if strings.Count(output, fragment) != 1 {
 							t.Errorf("expected %q exactly once in failure output:\n%s", fragment, output)
 						}
 					}
-					for _, fragment := range []string{"RawResponse:", "PeerCertificates:", "transport-only-header", "errMsg:"} {
+					if strings.Count(output, "GET https://example.com/operations/test") != 2 {
+						t.Errorf("expected request URI in both error text and ID entry:\n%s", output)
+					}
+					for _, fragment := range []string{"RawResponse:", "PeerCertificates:", "transport-only-header", "errMsg:", "secret-user", "secret-password", "secret-query", "secret-fragment", "secret-token"} {
 						if strings.Contains(output, fragment) {
 							t.Errorf("unexpected error internals %q in failure output:\n%s", fragment, output)
 						}
@@ -247,5 +256,91 @@ func TestGomegaAzureErrorOutput(t *testing.T) {
 	}
 	if output := format.Object(errors.New("unrelated failure"), 1); !strings.Contains(output, `s: "unrelated failure"`) {
 		t.Errorf("non-Azure error reflection must remain unchanged:\n%s", output)
+	}
+}
+
+func TestFormatAzureErrorRequestIDs(t *testing.T) {
+	request, err := http.NewRequest(http.MethodPut, "https://user:password@example.com/resources/a%2Fb?sig=secret#fragment", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set(coreapi.HeaderNameCorrelationRequestID, "request-correlation")
+	request.Header.Set(coreapi.HeaderNameClientRequestID, "request-client")
+	header := http.Header{}
+	header.Set(coreapi.HeaderNameCorrelationRequestID, "response-correlation")
+	header.Set(coreapi.HeaderNameClientRequestID, "response-client")
+	first := &azcore.ResponseError{RawResponse: &http.Response{Request: request, Header: header}}
+	second := &azcore.ResponseError{RawResponse: &http.Response{Request: request}}
+	thirdRequest := request.Clone(context.Background())
+	thirdRequest.Method = http.MethodGet
+	thirdRequest.URL.Path = "/operations/result"
+	thirdRequest.URL.RawPath = ""
+	third := &azcore.ResponseError{RawResponse: &http.Response{Request: thirdRequest}}
+	const prefix = "<Azure error internals omitted>\nAzure request IDs:"
+	const put = "\n  PUT https://example.com/resources/a%2Fb"
+	const responseIDs = "\n    correlation ID: response-correlation\n    client request ID: response-client"
+	const requestIDs = "\n    correlation ID: request-correlation\n    client request ID: request-client"
+	const missingIDs = "\n    correlation ID: unavailable\n    client request ID: unavailable"
+	for _, tc := range []struct {
+		name  string
+		value any
+		want  string
+	}{
+		{name: "response headers take precedence", value: first, want: prefix + put + responseIDs},
+		{name: "request header fallback", value: second, want: prefix + put + requestIDs},
+		{
+			name: "client request fallback independently",
+			value: &azcore.ResponseError{RawResponse: &http.Response{Request: request,
+				Header: http.Header{coreapi.HeaderNameCorrelationRequestID: {"response-correlation"}},
+			}},
+			want: prefix + put + "\n    correlation ID: response-correlation\n    client request ID: request-client",
+		},
+		{
+			name: "correlation fallback independently",
+			value: &azcore.ResponseError{RawResponse: &http.Response{Request: request,
+				Header: http.Header{coreapi.HeaderNameClientRequestID: {"response-client"}},
+			}},
+			want: prefix + put + "\n    correlation ID: request-correlation\n    client request ID: response-client",
+		},
+		{
+			name: "nested joins preserve order and repeated endpoints",
+			value: fmt.Errorf("deployment failed: %w", errors.Join(
+				errors.New("unrelated"), first, errors.Join(second, fmt.Errorf("poll: %w", third)), first)),
+			want: prefix + put + responseIDs + put + requestIDs + "\n  GET https://example.com/operations/result" + requestIDs,
+		},
+		{
+			name:  "multiple wrapped errors",
+			value: fmt.Errorf("create: %w; poll: %w", first, third),
+			want:  prefix + put + responseIDs + "\n  GET https://example.com/operations/result" + requestIDs,
+		},
+		{name: "missing response", value: &azcore.ResponseError{}, want: prefix + "\n  unavailable unavailable" + missingIDs},
+		{
+			name:  "missing request retains response IDs",
+			value: &azcore.ResponseError{RawResponse: &http.Response{Header: header}},
+			want:  prefix + "\n  unavailable unavailable" + responseIDs,
+		},
+		{
+			name:  "missing URL and headers",
+			value: &azcore.ResponseError{RawResponse: &http.Response{Request: &http.Request{Method: http.MethodGet}}},
+			want:  prefix + "\n  GET unavailable" + missingIDs,
+		},
+		{
+			name: "service request ID is not a correlation ID",
+			value: &azcore.ResponseError{RawResponse: &http.Response{
+				Header: http.Header{coreapi.HeaderNameRequestID: {"service-request"}},
+			}},
+			want: prefix + "\n  unavailable unavailable" + missingIDs,
+		},
+		{name: "non Azure error", value: errors.New("unrelated")},
+		{name: "non error", value: "text"},
+		{name: "nil", value: nil},
+		{name: "nil Azure error", value: (*azcore.ResponseError)(nil)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, handled := formatAzureError(tc.value)
+			if got != tc.want || handled != (tc.want != "") {
+				t.Errorf("formatAzureError() = (%q, %t), want (%q, %t)", got, handled, tc.want, tc.want != "")
+			}
+		})
 	}
 }
