@@ -53,6 +53,7 @@ func pool(name string, spec compute.VMSpec, zone string, maxCount, osDiskSizeGB 
 	return compute.Pool{
 		Role:              compute.PoolRoleWorker,
 		AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
+		SecondaryNICs:     spec.SecondaryNICs,
 		Name:              name,
 		Spec:              spec,
 		AvailabilityZones: []string{zone},
@@ -70,6 +71,7 @@ func poolState(name string, spec compute.VMSpec, zone string, maxCount, osDiskSi
 		Pool: compute.Pool{
 			Role:              compute.PoolRoleWorker,
 			AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
+			SecondaryNICs:     spec.SecondaryNICs,
 			Name:              name,
 			Spec:              spec,
 			AvailabilityZones: []string{zone},

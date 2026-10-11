@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 
@@ -63,8 +64,9 @@ func TestBuild(t *testing.T) {
 		{
 			name: "swift enabled with secondary NICs sets multi-tenancy tags",
 			pool: compute.Pool{
-				Role:          compute.PoolRoleWorker,
+				Role:          "storage",
 				AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				SecondaryNICs: 4,
 				EnableSwift:   true,
 				Spec:          compute.VMSpec{Size: "Standard_D8ds_v6", Family: "standardDDSv6Family", VCPUs: 8, MemoryBytes: memoryBytes("32Gi"), SecondaryNICs: 4},
 			},
@@ -150,6 +152,7 @@ func TestBuild_FullWorkerPoolPayload(t *testing.T) {
 		Labels:            map[string]string{compute.RoleLabel: string(compute.PoolRoleWorker), "workload": "general"},
 		Taints:            []string{"dedicated=worker:NoSchedule"},
 		EnableSwift:       true,
+		SecondaryNICs:     7,
 	}
 	networkConfig := compute.NetworkConfig{
 		VnetSubnetID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/node",
@@ -181,4 +184,93 @@ func TestBuild_NetworkConfig(t *testing.T) {
 	properties := Build(compute.Pool{AgentPoolMode: armcontainerservice.AgentPoolModeUser}, compute.NetworkConfig{})
 	assert.Nil(t, properties.VnetSubnetID)
 	assert.Nil(t, properties.PodSubnetID)
+}
+
+func TestIsSwiftEnabled(t *testing.T) {
+	tests := []struct {
+		name string
+		tags map[string]*string
+		want bool
+	}{
+		{
+			name: "multi-tenancy tag set to true",
+			tags: map[string]*string{SwiftMultiTenancyTag: ptr.To("true")},
+			want: true,
+		},
+		{
+			name: "multi-tenancy tag set to false",
+			tags: map[string]*string{SwiftMultiTenancyTag: ptr.To("false")},
+			want: false,
+		},
+		{
+			name: "tag absent",
+			tags: map[string]*string{"other-tag": ptr.To("true")},
+			want: false,
+		},
+		{
+			name: "nil tags map",
+			tags: nil,
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, IsSwiftEnabled(test.tags))
+		})
+	}
+}
+
+func TestSecondaryNICCount(t *testing.T) {
+	tests := []struct {
+		name      string
+		tags      map[string]*string
+		wantCount int64
+		wantOK    bool
+		wantErr   bool
+	}{
+		{
+			name:      "tag absent",
+			tags:      map[string]*string{"other-tag": ptr.To("3")},
+			wantCount: 0,
+			wantOK:    false,
+		},
+		{
+			name:      "valid positive count",
+			tags:      map[string]*string{SwiftSecondaryNICCountTag: ptr.To("3")},
+			wantCount: 3,
+			wantOK:    true,
+		},
+		{
+			name:    "non-numeric value",
+			tags:    map[string]*string{SwiftSecondaryNICCountTag: ptr.To("not-a-number")},
+			wantOK:  true,
+			wantErr: true,
+		},
+		{
+			name:    "zero is rejected",
+			tags:    map[string]*string{SwiftSecondaryNICCountTag: ptr.To("0")},
+			wantOK:  true,
+			wantErr: true,
+		},
+		{
+			name:    "negative is rejected",
+			tags:    map[string]*string{SwiftSecondaryNICCountTag: ptr.To("-1")},
+			wantOK:  true,
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			count, ok, err := SecondaryNICCount(test.tags)
+			assert.Equal(t, test.wantOK, ok)
+			if test.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.wantCount, count)
+		})
+	}
 }

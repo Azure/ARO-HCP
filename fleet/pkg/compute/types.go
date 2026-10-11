@@ -61,10 +61,8 @@ const (
 // "StandardEdsv6Family"). It disambiguates map keys from raw VM size strings.
 type VMFamily string
 
-// VMSpec captures the hardware characteristics of a VM size. Bundling these
-// fields into a single struct makes it impossible to construct a Pool
-// without specifying family, vCPU count, and NIC count — preventing silent
-// zero-value bugs in tests and production code.
+// VMSpec captures a VM size's hardware capacity, including its maximum number
+// of secondary NICs. Pool.SecondaryNICs records the configured attachment count.
 type VMSpec struct {
 	Size          string   `json:"size"`
 	Family        VMFamily `json:"family"`
@@ -108,6 +106,8 @@ type Pool struct {
 	Labels       map[string]string `json:"labels,omitempty"`
 	Taints       []string          `json:"taints,omitempty"`
 	EnableSwift  bool              `json:"enableSwift,omitempty"`
+	// SecondaryNICs is the number attached per node, not the SKU maximum.
+	SecondaryNICs int64 `json:"secondaryNICs"`
 }
 
 // ZoneString returns a comma-separated zone list for logging.
