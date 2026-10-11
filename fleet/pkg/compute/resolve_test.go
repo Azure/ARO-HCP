@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 	"io"
 	"maps"
 	"net/http"
@@ -40,6 +39,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	armcomputefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6/fake"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -81,6 +81,7 @@ func resolveTestSKU(name, family string, vcpus int64) *armcompute.ResourceSKU {
 		},
 		Capabilities: []*armcompute.ResourceSKUCapabilities{
 			{Name: ptr.To("vCPUs"), Value: ptr.To(strconv.FormatInt(vcpus, 10))},
+			{Name: ptr.To("MaxNetworkInterfaces"), Value: ptr.To("4")},
 			{Name: ptr.To("MemoryGB"), Value: ptr.To("64")},
 			{Name: ptr.To("EphemeralOSDiskSupported"), Value: ptr.To("True")},
 			{Name: ptr.To("CachedDiskBytes"), Value: ptr.To(strconv.FormatInt(200*1024*1024*1024, 10))},
@@ -93,7 +94,7 @@ func testProfile() Profile {
 		Tiers: []TierConfig{
 			{
 				Name: "wrk",
-				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true,
 				PoolMode:       PoolModePerZone,
 				Cores:          16,
 				OSDiskSizeGB:   100,
@@ -302,7 +303,7 @@ func TestResolveDesiredPools_UsageDoesNotChangeDesiredPools(t *testing.T) {
 				Tiers: []TierConfig{
 					{
 						Name: "wrk",
-						Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+						Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true,
 						PoolMode:       PoolModeRegional,
 						PoolCount:      1,
 						Cores:          16,

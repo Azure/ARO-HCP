@@ -15,8 +15,6 @@
 package capacityreporting
 
 import (
-	"strconv"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -107,10 +105,8 @@ func perNodeAllocatable(vmSize string, nodesBySKU map[string]capacityreportv1alp
 	}
 	// Pool tag overrides SKU-derived NIC count — our bicep sets the actual
 	// configured secondary NIC count which may differ from the SKU maximum.
-	if tagValue, found := tags[agentpoolspec.SwiftSecondaryNICCountTag]; found && tagValue != nil {
-		if count, err := strconv.ParseInt(*tagValue, 10, 64); err == nil {
-			result[kuberesources.SwiftNICResourceName] = *resource.NewQuantity(count, resource.DecimalSI)
-		}
+	if nics, present, err := agentpoolspec.SecondaryNICCount(tags); present && err == nil {
+		result[kuberesources.SwiftNICResourceName] = *resource.NewQuantity(nics, resource.DecimalSI)
 	}
 	if len(result) == 0 {
 		return nil

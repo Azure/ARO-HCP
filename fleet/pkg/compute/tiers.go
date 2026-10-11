@@ -16,11 +16,12 @@ package compute
 
 import (
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 	"regexp"
 	"sort"
 
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 )
 
 const minCoresPerTier = 4
@@ -49,23 +50,21 @@ type TierConfig struct {
 	// identifier: changing it renames — and therefore replaces — the tier's
 	// pools. Must match ^[a-z][a-z0-9]{0,4}$ (1-5 chars) and be unique within a
 	// profile; both are enforced by ValidateProfile.
-	Name            string
-	Role            PoolRole
-	AgentPoolMode   armcontainerservice.AgentPoolMode
-	PoolMode        PoolMode
-	Cores           int64
-	OSDiskSizeGB    int32
-	MaxNodes        int64
-	InitialMinNodes int64
-	FamilyPriority  []VMFamily
-	MaxPods         int32
-	// Labels holds extra node labels for the tier's pools. The role label
-	// (RoleLabel) is derived from Role at desired-state build time and must
-	// not be set here.
-	Labels      map[string]string
-	Taints      []string
-	EnableSwift bool
-	Required    bool
+	Name                string
+	Role                PoolRole
+	AgentPoolMode       armcontainerservice.AgentPoolMode
+	EnableSwift         bool
+	AttachSecondaryNICs bool
+	Labels              map[string]string
+	Taints              []string
+	PoolMode            PoolMode
+	Cores               int64
+	OSDiskSizeGB        int32
+	MaxNodes            int64
+	InitialMinNodes     int64
+	FamilyPriority      []VMFamily
+	MaxPods             int32
+	Required            bool
 	// PoolCount is the number of zones a PoolModePerZone tier spans and must be
 	// >= 1 (clamped to the number of zones available). The tier uses the zones
 	// allowing the most nodes per zone; every zone gets the same node count,
@@ -93,7 +92,7 @@ var profiles = map[string]Profile{
 		Tiers: []TierConfig{
 			{
 				Name: "sys",
-				Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem,
+				Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, Taints: []string{TaintCriticalAddonsOnly},
 				FamilyPriority: dFamilyPriority,
 				Cores:          4,
 				PoolMode:       PoolModeRegional,
@@ -101,13 +100,11 @@ var profiles = map[string]Profile{
 				MaxNodes:       3,
 				OSDiskSizeGB:   32,
 				MaxPods:        100,
-				EnableSwift:    true,
-				Taints:         []string{TaintCriticalAddonsOnly},
 				Required:       true,
 			},
 			{
 				Name: "inf",
-				Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser, Taints: []string{TaintInfra},
 				FamilyPriority: dFamilyPriority,
 				Cores:          4,
 				PoolMode:       PoolModePerZone,
@@ -115,12 +112,11 @@ var profiles = map[string]Profile{
 				MaxNodes:       2,
 				OSDiskSizeGB:   64,
 				MaxPods:        225,
-				Taints:         []string{TaintInfra},
 				Required:       true,
 			},
 			{
 				Name: "wrk",
-				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true,
 				FamilyPriority: dFamilyPriority,
 				Cores:          4,
 				PoolMode:       PoolModePerZone,
@@ -128,7 +124,6 @@ var profiles = map[string]Profile{
 				MaxNodes:       6,
 				OSDiskSizeGB:   100,
 				MaxPods:        225,
-				EnableSwift:    true,
 			},
 		},
 		BudgetStrategy: UnlimitedBudget,
@@ -137,7 +132,7 @@ var profiles = map[string]Profile{
 		Tiers: []TierConfig{
 			{
 				Name: "sys",
-				Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem,
+				Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, Taints: []string{TaintCriticalAddonsOnly},
 				FamilyPriority: dFamilyPriority,
 				Cores:          4,
 				PoolMode:       PoolModeRegional,
@@ -145,13 +140,11 @@ var profiles = map[string]Profile{
 				MaxNodes:       3,
 				OSDiskSizeGB:   32,
 				MaxPods:        100,
-				EnableSwift:    true,
-				Taints:         []string{TaintCriticalAddonsOnly},
 				Required:       true,
 			},
 			{
 				Name: "inf",
-				Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser, Taints: []string{TaintInfra},
 				FamilyPriority: dFamilyPriority,
 				Cores:          8,
 				PoolMode:       PoolModePerZone,
@@ -159,12 +152,11 @@ var profiles = map[string]Profile{
 				MaxNodes:       3,
 				OSDiskSizeGB:   64,
 				MaxPods:        225,
-				Taints:         []string{TaintInfra},
 				Required:       true,
 			},
 			{
 				Name: "wrk",
-				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true,
 				FamilyPriority:  eFamilyPriority,
 				Cores:           16,
 				PoolMode:        PoolModePerZone,
@@ -173,7 +165,6 @@ var profiles = map[string]Profile{
 				InitialMinNodes: 5,
 				OSDiskSizeGB:    512,
 				MaxPods:         225,
-				EnableSwift:     true,
 			},
 		},
 		BudgetStrategy: UnlimitedBudget,
@@ -182,7 +173,7 @@ var profiles = map[string]Profile{
 		Tiers: []TierConfig{
 			{
 				Name: "sys",
-				Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem,
+				Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, Taints: []string{TaintCriticalAddonsOnly},
 				FamilyPriority: eFamilyPriority,
 				Cores:          8,
 				PoolMode:       PoolModeRegional,
@@ -190,13 +181,11 @@ var profiles = map[string]Profile{
 				MaxNodes:       3,
 				OSDiskSizeGB:   128,
 				MaxPods:        100,
-				EnableSwift:    true,
-				Taints:         []string{TaintCriticalAddonsOnly},
 				Required:       true,
 			},
 			{
 				Name: "inf",
-				Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser, Taints: []string{TaintInfra},
 				FamilyPriority: eFamilyPriority,
 				Cores:          32,
 				PoolMode:       PoolModePerZone,
@@ -204,12 +193,11 @@ var profiles = map[string]Profile{
 				MaxNodes:       3,
 				OSDiskSizeGB:   128,
 				MaxPods:        225,
-				Taints:         []string{TaintInfra},
 				Required:       true,
 			},
 			{
 				Name: "wrk16",
-				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true,
 				FamilyPriority:  eFamilyPriority,
 				Cores:           16,
 				PoolMode:        PoolModePerZone,
@@ -218,11 +206,10 @@ var profiles = map[string]Profile{
 				InitialMinNodes: 5,
 				OSDiskSizeGB:    512,
 				MaxPods:         225,
-				EnableSwift:     true,
 			},
 			{
 				Name: "wrk32",
-				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true,
 				FamilyPriority:  eFamilyPriority,
 				Cores:           32,
 				PoolMode:        PoolModePerZone,
@@ -231,7 +218,6 @@ var profiles = map[string]Profile{
 				InitialMinNodes: 1,
 				OSDiskSizeGB:    512,
 				MaxPods:         225,
-				EnableSwift:     true,
 			},
 		},
 		BudgetStrategy: SubscriptionQuotaBudget,
