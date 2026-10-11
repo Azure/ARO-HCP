@@ -298,7 +298,7 @@ func TestComputeDesiredPools(t *testing.T) {
 	tests := []struct {
 		name          string
 		zones         []string // defaults to allZones
-		workerZones   []string
+		existingZones map[PoolRole][]string
 		tiers         []TierConfig
 		familyBudgets map[VMFamily]int64
 		skuMetadata   map[string]*skucache.SKUMetadata
@@ -577,9 +577,9 @@ func TestComputeDesiredPools(t *testing.T) {
 			// pools in zones 1-3. Zones 2-4 would allow 4 nodes per zone; the
 			// worker tier keeps zones 1-3 instead, where zone 1 only gets
 			// EDSv6's 3 nodes.
-			name:        "per zone worker tier keeps the zones of existing worker pools",
-			zones:       []string{"1", "2", "3", "4"},
-			workerZones: []string{"1", "2", "3"},
+			name:          "per zone worker tier keeps the zones of existing worker pools",
+			zones:         []string{"1", "2", "3", "4"},
+			existingZones: map[PoolRole][]string{PoolRoleWorker: {"1", "2", "3"}},
 			tiers: []TierConfig{
 				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
@@ -593,9 +593,9 @@ func TestComputeDesiredPools(t *testing.T) {
 			// The four-zone setup above with worker pools in zone 4 only. The
 			// tier keeps zone 4 and adds zones 2 and 3, which allow the full 4
 			// nodes per zone; zone 1 would only get EDSv6's 3.
-			name:        "per zone worker tier adds the best zones to an existing worker zone",
-			zones:       []string{"1", "2", "3", "4"},
-			workerZones: []string{"4"},
+			name:          "per zone worker tier adds the best zones to an existing worker zone",
+			zones:         []string{"1", "2", "3", "4"},
+			existingZones: map[PoolRole][]string{PoolRoleWorker: {"4"}},
 			tiers: []TierConfig{
 				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
@@ -608,8 +608,8 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			// Worker pools exist in zones 1 and 3. The tier keeps both and adds
 			// zone 2 to reach its 3 zones.
-			name:        "per zone worker tier fills up to pool count around existing worker zones",
-			workerZones: []string{"1", "3"},
+			name:          "per zone worker tier fills up to pool count around existing worker zones",
+			existingZones: map[PoolRole][]string{PoolRoleWorker: {"1", "3"}},
 			tiers: []TierConfig{
 				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
@@ -619,9 +619,9 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			// Worker pools exist in all four zones, more than the tier's 3. The
 			// tier keeps every one of them rather than leaving a zone.
-			name:        "per zone worker tier keeps more existing worker zones than pool count",
-			zones:       []string{"1", "2", "3", "4"},
-			workerZones: []string{"1", "2", "3", "4"},
+			name:          "per zone worker tier keeps more existing worker zones than pool count",
+			zones:         []string{"1", "2", "3", "4"},
+			existingZones: map[PoolRole][]string{PoolRoleWorker: {"1", "2", "3", "4"}},
 			tiers: []TierConfig{
 				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
@@ -634,9 +634,9 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			// A role only preserves its own existing zones: this infra tier
 			// picks the zones allowing the most nodes, 2-4.
-			name:        "per zone infra tier ignores the zones of existing worker pools",
-			zones:       []string{"1", "2", "3", "4"},
-			workerZones: []string{"1", "2", "3"},
+			name:          "per zone infra tier ignores the zones of existing worker pools",
+			zones:         []string{"1", "2", "3", "4"},
+			existingZones: map[PoolRole][]string{PoolRoleWorker: {"1", "2", "3"}},
 			tiers: []TierConfig{
 				{Name: "inf", Class: InfraPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 128, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
@@ -649,8 +649,8 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			// The only family is offered in zones 2 and 3, but the cluster has
 			// worker pools in zone 1. The tier fails instead of leaving zone 1.
-			name:        "per zone worker tier fails when an existing worker zone is not offered",
-			workerZones: []string{"1", "2", "3"},
+			name:          "per zone worker tier fails when an existing worker zone is not offered",
+			existingZones: map[PoolRole][]string{PoolRoleWorker: {"1", "2", "3"}},
 			tiers: []TierConfig{
 				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
@@ -666,12 +666,12 @@ func TestComputeDesiredPools(t *testing.T) {
 				zones = allZones
 			}
 			skuIndex := BuildEligibleSKUIndex(test.skuMetadata)
-			pools, failures, fullyAllocated := ComputeDesiredPools(logr.Discard(), test.tiers, zones, test.workerZones, test.familyBudgets, skuIndex)
+			pools, failures, fullyAllocated := ComputeDesiredPools(logr.Discard(), test.tiers, zones, test.existingZones, test.familyBudgets, skuIndex)
 
 			assertGolden(t, renderReport(func(w io.Writer) {
 				writeAllocationInputs(w, zones, test.tiers, test.familyBudgets, test.skuMetadata)
-				if len(test.workerZones) > 0 {
-					fmt.Fprintf(w, "\nexisting worker zones: %s\n", strings.Join(test.workerZones, ","))
+				for _, role := range slices.Sorted(maps.Keys(test.existingZones)) {
+					fmt.Fprintf(w, "\nexisting %s zones: %s\n", role, strings.Join(test.existingZones[role], ","))
 				}
 				writeAllocationResult(w, pools, failures, fullyAllocated)
 			}))
@@ -992,6 +992,46 @@ func TestFamilyAllocationOrder(t *testing.T) {
 	}
 }
 
+func TestComputeDesiredPoolsPreservesRoleZones(t *testing.T) {
+	tests := []struct {
+		name        string
+		mode        PoolMode
+		existing    map[PoolRole][]string
+		wantZones   []string
+		wantFailure bool
+	}{
+		{name: "custom role keeps its zone", mode: PoolModePerZone, existing: map[PoolRole][]string{"database": {"3"}, "other": {"2"}}, wantZones: []string{"3"}},
+		{name: "non-zonal bucket is not pinned", mode: PoolModePerZone, existing: map[PoolRole][]string{"database": {"", "3"}}, wantZones: []string{"3"}},
+		{name: "all existing zones outnumber pool count", mode: PoolModePerZone, existing: map[PoolRole][]string{"database": {"2", "3"}}, wantZones: []string{"2", "3"}},
+		{name: "unavailable existing zone fails", mode: PoolModePerZone, existing: map[PoolRole][]string{"database": {"4"}}, wantFailure: true},
+		{name: "regional tier does not pin zones", mode: PoolModeRegional, existing: map[PoolRole][]string{"database": {"3"}}, wantZones: []string{""}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tier := TierConfig{Name: "db", Class: PoolClass{Role: "database", AgentPoolMode: armcontainerservice.AgentPoolModeUser}, PoolMode: test.mode, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}
+			index := BuildEligibleSKUIndex(map[string]*skucache.SKUMetadata{
+				"sku": {Name: "sku", Family: "a", VCPUs: 4, MemoryBytes: 16 << 30, EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 100, Zones: []string{"1", "2", "3"}},
+			})
+			pools, failures, full := ComputeDesiredPools(logr.Discard(), []TierConfig{tier}, []string{"1", "2", "3"}, test.existing, map[VMFamily]int64{"a": 100}, index)
+			if test.wantFailure {
+				require.Empty(t, pools)
+				require.False(t, full)
+				require.Len(t, failures, 1)
+				require.Equal(t, "NoZoneCoverage", failures[0].Reason)
+				return
+			}
+			require.Empty(t, failures)
+			require.True(t, full)
+			var zones []string
+			for _, pool := range pools {
+				zones = append(zones, pool.ZoneString())
+				require.Equal(t, "database", pool.Labels[RoleLabel])
+			}
+			require.Equal(t, test.wantZones, zones)
+		})
+	}
+}
+
 func TestComputeDesiredPoolsIndependentPolicies(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -1001,10 +1041,10 @@ func TestComputeDesiredPoolsIndependentPolicies(t *testing.T) {
 		wantNICs  int64
 	}{
 		{name: "standard system class", class: SystemPools, wantMode: armcontainerservice.AgentPoolModeSystem, wantSwift: true},
-		{name: "custom system mode with attachment", class: PoolClass{Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, AttachSecondaryNICs: true}, wantMode: armcontainerservice.AgentPoolModeSystem, wantSwift: true, wantNICs: 6},
+		{name: "custom system mode with attachment", class: PoolClass{Role: "database", AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, AttachSecondaryNICs: true}, wantMode: armcontainerservice.AgentPoolModeSystem, wantSwift: true, wantNICs: 6},
 		{name: "system role with user mode and attachment", class: PoolClass{Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true}, wantMode: armcontainerservice.AgentPoolModeUser, wantSwift: true, wantNICs: 6},
 		{name: "worker Swift without attachment", class: PoolClass{Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true}, wantMode: armcontainerservice.AgentPoolModeUser, wantSwift: true},
-		{name: "custom system mode without Swift", class: PoolClass{Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeSystem}, wantMode: armcontainerservice.AgentPoolModeSystem},
+		{name: "custom system mode without Swift", class: PoolClass{Role: "database", AgentPoolMode: armcontainerservice.AgentPoolModeSystem}, wantMode: armcontainerservice.AgentPoolModeSystem},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1036,7 +1076,7 @@ func TestComputeDesiredPoolsMissingNICCapacity(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tier := TierConfig{Name: "db", Class: PoolClass{Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: test.attach}, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}
+			tier := TierConfig{Name: "db", Class: PoolClass{Role: "database", AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: test.attach}, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}
 			index := BuildEligibleSKUIndex(map[string]*skucache.SKUMetadata{
 				"sku": {Name: "sku", Family: "a", VCPUs: 4, MemoryBytes: 16 << 30, EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 100},
 			})

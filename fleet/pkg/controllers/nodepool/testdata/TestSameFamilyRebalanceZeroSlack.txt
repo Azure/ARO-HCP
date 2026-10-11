@@ -18,13 +18,9 @@ initial headroom (vCPUs):
 fully allocated: true
 
 initial capacity:
-  system:  cpu=0    memory=0GiB     swiftNICs=0
-  infra:   cpu=0    memory=0GiB     swiftNICs=0
   worker:  cpu=352  memory=2816GiB  swiftNICs=77
 
 role floor:
-  system:  cpu=0    memory=0GiB     swiftNICs=0
-  infra:   cpu=0    memory=0GiB     swiftNICs=0
   worker:  cpu=288  memory=2304GiB  swiftNICs=63
 
 actions:

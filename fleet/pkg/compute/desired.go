@@ -117,10 +117,9 @@ func (idx EligibleSKUIndex) Lookup(family VMFamily, desiredCores int64) (string,
 // current usage. It returns the desired pools, failures for unallocated tiers,
 // and whether every tier reached its configured node target.
 //
-// workerZones are the zones of the cluster's existing worker pools. Etcd runs
-// on worker pools and its zonal disks cannot move, so a per-zone worker tier
-// must keep spanning every one of them; it adds the best remaining zones up to
-// PoolCount. Empty means the cluster has no worker pools yet.
+// existingZones groups the cluster's existing zones by role. Each per-zone
+// tier preserves its role's actual zones and adds the best remaining zones up
+// to PoolCount. The empty string denotes a non-zonal bucket and is not pinned.
 //
 // A per-family surge reservation is derived from processed tiers to ensure
 // enough headroom for AKS node pool upgrades (one surge node of the largest
@@ -130,7 +129,7 @@ func ComputeDesiredPools(
 	logger logr.Logger,
 	tiers []TierConfig,
 	zones []string,
-	workerZones []string,
+	existingZones map[PoolRole][]string,
 	familyLimits map[VMFamily]int64,
 	skuIndex EligibleSKUIndex,
 ) ([]Pool, []AllocationFailure, bool) {
@@ -150,8 +149,12 @@ func ComputeDesiredPools(
 		}
 
 		var requiredZones []string
-		if tier.Class.Role == PoolRoleWorker {
-			requiredZones = workerZones
+		if tier.PoolMode == PoolModePerZone {
+			for _, zone := range existingZones[tier.Class.Role] {
+				if len(zone) > 0 && !slices.Contains(requiredZones, zone) {
+					requiredZones = append(requiredZones, zone)
+				}
+			}
 		}
 		tierPools, tierFullyAllocated := allocateTier(logger, tier, zones, requiredZones, available, skuIndex)
 		fullyAllocated = fullyAllocated && tierFullyAllocated
@@ -168,7 +171,7 @@ func ComputeDesiredPools(
 	if len(pools) == 0 && len(failures) == 0 {
 		failures = append(failures, AllocationFailure{
 			Reason:  "NoTiersConfigured",
-			Message: "no worker pool tiers are configured",
+			Message: "no pool tiers are configured",
 		})
 	}
 
@@ -552,7 +555,7 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, requir
 			}
 		case tier.PoolMode == PoolModePerZone && len(uncoveredRequiredZones) > 0:
 			reason = "NoZoneCoverage"
-			message = fmt.Sprintf("tier %d (%d cores): the eligible families' SKUs are not offered in existing worker zones %s", tierIndex, tier.Cores, strings.Join(uncoveredRequiredZones, ","))
+			message = fmt.Sprintf("tier %d (%d cores): the eligible families' SKUs are not offered in existing zones %s for role %q", tierIndex, tier.Cores, strings.Join(uncoveredRequiredZones, ","), tier.Class.Role)
 		case !hasZoneCoverage:
 			reason = "NoZoneCoverage"
 			message = fmt.Sprintf("tier %d (%d cores): the eligible families' SKUs are not offered in enough zones", tierIndex, tier.Cores)

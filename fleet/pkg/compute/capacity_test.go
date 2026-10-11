@@ -34,35 +34,53 @@ func TestPoolCapacities(t *testing.T) {
 	tests := []struct {
 		name    string
 		pools   []Pool
-		wantErr string
+		want    CapacityByRole
+		wantErr bool
 	}{
-		{name: "empty"},
-		{name: "roles", pools: []Pool{
-			{Name: "sys", Role: PoolRoleSystem, Spec: VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 3}, MaxCount: 3, EnableSwift: true},
-			{Name: "infra", Role: PoolRoleInfra, Spec: VMSpec{VCPUs: 8, MemoryBytes: memoryBytes("32Gi")}, MaxCount: 2},
-			{Name: "old", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}, MaxCount: 5, EnableSwift: true, SecondaryNICs: 7},
-			{Name: "new", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}, MaxCount: 2, EnableSwift: true, SecondaryNICs: 7},
-			{Name: "plain", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 3}, MaxCount: 1},
-		}},
-		{name: "unknown SKU", pools: []Pool{{Name: "unknown", Role: PoolRoleWorker, MaxCount: 3}}, wantErr: "cannot determine capacity"},
-		{name: "unknown role", pools: []Pool{{Name: "unknown", Role: "other", Spec: VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}}}, wantErr: "cannot determine capacity"},
-		{name: "unknown Swift capacity", pools: []Pool{{Name: "unknown", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, EnableSwift: true, SecondaryNICs: -1}}, wantErr: "invalid configured Swift"},
+		{name: "empty", want: CapacityByRole{}},
+		{
+			name: "custom roles use configured NICs rather than SKU maximum",
+			pools: []Pool{
+				{Name: "a", Role: "database", Spec: VMSpec{VCPUs: 4, MemoryBytes: 16 << 30, SecondaryNICs: 7}, MaxCount: 2, EnableSwift: true, SecondaryNICs: 2},
+				{Name: "b", Role: "database", Spec: VMSpec{VCPUs: 8, MemoryBytes: 32 << 30, SecondaryNICs: 7}, MaxCount: 1, EnableSwift: true},
+				{Name: "c", Role: "ingress", Spec: VMSpec{VCPUs: 4, MemoryBytes: 16 << 30}, MaxCount: 1},
+			},
+			want: CapacityByRole{"database": {16, 64 << 30, 4}, "ingress": {4, 16 << 30, 0}},
+		},
+		{name: "unknown SKU", pools: []Pool{{Name: "unknown", Role: "custom", MaxCount: 3}}, wantErr: true},
+		{name: "negative ceiling", pools: []Pool{{Role: "custom", Spec: VMSpec{VCPUs: 4, MemoryBytes: 16 << 30}, MaxCount: -1}}, wantErr: true},
+		{name: "negative configured NICs", pools: []Pool{{Role: "custom", Spec: VMSpec{VCPUs: 4, MemoryBytes: 16 << 30}, EnableSwift: true, SecondaryNICs: -1}}, wantErr: true},
+		{name: "NICs without Swift", pools: []Pool{{Role: "custom", Spec: VMSpec{VCPUs: 4, MemoryBytes: 16 << 30}, SecondaryNICs: 1}}, wantErr: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := PoolCapacities(test.pools)
-			if len(test.wantErr) > 0 {
-				require.ErrorContains(t, err, test.wantErr)
+			if test.wantErr {
+				require.Error(t, err)
+				require.Nil(t, got)
 				return
 			}
 			require.NoError(t, err)
-			actual, err := json.MarshalIndent(got, "", "  ")
-			require.NoError(t, err)
-			expected, err := os.ReadFile("testdata/capacity-" + test.name + ".json")
-			require.NoError(t, err)
-			require.Equal(t, string(expected), string(actual)+"\n")
+			require.Equal(t, test.want, got)
 		})
 	}
+}
+
+func TestPoolCapacitiesGolden(t *testing.T) {
+	pools := []Pool{
+		{Name: "sys", Role: PoolRoleSystem, Spec: VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 3}, MaxCount: 3, EnableSwift: true},
+		{Name: "infra", Role: PoolRoleInfra, Spec: VMSpec{VCPUs: 8, MemoryBytes: memoryBytes("32Gi")}, MaxCount: 2},
+		{Name: "old", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7}, MaxCount: 5, EnableSwift: true, SecondaryNICs: 7},
+		{Name: "new", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 32, MemoryBytes: memoryBytes("256Gi"), SecondaryNICs: 7}, MaxCount: 2, EnableSwift: true, SecondaryNICs: 7},
+		{Name: "plain", Role: PoolRoleWorker, Spec: VMSpec{VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 3}, MaxCount: 1},
+	}
+	got, err := PoolCapacities(pools)
+	require.NoError(t, err)
+	actual, err := json.MarshalIndent(got, "", "  ")
+	require.NoError(t, err)
+	expected, err := os.ReadFile("testdata/capacity-roles.json")
+	require.NoError(t, err)
+	require.Equal(t, string(expected), string(actual)+"\n")
 }
 
 func TestCapacityEnsureMeetsBaseline(t *testing.T) {
@@ -78,7 +96,6 @@ func TestCapacityEnsureMeetsBaseline(t *testing.T) {
 		{name: "less memory", capacity: RoleCapacity{110, 799, 50}, wantErr: true},
 		{name: "fewer NICs", capacity: RoleCapacity{110, 900, 39}, wantErr: true},
 		{name: "tier removed", capacity: RoleCapacity{}, wantErr: true},
-		{name: "missing baseline", missing: true, wantErr: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -116,7 +133,6 @@ func TestResolveEffectiveFloor(t *testing.T) {
 		{name: "partial memory reduction rejected", desired: RoleCapacity{120, 600, 50}, wantErr: true},
 		{name: "partial NIC reduction rejected", desired: RoleCapacity{120, 900, 30}, wantErr: true},
 		{name: "partial role removal rejected", wantErr: true},
-		{name: "full plan requires every baseline role", fullyAllocated: true, missingBaseline: true, wantErr: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
