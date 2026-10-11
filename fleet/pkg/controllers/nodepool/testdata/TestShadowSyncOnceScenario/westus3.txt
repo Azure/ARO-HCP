@@ -11,14 +11,16 @@ initial:
 
 desired:
   sys0fe1457    system  Standard_E8ds_v7   zone=   max=3
-  inf17dc270    infra   Standard_E32ds_v6  zone=1  max=3
+  inf16a742c    infra   Standard_E32ds_v7  zone=1  max=1
+  inf17dc270    infra   Standard_E32ds_v6  zone=1  max=2
   inf27dc270    infra   Standard_E32ds_v6  zone=2  max=3
-  wrk161690783  worker  Standard_E16ds_v6  zone=1  max=9
-  wrk162690783  worker  Standard_E16ds_v6  zone=2  max=9
+  wrk161690783  worker  Standard_E16ds_v6  zone=1  max=11
+  wrk162690783  worker  Standard_E16ds_v6  zone=2  max=11
   wrk163690783  worker  Standard_E16ds_v6  zone=3  max=9
-  wrk1615a648b  worker  Standard_E16ds_v5  zone=1  max=1
-  wrk1625a648b  worker  Standard_E16ds_v5  zone=2  max=1
-  wrk1635a648b  worker  Standard_E16ds_v5  zone=3  max=1
+  wrk1635a648b  worker  Standard_E16ds_v5  zone=3  max=2
+  wrk3216c3e65  worker  Standard_E32ds_v5  zone=1  max=1
+  wrk32275eaaf  worker  Standard_E32ds_v4  zone=2  max=1
+  wrk32375eaaf  worker  Standard_E32ds_v4  zone=3  max=1
 
 budget (vCPUs):
   StandardEdsv6Family:  392
