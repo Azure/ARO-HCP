@@ -17,4 +17,4 @@ pools:
   (none)
 
 failures:
-  NoZoneCoverage  required=false  tier 0 (32 cores): the eligible families' SKUs are not offered in existing worker zones 1
+  NoZoneCoverage  required=false  tier 0 (32 cores): the eligible families' SKUs are not offered in existing zones 1 for role "worker"

@@ -328,20 +328,19 @@ func TestUnfreezeObservedPoolMinimum(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		role        compute.PoolRole
+		mode        armcontainerservice.AgentPoolMode
 		minCount    *int32
 		wantMinimum int32
 	}{
-		{name: "system without previous autoscaler bounds", role: compute.PoolRoleSystem, wantMinimum: 1},
-		{name: "user preserves explicit zero minimum", role: compute.PoolRoleWorker, minCount: ptr.To[int32](0), wantMinimum: 0},
-		{name: "system preserves previous positive minimum", role: compute.PoolRoleSystem, minCount: ptr.To[int32](2), wantMinimum: 2},
+		{name: "system mode with arbitrary role", role: "control", mode: armcontainerservice.AgentPoolModeSystem, wantMinimum: 1},
+		{name: "user mode with system role preserves zero minimum", role: compute.PoolRoleSystem, mode: armcontainerservice.AgentPoolModeUser, minCount: ptr.To[int32](0), wantMinimum: 0},
+		{name: "system mode preserves positive minimum", role: "custom", mode: armcontainerservice.AgentPoolModeSystem, minCount: ptr.To[int32](2), wantMinimum: 2},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			observed := makeAgentPool("existing", specD4v3.Size, []string{"1"}, 32, 3, false, 0, 0,
 				map[string]*string{compute.RoleLabel: ptr.To(string(test.role))})
 			observed.Properties.MinCount = test.minCount
-			if test.role == compute.PoolRoleSystem {
-				observed.Properties.Mode = ptr.To(armcontainerservice.AgentPoolModeSystem)
-			}
+			observed.Properties.Mode = ptr.To(test.mode)
 			metadata := map[string]*skucache.SKUMetadata{
 				specD4v3.Size: {Name: specD4v3.Size, Family: string(specD4v3.Family), VCPUs: specD4v3.VCPUs, MemoryBytes: specD4v3.MemoryBytes},
 			}
@@ -360,7 +359,7 @@ func TestUnfreezeObservedPoolMinimum(t *testing.T) {
 	}
 }
 
-func TestWorkerPoolZones(t *testing.T) {
+func TestPoolZonesByRole(t *testing.T) {
 	agentPool := func(role string, zones ...string) armcontainerservice.AgentPool {
 		properties := &armcontainerservice.ManagedClusterAgentPoolProfileProperties{}
 		if len(role) > 0 {
@@ -374,27 +373,27 @@ func TestWorkerPoolZones(t *testing.T) {
 	tests := []struct {
 		name  string
 		pools []armcontainerservice.AgentPool
-		want  []string
+		want  map[compute.PoolRole][]string
 	}{
 		{
 			name:  "zones of worker pools, deduplicated and sorted",
 			pools: []armcontainerservice.AgentPool{agentPool("worker", "3"), agentPool("worker", "1"), agentPool("worker", "3")},
-			want:  []string{"1", "3"},
+			want:  map[compute.PoolRole][]string{compute.PoolRoleWorker: {"1", "3"}},
 		},
 		{
-			name:  "other roles and unmanaged pools do not pin zones",
-			pools: []armcontainerservice.AgentPool{agentPool("infra", "2"), agentPool("system", "1", "2", "3"), agentPool("", "3")},
-			want:  []string{},
+			name:  "all managed roles pin their own zones",
+			pools: []armcontainerservice.AgentPool{agentPool("infra", "2"), agentPool("custom", "3", "1"), agentPool("", "3")},
+			want:  map[compute.PoolRole][]string{compute.PoolRoleInfra: {"2"}, "custom": {"1", "3"}},
 		},
 		{
-			name:  "zoneless worker pools pin no zone",
-			pools: []armcontainerservice.AgentPool{agentPool("worker"), {Name: ptr.To("no-properties")}},
-			want:  []string{},
+			name:  "non-zonal pools pin no actual zone",
+			pools: []armcontainerservice.AgentPool{agentPool("custom", ""), {Name: ptr.To("no-properties")}},
+			want:  map[compute.PoolRole][]string{"custom": {}},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.want, workerPoolZones(test.pools))
+			require.Equal(t, test.want, poolZonesByRole(test.pools))
 		})
 	}
 }

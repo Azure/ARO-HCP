@@ -39,13 +39,13 @@ initial headroom (vCPUs):
 fully allocated: false
 
 initial capacity:
-  system:  cpu=32   memory=256GiB   swiftNICs=0
   infra:   cpu=24   memory=96GiB    swiftNICs=0
+  system:  cpu=32   memory=256GiB   swiftNICs=0
   worker:  cpu=672  memory=5376GiB  swiftNICs=294
 
 role floor:
-  system:  cpu=32   memory=256GiB   swiftNICs=0
   infra:   cpu=24   memory=96GiB    swiftNICs=0
+  system:  cpu=32   memory=256GiB   swiftNICs=0
   worker:  cpu=672  memory=5376GiB  swiftNICs=294
 
 rejected desired plan: system capacity {VCPUs:24 MemoryGiB:192 SwiftNICs:0} is below protected baseline {VCPUs:32 MemoryGiB:256 SwiftNICs:0}
