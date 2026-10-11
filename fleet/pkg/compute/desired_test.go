@@ -79,8 +79,8 @@ func writeAllocationInputs(w io.Writer, zones []string, tiers []TierConfig, fami
 			families = append(families, string(family))
 		}
 		fmt.Fprintf(w, "  %s\t%s\t%s\tmode=%s\tpools=%d\tcores=%d\tmaxNodes=%d\tinitialMinNodes=%d\tosDisk=%dGB\tmaxPods=%d\tswift=%t\tattachNICs=%t\trequired=%t\tfamilies=%s\n",
-			tier.Name, tier.Role, tier.PoolMode, tier.AgentPoolMode, tier.PoolCount, tier.Cores, tier.MaxNodes, tier.InitialMinNodes,
-			tier.OSDiskSizeGB, tier.MaxPods, tier.EnableSwift, tier.AttachSecondaryNICs, tier.Required, orNone(strings.Join(families, ",")))
+			tier.Name, tier.Class.Role, tier.PoolMode, tier.Class.AgentPoolMode, tier.PoolCount, tier.Cores, tier.MaxNodes, tier.InitialMinNodes,
+			tier.OSDiskSizeGB, tier.MaxPods, tier.Class.EnableSwift, tier.Class.AttachSecondaryNICs, tier.Required, orNone(strings.Join(families, ",")))
 	}
 
 	fmt.Fprintln(w, "\nquota limits (vCPUs):")
@@ -306,7 +306,7 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			name: "single tier single family",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
@@ -314,7 +314,7 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			name: "insufficient quota",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 0},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
@@ -322,7 +322,7 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			name: "regional insufficient quota",
 			tiers: []TierConfig{
-				{Name: "sys", Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, Taints: []string{TaintCriticalAddonsOnly}, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 100, PoolCount: 1},
+				{Name: "sys", Class: SystemPools, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 100, PoolCount: 1},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 0},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E8ds_v6": e8dsv6},
@@ -330,10 +330,10 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			name: "multi role production like",
 			tiers: []TierConfig{
-				{Name: "sys", Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, Taints: []string{TaintCriticalAddonsOnly}, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 100, PoolCount: 1},
-				{Name: "inf", Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser, Taints: []string{TaintInfra}, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 128, MaxNodes: 1, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
-				{Name: "wrk16", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 16, OSDiskSizeGB: 256, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
-				{Name: "wrk32", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 8, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "sys", Class: PoolClass{Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, Taints: []string{TaintCriticalAddonsOnly}}, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 100, PoolCount: 1},
+				{Name: "inf", Class: InfraPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 128, MaxNodes: 1, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk16", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 16, OSDiskSizeGB: 256, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk32", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 8, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 1000},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -345,7 +345,7 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			name: "family fallback",
 			tiers: []TierConfig{
-				{Name: "sys", Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, Taints: []string{TaintCriticalAddonsOnly}, PoolMode: PoolModeRegional, Cores: 4, OSDiskSizeGB: 32, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family", "StandardDdsv6Family"}, MaxPods: 100, PoolCount: 1},
+				{Name: "sys", Class: SystemPools, PoolMode: PoolModeRegional, Cores: 4, OSDiskSizeGB: 32, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family", "StandardDdsv6Family"}, MaxPods: 100, PoolCount: 1},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 0, "StandardDdsv6Family": 100},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_D4ds_v6": d4dsv6},
@@ -353,8 +353,8 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			name: "surge reservation",
 			tiers: []TierConfig{
-				{Name: "wrk16", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 16, OSDiskSizeGB: 256, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
-				{Name: "wrk32", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 8, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk16", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 16, OSDiskSizeGB: 256, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk32", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 8, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 232},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -371,7 +371,7 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			name: "regional sets no zones and accepts zone restricted sku",
 			tiers: []TierConfig{
-				{Name: "ovfl", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModeRegional, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 1},
+				{Name: "ovfl", Class: WorkerPools, PoolMode: PoolModeRegional, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 1},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6Zone12},
@@ -379,7 +379,7 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			name: "per zone poolcount two uses zone restricted sku",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 2},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 2},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6Zone12},
@@ -387,7 +387,7 @@ func TestComputeDesiredPools(t *testing.T) {
 		{
 			name: "per zone poolcount three rejects zone restricted sku",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6Zone12},
@@ -398,7 +398,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// family[1] (DDSv6), which is viable.
 			name: "family fallback ephemeral disk too small",
 			tiers: []TierConfig{
-				{Name: "sys", Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, Taints: []string{TaintCriticalAddonsOnly}, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family", "StandardDdsv6Family"}, MaxPods: 100, PoolCount: 1},
+				{Name: "sys", Class: SystemPools, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family", "StandardDdsv6Family"}, MaxPods: 100, PoolCount: 1},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 100, "StandardDdsv6Family": 100},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -410,7 +410,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// Empty family priority list yields a NoEligibleFamily failure.
 			name: "no eligible family",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
@@ -420,7 +420,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// index excludes it and no family has an eligible SKU: NoEligibleSKU.
 			name: "no eligible sku",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 10, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32NoEphemeral},
@@ -431,7 +431,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// failure is NoEligibleSKU, not InsufficientQuota.
 			name: "ephemeral disk too small",
 			tiers: []TierConfig{
-				{Name: "sys", Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, Taints: []string{TaintCriticalAddonsOnly}, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 100, PoolCount: 1},
+				{Name: "sys", Class: SystemPools, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 100, PoolCount: 1},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 10000},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E8ds_v6": e8dsv6SmallDisk},
@@ -442,7 +442,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// EDSv5 fills zone 3.
 			name: "per zone fills zones in family priority order",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 312, "standardEDSv5Family": 192},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -456,7 +456,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// the last node of zone 3. The tier is short of its target of 4.
 			name: "per zone family switch inside a zone",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 312, "standardEDSv5Family": 64},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -469,7 +469,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// 2 nodes cannot give every zone another node and stays unused.
 			name: "per zone remainder short of every zone stays unused",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 312},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
@@ -482,7 +482,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// rest of zone 2.
 			name: "per zone tie keeps earliest zones",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 2},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 2},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 128, "standardEDSv5Family": 128},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -497,7 +497,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// allow 4. EDSv6 gives its 2 nodes to zone 2, EDSv5 the rest.
 			name: "per zone picks zones allowing the most nodes",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 2},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 2},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 96, "standardEDSv5Family": 288},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -510,7 +510,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// It fills zones 1 and 2; EDSv5, offered everywhere, fills zone 3.
 			name: "per zone restricted preferred family fills the zones it is offered in",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 288, "standardEDSv5Family": 416},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -525,7 +525,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// preferred: an EDSv6 node there would leave zone 3 empty.
 			name: "per zone preferred family leaves a zone to a restricted family",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 96, "standardEDSv5Family": 96},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -539,7 +539,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// together they give every zone 1 node.
 			name: "per zone families together cover zones none covers alone",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 1, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 1, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 96, "standardEDSv5Family": 96},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -554,7 +554,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			name:  "per zone four zones picks best three",
 			zones: []string{"1", "2", "3", "4"},
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 128, "standardEDSv5Family": 416},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -567,7 +567,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			// tier zones, so no zone gets a node and the tier fails.
 			name: "per zone quota for fewer nodes than zones",
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 96},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
@@ -581,7 +581,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			zones:       []string{"1", "2", "3", "4"},
 			workerZones: []string{"1", "2", "3"},
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 128, "standardEDSv5Family": 416},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -597,7 +597,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			zones:       []string{"1", "2", "3", "4"},
 			workerZones: []string{"4"},
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 128, "standardEDSv5Family": 416},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -611,7 +611,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			name:        "per zone worker tier fills up to pool count around existing worker zones",
 			workerZones: []string{"1", "3"},
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 224},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
@@ -623,7 +623,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			zones:       []string{"1", "2", "3", "4"},
 			workerZones: []string{"1", "2", "3", "4"},
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 128, "standardEDSv5Family": 416},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -638,7 +638,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			zones:       []string{"1", "2", "3", "4"},
 			workerZones: []string{"1", "2", "3"},
 			tiers: []TierConfig{
-				{Name: "inf", Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser, Taints: []string{TaintInfra}, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 128, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "inf", Class: InfraPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 128, MaxNodes: 4, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 128, "standardEDSv5Family": 416},
 			skuMetadata: map[string]*skucache.SKUMetadata{
@@ -652,7 +652,7 @@ func TestComputeDesiredPools(t *testing.T) {
 			name:        "per zone worker tier fails when an existing worker zone is not offered",
 			workerZones: []string{"1", "2", "3"},
 			tiers: []TierConfig{
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, Cores: 32, OSDiskSizeGB: 512, MaxNodes: 2, FamilyPriority: []VMFamily{"standardEDSv5Family"}, MaxPods: 225, PoolCount: 3},
 			},
 			familyBudgets: map[VMFamily]int64{"standardEDSv5Family": 416},
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v5": e32dsv5Zone23},
@@ -704,15 +704,17 @@ func TestPoolName(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			baseTier := TierConfig{Name: "wrk16", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, OSDiskSizeGB: 256, MaxPods: 225}
+			baseTier := TierConfig{Name: "wrk16", Class: WorkerPools, OSDiskSizeGB: 256, MaxPods: 225}
 			tier := TierConfig{
-				Name:                "wrk16",
-				Role:                test.role,
-				AgentPoolMode:       test.mode,
-				EnableSwift:         test.swift,
-				AttachSecondaryNICs: test.attach,
-				OSDiskSizeGB:        test.disk,
-				MaxPods:             test.maxPods,
+				Name: "wrk16",
+				Class: PoolClass{
+					Role:                test.role,
+					AgentPoolMode:       test.mode,
+					EnableSwift:         test.swift,
+					AttachSecondaryNICs: test.attach,
+				},
+				OSDiskSizeGB: test.disk,
+				MaxPods:      test.maxPods,
 			}
 			base := baseTier.poolName("Standard_E16ds_v6", "1")
 			got := tier.poolName(test.vmSize, "1")
@@ -727,7 +729,7 @@ func TestPoolName(t *testing.T) {
 // portion of the name (used to detect identical pool specs) ignores zone, so
 // per-zone pools of the same spec are recognized as the same spec.
 func TestPoolName_SameSpecAcrossZonesSharesHashSuffix(t *testing.T) {
-	tier := TierConfig{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, OSDiskSizeGB: 100, MaxPods: 225}
+	tier := TierConfig{Name: "wrk", Class: WorkerPools, OSDiskSizeGB: 100, MaxPods: 225}
 	zone1 := tier.poolName("Standard_E16ds_v6", "1")
 	zone2 := tier.poolName("Standard_E16ds_v6", "2")
 
@@ -769,52 +771,52 @@ func TestComputeDesiredPoolsCompleteness(t *testing.T) {
 		{name: "no tiers", wantFailures: 1},
 		{
 			name:   "regional full",
-			tiers:  []TierConfig{{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}},
+			tiers:  []TierConfig{{Name: "wrk", Class: WorkerPools, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}},
 			limits: map[VMFamily]int64{"a": 12}, wantFull: true, wantNodes: 2,
 		},
 		{
 			name:   "regional partial without failure",
-			tiers:  []TierConfig{{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}},
+			tiers:  []TierConfig{{Name: "wrk", Class: WorkerPools, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}},
 			limits: map[VMFamily]int64{"a": 8}, wantNodes: 1,
 		},
 		{
 			name:   "regional zero allocation",
-			tiers:  []TierConfig{{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}},
+			tiers:  []TierConfig{{Name: "wrk", Class: WorkerPools, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}},
 			limits: map[VMFamily]int64{"a": 4}, wantFailures: 1,
 		},
 		{
 			name:  "zonal full",
-			tiers: []TierConfig{{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, PoolCount: 3, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}},
+			tiers: []TierConfig{{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, PoolCount: 3, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}},
 			zones: []string{"1", "2", "3"}, limits: map[VMFamily]int64{"a": 28}, wantFull: true, wantNodes: 6,
 		},
 		{
 			name:  "zonal partial without failure",
-			tiers: []TierConfig{{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, PoolCount: 3, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}},
+			tiers: []TierConfig{{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, PoolCount: 3, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}},
 			zones: []string{"1", "2", "3"}, limits: map[VMFamily]int64{"a": 24}, wantNodes: 3,
 		},
 		{
 			name:  "pool count clamped to configured zones",
-			tiers: []TierConfig{{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModePerZone, PoolCount: 3, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}},
+			tiers: []TierConfig{{Name: "wrk", Class: WorkerPools, PoolMode: PoolModePerZone, PoolCount: 3, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}},
 			zones: []string{"1", "2"}, limits: map[VMFamily]int64{"a": 20}, wantFull: true, wantNodes: 4,
 		},
 		{
 			name:   "full across fallback families",
-			tiers:  []TierConfig{{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 3, FamilyPriority: []VMFamily{"a", "b"}}},
+			tiers:  []TierConfig{{Name: "wrk", Class: WorkerPools, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 3, FamilyPriority: []VMFamily{"a", "b"}}},
 			limits: map[VMFamily]int64{"a": 12, "b": 8}, wantFull: true, wantNodes: 3,
 		},
 		{
 			name: "later optional tier partial",
 			tiers: []TierConfig{
-				{Name: "sys", Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, Taints: []string{TaintCriticalAddonsOnly}, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}, Required: true},
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}},
+				{Name: "sys", Class: SystemPools, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}, Required: true},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}},
 			},
 			limits: map[VMFamily]int64{"a": 16}, wantNodes: 3,
 		},
 		{
 			name: "later optional tier fails",
 			tiers: []TierConfig{
-				{Name: "sys", Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, Taints: []string{TaintCriticalAddonsOnly}, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}, Required: true},
-				{Name: "wrk", Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}},
+				{Name: "sys", Class: SystemPools, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}, Required: true},
+				{Name: "wrk", Class: WorkerPools, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}},
 			},
 			limits: map[VMFamily]int64{"a": 12}, wantNodes: 2, wantFailures: 1,
 		},
@@ -986,6 +988,114 @@ func TestFamilyAllocationOrder(t *testing.T) {
 			}
 			got := familyAllocationOrder(tier, zones, index)
 			assert.Equal(t, tt.want, got, "family allocation order mismatch")
+		})
+	}
+}
+
+func TestComputeDesiredPoolsIndependentPolicies(t *testing.T) {
+	tests := []struct {
+		name      string
+		class     PoolClass
+		wantMode  armcontainerservice.AgentPoolMode
+		wantSwift bool
+		wantNICs  int64
+	}{
+		{name: "standard system class", class: SystemPools, wantMode: armcontainerservice.AgentPoolModeSystem, wantSwift: true},
+		{name: "custom system mode with attachment", class: PoolClass{Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, AttachSecondaryNICs: true}, wantMode: armcontainerservice.AgentPoolModeSystem, wantSwift: true, wantNICs: 6},
+		{name: "system role with user mode and attachment", class: PoolClass{Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true}, wantMode: armcontainerservice.AgentPoolModeUser, wantSwift: true, wantNICs: 6},
+		{name: "worker Swift without attachment", class: PoolClass{Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true}, wantMode: armcontainerservice.AgentPoolModeUser, wantSwift: true},
+		{name: "custom system mode without Swift", class: PoolClass{Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeSystem}, wantMode: armcontainerservice.AgentPoolModeSystem},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tier := TierConfig{Name: "db", Class: test.class, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}
+			require.NoError(t, ValidateProfile(Profile{Tiers: []TierConfig{tier}}))
+			index := BuildEligibleSKUIndex(map[string]*skucache.SKUMetadata{
+				"sku": {Name: "sku", Family: "a", VCPUs: 4, MemoryBytes: 16 << 30, SecondaryNICs: 3, EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 100},
+			})
+			pools, failures, full := ComputeDesiredPools(logr.Discard(), []TierConfig{tier}, nil, nil, map[VMFamily]int64{"a": 12}, index)
+			require.Empty(t, failures)
+			require.True(t, full)
+			require.Len(t, pools, 1)
+			require.Equal(t, test.wantMode, pools[0].AgentPoolMode)
+			require.Equal(t, test.wantSwift, pools[0].EnableSwift)
+			capacity := pools[0].CapacityAtCount(int64(pools[0].MaxCount))
+			require.Equal(t, int64(8), capacity.VCPUs)
+			require.Equal(t, test.wantNICs, capacity.SwiftNICs)
+		})
+	}
+}
+
+func TestComputeDesiredPoolsMissingNICCapacity(t *testing.T) {
+	tests := []struct {
+		name   string
+		attach bool
+	}{
+		{name: "attachments require NIC capacity", attach: true},
+		{name: "Swift alone needs no NIC capacity"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tier := TierConfig{Name: "db", Class: PoolClass{Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: test.attach}, PoolMode: PoolModeRegional, PoolCount: 1, Cores: 4, MaxNodes: 2, FamilyPriority: []VMFamily{"a"}}
+			index := BuildEligibleSKUIndex(map[string]*skucache.SKUMetadata{
+				"sku": {Name: "sku", Family: "a", VCPUs: 4, MemoryBytes: 16 << 30, EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 100},
+			})
+			pools, failures, full := ComputeDesiredPools(logr.Discard(), []TierConfig{tier}, nil, nil, map[VMFamily]int64{"a": 12}, index)
+			if test.attach {
+				require.Empty(t, pools, "must not silently omit requested attachments")
+				require.False(t, full)
+				require.Len(t, failures, 1)
+				require.Equal(t, "NoEligibleSKU", failures[0].Reason)
+			} else {
+				require.Empty(t, failures)
+				require.True(t, full)
+				require.Len(t, pools, 1)
+				require.Equal(t, int64(8), pools[0].CapacityAtCount(int64(pools[0].MaxCount)).VCPUs)
+			}
+		})
+	}
+}
+
+func TestComputeDesiredPoolsClassSchedulingPolicyIsolation(t *testing.T) {
+	for _, mode := range []PoolMode{PoolModeRegional, PoolModePerZone} {
+		t.Run(string(mode), func(t *testing.T) {
+			class := PoolClass{
+				Role:          "database",
+				AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+				Labels:        map[string]string{"workload": "database"},
+				Taints:        []string{"dedicated=database:NoSchedule"},
+			}
+			tiers := []TierConfig{
+				{Name: "small", Class: class, PoolMode: mode, PoolCount: 1, Cores: 4, MaxNodes: 1, FamilyPriority: []VMFamily{"a"}},
+				{Name: "large", Class: class, PoolMode: mode, PoolCount: 1, Cores: 4, MaxNodes: 1, FamilyPriority: []VMFamily{"a"}},
+			}
+			index := BuildEligibleSKUIndex(map[string]*skucache.SKUMetadata{
+				"sku": {Name: "sku", Family: "a", VCPUs: 4, MemoryBytes: 16 << 30, Zones: []string{"1"}, EphemeralOSDiskSupported: true, EphemeralDiskSizeGB: 100},
+			})
+			pools, failures, full := ComputeDesiredPools(logr.Discard(), tiers, []string{"1"}, nil, map[VMFamily]int64{"a": 12}, index)
+			require.Empty(t, failures)
+			require.True(t, full)
+			require.Len(t, pools, 2)
+			for _, pool := range pools {
+				require.Equal(t, map[string]string{RoleLabel: "database", "workload": "database"}, pool.Labels)
+				require.Equal(t, []string{"dedicated=database:NoSchedule"}, pool.Taints)
+			}
+
+			pools[0].Labels["workload"] = "changed"
+			pools[0].Taints[0] = "changed=true:NoSchedule"
+			require.Equal(t, map[string]string{RoleLabel: "database", "workload": "database"}, pools[1].Labels)
+			require.Equal(t, []string{"dedicated=database:NoSchedule"}, pools[1].Taints)
+
+			// Mutating a returned pool must not change future allocations from
+			// either tier sharing the same class.
+			again, failures, full := ComputeDesiredPools(logr.Discard(), tiers, []string{"1"}, nil, map[VMFamily]int64{"a": 12}, index)
+			require.Empty(t, failures)
+			require.True(t, full)
+			require.Len(t, again, 2)
+			for _, pool := range again {
+				require.Equal(t, map[string]string{RoleLabel: "database", "workload": "database"}, pool.Labels)
+				require.Equal(t, []string{"dedicated=database:NoSchedule"}, pool.Taints)
+			}
 		})
 	}
 }
