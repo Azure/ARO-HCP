@@ -641,6 +641,13 @@ For slot index `N`, the handler expands the configured prefix and count into:
 
 where `M` ranges from zero to `resource_group_count - 1`.
 
+The optional pool-level `identity_container_provisioning_count` reserves a larger
+physical inventory without increasing the runtime lease budget. It defaults to
+`resource_group_count` and cannot be smaller. Pool apply and inventory validation
+use the physical count; resolution, admission, and `LEASED_MSI_CONTAINERS` use
+`resource_group_count`. For INT West US 3, these counts are 100 physical groups
+and 70 leased groups per slot.
+
 V2 catalog validation checks the generated names against Azure resource-group
 naming rules, including the 90-character limit with both numeric suffixes.
 Suffix widths grow beyond two digits when an index exceeds 99.

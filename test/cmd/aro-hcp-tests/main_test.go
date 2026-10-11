@@ -29,6 +29,7 @@ import (
 	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
 
+	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/testutil"
 )
 
@@ -328,6 +329,116 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 			}
 			testutil.CompareFileWithFixture(t, mktempfile.Name(), testutil.WithSuffix(test.suffix))
 
+		})
+	}
+}
+
+func TestSuiteParallelismDefaultsAndOverrides(t *testing.T) {
+	listSuites := func(t *testing.T) map[string]e.Suite {
+		t.Helper()
+		output, err := os.CreateTemp(t.TempDir(), "suites-*.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer output.Close()
+
+		root := setupCli()
+		root.SetArgs([]string{"list", "suites", "--output", "json"})
+		originalStdout := os.Stdout
+		func() {
+			os.Stdout = output
+			defer func() { os.Stdout = originalStdout }()
+			err = root.Execute()
+		}()
+		if err != nil {
+			t.Fatalf("listing suites: %v", err)
+		}
+		if _, err := output.Seek(0, io.SeekStart); err != nil {
+			t.Fatal(err)
+		}
+		var suites []e.Suite
+		if err := json.NewDecoder(output).Decode(&suites); err != nil {
+			t.Fatalf("decoding listed suites: %v", err)
+		}
+		byName := make(map[string]e.Suite, len(suites))
+		for _, suite := range suites {
+			byName[suite.Name] = suite
+		}
+		return byName
+	}
+
+	t.Setenv("ARO_HCP_DEPLOY_ENV", "")
+	t.Setenv("LOCATION", "")
+	t.Setenv("ARO_HCP_SUITE_PARALLELISM", "")
+	t.Setenv(framework.UsePooledIdentitiesEnvvar, "true")
+	// The scheduler budget comes from the leased inventory, not worker parallelism.
+	t.Setenv(framework.LeasedMSIContainersEnvvar, strings.TrimSpace(strings.Repeat("container ", 70)))
+	baseline := listSuites(t)
+	upgradeDefault, ok := baseline["upgrade/in-place"]
+	if !ok {
+		t.Fatal("upgrade/in-place suite is missing")
+	}
+
+	for _, tc := range []struct {
+		name        string
+		environment string
+		location    string
+		override    string
+		want        int
+		wantGlobal  int
+		wantWarning bool
+	}{
+		{name: "INT West US 3", environment: "int", location: "westus3", want: 70},
+		{name: "environment case folding", environment: "InT", location: "westus3", want: 70},
+		{name: "region case folding", environment: "int", location: "WeStUs3", want: 70},
+		{name: "different region", environment: "int", location: "uksouth", want: 24},
+		{name: "different environment", environment: "stg", location: "westus3", want: 24},
+		{name: "missing environment", location: "westus3", want: 24},
+		{name: "missing region", environment: "int", want: 24},
+		{name: "missing both", want: 24},
+		{name: "override wins in target", environment: "int", location: "westus3", override: "100", want: 100, wantGlobal: 100},
+		{name: "override wins outside target", environment: "prod", location: "uksouth", override: "13", want: 13, wantGlobal: 13},
+		{name: "override wins with missing environment", override: "13", want: 13, wantGlobal: 13},
+		{name: "nonnumeric override falls back", environment: "int", location: "westus3", override: "invalid", want: 70, wantWarning: true},
+		{name: "zero override falls back", environment: "int", location: "westus3", override: "0", want: 70, wantWarning: true},
+		{name: "negative override falls back", environment: "int", location: "westus3", override: "-1", want: 70, wantWarning: true},
+		{name: "invalid override outside target", environment: "int", location: "uksouth", override: "invalid", want: 24, wantWarning: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("ARO_HCP_DEPLOY_ENV", tc.environment)
+			t.Setenv("LOCATION", tc.location)
+			t.Setenv("ARO_HCP_SUITE_PARALLELISM", tc.override)
+			var suites map[string]e.Suite
+			stderr := captureStderr(t, func() { suites = listSuites(t) })
+			if gotWarning := strings.Contains(stderr, "WARNING:"); gotWarning != tc.wantWarning {
+				t.Fatalf("override warning present = %v, want %v; stderr: %s", gotWarning, tc.wantWarning, stderr)
+			}
+			wantParallelism := map[string]int{
+				"integration/parallel":      tc.want,
+				"integration/parallel/slow": tc.want,
+				"integration/parallel/all":  tc.want,
+				"stage/parallel":            34,
+				"stage/parallel/slow":       34,
+				"stage/parallel/all":        34,
+				"prod/parallel":             19,
+				"prod/parallel/slow":        19,
+				"upgrade/in-place":          upgradeDefault.Parallelism,
+			}
+			for name, want := range wantParallelism {
+				if tc.wantGlobal != 0 {
+					want = tc.wantGlobal
+				}
+				suite, ok := suites[name]
+				if !ok {
+					t.Fatalf("suite %q is missing", name)
+				}
+				if suite.Parallelism != want {
+					t.Errorf("%s parallelism = %d, want %d", name, suite.Parallelism, want)
+				}
+				if strings.HasPrefix(name, "integration/parallel") && suite.ResourcePools["mi-containers"] != 70 {
+					t.Errorf("%s MI budget = %d, want leased inventory size 70", name, suite.ResourcePools["mi-containers"])
+				}
+			}
 		})
 	}
 }

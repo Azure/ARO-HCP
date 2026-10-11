@@ -24,6 +24,43 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
+func TestCompareIdentityPoolInventoryProvisionedReserve(t *testing.T) {
+	t.Parallel()
+	pool := slots.Pool{
+		Name: "int-westus3", SlotCount: 1, ResourceType: "int-slot",
+		IdentityContainerProvisioningCount: 100,
+		SlotAssets: slots.SlotAssets{E2EIdentities: &slots.E2EIdentitiesAsset{
+			ResourceGroupPrefix: "aro-hcp-msi-container-int", ResourceGroupCount: 70,
+		}},
+	}
+	expanded := slots.ExpandSlotsForPool("int", pool)
+	groups := expanded[0].ProvisionedIdentityContainerNames()
+	names := framework.NewDefaultIdentities().ToSlice()
+	if len(names) != 13 {
+		t.Fatalf("expected 13 managed identities per group, got %d", len(names))
+	}
+	actual := subscriptionInventory{ResourceGroups: groups, Identities: map[string][]string{}}
+	for _, group := range groups {
+		actual.Identities[group] = names
+	}
+	pools := []identityPool{{
+		SubscriptionName: "int-sub", IdentityContainerPrefix: "aro-hcp-msi-container-int", Slots: expanded,
+	}}
+	result := compareIdentityPoolInventory(pools, actual)
+	if !result.valid() || result.ExpectedResourceGroups != 100 || result.ActualResourceGroups != 100 ||
+		result.ExpectedIdentities != 1300 || result.ActualIdentities != 1300 {
+		t.Fatalf("physical reserve incorrectly classified as drift: %+v", result)
+	}
+	actual.ResourceGroups = groups[:70]
+	result = compareIdentityPoolInventory(pools, actual)
+	if result.valid() || len(result.MissingResourceGroups) != 30 {
+		t.Fatalf("missing physical reserve must be drift: %+v", result)
+	}
+	if len(expanded[0].IdentityContainerNames()) != 70 {
+		t.Fatal("inventory validation changed runtime lease budget")
+	}
+}
+
 func TestCompareIdentityPoolInventory(t *testing.T) {
 	t.Parallel()
 
