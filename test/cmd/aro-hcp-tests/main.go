@@ -456,6 +456,7 @@ func isUpgradeInPlaceSuiteInvocation() bool {
 	return false
 }
 
+// Builds the test CLI with environment-specific suite defaults and resource budgets.
 func setupCli() *cobra.Command {
 	configureGomegaFormatting()
 
@@ -468,7 +469,7 @@ func setupCli() *cobra.Command {
 	}
 	integrationParallelism := 24
 	if strings.EqualFold(os.Getenv("ARO_HCP_DEPLOY_ENV"), "int") && strings.EqualFold(os.Getenv("LOCATION"), "westus3") {
-		integrationParallelism = 70
+		integrationParallelism = 75
 	}
 
 	containerCount, containerCountSource := parseMIContainerCount()

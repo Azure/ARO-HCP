@@ -388,9 +388,9 @@ func TestSuiteParallelismDefaultsAndOverrides(t *testing.T) {
 		wantGlobal  int
 		wantWarning bool
 	}{
-		{name: "INT West US 3", environment: "int", location: "westus3", want: 70},
-		{name: "environment case folding", environment: "InT", location: "westus3", want: 70},
-		{name: "region case folding", environment: "int", location: "WeStUs3", want: 70},
+		{name: "INT West US 3", environment: "int", location: "westus3", want: 75},
+		{name: "environment case folding", environment: "InT", location: "westus3", want: 75},
+		{name: "region case folding", environment: "int", location: "WeStUs3", want: 75},
 		{name: "different region", environment: "int", location: "uksouth", want: 24},
 		{name: "different environment", environment: "stg", location: "westus3", want: 24},
 		{name: "missing environment", location: "westus3", want: 24},
@@ -399,9 +399,9 @@ func TestSuiteParallelismDefaultsAndOverrides(t *testing.T) {
 		{name: "override wins in target", environment: "int", location: "westus3", override: "100", want: 100, wantGlobal: 100},
 		{name: "override wins outside target", environment: "prod", location: "uksouth", override: "13", want: 13, wantGlobal: 13},
 		{name: "override wins with missing environment", override: "13", want: 13, wantGlobal: 13},
-		{name: "nonnumeric override falls back", environment: "int", location: "westus3", override: "invalid", want: 70, wantWarning: true},
-		{name: "zero override falls back", environment: "int", location: "westus3", override: "0", want: 70, wantWarning: true},
-		{name: "negative override falls back", environment: "int", location: "westus3", override: "-1", want: 70, wantWarning: true},
+		{name: "nonnumeric override falls back", environment: "int", location: "westus3", override: "invalid", want: 75, wantWarning: true},
+		{name: "zero override falls back", environment: "int", location: "westus3", override: "0", want: 75, wantWarning: true},
+		{name: "negative override falls back", environment: "int", location: "westus3", override: "-1", want: 75, wantWarning: true},
 		{name: "invalid override outside target", environment: "int", location: "uksouth", override: "invalid", want: 24, wantWarning: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
