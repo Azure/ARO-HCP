@@ -467,8 +467,8 @@ func setupCli() *cobra.Command {
 		return defaultValue
 	}
 	integrationParallelism := 24
-	if os.Getenv("ARO_HCP_DEPLOY_ENV") == "int" && strings.EqualFold(os.Getenv("LOCATION"), "westus3") {
-		integrationParallelism = 60
+	if strings.EqualFold(os.Getenv("ARO_HCP_DEPLOY_ENV"), "int") && strings.EqualFold(os.Getenv("LOCATION"), "westus3") {
+		integrationParallelism = 70
 	}
 
 	containerCount, containerCountSource := parseMIContainerCount()
