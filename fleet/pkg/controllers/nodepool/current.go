@@ -127,6 +127,7 @@ func currentPoolStates(pools []armcontainerservice.AgentPool, skuMetadata map[st
 		result = append(result, PoolState{
 			Pool: compute.Pool{
 				Role:              role,
+				AgentPoolMode:     ptr.Deref(pool.Properties.Mode, ""),
 				Name:              *pool.Name,
 				Spec:              spec,
 				AvailabilityZones: zones,

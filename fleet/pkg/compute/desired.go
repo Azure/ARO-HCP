@@ -264,7 +264,8 @@ func allocateRegionalTier(
 		}
 		pools = append(pools, Pool{
 			Role:              tier.Role,
-			Name:              poolName(tier.Name, tier.Role, "0", meta.Name, tier.OSDiskSizeGB, tier.MaxPods, tier.EnableSwift),
+			AgentPoolMode:     tier.AgentPoolMode,
+			Name:              tier.poolName(meta.Name, "0"),
 			Spec:              NewVMSpecFromSKU(meta),
 			AvailabilityZones: nil,
 			MaxCount:          int32(maxCount),
@@ -339,7 +340,8 @@ func allocatePerZoneTier(
 			zoneNodesNeeded[zone] -= poolNodes
 			pools = append(pools, Pool{
 				Role:              tier.Role,
-				Name:              poolName(tier.Name, tier.Role, zone, family.meta.Name, tier.OSDiskSizeGB, tier.MaxPods, tier.EnableSwift),
+				AgentPoolMode:     tier.AgentPoolMode,
+				Name:              tier.poolName(family.meta.Name, zone),
 				Spec:              NewVMSpecFromSKU(family.meta),
 				AvailabilityZones: []string{zone},
 				MaxCount:          int32(poolNodes),
@@ -553,17 +555,17 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, requir
 // <symbolicName><zone><hash> where symbolicName is the tier's stable identifier
 // (1-5 chars), zone is the availability zone digit, and hash is a 6-character
 // hex prefix of the SHA-256 of the pool's identity fields (Role, VMSize,
-// OSDiskSizeGB, MaxPods, EnableSwift). Role changes require replacement rather
+// OSDiskSizeGB, MaxPods, EnableSwift, AgentPoolMode). Role changes require replacement rather
 // than relabeling an existing pool. Changing any of those fields changes the
 // hash, renaming the pool so the reconciler replaces it — the only correct
 // response to an immutable-field change. Zone is excluded from the hash so
 // per-zone pools of the same spec share the same hash suffix. Name uniqueness
 // within a cluster is guaranteed structurally by (symbolicName, zone), not by
 // the hash, so a 24-bit truncation is safe; it only guards change detection.
-func poolName(symbolicName string, role PoolRole, zone string, vmSize string, osDiskSizeGB int32, maxPods int32, enableSwift bool) string {
-	input := fmt.Sprintf("%s|%s|%d|%d|%t", role, vmSize, osDiskSizeGB, maxPods, enableSwift)
+func (tier TierConfig) poolName(vmSize, zone string) string {
+	input := fmt.Sprintf("%s|%s|%d|%d|%t|%s", tier.Role, vmSize, tier.OSDiskSizeGB, tier.MaxPods, tier.EnableSwift, tier.AgentPoolMode)
 	sum := sha256.Sum256([]byte(input))
-	return fmt.Sprintf("%s%s%s", symbolicName, zone, hex.EncodeToString(sum[:])[:6])
+	return fmt.Sprintf("%s%s%s", tier.Name, zone, hex.EncodeToString(sum[:])[:6])
 }
 
 // RequiredTierFailed returns true if any allocation failure is for a required tier.
