@@ -15,6 +15,7 @@
 package nodepool
 
 import (
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -44,6 +45,10 @@ func TestConfigurationConverged(t *testing.T) {
 		{name: "disk drift", change: func(p []PoolState) []PoolState { p[0].OSDiskSizeGB = 64; return p }},
 		{name: "node count exceeds target", change: func(p []PoolState) []PoolState { p[0].Count = 4; return p }},
 		{name: "operator-configured NIC count below the SKU ceiling", change: func(p []PoolState) []PoolState { p[0].Spec.SecondaryNICs = 2; return p }, want: true},
+		{name: "provider mode drift", change: func(p []PoolState) []PoolState {
+			p[0].AgentPoolMode = armcontainerservice.AgentPoolModeSystem
+			return p
+		}},
 		{name: "vm size drift", change: func(p []PoolState) []PoolState { p[0].Spec.Size = "other"; return p }},
 	}
 	for _, test := range tests {
@@ -230,12 +235,12 @@ func TestFindNextActionSkipsUnsafeShrinks(t *testing.T) {
 		{
 			name: "blocked system deletion permits worker squeeze",
 			desired: []compute.Pool{
-				{Name: "keep-system", Role: compute.PoolRoleSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 3},
+				{Name: "keep-system", Role: compute.PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 3},
 				{Name: "new-worker", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Family: "workerFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 1},
 			},
 			current: []PoolState{
-				{Pool: compute.Pool{Name: "keep-system", Role: compute.PoolRoleSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 1}, Count: 1, AutoScalingEnabled: true},
-				{Pool: compute.Pool{Name: "old-system", Role: compute.PoolRoleSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 3}, Count: 3, AutoScalingEnabled: true},
+				{Pool: compute.Pool{Name: "keep-system", Role: compute.PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 1}, Count: 1, AutoScalingEnabled: true},
+				{Pool: compute.Pool{Name: "old-system", Role: compute.PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, Spec: compute.VMSpec{Family: "systemFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 3}, Count: 3, AutoScalingEnabled: true},
 				{Pool: compute.Pool{Name: "old-worker", Role: compute.PoolRoleWorker, Spec: compute.VMSpec{Family: "workerFamily", VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}, MaxCount: 5}, Count: 1, AutoScalingEnabled: true},
 			},
 			baseline: compute.CapacityByRole{compute.PoolRoleSystem: {VCPUs: 12, MemoryBytes: memoryBytes("48Gi")}, compute.PoolRoleInfra: {}, compute.PoolRoleWorker: {VCPUs: 4, MemoryBytes: memoryBytes("16Gi")}},

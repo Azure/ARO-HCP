@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 	"io"
 	"maps"
 	"net/http"
@@ -91,8 +92,8 @@ func testProfile() Profile {
 	return Profile{
 		Tiers: []TierConfig{
 			{
-				Name:           "wrk",
-				Role:           PoolRoleWorker,
+				Name: "wrk",
+				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
 				PoolMode:       PoolModePerZone,
 				Cores:          16,
 				OSDiskSizeGB:   100,
@@ -300,8 +301,8 @@ func TestResolveDesiredPools_UsageDoesNotChangeDesiredPools(t *testing.T) {
 			profile := Profile{
 				Tiers: []TierConfig{
 					{
-						Name:           "wrk",
-						Role:           PoolRoleWorker,
+						Name: "wrk",
+						Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
 						PoolMode:       PoolModeRegional,
 						PoolCount:      1,
 						Cores:          16,

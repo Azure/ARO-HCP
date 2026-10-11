@@ -375,6 +375,9 @@ func TestUnfreezeObservedPoolMinimum(t *testing.T) {
 			observed := makeAgentPool("existing", specD4v3.Size, []string{"1"}, 32, 3, false, 0, 0,
 				map[string]*string{compute.RoleLabel: ptr.To(string(test.role))})
 			observed.Properties.MinCount = test.minCount
+			if test.role == compute.PoolRoleSystem {
+				observed.Properties.Mode = ptr.To(armcontainerservice.AgentPoolModeSystem)
+			}
 			metadata := map[string]*skucache.SKUMetadata{
 				specD4v3.Size: {Name: specD4v3.Size, Family: string(specD4v3.Family), VCPUs: specD4v3.VCPUs, MemoryBytes: specD4v3.MemoryBytes},
 			}

@@ -16,6 +16,7 @@ package compute
 
 import (
 	"fmt"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 	"regexp"
 	"sort"
 
@@ -50,6 +51,7 @@ type TierConfig struct {
 	// profile; both are enforced by ValidateProfile.
 	Name            string
 	Role            PoolRole
+	AgentPoolMode   armcontainerservice.AgentPoolMode
 	PoolMode        PoolMode
 	Cores           int64
 	OSDiskSizeGB    int32
@@ -90,8 +92,8 @@ var profiles = map[string]Profile{
 	ProfileDevelopment: {
 		Tiers: []TierConfig{
 			{
-				Name:           "sys",
-				Role:           PoolRoleSystem,
+				Name: "sys",
+				Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem,
 				FamilyPriority: dFamilyPriority,
 				Cores:          4,
 				PoolMode:       PoolModeRegional,
@@ -104,8 +106,8 @@ var profiles = map[string]Profile{
 				Required:       true,
 			},
 			{
-				Name:           "inf",
-				Role:           PoolRoleInfra,
+				Name: "inf",
+				Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
 				FamilyPriority: dFamilyPriority,
 				Cores:          4,
 				PoolMode:       PoolModePerZone,
@@ -117,8 +119,8 @@ var profiles = map[string]Profile{
 				Required:       true,
 			},
 			{
-				Name:           "wrk",
-				Role:           PoolRoleWorker,
+				Name: "wrk",
+				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
 				FamilyPriority: dFamilyPriority,
 				Cores:          4,
 				PoolMode:       PoolModePerZone,
@@ -134,8 +136,8 @@ var profiles = map[string]Profile{
 	ProfileCI: {
 		Tiers: []TierConfig{
 			{
-				Name:           "sys",
-				Role:           PoolRoleSystem,
+				Name: "sys",
+				Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem,
 				FamilyPriority: dFamilyPriority,
 				Cores:          4,
 				PoolMode:       PoolModeRegional,
@@ -148,8 +150,8 @@ var profiles = map[string]Profile{
 				Required:       true,
 			},
 			{
-				Name:           "inf",
-				Role:           PoolRoleInfra,
+				Name: "inf",
+				Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
 				FamilyPriority: dFamilyPriority,
 				Cores:          8,
 				PoolMode:       PoolModePerZone,
@@ -161,8 +163,8 @@ var profiles = map[string]Profile{
 				Required:       true,
 			},
 			{
-				Name:            "wrk",
-				Role:            PoolRoleWorker,
+				Name: "wrk",
+				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
 				FamilyPriority:  eFamilyPriority,
 				Cores:           16,
 				PoolMode:        PoolModePerZone,
@@ -179,8 +181,8 @@ var profiles = map[string]Profile{
 	ProfileProduction: {
 		Tiers: []TierConfig{
 			{
-				Name:           "sys",
-				Role:           PoolRoleSystem,
+				Name: "sys",
+				Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem,
 				FamilyPriority: eFamilyPriority,
 				Cores:          8,
 				PoolMode:       PoolModeRegional,
@@ -193,8 +195,8 @@ var profiles = map[string]Profile{
 				Required:       true,
 			},
 			{
-				Name:           "inf",
-				Role:           PoolRoleInfra,
+				Name: "inf",
+				Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
 				FamilyPriority: eFamilyPriority,
 				Cores:          32,
 				PoolMode:       PoolModePerZone,
@@ -206,8 +208,8 @@ var profiles = map[string]Profile{
 				Required:       true,
 			},
 			{
-				Name:            "wrk16",
-				Role:            PoolRoleWorker,
+				Name: "wrk16",
+				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
 				FamilyPriority:  eFamilyPriority,
 				Cores:           16,
 				PoolMode:        PoolModePerZone,
@@ -219,8 +221,8 @@ var profiles = map[string]Profile{
 				EnableSwift:     true,
 			},
 			{
-				Name:            "wrk32",
-				Role:            PoolRoleWorker,
+				Name: "wrk32",
+				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser,
 				FamilyPriority:  eFamilyPriority,
 				Cores:           32,
 				PoolMode:        PoolModePerZone,

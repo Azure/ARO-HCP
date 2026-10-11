@@ -28,6 +28,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
@@ -50,6 +52,7 @@ var (
 func pool(name string, spec compute.VMSpec, zone string, maxCount, osDiskSizeGB int32) compute.Pool {
 	return compute.Pool{
 		Role:              compute.PoolRoleWorker,
+		AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
 		Name:              name,
 		Spec:              spec,
 		AvailabilityZones: []string{zone},
@@ -66,6 +69,7 @@ func poolState(name string, spec compute.VMSpec, zone string, maxCount, osDiskSi
 	return PoolState{
 		Pool: compute.Pool{
 			Role:              compute.PoolRoleWorker,
+			AgentPoolMode:     armcontainerservice.AgentPoolModeUser,
 			Name:              name,
 			Spec:              spec,
 			AvailabilityZones: []string{zone},
@@ -86,6 +90,7 @@ func poolState(name string, spec compute.VMSpec, zone string, maxCount, osDiskSi
 func systemPool(name string, spec compute.VMSpec, zone string, maxCount, osDiskSizeGB int32) compute.Pool {
 	return compute.Pool{
 		Role:              compute.PoolRoleSystem,
+		AgentPoolMode:     armcontainerservice.AgentPoolModeSystem,
 		Name:              name,
 		Spec:              spec,
 		AvailabilityZones: []string{zone},
@@ -101,6 +106,7 @@ func systemPoolState(name string, spec compute.VMSpec, zone string, maxCount, os
 	return PoolState{
 		Pool: compute.Pool{
 			Role:              compute.PoolRoleSystem,
+			AgentPoolMode:     armcontainerservice.AgentPoolModeSystem,
 			Name:              name,
 			Spec:              spec,
 			AvailabilityZones: []string{zone},
@@ -386,6 +392,8 @@ func TestUndesiredSystemPoolDeletedDirectly(t *testing.T) {
 		poolState("wrk1", specE32v6, "1", 2, 512, true, 1),
 		systemPoolState("s0old", specD4v3, "1", 1, 128, false, 1),
 	}
+	// Provider mode, not the grouping label, determines the deletion path.
+	current[0].Role, current[2].Role = "control", "legacy"
 
 	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
 	require.NotNil(t, action)
@@ -404,6 +412,7 @@ func TestUndesiredSystemPoolPreservedWithoutSurvivor(t *testing.T) {
 		poolState("wrk1", specE32v6, "1", 2, 512, true, 1),
 		systemPoolState("s0old", specD4v3, "1", 1, 128, false, 1),
 	}
+	current[1].Role = "custom"
 
 	action := findNextAction(desired, current, generousBudgets(desired, current), compute.CapacityByRole{}, compute.NetworkConfig{})
 	assert.Nil(t, action, "must not drain or delete the last system pool")

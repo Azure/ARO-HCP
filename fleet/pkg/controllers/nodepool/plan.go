@@ -19,6 +19,8 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
@@ -73,7 +75,7 @@ func findNextAction(desired []compute.Pool, current []PoolState, availableVCPUs 
 	}
 
 	// 5. Shrink undesired pools (identity-based, not headroom-gated).
-	//    Each reduction must preserve the per-role transition floor.
+	//    Each reduction must preserve the transition floor.
 	if action, ok := findShrinkAction(current, desiredByName, capacityFloor); ok {
 		return action
 	}
@@ -108,7 +110,7 @@ func findCorrectDesiredAction(desired []compute.Pool, currentByName map[string]P
 					minCount := min(cur.MinCount, pool.MaxCount)
 					// Pools that never autoscaled have no observed floor. System
 					// pools require a positive minimum; user pools may keep zero.
-					if pool.Role == compute.PoolRoleSystem {
+					if pool.AgentPoolMode == armcontainerservice.AgentPoolModeSystem {
 						minCount = max(minCount, 1)
 					}
 					return newUnfreezeAction(pool.Name, pool.Spec.Size, pool.ZoneString(), cur.ETag, minCount, pool.MaxCount), true
@@ -237,7 +239,7 @@ func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool
 	// and drains the node on delete — but only while another system pool we
 	// intend to keep remains, since AKS forbids deleting the last system pool.
 	for _, cur := range undesired {
-		if cur.Role != compute.PoolRoleSystem {
+		if cur.AgentPoolMode != armcontainerservice.AgentPoolModeSystem {
 			continue
 		}
 		// Only delete when another system pool remains in the desired set; AKS
@@ -245,7 +247,7 @@ func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool
 		// never be the survivor matched here.
 		survivorRemains := false
 		for _, other := range current {
-			if other.Role != compute.PoolRoleSystem {
+			if other.AgentPoolMode != armcontainerservice.AgentPoolModeSystem {
 				continue
 			}
 			if _, desired := desiredByName[other.Name]; desired {
@@ -294,7 +296,7 @@ func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool
 	for _, cur := range undesired {
 		// System pools cannot be drained below minCount 1 (AKS rejects count 0);
 		// they are removed by the direct-delete branch above, never here.
-		if cur.Role == compute.PoolRoleSystem {
+		if cur.AgentPoolMode == armcontainerservice.AgentPoolModeSystem {
 			continue
 		}
 		if !cur.AutoScalingEnabled && cur.Count > 0 {

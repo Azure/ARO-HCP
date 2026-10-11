@@ -17,16 +17,16 @@ skus:
 fully allocated: false
 
 pools:
-  sys01876fc    system  Standard_E8ds_v6   cpu=8   memory=64GiB   nics=3  zone=regional  min=1  max=3  osDisk=128GB  maxPods=100  swift=false  labels=aro-hcp.azure.com/role=system  taints=CriticalAddonsOnly=true:NoSchedule
-  inf17dc270    infra   Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=1         min=1  max=1  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
-  inf27dc270    infra   Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=2         min=1  max=1  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
-  inf37dc270    infra   Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=3         min=1  max=1  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
-  wrk161c5e393  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=1         min=1  max=2  osDisk=256GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
-  wrk162c5e393  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=2         min=1  max=2  osDisk=256GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
-  wrk163c5e393  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=3         min=1  max=2  osDisk=256GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
-  wrk3218bc26f  worker  Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=1         min=1  max=7  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
-  wrk3228bc26f  worker  Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=2         min=1  max=7  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
-  wrk3238bc26f  worker  Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=3         min=1  max=7  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  sys0842e9c    system  Standard_E8ds_v6   cpu=8   memory=64GiB   nics=3  zone=regional  min=1  max=3  osDisk=128GB  maxPods=100  swift=false  labels=aro-hcp.azure.com/role=system  taints=CriticalAddonsOnly=true:NoSchedule
+  inf112dc9e    infra   Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=1         min=1  max=1  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
+  inf212dc9e    infra   Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=2         min=1  max=1  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
+  inf312dc9e    infra   Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=3         min=1  max=1  osDisk=128GB  maxPods=225  swift=false  labels=aro-hcp.azure.com/role=infra   taints=infra=true:NoSchedule
+  wrk1618450ef  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=1         min=1  max=2  osDisk=256GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk1628450ef  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=2         min=1  max=2  osDisk=256GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk1638450ef  worker  Standard_E16ds_v6  cpu=16  memory=128GiB  nics=7  zone=3         min=1  max=2  osDisk=256GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk321c908e0  worker  Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=1         min=1  max=7  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk322c908e0  worker  Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=2         min=1  max=7  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
+  wrk323c908e0  worker  Standard_E32ds_v6  cpu=32  memory=256GiB  nics=7  zone=3         min=1  max=7  osDisk=512GB  maxPods=225  swift=true   labels=aro-hcp.azure.com/role=worker  taints=-
 
 failures:
   (none)
