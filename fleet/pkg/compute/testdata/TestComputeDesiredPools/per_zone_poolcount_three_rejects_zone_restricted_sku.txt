@@ -15,4 +15,4 @@ pools:
   (none)
 
 failures:
-  NoZoneCoverage  required=false  tier 0 (32 cores): no family has a SKU available in the required zones
+  NoZoneCoverage  required=false  tier 0 (32 cores): the eligible families' SKUs are not offered in enough zones

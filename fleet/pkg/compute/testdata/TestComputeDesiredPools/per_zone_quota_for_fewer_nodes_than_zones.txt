@@ -15,4 +15,4 @@ pools:
   (none)
 
 failures:
-  InsufficientQuota  required=false  tier 0 (32 cores): no family has enough quota for at least one node per zone
+  InsufficientQuota  required=false  tier 0 (32 cores): the families' quota does not cover at least one node per zone
