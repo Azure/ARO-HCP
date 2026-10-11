@@ -39,6 +39,46 @@ var (
 	eFamilyPriority = []VMFamily{"StandardEdsv7Family", "StandardEdsv6Family", "standardEDSv5Family", "standardEDSv4Family", "standardESv3Family"}
 )
 
+// PoolClass defines the role, scheduling, and AKS networking policy shared by tiers.
+// Role is a capacity-grouping label, independent of the provider settings.
+type PoolClass struct {
+	Role          PoolRole
+	AgentPoolMode armcontainerservice.AgentPoolMode
+	EnableSwift   bool
+	// AttachSecondaryNICs attaches the SKU's maximum secondary NIC count.
+	// It requires EnableSwift; Swift itself does not require attachments.
+	AttachSecondaryNICs bool
+	// Labels holds extra node labels. RoleLabel is derived from Role and must
+	// not be set here.
+	Labels map[string]string
+	Taints []string
+}
+
+// Standard pool classes are copied into tier definitions. A tier selects a
+// complete class rather than overriding its individual policy fields.
+var (
+	SystemPools = PoolClass{
+		Role:          PoolRoleSystem,
+		AgentPoolMode: armcontainerservice.AgentPoolModeSystem,
+		Taints:        []string{TaintCriticalAddonsOnly},
+		// Swift requires system pools to be swift enabled (pool annotations etc) ...
+		EnableSwift: true,
+		// ... but we don't schedule anything on the system pools that needs the NICs
+		AttachSecondaryNICs: false,
+	}
+	InfraPools = PoolClass{
+		Role:          PoolRoleInfra,
+		AgentPoolMode: armcontainerservice.AgentPoolModeUser,
+		Taints:        []string{TaintInfra},
+	}
+	WorkerPools = PoolClass{
+		Role:                PoolRoleWorker,
+		AgentPoolMode:       armcontainerservice.AgentPoolModeUser,
+		EnableSwift:         true,
+		AttachSecondaryNICs: true,
+	}
+)
+
 // TierConfig defines a single node pool tier — a desired VM size class with
 // its own core count, disk size, node cap, and family preference list. Tiers
 // are processed in order: tier 0 allocates from the shared quota pool first,
@@ -50,21 +90,16 @@ type TierConfig struct {
 	// identifier: changing it renames — and therefore replaces — the tier's
 	// pools. Must match ^[a-z][a-z0-9]{0,4}$ (1-5 chars) and be unique within a
 	// profile; both are enforced by ValidateProfile.
-	Name                string
-	Role                PoolRole
-	AgentPoolMode       armcontainerservice.AgentPoolMode
-	EnableSwift         bool
-	AttachSecondaryNICs bool
-	Labels              map[string]string
-	Taints              []string
-	PoolMode            PoolMode
-	Cores               int64
-	OSDiskSizeGB        int32
-	MaxNodes            int64
-	InitialMinNodes     int64
-	FamilyPriority      []VMFamily
-	MaxPods             int32
-	Required            bool
+	Name            string
+	Class           PoolClass
+	PoolMode        PoolMode
+	Cores           int64
+	OSDiskSizeGB    int32
+	MaxNodes        int64
+	InitialMinNodes int64
+	FamilyPriority  []VMFamily
+	MaxPods         int32
+	Required        bool
 	// PoolCount is the number of zones a PoolModePerZone tier spans and must be
 	// >= 1 (clamped to the number of zones available). The tier uses the zones
 	// allowing the most nodes per zone; every zone gets the same node count,
@@ -91,8 +126,8 @@ var profiles = map[string]Profile{
 	ProfileDevelopment: {
 		Tiers: []TierConfig{
 			{
-				Name: "sys",
-				Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, Taints: []string{TaintCriticalAddonsOnly},
+				Name:           "sys",
+				Class:          SystemPools,
 				FamilyPriority: dFamilyPriority,
 				Cores:          4,
 				PoolMode:       PoolModeRegional,
@@ -103,8 +138,8 @@ var profiles = map[string]Profile{
 				Required:       true,
 			},
 			{
-				Name: "inf",
-				Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser, Taints: []string{TaintInfra},
+				Name:           "inf",
+				Class:          InfraPools,
 				FamilyPriority: dFamilyPriority,
 				Cores:          4,
 				PoolMode:       PoolModePerZone,
@@ -115,8 +150,8 @@ var profiles = map[string]Profile{
 				Required:       true,
 			},
 			{
-				Name: "wrk",
-				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true,
+				Name:           "wrk",
+				Class:          WorkerPools,
 				FamilyPriority: dFamilyPriority,
 				Cores:          4,
 				PoolMode:       PoolModePerZone,
@@ -131,8 +166,8 @@ var profiles = map[string]Profile{
 	ProfileCI: {
 		Tiers: []TierConfig{
 			{
-				Name: "sys",
-				Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, Taints: []string{TaintCriticalAddonsOnly},
+				Name:           "sys",
+				Class:          SystemPools,
 				FamilyPriority: dFamilyPriority,
 				Cores:          4,
 				PoolMode:       PoolModeRegional,
@@ -143,8 +178,8 @@ var profiles = map[string]Profile{
 				Required:       true,
 			},
 			{
-				Name: "inf",
-				Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser, Taints: []string{TaintInfra},
+				Name:           "inf",
+				Class:          InfraPools,
 				FamilyPriority: dFamilyPriority,
 				Cores:          8,
 				PoolMode:       PoolModePerZone,
@@ -155,8 +190,8 @@ var profiles = map[string]Profile{
 				Required:       true,
 			},
 			{
-				Name: "wrk",
-				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true,
+				Name:            "wrk",
+				Class:           WorkerPools,
 				FamilyPriority:  eFamilyPriority,
 				Cores:           16,
 				PoolMode:        PoolModePerZone,
@@ -172,8 +207,8 @@ var profiles = map[string]Profile{
 	ProfileProduction: {
 		Tiers: []TierConfig{
 			{
-				Name: "sys",
-				Role: PoolRoleSystem, AgentPoolMode: armcontainerservice.AgentPoolModeSystem, EnableSwift: true, Taints: []string{TaintCriticalAddonsOnly},
+				Name:           "sys",
+				Class:          SystemPools,
 				FamilyPriority: eFamilyPriority,
 				Cores:          8,
 				PoolMode:       PoolModeRegional,
@@ -184,8 +219,8 @@ var profiles = map[string]Profile{
 				Required:       true,
 			},
 			{
-				Name: "inf",
-				Role: PoolRoleInfra, AgentPoolMode: armcontainerservice.AgentPoolModeUser, Taints: []string{TaintInfra},
+				Name:           "inf",
+				Class:          InfraPools,
 				FamilyPriority: eFamilyPriority,
 				Cores:          32,
 				PoolMode:       PoolModePerZone,
@@ -196,8 +231,8 @@ var profiles = map[string]Profile{
 				Required:       true,
 			},
 			{
-				Name: "wrk16",
-				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true,
+				Name:            "wrk16",
+				Class:           WorkerPools,
 				FamilyPriority:  eFamilyPriority,
 				Cores:           16,
 				PoolMode:        PoolModePerZone,
@@ -208,8 +243,8 @@ var profiles = map[string]Profile{
 				MaxPods:         225,
 			},
 			{
-				Name: "wrk32",
-				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true,
+				Name:            "wrk32",
+				Class:           WorkerPools,
 				FamilyPriority:  eFamilyPriority,
 				Cores:           32,
 				PoolMode:        PoolModePerZone,
@@ -224,9 +259,8 @@ var profiles = map[string]Profile{
 	},
 }
 
-// ValidateProfile checks a profile's tiers for valid, unique symbolic names,
-// minimum core counts, initialMinNodes within maxNodes, duplicate families
-// within a tier's FamilyPriority, and a PoolCount valid for the tier's PoolMode.
+// ValidateProfile checks each tier's identity, independent AKS and networking
+// policies, core and node bounds, family priorities, and zonal pool count.
 func ValidateProfile(profile Profile) error {
 	seenNames := sets.New[string]()
 	for i, tier := range profile.Tiers {
@@ -237,6 +271,17 @@ func ValidateProfile(profile Profile) error {
 			return fmt.Errorf("tier %d: name %q is not unique within the profile", i, tier.Name)
 		}
 		seenNames.Insert(tier.Name)
+		if len(tier.Class.Role) == 0 {
+			return fmt.Errorf("tier %d: role must not be empty", i)
+		}
+		switch tier.Class.AgentPoolMode {
+		case armcontainerservice.AgentPoolModeUser, armcontainerservice.AgentPoolModeSystem:
+		default:
+			return fmt.Errorf("tier %d: unknown agent pool mode %q", i, tier.Class.AgentPoolMode)
+		}
+		if tier.Class.AttachSecondaryNICs && !tier.Class.EnableSwift {
+			return fmt.Errorf("tier %d: attaching secondary NICs requires Swift", i)
+		}
 
 		if tier.Cores < minCoresPerTier {
 			return fmt.Errorf("tier %d: cores %d below minimum %d (smaller VMs lack multi-NIC support for Swift)", i, tier.Cores, minCoresPerTier)
@@ -244,8 +289,8 @@ func ValidateProfile(profile Profile) error {
 		if tier.InitialMinNodes > tier.MaxNodes {
 			return fmt.Errorf("tier %d: initialMinNodes %d exceeds maxNodes %d", i, tier.InitialMinNodes, tier.MaxNodes)
 		}
-		if _, ok := tier.Labels[RoleLabel]; ok {
-			return fmt.Errorf("tier %d: label %q must not be set in Labels; it is derived from Role", i, RoleLabel)
+		if _, ok := tier.Class.Labels[RoleLabel]; ok {
+			return fmt.Errorf("tier %d: label %q must not be set in Class.Labels; it is derived from Class.Role", i, RoleLabel)
 		}
 		switch tier.PoolMode {
 		case PoolModePerZone:

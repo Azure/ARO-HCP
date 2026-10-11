@@ -39,7 +39,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	armcomputefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6/fake"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -93,8 +92,8 @@ func testProfile() Profile {
 	return Profile{
 		Tiers: []TierConfig{
 			{
-				Name: "wrk",
-				Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true,
+				Name:           "wrk",
+				Class:          WorkerPools,
 				PoolMode:       PoolModePerZone,
 				Cores:          16,
 				OSDiskSizeGB:   100,
@@ -302,8 +301,8 @@ func TestResolveDesiredPools_UsageDoesNotChangeDesiredPools(t *testing.T) {
 			profile := Profile{
 				Tiers: []TierConfig{
 					{
-						Name: "wrk",
-						Role: PoolRoleWorker, AgentPoolMode: armcontainerservice.AgentPoolModeUser, EnableSwift: true, AttachSecondaryNICs: true,
+						Name:           "wrk",
+						Class:          WorkerPools,
 						PoolMode:       PoolModeRegional,
 						PoolCount:      1,
 						Cores:          16,
