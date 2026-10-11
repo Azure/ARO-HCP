@@ -317,6 +317,14 @@ func TestComputeDesiredPools(t *testing.T) {
 			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E32ds_v6": e32dsv6},
 		},
 		{
+			name: "regional insufficient quota",
+			tiers: []TierConfig{
+				{Name: "sys", Role: PoolRoleSystem, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 100, PoolCount: 1},
+			},
+			familyBudgets: map[VMFamily]int64{"StandardEdsv6Family": 0},
+			skuMetadata:   map[string]*skucache.SKUMetadata{"Standard_E8ds_v6": e8dsv6},
+		},
+		{
 			name: "multi role production like",
 			tiers: []TierConfig{
 				{Name: "sys", Role: PoolRoleSystem, PoolMode: PoolModeRegional, Cores: 8, OSDiskSizeGB: 128, MaxNodes: 3, FamilyPriority: []VMFamily{"StandardEdsv6Family"}, MaxPods: 100, Taints: []string{TaintCriticalAddonsOnly}, PoolCount: 1},

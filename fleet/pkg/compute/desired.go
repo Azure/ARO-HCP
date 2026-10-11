@@ -191,10 +191,10 @@ func tierLabels(tier TierConfig) map[string]string {
 // FamilyPriority. PoolModeRegional reorders it to spend the most zone-restricted
 // families first: a regional pool sets no zones, so it runs fine on a family
 // whose SKU is offered in only some zones, which preserves families with broader
-// zone coverage for the PoolModePerZone tiers that actually need it. We only
-// target zonal regions, so a family whose SKU is unavailable or offered in zero
-// zones (restricted in every zone) is unschedulable; those sort last so a
-// regional pool never prefers a broken SKU over a usable one.
+// zone coverage for the PoolModePerZone tiers that actually need it. A family
+// whose SKU is missing or restricted in every zone sorts last. Zone restrictions
+// only block zonal deployments, so a regional pool can still use such a SKU,
+// but it stays a last resort behind families offered in at least one zone.
 func familyAllocationOrder(tier TierConfig, zones []string, skuIndex EligibleSKUIndex) []VMFamily {
 	if tier.PoolMode != PoolModeRegional {
 		return tier.FamilyPriority
@@ -379,6 +379,9 @@ func tierSKU(logger logr.Logger, tier TierConfig, family VMFamily, skuIndex Elig
 func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, skuIndex EligibleSKUIndex) AllocationFailure {
 	reason := "InsufficientQuota"
 	message := fmt.Sprintf("tier %d (%d cores): no family has enough quota for at least one node per zone", tierIndex, tier.Cores)
+	if tier.PoolMode == PoolModeRegional {
+		message = fmt.Sprintf("tier %d (%d cores): the families' quota does not cover at least one node", tierIndex, tier.Cores)
+	}
 
 	if len(tier.FamilyPriority) == 0 {
 		reason = "NoEligibleFamily"
