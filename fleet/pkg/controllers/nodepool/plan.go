@@ -29,10 +29,10 @@ import (
 // (quota limit minus live usage) minus the committed-but-not-running ceiling of
 // current pools. Same-family transitions converge iteratively: grow (step 4)
 // runs before shrink (step 5), and every reduction preserves the accepted
-// per-role transition floor.
+// transition floor of its role-zone bucket.
 //
 // Returns nil when converged or blocked. Returns waitAction when any pool is in progress.
-func findNextAction(desired []compute.Pool, current []PoolState, availableVCPUs map[compute.VMFamily]int64, capacityFloor compute.CapacityByRole, networkConfig compute.NetworkConfig) Action {
+func findNextAction(desired []compute.Pool, current []PoolState, availableVCPUs map[compute.VMFamily]int64, capacityFloor transitionFloor, networkConfig compute.NetworkConfig) Action {
 	if blocker := firstInProgressPool(current); blocker != nil {
 		return newWaitAction(blocker.Name, blocker.Spec.Size, blocker.ZoneString(), waitPollHint)
 	}
@@ -96,7 +96,7 @@ func findReconcileAction(desired []compute.Pool, currentByName map[string]PoolSt
 // findCorrectDesiredAction handles desired pools that exist but are
 // misconfigured: frozen pools that need unfreezing, pools with maxCount above
 // target, or pools whose count exceeds desired max and need draining.
-func findCorrectDesiredAction(desired []compute.Pool, currentByName map[string]PoolState, headroom map[compute.VMFamily]int64, current []PoolState, capacityFloor compute.CapacityByRole) (Action, bool) {
+func findCorrectDesiredAction(desired []compute.Pool, currentByName map[string]PoolState, headroom map[compute.VMFamily]int64, current []PoolState, capacityFloor transitionFloor) (Action, bool) {
 	for _, pool := range desired {
 		cur, exists := currentByName[pool.Name]
 		if !exists {
@@ -220,7 +220,7 @@ func findGrowAction(desired []compute.Pool, currentByName map[string]PoolState, 
 	return nil, false
 }
 
-func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool, capacityFloor compute.CapacityByRole) (Action, bool) {
+func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool, capacityFloor transitionFloor) (Action, bool) {
 	undesired := undesiredPools(current, desiredByName)
 	if len(undesired) == 0 {
 		return nil, false

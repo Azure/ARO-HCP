@@ -15,6 +15,7 @@
 package compute
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"slices"
@@ -34,8 +35,24 @@ func (c RoleCapacity) String() string {
 
 type CapacityByRole map[PoolRole]RoleCapacity
 
+// Add returns the sum of both capacities.
 func (c RoleCapacity) Add(other RoleCapacity) RoleCapacity {
 	return RoleCapacity{VCPUs: c.VCPUs + other.VCPUs, MemoryBytes: c.MemoryBytes + other.MemoryBytes, SwiftNICs: c.SwiftNICs + other.SwiftNICs}
+}
+
+// Sub returns c minus other.
+func (c RoleCapacity) Sub(other RoleCapacity) RoleCapacity {
+	return RoleCapacity{VCPUs: c.VCPUs - other.VCPUs, MemoryBytes: c.MemoryBytes - other.MemoryBytes, SwiftNICs: c.SwiftNICs - other.SwiftNICs}
+}
+
+// Min returns the per-dimension minimum of both capacities.
+func (c RoleCapacity) Min(other RoleCapacity) RoleCapacity {
+	return RoleCapacity{VCPUs: min(c.VCPUs, other.VCPUs), MemoryBytes: min(c.MemoryBytes, other.MemoryBytes), SwiftNICs: min(c.SwiftNICs, other.SwiftNICs)}
+}
+
+// Covers reports whether c is at least floor in every dimension.
+func (c RoleCapacity) Covers(floor RoleCapacity) bool {
+	return c.VCPUs >= floor.VCPUs && c.MemoryBytes >= floor.MemoryBytes && c.SwiftNICs >= floor.SwiftNICs
 }
 
 // CapacityAtCount computes a pool's configured resources for a node count.
@@ -72,32 +89,86 @@ func validatePoolCapacity(pool Pool) error {
 	return nil
 }
 
-// EnsureMeetsBaseline rejects capacity below the supplied baseline in any
-// role or resource dimension.
-func (capacity CapacityByRole) EnsureMeetsBaseline(capacityBaseline CapacityByRole) error {
-	for _, role := range slices.Sorted(maps.Keys(capacityBaseline)) {
-		minimum := capacityBaseline[role]
-		got := capacity[role]
-		if got.VCPUs < minimum.VCPUs || got.MemoryBytes < minimum.MemoryBytes || got.SwiftNICs < minimum.SwiftNICs {
-			return fmt.Errorf("%s capacity %v is below protected baseline %v", role, got, minimum)
+// RoleZone identifies a capacity bucket. The empty zone is the non-zonal bucket.
+type RoleZone struct {
+	Role PoolRole
+	Zone string
+}
+
+// RoleZoneKey returns the capacity bucket a pool's ceiling belongs to: its
+// single zone, or the non-zonal bucket when it has zero or several zones (a
+// pool spanning several zones cannot be attributed to just one of them).
+// PoolZoneCapacities and capacity-reduction checks must use this so a pool is
+// always looked up under the same bucket it was summed into.
+func (p Pool) RoleZoneKey() RoleZone {
+	key := RoleZone{Role: p.Role}
+	if len(p.AvailabilityZones) == 1 {
+		key.Zone = p.AvailabilityZones[0]
+	}
+	return key
+}
+
+type CapacityByRoleZone map[RoleZone]RoleCapacity
+
+// Keys returns the capacity buckets sorted by role, then zone.
+func (capacity CapacityByRoleZone) Keys() []RoleZone {
+	return slices.SortedFunc(maps.Keys(capacity), func(a, b RoleZone) int {
+		if order := cmp.Compare(a.Role, b.Role); order != 0 {
+			return order
+		}
+		return cmp.Compare(a.Zone, b.Zone)
+	})
+}
+
+// PoolZoneCapacities sums pool ceilings per role and zone. A pool pinned to
+// exactly one zone belongs to that zone's bucket; a pool with zero or several
+// zones cannot be attributed to a single zone and belongs to the non-zonal
+// bucket instead. A role whose desired capacity is itself zone-agnostic (see
+// PoolModeRegional) only ever checks the non-zonal bucket, so folding such a
+// pool's full capacity into it is exact, not a guess. A role whose desired
+// capacity is zone-pinned (PoolModePerZone) still gets the zone protection it
+// needs: ResolveEffectiveFloor rejects a desired plan with no capacity in a
+// zone the non-zonal fold cannot satisfy.
+func PoolZoneCapacities(pools []Pool) (CapacityByRoleZone, error) {
+	result := CapacityByRoleZone{}
+	for _, pool := range pools {
+		if err := validatePoolCapacity(pool); err != nil {
+			return nil, err
+		}
+		key := pool.RoleZoneKey()
+		result[key] = result[key].Add(pool.CapacityAtCount(int64(pool.MaxCount)))
+	}
+	return result, nil
+}
+
+// EnsureMeetsBaseline rejects missing buckets or capacity below the supplied
+// baseline in any role, zone, or resource dimension.
+func (capacity CapacityByRoleZone) EnsureMeetsBaseline(baseline CapacityByRoleZone) error {
+	for _, key := range baseline.Keys() {
+		got, ok := capacity[key]
+		if !ok {
+			return fmt.Errorf("missing %s capacity in zone %q", key.Role, key.Zone)
+		}
+		if !got.Covers(baseline[key]) {
+			return fmt.Errorf("%s capacity %v in zone %q is below protected baseline %v", key.Role, got, key.Zone, baseline[key])
 		}
 	}
 	return nil
 }
 
-// ResolveEffectiveFloor uses the per-dimension minimum of current and desired
-// capacity for fully allocated plans. Partial plans must preserve the entire
-// current baseline. The supplied baseline is not modified.
-func (desired CapacityByRole) ResolveEffectiveFloor(baseline CapacityByRole, fullyAllocated bool) (CapacityByRole, error) {
+// ResolveEffectiveFloor protects the per-resource minimum of current and
+// desired capacity for fully allocated plans, or the entire current capacity
+// for partial plans. Every existing role-zone bucket, including the non-zonal
+// bucket, must remain present. The supplied baseline is not modified.
+func (desired CapacityByRoleZone) ResolveEffectiveFloor(baseline CapacityByRoleZone, fullyAllocated bool) (CapacityByRoleZone, error) {
 	floor := maps.Clone(baseline)
-	if fullyAllocated {
-		for role, capacity := range floor {
-			target := desired[role]
-			floor[role] = RoleCapacity{
-				VCPUs:       min(capacity.VCPUs, target.VCPUs),
-				MemoryBytes: min(capacity.MemoryBytes, target.MemoryBytes),
-				SwiftNICs:   min(capacity.SwiftNICs, target.SwiftNICs),
-			}
+	for _, key := range baseline.Keys() {
+		target, ok := desired[key]
+		if !ok {
+			return nil, fmt.Errorf("desired plan has no %s capacity in zone %q", key.Role, key.Zone)
+		}
+		if fullyAllocated {
+			floor[key] = baseline[key].Min(target)
 		}
 	}
 	if err := desired.EnsureMeetsBaseline(floor); err != nil {
