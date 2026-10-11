@@ -346,7 +346,7 @@ func TestResolveDesiredPools_Scenario(t *testing.T) {
 	}{
 		{region: "uksouth", profile: ProfileProduction},
 		// Quota less the running vCPUs of the subscription's other clusters.
-		{region: "westus3", profile: ProfileProduction},
+		{region: "westus3", profile: ProfileIntegration},
 	}
 
 	for _, tt := range tests {

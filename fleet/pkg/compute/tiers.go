@@ -119,6 +119,7 @@ type Profile struct {
 const (
 	ProfileCI          = "ci"
 	ProfileDevelopment = "development"
+	ProfileIntegration = "integration"
 	ProfileProduction  = "production"
 )
 
@@ -203,6 +204,50 @@ var profiles = map[string]Profile{
 			},
 		},
 		BudgetStrategy: UnlimitedBudget,
+	},
+	// ProfileIntegration keeps each management cluster within the capacity it
+	// runs today: integration management clusters share one subscription's
+	// quota, which leaves no room for the production tiers.
+	ProfileIntegration: {
+		Tiers: []TierConfig{
+			{
+				Name:           "sys",
+				Class:          SystemPools,
+				FamilyPriority: eFamilyPriority,
+				Cores:          4,
+				PoolMode:       PoolModeRegional,
+				PoolCount:      1,
+				MaxNodes:       2,
+				OSDiskSizeGB:   128,
+				MaxPods:        100,
+				Required:       true,
+			},
+			{
+				Name:           "inf",
+				Class:          InfraPools,
+				FamilyPriority: dFamilyPriority,
+				Cores:          4,
+				PoolMode:       PoolModePerZone,
+				PoolCount:      2,
+				MaxNodes:       3,
+				OSDiskSizeGB:   128,
+				MaxPods:        225,
+				Required:       true,
+			},
+			{
+				Name:            "wrk",
+				Class:           WorkerPools,
+				FamilyPriority:  eFamilyPriority,
+				Cores:           16,
+				PoolMode:        PoolModePerZone,
+				PoolCount:       3,
+				MaxNodes:        14,
+				InitialMinNodes: 5,
+				OSDiskSizeGB:    512,
+				MaxPods:         225,
+			},
+		},
+		BudgetStrategy: SubscriptionQuotaBudget,
 	},
 	ProfileProduction: {
 		Tiers: []TierConfig{
