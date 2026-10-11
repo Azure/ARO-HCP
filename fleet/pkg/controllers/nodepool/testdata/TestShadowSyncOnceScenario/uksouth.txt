@@ -11,19 +11,15 @@ initial:
 
 desired:
   sys0fe1457    system  Standard_E8ds_v7   zone=   max=3
-  inf17dc270    infra   Standard_E32ds_v6  zone=1  max=1
-  inf27dc270    infra   Standard_E32ds_v6  zone=2  max=1
-  inf10c182e    infra   Standard_E32ds_v5  zone=1  max=2
-  inf20c182e    infra   Standard_E32ds_v5  zone=2  max=2
+  inf16a742c    infra   Standard_E32ds_v7  zone=1  max=1
+  inf17dc270    infra   Standard_E32ds_v6  zone=1  max=2
+  inf20c182e    infra   Standard_E32ds_v5  zone=2  max=3
   wrk1615a648b  worker  Standard_E16ds_v5  zone=1  max=19
   wrk1625a648b  worker  Standard_E16ds_v5  zone=2  max=19
   wrk1635a648b  worker  Standard_E16ds_v5  zone=3  max=19
-  wrk3216c3e65  worker  Standard_E32ds_v5  zone=1  max=3
-  wrk3226c3e65  worker  Standard_E32ds_v5  zone=2  max=3
-  wrk3236c3e65  worker  Standard_E32ds_v5  zone=3  max=3
-  wrk32175eaaf  worker  Standard_E32ds_v4  zone=1  max=1
-  wrk32275eaaf  worker  Standard_E32ds_v4  zone=2  max=1
-  wrk32375eaaf  worker  Standard_E32ds_v4  zone=3  max=1
+  wrk3216c3e65  worker  Standard_E32ds_v5  zone=1  max=4
+  wrk3226c3e65  worker  Standard_E32ds_v5  zone=2  max=4
+  wrk3236c3e65  worker  Standard_E32ds_v5  zone=3  max=4
 
 budget (vCPUs):
   StandardEdsv6Family:  100
@@ -51,22 +47,19 @@ actions:
 
      #  action            role    pool          vm size   change         role margin            quota left
      1  Create            system  sys0fe1457    E8ds_v7   min=1   max=3    +32c   +256G    +0n  Edsv7 76c
-     2  Create            infra   inf17dc270    E32ds_v6  min=1   max=1    +32c   +256G    +0n  Edsv6 68c
-     3  Create            infra   inf27dc270    E32ds_v6  min=1   max=1    +64c   +512G    +0n  Edsv6 36c
-     4  Create            infra   inf10c182e    E32ds_v5  min=1   max=2   +128c  +1024G    +0n  EDSv5 0c
+     2  Create            infra   inf16a742c    E32ds_v7  min=1   max=1    +32c   +256G    +0n  Edsv7 44c
+     3  Create            infra   inf17dc270    E32ds_v6  min=1   max=2    +96c   +768G    +0n  Edsv6 36c
+     4  Create            infra   inf20c182e    E32ds_v5  min=1   max=2   +160c  +1280G    +0n  EDSv5 0c
      5  Delete            system  system        E8ds_v5                     +0c     +0G    +0n  EDSv5 32c
-     6  Create            infra   inf20c182e    E32ds_v5  min=1   max=1   +160c  +1280G    +0n  EDSv5 0c
+     6  Create            worker  wrk1615a648b  E16ds_v5  min=2   max=2    +80c   +640G   +14n  EDSv5 0c
      7  SetScalingBounds  infra   infra1        E32ds_v4  min=1   max=1    +96c   +768G    +0n  EDSv4 64c
-     8  Create            worker  wrk32175eaaf  E32ds_v4  min=1   max=1    +80c   +640G    +7n  EDSv4 32c
-     9  Create            worker  wrk32275eaaf  E32ds_v4  min=1   max=1   +112c   +896G    +7n  EDSv4 0c
-    10  SetScalingBounds  infra   infra2        E32ds_v4  min=1   max=1    +32c   +256G    +0n  EDSv4 64c
-    11  Create            worker  wrk32375eaaf  E32ds_v4  min=1   max=1   +144c  +1152G    +7n  EDSv4 32c
-    12  Freeze            infra   infra1        E32ds_v4  count=1          +32c   +256G    +0n
-    13  Freeze            infra   infra2        E32ds_v4  count=1          +32c   +256G    +0n
-    14  Reduce            infra   infra1        E32ds_v4  count=0           +0c     +0G    +0n  EDSv4 64c
-    15  Delete            infra   infra1        E32ds_v4                    +0c     +0G    +0n
+     8  SetScalingBounds  infra   infra2        E32ds_v4  min=1   max=1    +32c   +256G    +0n  EDSv4 128c
+     9  Freeze            infra   infra1        E32ds_v4  count=1          +32c   +256G    +0n
+    10  Freeze            infra   infra2        E32ds_v4  count=1          +32c   +256G    +0n
+    11  Reduce            infra   infra1        E32ds_v4  count=0           +0c     +0G    +0n  EDSv4 160c
+    12  Delete            infra   infra1        E32ds_v4                    +0c     +0G    +0n
 
-steps:      15
+steps:      12
 converged:  false
 outcome:    blocked
 reason:     no safe planner action is available for the remaining configuration difference (quota, capacity floor, or pool safety constraints)
