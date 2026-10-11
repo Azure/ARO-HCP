@@ -295,12 +295,12 @@ func formatTrace(tr trace) string {
 	}
 	fmt.Fprintf(w, "\nfully allocated: %t\n", tr.FullyAllocated)
 	fmt.Fprintln(w, "\ninitial capacity:")
-	for _, role := range compute.CapacityRoles {
+	for _, role := range slices.Sorted(maps.Keys(tr.InitialCapacity)) {
 		fmt.Fprintf(w, "  %s:\t%s\n", role, formatCapacity(tr.InitialCapacity[role]))
 	}
 	if tr.RoleFloor != nil {
 		fmt.Fprintln(w, "\nrole floor:")
-		for _, role := range compute.CapacityRoles {
+		for _, role := range slices.Sorted(maps.Keys(tr.RoleFloor)) {
 			fmt.Fprintf(w, "  %s:\t%s\n", role, formatCapacity(tr.RoleFloor[role]))
 		}
 	}
