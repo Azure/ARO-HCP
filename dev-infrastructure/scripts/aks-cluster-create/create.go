@@ -172,6 +172,7 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 		return nil, fmt.Errorf("%s pool VM size %q not found in region SKUs", role, cfg.vmSize)
 	}
 
+	agentPoolMode := armcontainerservice.AgentPoolModeUser
 	var (
 		maxPods     int32
 		taints      []string
@@ -180,6 +181,7 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 	)
 	switch role {
 	case compute.PoolRoleSystem:
+		agentPoolMode = armcontainerservice.AgentPoolModeSystem
 		maxPods = systemMaxPods
 		taints = []string{compute.TaintCriticalAddonsOnly}
 		mode = compute.PoolModeRegional
@@ -216,6 +218,7 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 	for _, placement := range placements {
 		pools = append(pools, compute.Pool{
 			Role:              role,
+			AgentPoolMode:     agentPoolMode,
 			Name:              placement.name,
 			Spec:              spec,
 			AvailabilityZones: placement.zones,

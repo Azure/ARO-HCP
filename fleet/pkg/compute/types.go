@@ -21,6 +21,8 @@ package compute
 import (
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 )
 
@@ -91,11 +93,12 @@ type NetworkConfig struct {
 // Pool describes a single AKS node pool spec. Used for both desired
 // state (from computation) and current state (projected from AKS).
 type Pool struct {
-	Role              PoolRole `json:"role"`
-	Name              string   `json:"name"`
-	Spec              VMSpec   `json:"spec"`
-	AvailabilityZones []string `json:"zones"`
-	MaxCount          int32    `json:"maxCount"`
+	Role              PoolRole                          `json:"role"`
+	AgentPoolMode     armcontainerservice.AgentPoolMode `json:"agentPoolMode"`
+	Name              string                            `json:"name"`
+	Spec              VMSpec                            `json:"spec"`
+	AvailabilityZones []string                          `json:"zones"`
+	MaxCount          int32                             `json:"maxCount"`
 	// MinCount is the configured autoscaler floor. Proposed creates seed it
 	// from TierConfig.InitialMinNodes; subsequent planner actions preserve the
 	// observed floor unless a lower ceiling requires clamping it.
