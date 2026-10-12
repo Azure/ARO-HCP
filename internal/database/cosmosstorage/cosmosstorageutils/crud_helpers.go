@@ -307,10 +307,9 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any, InternalAPITypeP
 	)
 
 	logger := utils.LoggerFromContext(ctx)
-	createdResourceID := cosmosMetadata.ResourceID.String()
-	createdInstanceVersion := newObj.GetInstanceVersion()
+	createLogValues := append(utils.LogValues{}.AddCosmosResourceID(cosmosMetadata.ResourceID.String()), "instanceVersion", newObj.GetInstanceVersion())
 	transaction.OnSuccess(func(DBTransactionResult) {
-		logger.Info("created resource (transaction)", "resourceID", createdResourceID, "instanceVersion", createdInstanceVersion)
+		logger.Info("created resource (transaction)", createLogValues...)
 	})
 	return cosmosMetadata.GetCosmosUID(), nil
 }
@@ -349,10 +348,9 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any, InternalAPIType
 	)
 
 	logger := utils.LoggerFromContext(ctx)
-	replacedResourceID := cosmosMetadata.ResourceID.String()
-	replacedInstanceVersion := newObj.GetInstanceVersion()
+	replaceLogValues := append(utils.LogValues{}.AddCosmosResourceID(cosmosMetadata.ResourceID.String()), "instanceVersion", newObj.GetInstanceVersion())
 	transaction.OnSuccess(func(DBTransactionResult) {
-		logger.Info("replaced resource (transaction)", "resourceID", replacedResourceID, "instanceVersion", replacedInstanceVersion)
+		logger.Info("replaced resource (transaction)", replaceLogValues...)
 	})
 	return cosmosMetadata.GetCosmosUID(), nil
 }
@@ -376,7 +374,8 @@ func create[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.C
 		return nil, err
 	}
 
-	utils.LoggerFromContext(ctx).Info("created resource", "resourceID", cosmosMetadata.ResourceID.String(), "instanceVersion", newObj.GetInstanceVersion())
+	utils.LoggerFromContext(ctx).Info("created resource",
+		append(utils.LogValues{}.AddCosmosResourceID(cosmosMetadata.ResourceID.String()), "instanceVersion", newObj.GetInstanceVersion())...)
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
@@ -400,7 +399,8 @@ func replace[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.
 		return nil, err
 	}
 
-	utils.LoggerFromContext(ctx).Info("replaced resource", "resourceID", cosmosMetadata.ResourceID.String(), "instanceVersion", newObj.GetInstanceVersion())
+	utils.LoggerFromContext(ctx).Info("replaced resource",
+		append(utils.LogValues{}.AddCosmosResourceID(cosmosMetadata.ResourceID.String()), "instanceVersion", newObj.GetInstanceVersion())...)
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
@@ -457,11 +457,11 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 	if doc.ResourceID != nil {
 		deletedResourceID = doc.ResourceID.String()
 	}
-	logArgs := []any{"resourceID", deletedResourceID}
+	logValues := utils.LogValues{}.AddCosmosResourceID(deletedResourceID)
 	if newInstanceVersion, found, verr := unstructured.NestedInt64(doc.Content, "cosmosMetadata", "instanceVersion"); verr == nil && found {
-		logArgs = append(logArgs, "instanceVersion", newInstanceVersion)
+		logValues = append(logValues, "instanceVersion", newInstanceVersion)
 	}
-	utils.LoggerFromContext(ctx).Info("deleted resource", logArgs...)
+	utils.LoggerFromContext(ctx).Info("deleted resource", logValues...)
 	return nil
 }
 
