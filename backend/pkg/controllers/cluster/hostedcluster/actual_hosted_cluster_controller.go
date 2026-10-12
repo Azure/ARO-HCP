@@ -39,10 +39,9 @@ import (
 // label), the controller name on the context, and the log field.
 const ActualHostedClusterControllerName = "ActualHostedCluster"
 
-// actualHostedClusterSyncer copies the observed HostedCluster from the
+// actualHostedClusterSyncer copies the observed HostedCluster's image content sources from the
 // per-cluster ReadDesire (the kube-applier's mirror of the management cluster)
-// onto ServiceProviderCluster.Status.ActualHostedCluster and mirrors its
-// spec.imageContentSources onto ServiceProviderCluster.Status.ImageContentSources.
+// onto ServiceProviderCluster.Status.ImageContentSources.
 //
 // It exists so the frontend has a way to reason about real management-cluster
 // state. The frontend has no access to kube-applier's Cosmos containers by
@@ -63,7 +62,7 @@ type actualHostedClusterSyncer struct {
 var _ controllerutils.ClusterSyncer = (*actualHostedClusterSyncer)(nil)
 
 // NewActualHostedClusterController creates a controller that mirrors the
-// observed HostedCluster onto ServiceProviderCluster.Status.ActualHostedCluster.
+// observed HostedCluster's image content sources onto ServiceProviderCluster.Status.ImageContentSources.
 func NewActualHostedClusterController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterLister corelisters.ClusterLister,
@@ -90,8 +89,8 @@ func NewActualHostedClusterController(
 	)
 }
 
-// SyncOnce mirrors the observed HostedCluster onto the ServiceProviderCluster,
-// writing only when the observed object differs from what is already stored.
+// SyncOnce mirrors the observed HostedCluster's image content sources onto the
+// ServiceProviderCluster, writing only when they differ from what is already stored.
 func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	_, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -125,7 +124,6 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 	}
 
 	replacement := existing.DeepCopy()
-	replacement.Status.ActualHostedCluster = hostedCluster
 	replacement.Status.ImageContentSources = nil
 	if hostedCluster != nil {
 		sources := make([]hsv1beta1.ImageContentSource, len(hostedCluster.Spec.ImageContentSources))
@@ -136,10 +134,9 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 	}
 
 	// Every Replace costs RUs and wakes every controller watching the
-	// ServiceProviderCluster changefeed, so only write when either mirror differs
-	// from what is already stored, including backfilling image content sources.
-	if equality.Semantic.DeepEqual(existing.Status.ActualHostedCluster, replacement.Status.ActualHostedCluster) &&
-		equality.Semantic.DeepEqual(existing.Status.ImageContentSources, replacement.Status.ImageContentSources) {
+	// ServiceProviderCluster changefeed, so only write when image content sources
+	// differ from what is already stored.
+	if equality.Semantic.DeepEqual(existing.Status.ImageContentSources, replacement.Status.ImageContentSources) {
 		return nil
 	}
 
@@ -154,9 +151,9 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 
 	logger := utils.LoggerFromContext(ctx)
 	if hostedCluster == nil {
-		logger.Info("retracted actual HostedCluster from ServiceProviderCluster; the kube-applier completed a read and found no HostedCluster on the management cluster")
+		logger.Info("retracted image content sources from ServiceProviderCluster; the kube-applier completed a read and found no HostedCluster on the management cluster")
 	} else {
-		logger.Info("mirrored actual HostedCluster onto ServiceProviderCluster",
+		logger.Info("mirrored image content sources onto ServiceProviderCluster",
 			"hostedClusterNamespace", hostedCluster.Namespace, "hostedClusterName", hostedCluster.Name)
 	}
 	return nil

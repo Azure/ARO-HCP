@@ -20,17 +20,6 @@ import (
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
 
-// HostedClusterHasImageContentSource reports whether the HostedCluster's
-// spec.imageContentSources contains an entry for source. A nil HostedCluster
-// reports false; callers that need to distinguish "not observed yet" from
-// "observed and absent" must check for nil themselves before calling.
-func HostedClusterHasImageContentSource(hostedCluster *hsv1beta1.HostedCluster, source string) bool {
-	if hostedCluster == nil {
-		return false
-	}
-	return ImageContentSourcesHaveSource(hostedCluster.Spec.ImageContentSources, source)
-}
-
 // ImageContentSourcesHaveSource reports whether sources contains an entry for
 // source. Nil and empty slices report false.
 func ImageContentSourcesHaveSource(sources []hsv1beta1.ImageContentSource, source string) bool {
