@@ -21,6 +21,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
+	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -39,7 +41,8 @@ const ActualHostedClusterControllerName = "ActualHostedCluster"
 
 // actualHostedClusterSyncer copies the observed HostedCluster from the
 // per-cluster ReadDesire (the kube-applier's mirror of the management cluster)
-// onto ServiceProviderCluster.Status.ActualHostedCluster.
+// onto ServiceProviderCluster.Status.ActualHostedCluster and mirrors its
+// spec.imageContentSources onto ServiceProviderCluster.Status.ImageContentSources.
 //
 // It exists so the frontend has a way to reason about real management-cluster
 // state. The frontend has no access to kube-applier's Cosmos containers by
@@ -123,11 +126,20 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 
 	replacement := existing.DeepCopy()
 	replacement.Status.ActualHostedCluster = hostedCluster
+	replacement.Status.ImageContentSources = nil
+	if hostedCluster != nil {
+		sources := make([]hsv1beta1.ImageContentSource, len(hostedCluster.Spec.ImageContentSources))
+		for index := range hostedCluster.Spec.ImageContentSources {
+			hostedCluster.Spec.ImageContentSources[index].DeepCopyInto(&sources[index])
+		}
+		replacement.Status.ImageContentSources = &sources
+	}
 
 	// Every Replace costs RUs and wakes every controller watching the
-	// ServiceProviderCluster changefeed, so only write when the observed
-	// HostedCluster actually differs from what is already stored.
-	if equality.Semantic.DeepEqual(existing.Status.ActualHostedCluster, replacement.Status.ActualHostedCluster) {
+	// ServiceProviderCluster changefeed, so only write when either mirror differs
+	// from what is already stored, including backfilling image content sources.
+	if equality.Semantic.DeepEqual(existing.Status.ActualHostedCluster, replacement.Status.ActualHostedCluster) &&
+		equality.Semantic.DeepEqual(existing.Status.ImageContentSources, replacement.Status.ImageContentSources) {
 		return nil
 	}
 

@@ -2429,6 +2429,17 @@ func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderCluster
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.ImageContentSources != nil {
+		in, out := &in.ImageContentSources, &out.ImageContentSources
+		*out = new([]v1beta1.ImageContentSource)
+		if **in != nil {
+			in, out := *in, *out
+			*out = make([]v1beta1.ImageContentSource, len(*in))
+			for i := range *in {
+				(*in)[i].DeepCopyInto(&(*out)[i])
+			}
+		}
+	}
 	if in.ActualHostedCluster != nil {
 		in, out := &in.ActualHostedCluster, &out.ActualHostedCluster
 		*out = new(v1beta1.HostedCluster)

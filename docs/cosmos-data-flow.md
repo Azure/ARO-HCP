@@ -817,19 +817,29 @@ ReadDesire, and ApplyDesire informers; 5-minute resync.
 Mirrors the observed HostedCluster so the frontend has a source of management-cluster
 state it is allowed to read (see [Why management-cluster state is mirrored onto
 ServiceProviderCluster](#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster)).
-Leaves the field `nil` until the HostedCluster is observed, and only writes when the observed
-object changes. A missing or unsuccessful ReadDesire observation leaves an already-published
-mirror in place — those states also cover a cold union informer, so clearing on them would wipe
+Also mirrors `spec.imageContentSources` verbatim into `Status.ImageContentSources`,
+a pointer to a slice. A nil pointer means unavailable observed state; a non-nil pointer,
+including an empty list, means the HostedCluster was observed. Empty lists are stored as
+non-nil slices so JSON serialization preserves the observation signal. Admission prefers
+this field and falls back to `Status.ActualHostedCluster` only when the new pointer is nil.
+A missing ServiceProviderCluster or two nil mirrors fails closed as unavailable; an observed
+list without the v5 source fails the upgrade gate as missing the required mirror, even if the
+legacy field contains it.
+
+Leaves both fields `nil` until the HostedCluster is observed, and only writes when either
+mirror changes, including backfilling the new field on legacy records with an unchanged
+HostedCluster. A missing or unsuccessful ReadDesire observation leaves already-published
+mirrors in place — those states also cover a cold union informer, so clearing on them would wipe
 and rewrite every mirror on each backend restart. A successful empty observation clears the
-mirror because it proves the HostedCluster is absent. Deletion does not gate mirroring:
+mirrors because it proves the HostedCluster is absent. Deletion does not gate mirroring:
 successful observations continue updating the object while the cluster is deleting, and a
-successful empty observation retracts it to `nil` for both active and deleting clusters.
+successful empty observation retracts both fields to `nil` for active and deleting clusters.
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | Existence only; no deletion gate |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions[Successful]` — gates all mirror updates, including clearing empty content</li><li>`Status.KubeContent` — the observed HostedCluster, whole object (`Spec` + `Status`)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ActualHostedCluster`** = the observed HostedCluster, mirrored verbatim (`Spec` + `Status` + `metadata`)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ActualHostedCluster`** = the observed HostedCluster, mirrored verbatim (`Spec` + `Status` + `metadata`)</li><li>**`Status.ImageContentSources`** = a pointer to the observed `Spec.ImageContentSources`, preserving source and mirror entries; nil when retracted</li></ul> |
 
 #### EnsureManagedResourceGroup
 
