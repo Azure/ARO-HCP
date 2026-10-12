@@ -43,7 +43,8 @@ manifest. Borrowers must not instantiate an unrestricted SDK client for fixture
 mutations. They never register the parent RG with a test context or delete it.
 `framework.SharedGuardedNegativeCluster(ctx)` exposes only
 `RejectPatch20240610`, `RejectNodePoolPatch20240610`, and
-`RejectExternalAuthIssuer20240610`, not an unrestricted mutation client. The PATCH helpers take a PATCH body
+`RejectExternalAuthIssuer20240610`, and `RejectNegativeNodePoolReplicas20240610`,
+not an unrestricted mutation client. The PATCH helpers take a PATCH body
 and the required Azure error status, code, target, message, and optional error
 details. `GetNodePool20240610` reads only the manifest's shared node pool. A context-bounded
 file lock next to the manifest serializes the entire GET/PATCH/GET sequence across
@@ -73,6 +74,17 @@ of only that child; any failed assertion quarantines the fixture even if cleanup
 succeeds. Cleanup errors retain the resource ID and last observation, and the
 outer owner remains responsible for the tagged parent RG. No borrower registers
 the shared RG for test cleanup or enables cluster-wide external authentication.
+
+P2-1 reuses this child-create guard for a unique node pool with `replicas: -1`.
+The borrower copies only the known-good platform, version, and auto-repair
+configuration from the owner-provisioned node pool into a new CREATE payload;
+it never PUTs or deletes the shared node pool. The RP must return typed HTTP
+400 / `InvalidRequestContent`, targeting `properties.replicas` with
+`must be greater than or equal to 0`. Typed HTTP 404 / `ResourceNotFound` is
+required for the new child both before and after the attempt, and the parent
+GET must remain unchanged. Both child kinds use the same fixture lock, quarantine,
+and bounded failure-cleanup implementation; initial child absence is required
+before the helper can take ownership of any cleanup.
 
 Read-only borrowers do not acquire the write lock: they cannot change state, but
 may fail if a regression unexpectedly accepts a guarded write. General child-owning
@@ -116,6 +128,11 @@ in owner setup, before the borrower runs, and is shared by all consumers.
 The P1-4 consumer `external_auth_invalid_issuer_reject.go` has the same negative
 labels and `MIContainers(0)`, without `Slow`. It creates no additional fixture
 resources: its unique child PUT must be rejected.
+
+The P2-1 consumer `nodepool_create_validation_reject.go` uses the same negative
+labels and `MIContainers(0)`, without `Slow`. Negative replica CREATE validation
+is distinct from the existing upper-bound and autoscaling-limit tests; this
+borrower does not create another cluster or a successful node pool.
 
 When adding consumers, run the pinned `golangci-lint fmt`, `make lint`, framework
 unit tests, and `UPDATE=true go test ./test/cmd/aro-hcp-tests/...` followed by the

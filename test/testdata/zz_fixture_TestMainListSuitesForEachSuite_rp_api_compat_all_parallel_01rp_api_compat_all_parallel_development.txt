@@ -96,6 +96,7 @@ Engineering want metrics from SVC and MGMT clusters to be present in Azure Monit
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to replica limits
 Customer should respect cluster-wide node limits with nodepool autoscaling
 Customer should be able to cordon, drain, and uncordon a node in an HCP cluster
+Node pool create validation rejects a negative replica count without creating a node pool or changing the shared cluster
 Customer should be able to delete a nodepool
 Nodepool Ephemeral OS Disk should create a nodepool with ephemeral OS disk when autoRepair is enabled
 Customer should be able to update node pool labels and taints
