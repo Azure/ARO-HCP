@@ -26,7 +26,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 
@@ -41,7 +43,8 @@ type systemAdminCredentialRevocationWatchingController struct {
 	name   string
 	syncer SystemAdminCredentialRevocationSyncer
 
-	resourcesDBClient corecosmosstorage.ResourcesDBClient
+	resourcesDBClient          corecosmosstorage.ResourcesDBClient
+	credentialRevocationLister corelisters.SystemAdminCredentialRevocationLister
 }
 
 // NewSystemAdminCredentialRevocationWatchingController creates a controller that fires on individual
@@ -67,7 +70,8 @@ func NewSystemAdminCredentialRevocationWatchingController(
 
 	// this happens when unit tests don't want triggering. This isn't beautiful, but fails to do nothing which is pretty safe.
 	if backendInformers != nil {
-		revocationInformer, _ := backendInformers.SystemAdminCredentialRevocations()
+		revocationInformer, revocationLister := backendInformers.SystemAdminCredentialRevocations()
+		systemAdminCredentialRevocationSyncer.credentialRevocationLister = revocationLister
 		err := controller.QueueForInformers(resyncDuration, revocationInformer)
 		if err != nil {
 			panic(err) // coding error
@@ -89,6 +93,15 @@ func NewSystemAdminCredentialRevocationWatchingController(
 }
 
 func (c *systemAdminCredentialRevocationWatchingController) SyncOnce(ctx context.Context, key SystemAdminCredentialRevocationKey) error {
+	// Controller status belongs to an existing parent resource.
+	_, err := c.credentialRevocationLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.RevocationName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
 		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRevocations(key.HCPClusterName).Controllers(key.RevocationName),

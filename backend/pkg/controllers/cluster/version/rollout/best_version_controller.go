@@ -23,7 +23,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
@@ -60,11 +59,6 @@ func NewBestVersionSelectionController(fleetDBClient fleetcosmosstorage.FleetDBC
 	controller.AddInterestingResource(fleetapi.ControlPlaneVersionRolloutResourceType, "*")
 
 	return controller
-}
-
-// CooldownChecker returns nil: the resync interval drives periodic reselection.
-func (c *bestVersionSelectionSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return nil
 }
 
 // selectBestExactVersion returns the fleet best exact version: the greater of the

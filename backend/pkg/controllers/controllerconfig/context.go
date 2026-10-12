@@ -26,6 +26,7 @@ import (
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/controllerregistry"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -55,6 +56,7 @@ type ControllerContext struct {
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	ClustersServiceClient                               ocm.ClusterServiceClientSpec
+	VersionProfileSource                                cincinnati.VersionProfileSource
 	FPAClientBuilder                                    azureclient.FirstPartyApplicationClientBuilder
 	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
 	FleetDBClient                                       fleetcosmosstorage.FleetDBClient

@@ -25,7 +25,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -73,11 +72,6 @@ func NewStatusCollectorController(fleetDBClient fleetcosmosstorage.FleetDBClient
 		panic(err) // coding error
 	}
 	return controller
-}
-
-// CooldownChecker returns nil: the resync interval drives periodic recomputation.
-func (c *statusCollectorSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return nil
 }
 
 // rolloutCounts holds the aggregated per-exact-version cluster counts. Every map

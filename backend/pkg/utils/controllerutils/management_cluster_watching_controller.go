@@ -32,8 +32,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -71,9 +73,10 @@ type ManagementClusterSyncer interface {
 }
 
 type managementClusterWatchingController struct {
-	name          string
-	syncer        ManagementClusterSyncer
-	fleetDBClient fleetcosmosstorage.FleetDBClient
+	name                    string
+	syncer                  ManagementClusterSyncer
+	fleetDBClient           fleetcosmosstorage.FleetDBClient
+	managementClusterLister fleetlisters.ManagementClusterLister
 }
 
 // NewManagementClusterWatchingController periodically looks up all management clusters and queues them.
@@ -93,7 +96,8 @@ func NewManagementClusterWatchingController(
 
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
 	if fleetInformers != nil {
-		managementClusterInformer, _ := fleetInformers.ManagementClusters()
+		managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
+		mcSyncer.managementClusterLister = managementClusterLister
 		err := mcController.QueueForInformers(resyncDuration, managementClusterInformer)
 		if err != nil {
 			panic(err) // coding error
@@ -104,6 +108,15 @@ func NewManagementClusterWatchingController(
 }
 
 func (c *managementClusterWatchingController) SyncOnce(ctx context.Context, key ManagementClusterKey) error {
+	// Controller status belongs to an existing parent resource.
+	_, err := c.managementClusterLister.Get(ctx, key.StampIdentifier)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
 	controllerCRUD := c.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier).Controllers()
 
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(

@@ -15,6 +15,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -27,12 +28,31 @@ import (
 	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
+
+type emptyVersionProfileSource struct{}
+
+func (emptyVersionProfileSource) VersionProfiles(context.Context) ([]coreapi.VersionProfile, error) {
+	return nil, nil
+}
 
 func TestNewBackend_NilOptionsReturnsError(t *testing.T) {
 	var options *BackendOptions
 	b, err := options.NewBackend()
 	require.Error(t, err)
+	assert.Nil(t, b)
+}
+
+func TestNewBackend_RequiresVersionProfileSource(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	b, err := (&BackendOptions{
+		MetricsRegisterer: registry,
+		MetricsGatherer:   registry,
+		BackupConfig:      &backups.BackupConfig{},
+		StorageFactory:    &cosmosStorageFactory{},
+	}).NewBackend()
+	require.EqualError(t, err, "version profile source must be set")
 	assert.Nil(t, b)
 }
 
@@ -54,11 +74,12 @@ func TestNewBackend_MetricsRegistryPairing(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b, err := (&BackendOptions{
-				MetricsRegisterer: tc.registerer,
-				MetricsGatherer:   tc.gatherer,
-				BackupConfig:      &backups.BackupConfig{},
-				StorageFactory:    &cosmosStorageFactory{},
-				CloudEnvironment:  cloudEnvironment,
+				MetricsRegisterer:    tc.registerer,
+				MetricsGatherer:      tc.gatherer,
+				BackupConfig:         &backups.BackupConfig{},
+				StorageFactory:       &cosmosStorageFactory{},
+				CloudEnvironment:     cloudEnvironment,
+				VersionProfileSource: emptyVersionProfileSource{},
 			}).NewBackend()
 			if tc.wantErr {
 				require.Error(t, err)
@@ -83,11 +104,12 @@ func TestNewBackend_IdentityModeMetric(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			registry := prometheus.NewPedanticRegistry()
 			_, err := (&BackendOptions{
-				MetricsRegisterer: registry,
-				MetricsGatherer:   registry,
-				BackupConfig:      &backups.BackupConfig{},
-				StorageFactory:    &cosmosStorageFactory{},
-				HasRealFPA:        tc.hasRealFPA,
+				MetricsRegisterer:    registry,
+				MetricsGatherer:      registry,
+				BackupConfig:         &backups.BackupConfig{},
+				StorageFactory:       &cosmosStorageFactory{},
+				HasRealFPA:           tc.hasRealFPA,
+				VersionProfileSource: emptyVersionProfileSource{},
 			}).NewBackend()
 			require.NoError(t, err)
 			// The metric is available before leader election or controller startup.

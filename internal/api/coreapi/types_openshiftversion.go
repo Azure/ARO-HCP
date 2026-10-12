@@ -18,6 +18,10 @@ import (
 	"time"
 )
 
+// MinimumBackendVersion bounds prospective Cincinnati seeding.
+// Raise it only after the retired minor's clusters have drained.
+const MinimumBackendVersion = "4.20"
+
 // OpenShiftVersion represents a location-based available HCP OpenShift version resource.
 type OpenShiftVersion struct {
 	ProxyResource
