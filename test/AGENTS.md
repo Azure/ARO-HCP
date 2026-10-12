@@ -214,11 +214,12 @@ This section defines the standards for reviewing E2E test code changes. These ru
 
 ## Required Test Labels
 
-Every test MUST include appropriate labels from these categories:
+Every test MUST include appropriate labels from these categories, including exactly one environment label: `labels.RequireNothing`, `labels.RequireHappyPathInfra`, `labels.RequireSharedReadOnlyCluster`, or `labels.UpgradeInPlace`.
 
 ### Test Environment Labels (MANDATORY - exactly one):
 - `labels.RequireNothing`: Per-test cluster tests (creates own cluster) — **preferred approach**
 - `labels.RequireHappyPathInfra`: Per-run cluster tests (uses pre-created cluster)
+- `labels.RequireSharedReadOnlyCluster`: Read-only GET/LIST tests borrowing the runner-owned shared cluster; the runner provisions and cleans up the fixture, never the borrower.
 - `labels.UpgradeInPlace`: End-to-end in-place upgrade tests — exclusively selected by the `upgrade/in-place` suite and automatically excluded from all other suites. Use for tests that invoke the Region entrypoint pipeline against pre-provisioned regional infrastructure and must only run in dev environments. See [Upgrade Barrier](#upgrade-barrier) for the parallel coordination pattern.
 
 ### Importance Labels (MANDATORY - exactly one):

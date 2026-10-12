@@ -371,11 +371,15 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20240610(
 	}()
 
 	cluster := BuildHCPClusterFromParams20240610(parameters, tc.Location())
+	clientFactory, err := tc.Get20240610ClientFactory(ctx)
+	if err != nil {
+		return err
+	}
 
 	if _, err := CreateHCPClusterAndWait20240610(
 		ctx,
 		logger,
-		tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+		clientFactory.NewHcpOpenShiftClustersClient(),
 		resourceGroupName,
 		clusterName,
 		cluster,
