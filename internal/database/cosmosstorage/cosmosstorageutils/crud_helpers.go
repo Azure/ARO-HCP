@@ -307,7 +307,7 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any, InternalAPITypeP
 	)
 
 	logger := utils.LoggerFromContext(ctx)
-	createLogValues := append(utils.LogValues{}.AddCosmosResourceID(cosmosMetadata.ResourceID.String()), "instanceVersion", newObj.GetInstanceVersion())
+	createLogValues := append(utils.LogValues{}.AddLogValuesForResourceID(cosmosMetadata.ResourceID), "instanceVersion", newObj.GetInstanceVersion())
 	transaction.OnSuccess(func(DBTransactionResult) {
 		logger.Info("created resource (transaction)", createLogValues...)
 	})
@@ -348,7 +348,7 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any, InternalAPIType
 	)
 
 	logger := utils.LoggerFromContext(ctx)
-	replaceLogValues := append(utils.LogValues{}.AddCosmosResourceID(cosmosMetadata.ResourceID.String()), "instanceVersion", newObj.GetInstanceVersion())
+	replaceLogValues := append(utils.LogValues{}.AddLogValuesForResourceID(cosmosMetadata.ResourceID), "instanceVersion", newObj.GetInstanceVersion())
 	transaction.OnSuccess(func(DBTransactionResult) {
 		logger.Info("replaced resource (transaction)", replaceLogValues...)
 	})
@@ -375,7 +375,7 @@ func create[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.C
 	}
 
 	utils.LoggerFromContext(ctx).Info("created resource",
-		append(utils.LogValues{}.AddCosmosResourceID(cosmosMetadata.ResourceID.String()), "instanceVersion", newObj.GetInstanceVersion())...)
+		append(utils.LogValues{}.AddLogValuesForResourceID(cosmosMetadata.ResourceID), "instanceVersion", newObj.GetInstanceVersion())...)
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
@@ -400,7 +400,7 @@ func replace[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.
 	}
 
 	utils.LoggerFromContext(ctx).Info("replaced resource",
-		append(utils.LogValues{}.AddCosmosResourceID(cosmosMetadata.ResourceID.String()), "instanceVersion", newObj.GetInstanceVersion())...)
+		append(utils.LogValues{}.AddLogValuesForResourceID(cosmosMetadata.ResourceID), "instanceVersion", newObj.GetInstanceVersion())...)
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
@@ -453,11 +453,7 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	deletedResourceID := ""
-	if doc.ResourceID != nil {
-		deletedResourceID = doc.ResourceID.String()
-	}
-	logValues := utils.LogValues{}.AddCosmosResourceID(deletedResourceID)
+	logValues := utils.LogValues{}.AddLogValuesForResourceID(doc.ResourceID)
 	if newInstanceVersion, found, verr := unstructured.NestedInt64(doc.Content, "cosmosMetadata", "instanceVersion"); verr == nil && found {
 		logValues = append(logValues, "instanceVersion", newInstanceVersion)
 	}
