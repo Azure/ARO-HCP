@@ -77,7 +77,7 @@ steps:
       go-version-file: go.work
       check-latest: true          # install the newest patch of the go.work-declared Go version instead of a possibly-older cached toolchain, so the agent's `make all-tidy` output is reproducible and the PR passes the go-modules check
   - name: Set up Node
-    uses: actions/setup-node@v7.0.0
+    uses: actions/setup-node@v7.1.0
     with:
       node-version: lts/*
   - name: Mint App token to read alerts and PRs
