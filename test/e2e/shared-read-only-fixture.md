@@ -35,8 +35,25 @@ RG exists.
 RG-bound client exposing only GET and LIST. Every operation revalidates the
 manifest. Borrowers must not instantiate an unrestricted SDK client for fixture
 mutations. They never register the parent RG with a test context or delete it.
-Immutable-update rejection and child-owning access are deliberately outside this
-PR; they require separate isolation and pollution detection before adoption.
+`framework.SharedGuardedNegativeCluster(ctx)` exposes only
+`RejectPatch20240610`, not an unrestricted mutation client. It takes a PATCH body
+and the required Azure error status, code, target, and message. A context-bounded
+file lock next to the manifest serializes the entire GET/PATCH/GET sequence across
+worker processes. The helper checks the typed Azure rejection and compares the
+complete decoded GET responses, including read-only fields. Unexpected acceptance,
+an incorrect rejection, a failed post-GET, or changed state quarantines the
+manifest by setting readiness false; subsequent borrowers fail closed. It does
+not attempt to repair the cluster. The outer runner still owns cleanup.
+
+The guarded client uses the standard HCP Azure pipeline and API version, but
+sends an explicit JSON PATCH because the generated SDK update model omits
+immutable fields. P1-2 changes `properties.dns.baseDomainPrefix` and expects HTTP
+400 / `InvalidRequestContent`, targeting that property with `field is immutable`.
+Read-only borrowers do not acquire the write lock: they cannot change state, but
+may fail if a regression unexpectedly accepts a guarded write. Child-owning and
+successful parent mutations remain unsupported. A killed worker can leave state
+uncertain before quarantine is written; do not reuse the fixture after a worker
+crash. OS process exit releases its file lock, not Azure resources.
 
 ## Teardown and failures
 
@@ -62,6 +79,10 @@ The first consumer is `cluster_get_rp.go` (P0-2). Its labels are
 `Slow`, `CreateCluster`, or `DevelopmentOnly`. Suites explicitly restricted to
 `RequireNothing` do not automatically select it; their policies are unchanged.
 The zero MI demand describes the borrower, not the dedicated run-owned identities.
+
+The stacked P1-2 consumer `cluster_update_immutable_reject.go` uses the same labels
+except `Negative` instead of `Positive`, and shares this cluster without creating
+any additional resources.
 
 When adding consumers, run the pinned `golangci-lint fmt`, `make lint`, framework
 unit tests, and `UPDATE=true go test ./test/cmd/aro-hcp-tests/...` followed by the
