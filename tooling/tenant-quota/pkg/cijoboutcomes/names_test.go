@@ -17,6 +17,7 @@ package cijoboutcomes
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,7 +46,7 @@ func newTestNameSet(t *testing.T, load func(context.Context) ([]string, error)) 
 	set := newNameSet(100, 15*time.Minute)
 	set.load = load
 	set.now = func() time.Time { return now }
-	set.submitted.now = set.now
+	set.claimed.now = set.now
 	return set, &now
 }
 
@@ -69,7 +70,6 @@ func TestASecondRunDoesNotRewriteTheSameNames(t *testing.T) {
 	first, err := set.unwritten(t.Context(), testNames("a", "b"))
 	require.NoError(t, err)
 	require.Equal(t, []string{"a", "b"}, ids(first))
-	set.submittedNames(first)
 
 	second, err := set.unwritten(t.Context(), testNames("a", "b", "c"))
 	require.NoError(t, err)
@@ -85,7 +85,6 @@ func TestAnAcceptedButLostSubmissionIsRetriedAfterTheTTL(t *testing.T) {
 	first, err := set.unwritten(t.Context(), testNames("a"))
 	require.NoError(t, err)
 	require.Equal(t, []string{"a"}, ids(first))
-	set.submittedNames(first)
 
 	// Still within the TTL: the submission is assumed to be settling.
 	again, err := set.unwritten(t.Context(), testNames("a"))
@@ -181,4 +180,77 @@ func TestAnAbsentSourceIsLeftAlone(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, unwritten, "nil means unavailable, not empty")
 	require.Zero(t, reads, "an absent source must not cost a read")
+}
+
+// Runs are reconciled by a pool of workers, so two runs that both executed a
+// newly added test are read at the same time. Deciding first and recording the
+// decision later would let both of them write it.
+func TestConcurrentRunsClaimANewNameOnce(t *testing.T) {
+	set, _ := newTestNameSet(t, func(context.Context) ([]string, error) { return nil, nil })
+
+	const workers = 16
+	var start sync.WaitGroup
+	var done sync.WaitGroup
+	start.Add(1)
+	results := make([][]ciTestName, workers)
+	errs := make([]error, workers)
+	for i := range workers {
+		done.Add(1)
+		go func() {
+			defer done.Done()
+			start.Wait()
+			results[i], errs[i] = set.unwritten(t.Context(), testNames("shared"))
+		}()
+	}
+	start.Done()
+	done.Wait()
+
+	claims := 0
+	for i := range workers {
+		require.NoError(t, errs[i])
+		claims += len(results[i])
+	}
+	require.Equal(t, 1, claims, "exactly one caller may write a given new name")
+}
+
+// A claim is only good for a submission that happened; a failed one must not
+// cost the name a whole TTL before anything retries it.
+func TestAReleasedClaimIsRetriedImmediately(t *testing.T) {
+	set, _ := newTestNameSet(t, func(context.Context) ([]string, error) { return nil, nil })
+
+	claimed, err := set.unwritten(t.Context(), testNames("a"))
+	require.NoError(t, err)
+	require.Equal(t, []string{"a"}, ids(claimed))
+
+	set.release(claimed)
+
+	retried, err := set.unwritten(t.Context(), testNames("a"))
+	require.NoError(t, err)
+	require.Equal(t, []string{"a"}, ids(retried), "a released name is unwritten again at once")
+}
+
+// An unreachable Kusto must not put every pass back into the same blocking
+// query: the read is held under the gate lock, so that serializes the workers.
+func TestAFailedRefreshBacksOffRatherThanRetryingEveryPass(t *testing.T) {
+	reads := 0
+	failing := false
+	set, now := newTestNameSet(t, func(context.Context) ([]string, error) {
+		reads++
+		if failing {
+			return nil, errors.New("kusto unavailable")
+		}
+		return nil, nil
+	})
+
+	_, err := set.unwritten(t.Context(), testNames("a"))
+	require.NoError(t, err)
+	require.Equal(t, 1, reads)
+
+	failing = true
+	*now = now.Add(16 * time.Minute)
+	for range 5 {
+		_, err := set.unwritten(t.Context(), testNames("b"))
+		require.NoError(t, err)
+	}
+	require.Equal(t, 2, reads, "a failed read holds the stale set for another TTL")
 }

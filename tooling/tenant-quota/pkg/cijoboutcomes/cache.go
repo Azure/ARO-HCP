@@ -78,6 +78,17 @@ func (c *ttlCache[K, V]) put(key K, value V) {
 	c.entries[key] = c.order.PushBack(cacheEntry[K, V]{key: key, value: value, at: c.now()})
 }
 
+// remove drops an entry early. Used to undo a reservation whose work failed,
+// so the next attempt is not held off until the entry would have expired.
+func (c *ttlCache[K, V]) remove(key K) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if element, ok := c.entries[key]; ok {
+		delete(c.entries, key)
+		c.order.Remove(element)
+	}
+}
+
 func (c *ttlCache[K, V]) size() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -435,11 +435,12 @@ func (w *Writer) reconcile(ctx context.Context, uri JobURI) (time.Duration, erro
 				w.reportBatch(source.names, id, "error", 0, nil, gateErr)
 			default:
 				if submitErr := submitBatch(ctx, w, source.names, id, unwritten); submitErr != nil {
+					// The claim is only good for a submission that happened.
+					w.names.release(unwritten)
 					failures = append(failures, submitErr)
 				} else {
-					w.names.submittedNames(unwritten)
+					handled[source.names] = len(unwritten) == 0
 				}
-				handled[source.names] = len(unwritten) == 0
 			}
 		}
 	}
