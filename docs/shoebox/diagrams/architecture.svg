@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="670" viewBox="0 0 1160 670" role="img" aria-label="Shoebox architecture">
+<title>Shoebox architecture</title>
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#475569"/></marker></defs>
+<rect width="1160" height="670" fill="white"/>
+<text x="32" y="42" font-family="Arial,sans-serif" font-size="26" fill="#0f172a">Shoebox architecture</text>
+<rect x="30" y="90" width="245" height="75" rx="8" fill="#e0f2fe" stroke="#64748b"/>
+<text x="152.5" y="133.5" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Resource-type manifest</text>
+<rect x="375" y="90" width="245" height="75" rx="8" fill="#e0f2fe" stroke="#64748b"/>
+<text x="497.5" y="121.5" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Geneva Actions</text>
+<text x="497.5" y="145.5" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Category registration</text>
+<rect x="760" y="90" width="340" height="75" rx="8" fill="#e0f2fe" stroke="#64748b"/>
+<text x="930.0" y="121.5" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Customer diagnostic settings</text>
+<text x="930.0" y="145.5" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Categories and destinations</text>
+<path d="M275,127 L375,127" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M620,127 L760,127" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="6 5"/>
+<text x="690.0" y="117.0" text-anchor="middle" font-family="Arial,sans-serif" font-size="15" fill="#334155">Available choices</text>
+<rect x="30" y="270" width="245" height="90" rx="8" fill="#e0f2fe" stroke="#64748b"/>
+<text x="152.5" y="309.0" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Control plane logs</text>
+<text x="152.5" y="333.0" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Management cluster</text>
+<rect x="375" y="270" width="245" height="90" rx="8" fill="#e0f2fe" stroke="#64748b"/>
+<text x="497.5" y="309.0" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Fluent Bit and Lua</text>
+<text x="497.5" y="333.0" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Resource ID and category</text>
+<rect x="760" y="270" width="340" height="90" rx="8" fill="#e0f2fe" stroke="#64748b"/>
+<text x="930.0" y="309.0" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">mdsd-clusterlogs</text>
+<text x="930.0" y="333.0" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Local port 5002</text>
+<path d="M275,315 L375,315" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M620,315 L760,315" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="690.0" y="305.0" text-anchor="middle" font-family="Arial,sans-serif" font-size="15" fill="#334155">Records</text>
+<rect x="760" y="445" width="340" height="80" rx="8" fill="#e0f2fe" stroke="#64748b"/>
+<text x="930.0" y="491.0" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Geneva / Shoebox processing</text>
+<path d="M930,360 L930,445" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M1100,127 L1130,127 L1130,485 L1100,485" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+<rect x="375" y="445" width="245" height="80" rx="8" fill="#fef3c7" stroke="#64748b"/>
+<text x="497.5" y="491.0" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">GCS namespace XML</text>
+<path d="M497,445 L497,404 L720,404 L720,345 L760,345" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+<text x="515" y="397" font-family="Arial,sans-serif" font-size="15" fill="#334155">Agent configuration</text>
+<rect x="760" y="575" width="340" height="65" rx="8" fill="#dcfce7" stroke="#64748b"/>
+<text x="930.0" y="601.5" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Storage / Event Hubs</text>
+<text x="930.0" y="625.5" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0f172a">Log Analytics</text>
+<path d="M930,525 L930,575" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="32" y="603" font-family="Arial,sans-serif" font-size="16" fill="#334155">Solid arrows: records or publication</text>
+<text x="32" y="631" font-family="Arial,sans-serif" font-size="16" fill="#334155">Dashed arrows: configuration</text>
+</svg>
