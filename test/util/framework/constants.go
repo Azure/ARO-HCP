@@ -26,7 +26,24 @@ const (
 	// DNS and RBAC role assignment on the MRG, taking noticeably longer than
 	// their historical p50/p90). Revisit and re-tune once the CS-side latency
 	// work lands; see test/e2e/README.md#updating-e2e-timeouts.
-	ClusterCreationTimeout      = 30 * time.Minute
+	ClusterCreationTimeout = 30 * time.Minute
+	// NodePoolCreationTimeout has a hard floor that is structural rather than
+	// latency-driven, so do NOT re-tune it down to an observed p99.
+	//
+	// The create helpers set the TagNodePoolMaxCreationDuration experimental tag
+	// to this value minus one minute, and that becomes the RP's creation deadline
+	// (production defaults to 60m; see defaultCreateOperationCompletionDeadlineDuration
+	// in internal/admission/admit_cluster.go). Node pools default to
+	// AutoRepair: true, and HyperShift only replaces a machine that fails to
+	// register after a 20m threshold. At the former 20m value the derived deadline
+	// was 19m and therefore expired one minute *before* the mechanism that would
+	// have rescued the node pool could fire, making any single machine that failed
+	// to register a guaranteed test failure (AROSLSRE-1668: "node pool creation did
+	// not complete before the deadline; ... AllNodesHealthy is False: 1 of 1
+	// machines are not healthy").
+	//
+	// Raised to 30m by #7308 to allow MHC repair in stage. Any future value must
+	// stay above 20m plus the time to provision the replacement, independent of p99.
 	NodePoolCreationTimeout     = 30 * time.Minute
 	ExternalAuthCreationTimeout = 15 * time.Minute
 	GetAdminRESTConfigTimeout   = 10 * time.Minute
@@ -43,8 +60,23 @@ const (
 const (
 	HCPClusterVersionUpgradeTimeout = 45 * time.Minute
 	NodePoolVersionUpgradeTimeout   = 45 * time.Minute
-	NodePoolScalingTimeout          = 20 * time.Minute
-	UpdateHCPClusterTimeout         = 10 * time.Minute
+	// NodePoolScalingTimeout has the same structural floor as
+	// NodePoolCreationTimeout, for the same reason: the update helpers set the
+	// TagNodePoolMaxUpdateDuration experimental tag to this value minus one
+	// minute, and that becomes the RP's update deadline. The constant is shared by
+	// scale-up, scale-down and autoscaling-enable steps, so it has to satisfy the
+	// worst of them: any step that grows a node pool waits on a new machine
+	// registering, and so must outlast the 20m HyperShift auto-repair threshold
+	// plus the time to provision a replacement. At the former 20m value the
+	// derived deadline was 19m, one minute *below* the threshold -- the same
+	// defect #7308 fixed on the creation path, which left this constant untouched.
+	//
+	// ARO-29936 measured a second, larger floor on the same path: enabling
+	// autoscaling on an existing non-autoscaling node pool sat inactive for
+	// 20m03s before the first Machine was created, so a 20m budget expired nine
+	// seconds too early. Do NOT re-tune this to an observed p99.
+	NodePoolScalingTimeout  = 35 * time.Minute
+	UpdateHCPClusterTimeout = 10 * time.Minute
 )
 
 // Identity assignment

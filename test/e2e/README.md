@@ -374,6 +374,8 @@ Shared timeout constants live in [`test/util/framework/constants.go`](../util/fr
 
 Set each shared constant to the **99th percentile** of observed operation duration across environments (int, stage, prod as applicable). When tuning, change only the constant in `constants.go`—do not copy the value into individual tests.
 
+**Exception — some constants have a structural floor that overrides the p99.** A create or update timeout also becomes the server-side deadline (minus one minute, via the `max-creation-duration` / `max-update-duration` tag), so it must outlast any server-side recovery mechanism the test relies on, however fast the happy path is. `NodePoolCreationTimeout` and `NodePoolScalingTimeout` are the current examples: node pools default to `AutoRepair: true`, and HyperShift only replaces a machine that fails to register after a 20m threshold, so a deadline below that turns a recoverable machine failure into a guaranteed test failure. Read the comment on the constant before lowering it to an observed p99.
+
 Cluster and node pool update helpers set the experimental `max-update-duration` tag to the supplied timeout minus one minute. When update tags are omitted, the helpers first read the resource's current tags and preserve them while adding the timeout tag. Explicit tag maps keep their replacement semantics. This gives the server time to return pending reasons before the test context expires. The tag requires `ExperimentalReleaseFeatures`; update timeouts must be at least two minutes to allow the minimum one-minute server deadline.
 
 Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENTS.md) for naming conventions.
