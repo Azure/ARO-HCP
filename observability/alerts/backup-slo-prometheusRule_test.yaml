@@ -166,7 +166,7 @@ tests:
   - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-1", schedule="ns-hc-stuck-6-hourly"}'
     values: "0+0x1000"
   alert_rule_test:
-  - eval_time: 73h
+  - eval_time: 73h10m
     alertname: userJourneyBackupAvailability3d6h
     exp_alerts:
     - exp_labels:
