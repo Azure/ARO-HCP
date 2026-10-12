@@ -109,6 +109,35 @@ tests:
         description: "Node pool operation for /sub/c2/np/stuck-create has been in provisioning phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
+# Test 11: Stuck create operation — accepted phase for > 2 hours
+# ========================================
+# A create operation that never advances past "accepted" should also fire.
+# start_time is 0 (epoch). At eval_time=150m (9000s), delta = 9000 > 7200 threshold.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/c3/np/stuck-accepted", subscription_id="sub-c3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="accepted", cluster="mgmt-1"}'
+    values: "0+0x155"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/c3/np/stuck-accepted", subscription_id="sub-c3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="accepted", cluster="mgmt-1"}'
+    values: "1+0x155"
+  alert_rule_test:
+  - eval_time: 150m
+    alertname: userJourneyNodePoolStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        operation_type: "create"
+        phase: "accepted"
+        resource_id: "/sub/c3/np/stuck-accepted"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        severity: "4"
+        exclude_internal_subscriptions: "true"
+        subscription_id: "sub-c3"
+      exp_annotations:
+        summary: "mgmt-1: Node Pool operation for /sub/c3/np/stuck-accepted stuck in accepted for over 2 hours"
+        description: "Node pool operation for /sub/c3/np/stuck-accepted has been in accepted phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+# ========================================
 # Test 12: Stuck delete operation
 # ========================================
 # Verifies that delete operations stuck for >2h also trigger the alert.

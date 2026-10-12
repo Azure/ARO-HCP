@@ -57,7 +57,7 @@ spec:
               (
                 (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"})
                 and
-                backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"provisioning|updating|deleting"} == 1
+                backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"accepted|provisioning|updating|deleting"} == 1
               ) > 7200
             )[6h:5m]
           )
