@@ -1,4 +1,5 @@
 Customer should get an existing HCP cluster and report a missing cluster through the RP
+Immutable cluster configuration rejects an immutable cluster DNS prefix PATCH without changing the shared cluster
 Customer should be able to list available HCP OpenShift versions and validate response content
 Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
 Customer should be able to create node pools with ARM64-based VMs
