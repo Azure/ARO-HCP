@@ -45,6 +45,7 @@ func TestGuardedExternalAuthContract(t *testing.T) {
 				childID := manifest.ClusterResourceID + "/externalAuths/invalid-test"
 				writes, deletes, parentReads, childReads := 0, 0, 0, 0
 				present := false
+				putStarted := time.Now()
 				var lastPresent time.Time
 				client := testGuardedClusterClient(t, manifest, &fakeTransport{do: func(request *http.Request) (*http.Response, error) {
 					if request.URL.Query().Get("api-version") != "2024-06-10-preview" {
@@ -64,6 +65,7 @@ func TestGuardedExternalAuthContract(t *testing.T) {
 					switch request.Method {
 					case http.MethodPut:
 						writes++
+						putStarted = time.Now()
 						var body map[string]any
 						if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 							t.Fatal(err)
@@ -100,7 +102,7 @@ func TestGuardedExternalAuthContract(t *testing.T) {
 						return externalAuthTestResponse(http.StatusAccepted, `{}`)
 					case http.MethodGet:
 						childReads++
-						if childReads == 4 && (scenario == "delayed creation" || scenario == "delayed accepted") {
+						if deletes == 0 && time.Since(putStarted) >= ExternalAuthCreationTimeout-externalAuthCleanupPollInterval && (scenario == "delayed creation" || scenario == "delayed accepted") {
 							present = true
 						}
 						if present {

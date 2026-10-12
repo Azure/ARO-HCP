@@ -35,8 +35,8 @@ import (
 )
 
 const (
-	externalAuthAbsenceStabilityWindow = 30 * time.Second
-	externalAuthCleanupTimeout         = 2 * time.Minute
+	externalAuthAbsenceStabilityWindow = ExternalAuthCreationTimeout
+	externalAuthCleanupTimeout         = 2*ExternalAuthCreationTimeout + ExternalAuthDeletionTimeout
 	externalAuthCleanupPollInterval    = 2 * time.Second
 )
 

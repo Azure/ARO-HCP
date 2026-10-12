@@ -533,7 +533,7 @@ Test case environments labels:
 
 - `RequireNothing`: This test case creates its own cluster (per-test cluster)
 - `RequireHappyPathInfra`: This test case expects populated e2esetup models (per-run cluster)
-- `RequireSharedReadOnlyCluster`: GET/LIST or guarded-negative PATCH tests borrowing the runner-owned cluster and node pool; the runner, not the borrower, owns provisioning and cleanup. Rejected writes must use the guarded helper and leave the target unchanged.
+- `RequireSharedReadOnlyCluster`: GET/LIST or guarded-negative writes (PATCH/PUT) tests borrowing the runner-owned cluster and node pool; the runner, not the borrower, owns provisioning and cleanup. Rejected writes must use the guarded helper and leave the target unchanged.
 - `UpgradeInPlace`: In-place upgrade tests selected exclusively by the `upgrade/in-place` suite.
 
 Importance labels include four levels:
