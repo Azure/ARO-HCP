@@ -59,12 +59,13 @@ func (resources *fakeFixtureResources) Cleanup(ctx context.Context) error {
 
 func fixtureTestManifest(runID string) framework.SharedClusterManifest {
 	return framework.SharedClusterManifest{
-		Version: 1, RunID: runID, OwnerPID: os.Getpid(), Ready: true,
+		Version: framework.SharedFixtureManifestVersion, RunID: runID, OwnerPID: os.Getpid(), Ready: true,
 		ExpiresAt: time.Now().Add(time.Hour).UTC(), SubscriptionID: "subscription",
 		CustomerResourceGroup: "customer", ManagedResourceGroup: "managed",
 		ClusterName: "cluster", Location: "eastus",
 		ClusterResourceID: "/subscriptions/subscription/resourceGroups/customer/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
-		Environment:       os.Getenv("AROHCP_ENV"), FrontendAddress: os.Getenv("FRONTEND_ADDRESS"),
+		NodePoolName:      "pool", NodePoolResourceID: "/subscriptions/subscription/resourceGroups/customer/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/pool",
+		Environment: os.Getenv("AROHCP_ENV"), FrontendAddress: os.Getenv("FRONTEND_ADDRESS"),
 		ResourceManagerEndpoint: os.Getenv("RESOURCE_MANAGER_ENDPOINT"),
 	}
 }
@@ -145,6 +146,7 @@ func TestSharedFixtureCommands(t *testing.T) {
 		{name: "multiple subprocess borrowers", args: []string{"run-suite", "borrowers"}, wantProvision: 1, subprocess: true},
 		{name: "standalone borrower", args: []string{"run-test", "borrower-one"}, wantProvision: 1},
 		{name: "partial setup cleanup", args: []string{"run-suite", "borrowers"}, wantProvision: 1, provisionErr: errors.New("partial setup"), wantError: "partial setup"},
+		{name: "node pool setup failure cleanup", args: []string{"run-suite", "borrowers"}, wantProvision: 1, provisionErr: errors.New("shared node pool create failed"), wantError: "shared node pool create failed"},
 		{name: "cleanup failure", args: []string{"run-test", "borrower-one"}, wantProvision: 1, cleanupErr: errors.New("cleanup failed"), wantError: "cleanup failed"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -211,9 +213,12 @@ func TestSharedFixtureCommands(t *testing.T) {
 func TestSharedFixtureWorkerSubprocess(t *testing.T) {
 	if os.Getenv("SHARED_FIXTURE_TEST_WORKER") == "true" {
 		root := fixtureTestCLI(et.ExtensionTestSpecs{fixtureTestSpec("borrower", true, func(context.Context) *et.ExtensionTestResult {
-			_, err := framework.ReadSharedClusterManifest()
+			manifest, err := framework.ReadSharedClusterManifest()
 			if err != nil {
 				return &et.ExtensionTestResult{Result: et.ResultFailed, Error: err.Error()}
+			}
+			if manifest.NodePoolName != "pool" || manifest.NodePoolResourceID != manifest.ClusterResourceID+"/nodePools/pool" {
+				return &et.ExtensionTestResult{Result: et.ResultFailed, Error: "worker did not receive the shared node pool identity"}
 			}
 			return &et.ExtensionTestResult{Result: et.ResultPassed}
 		})}, func(string, string) (fixtureResources, error) {

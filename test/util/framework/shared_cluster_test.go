@@ -39,11 +39,12 @@ import (
 func publishedTestManifest(t *testing.T) SharedClusterManifest {
 	t.Helper()
 	manifest := SharedClusterManifest{
-		Version: 1, RunID: "run", OwnerPID: os.Getpid(), Ready: true,
+		Version: SharedFixtureManifestVersion, RunID: "run", OwnerPID: os.Getpid(), Ready: true,
 		ExpiresAt: time.Now().Add(time.Hour).UTC(), SubscriptionID: "subscription",
 		CustomerResourceGroup: "customer", ManagedResourceGroup: "managed", ClusterName: "cluster", Location: "eastus",
 		ClusterResourceID: "/subscriptions/subscription/resourceGroups/customer/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
-		Environment:       os.Getenv("AROHCP_ENV"), FrontendAddress: os.Getenv("FRONTEND_ADDRESS"), ResourceManagerEndpoint: os.Getenv("RESOURCE_MANAGER_ENDPOINT"),
+		NodePoolName:      "pool", NodePoolResourceID: "/subscriptions/subscription/resourceGroups/customer/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/pool",
+		Environment: os.Getenv("AROHCP_ENV"), FrontendAddress: os.Getenv("FRONTEND_ADDRESS"), ResourceManagerEndpoint: os.Getenv("RESOURCE_MANAGER_ENDPOINT"),
 	}
 	t.Setenv(SharedFixtureRunIDEnv, manifest.RunID)
 	t.Setenv(SharedFixtureOwnerPIDEnv, strconv.Itoa(manifest.OwnerPID))
@@ -61,6 +62,10 @@ func TestSharedClusterManifestValidation(t *testing.T) {
 	}{
 		{name: "valid"},
 		{name: "wrong version", mutate: func(manifest *SharedClusterManifest) { manifest.Version++ }},
+		{name: "old cluster-only version", mutate: func(manifest *SharedClusterManifest) { manifest.Version = 1 }},
+		{name: "missing node pool name", mutate: func(manifest *SharedClusterManifest) { manifest.NodePoolName = "" }},
+		{name: "missing node pool ID", mutate: func(manifest *SharedClusterManifest) { manifest.NodePoolResourceID = "" }},
+		{name: "wrong node pool parent", mutate: func(manifest *SharedClusterManifest) { manifest.NodePoolResourceID = "/another/cluster/nodePools/pool" }},
 		{name: "wrong run", mutate: func(manifest *SharedClusterManifest) { manifest.RunID = "another" }},
 		{name: "wrong owner", mutate: func(manifest *SharedClusterManifest) { manifest.OwnerPID = -1 }},
 		{name: "unready", mutate: func(manifest *SharedClusterManifest) { manifest.Ready = false }},

@@ -63,9 +63,9 @@ func NewRunResourceContext(runID, manifestPath string, artifacts embed.FS, logge
 			timingMetadata:                 timing.SpecTimingMetadata{Deployments: make(map[string]map[string][]timing.Operation)},
 		},
 		manifest: SharedClusterManifest{
-			Version: 1, RunID: runID, OwnerPID: os.Getpid(), ExpiresAt: time.Now().Add(SharedFixtureLifetime),
+			Version: SharedFixtureManifestVersion, RunID: runID, OwnerPID: os.Getpid(), ExpiresAt: time.Now().Add(SharedFixtureLifetime),
 			CustomerResourceGroup: resourceGroup, ManagedResourceGroup: resourceGroup + "-managed",
-			ClusterName: "shared-read-only", Location: invocation.Location(),
+			ClusterName: "shared-read-only", NodePoolName: "shared-ro-np", Location: invocation.Location(),
 			Environment: os.Getenv("AROHCP_ENV"), FrontendAddress: os.Getenv("FRONTEND_ADDRESS"),
 			ResourceManagerEndpoint: os.Getenv("RESOURCE_MANAGER_ENDPOINT"),
 		},
@@ -80,6 +80,7 @@ func (run *RunResourceContext) Provision(ctx context.Context) (SharedClusterMani
 	}
 	run.manifest.SubscriptionID = subscriptionID
 	run.manifest.ClusterResourceID = fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s", subscriptionID, run.manifest.CustomerResourceGroup, run.manifest.ClusterName)
+	run.manifest.NodePoolResourceID = run.manifest.ClusterResourceID + "/nodePools/" + run.manifest.NodePoolName
 	if err := WriteSharedClusterManifest(run.manifestPath, run.manifest); err != nil {
 		return run.manifest, err
 	}
@@ -122,8 +123,30 @@ func (run *RunResourceContext) Provision(ctx context.Context) (SharedClusterMani
 	if _, err := factory.NewResourceGroupsClient().Get(ctx, run.manifest.ManagedResourceGroup, nil); err != nil {
 		return run.manifest, fmt.Errorf("shared cluster managed resource group is not present: %w", err)
 	}
+	nodePoolParams := NewDefaultNodePoolParams20240610()
+	nodePoolParams.NodePoolName = run.manifest.NodePoolName
+	nodePoolParams.Replicas = 1
+	nodePoolParams.VMSize, err = run.resources.SelectVMSize(ctx, DefaultWorkerVMSizeSelector())
+	if err != nil {
+		return run.manifest, fmt.Errorf("select shared node pool VM size: %w", err)
+	}
+	if err := provisionSharedNodePool20240610(ctx, hcpFactory.NewNodePoolsClient(), run.manifest, nodePoolParams); err != nil {
+		return run.manifest, err
+	}
 	run.manifest.Ready = true
 	return run.manifest, nil
+}
+
+func provisionSharedNodePool20240610(ctx context.Context, client *hcpsdk20240610preview.NodePoolsClient, manifest SharedClusterManifest, params NodePoolParams20240610) error {
+	nodePool, err := CreateNodePoolAndWait20240610(ctx, client, manifest.CustomerResourceGroup, manifest.ClusterName, manifest.NodePoolName,
+		BuildNodePoolFromParams20240610(params, manifest.Location), NodePoolCreationTimeout)
+	if err != nil {
+		return fmt.Errorf("provision shared node pool: %w", err)
+	}
+	if nodePool == nil || nodePool.ID == nil || !strings.EqualFold(*nodePool.ID, manifest.NodePoolResourceID) || nodePool.Properties == nil || nodePool.Properties.ProvisioningState == nil || *nodePool.Properties.ProvisioningState != hcpsdk20240610preview.ProvisioningStateSucceeded {
+		return fmt.Errorf("shared node pool did not confirm the expected identity and Succeeded provisioning state")
+	}
+	return nil
 }
 
 func (run *RunResourceContext) Cleanup(ctx context.Context) error {

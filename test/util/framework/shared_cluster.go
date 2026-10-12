@@ -29,11 +29,12 @@ import (
 )
 
 const (
-	SharedFixtureManifestEnv = "ARO_HCP_SHARED_FIXTURE_MANIFEST"
-	SharedFixtureRunIDEnv    = "ARO_HCP_TEST_RUN_ID"
-	SharedFixtureOwnerPIDEnv = "ARO_HCP_TEST_RUN_OWNER_PID"
-	SharedFixtureRunIDTag    = "runID.aro-hcp-ci.redhat.com"
-	SharedFixtureLifetime    = 24 * time.Hour
+	SharedFixtureManifestVersion = 2
+	SharedFixtureManifestEnv     = "ARO_HCP_SHARED_FIXTURE_MANIFEST"
+	SharedFixtureRunIDEnv        = "ARO_HCP_TEST_RUN_ID"
+	SharedFixtureOwnerPIDEnv     = "ARO_HCP_TEST_RUN_OWNER_PID"
+	SharedFixtureRunIDTag        = "runID.aro-hcp-ci.redhat.com"
+	SharedFixtureLifetime        = 24 * time.Hour
 )
 
 type SharedClusterManifest struct {
@@ -47,6 +48,8 @@ type SharedClusterManifest struct {
 	ManagedResourceGroup    string    `json:"managedResourceGroup"`
 	ClusterName             string    `json:"clusterName"`
 	ClusterResourceID       string    `json:"clusterResourceID"`
+	NodePoolName            string    `json:"nodePoolName"`
+	NodePoolResourceID      string    `json:"nodePoolResourceID"`
 	Location                string    `json:"location"`
 	Environment             string    `json:"environment"`
 	FrontendAddress         string    `json:"frontendAddress"`
@@ -93,7 +96,7 @@ func ReadSharedClusterManifest() (SharedClusterManifest, error) {
 	if err != nil || ownerPID <= 0 || manifest.OwnerPID != ownerPID || (ownerPID != os.Getpid() && ownerPID != os.Getppid()) {
 		return manifest, fmt.Errorf("shared cluster manifest owner does not match this invocation")
 	}
-	if manifest.Version != 1 || manifest.RunID == "" || manifest.RunID != os.Getenv(SharedFixtureRunIDEnv) || !manifest.Ready || !time.Now().Before(manifest.ExpiresAt) {
+	if manifest.Version != SharedFixtureManifestVersion || manifest.RunID == "" || manifest.RunID != os.Getenv(SharedFixtureRunIDEnv) || !manifest.Ready || !time.Now().Before(manifest.ExpiresAt) {
 		return manifest, fmt.Errorf("shared cluster manifest is stale, unready, or belongs to another run")
 	}
 	if manifest.SubscriptionID == "" || manifest.CustomerResourceGroup == "" || manifest.ManagedResourceGroup == "" || manifest.ClusterName == "" || manifest.Location == "" {
@@ -103,6 +106,9 @@ func ReadSharedClusterManifest() (SharedClusterManifest, error) {
 	if !strings.EqualFold(expectedID, manifest.ClusterResourceID) {
 		return manifest, fmt.Errorf("shared cluster manifest resource ID is inconsistent")
 	}
+	if manifest.NodePoolName == "" || strings.ContainsAny(manifest.NodePoolName, "/?#") || !strings.EqualFold(expectedID+"/nodePools/"+manifest.NodePoolName, manifest.NodePoolResourceID) {
+		return manifest, fmt.Errorf("shared cluster manifest node pool identity is missing or inconsistent")
+	}
 	if manifest.Environment != os.Getenv("AROHCP_ENV") || manifest.FrontendAddress != os.Getenv("FRONTEND_ADDRESS") || manifest.ResourceManagerEndpoint != os.Getenv("RESOURCE_MANAGER_ENDPOINT") {
 		return manifest, fmt.Errorf("shared cluster manifest environment does not match this invocation")
 	}
@@ -110,8 +116,9 @@ func ReadSharedClusterManifest() (SharedClusterManifest, error) {
 }
 
 type ReadOnlyClusterClient struct {
-	manifest SharedClusterManifest
-	client   *hcpsdk20240610preview.HcpOpenShiftClustersClient
+	manifest  SharedClusterManifest
+	client    *hcpsdk20240610preview.HcpOpenShiftClustersClient
+	nodePools *hcpsdk20240610preview.NodePoolsClient
 }
 
 func SharedReadOnlyCluster(ctx context.Context) (SharedClusterManifest, *ReadOnlyClusterClient, error) {
@@ -135,7 +142,18 @@ func SharedReadOnlyCluster(ctx context.Context) (SharedClusterManifest, *ReadOnl
 	if err != nil {
 		return manifest, nil, err
 	}
-	return manifest, &ReadOnlyClusterClient{manifest: manifest, client: factory.NewHcpOpenShiftClustersClient()}, nil
+	return manifest, &ReadOnlyClusterClient{manifest: manifest, client: factory.NewHcpOpenShiftClustersClient(), nodePools: factory.NewNodePoolsClient()}, nil
+}
+
+func (client *ReadOnlyClusterClient) GetNodePool20240610(ctx context.Context) (hcpsdk20240610preview.NodePoolsClientGetResponse, error) {
+	manifest, err := ReadSharedClusterManifest()
+	if err != nil {
+		return hcpsdk20240610preview.NodePoolsClientGetResponse{}, err
+	}
+	if manifest != client.manifest {
+		return hcpsdk20240610preview.NodePoolsClientGetResponse{}, fmt.Errorf("shared cluster manifest changed since borrowing")
+	}
+	return client.nodePools.Get(ctx, manifest.CustomerResourceGroup, manifest.ClusterName, manifest.NodePoolName, nil)
 }
 
 func (client *ReadOnlyClusterClient) Get20240610(ctx context.Context, clusterName string) (hcpsdk20240610preview.HcpOpenShiftClustersClientGetResponse, error) {
