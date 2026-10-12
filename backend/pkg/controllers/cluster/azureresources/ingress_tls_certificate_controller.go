@@ -33,7 +33,9 @@ const IngressTLSCertificateControllerName = "IngressTLSCertificate"
 // TLS certificate.
 var ingressTLSCertificateField = tlsCertificateField{
 	label: "ingress",
-	get:   func(resources *coreapi.AzureResources) *coreapi.TLSCertificate { return resources.IngressCertificate },
+	get: func(resources coreapi.AzureResources) *coreapi.TLSCertificate {
+		return resources.IngressCertificate.DeepCopy()
+	},
 	set: func(resources *coreapi.AzureResources, certificate *coreapi.TLSCertificate) {
 		resources.IngressCertificate = certificate
 	},
