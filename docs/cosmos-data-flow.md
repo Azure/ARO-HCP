@@ -1484,7 +1484,9 @@ persist it again.
 
 [Source](../backend/pkg/controllers/mismatch/delete_orphaned_cosmos.go) · **Trigger:** Subscription; 60m.
 
-Scans Resources and kube-applier documents and deletes orphaned children whose parent resources no longer exist. The parent inventory is listed once per sweep and can be stale by the time kube-applier documents are listed, so each kube-applier document is deleted only after a live Cosmos not-found recheck of its parent.
+Scans Resources and kube-applier documents and deletes orphaned children using a stateless, crash-safe snapshot-and-grace guard. The injected passive clock captures `sweepStart` once immediately before the subscription's `ListRecursive` snapshot. Documents whose parent is in that snapshot are kept. The document's reference timestamp is `systemData.createdAt` whenever available, regardless of resource type; otherwise it is Cosmos `_ts`. Because `_ts` is at least the creation time, the fallback is strictly more conservative and can only delay deletion. Documents newer than `sweepStart - 2 hours` are kept, since their parent may post-date the snapshot. Older documents (including those exactly at the cutoff) whose parent is absent from the snapshot are deleted without another parent read. Time arithmetic does not convert the clock reading to UTC; UTC is used only for logging.
+
+No process-local observations or timers are needed: every sweep uses fresh Cosmos data, so eligible orphans can be deleted in a single sweep even across controller restarts or crash-loops. An unavailable per-management-cluster client remains an expected transient condition: its scan is skipped without a reconciliation error or immediate subscription requeue. Unexpected client, list, iterator, recheck, or delete errors are still returned. Invalid documents without a resource ID retain their separate cleanup path; sweep cadence is unchanged.
 
 #### MissingResourceID
 
