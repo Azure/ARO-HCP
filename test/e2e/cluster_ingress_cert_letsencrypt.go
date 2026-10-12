@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -304,6 +306,12 @@ var _ = Describe("Customer", func() {
 				ctx, "cert-manager", types.MergePatchType, depPatch, metav1.PatchOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to patch cert-manager deployment with workload identity label")
 
+			By("lowering CertificateRequest backoff so a new ACME Order can be retried within the issuance timeout")
+			backoffPatch := []byte(`[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--certificate-request-minimum-backoff-duration=1m"}]`)
+			_, err = kubeClient.AppsV1().Deployments(certManagerNamespace).Patch(
+				ctx, "cert-manager", types.JSONPatchType, backoffPatch, metav1.PatchOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to lower cert-manager CertificateRequest backoff")
+
 			By("waiting for the cert-manager deployment to roll out with workload identity")
 			Eventually(func() error {
 				dep, err := kubeClient.AppsV1().Deployments(certManagerNamespace).Get(ctx, "cert-manager", metav1.GetOptions{})
@@ -356,6 +364,36 @@ var _ = Describe("Customer", func() {
 			}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"ClusterIssuer should become Ready (ACME account registered)")
 
+			By("allowing DNS propagation headroom before requesting a certificate")
+			zonesClient, err := armdns.NewZonesClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create DNS zones client")
+			zone, err := zonesClient.Get(ctx, managedResourceGroupName, delegatedDomain, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get authoritative nameservers for the delegated zone")
+			Expect(zone.Properties).NotTo(BeNil(), "delegated zone properties was nil")
+			Expect(zone.Properties.NameServers).NotTo(BeEmpty(), "delegated zone must have authoritative nameservers")
+			var nameservers []string
+			for _, nameserver := range zone.Properties.NameServers {
+				Expect(nameserver).NotTo(BeNil(), "delegated zone nameserver was nil")
+				nameservers = append(nameservers, strings.ToLower(strings.TrimSuffix(*nameserver, "."))+".")
+			}
+			slices.Sort(nameservers)
+			lastDNSStatus := ""
+			logDNSReadback := func(err error) error {
+				status := "DNS readback gate satisfied"
+				if err != nil {
+					status = err.Error()
+				}
+				if status != lastDNSStatus {
+					GinkgoLogr.Info("DNS readback", "zone", delegatedDomain, "nameservers", nameservers, "status", status)
+					lastDNSStatus = status
+				}
+				return err
+			}
+			Eventually(func(ctx context.Context) error {
+				return logDNSReadback(readbackIngressDNS(ctx, delegatedDomain, nameservers, "", ""))
+			}).WithContext(ctx).WithTimeout(90*time.Second).WithPolling(10*time.Second).MustPassRepeatedly(4).Should(Succeed(),
+				"delegation and authoritative NS answers should remain consistent for at least 30 seconds before issuance")
+
 			By("creating a Certificate for the apps wildcard domain")
 			certObj := unstructuredCertificate("cluster-ingress-cert", ingressNamespace, ingressSecretName, issuerName, appsWildcard)
 			certGVR := schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "certificates"}
@@ -368,6 +406,43 @@ var _ = Describe("Customer", func() {
 					dumpCertManagerIssuanceDiagnostics(ctx, dynClient, kubeClient, certManagerNamespace, ingressNamespace, issuerName)
 				}
 			})
+
+			By("reading back the presented ACME TXT from every authoritative nameserver before waiting for issuance")
+			challengeGVR := schema.GroupVersionResource{Group: "acme.cert-manager.io", Version: "v1", Resource: "challenges"}
+			observedChallenges := map[string]bool{}
+			readbackTXT := func(ctx context.Context) error {
+				cert, err := dynClient.Resource(certGVR).Namespace(ingressNamespace).Get(ctx, "cluster-ingress-cert", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if ready, _ := isResourceReady(cert); ready {
+					return nil
+				}
+				challenges, err := dynClient.Resource(challengeGVR).Namespace(ingressNamespace).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					return err
+				}
+				for _, challenge := range challenges.Items {
+					dnsName, _, _ := unstructured.NestedString(challenge.Object, "spec", "dnsName")
+					presented, _, _ := unstructured.NestedBool(challenge.Object, "status", "presented")
+					key, _, _ := unstructured.NestedString(challenge.Object, "spec", "key")
+					if strings.TrimPrefix(dnsName, "*.") != strings.TrimPrefix(appsWildcard, "*.") || !presented || key == "" {
+						continue
+					}
+					if !observedChallenges[challenge.GetName()] {
+						GinkgoLogr.Info("observed cert-manager TXT presentation", "challenge", challenge.GetName(),
+							"firstObservedPresentedAt", time.Now().UTC().Format(time.RFC3339Nano))
+						observedChallenges[challenge.GetName()] = true
+					}
+					return readbackIngressDNS(ctx, delegatedDomain, nameservers, "_acme-challenge."+strings.TrimPrefix(dnsName, "*.")+".", key)
+				}
+				return fmt.Errorf("waiting for a presented DNS-01 challenge for %s", appsWildcard)
+			}
+			lastDNSStatus = ""
+			Eventually(func(ctx context.Context) error {
+				return logDNSReadback(readbackTXT(ctx))
+			}).WithContext(ctx).WithTimeout(90*time.Second).WithPolling(5*time.Second).MustPassRepeatedly(3).Should(Succeed(),
+				"delegated NS and ACME TXT should resolve consistently on all authoritative nameservers, or the certificate should already be issued")
 
 			By("waiting for the Certificate to be issued")
 			var lastCertStatus string
@@ -402,6 +477,50 @@ var _ = Describe("Customer", func() {
 			//Expect(err).NotTo(HaveOccurred(), "failed to patch IngressController default certificate")
 		})
 })
+
+func readbackIngressDNS(ctx context.Context, zone string, nameservers []string, txtName, txtValue string) error {
+	lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	checkNS := func(resolver *net.Resolver, source string) error {
+		records, err := resolver.LookupNS(lookupCtx, zone+".")
+		if err != nil {
+			return fmt.Errorf("NS lookup for %s via %s: %w", zone, source, err)
+		}
+		var hosts []string
+		for _, record := range records {
+			hosts = append(hosts, strings.ToLower(record.Host))
+		}
+		slices.Sort(hosts)
+		if !slices.Equal(hosts, nameservers) {
+			return fmt.Errorf("NS lookup for %s via %s: got %v, want %v", zone, source, hosts, nameservers)
+		}
+		return nil
+	}
+	if err := checkNS(&net.Resolver{PreferGo: true}, "recursive resolver"); err != nil {
+		return err
+	}
+	for _, nameserver := range nameservers {
+		resolver := &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, network, net.JoinHostPort(nameserver, "53"))
+			},
+		}
+		if err := checkNS(resolver, nameserver); err != nil {
+			return err
+		}
+		if txtName != "" {
+			records, err := resolver.LookupTXT(lookupCtx, txtName)
+			if err != nil {
+				return fmt.Errorf("TXT lookup for %s via %s: %w", txtName, nameserver, err)
+			}
+			if !slices.Contains(records, txtValue) {
+				return fmt.Errorf("TXT lookup for %s via %s: expected challenge value absent (%d records)", txtName, nameserver, len(records))
+			}
+		}
+	}
+	return nil
+}
 
 // unstructuredClusterIssuer builds a cert-manager.io/v1 ClusterIssuer that uses
 // ACME DNS-01 challenges with the Azure DNS solver.
