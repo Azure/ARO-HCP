@@ -20,6 +20,7 @@ require (
 	github.com/go-logr/logr v1.4.4
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
+	github.com/hashicorp/go-version v1.9.0
 	github.com/openshift-online/ocm-sdk-go v0.1.512
 	github.com/openshift/api v0.0.0-20260805160557-b61243060d5f
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603

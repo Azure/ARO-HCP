@@ -52,12 +52,13 @@ import (
 
 func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
 	for _, tc := range []struct {
-		name, desired, pin, exact string
-		want                      coreapi.ProvisioningState
+		name, desired, pin, exact, active string
+		want                              coreapi.ProvisioningState
 	}{
 		{name: "initial assignment pending", want: coreapi.ProvisioningStateAccepted},
 		{name: "minor assignment pending", desired: "4.21.6", want: coreapi.ProvisioningStateAccepted},
 		{name: "requested minor resolved", desired: "4.22.8", want: coreapi.ProvisioningStateSucceeded},
+		{name: "resolved target succeeds before installed version converges", desired: "4.22.8", active: "4.21.6", want: coreapi.ProvisioningStateSucceeded},
 		{name: "incompatible pin fails immediately", desired: "4.21.6", pin: "4.21.6", want: coreapi.ProvisioningStateFailed},
 		{name: "incompatible exact override fails immediately", desired: "4.21.6", exact: "4.21.6", want: coreapi.ProvisioningStateFailed},
 		{name: "pin takes precedence over experimental override", desired: "4.22.8", pin: "4.22.8", exact: "4.21.6", want: coreapi.ProvisioningStateSucceeded},
@@ -69,6 +70,9 @@ func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
 			spc := &coreapi.ServiceProviderCluster{}
 			if tc.desired != "" {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse(tc.desired))
+			}
+			if tc.active != "" {
+				spc.Status.ControlPlaneVersion.ActiveVersions = []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(semver.MustParse(tc.active))}}
 			}
 			if tc.pin != "" {
 				spc.Spec.PinnedVersion.ExactVersion = ptr.To(semver.MustParse(tc.pin))

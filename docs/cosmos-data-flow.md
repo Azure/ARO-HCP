@@ -38,6 +38,13 @@ Cluster teardown update baseline: `d453011603d357d8fa8938acef97eec5d00818c4`
 plus working-tree fixes; scope: ordered ApplyDesire removal, ReadDesire cleanup,
 concurrent Cluster Service delete dispatch, and the cluster-delete diagram.
 
+Control-plane upgrade condition update baseline: `057167cde5e3add48270bfa92fca36dc9ed2dc97`
+plus working-tree changes; scope: the existing TriggerControlPlaneUpgrade controller now
+gates new policies on backend-mirrored HostedCluster conditions and CS source-version
+classification. Controller counts and stored API fields are unchanged.
+The cluster-update and control-plane-version-rollout diagrams still show the prior
+flow; their DOT/PNG updates are deferred to a separate documentation pass.
+
 The generation instructions are maintained in [controller-data-flow.md](prompts/controller-data-flow.md).
 The historical filename is retained for existing links.
 
@@ -911,9 +918,13 @@ Reads cached cluster/provider documents and mirrored HostedCluster history. Writ
 
 #### TriggerControlPlaneUpgrade
 
-[Source](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) · **Trigger:** Cluster; 1m.
+[Source](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) · [Condition predicates](../backend/pkg/controllers/cluster/version/control_plane_upgrade_conditions.go) · **Trigger:** Cluster, ServiceProviderCluster, and cluster-scoped mirrored desires; 1m resync plus rate-limited error retries.
 
-Reads the cluster from its informer cache, requires a non-nil provider desired version, compares desired/active control-plane versions and Cluster Service state, and submits an upgrade policy when needed. Records controller intent failure if rejected.
+Skips absent/deleting clusters, missing CS IDs/provider state, the initial-create grace period, unset desired/active versions, and desired equal to the latest active version. Lists CS policies newest first and skips an already matching latest target before making eligibility reads. For a candidate policy, `GetCluster` supplies `Version.RawID` for transition classification (and resolves a linked autoscaler, whose read failure also prevents dispatch). The independently refreshed backend `readonlyhypershifthostedcluster` ReadDesire supplies HostedCluster conditions through the union lister. Cached nonempty content remains usable after an unsuccessful latest read; there is no new freshness or observed-generation gate.
+
+Requires `ReconciliationActive=True`. For increasing minor versions within a major or a single major increment, also evaluates `ClusterVersionUpgradeable`: only explicit False with a reason other than `AdminAckRequired`, `UpdateInProgress`, or `ClusterVersionUpdating` blocks. Unknown and other non-False statuses pass that second predicate. Other differing-major transitions, missing required observations, malformed content, and API failures return errors. Equal/lower minor and patch changes do not use the second predicate; classification does not authorize target eligibility or rollbacks.
+
+An eligible candidate POSTs the desired-version policy. Ordinary blocks return source/target and the original condition diagnostics through the existing error path: rate-limited retries and inherited controller `Degraded=True`, cleared after a successful reconciliation. No `Status.Validations` or ARM operation state is written by this syncer. Reconciliation continues without an active ARM operation. A matching latest policy is not reassessed or cancelled; listing and POST are not transactional. CS retains its condition check during this backend-first delivery. Removing it is a separate deployment after all policy producers and legacy queued policies have coverage.
 
 #### ClusterClusterServiceUpdateDispatch
 
@@ -1805,7 +1816,9 @@ The [operation poller](../backend/pkg/controllers/cluster/operations/operation_c
 
 [Frontend update admission](../frontend/pkg/frontend/cluster.go) combines cached node-pool inventory and SPC/SPNP state with a live target-cluster read. Deleting cached pools remain version-skew validation inputs and require cached SPNP state until they leave the inventory. Missing required provider state produces a contextual internal error, with no GetOrCreate or live parent fallback. These [admission inputs remain best effort](#admission-caches-and-startup), not an atomic snapshot.
 
-[Desired-version assignment](#backend-fleet-control-plane-version-rollout), [upgrade dispatch](../backend/pkg/controllers/cluster/version/trigger_control_plane_upgrade_controller.go) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. The graph highlights version/configuration changes and validation observations. Validation failures lasting at least five minutes also fail the operation with `InvalidResource` once the operation is at least five minutes old; sizing, identities and backup maintenance continue independently.
+[Desired-version assignment](#backend-fleet-control-plane-version-rollout), [upgrade dispatch](#triggercontrolplaneupgrade) and [operation completion](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go) make separate decisions. Upgrade dispatch classifies the CS raw source version and evaluates the backend HostedCluster mirror before a new policy is posted; blocked conditions retry with controller Degraded and do not populate creation validations. The operation's desired-version check confirms resolved major/minor, while its HostedCluster check evaluates selected specification fields and still has a status-convergence TODO. An ARM terminal result therefore does not prove upgrade completion or imply this gate remained eligible. Observe actual CS policy/HostedCluster version progress separately.
+
+The graph also shows creation-validation observations: those failures lasting at least five minutes can fail the operation with `InvalidResource` once the operation is at least five minutes old; sizing, identities and backup maintenance continue independently.
 
 ### Control-plane version rollout
 
