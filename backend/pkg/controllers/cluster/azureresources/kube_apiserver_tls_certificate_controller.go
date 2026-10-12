@@ -31,8 +31,8 @@ const KubeAPIServerTLSCertificateControllerName = "KubeAPIServerTLSCertificate"
 // kube-apiserver TLS certificate.
 var kubeAPIServerTLSCertificateField = tlsCertificateField{
 	label: "kube-apiserver",
-	get: func(resources *coreapi.AzureResources) *coreapi.TLSCertificate {
-		return resources.KubeAPIServerCertificate
+	get: func(resources coreapi.AzureResources) *coreapi.TLSCertificate {
+		return resources.KubeAPIServerCertificate.DeepCopy()
 	},
 	set: func(resources *coreapi.AzureResources, certificate *coreapi.TLSCertificate) {
 		resources.KubeAPIServerCertificate = certificate
