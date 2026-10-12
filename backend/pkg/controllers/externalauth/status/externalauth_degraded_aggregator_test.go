@@ -16,11 +16,14 @@ package status
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -224,6 +227,10 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 				inertia:            tc.inertia,
 				clock:              clock,
 				firstObservedBad:   statusutils.NewFirstObservedBadCache(clock),
+				degradedGauge: prometheus.NewGaugeVec(
+					prometheus.GaugeOpts{Name: "test_backend_externalauth_degraded"},
+					[]string{"resource_id", "controller"},
+				),
 			}
 
 			err = syncer.SyncOnce(ctx, controllerutils.HCPExternalAuthKey{
@@ -244,4 +251,83 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 			assert.Equal(t, tc.expectMessage, cond.Message, "message")
 		})
 	}
+}
+
+// TestExternalAuthDegradedAggregator_SyncOnce_DegradedGauge exercises
+// backend_externalauth_degraded directly: one series per sub-controller
+// under the external auth, 1 for the sub-controller currently reporting
+// Degraded=True (past inertia), 0 for the healthy one.
+func TestExternalAuthDegradedAggregator_SyncOnce_DegradedGauge(t *testing.T) {
+	ctx := context.Background()
+
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
+			"/externalAuths/" + statusutils.TestExternalAuthName,
+	))
+	parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
+	))
+	thirtySecondInertia := statusutils.MustNewInertia(30 * time.Second).Inertia
+
+	controllers := []*coreapi.Controller{
+		statusutils.ControllerUnder(parentResourceID, "HealthyController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+		statusutils.ControllerUnder(parentResourceID, "BadController", metav1.ConditionTrue, "Failed", "boom", 1*time.Minute),
+	}
+
+	existing := newTestExternalAuthForAggregator()
+	parentCluster := &coreapi.Cluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   parentClusterID,
+			PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),
+		},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{ID: parentClusterID, Name: statusutils.TestClusterName, Type: parentClusterID.ResourceType.String()},
+		},
+	}
+
+	seed := []any{parentCluster, existing}
+	for _, ctrl := range controllers {
+		seed = append(seed, ctrl)
+	}
+	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, seed)
+	require.NoError(t, err)
+
+	clock := clocktesting.NewFakePassiveClock(statusutils.FixedNow)
+
+	reg := prometheus.NewRegistry()
+	degradedGauge := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{Name: "backend_externalauth_degraded"},
+		[]string{"resource_id", "controller"},
+	)
+	reg.MustRegister(degradedGauge)
+
+	syncer := &externalAuthDegradedAggregator{
+		externalAuthLister: &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
+		controllerLister:   &corelistertesting.DBControllerLister{ResourcesDBClient: mockDB},
+		resourcesDBClient:  mockDB,
+		inertia:            thirtySecondInertia,
+		clock:              clock,
+		firstObservedBad:   statusutils.NewFirstObservedBadCache(clock),
+		degradedGauge:      degradedGauge,
+	}
+
+	err = syncer.SyncOnce(ctx, controllerutils.HCPExternalAuthKey{
+		SubscriptionID:      statusutils.TestSubscriptionID,
+		ResourceGroupName:   statusutils.TestResourceGroupName,
+		HCPClusterName:      statusutils.TestClusterName,
+		HCPExternalAuthName: statusutils.TestExternalAuthName,
+	})
+	require.NoError(t, err)
+
+	resourceID := strings.ToLower(parentResourceID.String())
+	expected := fmt.Sprintf(`# HELP backend_externalauth_degraded 
+# TYPE backend_externalauth_degraded gauge
+backend_externalauth_degraded{controller="BadController",resource_id="%s"} 1
+backend_externalauth_degraded{controller="HealthyController",resource_id="%s"} 0
+`, resourceID, resourceID)
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_externalauth_degraded"))
 }

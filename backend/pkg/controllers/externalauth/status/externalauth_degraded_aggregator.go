@@ -17,15 +17,23 @@ package status
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/component-base/metrics/legacyregistry"
 	utilsclock "k8s.io/utils/clock"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -43,6 +51,13 @@ type externalAuthDegradedAggregator struct {
 	inertia            statusutils.Inertia
 	clock              utilsclock.PassiveClock
 	firstObservedBad   *statusutils.FirstObservedBadCache
+	// degradedGauge backs backend_externalauth_degraded{resource_id, controller}:
+	// one series per sub-controller found under the external auth, set to 1
+	// when that sub-controller is currently a degraded source (reporting
+	// Degraded=True/Unknown) and 0 otherwise. It is independent of inertia —
+	// unlike the aggregated condition persisted to Cosmos, it reflects each
+	// sub-controller's raw, un-debounced state.
+	degradedGauge *prometheus.GaugeVec
 }
 
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthDegradedAggregator)(nil)
@@ -81,6 +96,13 @@ func NewExternalAuthDegradedAggregatorController(
 		inertia:            externalAuthDegradedAggregatorInertia(),
 		clock:              clock,
 		firstObservedBad:   statusutils.NewFirstObservedBadCache(clock),
+		degradedGauge: promauto.With(legacyregistry.Registerer()).NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "backend_externalauth_degraded",
+				Help: "Whether a sub-controller under an external auth is currently reporting Degraded=True (1) or not (0). One series per sub-controller.",
+			},
+			[]string{"resource_id", "controller"},
+		),
 	}
 	return controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthDegradedAggregatorControllerName,
@@ -120,6 +142,7 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 	replacement := existing.DeepCopy()
 	apimeta.SetStatusCondition(&replacement.Status.Conditions, aggregated)
 	if equality.Semantic.DeepEqual(existing.Status.Conditions, replacement.Status.Conditions) {
+		c.recordDegradedGauge(existing.ResourceID, controllers, sources)
 		return nil
 	}
 
@@ -134,5 +157,46 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ExternalAuth: %w", err))
 	}
+
+	// Set the per-sub-controller gauge after the aggregated Degraded condition
+	// has been durably written, so metric and Cosmos state move together.
+	c.recordDegradedGauge(existing.ResourceID, controllers, sources)
 	return nil
+}
+
+// recordDegradedGauge sets backend_externalauth_degraded for every
+// sub-controller found under this external auth: 1 for sub-controllers
+// present in degradedSources (currently reporting Degraded=True/Unknown), 0
+// for every other known sub-controller. Stale series belonging to
+// sub-controllers that no longer exist are cleared first so a removed
+// sub-controller doesn't leave a dangling series behind.
+func (c *externalAuthDegradedAggregator) recordDegradedGauge(
+	externalAuthResourceID *azcorearm.ResourceID,
+	controllers []*coreapi.Controller,
+	degradedSources []statusutils.SourcedCondition,
+) {
+	if externalAuthResourceID == nil {
+		return
+	}
+	resourceID := strings.ToLower(externalAuthResourceID.String())
+
+	degraded := make(map[string]struct{}, len(degradedSources))
+	for _, src := range degradedSources {
+		degraded[src.ControllerName] = struct{}{}
+	}
+
+	c.degradedGauge.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
+	for _, controller := range controllers {
+		if controller.ResourceID == nil {
+			continue
+		}
+		value := 0.0
+		if _, ok := degraded[controller.ResourceID.Name]; ok {
+			value = 1.0
+		}
+		c.degradedGauge.With(prometheus.Labels{
+			"resource_id": resourceID,
+			"controller":  controller.ResourceID.Name,
+		}).Set(value)
+	}
 }
