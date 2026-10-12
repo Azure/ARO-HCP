@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 )
 
+const guardedChildCleanupPollInterval = 2 * time.Second
+
 func (client *GuardedNegativeClusterClient) rejectChildCreate20240610(ctx context.Context, childType, name string, body map[string]any, target, message string) (retErr error) {
 	if childType != "externalAuths" && childType != "nodePools" {
 		return fmt.Errorf("unsupported guarded child type %q", childType)
@@ -91,12 +93,23 @@ func (client *GuardedNegativeClusterClient) rejectChildCreate20240610(ctx contex
 			retErr = fmt.Errorf("%s PUT must reject only %s with %q, got %+v", resourceID, target, message, envelope.Error)
 		}
 	}
+	uncertainPut := retErr != nil
 	_, err = client.request20240610(ctx, resourceID, http.MethodGet, nil)
 	if !isGuardedChildNotFound(err) {
 		retErr = errors.Join(retErr, fmt.Errorf("child %s must remain absent after rejected PUT, got %v", resourceID, err))
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+	}
+	if uncertainPut || !isGuardedChildNotFound(err) {
+		creationTimeout, deletionTimeout := NodePoolCreationTimeout, NodePoolDeletionTimeout
+		if childType == "externalAuths" {
+			creationTimeout, deletionTimeout = ExternalAuthCreationTimeout, ExternalAuthDeletionTimeout
+		}
+		absenceWindow := time.Duration(0)
+		if uncertainPut {
+			absenceWindow = creationTimeout
+		}
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*creationTimeout+deletionTimeout)
 		defer cancel()
-		retErr = errors.Join(retErr, client.cleanupGuardedChild20240610(cleanupCtx, resourceID))
+		retErr = errors.Join(retErr, client.cleanupGuardedChild20240610(cleanupCtx, resourceID, absenceWindow))
 	}
 	after, err := client.snapshot20240610(ctx, manifest.ClusterResourceID)
 	if err != nil {
@@ -113,17 +126,26 @@ func isGuardedChildNotFound(err error) bool {
 	return IsNotFoundError(err) && errors.As(err, &responseError) && responseError.ErrorCode == "ResourceNotFound"
 }
 
-func (client *GuardedNegativeClusterClient) cleanupGuardedChild20240610(ctx context.Context, resourceID string) error {
+func (client *GuardedNegativeClusterClient) cleanupGuardedChild20240610(ctx context.Context, resourceID string, absenceWindow time.Duration) error {
 	lastObservation := ""
-	err := wait.PollUntilContextCancel(ctx, 2*time.Second, true, func(ctx context.Context) (bool, error) {
+	var absentSince time.Time
+	err := wait.PollUntilContextCancel(ctx, guardedChildCleanupPollInterval, true, func(ctx context.Context) (bool, error) {
 		_, getErr := client.request20240610(ctx, resourceID, http.MethodGet, nil)
-		if isGuardedChildNotFound(getErr) {
-			return true, nil
-		}
 		observation := fmt.Sprintf("GET: %v", getErr)
-		if getErr == nil {
-			_, deleteErr := client.request20240610(ctx, resourceID, http.MethodDelete, nil)
-			observation += fmt.Sprintf("; DELETE: %v", deleteErr)
+		if isGuardedChildNotFound(getErr) {
+			if absentSince.IsZero() {
+				absentSince = time.Now()
+			}
+			if time.Since(absentSince) >= absenceWindow {
+				return true, nil
+			}
+			observation = "GET: typed ResourceNotFound; waiting for stable absence"
+		} else {
+			absentSince = time.Time{}
+			if getErr == nil {
+				_, deleteErr := client.request20240610(ctx, resourceID, http.MethodDelete, nil)
+				observation += fmt.Sprintf("; DELETE: %v", deleteErr)
+			}
 		}
 		if observation != lastObservation {
 			klog.FromContext(ctx).Info("Cleaning up unexpected shared fixture child", "resourceID", resourceID, "observation", observation)
