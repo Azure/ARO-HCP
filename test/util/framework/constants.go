@@ -34,16 +34,25 @@ const (
 	// to this value minus one minute, and that becomes the RP's creation deadline
 	// (production defaults to 60m; see defaultCreateOperationCompletionDeadlineDuration
 	// in internal/admission/admit_cluster.go). Node pools default to
-	// AutoRepair: true, and HyperShift only replaces a machine that fails to
-	// register after a 20m threshold. At the former 20m value the derived deadline
-	// was 19m and therefore expired one minute *before* the mechanism that would
-	// have rescued the node pool could fire, making any single machine that failed
-	// to register a guaranteed test failure (AROSLSRE-1668: "node pool creation did
-	// not complete before the deadline; ... AllNodesHealthy is False: 1 of 1
-	// machines are not healthy").
+	// AutoRepair: true, so a machine that fails to register is only rescued after
+	// the machine-health-check node startup timeout elapses and a replacement is
+	// provisioned and registers. The deadline must cover that whole cycle, not
+	// just the detection half.
+	//
+	// The detection half is currently 10m: the backend stamps
+	// MachineHealthCheckNodeStartupTimeoutAnnotation = "10m" on every
+	// HostedCluster (ensureHostedClusterAnnotations in
+	// backend/pkg/controllers/clusterresources/cluster_resources_controller.go),
+	// overriding HyperShift's 20m default. That override landed in Oct 2026; the
+	// AROSLSRE-1668 failure that first exposed this floor predates it and ran
+	// against the 20m default, where the then-current 20m constant yielded a 19m
+	// deadline that expired one minute *before* auto-repair could fire ("node pool
+	// creation did not complete before the deadline; ... AllNodesHealthy is False:
+	// 1 of 1 machines are not healthy").
 	//
 	// Raised to 30m by #7308 to allow MHC repair in stage. Any future value must
-	// stay above 20m plus the time to provision the replacement, independent of p99.
+	// stay above the detection timeout plus a full replacement provisioning cycle,
+	// independent of p99 -- and must be rechecked if that annotation changes.
 	NodePoolCreationTimeout     = 30 * time.Minute
 	ExternalAuthCreationTimeout = 15 * time.Minute
 	GetAdminRESTConfigTimeout   = 10 * time.Minute
@@ -66,15 +75,17 @@ const (
 	// minute, and that becomes the RP's update deadline. The constant is shared by
 	// scale-up, scale-down and autoscaling-enable steps, so it has to satisfy the
 	// worst of them: any step that grows a node pool waits on a new machine
-	// registering, and so must outlast the 20m HyperShift auto-repair threshold
-	// plus the time to provision a replacement. At the former 20m value the
-	// derived deadline was 19m, one minute *below* the threshold -- the same
-	// defect #7308 fixed on the creation path, which left this constant untouched.
+	// registering, and so must outlast the machine-health-check detection timeout
+	// plus a full replacement provisioning cycle (see NodePoolCreationTimeout --
+	// the same defect #7308 fixed on the creation path, which left this constant
+	// untouched).
 	//
-	// ARO-29936 measured a second, larger floor on the same path: enabling
-	// autoscaling on an existing non-autoscaling node pool sat inactive for
-	// 20m03s before the first Machine was created, so a 20m budget expired nine
-	// seconds too early. Do NOT re-tune this to an observed p99.
+	// The binding floor here is measured, not derived. ARO-29936: enabling
+	// autoscaling on an existing non-autoscaling node pool was inactive for 20m03s
+	// after the autoscaling spec was acknowledged, and the first Machine appeared
+	// 20m09s after the PATCH that starts the test's budget -- so the former 20m
+	// value missed by about nine seconds, before any replacement or registration
+	// time. Do NOT re-tune this to an observed p99.
 	NodePoolScalingTimeout  = 35 * time.Minute
 	UpdateHCPClusterTimeout = 10 * time.Minute
 )
