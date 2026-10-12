@@ -306,6 +306,7 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any, InternalAPITypeP
 		},
 	)
 
+	utils.LoggerFromContext(ctx).Info("created resource (transaction)", "resourceID", cosmosMetadata.ResourceID.String(), "instanceVersion", newObj.GetInstanceVersion())
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
@@ -342,6 +343,7 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any, InternalAPIType
 		},
 	)
 
+	utils.LoggerFromContext(ctx).Info("replaced resource (transaction)", "resourceID", cosmosMetadata.ResourceID.String(), "instanceVersion", newObj.GetInstanceVersion())
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
@@ -364,6 +366,7 @@ func create[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.C
 		return nil, err
 	}
 
+	utils.LoggerFromContext(ctx).Info("created resource", "resourceID", cosmosMetadata.ResourceID.String(), "instanceVersion", newObj.GetInstanceVersion())
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
@@ -387,6 +390,7 @@ func replace[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.
 		return nil, err
 	}
 
+	utils.LoggerFromContext(ctx).Info("replaced resource", "resourceID", cosmosMetadata.ResourceID.String(), "instanceVersion", newObj.GetInstanceVersion())
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
@@ -439,6 +443,15 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	deletedResourceID := ""
+	if doc.ResourceID != nil {
+		deletedResourceID = doc.ResourceID.String()
+	}
+	logArgs := []any{"resourceID", deletedResourceID}
+	if newInstanceVersion, found, verr := unstructured.NestedFloat64(doc.Content, "cosmosMetadata", "instanceVersion"); verr == nil && found {
+		logArgs = append(logArgs, "instanceVersion", int64(newInstanceVersion))
+	}
+	utils.LoggerFromContext(ctx).Info("deleted resource", logArgs...)
 	return nil
 }
 
