@@ -306,7 +306,12 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any, InternalAPITypeP
 		},
 	)
 
-	utils.LoggerFromContext(ctx).Info("created resource (transaction)", "resourceID", cosmosMetadata.ResourceID.String(), "instanceVersion", newObj.GetInstanceVersion())
+	logger := utils.LoggerFromContext(ctx)
+	createdResourceID := cosmosMetadata.ResourceID.String()
+	createdInstanceVersion := newObj.GetInstanceVersion()
+	transaction.OnSuccess(func(DBTransactionResult) {
+		logger.Info("created resource (transaction)", "resourceID", createdResourceID, "instanceVersion", createdInstanceVersion)
+	})
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
@@ -343,7 +348,12 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any, InternalAPIType
 		},
 	)
 
-	utils.LoggerFromContext(ctx).Info("replaced resource (transaction)", "resourceID", cosmosMetadata.ResourceID.String(), "instanceVersion", newObj.GetInstanceVersion())
+	logger := utils.LoggerFromContext(ctx)
+	replacedResourceID := cosmosMetadata.ResourceID.String()
+	replacedInstanceVersion := newObj.GetInstanceVersion()
+	transaction.OnSuccess(func(DBTransactionResult) {
+		logger.Info("replaced resource (transaction)", "resourceID", replacedResourceID, "instanceVersion", replacedInstanceVersion)
+	})
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
@@ -448,8 +458,8 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 		deletedResourceID = doc.ResourceID.String()
 	}
 	logArgs := []any{"resourceID", deletedResourceID}
-	if newInstanceVersion, found, verr := unstructured.NestedFloat64(doc.Content, "cosmosMetadata", "instanceVersion"); verr == nil && found {
-		logArgs = append(logArgs, "instanceVersion", int64(newInstanceVersion))
+	if newInstanceVersion, found, verr := unstructured.NestedInt64(doc.Content, "cosmosMetadata", "instanceVersion"); verr == nil && found {
+		logArgs = append(logArgs, "instanceVersion", newInstanceVersion)
 	}
 	utils.LoggerFromContext(ctx).Info("deleted resource", logArgs...)
 	return nil
