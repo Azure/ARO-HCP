@@ -338,6 +338,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 			deadline := nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline
 			if deadline == nil {
 				t.Fatal("expected deadline to be set, got nil")
+				return
 			}
 
 			expected := fixedNow.Add(tt.expectedDuration)
