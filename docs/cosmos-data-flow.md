@@ -818,7 +818,8 @@ Mirrors the observed HostedCluster so the frontend has a source of management-cl
 state it is allowed to read (see [Why management-cluster state is mirrored onto
 ServiceProviderCluster](#why-management-cluster-state-is-mirrored-onto-serviceprovidercluster)).
 Leaves the field `nil` until the HostedCluster is observed, and only writes when the observed
-object changes. A missing or unsuccessful ReadDesire observation leaves an already-published
+spec changes or the mirror transitions to or from `nil`; status and metadata churn is ignored.
+A missing or unsuccessful ReadDesire observation leaves an already-published
 mirror in place — those states also cover a cold union informer, so clearing on them would wipe
 and rewrite every mirror on each backend restart. A successful empty observation clears the
 mirror because it proves the HostedCluster is absent. Deletion does not gate mirroring:
