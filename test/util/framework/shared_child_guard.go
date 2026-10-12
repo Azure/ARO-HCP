@@ -34,14 +34,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 )
 
-const guardedChildCleanupPollInterval = 2 * time.Second
+const guardedNodePoolCleanupPollInterval = 2 * time.Second
 
-func (client *GuardedNegativeClusterClient) rejectChildCreate20240610(ctx context.Context, childType, name string, body map[string]any, target, message string) (retErr error) {
-	if childType != "externalAuths" && childType != "nodePools" {
-		return fmt.Errorf("unsupported guarded child type %q", childType)
-	}
+func (client *GuardedNegativeClusterClient) rejectNodePoolCreate20240610(ctx context.Context, name string, body map[string]any) (retErr error) {
 	if !regexp.MustCompile(`^[a-z]([-a-z0-9]{0,13}[a-z0-9])?$`).MatchString(name) {
-		return fmt.Errorf("child name must be a safe, unique name of at most 15 characters")
+		return fmt.Errorf("node pool name must be a safe, unique name of at most 15 characters")
 	}
 	lock := flock.New(client.manifestPath + ".guarded-write.lock")
 	locked, err := lock.TryLockContext(ctx, 100*time.Millisecond)
@@ -61,12 +58,12 @@ func (client *GuardedNegativeClusterClient) rejectChildCreate20240610(ctx contex
 	}
 	before, err := client.snapshot20240610(ctx, manifest.ClusterResourceID)
 	if err != nil {
-		return fmt.Errorf("capture cluster before rejected %s PUT: %w", childType, err)
+		return fmt.Errorf("capture cluster before rejected node pool PUT: %w", err)
 	}
-	resourceID := manifest.ClusterResourceID + "/" + childType + "/" + name
+	resourceID := manifest.ClusterResourceID + "/nodePools/" + name
 	_, err = client.request20240610(ctx, resourceID, http.MethodGet, nil)
-	if !isGuardedChildNotFound(err) {
-		return fmt.Errorf("refusing to own child %s without initial typed ResourceNotFound: %v", resourceID, err)
+	if !isGuardedNodePoolNotFound(err) {
+		return fmt.Errorf("refusing to own node pool %s without initial typed ResourceNotFound: %v", resourceID, err)
 	}
 	verified := false
 	defer func() {
@@ -89,50 +86,46 @@ func (client *GuardedNegativeClusterClient) rejectChildCreate20240610(ctx contex
 		}
 		if err := runtime.UnmarshalAsJSON(response, &envelope); err != nil {
 			retErr = fmt.Errorf("decode rejected %s PUT: %w", resourceID, err)
-		} else if envelope.Error.Target != target || !strings.Contains(envelope.Error.Message, message) || len(envelope.Error.Details) != 0 {
-			retErr = fmt.Errorf("%s PUT must reject only %s with %q, got %+v", resourceID, target, message, envelope.Error)
+		} else if envelope.Error.Target != "properties.replicas" || !strings.Contains(envelope.Error.Message, "must be greater than or equal to 0") || len(envelope.Error.Details) != 0 {
+			retErr = fmt.Errorf("%s PUT must reject only properties.replicas with 'must be greater than or equal to 0', got %+v", resourceID, envelope.Error)
 		}
 	}
 	uncertainPut := retErr != nil
 	_, err = client.request20240610(ctx, resourceID, http.MethodGet, nil)
-	if !isGuardedChildNotFound(err) {
-		retErr = errors.Join(retErr, fmt.Errorf("child %s must remain absent after rejected PUT, got %v", resourceID, err))
+	if !isGuardedNodePoolNotFound(err) {
+		retErr = errors.Join(retErr, fmt.Errorf("node pool %s must remain absent after rejected PUT, got %v", resourceID, err))
 	}
-	if uncertainPut || !isGuardedChildNotFound(err) {
-		creationTimeout, deletionTimeout := NodePoolCreationTimeout, NodePoolDeletionTimeout
-		if childType == "externalAuths" {
-			creationTimeout, deletionTimeout = ExternalAuthCreationTimeout, ExternalAuthDeletionTimeout
-		}
+	if uncertainPut || !isGuardedNodePoolNotFound(err) {
 		absenceWindow := time.Duration(0)
 		if uncertainPut {
-			absenceWindow = creationTimeout
+			absenceWindow = NodePoolCreationTimeout
 		}
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*creationTimeout+deletionTimeout)
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*NodePoolCreationTimeout+NodePoolDeletionTimeout)
 		defer cancel()
-		retErr = errors.Join(retErr, client.cleanupGuardedChild20240610(cleanupCtx, resourceID, absenceWindow))
+		retErr = errors.Join(retErr, client.cleanupGuardedNodePool20240610(cleanupCtx, resourceID, absenceWindow))
 	}
 	after, err := client.snapshot20240610(ctx, manifest.ClusterResourceID)
 	if err != nil {
-		retErr = errors.Join(retErr, fmt.Errorf("capture cluster after rejected %s PUT: %w", childType, err))
+		retErr = errors.Join(retErr, fmt.Errorf("capture cluster after rejected node pool PUT: %w", err))
 	} else if !reflect.DeepEqual(before, after) {
-		retErr = errors.Join(retErr, fmt.Errorf("shared cluster changed after rejected %s PUT", childType))
+		retErr = errors.Join(retErr, fmt.Errorf("shared cluster changed after rejected node pool PUT"))
 	}
 	verified = retErr == nil
 	return retErr
 }
 
-func isGuardedChildNotFound(err error) bool {
+func isGuardedNodePoolNotFound(err error) bool {
 	var responseError *azcore.ResponseError
 	return IsNotFoundError(err) && errors.As(err, &responseError) && responseError.ErrorCode == "ResourceNotFound"
 }
 
-func (client *GuardedNegativeClusterClient) cleanupGuardedChild20240610(ctx context.Context, resourceID string, absenceWindow time.Duration) error {
+func (client *GuardedNegativeClusterClient) cleanupGuardedNodePool20240610(ctx context.Context, resourceID string, absenceWindow time.Duration) error {
 	lastObservation := ""
 	var absentSince time.Time
-	err := wait.PollUntilContextCancel(ctx, guardedChildCleanupPollInterval, true, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextCancel(ctx, guardedNodePoolCleanupPollInterval, true, func(ctx context.Context) (bool, error) {
 		_, getErr := client.request20240610(ctx, resourceID, http.MethodGet, nil)
 		observation := fmt.Sprintf("GET: %v", getErr)
-		if isGuardedChildNotFound(getErr) {
+		if isGuardedNodePoolNotFound(getErr) {
 			if absentSince.IsZero() {
 				absentSince = time.Now()
 			}
@@ -148,13 +141,13 @@ func (client *GuardedNegativeClusterClient) cleanupGuardedChild20240610(ctx cont
 			}
 		}
 		if observation != lastObservation {
-			klog.FromContext(ctx).Info("Cleaning up unexpected shared fixture child", "resourceID", resourceID, "observation", observation)
+			klog.FromContext(ctx).Info("Cleaning up unexpected shared fixture node pool", "resourceID", resourceID, "observation", observation)
 			lastObservation = observation
 		}
 		return false, nil
 	})
 	if err != nil {
-		return fmt.Errorf("cleanup child %s: %w; last observation: %s", resourceID, err, lastObservation)
+		return fmt.Errorf("cleanup node pool %s: %w; last observation: %s", resourceID, err, lastObservation)
 	}
 	return nil
 }

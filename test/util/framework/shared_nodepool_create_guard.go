@@ -34,5 +34,5 @@ func (client *GuardedNegativeClusterClient) RejectNegativeNodePoolReplicas202406
 	if err := json.Unmarshal(encoded, &body); err != nil {
 		return fmt.Errorf("decode guarded node pool CREATE body: %w", err)
 	}
-	return client.rejectChildCreate20240610(ctx, "nodePools", name, body, "properties.replicas", "must be greater than or equal to 0")
+	return client.rejectNodePoolCreate20240610(ctx, name, body)
 }

@@ -144,7 +144,7 @@ func TestGuardedNodePoolCreateContract(t *testing.T) {
 						return externalAuthTestResponse(http.StatusBadRequest, negativeReplicasResponse)
 					case http.MethodGet:
 						childReads++
-						if writes > 0 && deletes == 0 && time.Since(putStarted) >= NodePoolCreationTimeout-guardedChildCleanupPollInterval && strings.HasPrefix(scenario, "delayed ") {
+						if writes > 0 && deletes == 0 && time.Since(putStarted) >= NodePoolCreationTimeout-guardedNodePoolCleanupPollInterval && strings.HasPrefix(scenario, "delayed ") {
 							present = true
 						}
 						if present {
@@ -220,12 +220,12 @@ func TestGuardedNodePoolCreateAbsenceWindow(t *testing.T) {
 				ctx, cancel := context.WithTimeout(t.Context(), 2*NodePoolCreationTimeout+NodePoolDeletionTimeout)
 				defer cancel()
 				started := time.Now()
-				err := client.cleanupGuardedChild20240610(ctx, manifest.ClusterResourceID+"/nodePools/invalid-test", NodePoolCreationTimeout)
+				err := client.cleanupGuardedNodePool20240610(ctx, manifest.ClusterResourceID+"/nodePools/invalid-test", NodePoolCreationTimeout)
 				if scenario == "never stable" {
 					if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "last observation") {
 						t.Fatalf("intermittent absence must time out with diagnostics: %v", err)
 					}
-				} else if err != nil || time.Since(started) < NodePoolCreationTimeout+3*guardedChildCleanupPollInterval {
+				} else if err != nil || time.Since(started) < NodePoolCreationTimeout+3*guardedNodePoolCleanupPollInterval {
 					t.Fatalf("non-typed-absence observations must restart the window: elapsed=%v err=%v", time.Since(started), err)
 				}
 			})

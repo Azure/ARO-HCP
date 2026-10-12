@@ -75,16 +75,17 @@ succeeds. Cleanup errors retain the resource ID and last observation, and the
 outer owner remains responsible for the tagged parent RG. No borrower registers
 the shared RG for test cleanup or enables cluster-wide external authentication.
 
-P2-1 reuses this child-create guard for a unique node pool with `replicas: -1`.
+P2-1 uses a separate node-pool create guard for a unique node pool with `replicas: -1`.
 The borrower copies only the known-good platform, version, and auto-repair
 configuration from the owner-provisioned node pool into a new CREATE payload;
 it never PUTs or deletes the shared node pool. The RP must return typed HTTP
 400 / `InvalidRequestContent`, targeting `properties.replicas` with
 `must be greater than or equal to 0`. Typed HTTP 404 / `ResourceNotFound` is
 required for the new child both before and after the attempt, and the parent
-GET must remain unchanged. Both child kinds use the same fixture lock, quarantine,
-and bounded failure-cleanup implementation; initial child absence is required
-before the helper can take ownership of any cleanup.
+GET must remain unchanged. The node-pool and external-auth guards are separate
+implementations using the same fixture lock and the same quarantine and bounded
+failure-cleanup pattern. Initial child absence is required before either guard
+can take ownership of any cleanup.
 
 Read-only borrowers do not acquire the write lock: they cannot change state, but
 may fail if a regression unexpectedly accepts a guarded write. General child-owning
