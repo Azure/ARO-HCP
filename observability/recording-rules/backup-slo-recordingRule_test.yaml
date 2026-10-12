@@ -7,15 +7,15 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-a-6-hourly"}'
     values: "0+100x10"
-  - series: 'velero_backup_success_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_success_total{cluster="mgmt-1", schedule="ns-a-6-hourly"}'
     values: "0+90x10"
-  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-a-6-hourly"}'
     values: "0+10x10"
-  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-a-6-hourly"}'
     values: "0x10"
-  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-a-6-hourly"}'
     values: "0x10"
   promql_expr_test:
   - expr: errors:backup:ratio:rate5m{cluster="mgmt-1"}
@@ -37,13 +37,13 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_attempt_total{cluster="mgmt-quiet", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_attempt_total{cluster="mgmt-quiet", schedule="ns-a-6-hourly"}'
     values: "0x10"
-  - series: 'velero_backup_failure_total{cluster="mgmt-quiet", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_failure_total{cluster="mgmt-quiet", schedule="ns-a-6-hourly"}'
     values: "0x10"
-  - series: 'velero_backup_partial_failure_total{cluster="mgmt-quiet", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-quiet", schedule="ns-a-6-hourly"}'
     values: "0x10"
-  - series: 'velero_backup_validation_failure_total{cluster="mgmt-quiet", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-quiet", schedule="ns-a-6-hourly"}'
     values: "0x10"
   promql_expr_test:
   - expr: errors:backup:ratio:rate5m{cluster="mgmt-quiet"}
@@ -63,11 +63,11 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_attempt_total{cluster="mgmt-masked", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_attempt_total{cluster="mgmt-masked", schedule="ns-a-6-hourly"}'
     values: "0+100x10"
-  - series: 'velero_backup_success_total{cluster="mgmt-masked", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_success_total{cluster="mgmt-masked", schedule="ns-a-6-hourly"}'
     values: "0+90x10"
-  - series: 'velero_backup_failure_total{cluster="mgmt-masked", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_failure_total{cluster="mgmt-masked", schedule="ns-a-6-hourly"}'
     values: "0+10x10"
   promql_expr_test:
   - expr: errors:backup:ratio:rate5m{cluster="mgmt-masked"}
@@ -81,13 +81,13 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-hourly", le="300"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-6-hourly", le="300"}'
     values: "0x10"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-hourly", le="600"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-6-hourly", le="600"}'
     values: "0+2x10"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-hourly", le="+Inf"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-a-6-hourly", le="+Inf"}'
     values: "0+2x10"
-  - series: 'velero_backup_duration_seconds_count{cluster="mgmt-1", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_duration_seconds_count{cluster="mgmt-1", schedule="ns-a-6-hourly"}'
     values: "0+2x10"
   promql_expr_test:
   - expr: sli:backup:latency_p99:rate5m{cluster="mgmt-1"}
@@ -101,11 +101,11 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-a-6-hourly"}'
     values: "0+0x10"
-  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-b-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-b-6-hourly"}'
     values: "0+0x10"
-  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-c-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-c-6-hourly"}'
     values: "1+0x10"
   promql_expr_test:
   - expr: sli:backup:last_run_failure:ratio5m{cluster="mgmt-1"}
@@ -120,29 +120,29 @@ tests:
       value: 3
 # ========================================
 # Storage proxy regression: mixed-cadence dilution. Each of 3 HostedClusters
-# has all 3 schedules (hourly/daily/weekly, config.go:43-45) - only the
-# hourly schedule has failed so far (a storage outage just started); daily
+# has all 3 schedules (6-hourly/daily/weekly, config.go:43-45) - only the
+# 6-hourly schedule has failed so far (a storage outage just started); daily
 # and weekly still show their old pre-outage success since their own cron
-# hasn't ticked again yet. Before restricting the ratio to hourly-only, this
+# hasn't ticked again yet. Before restricting the ratio to 6-hourly-only, this
 # would read 3 failed / 9 total = 33%, well under the 0.8 threshold -
 # exactly the dilution that could delay detection by up to a week. Scoped to
-# hourly, it correctly reads 3/3 = 100%.
+# 6-hourly, it correctly reads 3/3 = 100%.
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-6-hourly"}'
     values: "0+0x10"
   - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-daily"}'
     values: "1+0x10"
   - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-weekly"}'
     values: "1+0x10"
-  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-6-hourly"}'
     values: "0+0x10"
   - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-daily"}'
     values: "1+0x10"
   - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-weekly"}'
     values: "1+0x10"
-  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-6-hourly"}'
     values: "0+0x10"
   - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-daily"}'
     values: "1+0x10"
@@ -156,12 +156,12 @@ tests:
       value: 1
 # ========================================
 # HostedCluster-count guard regression: ONE HostedCluster with all 3 of its
-# own cadences (hourly/daily/weekly) - must count as 1 distinct HC, not 3
+# own cadences (6-hourly/daily/weekly) - must count as 1 distinct HC, not 3
 # schedules, so a downstream >=3 guard does not mistake it for 3 HCs.
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-6-hourly"}'
     values: "1+0x10"
   - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-daily"}'
     values: "1+0x10"
@@ -180,13 +180,13 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-a-hourly", phase="InProgress"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-a-6-hourly", phase="InProgress"}'
     values: "1+0x10"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-b-hourly", phase="Finalizing"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-b-6-hourly", phase="Finalizing"}'
     values: "1+0x10"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-c-hourly", phase="New"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-c-6-hourly", phase="New"}'
     values: "1+0x10"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-d-hourly", phase="Completed"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-d-6-hourly", phase="Completed"}'
     values: "1+0x10"
   promql_expr_test:
   - expr: backup:in_progress:count{cluster="mgmt-1"}
@@ -198,7 +198,7 @@ tests:
 # recording rule's comment on why there is no "or vector(0)" fallback here).
 - interval: 1m
   input_series:
-  - series: 'velerobackup_phase{cluster="mgmt-2", schedule="ns-a-hourly", phase="Completed"}'
+  - series: 'velerobackup_phase{cluster="mgmt-2", schedule="ns-a-6-hourly", phase="Completed"}'
     values: "1+0x10"
   promql_expr_test:
   - expr: backup:in_progress:count{cluster="mgmt-2"}
@@ -214,15 +214,15 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-a-hourly", phase="InProgress"}'
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-a-6-hourly", phase="InProgress"}'
     values: "1+0x10"
-  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-b-hourly", phase="InProgress"}'
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-b-6-hourly", phase="InProgress"}'
     values: "1+0x10"
-  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-c-hourly", phase="Queued"}'
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-c-6-hourly", phase="Queued"}'
     values: "1+0x10"
-  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-d-hourly", phase="ReadyToStart"}'
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-d-6-hourly", phase="ReadyToStart"}'
     values: "1+0x10"
-  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-e-hourly", phase="Completed"}'
+  - series: 'velerobackup_phase{cluster="mgmt-7", schedule="ns-e-6-hourly", phase="Completed"}'
     values: "1+0x10"
   promql_expr_test:
   - expr: backup:in_progress:count{cluster="mgmt-7"}

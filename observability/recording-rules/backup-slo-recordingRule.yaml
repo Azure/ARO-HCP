@@ -18,7 +18,7 @@ spec:
   # HostedCluster namespace per cadence). "Per cluster" here means per
   # management cluster, fleet-aggregated across every HostedCluster/schedule on
   # it - each MC can host many HCs, but every HC uses the SAME cron string per
-  # cadence (hourly is always `0 */1 * * *` for every HC - see
+  # cadence (6-hourly is always `0 */6 * * *` for every HC - see
   # backend/pkg/controllers/cluster/backups/config.go and schedule.go), so
   # attempts/completions on a given MC cluster in a BURST around each cadence's
   # cron tick, not continuously throughout the hour.
@@ -155,7 +155,7 @@ spec:
     # description for the same caveat. Replace with a direct BSL phase metric
     # once ARO-29949 lands.
     #
-    # Restricted to hourly schedules only (not all three of hourly/daily/
+    # Restricted to 6-hourly schedules only (not all three of 6-hourly/daily/
     # weekly per HostedCluster, config.go:43-45): a storage outage fails
     # uploads for every cadence on the MC near-simultaneously, but "last run"
     # only updates on each schedule's own cron tick, so daily/weekly still
@@ -166,22 +166,22 @@ spec:
     # fail. Hourly is both the most frequent cadence (fastest to reflect the
     # outage) and the primary restore-point freshness signal elsewhere in
     # this file, so restricting to it avoids the dilution without losing
-    # real signal.
+    # real signal. (Renamed from "hourly" to "6-hourly" in config.go.)
     - record: sli:backup:last_run_failure:ratio5m
       expr: |
         count by (cluster) (
-          max without (prometheus_replica) (velero_backup_last_status{schedule=~".+-hourly"}) == 0
+          max without (prometheus_replica) (velero_backup_last_status{schedule=~".+-6-hourly"}) == 0
         )
         /
         count by (cluster) (
-          max without (prometheus_replica) (velero_backup_last_status{schedule=~".+-hourly"})
+          max without (prometheus_replica) (velero_backup_last_status{schedule=~".+-6-hourly"})
         )
     # HostedCluster count SLI - minimum-sample guard for the StorageAvailability
     # proxy above (and for not alerting off a management cluster with only one
     # or two HCs, where one bad HC looks identical to a fleet-wide outage).
     # Derived from schedule name (same `{namespace}-{cadence}` convention as
     # the Availability alert's label_replace), NOT a raw count of schedule
-    # series: each HC gets up to 3 schedules (hourly/daily/weekly), so counting
+    # series: each HC gets up to 3 schedules (6-hourly/daily/weekly), so counting
     # schedules directly would let a single HC with all 3 of its own schedules
     # failing look like 3 distinct HostedClusters and slip past a >=3 guard
     # meant to require multiple distinct HCs.
@@ -191,7 +191,7 @@ spec:
           count by (cluster, hosted_cluster_namespace) (
             label_replace(
               max without (prometheus_replica) (velero_backup_last_status{schedule!=""}),
-              "hosted_cluster_namespace", "$1", "schedule", "(.+)-(hourly|daily|weekly)"
+              "hosted_cluster_namespace", "$1", "schedule", "(.+)-(6-hourly|daily|weekly)"
             )
           )
         )

@@ -15,32 +15,32 @@ rule_files:
 evaluation_interval: 1m
 tests:
 # ========================================
-# Healthy baseline: hourly schedule succeeding every hour on time, low error
+# Healthy baseline: 6-hourly schedule succeeding on time, low error
 # rate, normal latency, metrics present. No alerts anywhere.
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+60x300"
   - series: 'underlay_clusters{cluster="mgmt-1", source="bicep"}'
     values: "1+0x300"
-  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+1x300"
-  - series: 'velero_backup_success_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_success_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+1x300"
-  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0x300"
-  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0x300"
-  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0x300"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-hourly", le="+Inf"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-6-hourly", le="+Inf"}'
     values: "0+1x300"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-hourly", le="60"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-6-hourly", le="60"}'
     values: "0+1x300"
-  - series: 'velero_backup_duration_seconds_count{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_duration_seconds_count{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+1x300"
-  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "1+0x300"
   alert_rule_test:
   - eval_time: 290m
@@ -74,17 +74,18 @@ tests:
     alertname: userJourneyBackupMetricsAbsent
     exp_alerts: []
 # ========================================
-# Availability: hourly schedule's last success is frozen at t=0 while time
+# Availability: 6-hourly schedule's last success is frozen at t=0 while time
 # keeps advancing, so lag grows unbounded - simulates a stuck schedule.
-# hosted_cluster_namespace is derived from the "{namespace}-hourly" schedule
+# hosted_cluster_namespace is derived from the "{namespace}-6-hourly" schedule
 # name via label_replace.
 # ========================================
-- interval: 1m
+- interval: 5m
   input_series:
-  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-1", schedule="ns-hc-stuck-hourly"}'
-    values: "0+0x1500"
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-1", schedule="ns-hc-stuck-6-hourly"}'
+    values: "0+0x6000"
   alert_rule_test:
-  - eval_time: 125m
+  # At 12h20m: lag = 740*60 = 44400s > 43200s (12h) -> 1h5m tier fires
+  - eval_time: 12h20m
     alertname: userJourneyBackupAvailability1h5m
     exp_alerts:
     - exp_labels:
@@ -97,27 +98,29 @@ tests:
         long_window: 1h
         short_window: 5m
       exp_annotations:
-        summary: "no successful hourly backup for ns-hc-stuck in over 2h"
-        description: "No successful Velero hourly backup for HostedCluster namespace ns-hc-stuck on management cluster mgmt-1 in over 2 hours (hourly cadence is 1h; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further."
+        summary: "no successful 6-hourly backup for ns-hc-stuck in over 12h"
+        description: "No successful Velero 6-hourly backup for HostedCluster namespace ns-hc-stuck on management cluster mgmt-1 in over 12 hours (6-hourly cadence; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
         correlationId: "userJourneyBackupAvailability1h5m/mgmt-1/ns-hc-stuck"
-  - eval_time: 90m
+  # At 11h: lag = 39600s < 43200s (12h) -> not yet firing
+  - eval_time: 11h
     alertname: userJourneyBackupAvailability1h5m
     exp_alerts: []
-  - eval_time: 125m
+  # At 12h20m: lag 44400s < 86400s (24h) -> 6h30m tier not yet firing
+  - eval_time: 12h20m
     alertname: userJourneyBackupAvailability6h30m
     exp_alerts: []
 - interval: 5m
-  # At 6h20m lag exceeds BOTH the 1h5m tier's 2h threshold and the 6h30m
-  # tier's 6h threshold - these tiers are independent absolute thresholds on
+  # At 25h lag exceeds BOTH the 1h5m tier's 12h threshold and the 6h30m
+  # tier's 24h threshold - these tiers are independent absolute thresholds on
   # the same monotonic lag, not mutually exclusive, so both are expected to
   # be firing simultaneously (by design: the more a backup lags, the more
   # tiers agree it is stuck).
   input_series:
-  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-1", schedule="ns-hc-stuck-hourly"}'
-    values: "0+0x200"
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-1", schedule="ns-hc-stuck-6-hourly"}'
+    values: "0+0x400"
   alert_rule_test:
-  - eval_time: 6h20m
+  - eval_time: 25h
     alertname: userJourneyBackupAvailability6h30m
     exp_alerts:
     - exp_labels:
@@ -130,11 +133,11 @@ tests:
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "no successful hourly backup for ns-hc-stuck in over 6h"
-        description: "No successful Velero hourly backup for HostedCluster namespace ns-hc-stuck on management cluster mgmt-1 in over 6 hours. No recent restore point for this HC; investigate before this ages further."
+        summary: "no successful 6-hourly backup for ns-hc-stuck in over 24h"
+        description: "No successful Velero 6-hourly backup for HostedCluster namespace ns-hc-stuck on management cluster mgmt-1 in over 24 hours. No recent restore point for this HC; investigate before this ages further."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
         correlationId: "userJourneyBackupAvailability6h30m/mgmt-1/ns-hc-stuck"
-  - eval_time: 6h20m
+  - eval_time: 25h
     alertname: userJourneyBackupAvailability1h5m
     exp_alerts:
     - exp_labels:
@@ -147,23 +150,23 @@ tests:
         long_window: 1h
         short_window: 5m
       exp_annotations:
-        summary: "no successful hourly backup for ns-hc-stuck in over 2h"
-        description: "No successful Velero hourly backup for HostedCluster namespace ns-hc-stuck on management cluster mgmt-1 in over 2 hours (hourly cadence is 1h; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further."
+        summary: "no successful 6-hourly backup for ns-hc-stuck in over 12h"
+        description: "No successful Velero 6-hourly backup for HostedCluster namespace ns-hc-stuck on management cluster mgmt-1 in over 12 hours (6-hourly cadence; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
         correlationId: "userJourneyBackupAvailability1h5m/mgmt-1/ns-hc-stuck"
 # ========================================
-# Availability 3d6h: lag passes the 24h threshold. Sampled at 5m (not a
+# Availability 3d6h: lag passes the 72h (3d) threshold. Sampled at 5m (not a
 # sparser interval) - the alert expr is a bare instant-vector lookup with no
 # range selector, so it relies on the default 5m staleness window; widely
-# spaced samples (e.g. hourly) would go stale between points in this test
-# harness even though real Velero scrapes (~30s) never would.
+# spaced samples would go stale between points in this test harness even
+# though real Velero scrapes (~30s) never would.
 # ========================================
 - interval: 5m
   input_series:
-  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-1", schedule="ns-hc-stuck-hourly"}'
-    values: "0+0x312"
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-1", schedule="ns-hc-stuck-6-hourly"}'
+    values: "0+0x1000"
   alert_rule_test:
-  - eval_time: 26h
+  - eval_time: 73h
     alertname: userJourneyBackupAvailability3d6h
     exp_alerts:
     - exp_labels:
@@ -176,8 +179,8 @@ tests:
         long_window: 3d
         short_window: 6h
       exp_annotations:
-        summary: "no successful hourly backup for ns-hc-stuck in over 24h"
-        description: "No successful Velero hourly backup for HostedCluster namespace ns-hc-stuck on management cluster mgmt-1 in over 24 hours. Daily and weekly tiers on this HC are also at risk once their own cadences lapse."
+        summary: "no successful 6-hourly backup for ns-hc-stuck in over 3d"
+        description: "No successful Velero 6-hourly backup for HostedCluster namespace ns-hc-stuck on management cluster mgmt-1 in over 3 days. Daily and weekly tiers on this HC are also at risk once their own cadences lapse."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
         correlationId: "userJourneyBackupAvailability3d6h/mgmt-1/ns-hc-stuck"
 # ========================================
@@ -185,16 +188,16 @@ tests:
 # resolves after a new successful backup resets the timestamp. Proves the
 # alert is not sticky once the underlying issue clears.
 # ========================================
-- interval: 1m
+- interval: 5m
   input_series:
-  # Timestamp stuck at 0 for first 130m, then jumps to near-current at 131m
-  # (simulates a new successful backup completing). After the jump the lag
-  # drops well below 2h so the 1h5m tier should resolve.
-  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-2", schedule="ns-hc-recovery-hourly"}'
-    values: "0+0x131 7860+0x30"
+  # Timestamp stuck at 0 for first 150 steps (750m = 12.5h), then jumps to
+  # near-current at step 151 (simulates a new successful backup completing).
+  # After the jump the lag drops well below 12h so the 1h5m tier resolves.
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-2", schedule="ns-hc-recovery-6-hourly"}'
+    values: "0+0x151 45300+0x20"
   alert_rule_test:
-  # At 125m: lag = 125*60 = 7500s > 7200s (2h) -> alert fires
-  - eval_time: 125m
+  # At 12h20m (740m): lag = 740*60 = 44400s > 43200s (12h) -> alert fires
+  - eval_time: 12h20m
     alertname: userJourneyBackupAvailability1h5m
     exp_alerts:
     - exp_labels:
@@ -207,14 +210,14 @@ tests:
         long_window: 1h
         short_window: 5m
       exp_annotations:
-        summary: "no successful hourly backup for ns-hc-recovery in over 2h"
-        description: "No successful Velero hourly backup for HostedCluster namespace ns-hc-recovery on management cluster mgmt-2 in over 2 hours (hourly cadence is 1h; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further."
+        summary: "no successful 6-hourly backup for ns-hc-recovery in over 12h"
+        description: "No successful Velero 6-hourly backup for HostedCluster namespace ns-hc-recovery on management cluster mgmt-2 in over 12 hours (6-hourly cadence; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
         correlationId: "userJourneyBackupAvailability1h5m/mgmt-2/ns-hc-recovery"
-  # At 135m: last_successful_timestamp = 7860 (set at t=131m = 7860s),
-  # current time = 135*60 = 8100s, lag = 8100 - 7860 = 240s << 7200s ->
+  # At 12h40m (760m): last_successful_timestamp = 45300 (set at step 151 =
+  # 755m = 45300s), current time = 760*60 = 45600s, lag = 300s << 43200s ->
   # alert resolves
-  - eval_time: 135m
+  - eval_time: 12h40m
     alertname: userJourneyBackupAvailability1h5m
     exp_alerts: []
 # ========================================
@@ -226,15 +229,15 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+100x80"
-  - series: 'velero_backup_success_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_success_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+90x80"
-  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+10x80"
-  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0x80"
-  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0x80"
   alert_rule_test:
   - eval_time: 62m
@@ -257,7 +260,7 @@ tests:
 # are independent absolute thresholds, not mutually exclusive, so this block
 # intentionally does not assert userJourneyBackupErrors6h30m/3d6h are empty.
 # ========================================
-# Errors: delayed-failure regression test. A single hourly batch of 50 HCs'
+# Errors: delayed-failure regression test. A single 6-hourly batch of 50 HCs'
 # worth of attempts lands in one burst at t=0; 4 of them fail ~10m later
 # (matching the real 10m pre-hook timeout in internal/backup/backup.go:88),
 # well outside that attempt's own 5m slice. This is exactly the case where
@@ -271,13 +274,13 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0 50+0x40"
-  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+0x9 4+0x31"
-  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0x41"
-  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0x41"
   alert_rule_test:
   - eval_time: 26m
@@ -314,15 +317,15 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0 1000+0x48 1900+0x8"
-  - series: 'velero_backup_success_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_success_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0 800+0x55 1691+0x1"
-  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0 200+0x55 209+0x1"
-  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0x59"
-  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0x59"
   alert_rule_test:
   - eval_time: 58m
@@ -335,15 +338,15 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_attempt_total{cluster="mgmt-10", schedule="ns-low-vol-hourly"}'
+  - series: 'velero_backup_attempt_total{cluster="mgmt-10", schedule="ns-low-vol-6-hourly"}'
     values: "0 0 2+0x78"
-  - series: 'velero_backup_success_total{cluster="mgmt-10", schedule="ns-low-vol-hourly"}'
+  - series: 'velero_backup_success_total{cluster="mgmt-10", schedule="ns-low-vol-6-hourly"}'
     values: "0x80"
-  - series: 'velero_backup_failure_total{cluster="mgmt-10", schedule="ns-low-vol-hourly"}'
+  - series: 'velero_backup_failure_total{cluster="mgmt-10", schedule="ns-low-vol-6-hourly"}'
     values: "0 0 2+0x78"
-  - series: 'velero_backup_partial_failure_total{cluster="mgmt-10", schedule="ns-low-vol-hourly"}'
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-10", schedule="ns-low-vol-6-hourly"}'
     values: "0x80"
-  - series: 'velero_backup_validation_failure_total{cluster="mgmt-10", schedule="ns-low-vol-hourly"}'
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-10", schedule="ns-low-vol-6-hourly"}'
     values: "0x80"
   alert_rule_test:
   - eval_time: 62m
@@ -359,15 +362,15 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+100x4380"
-  - series: 'velero_backup_success_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_success_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+99x4380"
-  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+1x4380"
-  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_partial_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0x4380"
-  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_validation_failure_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0x4380"
   alert_rule_test:
   - eval_time: 73h
@@ -401,13 +404,13 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-hourly", le="1200"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-6-hourly", le="1200"}'
     values: "0x450"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-hourly", le="1800"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-6-hourly", le="1800"}'
     values: "0+2x450"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-hourly", le="+Inf"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-6-hourly", le="+Inf"}'
     values: "0+2x450"
-  - series: 'velero_backup_duration_seconds_count{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_duration_seconds_count{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+2x450"
   alert_rule_test:
   - eval_time: 6h25m
@@ -430,11 +433,11 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-hourly", le="300"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-6-hourly", le="300"}'
     values: "0+2x450"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-hourly", le="+Inf"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-hc1-6-hourly", le="+Inf"}'
     values: "0+2x450"
-  - series: 'velero_backup_duration_seconds_count{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_duration_seconds_count{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+2x450"
   alert_rule_test:
   - eval_time: 6h25m
@@ -454,15 +457,15 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-many-fast-hourly", le="60"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-many-fast-6-hourly", le="60"}'
     values: "0+50x50"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-many-fast-hourly", le="1800"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-many-fast-6-hourly", le="1800"}'
     values: "0+50x50"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-many-fast-hourly", le="+Inf"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-many-fast-6-hourly", le="+Inf"}'
     values: "0+50x50"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-few-slow-hourly", le="1800"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-few-slow-6-hourly", le="1800"}'
     values: "0+2x50"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-few-slow-hourly", le="+Inf"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-few-slow-6-hourly", le="+Inf"}'
     values: "0+2x50"
   alert_rule_test:
   - eval_time: 45m
@@ -489,15 +492,15 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-many-fast-hourly", le="60"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-many-fast-6-hourly", le="60"}'
     values: "0+200x50"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-many-fast-hourly", le="1800"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-many-fast-6-hourly", le="1800"}'
     values: "0+200x50"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-many-fast-hourly", le="+Inf"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-many-fast-6-hourly", le="+Inf"}'
     values: "0+200x50"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-few-slow-hourly", le="1800"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-few-slow-6-hourly", le="1800"}'
     values: "0+1x50"
-  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-few-slow-hourly", le="+Inf"}'
+  - series: 'velero_backup_duration_seconds_bucket{cluster="mgmt-1", schedule="ns-few-slow-6-hourly", le="+Inf"}'
     values: "0+1x50"
   alert_rule_test:
   - eval_time: 45m
@@ -507,10 +510,10 @@ tests:
 # Traffic: attempt rate collapses to near-zero after a healthy 1d-ish
 # baseline - e.g. the Backup Schedule Controller stops creating Backup CRs
 # fleet-wide. The window was widened from 15m to 2h (and `for:` from 30m to
-# 1h) because every HC's hourly schedule shares the SAME cron
+# 1h) because every HC's 6-hourly schedule shares the SAME cron
 # (config.go/schedule.go, not independently offset), so attempts burst around
 # each hour mark and a 15m window reads ~0 for most of every healthy hour -
-# see the "healthy hourly burst" test below for that false-positive case.
+# see the "healthy 6-hourly burst" test below for that false-positive case.
 # 1440 steps @1m covers the healthy day; the 2h window must be entirely past
 # the collapse start (t=1440) before the ratio can read true, then `for: 1h`
 # needs that to hold for another hour - earliest possible fire is t=1440+120+60
@@ -518,7 +521,7 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0+1x1440 1440+0.004x190"
   alert_rule_test:
   - eval_time: 27h5m
@@ -532,10 +535,10 @@ tests:
         slo: backup-traffic
       exp_annotations:
         summary: "Velero backup attempts collapsed below 10% of 1d baseline"
-        description: "Velero backup attempt rate on management cluster mgmt-1 is below 10% of its 1-day average, sustained across a 2h window (more than one full hourly cadence cycle) for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC's problem."
+        description: "Velero backup attempt rate on management cluster mgmt-1 is below 10% of its 1-day average, sustained across a 2h window for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC's problem."
         runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md"
 # ========================================
-# Traffic: healthy hourly-cron-aligned bursts (matching the real, synchronized
+# Traffic: healthy 6-hourly-cron-aligned bursts (matching the real, synchronized
 # `0 */1 * * *` cadence) with genuine silence between bursts - must NOT fire,
 # even though a bare 15m window sampled mid-gap would read zero for 45+
 # minutes out of every hour. Evaluated 45m after the 3rd burst, inside the
@@ -544,7 +547,7 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-hourly"}'
+  - series: 'velero_backup_attempt_total{cluster="mgmt-1", schedule="ns-hc1-6-hourly"}'
     values: "0 60+0x59 120+0x59 180+0x45"
   alert_rule_test:
   - eval_time: 165m
@@ -557,11 +560,11 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-a-6-hourly"}'
     values: "0+0x20"
-  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-b-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-b-6-hourly"}'
     values: "0+0x20"
-  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-c-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-1", schedule="ns-c-6-hourly"}'
     values: "0+0x20"
   alert_rule_test:
   - eval_time: 17m
@@ -584,7 +587,7 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_last_status{cluster="mgmt-2", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-2", schedule="ns-a-6-hourly"}'
     values: "0+0x20"
   alert_rule_test:
   - eval_time: 17m
@@ -593,14 +596,14 @@ tests:
 # ========================================
 # StorageAvailability: regression test for the schedule-count vs.
 # HostedCluster-count fix. ONE HostedCluster with all 3 of its own cadences
-# (hourly/daily/weekly) failing - 3 schedules, but only 1 distinct
+# (6-hourly/daily/weekly) failing - 3 schedules, but only 1 distinct
 # hosted_cluster_namespace. Under the old raw-schedule-count guard this would
 # have incorrectly looked like 3 HCs and fired; gating on distinct
 # HostedCluster count correctly keeps this as a single-HC problem.
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-6-hourly"}'
     values: "0+0x20"
   - series: 'velero_backup_last_status{cluster="mgmt-3", schedule="ns-x-daily"}'
     values: "0+0x20"
@@ -612,29 +615,29 @@ tests:
     exp_alerts: []
 # ========================================
 # StorageAvailability: mixed-cadence dilution regression test. 3 distinct
-# HostedClusters, each with all 3 schedules (hourly/daily/weekly) - only the
-# hourly schedule has failed on each (a storage outage just started); daily
+# HostedClusters, each with all 3 schedules (6-hourly/daily/weekly) - only the
+# 6-hourly schedule has failed on each (a storage outage just started); daily
 # and weekly still show their old pre-outage success since their own cron
 # hasn't ticked again yet. Before restricting sli:backup:last_run_failure:
-# ratio5m to hourly-only, this would read 3 failed / 9 total = 33%, well
+# ratio5m to 6-hourly-only, this would read 3 failed / 9 total = 33%, well
 # under the 0.8 threshold, and could delay detection by up to a week waiting
-# for weekly to also fail. Scoped to hourly, it correctly fires.
+# for weekly to also fail. Scoped to 6-hourly, it correctly fires.
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-6-hourly"}'
     values: "0+0x20"
   - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-daily"}'
     values: "1+0x20"
   - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-a-weekly"}'
     values: "1+0x20"
-  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-6-hourly"}'
     values: "0+0x20"
   - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-daily"}'
     values: "1+0x20"
   - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-b-weekly"}'
     values: "1+0x20"
-  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-hourly"}'
+  - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-6-hourly"}'
     values: "0+0x20"
   - series: 'velero_backup_last_status{cluster="mgmt-9", schedule="ns-c-daily"}'
     values: "1+0x20"
@@ -677,33 +680,33 @@ tests:
 # ========================================
 # RepoMaintenanceSaturation: 11 backups piled up non-terminal for 3.5+ hours -
 # threshold/duration raised from >5/30m to >10/3h30m to tolerate a normal
-# hourly-cron burst draining through --concurrent-backups 4 (see the alert's
+# 6-hourly-cron burst draining through --concurrent-backups 4 (see the alert's
 # comment for the worst-case drain-time math) now that "New" (queued) backups
 # count too.
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-a-hourly", phase="InProgress"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-a-6-hourly", phase="InProgress"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-b-hourly", phase="InProgress"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-b-6-hourly", phase="InProgress"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-c-hourly", phase="InProgress"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-c-6-hourly", phase="InProgress"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-d-hourly", phase="WaitingForPluginOperations"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-d-6-hourly", phase="WaitingForPluginOperations"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-e-hourly", phase="WaitingForPluginOperations"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-e-6-hourly", phase="WaitingForPluginOperations"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-f-hourly", phase="WaitingForPluginOperationsPartiallyFailed"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-f-6-hourly", phase="WaitingForPluginOperationsPartiallyFailed"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-g-hourly", phase="WaitingForPluginOperationsPartiallyFailed"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-g-6-hourly", phase="WaitingForPluginOperationsPartiallyFailed"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-h-hourly", phase="Finalizing"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-h-6-hourly", phase="Finalizing"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-i-hourly", phase="Finalizing"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-i-6-hourly", phase="Finalizing"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-j-hourly", phase="FinalizingPartiallyFailed"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-j-6-hourly", phase="FinalizingPartiallyFailed"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-k-hourly", phase="FinalizingPartiallyFailed"}'
+  - series: 'velerobackup_phase{cluster="mgmt-1", schedule="ns-k-6-hourly", phase="FinalizingPartiallyFailed"}'
     values: "1+0x215"
   alert_rule_test:
   - eval_time: 3h35m
@@ -728,27 +731,27 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-a-hourly", phase="InProgress"}'
+  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-a-6-hourly", phase="InProgress"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-b-hourly", phase="InProgress"}'
+  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-b-6-hourly", phase="InProgress"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-c-hourly", phase="New"}'
+  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-c-6-hourly", phase="New"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-d-hourly", phase="New"}'
+  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-d-6-hourly", phase="New"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-e-hourly", phase="New"}'
+  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-e-6-hourly", phase="New"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-f-hourly", phase="New"}'
+  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-f-6-hourly", phase="New"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-g-hourly", phase="New"}'
+  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-g-6-hourly", phase="New"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-h-hourly", phase="New"}'
+  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-h-6-hourly", phase="New"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-i-hourly", phase="New"}'
+  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-i-6-hourly", phase="New"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-j-hourly", phase="New"}'
+  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-j-6-hourly", phase="New"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-k-hourly", phase="New"}'
+  - series: 'velerobackup_phase{cluster="mgmt-5", schedule="ns-k-6-hourly", phase="New"}'
     values: "1+0x215"
   alert_rule_test:
   - eval_time: 3h35m
@@ -775,27 +778,27 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-a-hourly", phase="InProgress"}'
+  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-a-6-hourly", phase="InProgress"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-b-hourly", phase="InProgress"}'
+  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-b-6-hourly", phase="InProgress"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-c-hourly", phase="Queued"}'
+  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-c-6-hourly", phase="Queued"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-d-hourly", phase="Queued"}'
+  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-d-6-hourly", phase="Queued"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-e-hourly", phase="Queued"}'
+  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-e-6-hourly", phase="Queued"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-f-hourly", phase="Queued"}'
+  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-f-6-hourly", phase="Queued"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-g-hourly", phase="ReadyToStart"}'
+  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-g-6-hourly", phase="ReadyToStart"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-h-hourly", phase="ReadyToStart"}'
+  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-h-6-hourly", phase="ReadyToStart"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-i-hourly", phase="ReadyToStart"}'
+  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-i-6-hourly", phase="ReadyToStart"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-j-hourly", phase="ReadyToStart"}'
+  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-j-6-hourly", phase="ReadyToStart"}'
     values: "1+0x215"
-  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-k-hourly", phase="ReadyToStart"}'
+  - series: 'velerobackup_phase{cluster="mgmt-6", schedule="ns-k-6-hourly", phase="ReadyToStart"}'
     values: "1+0x215"
   alert_rule_test:
   - eval_time: 3h35m
@@ -852,7 +855,7 @@ tests:
   input_series:
   - series: 'underlay_clusters{cluster="int-eastus-mgmt-1", source="bicep"}'
     values: "1+0x20"
-  - series: 'velero_backup_attempt_total{cluster="int-eastus-mgmt-1", schedule="ns-a-hourly"}'
+  - series: 'velero_backup_attempt_total{cluster="int-eastus-mgmt-1", schedule="ns-a-6-hourly"}'
     values: "0+1x20"
   alert_rule_test:
   - eval_time: 17m

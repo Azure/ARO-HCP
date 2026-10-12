@@ -1064,13 +1064,13 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
         }
         annotations: {
           correlationId: 'userJourneyBackupAvailability1h5m/{{ $labels.cluster }}/{{ $labels.hosted_cluster_namespace }}'
-          description: 'No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 2 hours (hourly cadence is 1h; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further.'
-          info: 'No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 2 hours (hourly cadence is 1h; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further.'
+          description: 'No successful Velero 6-hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 12 hours (6-hourly cadence; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further.'
+          info: 'No successful Velero 6-hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 12 hours (6-hourly cadence; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 2h'
-          title: 'no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 2h'
+          summary: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} in over 12h'
+          title: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} in over 12h'
         }
-        expression: '(time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 2 * 3600'
+        expression: '(time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 12 * 3600'
         for: 'PT2M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1095,13 +1095,13 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
         }
         annotations: {
           correlationId: 'userJourneyBackupAvailability6h30m/{{ $labels.cluster }}/{{ $labels.hosted_cluster_namespace }}'
-          description: 'No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 6 hours. No recent restore point for this HC; investigate before this ages further.'
-          info: 'No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 6 hours. No recent restore point for this HC; investigate before this ages further.'
+          description: 'No successful Velero 6-hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 24 hours. No recent restore point for this HC; investigate before this ages further.'
+          info: 'No successful Velero 6-hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 24 hours. No recent restore point for this HC; investigate before this ages further.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 6h'
-          title: 'no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 6h'
+          summary: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} in over 24h'
+          title: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} in over 24h'
         }
-        expression: '(time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 6 * 3600'
+        expression: '(time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 24 * 3600'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1126,13 +1126,13 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
         }
         annotations: {
           correlationId: 'userJourneyBackupAvailability3d6h/{{ $labels.cluster }}/{{ $labels.hosted_cluster_namespace }}'
-          description: 'No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 24 hours. Daily and weekly tiers on this HC are also at risk once their own cadences lapse.'
-          info: 'No successful Velero hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 24 hours. Daily and weekly tiers on this HC are also at risk once their own cadences lapse.'
+          description: 'No successful Velero 6-hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 3 days. Daily and weekly tiers on this HC are also at risk once their own cadences lapse.'
+          info: 'No successful Velero 6-hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 3 days. Daily and weekly tiers on this HC are also at risk once their own cadences lapse.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 24h'
-          title: 'no successful hourly backup for {{ $labels.hosted_cluster_namespace }} in over 24h'
+          summary: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} in over 3d'
+          title: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} in over 3d'
         }
-        expression: '(time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 24 * 3600'
+        expression: '(time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 72 * 3600'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1349,8 +1349,8 @@ resource arohcpBackupSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRule
         }
         annotations: {
           correlationId: 'userJourneyBackupTraffic/{{ $labels.cluster }}'
-          description: 'Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average, sustained across a 2h window (more than one full hourly cadence cycle) for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC\'s problem.'
-          info: 'Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average, sustained across a 2h window (more than one full hourly cadence cycle) for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC\'s problem.'
+          description: 'Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average, sustained across a 2h window for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC\'s problem.'
+          info: 'Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average, sustained across a 2h window for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC\'s problem.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
           summary: 'Velero backup attempts collapsed below 10% of 1d baseline'
           title: 'Velero backup attempts collapsed below 10% of 1d baseline'

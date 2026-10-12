@@ -5822,52 +5822,52 @@
   group: arohcp_backup_slo_availability_alerts
   alert: userJourneyBackupAvailability1h5m
   occurrence: 1
-  input: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 2 * 3600
+  input: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 12 * 3600
   plan:
-    expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 2 * 3600
+    expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 12 * 3600
     conditions:
-      - expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 2 * 3600
+      - expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 12 * 3600
         path: root
         queries:
-          - expression: time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))
+          - expression: time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))
             role: signal
         thresholds:
           - operator: '>'
-            value: 7200
+            value: 43200
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_backup_slo_availability_alerts
   alert: userJourneyBackupAvailability3d6h
   occurrence: 1
-  input: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 24 * 3600
+  input: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 72 * 3600
   plan:
-    expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 24 * 3600
+    expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 72 * 3600
     conditions:
-      - expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 24 * 3600
+      - expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 72 * 3600
         path: root
         queries:
-          - expression: time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))
+          - expression: time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))
             role: signal
         thresholds:
           - operator: '>'
-            value: 86400
+            value: 259200
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_backup_slo_availability_alerts
   alert: userJourneyBackupAvailability6h30m
   occurrence: 1
-  input: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 6 * 3600
+  input: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 24 * 3600
   plan:
-    expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 6 * 3600
+    expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 24 * 3600
     conditions:
-      - expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 6 * 3600
+      - expression: (time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 24 * 3600
         path: root
         queries:
-          - expression: time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))
+          - expression: time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))
             role: signal
         thresholds:
           - operator: '>'
-            value: 21600
+            value: 86400
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_backup_slo_error_alerts
@@ -7660,23 +7660,23 @@
       -
       max by (cluster, hosted_cluster_namespace) (
         label_replace(
-          max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}),
-          "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"
+          max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}),
+          "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"
         )
       )
     )
-    > 2 * 3600
+    > 12 * 3600
   plan:
-    expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 2 * 3600
+    expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 12 * 3600
     conditions:
-      - expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 2 * 3600
+      - expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 12 * 3600
         path: root
         queries:
-          - expression: time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))
+          - expression: time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))
             role: signal
         thresholds:
           - operator: '>'
-            value: 7200
+            value: 43200
         unsupported: ""
 - source: observability/alerts/backup-slo-prometheusRule.yaml
   group: arohcp_backup_slo_availability_alerts
@@ -7688,23 +7688,23 @@
       -
       max by (cluster, hosted_cluster_namespace) (
         label_replace(
-          max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}),
-          "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"
+          max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}),
+          "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"
         )
       )
     )
-    > 24 * 3600
+    > 72 * 3600
   plan:
-    expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 24 * 3600
+    expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 72 * 3600
     conditions:
-      - expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 24 * 3600
+      - expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 72 * 3600
         path: root
         queries:
-          - expression: time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))
+          - expression: time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))
             role: signal
         thresholds:
           - operator: '>'
-            value: 86400
+            value: 259200
         unsupported: ""
 - source: observability/alerts/backup-slo-prometheusRule.yaml
   group: arohcp_backup_slo_availability_alerts
@@ -7716,23 +7716,23 @@
       -
       max by (cluster, hosted_cluster_namespace) (
         label_replace(
-          max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}),
-          "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"
+          max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}),
+          "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"
         )
       )
     )
-    > 6 * 3600
+    > 24 * 3600
   plan:
-    expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 6 * 3600
+    expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 24 * 3600
     conditions:
-      - expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))) > 6 * 3600
+      - expression: (time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 24 * 3600
         path: root
         queries:
-          - expression: time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-hourly"))
+          - expression: time() - max by (cluster, hosted_cluster_namespace) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))
             role: signal
         thresholds:
           - operator: '>'
-            value: 21600
+            value: 86400
         unsupported: ""
 - source: observability/alerts/backup-slo-prometheusRule.yaml
   group: arohcp_backup_slo_error_alerts
