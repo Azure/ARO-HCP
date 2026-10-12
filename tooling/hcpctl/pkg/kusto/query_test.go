@@ -173,6 +173,27 @@ func TestServiceLogs_NoClusterIds(t *testing.T) {
 	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
+func TestARMServiceLogsIgnoreClusterServiceIDs(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	def, err := f.GetBuiltinQueryDefinition("serviceLogs")
+	require.NoError(t, err)
+	for _, table := range []string{"backendLogs", "frontendLogs", "kubeApplierLogs", "fleetLogs"} {
+		t.Run(table, func(t *testing.T) {
+			queries, err := f.Build(*def, NewTemplateDataFromOptions(baseOptions(),
+				WithTable(table), WithClusterIds([]string{"cs-cluster-id"}),
+			))
+			require.NoError(t, err)
+			require.Len(t, queries, 1)
+			text := queries[0].GetQuery().String()
+			assert.NotContains(t, text, "cs-cluster-id", "CS IDs must be ignored even if supplied to the template")
+			assert.NotContains(t, text, "clustersServiceLogs", "ARM services must not resolve CS IDs")
+			assert.Contains(t, text, "| where log has '/subscriptions/test-sub/resourceGroups/test-rg'")
+			testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+		})
+	}
+}
+
 func TestOperationIdsQuery(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
@@ -254,7 +275,7 @@ func TestFrontendQueriesWithOperationIds(t *testing.T) {
 			}
 			require.NoError(t, err)
 			queries, err := f.Build(*def, NewTemplateDataFromOptions(baseOptions(),
-				WithTable("frontendLogs"), WithClusterIds([]string{"cid1"}),
+				WithTable("frontendLogs"),
 				WithOperationIds([]string{"773f5d4a-cd7a-4e25-ac56-58130cbed2d2", "operation'quoted"}),
 			))
 			require.NoError(t, err)
