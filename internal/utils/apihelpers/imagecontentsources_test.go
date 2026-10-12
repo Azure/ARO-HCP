@@ -18,6 +18,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
 
 func TestIsPlatformImageContentSource(t *testing.T) {
@@ -66,4 +68,29 @@ func TestIsPlatformImageContentSource(t *testing.T) {
 			assert.Equal(t, test.want, IsPlatformImageContentSource(test.source))
 		})
 	}
+}
+
+func TestImageContentSourcesHaveSource(test *testing.T) {
+	test.Parallel()
+
+	tests := []struct {
+		name    string
+		sources []hsv1beta1.ImageContentSource
+		want    bool
+	}{
+		{name: "nil"},
+		{name: "empty", sources: []hsv1beta1.ImageContentSource{}},
+		{name: "missing", sources: []hsv1beta1.ImageContentSource{{Source: "quay.io/customer/images"}}},
+		{name: "present", sources: []hsv1beta1.ImageContentSource{{Source: "quay.io/customer/images"}, {Source: OcpV5ArtDevMirrorSource}}, want: true},
+		{name: "mirror is not source", sources: []hsv1beta1.ImageContentSource{{Source: "quay.io/customer/images", Mirrors: []string{OcpV5ArtDevMirrorSource}}}},
+	}
+	for _, testcase := range tests {
+		test.Run(testcase.name, func(test *testing.T) {
+			test.Parallel()
+			assert.Equal(test, testcase.want, ImageContentSourcesHaveSource(testcase.sources, OcpV5ArtDevMirrorSource))
+			hostedCluster := &hsv1beta1.HostedCluster{Spec: hsv1beta1.HostedClusterSpec{ImageContentSources: testcase.sources}}
+			assert.Equal(test, testcase.want, HostedClusterHasImageContentSource(hostedCluster, OcpV5ArtDevMirrorSource))
+		})
+	}
+	assert.False(test, HostedClusterHasImageContentSource(nil, OcpV5ArtDevMirrorSource))
 }

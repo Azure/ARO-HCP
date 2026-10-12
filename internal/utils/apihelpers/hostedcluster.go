@@ -28,7 +28,13 @@ func HostedClusterHasImageContentSource(hostedCluster *hsv1beta1.HostedCluster, 
 	if hostedCluster == nil {
 		return false
 	}
-	return slices.ContainsFunc(hostedCluster.Spec.ImageContentSources, func(imageContentSource hsv1beta1.ImageContentSource) bool {
+	return ImageContentSourcesHaveSource(hostedCluster.Spec.ImageContentSources, source)
+}
+
+// ImageContentSourcesHaveSource reports whether sources contains an entry for
+// source. Nil and empty slices report false.
+func ImageContentSourcesHaveSource(sources []hsv1beta1.ImageContentSource, source string) bool {
+	return slices.ContainsFunc(sources, func(imageContentSource hsv1beta1.ImageContentSource) bool {
 		return imageContentSource.Source == source
 	})
 }

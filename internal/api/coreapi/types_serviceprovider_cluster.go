@@ -226,16 +226,26 @@ type ServiceProviderClusterStatus struct {
 	// Written by: ControlPlaneActiveVersions
 	DesiredVersionChannels []string `json:"desiredVersionChannels,omitempty"`
 
+	// ImageContentSources mirrors the observed HostedCluster's
+	// spec.imageContentSources verbatim. nil means the HostedCluster has not yet
+	// been observed, or a successful read found it absent and retracted the mirror.
+	// Admission fails closed without observed state; during migration it may fall
+	// back to ActualHostedCluster when this field is nil. A non-nil pointer to a
+	// possibly empty slice means the HostedCluster has been observed. Empty
+	// observations use an empty, non-nil slice so JSON preserves that distinction.
+	// Written by: ActualHostedCluster
+	ImageContentSources *[]v1beta1.ImageContentSource `json:"imageContentSources,omitempty"`
+
 	// ActualHostedCluster is the HostedCluster as it currently exists on the
 	// management cluster, mirrored here from the kube-applier ReadDesire by the
-	// backend. Both spec and status are carried, so this is the single place the
-	// frontend can consult for observed management-cluster state.
+	// backend. Both spec and status are carried. Admission prefers the dedicated
+	// ImageContentSources mirror and falls back to this field during migration.
 	//
 	// The frontend is deliberately denied any path to a management cluster (no
 	// kube-applier container access, no ReadDesireLister, no Maestro), so a
 	// frontend compromise cannot create arbitrary resources on a management
 	// cluster. Anything admission needs to know about the real HostedCluster has
-	// to travel through this field; see internal/admission/CLAUDE.md.
+	// to travel through ServiceProviderCluster; see internal/admission/CLAUDE.md.
 	//
 	// The object is mirrored verbatim, exactly as observed on the management
 	// cluster. Nothing is stripped or rewritten on the way in, so a consumer can
