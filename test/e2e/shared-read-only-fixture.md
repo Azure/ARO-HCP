@@ -42,7 +42,8 @@ RG-bound client exposing only GET and LIST. Every operation revalidates the
 manifest. Borrowers must not instantiate an unrestricted SDK client for fixture
 mutations. They never register the parent RG with a test context or delete it.
 `framework.SharedGuardedNegativeCluster(ctx)` exposes only
-`RejectPatch20240610` and `RejectNodePoolPatch20240610`, not an unrestricted mutation client. They take a PATCH body
+`RejectPatch20240610`, `RejectNodePoolPatch20240610`, and
+`RejectExternalAuthIssuer20240610`, not an unrestricted mutation client. The PATCH helpers take a PATCH body
 and the required Azure error status, code, target, message, and optional error
 details. `GetNodePool20240610` reads only the manifest's shared node pool. A context-bounded
 file lock next to the manifest serializes the entire GET/PATCH/GET sequence across
@@ -62,9 +63,20 @@ details targeting `properties.platform` and `properties.platform.osDisk`. It
 compares the complete node-pool GET before and after the attempt. The node pool
 belongs to the owner: borrowers never delete it, lease identities, or register its
 parent RG for cleanup. Standard owner cluster/RG teardown removes the pool.
+P1-4 uses the same fixture lock to PUT an external-auth child with a unique name
+and `invalid-url` issuer. It first requires typed HTTP 404 / `ResourceNotFound`
+for that child, then requires HTTP 400 / `InvalidRequestContent` targeting
+`properties.issuer.url` with `must be https URL`. Success also requires the child
+to remain absent and the complete parent GET response to remain unchanged.
+An unexpectedly present child triggers bounded, cancellation-independent cleanup
+of only that child; any failed assertion quarantines the fixture even if cleanup
+succeeds. Cleanup errors retain the resource ID and last observation, and the
+outer owner remains responsible for the tagged parent RG. No borrower registers
+the shared RG for test cleanup or enables cluster-wide external authentication.
+
 Read-only borrowers do not acquire the write lock: they cannot change state, but
-may fail if a regression unexpectedly accepts a guarded write. Child-owning and
-successful parent mutations remain unsupported. A killed worker can leave state
+may fail if a regression unexpectedly accepts a guarded write. General child-owning
+and successful parent mutations remain unsupported. A killed worker can leave state
 uncertain before quarantine is written; do not reuse the fixture after a worker
 crash. OS process exit releases its file lock, not Azure resources.
 
@@ -100,6 +112,10 @@ any additional resources.
 The P1-3 consumer `nodepool_update_immutable_reject.go` uses the same negative
 labels and `MIContainers(0)`, with no `Slow` label. Node pool provisioning happens
 in owner setup, before the borrower runs, and is shared by all consumers.
+
+The P1-4 consumer `external_auth_invalid_issuer_reject.go` has the same negative
+labels and `MIContainers(0)`, without `Slow`. It creates no additional fixture
+resources: its unique child PUT must be rejected.
 
 When adding consumers, run the pinned `golangci-lint fmt`, `make lint`, framework
 unit tests, and `UPDATE=true go test ./test/cmd/aro-hcp-tests/...` followed by the
