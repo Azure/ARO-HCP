@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -63,6 +64,7 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 		expectedErrorContains        string
 		expectPolicyCreation         bool
 		expectedCreatedPolicyVersion string
+		expectGateRead               bool
 	}{
 		{
 			name:             "latest existing policy matches desired version - returns nil",
@@ -81,6 +83,7 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 		},
 		{
 			name:             "latest existing policy differs from desired version - creates upgrade policy",
+			expectGateRead:   true,
 			desiredVersion:   ptr.To(semver.MustParse("4.19.20")),
 			clusterServiceID: testClusterServiceID,
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
@@ -106,6 +109,7 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 		},
 		{
 			name:             "no existing policies - creates upgrade policy",
+			expectGateRead:   true,
 			desiredVersion:   ptr.To(semver.MustParse("4.19.20")),
 			clusterServiceID: testClusterServiceID,
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
@@ -141,6 +145,7 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 		},
 		{
 			name:             "post control plane upgrade policy fails - returns error",
+			expectGateRead:   true,
 			desiredVersion:   ptr.To(semver.MustParse("4.19.20")),
 			clusterServiceID: testClusterServiceID,
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
@@ -170,13 +175,17 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 
 			mockClusterServiceClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			tt.mockSetup(mockClusterServiceClient)
+			if tt.expectGateRead {
+				mockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), testClusterServiceID).Return(upgradeSourceCluster("4.19.15"), nil)
+			}
 
 			syncer := &triggerControlPlaneUpgradeSyncer{
+				readDesireLister:     &kubeapplierlistertesting.SliceReadDesireLister{Desires: upgradeReadDesires(t, true)},
 				clusterServiceClient: mockClusterServiceClient,
 			}
 
 			ctx := context.Background()
-			err := syncer.createUpgradePolicyIfNeeded(ctx, tt.desiredVersion, tt.clusterServiceID)
+			err := syncer.createUpgradePolicyIfNeeded(ctx, upgradeTestKey(), tt.desiredVersion, tt.clusterServiceID)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -371,6 +380,7 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 				mc.EXPECT().
 					ListControlPlaneUpgradePolicies(testClusterServiceID, "creation_timestamp desc").
 					Return(ocm.NewSimpleControlPlaneUpgradePolicyListIterator([]*arohcpv1alpha1.ControlPlaneUpgradePolicy{}, nil))
+				mc.EXPECT().GetCluster(gomock.Any(), testClusterServiceID).Return(upgradeSourceCluster("4.19.15"), nil)
 				expectedBuilder := arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.22")
 				mc.EXPECT().
 					PostControlPlaneUpgradePolicy(gomock.Any(), testClusterServiceID, expectedBuilder).
@@ -391,6 +401,7 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 
 			syncer := &triggerControlPlaneUpgradeSyncer{
 				clock:                        clocktesting.NewFakePassiveClock(now),
+				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: upgradeReadDesires(t, true)},
 				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: tt.clusters},
 				clusterServiceClient:         mockClusterServiceClient,
 				activeOperationLister:        &corelistertesting.SliceActiveOperationLister{},
