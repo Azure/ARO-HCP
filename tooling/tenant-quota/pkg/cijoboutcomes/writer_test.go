@@ -121,7 +121,7 @@ func TestAcceptedCacheExpiryAllowsRepair(t *testing.T) {
 	clock := func() time.Time { return now }
 	w.batches.now = clock
 	w.names.now = clock
-	w.names.submitted.now = clock
+	w.names.claimed.now = clock
 	submissions := 0
 	w.submit = func(context.Context, batchKind, BuildID, *bytes.Buffer) error { submissions++; return nil }
 	for range 2 {

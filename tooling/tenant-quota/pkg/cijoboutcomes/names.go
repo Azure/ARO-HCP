@@ -33,16 +33,21 @@ import (
 // Names are gated on the table rather than on the run, in two parts. Those
 // Kusto reports are written; the read is refreshed on a TTL so names another
 // replica or an earlier process wrote are picked up. Those this process has
-// submitted are held separately and expire, because acceptance is not
+// claimed are held separately and expire, because acceptance is not
 // completion - mirroring how the batches cache treats an accepted submission.
 // A submission that is accepted and then lost therefore reappears as unwritten
 // once the entry expires, and the next run to execute that test writes it
 // again, rather than leaving ciTestResults rows that join to nothing.
+//
+// Claiming happens inside unwritten rather than after a submission succeeds.
+// Runs are reconciled by a pool of workers, so two runs that both executed a
+// newly added test are read concurrently; deciding first and recording later
+// would let both decide to write it. The claim is the decision.
 type nameSet struct {
-	load      func(context.Context) ([]string, error)
-	ttl       time.Duration
-	now       func() time.Time
-	submitted *ttlCache[string, struct{}]
+	load    func(context.Context) ([]string, error)
+	ttl     time.Duration
+	now     func() time.Time
+	claimed *ttlCache[string, struct{}]
 
 	mu          sync.Mutex
 	known       map[string]struct{}
@@ -51,17 +56,19 @@ type nameSet struct {
 
 func newNameSet(capacity int, ttl time.Duration) *nameSet {
 	return &nameSet{
-		ttl:       ttl,
-		now:       time.Now,
-		submitted: newTTLCache[string, struct{}](capacity, ttl),
-		known:     map[string]struct{}{},
+		ttl:     ttl,
+		now:     time.Now,
+		claimed: newTTLCache[string, struct{}](capacity, ttl),
+		known:   map[string]struct{}{},
 	}
 }
 
 // unwritten returns the names whose rows are not already in the table, in the
-// order given. It reports an error only when the table cannot be read and has
-// never been read: without that the gate cannot tell a fresh table from an
-// unreadable one, which is the failure that let the duplication through.
+// order given, and claims them for this caller. Callers must release them if
+// the submission fails. It reports an error only when the table cannot be read
+// and has never been read: without that the gate cannot tell a fresh table
+// from an unreadable one, which is the failure that let the duplication
+// through.
 func (s *nameSet) unwritten(ctx context.Context, names []ciTestName) ([]ciTestName, error) {
 	if len(names) == 0 {
 		return names, nil
@@ -79,9 +86,10 @@ func (s *nameSet) unwritten(ctx context.Context, names []ciTestName) ([]ciTestNa
 		if _, written := s.known[name.TestID]; written {
 			continue
 		}
-		if _, recent := s.submitted.get(name.TestID); recent {
+		if _, claimed := s.claimed.get(name.TestID); claimed {
 			continue
 		}
+		s.claimed.put(name.TestID, struct{}{})
 		out = append(out, name)
 	}
 	return out, nil
@@ -89,7 +97,10 @@ func (s *nameSet) unwritten(ctx context.Context, names []ciTestName) ([]ciTestNa
 
 // refresh reloads the written names when the last read has aged out. The read
 // is held under the lock: it happens once per TTL, and letting passes race it
-// would have them each write the names the others are already writing.
+// would have them each write the names the others are already writing. A read
+// that fails therefore also has to age the set out, or an unreachable Kusto
+// would put every pass back into the same blocking query and serialize the
+// worker pool behind it.
 func (s *nameSet) refresh(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -108,6 +119,8 @@ func (s *nameSet) refresh(ctx context.Context) error {
 		// A stale set still gates correctly; it only risks rewriting a name
 		// another replica added since. Failing the pass over that would stop
 		// outcomes being recorded for a reason that costs one duplicate row.
+		// Hold it for another TTL rather than retrying on the next pass.
+		s.refreshedAt = s.now()
 		return nil
 	}
 	known := make(map[string]struct{}, len(values))
@@ -119,10 +132,10 @@ func (s *nameSet) refresh(ctx context.Context) error {
 	return nil
 }
 
-// submittedNames records names whose rows have been accepted for ingestion, so
-// passes within the TTL do not write them again while the ingestion settles.
-func (s *nameSet) submittedNames(names []ciTestName) {
+// release gives up claims taken by unwritten when the submission failed, so
+// the next pass retries those names instead of waiting out the TTL.
+func (s *nameSet) release(names []ciTestName) {
 	for _, name := range names {
-		s.submitted.put(name.TestID, struct{}{})
+		s.claimed.remove(name.TestID)
 	}
 }
