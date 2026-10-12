@@ -71,10 +71,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			// Resolve the install (previous minor) and upgrade (target minor) version strings up front
-			// so a missing version skips before we burn resources on cluster creation. For nightly,
-			// each resolves to its exact build tag (the RP cannot resolve major.minor to a nightly
-			// build). For other channel groups, each is the bare major.minor string, verified
-			// resolvable via the OpenShift update service at the channel's z-stream offset.
+			// so a missing version is skipped immediately. For nightly, each resolves to its exact build tag.
 			installVersionId := fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
 			upgradeVersionId := fmt.Sprintf("%d.%d", upgradeVersion.Major, upgradeVersion.Minor)
 			// Node pools require a concrete Major.Minor.Patch (the RP does not resolve a
@@ -232,8 +229,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
 			By("verifying control plane reached the target minor")
-			// Built once, outside the polling loop, so the y-stream verifier can suppress
-			// repeated identical clusterversion lines (delta-only logging, test/AGENTS.md).
+			// Built once, outside the polling loop, so the y-stream verifier can suppress repeated identical clusterversion lines
 			kubeAPIServerUpgraded := verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion)
 			yStreamUpgraded := verifiers.VerifyHostedControlPlaneYStreamUpgrade(installVersionId, upgradeVersionId)
 			Eventually(func() error {

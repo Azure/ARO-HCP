@@ -51,11 +51,6 @@ func shortImageDigest(image string) string {
 
 // renderClusterVersionHistory renders status.history as one compact line, e.g.
 // `4.21.13=Partial started=01:24:16 image=sha256:9d0436ae6f21`.
-//
-// The started/completed stamps are what ARO-26775 needed to attribute a 45 minute timeout to a
-// phase, and are exactly what the previous rendering dropped. The image is carried over from that
-// rendering, abbreviated: the ticket's own analysis used digests to establish when a payload
-// reached the management cluster, and two history entries can share a version but not an image.
 func renderClusterVersionHistory(history []configv1.UpdateHistory) string {
 	if len(history) == 0 {
 		return "<empty>"
@@ -89,19 +84,13 @@ func renderClusterVersionProgress(conditions []configv1.ClusterOperatorStatusCon
 }
 
 // phaseLog remembers the last summary a verifier logged, so a verifier that a polling loop
-// re-invokes reports transitions instead of reprinting an unchanged clusterversion. This is the
-// delta-only logging rule in test/AGENTS.md; without it a 45 minute wait emits the same line
-// every poll and buries the transitions that explain where the time went.
-//
-// Held by pointer because HostedClusterVerifier copies the verifier value, and guarded because
-// VerifyHCPCluster invokes verifiers on separate goroutines.
+// re-invokes reports transitions instead of reprinting an unchanged clusterversion.
 type phaseLog struct {
 	mu       sync.Mutex
 	previous string
 }
 
-// observe logs summary when it differs from the previous observation, and reports whether it was
-// a change. A nil phaseLog logs unconditionally rather than dropping the observation.
+// observe logs summary when it differs from the previous observation, and reports whether it was a change.
 func (p *phaseLog) observe(message, summary string) bool {
 	if p == nil {
 		ginkgo.GinkgoLogr.Info(message, "clusterversion", summary)
@@ -118,7 +107,6 @@ func (p *phaseLog) observe(message, summary string) bool {
 }
 
 // clusterVersionSummary is the one-line state dump logged while waiting and appended to failures,
-// so a Prow log alone shows which phase consumed the budget.
 func clusterVersionSummary(status configv1.ClusterVersionStatus) string {
 	summary := "history is " + renderClusterVersionHistory(status.History)
 	if progress := renderClusterVersionProgress(status.Conditions); progress != "" {

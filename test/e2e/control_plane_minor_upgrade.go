@@ -167,10 +167,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
 			By("verifying control plane reached desired version and cluster remains viable")
-			// Built once, outside the polling loop: the y-stream verifier remembers the last
-			// clusterversion it logged so an unchanged observation is not re-logged
-			// (delta-only logging, test/AGENTS.md). A verifier constructed inside the closure
-			// would be a fresh value on every poll with nothing to compare against.
+			// The y-stream verifier remembers the last clusterversion it logged so an unchanged observation is not re-logged
 			kubeAPIServerUpgraded := verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion)
 			yStreamUpgraded := verifiers.VerifyHostedControlPlaneYStreamUpgrade(installVersionId, upgradeVersionId)
 			Eventually(func() error {
