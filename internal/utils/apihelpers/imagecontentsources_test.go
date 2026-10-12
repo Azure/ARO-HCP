@@ -88,9 +88,6 @@ func TestImageContentSourcesHaveSource(test *testing.T) {
 		test.Run(testcase.name, func(test *testing.T) {
 			test.Parallel()
 			assert.Equal(test, testcase.want, ImageContentSourcesHaveSource(testcase.sources, OcpV5ArtDevMirrorSource))
-			hostedCluster := &hsv1beta1.HostedCluster{Spec: hsv1beta1.HostedClusterSpec{ImageContentSources: testcase.sources}}
-			assert.Equal(test, testcase.want, HostedClusterHasImageContentSource(hostedCluster, OcpV5ArtDevMirrorSource))
 		})
 	}
-	assert.False(test, HostedClusterHasImageContentSource(nil, OcpV5ArtDevMirrorSource))
 }

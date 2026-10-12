@@ -765,20 +765,12 @@ func TestAdmitCluster_Update(t *testing.T) {
 
 	serviceProviderResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		clusterResourceID.String() + "/serviceProviderClusters/default"))
-	observedHostedClusterWithV5Mirror := func() *hsv1beta1.HostedCluster {
-		return &hsv1beta1.HostedCluster{
-			Spec: hsv1beta1.HostedClusterSpec{
-				ImageContentSources: []hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}},
-			},
-		}
-	}
-
 	serviceProviderClusterStatusWithActiveControlPlaneVersion := func(fullVersion string) coreapi.ServiceProviderClusterStatus {
 		return coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
 				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(fullVersion)))}},
 			},
-			ActualHostedCluster: observedHostedClusterWithV5Mirror(),
+			ImageContentSources: ptr.To([]hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}}),
 		}
 	}
 
@@ -789,7 +781,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 		}
 		return coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{ActiveVersions: active},
-			ActualHostedCluster: observedHostedClusterWithV5Mirror(),
+			ImageContentSources: ptr.To([]hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}}),
 		}
 	}
 
@@ -1841,34 +1833,21 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 	// (field.NewPath("properties").Child("version")).
 	fldPath := field.NewPath("properties", "version")
 
-	// spcWithMirrors models a ServiceProviderCluster whose ActualHostedCluster has
-	// been mirrored by the backend, carrying the given image content sources.
+	// spcWithMirrors models a ServiceProviderCluster whose image content sources
+	// have been mirrored by the backend.
 	spcWithMirrors := func(sources ...string) *coreapi.ServiceProviderCluster {
-		hostedCluster := &hsv1beta1.HostedCluster{}
-		for _, source := range sources {
-			hostedCluster.Spec.ImageContentSources = append(hostedCluster.Spec.ImageContentSources,
-				hsv1beta1.ImageContentSource{Source: source})
+		imageContentSources := make([]hsv1beta1.ImageContentSource, len(sources))
+		for index, source := range sources {
+			imageContentSources[index] = hsv1beta1.ImageContentSource{Source: source}
 		}
 		return &coreapi.ServiceProviderCluster{
-			Status: coreapi.ServiceProviderClusterStatus{ActualHostedCluster: hostedCluster},
+			Status: coreapi.ServiceProviderClusterStatus{ImageContentSources: &imageContentSources},
 		}
 	}
 	// spcUnmirrored models a ServiceProviderCluster the backend has not yet
 	// observed a HostedCluster for. A v5 upgrade must fail closed until the
 	// required mirror is proven present.
 	spcUnmirrored := &coreapi.ServiceProviderCluster{}
-	spcWithImageContentSources := func(actualHostedCluster *hsv1beta1.HostedCluster, sources ...string) *coreapi.ServiceProviderCluster {
-		imageContentSources := make([]hsv1beta1.ImageContentSource, len(sources))
-		for index, source := range sources {
-			imageContentSources[index] = hsv1beta1.ImageContentSource{Source: source}
-		}
-		return &coreapi.ServiceProviderCluster{
-			Status: coreapi.ServiceProviderClusterStatus{
-				ImageContentSources: &imageContentSources,
-				ActualHostedCluster: actualHostedCluster,
-			},
-		}
-	}
 
 	const v4Mirror = "quay.io/openshift-release-dev/ocp-v4.0-art-dev"
 	missingMirror := []utils.ExpectedError{
@@ -1887,49 +1866,13 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 		expectErrors []utils.ExpectedError
 	}{
 		{
-			name:       "new field with v5 source passes without legacy mirror",
+			name:       "non-nil pointer to a nil slice reports missing not unavailable",
 			op:         operation.Operation{Type: operation.Update},
 			oldVersion: &coreapi.VersionProfile{ID: "4.22"},
 			newVersion: &coreapi.VersionProfile{ID: "5.0"},
-			spc:        spcWithImageContentSources(nil, apihelpers.OcpV5ArtDevMirrorSource),
-		},
-		{
-			name:         "new field without v5 source is rejected without legacy mirror",
-			op:           operation.Operation{Type: operation.Update},
-			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
-			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
-			spc:          spcWithImageContentSources(nil, v4Mirror),
-			expectErrors: missingMirror,
-		},
-		{
-			name:       "new field takes precedence over legacy mirror missing v5 source",
-			op:         operation.Operation{Type: operation.Update},
-			oldVersion: &coreapi.VersionProfile{ID: "4.22"},
-			newVersion: &coreapi.VersionProfile{ID: "5.0"},
-			spc:        spcWithImageContentSources(spcWithMirrors(v4Mirror).Status.ActualHostedCluster, apihelpers.OcpV5ArtDevMirrorSource),
-		},
-		{
-			name:         "new field missing v5 source takes precedence over legacy mirror with v5 source",
-			op:           operation.Operation{Type: operation.Update},
-			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
-			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
-			spc:          spcWithImageContentSources(spcWithMirrors(apihelpers.OcpV5ArtDevMirrorSource).Status.ActualHostedCluster, v4Mirror),
-			expectErrors: missingMirror,
-		},
-		{
-			name:         "observed empty new field does not fall back to legacy v5 source",
-			op:           operation.Operation{Type: operation.Update},
-			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
-			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
-			spc:          spcWithImageContentSources(spcWithMirrors(apihelpers.OcpV5ArtDevMirrorSource).Status.ActualHostedCluster),
-			expectErrors: missingMirror,
-		},
-		{
-			name:         "observed empty new field without legacy mirror reports missing not unavailable",
-			op:           operation.Operation{Type: operation.Update},
-			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
-			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
-			spc:          spcWithImageContentSources(nil),
+			spc: &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{ImageContentSources: ptr.To([]hsv1beta1.ImageContentSource(nil))},
+			},
 			expectErrors: missingMirror,
 		},
 		{
@@ -1979,7 +1922,7 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			expectErrors: missingMirror,
 		},
 		{
-			// Fail closed: nil ActualHostedCluster means the required mirror has not
+			// Fail closed: nil ImageContentSources means the required mirror has not
 			// been proven present yet.
 			name:         "4->5 upgrade with an unmirrored hosted cluster is rejected until synced",
 			op:           operation.Operation{Type: operation.Update},

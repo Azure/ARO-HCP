@@ -2511,11 +2511,6 @@ func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderCluster
 			}
 		}
 	}
-	if in.ActualHostedCluster != nil {
-		in, out := &in.ActualHostedCluster, &out.ActualHostedCluster
-		*out = new(v1beta1.HostedCluster)
-		(*in).DeepCopyInto(*out)
-	}
 	if in.Validations != nil {
 		in, out := &in.Validations, &out.Validations
 		*out = make([]v1.Condition, len(*in))

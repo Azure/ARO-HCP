@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 
@@ -60,7 +59,7 @@ var testKey = controllerutils.HCPClusterKey{
 	HCPClusterName:    testClusterName,
 }
 
-func TestActualHostedClusterSyncer_MirrorsObservedHostedCluster(t *testing.T) {
+func TestActualHostedClusterSyncer_MirrorsImageContentSources(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
 	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	createTestHCPCluster(t, ctx, mockResourcesDBClient)
@@ -75,10 +74,6 @@ func TestActualHostedClusterSyncer_MirrorsObservedHostedCluster(t *testing.T) {
 	require.NoError(t, syncer.SyncOnce(ctx, testKey))
 
 	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
-	require.NotNil(t, stored.Status.ActualHostedCluster, "expected the observed HostedCluster to be mirrored")
-	assert.Equal(t, testClusterName, stored.Status.ActualHostedCluster.Name)
-	assert.Equal(t, hostedCluster.Spec.ImageContentSources,
-		stored.Status.ActualHostedCluster.Spec.ImageContentSources)
 	require.NotNil(t, stored.Status.ImageContentSources)
 	assert.Equal(t, hostedCluster.Spec.ImageContentSources, *stored.Status.ImageContentSources)
 }
@@ -92,7 +87,6 @@ func TestActualHostedClusterSyncer_NoWriteWhenUnchanged(t *testing.T) {
 
 	require.NoError(t, syncer.SyncOnce(ctx, testKey))
 	afterFirstSync := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
-	require.NotNil(t, afterFirstSync.Status.ActualHostedCluster, "first sync should have published the mirror")
 	require.NotNil(t, afterFirstSync.Status.ImageContentSources)
 	assert.Equal(t, []hsv1beta1.ImageContentSource{}, *afterFirstSync.Status.ImageContentSources)
 	serialized, err := json.Marshal(afterFirstSync.Status)
@@ -125,8 +119,6 @@ func TestActualHostedClusterSyncer_WritesWhenHostedClusterChanges(t *testing.T) 
 
 	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
 	assert.NotEqual(t, beforeETag, stored.CosmosETag, "expected a Replace after the observed HostedCluster changed")
-	require.NotNil(t, stored.Status.ActualHostedCluster)
-	assert.Len(t, stored.Status.ActualHostedCluster.Spec.ImageContentSources, 1)
 	require.NotNil(t, stored.Status.ImageContentSources)
 	assert.Equal(t, changed.Spec.ImageContentSources, *stored.Status.ImageContentSources)
 }
@@ -149,7 +141,6 @@ func TestActualHostedClusterSyncer_BackfillsImageContentSources(test *testing.T)
 	require.NoError(test, syncer.SyncOnce(ctx, testKey))
 	backfilled := getServiceProviderCluster(test, ctx, mockResourcesDBClient)
 	assert.NotEqual(test, before.CosmosETag, backfilled.CosmosETag)
-	assert.Equal(test, before.Status.ActualHostedCluster, backfilled.Status.ActualHostedCluster)
 	require.NotNil(test, backfilled.Status.ImageContentSources)
 	assert.Equal(test, hostedCluster.Spec.ImageContentSources, *backfilled.Status.ImageContentSources)
 
@@ -174,7 +165,6 @@ func TestActualHostedClusterSyncer_LeavesMirrorNilWhenHostedClusterUnobserved(t 
 	require.NoError(t, syncer.SyncOnce(ctx, testKey))
 
 	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
-	assert.Nil(t, stored.Status.ActualHostedCluster, "an unobserved HostedCluster must stay nil, not be mirrored as empty")
 	assert.Nil(t, stored.Status.ImageContentSources)
 }
 
@@ -185,15 +175,13 @@ func TestActualHostedClusterSyncer_ClearsMirrorAfterSuccessfulEmptyObservation(t
 
 	syncer := newTestSyncer(t, mockResourcesDBClient, newHostedCluster())
 	require.NoError(t, syncer.SyncOnce(ctx, testKey))
-	require.NotNil(t, getServiceProviderCluster(t, ctx, mockResourcesDBClient).Status.ActualHostedCluster)
+	require.NotNil(t, getServiceProviderCluster(t, ctx, mockResourcesDBClient).Status.ImageContentSources)
 
 	syncer.readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplierapi.ReadDesire{newHostedClusterReadDesire(t, nil)},
 	}
 	require.NoError(t, syncer.SyncOnce(ctx, testKey))
 
-	assert.Nil(t, getServiceProviderCluster(t, ctx, mockResourcesDBClient).Status.ActualHostedCluster,
-		"a successful empty observation must retract the old mirror")
 	retracted := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
 	assert.Nil(t, retracted.Status.ImageContentSources)
 	require.NoError(t, syncer.SyncOnce(ctx, testKey))
@@ -250,7 +238,6 @@ func TestActualHostedClusterSyncer_RetainsMirrorWhenUnobserved(t *testing.T) {
 					require.NoError(t, syncer.SyncOnce(ctx, testKey))
 
 					after := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
-					assert.Equal(t, before.Status.ActualHostedCluster, after.Status.ActualHostedCluster, "an unobserved result must not replace or clear the mirror")
 					assert.Equal(t, before.Status.ImageContentSources, after.Status.ImageContentSources)
 					assert.Equal(t, before.CosmosETag, after.CosmosETag, "an unobserved result must not rewrite the ServiceProviderCluster")
 				})
@@ -270,7 +257,6 @@ func TestActualHostedClusterSyncer_MirrorsDeletingCluster(t *testing.T) {
 	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, hostedCluster).SyncOnce(ctx, testKey))
 
 	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
-	assert.Equal(t, hostedCluster, stored.Status.ActualHostedCluster, "a successful observation must be mirrored even during deletion")
 	require.NotNil(t, stored.Status.ImageContentSources)
 	assert.Empty(t, *stored.Status.ImageContentSources)
 }
@@ -283,7 +269,7 @@ func TestActualHostedClusterSyncer_UpdatesMirrorWhileDeletingHostedClusterStillU
 
 	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, newHostedCluster()).SyncOnce(ctx, testKey))
 	before := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
-	require.NotNil(t, before.Status.ActualHostedCluster, "first sync should have published the mirror")
+	require.NotNil(t, before.Status.ImageContentSources, "first sync should have published the mirror")
 
 	markClusterDeleting(t, ctx, mockResourcesDBClient)
 
@@ -293,7 +279,6 @@ func TestActualHostedClusterSyncer_UpdatesMirrorWhileDeletingHostedClusterStillU
 	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, changed).SyncOnce(ctx, testKey))
 
 	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
-	assert.True(t, equality.Semantic.DeepEqual(changed, stored.Status.ActualHostedCluster), "the mirror must reflect changes observed during deletion")
 	require.NotNil(t, stored.Status.ImageContentSources)
 	assert.Equal(t, changed.Spec.ImageContentSources, *stored.Status.ImageContentSources)
 	assert.NotEqual(t, before.CosmosETag, stored.CosmosETag, "a changed observation must be written during deletion")
@@ -310,7 +295,7 @@ func TestActualHostedClusterSyncer_RetractsMirrorWhenDeletingAndHostedClusterGon
 	createTestHCPCluster(t, ctx, mockResourcesDBClient)
 
 	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, newHostedCluster()).SyncOnce(ctx, testKey))
-	require.NotNil(t, getServiceProviderCluster(t, ctx, mockResourcesDBClient).Status.ActualHostedCluster,
+	require.NotNil(t, getServiceProviderCluster(t, ctx, mockResourcesDBClient).Status.ImageContentSources,
 		"first sync should have published the mirror")
 
 	markClusterDeleting(t, ctx, mockResourcesDBClient)
@@ -328,9 +313,8 @@ func TestActualHostedClusterSyncer_RetractsMirrorWhenDeletingAndHostedClusterGon
 	require.NoError(t, gone.SyncOnce(ctx, testKey))
 
 	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
-	assert.Nil(t, stored.Status.ActualHostedCluster,
+	assert.Nil(t, stored.Status.ImageContentSources,
 		"a deleting cluster whose HostedCluster is gone must have its mirror retracted, not left stale")
-	assert.Nil(t, stored.Status.ImageContentSources)
 }
 
 func markClusterDeleting(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
@@ -344,27 +328,31 @@ func markClusterDeleting(t *testing.T, ctx context.Context, mockResourcesDBClien
 	require.NoError(t, err)
 }
 
-// The mirror is stored verbatim: server-side bookkeeping that a consumer never
-// reads still travels, because a mirror that edits what it mirrors forces every
-// consumer to know the stripping policy.
-func TestActualHostedClusterSyncer_MirrorsVerbatim(t *testing.T) {
+func TestActualHostedClusterSyncer_NoWriteWhenOtherHostedClusterFieldsChange(test *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
 	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
-	createTestHCPCluster(t, ctx, mockResourcesDBClient)
+	createTestHCPCluster(test, ctx, mockResourcesDBClient)
 
 	hostedCluster := newHostedCluster()
+	hostedCluster.Spec.ImageContentSources = []hsv1beta1.ImageContentSource{{
+		Source:  apihelpers.OcpV5ArtDevMirrorSource,
+		Mirrors: []string{"registry.example.com/v5"},
+	}}
+	require.NoError(test, newTestSyncer(test, mockResourcesDBClient, hostedCluster).SyncOnce(ctx, testKey))
+	before := getServiceProviderCluster(test, ctx, mockResourcesDBClient)
+	require.NotNil(test, before.Status.ImageContentSources)
+
 	hostedCluster.ResourceVersion = "12345"
 	hostedCluster.ManagedFields = []metav1.ManagedFieldsEntry{{Manager: "control-plane-operator"}}
 	hostedCluster.Annotations = map[string]string{"hypershift.openshift.io/cluster": "keep-me"}
+	hostedCluster.Spec.Release.Image = "registry.example.com/release:5.0"
+	hostedCluster.Status.Conditions = []metav1.Condition{{Type: "Available", Status: metav1.ConditionTrue}}
 
-	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, hostedCluster).SyncOnce(ctx, testKey))
+	require.NoError(test, newTestSyncer(test, mockResourcesDBClient, hostedCluster).SyncOnce(ctx, testKey))
 
-	stored := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
-	require.NotNil(t, stored.Status.ActualHostedCluster)
-	assert.Equal(t, "12345", stored.Status.ActualHostedCluster.ResourceVersion, "the mirror must not strip resourceVersion")
-	assert.Equal(t, []metav1.ManagedFieldsEntry{{Manager: "control-plane-operator"}}, stored.Status.ActualHostedCluster.ManagedFields,
-		"the mirror must not strip managedFields")
-	assert.Equal(t, "keep-me", stored.Status.ActualHostedCluster.Annotations["hypershift.openshift.io/cluster"])
+	stored := getServiceProviderCluster(test, ctx, mockResourcesDBClient)
+	assert.Equal(test, before.CosmosETag, stored.CosmosETag, "unrelated HostedCluster changes must not cause a write")
+	assert.Equal(test, before.Status.ImageContentSources, stored.Status.ImageContentSources)
 }
 
 func newTestSyncer(t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, hostedCluster *hsv1beta1.HostedCluster) *actualHostedClusterSyncer {
