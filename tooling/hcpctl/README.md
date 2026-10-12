@@ -138,6 +138,8 @@ What is gathered?
 hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group
 ```
 
+The base backend, frontend, kube-applier, and fleet log queries always use the ARM subscription and resource group scope. They do not filter on Clusters Service IDs, including when `--cluster-id` or `--cluster-name` is specified. The `--cluster-id` flag takes a Clusters Service ID, not an ARM resource ID.
+
 To split output files by pod name (useful for investigating timing and concurrency issues), add `--split-by-pod`:
 
 ```bash
