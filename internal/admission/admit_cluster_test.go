@@ -737,6 +737,7 @@ func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
 			deadline := cluster.ServiceProviderProperties.CreateOperationCompletionDeadline
 			if deadline == nil {
 				t.Fatal("expected deadline to be set, got nil")
+				return
 			}
 
 			expected := fixedNow.Add(tt.expectedDuration)
