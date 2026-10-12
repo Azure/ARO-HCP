@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	"github.com/blang/semver/v4"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -811,4 +813,65 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestExternalAuthOIDCClientsDegradedController_SyncOnce_DeleteClearsGauge
+// verifies that when the ExternalAuth has been deleted (not found in the
+// cache), SyncOnce clears any stale per-component gauge series using the
+// full ARM resource ID — not just the bare name.
+func TestExternalAuthOIDCClientsDegradedController_SyncOnce_DeleteClearsGauge(t *testing.T) {
+	ctx := context.Background()
+
+	parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
+	))
+	parentCluster := &coreapi.Cluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   parentClusterID,
+			PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),
+		},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{ID: parentClusterID, Name: statusutils.TestClusterName, Type: parentClusterID.ResourceType.String()},
+		},
+	}
+
+	// Seed database without the ExternalAuth — simulates it being deleted.
+	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{parentCluster})
+	require.NoError(t, err)
+
+	key := controllerutils.HCPExternalAuthKey{
+		SubscriptionID:      statusutils.TestSubscriptionID,
+		ResourceGroupName:   statusutils.TestResourceGroupName,
+		HCPClusterName:      statusutils.TestClusterName,
+		HCPExternalAuthName: statusutils.TestExternalAuthName,
+	}
+	fullResourceID := strings.ToLower(key.GetResourceID().String())
+
+	// Pre-populate a gauge series with the full resource ID so we can verify
+	// it gets cleaned up on the delete path.
+	oidcClientDegradedGauge.With(prometheus.Labels{
+		"resource_id":         fullResourceID,
+		"subscription_id":     strings.ToLower(statusutils.TestSubscriptionID),
+		"component_name":      "console",
+		"component_namespace": "openshift-console",
+	}).Set(1)
+
+	// Verify the gauge series exists before SyncOnce.
+	preCount := testutil.CollectAndCount(oidcClientDegradedGauge)
+	require.Equal(t, 1, preCount, "gauge series should exist before SyncOnce")
+
+	syncer := &externalAuthOIDCClientsDegradedController{
+		externalAuthLister:                &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
+		serviceProviderExternalAuthLister: &corelistertesting.DBServiceProviderExternalAuthLister{ResourcesDBClient: mockDB},
+		resourcesDBClient:                 mockDB,
+	}
+
+	err = syncer.SyncOnce(ctx, key)
+	require.NoError(t, err)
+
+	// After SyncOnce with a deleted ExternalAuth, the gauge series must be cleared.
+	postCount := testutil.CollectAndCount(oidcClientDegradedGauge)
+	assert.Equal(t, 0, postCount, "gauge series should be cleared after ExternalAuth deletion")
 }
