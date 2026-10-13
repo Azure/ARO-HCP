@@ -249,7 +249,8 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedResources(
 			continue
 		}
 		if canDeleteOrphan(ctxWithLogger, allSubscriptionResourceIDs, currResource, sweepStart) {
-			logger.Info("deleting orphaned cosmos resource by cosmos ID")
+			logger.Info("deleting orphaned cosmos resource by cosmos ID",
+				"parentID", currResource.ResourceID.Parent.String())
 			if err := untypedSubscriptionCRUD.DeleteByCosmosID(ctxWithLogger, currResource.PartitionKey, currResource.ID); err != nil {
 				logger.Error(err, "unable to delete orphaned cosmos resource") // logged here so we emit a log line with a filterable context.
 				errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete %v in %v: %w", currResourceIDString, currResource.ResourceID.Parent.String(), err)))
@@ -349,7 +350,8 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 			}
 
 			logger.Info("deleting orphaned kube-applier desire by cosmos ID",
-				"partitionKey", desire.PartitionKey)
+				"partitionKey", desire.PartitionKey,
+				"parentID", desire.ResourceID.Parent.String())
 			if err := desireCRUD.DeleteByCosmosID(ctxWithLogger, desire.PartitionKey, desire.ID); err != nil {
 				logger.Error(err, "unable to delete orphaned kube-applier desire")
 				errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete desire %v under missing parent %v: %w", desireResourceIDString, desire.ResourceID.Parent.String(), err)))
