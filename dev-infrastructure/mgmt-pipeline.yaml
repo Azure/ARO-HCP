@@ -490,6 +490,7 @@ resourceGroups:
       errorContainsAny:
       - "InternalServerError"
       - "ServiceUnavailable"
+      - "waiting for deployment aks-cluster-create: context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   # Everything that needs the ManagedCluster to already exist: ACR pull roles,
