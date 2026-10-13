@@ -708,19 +708,6 @@ resourceGroups:
       - '"DetailStatus": "Waiting to run"'
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  - name: cleanup-prometheus-pvc
-    aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: ./cleanup-prometheus-pvc.sh
-    workingDir: ./scripts
-    dependsOn:
-    - resourceGroup: service
-      step: prometheus
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
   - name: istio-upgrade
     aksCluster:
       configRef: svc.aks.name
