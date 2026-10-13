@@ -185,7 +185,7 @@ func TestNamespacePathValidation(t *testing.T) {
 		filepath.Join(dir, "cni-missing"), regular + "/",
 	} {
 		t.Run(path, func(t *testing.T) {
-			if fd, err := openNamespace(path); err == nil {
+			if fd, err := OpenNamespace(path); err == nil {
 				_ = unix.Close(fd)
 				t.Fatalf("accepted invalid namespace path %q", path)
 			}
@@ -196,11 +196,11 @@ func TestNamespacePathValidation(t *testing.T) {
 		})
 	}
 	for _, path := range []string{symlink, filepath.Join(intermediate, "cni-regular")} {
-		if _, err := openNamespace(path); !errors.Is(err, unix.ELOOP) {
+		if _, err := OpenNamespace(path); !errors.Is(err, unix.ELOOP) {
 			t.Errorf("symlink %q was not rejected at lookup: %v", path, err)
 		}
 	}
-	if _, err := openNamespace(regular); err == nil || !strings.Contains(err.Error(), "not nsfs") {
+	if _, err := OpenNamespace(regular); err == nil || !strings.Contains(err.Error(), "not nsfs") {
 		t.Errorf("regular file did not reach nsfs validation: %v", err)
 	}
 }
@@ -313,7 +313,7 @@ func TestRunIsolatedNamespaceOptIn(t *testing.T) {
 	if result.Namespace.Inode == 0 || result.Namespace == (namespaceIdentity{Device: uint64(host.Dev), Inode: host.Ino}) {
 		t.Fatalf("capture did not identify a separate namespace: %+v", result.Namespace)
 	}
-	if _, err := openNamespace(path); err == nil || !strings.Contains(err.Error(), "not nsfs") {
+	if _, err := OpenNamespace(path); err == nil || !strings.Contains(err.Error(), "not nsfs") {
 		t.Fatalf("child mount escaped into parent mount namespace: %v", err)
 	}
 }
