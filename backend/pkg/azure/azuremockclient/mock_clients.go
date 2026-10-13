@@ -117,6 +117,10 @@ func (m *FirstPartyApplicationClientBuilderFunc) UsageClient(tenantID string, su
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (m *FirstPartyApplicationClientBuilderFunc) FeaturesClient(tenantID string, subscriptionID string) (azureclient.FeaturesClient, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (m *FirstPartyApplicationClientBuilderFunc) GenericResourcesClient(tenantID string, subscriptionID string) (azureclient.GenericResourcesClient, error) {
 	return m.GenericResourcesClientVal, m.GenericResourcesClientErr
 }

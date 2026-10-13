@@ -29,6 +29,10 @@ const (
 	// computeResourceSKUCapabilityNameVCPUs is the Microsoft.Compute Resource
 	// SKU capability that advertises the number of vCPUs for a VM size.
 	computeResourceSKUCapabilityNameVCPUs = "vCPUs"
+	// computeResourceSKUCapabilityNameEncryptionAtHostSupported is the
+	// Microsoft.Compute Resource SKU capability that indicates whether a VM
+	// size supports encryption at host.
+	computeResourceSKUCapabilityNameEncryptionAtHostSupported = "EncryptionAtHostSupported"
 
 	// computeUsageNameTotalRegionalVCPUs is the Microsoft.Compute Usage API
 	// Name.Value for the subscription's total regional vCPU quota
@@ -85,4 +89,19 @@ func lookupCapabilityVCPUs(sku *armcompute.ResourceSKU) (int, bool) {
 		return 0, false
 	}
 	return parsed, true
+}
+
+// isCapabilityEncryptionAtHostSupported reports whether the Resource SKU advertises
+// EncryptionAtHostSupported.
+//
+// Returns:
+//   - (true, true) when the capability is present and its value is "True" (case-insensitive)
+//   - (false, true) when the capability is present but not "True"
+//   - (false, false) when the SKU is nil or the capability is missing
+func isCapabilityEncryptionAtHostSupported(sku *armcompute.ResourceSKU) (bool, bool) {
+	value := resourceSKUCapability(sku, computeResourceSKUCapabilityNameEncryptionAtHostSupported)
+	if value == nil {
+		return false, false
+	}
+	return strings.EqualFold(*value, "True"), true
 }
