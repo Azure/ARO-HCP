@@ -18,8 +18,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
 	"github.com/tj/assert"
+	"go.uber.org/mock/gomock"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -379,4 +381,148 @@ func TestNodePoolServiceOperationMessage(t *testing.T) {
 		Build()
 	assert.NoError(t, err)
 	assert.Equal(t, "waiting for subnet", NodePoolServiceOperationMessage(withMessage, nil))
+}
+
+func TestConvertInflightChecks(t *testing.T) {
+	quotaError := coreapi.CloudErrorBody{
+		Code:    coreapi.CloudErrorCodeQuotaExceeded,
+		Message: "QuotaExceeded: regional vCPU quota exceeded",
+	}
+	publicIPQuotaError := coreapi.CloudErrorBody{
+		Code:    coreapi.CloudErrorCodeQuotaExceeded,
+		Message: "PublicIPCountLimitReached: cannot create another public IP",
+	}
+	internalError := coreapi.CloudErrorBody{
+		Code:    coreapi.CloudErrorCodeInternalServerError,
+		Message: "failed to create hosted cluster: internal service error",
+	}
+	tests := []struct {
+		name         string
+		failedErrors []coreapi.CloudErrorBody
+		expectedCode string
+	}{
+		{
+			name:         "all quota failures get QuotaExceeded code",
+			failedErrors: []coreapi.CloudErrorBody{quotaError, publicIPQuotaError},
+			expectedCode: coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name:         "quota then internal failure keeps MultipleErrorsOccurred code",
+			failedErrors: []coreapi.CloudErrorBody{quotaError, internalError},
+			expectedCode: coreapi.CloudErrorCodeMultipleErrorsOccurred,
+		},
+		{
+			name:         "internal then quota failure keeps MultipleErrorsOccurred code",
+			failedErrors: []coreapi.CloudErrorBody{internalError, quotaError},
+			expectedCode: coreapi.CloudErrorCodeMultipleErrorsOccurred,
+		},
+		{
+			name:         "single quota failure stays unchanged",
+			failedErrors: []coreapi.CloudErrorBody{quotaError},
+			expectedCode: coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name:         "single internal failure stays unchanged",
+			failedErrors: []coreapi.CloudErrorBody{internalError},
+			expectedCode: coreapi.CloudErrorCodeInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var checks []*arohcpv1alpha1.InflightCheckBuilder
+			for _, failedError := range tt.failedErrors {
+				checks = append(checks, arohcpv1alpha1.NewInflightCheck().
+					Name("test-check").
+					State(arohcpv1alpha1.InflightCheckStateFailed).
+					Details(map[string]interface{}{"error": failedError.Message}))
+			}
+			inflightChecks, err := arohcpv1alpha1.NewInflightCheckList().Items(checks...).Build()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			internalID := ocm.InternalID{}
+			client := ocm.NewMockClusterServiceClientSpec(gomock.NewController(t))
+			client.EXPECT().GetClusterInflightChecks(ctx, internalID).Return(inflightChecks, nil)
+
+			result, err := convertInflightChecks(ctx, client, internalID)
+			assert.NoError(t, err)
+			expected := coreapi.CloudErrorBody{
+				Code:    tt.expectedCode,
+				Message: "Cluster provisioning failed due to multiple errors",
+				Details: tt.failedErrors,
+			}
+			if len(tt.failedErrors) == 1 {
+				expected = tt.failedErrors[0]
+			}
+			assert.Equal(t, &expected, result)
+		})
+	}
+}
+
+func TestConvertInflightCheck(t *testing.T) {
+	tests := []struct {
+		name         string
+		details      map[string]interface{}
+		expectedCode string
+	}{
+		{
+			name: "quota error message gets QuotaExceeded code",
+			details: map[string]interface{}{
+				"error": "insufficient public IP address quota: required 2, available 0",
+			},
+			expectedCode: coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name: "QuotaExceeded ARM error code in message",
+			details: map[string]interface{}{
+				"error": "QuotaExceeded: Operation could not be completed as it results in exceeding approved standardDSv3Family Cores quota",
+			},
+			expectedCode: coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name: "PublicIPCountLimitReached in message",
+			details: map[string]interface{}{
+				"error": "PublicIPCountLimitReached: Cannot create more than 300 public IP addresses",
+			},
+			expectedCode: coreapi.CloudErrorCodeQuotaExceeded,
+		},
+		{
+			name: "OverconstrainedZonalAllocationRequest is not a quota error",
+			details: map[string]interface{}{
+				"error": "OverconstrainedZonalAllocationRequest: The required resources are not available in zone 1",
+			},
+			expectedCode: coreapi.CloudErrorCodeInternalServerError,
+		},
+		{
+			name: "non-quota error message gets InternalServerError code",
+			details: map[string]interface{}{
+				"error": "failed to create hosted cluster: internal service error",
+			},
+			expectedCode: coreapi.CloudErrorCodeInternalServerError,
+		},
+		{
+			name:         "missing error details gets InternalServerError code",
+			details:      map[string]interface{}{},
+			expectedCode: coreapi.CloudErrorCodeInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder := arohcpv1alpha1.NewInflightCheck().
+				Name("test-check").
+				State(arohcpv1alpha1.InflightCheckStateFailed)
+			if tt.details != nil {
+				builder = builder.Details(tt.details)
+			}
+			inflightCheck, err := builder.Build()
+			assert.NoError(t, err)
+
+			result := convertInflightCheck(inflightCheck, logr.Discard())
+			assert.Equal(t, tt.expectedCode, result.Code)
+		})
+	}
 }
