@@ -122,6 +122,82 @@ resource arohcpClusterProvisionLatencyRecordingRules 'Microsoft.AlertsManagement
   }
 }
 
+resource arohcpClusterUpdateSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_update_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:backend_cluster_update:succeeded_total'
+        expression: 'count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_cluster_update:terminal_total'
+        expression: 'count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate'
+        expression: '(count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) or 0 * count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))) / clamp_min(count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})), 1)'
+      }
+    ]
+  }
+}
+
+resource arohcpClusterUpdateSloWindowedRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_update_slo_windowed_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'errors:backend_cluster_update:failed_1h'
+        expression: 'count by (cluster, region) ((max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max without (prometheus_replica) (backend_resource_operation_last_transition_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 3600)) or 0 * count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_cluster_update:total_1h'
+        expression: 'count by (cluster, region) ((max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max without (prometheus_replica) (backend_resource_operation_last_transition_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 3600))'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate_1h'
+        expression: 'errors:backend_cluster_update:failed_1h / clamp_min(errors:backend_cluster_update:total_1h, 1)'
+      }
+      {
+        record: 'errors:backend_cluster_update:failed_6h'
+        expression: 'count by (cluster, region) ((max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max without (prometheus_replica) (backend_resource_operation_last_transition_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 21600)) or 0 * count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_cluster_update:total_6h'
+        expression: 'count by (cluster, region) ((max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max without (prometheus_replica) (backend_resource_operation_last_transition_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 21600))'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate_6h'
+        expression: 'errors:backend_cluster_update:failed_6h / clamp_min(errors:backend_cluster_update:total_6h, 1)'
+      }
+      {
+        record: 'errors:backend_cluster_update:failed_3d'
+        expression: 'count by (cluster, region) ((max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase="failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max without (prometheus_replica) (backend_resource_operation_last_transition_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 259200)) or 0 * count by (cluster, region) (max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}))'
+      }
+      {
+        record: 'errors:backend_cluster_update:total_3d'
+        expression: 'count by (cluster, region) ((max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="update",phase=~"succeeded|failed",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) and ((time() - max without (prometheus_replica) (backend_resource_operation_last_transition_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) < 259200))'
+      }
+      {
+        record: 'errors:backend_cluster_update:error_rate_3d'
+        expression: 'errors:backend_cluster_update:failed_3d / clamp_min(errors:backend_cluster_update:total_3d, 1)'
+      }
+    ]
+  }
+}
+
 resource arohcpUserJourneyClusterUpgradeRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_user_journey_cluster_upgrade_recording_rules'
   location: location
