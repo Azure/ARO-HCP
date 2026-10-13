@@ -817,7 +817,18 @@ Validation instances use the [cluster wrapper](../backend/pkg/controllers/cluste
 or [node-pool wrapper](../backend/pkg/controllers/nodepool/validation/nodepool_validation_controller.go).
 They write one named condition in `Status.Validations`, respect result-specified
 `EarliestRetryAfter` with delayed enqueue/cooldown, and suppress transient Unknown
-results until repeated. The validators' Azure calls are checks, not provisioning.
+results until repeated. The cluster wrapper bounds each run to two minutes (a run
+that exceeds it is recorded as Unknown with reason `Timeout`), reads the
+ServiceProviderCluster only after the run returns, and records the start time of
+conclusive Failed runs in `Status.ValidationProbeTimes` so the operation controllers
+can distinguish a freshly re-confirmed failure from one whose re-check has stalled.
+A still-failing validation rewrites its probe at most once per
+`ValidationProbeRewriteInterval` (derived so the stored probe stays inside the 5m
+freshness window while re-checks continue); Passed and Skipped runs remove the
+entry, and Unknown runs leave it untouched. A write conflict on the
+ServiceProviderCluster still schedules the result's retry cooldown, so the informer
+re-trigger does not immediately repeat the validation's Azure calls; the node-pool wrapper does
+not, since node-pool operations have no validation failure timeout. The validators' Azure calls are checks, not provisioning.
 
 ### Backend: cluster provisioning and Azure resources
 
@@ -1108,7 +1119,7 @@ Once deletion prerequisites and child cleanup are satisfied, deletes the ARM res
 
 Combines cluster validations, selected placement, Cluster Service state, mirrored HostedCluster readiness/version, API endpoint, serving CA and confirmed role assignments (nonempty confirmed list, none pending). Placement is checked even before a Cluster Service ID exists. Unresolved placement remains Provisioning until `CreateOperationCompletionDeadline`; without a deadline it keeps waiting. At/after the deadline, `Status.Placement.Conditions[CapacityAvailable]=False` produces the customer-safe `AROHCPCapacityHeavyUse` error; missing/Unknown placement state produces `InternalServerError`. Assigned `Spec.ManagementClusterResourceID` satisfies this check despite a stale condition; other completion checks still apply.
 
-The [validation check](../backend/pkg/controllers/cluster/operations/operation_cluster_validation.go) reads `ServiceProviderCluster.Status.Validations`. All recorded conditions True (or no recorded conditions) contributes Succeeded; any non-True condition contributes Provisioning with a sorted message containing its name, reason and message. Any False condition sets `InvalidResource`; the check contributes Failed only when both its nonzero `LastTransitionTime` and the operation's nonzero `StartTime` are at least five minutes old. Unknown conditions remain Provisioning without `InvalidResource` or a failure timeout. Recovery resets the timer through the condition transition time. These results participate in the normal worst-state selection alongside other Provisioning sources, including their messages and error codes.
+The [validation check](../backend/pkg/controllers/cluster/operations/operation_cluster_validation.go) reads `ServiceProviderCluster.Status.Validations`. All recorded conditions True (or no recorded conditions) contributes Succeeded; any non-True condition contributes Provisioning with a sorted message containing its name, reason and message. Any False condition sets `InvalidResource`; the check contributes Failed only when both its nonzero `LastTransitionTime` and the operation's nonzero `StartTime` are at least ten minutes old and the validation's last recorded probe (`Status.ValidationProbeTimes`, the start time of the validation controller's last conclusive Failed run) is fresh, meaning within `ValidationProbeFreshnessWindow` (5m). A stale or zero-valued probe keeps the operation Provisioning so the validation retry cadence can re-confirm, guarding against stalled validation requeues and runs that keep timing out; a missing probe entry falls back to the age-only check for conditions recorded before probe recording existed. Unknown conditions remain Provisioning without `InvalidResource` or a failure timeout. Recovery resets the timer through the condition transition time. These results participate in the normal worst-state selection alongside other Provisioning sources, including their messages and error codes.
 
 For the matching nonterminal operation, writes status/error/transition time and ARM provisioning state, clears the active-operation reference on terminal state, and sends the async notification. Classified error messages are preserved (multiple classified failures retain their original errors in `Details`, with the worst code at the top level); internal placement diagnostics are not copied into the capacity error. Pending HostedCluster version diagnostics describe incomplete history entries and their elapsed time.
 
