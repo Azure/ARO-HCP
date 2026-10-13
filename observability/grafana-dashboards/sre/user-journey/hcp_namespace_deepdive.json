@@ -174,7 +174,9 @@
         }
       ],
       "title": "CPU Usage per Container",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -268,7 +270,9 @@
         }
       ],
       "title": "Memory Working Set per Container",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -581,7 +585,9 @@
         }
       ],
       "title": "CPU Usage per Pod (cores)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -675,7 +681,9 @@
         }
       ],
       "title": "Memory Working Set per Pod",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1020,44 +1028,11 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Running\"})",
+          "expr": "sum by (phase) (kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=~\"Running|Pending|Failed|Succeeded\"})",
           "instant": true,
           "range": false,
-          "legendFormat": "Running",
+          "legendFormat": "{{phase}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource_hcp}"
-          },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Pending\"})",
-          "instant": true,
-          "range": false,
-          "legendFormat": "Pending",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource_hcp}"
-          },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Failed\"})",
-          "instant": true,
-          "range": false,
-          "legendFormat": "Failed",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource_hcp}"
-          },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Succeeded\"})",
-          "instant": true,
-          "range": false,
-          "legendFormat": "Succeeded",
-          "refId": "D"
         }
       ],
       "title": "Current Pod Phase",
@@ -1157,7 +1132,9 @@
         }
       ],
       "title": "Container Restart Count per Pod",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1253,7 +1230,9 @@
         }
       ],
       "title": "OOMKilled Events Timeline",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1325,7 +1304,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "kube_pod_container_status_last_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\"}",
+          "expr": "kube_pod_container_status_last_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\"} == 1",
           "format": "table",
           "instant": true,
           "refId": "A"
@@ -1350,24 +1329,6 @@
               "pod": "Pod",
               "reason": "Termination Reason"
             }
-          }
-        },
-        {
-          "id": "filterByValue",
-          "options": {
-            "filters": [
-              {
-                "config": {
-                  "id": "greater",
-                  "options": {
-                    "value": 0
-                  }
-                },
-                "fieldName": "Active"
-              }
-            ],
-            "match": "any",
-            "type": "include"
           }
         }
       ],
@@ -1478,7 +1439,9 @@
         }
       ],
       "title": "Network Receive Bytes per Pod",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1572,7 +1535,9 @@
         }
       ],
       "title": "Network Transmit Bytes per Pod",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1678,7 +1643,9 @@
         }
       ],
       "title": "Network Error Rate per Pod",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "collapsed": false,
@@ -1792,7 +1759,9 @@
         }
       ],
       "title": "Filesystem Usage per Volume",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1886,7 +1855,9 @@
         }
       ],
       "title": "Disk Read Bytes per Container",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1980,7 +1951,9 @@
         }
       ],
       "title": "Disk Write Bytes per Container",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "collapsed": false,
@@ -2095,14 +2068,16 @@
         }
       ],
       "title": "etcd Disk WAL fsync Latency (p99)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource_hcp}"
       },
-      "description": "Size of the etcd database (warning at 2GB, critical at 8GB near quota limit).",
+      "description": "Largest etcd member database size (warning at 2GB, critical at 8GB near quota limit).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2161,9 +2136,9 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}",
+          "expr": "max(etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=\"$namespace\"})",
           "instant": true,
-          "legendFormat": "{{pod}}",
+          "legendFormat": "Largest member DB size",
           "range": false,
           "refId": "A"
         }
@@ -2176,7 +2151,7 @@
         "type": "prometheus",
         "uid": "${datasource_hcp}"
       },
-      "description": "How many times the etcd leader changed in the last hour (frequent changes = instability).",
+      "description": "Highest number of leader changes observed by an etcd member in the last hour (frequent changes indicate instability).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2234,9 +2209,9 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "increase(etcd_server_leader_changes_seen_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h])",
+          "expr": "max(increase(etcd_server_leader_changes_seen_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
           "instant": true,
-          "legendFormat": "{{pod}}",
+          "legendFormat": "Max leader changes observed",
           "range": false,
           "refId": "A"
         }
@@ -2352,7 +2327,9 @@
         }
       ],
       "title": "HCP Namespace CPU Usage (cores)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -2448,7 +2425,9 @@
         }
       ],
       "title": "HCP Namespace Memory Usage",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -2554,7 +2533,9 @@
         }
       ],
       "title": "HCP Namespace Network I/O",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -2642,14 +2623,16 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (\n  label_replace(\n    rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\", node=~\"aks-user.*\"})\n* 100",
+          "expr": "sum by (node) (\n  label_replace(\n    sum by (instance) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval])),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\", node=~\"aks-user.*\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "HCP Namespace CPU % per user (userswft) Node",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -2737,14 +2720,16 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (\n  label_replace(\n    container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"},\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\", node=~\"aks-user.*\"})\n* 100",
+          "expr": "sum by (node) (\n  label_replace(\n    sum by (instance) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\", node=~\"aks-user.*\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "HCP Namespace Memory % per user (userswft) Node",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "collapsed": false,
@@ -2764,7 +2749,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
-      "description": "Current CPU utilization per MGMT cluster node as a percentage of allocatable capacity. Helps identify hot nodes.",
+      "description": "Container CPU utilization per MGMT cluster node as a percentage of allocatable capacity, using the recorded five-minute irate. Helps identify hot nodes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2854,21 +2839,23 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (label_replace(rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}[$__rate_interval]), \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\"})\n* 100",
+          "expr": "sum by (node) (node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster=\"$cluster\", container!=\"\", container!=\"POD\"})\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "CPU Utilization per Node (% of Allocatable)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
-      "description": "Current memory utilization per MGMT cluster node as a percentage of allocatable capacity. Helps identify hot nodes.",
+      "description": "Container memory working set per MGMT cluster node as a percentage of allocatable capacity, using the recorded container memory metric. Helps identify hot nodes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2958,14 +2945,16 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (label_replace(container_memory_working_set_bytes{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}, \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\"})\n* 100",
+          "expr": "sum by (node) (node_namespace_pod_container:container_memory_working_set_bytes{cluster=\"$cluster\", container!=\"\", container!=\"POD\"})\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "Memory Utilization per Node (% of Allocatable)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     }
   ],
   "schemaVersion": 39,
@@ -3004,9 +2993,9 @@
         "current": {},
         "datasource": {
           "type": "prometheus",
-          "uid": "${datasource_hcp}"
+          "uid": "${datasource_svc}"
         },
-        "definition": "label_values(apiserver_request_total, cluster)",
+        "definition": "query_result(count by (cluster) (kube_node_status_allocatable{resource=\"cpu\", cluster=~\".*-mgmt-[0-9]+\"}))",
         "hide": 0,
         "includeAll": false,
         "label": "Cluster (MGMT)",
@@ -3014,11 +3003,11 @@
         "name": "cluster",
         "options": [],
         "query": {
-          "query": "label_values(apiserver_request_total, cluster)",
+          "query": "query_result(count by (cluster) (kube_node_status_allocatable{resource=\"cpu\", cluster=~\".*-mgmt-[0-9]+\"}))",
           "refId": "StandardVariableQuery"
         },
-        "refresh": 2,
-        "regex": "^.*-mgmt-\\d+$",
+        "refresh": 1,
+        "regex": "/cluster=\"([^\"]+)\"/",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
@@ -3029,7 +3018,7 @@
           "type": "prometheus",
           "uid": "${datasource_hcp}"
         },
-        "definition": "label_values(apiserver_request_total{cluster=\"$cluster\"}, namespace)",
+        "definition": "query_result(count by (namespace) (etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=~\"ocm-.*\"}))",
         "hide": 0,
         "includeAll": false,
         "label": "Namespace (HCP)",
@@ -3037,11 +3026,11 @@
         "name": "namespace",
         "options": [],
         "query": {
-          "query": "label_values(apiserver_request_total{cluster=\"$cluster\"}, namespace)",
+          "query": "query_result(count by (namespace) (etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=~\"ocm-.*\"}))",
           "refId": "StandardVariableQuery"
         },
-        "refresh": 2,
-        "regex": "^ocm-.*$",
+        "refresh": 1,
+        "regex": "/namespace=\"([^\"]+)\"/",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
@@ -3054,7 +3043,7 @@
   },
   "timepicker": {},
   "timezone": "utc",
-  "refresh": "30s",
+  "refresh": "1m",
   "version": 0,
   "weekStart": ""
 }
