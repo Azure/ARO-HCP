@@ -46,6 +46,8 @@ func TestIsControlPlaneMinorUpgrade(t *testing.T) {
 		{name: "short major", source: "4", target: "4.1.0", minor: true},
 		{name: "v prefix", source: "v4.19.0", target: "4.20.0", minor: true},
 		{name: "extra segment accepted by CS parser", source: "4.19.0.1", target: "4.20.0", minor: true},
+		{name: "extra segment with prerelease", source: "4.19.0.1-rc.1", target: "4.20.0", minor: true},
+		{name: "invalid extra segment", source: "4.19.0.extra", target: "4.20.0", wantErr: "invalid source"},
 		{name: "invalid", source: "invalid", target: "4.20.0", wantErr: "invalid source"},
 		{name: "API ID is not raw version", source: "openshift-v4.19.0", target: "4.20.0", wantErr: "invalid source"},
 		{name: "empty source", target: "4.20.0", wantErr: "source version is empty"},

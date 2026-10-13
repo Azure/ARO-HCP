@@ -17,9 +17,10 @@ package version
 import (
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/blang/semver/v4"
-	version "github.com/hashicorp/go-version"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,8 +29,9 @@ import (
 )
 
 // isControlPlaneMinorUpgrade preserves CS models.IsMinorVersionUpgrade's
-// classification, including a single major step and its permissive source
-// parser. This selects a condition gate; it does not validate target eligibility.
+// classification, including a single major step and short or multi-segment
+// numeric source versions. This selects a condition gate; it does not validate
+// target eligibility.
 func isControlPlaneMinorUpgrade(source string, desired *semver.Version) (bool, error) {
 	if source == "" {
 		return false, fmt.Errorf("source version is empty")
@@ -37,15 +39,30 @@ func isControlPlaneMinorUpgrade(source string, desired *semver.Version) (bool, e
 	if desired == nil {
 		return false, fmt.Errorf("desired version is missing")
 	}
-	parsed, err := version.NewVersion(source)
+	// CS accepts additional numeric components, while semver permits at most
+	// three. Validate the extras before dropping them: only major and minor
+	// determine which condition gate applies.
+	parseSource := source
+	core, suffix := source, ""
+	if index := strings.IndexAny(source, "-+"); index >= 0 {
+		core, suffix = source[:index], source[index:]
+	}
+	segments := strings.Split(core, ".")
+	if len(segments) > 3 {
+		for _, segment := range segments[3:] {
+			if _, err := strconv.ParseInt(segment, 10, 64); err != nil {
+				return false, fmt.Errorf("invalid source version %q: %w", source, err)
+			}
+		}
+		parseSource = strings.Join(segments[:3], ".") + suffix
+	}
+	parsed, err := semver.ParseTolerant(parseSource)
 	if err != nil {
 		return false, fmt.Errorf("invalid source version: %w", err)
 	}
-	// The CS parser pads short versions to at least three segments.
-	segments := parsed.Segments64()
-	sourceMajor, sourceMinor := uint64(segments[0]), uint64(segments[1])
+	sourceMajor, sourceMinor := parsed.Major, parsed.Minor
 	if sourceMajor != desired.Major {
-		if desired.Major == sourceMajor+1 {
+		if desired.Major > sourceMajor && desired.Major-sourceMajor == 1 {
 			return true, nil
 		}
 		return false, fmt.Errorf("only single major version upgrades are supported: %s -> %s", source, desired)
