@@ -144,6 +144,54 @@ func TestIsCapabilityEphemeralOSDiskSupported(t *testing.T) {
 	}
 }
 
+func TestIsCapabilityPremiumIOSupported(t *testing.T) {
+	tests := []struct {
+		name          string
+		sku           *armcompute.ResourceSKU
+		wantSupported bool
+		wantFound     bool
+	}{
+		{
+			name:          "nil sku",
+			sku:           nil,
+			wantSupported: false,
+			wantFound:     false,
+		},
+		{
+			name: "true value",
+			sku: makeTestVMResourceSKU(testVMSize, &armcompute.ResourceSKUCapabilities{
+				Name:  ptr.To(computeResourceSKUCapabilityNamePremiumIO),
+				Value: ptr.To("True"),
+			}),
+			wantSupported: true,
+			wantFound:     true,
+		},
+		{
+			name: "false value",
+			sku: makeTestVMResourceSKU(testVMSize, &armcompute.ResourceSKUCapabilities{
+				Name:  ptr.To(computeResourceSKUCapabilityNamePremiumIO),
+				Value: ptr.To("False"),
+			}),
+			wantSupported: false,
+			wantFound:     true,
+		},
+		{
+			name:          "missing capability",
+			sku:           makeTestVMResourceSKU(testVMSize),
+			wantSupported: false,
+			wantFound:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			supported, found := isCapabilityPremiumIOSupported(tt.sku)
+			assert.Equal(t, tt.wantSupported, supported)
+			assert.Equal(t, tt.wantFound, found)
+		})
+	}
+}
+
 func TestLookupCapabilityVCPUs(t *testing.T) {
 	tests := []struct {
 		name      string
