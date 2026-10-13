@@ -278,6 +278,8 @@ Steps can be configured to automatically retry on failure by adding an `automate
 - If the configured maximum number of attempts is exhausted and the step still fails, the entire pipeline will fail
 - The `automatedRetry` configuration is available for all step types (ARM, Shell, Helm, etc.)
 
+The management `cluster-create` step also retries `waiting for deployment aks-cluster-create: context deadline exceeded`, the timeout emitted when its 30-minute deployment wait expires. The reconciler waits for an existing ARM deployment to finish before observing resources or submitting another deployment. Stage fail-fast rendering retains this error match but limits the policy to one retry after one minute; the pipeline's configured retry count and delay are unchanged.
+
 ### Step execution context
 
 All steps share a common execution context:
