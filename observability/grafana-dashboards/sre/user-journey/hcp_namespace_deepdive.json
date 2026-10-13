@@ -1304,7 +1304,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "kube_pod_container_status_last_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\"} == 1",
+          "expr": "max without (prometheus_replica) (kube_pod_container_status_last_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\"}) == 1",
           "format": "table",
           "instant": true,
           "refId": "A"
