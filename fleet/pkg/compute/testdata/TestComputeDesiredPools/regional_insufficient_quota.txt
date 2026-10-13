@@ -1,0 +1,18 @@
+zones: 1,2,3
+
+tiers:
+  sys  system  Regional  pools=1  cores=8  maxNodes=3  initialMinNodes=0  osDisk=128GB  maxPods=100  swift=false  required=false  families=StandardEdsv6Family
+
+quota limits (vCPUs):
+  StandardEdsv6Family:  0
+
+skus:
+  Standard_E8ds_v6  StandardEdsv6Family  cpu=8  memory=64GiB  nics=3  ephemeralOSDisk=true  ephemeralDisk=448GB  zones=1,2,3
+
+fully allocated: false
+
+pools:
+  (none)
+
+failures:
+  InsufficientQuota  required=false  tier 0 (8 cores): the families' quota does not cover at least one node

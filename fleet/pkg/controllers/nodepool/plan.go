@@ -126,7 +126,10 @@ func findCorrectDesiredAction(desired []compute.Pool, currentByName map[string]P
 			continue
 		}
 
-		if cur.MaxCount > pool.MaxCount {
+		// The cluster autoscaler does not scale a pool down just because it runs
+		// above its maximum, so a count above the desired maximum must be
+		// frozen and drained even when the live maximum is not above target.
+		if cur.MaxCount > pool.MaxCount || cur.Count > pool.MaxCount {
 			if pool.MaxCount >= cur.Count {
 				if !allowsCapacityReduction(current, cur, int64(pool.MaxCount), capacityFloor) {
 					continue

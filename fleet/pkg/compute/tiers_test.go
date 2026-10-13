@@ -50,12 +50,12 @@ func TestValidProfileNames(t *testing.T) {
 
 func TestTierFamilies(t *testing.T) {
 	tiers := []TierConfig{
-		{FamilyPriority: []VMFamily{"standardEDSv6Family", "standardEDSv5Family"}},
-		{FamilyPriority: []VMFamily{"standardEDSv5Family", "standardDDSv6Family"}},
+		{FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}},
+		{FamilyPriority: []VMFamily{"standardEDSv5Family", "StandardDdsv6Family"}},
 	}
 
 	got := TierFamilies(tiers)
-	want := sets.New[VMFamily]("standardEDSv6Family", "standardEDSv5Family", "standardDDSv6Family")
+	want := sets.New[VMFamily]("StandardEdsv6Family", "standardEDSv5Family", "StandardDdsv6Family")
 	assert.True(t, got.Equal(want), "got %v, want %v", got, want)
 }
 
@@ -115,13 +115,13 @@ func TestValidateProfile(t *testing.T) {
 		{
 			name: "unique families are valid",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1, FamilyPriority: []VMFamily{"standardEDSv6Family", "standardEDSv5Family"}}},
+				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}}},
 			},
 		},
 		{
 			name: "duplicate family within a tier",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1, FamilyPriority: []VMFamily{"standardEDSv6Family", "standardEDSv6Family"}}},
+				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1, FamilyPriority: []VMFamily{"StandardEdsv6Family", "StandardEdsv6Family"}}},
 			},
 			wantErr: true,
 		},
