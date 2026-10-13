@@ -79,6 +79,45 @@ func (c *MockServiceManagedIdentityClientBuilderBuilderTypeCall) DoAndReturn(f f
 	return c
 }
 
+// DiskEncryptionSetsClient mocks base method.
+func (m *MockServiceManagedIdentityClientBuilder) DiskEncryptionSetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *arm.ResourceID, subscriptionID string) (DiskEncryptionSetsClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DiskEncryptionSetsClient", ctx, clusterIdentityURL, smiResourceID, subscriptionID)
+	ret0, _ := ret[0].(DiskEncryptionSetsClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DiskEncryptionSetsClient indicates an expected call of DiskEncryptionSetsClient.
+func (mr *MockServiceManagedIdentityClientBuilderMockRecorder) DiskEncryptionSetsClient(ctx, clusterIdentityURL, smiResourceID, subscriptionID any) *MockServiceManagedIdentityClientBuilderDiskEncryptionSetsClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiskEncryptionSetsClient", reflect.TypeOf((*MockServiceManagedIdentityClientBuilder)(nil).DiskEncryptionSetsClient), ctx, clusterIdentityURL, smiResourceID, subscriptionID)
+	return &MockServiceManagedIdentityClientBuilderDiskEncryptionSetsClientCall{Call: call}
+}
+
+// MockServiceManagedIdentityClientBuilderDiskEncryptionSetsClientCall wrap *gomock.Call
+type MockServiceManagedIdentityClientBuilderDiskEncryptionSetsClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockServiceManagedIdentityClientBuilderDiskEncryptionSetsClientCall) Return(arg0 DiskEncryptionSetsClient, arg1 error) *MockServiceManagedIdentityClientBuilderDiskEncryptionSetsClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockServiceManagedIdentityClientBuilderDiskEncryptionSetsClientCall) Do(f func(context.Context, string, *arm.ResourceID, string) (DiskEncryptionSetsClient, error)) *MockServiceManagedIdentityClientBuilderDiskEncryptionSetsClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockServiceManagedIdentityClientBuilderDiskEncryptionSetsClientCall) DoAndReturn(f func(context.Context, string, *arm.ResourceID, string) (DiskEncryptionSetsClient, error)) *MockServiceManagedIdentityClientBuilderDiskEncryptionSetsClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // NetworkSecurityGroupsClient mocks base method.
 func (m *MockServiceManagedIdentityClientBuilder) NetworkSecurityGroupsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *arm.ResourceID, subscriptionID string) (NetworkSecurityGroupsClient, error) {
 	m.ctrl.T.Helper()
