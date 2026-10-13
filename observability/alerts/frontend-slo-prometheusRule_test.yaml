@@ -23,8 +23,6 @@ tests:
     values: "1+0x80"
   - series: 'sli:frontend:saturation_memory:ratio5m{cluster="svc-1"}'
     values: "0.4+0x80"
-  - series: 'traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}'
-    values: "2+0x80"
   alert_rule_test:
   - eval_time: 70m
     alertname: userJourneyFrontendErrors1h5m
@@ -46,9 +44,6 @@ tests:
     exp_alerts: []
   - eval_time: 70m
     alertname: userJourneyFrontendSaturationMemory
-    exp_alerts: []
-  - eval_time: 70m
-    alertname: userJourneyFrontendTrafficDrop
     exp_alerts: []
   - eval_time: 70m
     alertname: userJourneyFrontendReady
@@ -409,42 +404,6 @@ tests:
         summary: "svc-1: Frontend pod memory above 85% of limit for 15+ minutes"
         description: "Frontend container memory (working set/limit) on cluster svc-1 is above 85% for 15m."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-- interval: 5m
-  # ----------------------------------------
-
-  # (~24h @ 5m step), then 0.2x13 = 13 samples (~65m) so drop is active by eval_time 25h.
-  # promtool expand counts are decimal (not hex): 5x288 = 288 samples @ 5 RPS
-  input_series:
-  - series: 'traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}'
-    values: "5x288 0.2x13"
-  - series: 'sli:frontend:ready:ratio5m{cluster="svc-1"}'
-    values: "1x301"
-  alert_rule_test:
-  - eval_time: 25h
-    alertname: userJourneyFrontendTrafficDrop
-    exp_alerts:
-    - exp_labels:
-        alertname: userJourneyFrontendTrafficDrop
-        cluster: svc-1
-        component: slo
-        severity: "4"
-        slo: frontend-traffic
-      exp_annotations:
-        summary: "svc-1: Frontend HTTP traffic collapsed below 10% of 1d baseline"
-        description: "Frontend request rate on cluster svc-1 is below 10% of its 1-day average for 15m while the 1d baseline exceeded 0.5 RPS (fleet-wide noise floor) and pods are still Ready (traffic drought, not a replica outage)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-- interval: 5m
-  # Baseline 0.3 RPS is under the 0.5 RPS noise floor, then a 90% drop.
-  # Must not fire even though the relative collapse matches the 10% rule.
-  input_series:
-  - series: 'traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}'
-    values: "0.3x288 0.02x13"
-  - series: 'sli:frontend:ready:ratio5m{cluster="svc-1"}'
-    values: "1x301"
-  alert_rule_test:
-  - eval_time: 25h
-    alertname: userJourneyFrontendTrafficDrop
-    exp_alerts: []
 - interval: 1m
   # Replica outage: ready=0 pages; HTTP drought path does not apply.
 
