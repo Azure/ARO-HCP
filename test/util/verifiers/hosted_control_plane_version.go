@@ -67,7 +67,13 @@ func (r *upgradePhaseReporter) observe(history []configv1.UpdateHistory) {
 }
 
 // renderClusterVersionHistory renders history as a single compact line, e.g.
-// `4.21.13=Partial started=01:24:16; 4.20.20=Completed started=00:36:22 completed=01:24:16`.
+// `4.21.13=Partial started=2026-05-06T01:24:16Z; 4.20.20=Completed started=2026-05-06T00:36:22Z completed=2026-05-06T01:24:16Z`.
+//
+// The stamps carry their date. status.history spans cluster install through upgrade completion, so
+// a run that crosses UTC midnight would render a time-only `started=23:55:00 completed=00:20:00`
+// that reads as finishing before it started — in the exact failure dump this rendering exists to
+// make readable. RFC3339 is also the form the Kusto queries used to attribute ARO-26775 accept, so
+// a stamp can be pasted from a Prow log straight into a query.
 func renderClusterVersionHistory(history []configv1.UpdateHistory) string {
 	if len(history) == 0 {
 		return "<empty>"
@@ -76,14 +82,29 @@ func renderClusterVersionHistory(history []configv1.UpdateHistory) string {
 	for _, historyEntry := range history {
 		entry := fmt.Sprintf("%s=%s", historyEntry.Version, historyEntry.State)
 		if !historyEntry.StartedTime.IsZero() {
-			entry += " started=" + historyEntry.StartedTime.UTC().Format(time.TimeOnly)
+			entry += " started=" + historyEntry.StartedTime.UTC().Format(time.RFC3339)
 		}
 		if historyEntry.CompletionTime != nil && !historyEntry.CompletionTime.IsZero() {
-			entry += " completed=" + historyEntry.CompletionTime.UTC().Format(time.TimeOnly)
+			entry += " completed=" + historyEntry.CompletionTime.UTC().Format(time.RFC3339)
 		}
 		entries = append(entries, entry)
 	}
 	return strings.Join(entries, "; ")
+}
+
+// withClusterVersionHistory appends the history an upgrade verifier judged to the verdict it
+// reached, and passes a passing verdict through untouched.
+//
+// pollUntilReady reports the last check's error when it times out, so whatever a check returns is
+// what a failing run leaves in the Prow log. Wrapping once at the call site rather than at each
+// branch means a branch cannot be added without its evidence: the transient
+// "upgrade hasn't happened yet" verdicts are the ones a timeout actually surfaces, and those are
+// exactly the ones that need the timestamps to tell a stalled upgrade from one that never started.
+func withClusterVersionHistory(history []configv1.UpdateHistory, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w; history is %s", err, renderClusterVersionHistory(history))
 }
 
 // diagnoseClusterVersion dumps clusterversion status when an upgrade verifier times out, scoped
@@ -145,13 +166,19 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) check(ctx context.Context, c
 
 	reporter.observe(clusterVersion.Status.History)
 
+	return withClusterVersionHistory(clusterVersion.Status.History, v.evaluate(clusterVersion.Status.History, initialSemver))
+}
+
+// evaluate decides the z-stream verdict for one observation. It describes only what is wrong;
+// check appends the history that was judged, so every branch reports the same evidence.
+func (v verifyHostedControlPlaneZStreamUpgradeOnly) evaluate(history []configv1.UpdateHistory, initialSemver semver.Version) error {
 	uniqueVersionSet := map[string]bool{}
 	var uniqueVersions []string
 	var sawInitial, sawUpgrade bool
-	for _, history := range clusterVersion.Status.History {
-		historyVersion, err := semver.ParseTolerant(history.Version)
+	for _, historyEntry := range history {
+		historyVersion, err := semver.ParseTolerant(historyEntry.Version)
 		if err != nil {
-			return fmt.Errorf("parse version %q in history: %w", history.Version, err)
+			return fmt.Errorf("parse version %q in history: %w", historyEntry.Version, err)
 		}
 		if historyVersion.Major != initialSemver.Major || historyVersion.Minor != initialSemver.Minor {
 			return fmt.Errorf("version %q in clusterversion history has different major.minor than initial %q (expected %d.%d.x)",
@@ -239,8 +266,15 @@ func (v verifyHostedControlPlaneYStreamUpgrade) check(ctx context.Context, confi
 
 	reporter.observe(clusterVersion.Status.History)
 
+	return withClusterVersionHistory(clusterVersion.Status.History,
+		v.evaluate(clusterVersion.Status.History, parsedPreviousMinor, parsedTargetMinor))
+}
+
+// evaluate decides the y-stream verdict for one observation. It describes only what is wrong;
+// check appends the history that was judged, so every branch reports the same evidence.
+func (v verifyHostedControlPlaneYStreamUpgrade) evaluate(history []configv1.UpdateHistory, parsedPreviousMinor, parsedTargetMinor semver.Version) error {
 	var previousMinorFound, targetMinorFound bool
-	for _, historyEntry := range clusterVersion.Status.History {
+	for _, historyEntry := range history {
 		if len(historyEntry.Version) == 0 {
 			continue
 		}
@@ -256,12 +290,10 @@ func (v verifyHostedControlPlaneYStreamUpgrade) check(ctx context.Context, confi
 		}
 	}
 	if !previousMinorFound {
-		return fmt.Errorf("clusterversion status.history has no version in previous minor %q; history is %s",
-			v.previousMinor, renderClusterVersionHistory(clusterVersion.Status.History))
+		return fmt.Errorf("clusterversion status.history has no version in previous minor %q", v.previousMinor)
 	}
 	if !targetMinorFound {
-		return fmt.Errorf("clusterversion status.history has no version in target minor %q; history is %s",
-			v.targetMinor, renderClusterVersionHistory(clusterVersion.Status.History))
+		return fmt.Errorf("clusterversion status.history has no version in target minor %q", v.targetMinor)
 	}
 	return nil
 }
