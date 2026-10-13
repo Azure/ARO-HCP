@@ -59,6 +59,7 @@ var classifiableResources = []string{
 	`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"ocm-env-abc"}}`,
 	`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"ocm-env-abc-cp","labels":{"hypershift.openshift.io/cluster":"abc"}}}`,
 	`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"}}`,
+	`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"external-auth-ca","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"}}}`,
 	`{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pull-secret","namespace":"ocm-env-abc"}}`,
 	`{"apiVersion":"v1","kind":"Secret","metadata":{"name":"external-auth-console-openshift-console","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"},"annotations":{"hypershift.openshift.io/hosted-cluster-sourced":"true"}}}`,
 	`{"apiVersion":"multitenancy.acn.azure.com/v1alpha1","kind":"PodNetwork","metadata":{"name":"pn-abc123"}}`,

@@ -314,6 +314,7 @@ func TestSyncOnce(t *testing.T) {
 						"pull-secret":          `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pull-secret","namespace":"ocm-env-abc"}}`,
 						"external-auth-secret": `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"external-auth-console-openshift-console","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"},"annotations":{"hypershift.openshift.io/hosted-cluster-sourced":"true"}}}`,
 						"ingress-configmap":    `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"}}`,
+						"external-auth-ca":     `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"external-auth-ca","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"}},"data":{"ca-bundle.crt":"test-ca"}}`,
 					}), nil)
 				return mock
 			},
@@ -337,6 +338,11 @@ func TestSyncOnce(t *testing.T) {
 				require.NoError(t, err, "ApplyDesire for DefaultIngressConfigMap should exist")
 				assert.Equal(t, "default-ingress", desireB.Spec.TargetItem.Name, "configmap target name should match")
 				assert.Equal(t, "configmaps", desireB.Spec.TargetItem.Resource, "configmap target resource should match")
+
+				externalAuthCA, err := crud.Get(ctx, "externalauthcaconfigmap")
+				require.NoError(t, err, "ApplyDesire for ExternalAuthCAConfigMap should exist")
+				assert.Equal(t, "external-auth-ca", externalAuthCA.Spec.TargetItem.Name, "external auth CA target name should match")
+				assert.Equal(t, "configmaps", externalAuthCA.Spec.TargetItem.Resource, "external auth CA target resource should match")
 			},
 		},
 		{
@@ -783,6 +789,11 @@ func TestClassifyClusterResource(t *testing.T) {
 			name:       "ConfigMap → DefaultIngressConfigMap",
 			resource:   `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"}}`,
 			wantDesire: "DefaultIngressConfigMap",
+		},
+		{
+			name:       "ext-auth labeled ConfigMap → ExternalAuthCAConfigMap",
+			resource:   `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"external-auth-ca","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"}}}`,
+			wantDesire: "ExternalAuthCAConfigMap",
 		},
 		{
 			name:       "Secret → OCPPullSecret",
