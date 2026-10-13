@@ -16,12 +16,14 @@ package validation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -78,6 +80,12 @@ type clusterValidationSyncer struct {
 	// policy in trackConsecutiveUnknowns, which avoids flapping a cluster's validation status
 	// to Unknown on a transient blip.
 	consecutiveUnknownCounts *lru.Cache
+
+	// clock provides the time recorded in Status.ValidationProbeTimes and the run duration metric.
+	clock utilsclock.PassiveClock
+
+	// runTimeout bounds a single validation run; see validationutils.ValidationRunTimeout.
+	runTimeout time.Duration
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
@@ -106,6 +114,8 @@ func NewNamedClusterValidationController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		validation:                   validation,
 		consecutiveUnknownCounts:     lru.New(consecutiveUnknownCountsCacheCapacity),
+		clock:                        utilsclock.RealClock{},
+		runTimeout:                   validationutils.ValidationRunTimeout,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -155,25 +165,36 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if cosmosstorageutils.IsNotFoundError(err) {
+	if _, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName); cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
 		return nil
-	}
-	if err != nil {
+	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	existingServiceProviderCluster := cachedServiceProviderCluster.DeepCopy()
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
 	}
 
-	result := c.validation.Validate(ctx, subscription, existingCluster)
+	probeStartTime := c.clock.Now()
+	result := c.runValidation(ctx, subscription, existingCluster)
 	if err := result.Validate(); err != nil {
 		return utils.TrackError(fmt.Errorf("validation %s returned invalid ValidationResult: %w", c.validation.Name(), err))
 	}
+	validationRunDuration.WithLabelValues(c.validation.Name(), string(result.Outcome.Type)).Observe(c.clock.Since(probeStartTime).Seconds())
+
+	// Read the ServiceProviderCluster only after the validation returns: a run can take a while, and
+	// basing the write on a copy taken before it would make optimistic-concurrency conflicts (and the
+	// resulting lost result) more likely.
+	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	existingServiceProviderCluster := cachedServiceProviderCluster.DeepCopy()
 
 	if result.Outcome.Type != validationutils.OutcomeTypePassed {
 		logger.Info("Validation outcome", "validation", c.validation.Name(), "result", result)
@@ -195,11 +216,42 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		}
 	}
 
+	// Record when the last conclusive Failed run started, independently of
+	// whether the stored condition changed. The conditions' LastTransitionTime
+	// only advances on outcome changes, so it cannot distinguish "failed and
+	// recently re-confirmed" from "failed but not re-checked lately"; the
+	// operation controllers use these probe times to make that distinction
+	// before failing a create or update terminally. The start time is used
+	// because it is the earliest moment the run could have observed Azure, so
+	// it never overstates how fresh the evidence is.
+	// A still-failing validation rewrites its probe at most once per
+	// ValidationProbeRewriteInterval so that every retry does not become a
+	// Cosmos write; a missing probe is always written. Passed and Skipped
+	// outcomes drop the probe alongside the failure it described. Unknown
+	// outcomes neither refresh nor drop it: refreshing would defeat the
+	// consecutive-Unknown write suppression above, and a probe that goes stale
+	// during an Unknown streak correctly keeps the operation non-terminal.
+	switch result.Outcome.Type {
+	case validationutils.OutcomeTypeFailed:
+		storedProbe := replacement.Status.ValidationProbeTimes[c.validation.Name()]
+		if storedProbe.IsZero() || c.clock.Since(storedProbe.Time) >= validationutils.ValidationProbeRewriteInterval {
+			if replacement.Status.ValidationProbeTimes == nil {
+				replacement.Status.ValidationProbeTimes = map[string]metav1.Time{}
+			}
+			replacement.Status.ValidationProbeTimes[c.validation.Name()] = metav1.NewTime(probeStartTime)
+		}
+	case validationutils.OutcomeTypePassed, validationutils.OutcomeTypeSkipped:
+		delete(replacement.Status.ValidationProbeTimes, c.validation.Name())
+	}
+
 	if !equality.Semantic.DeepEqual(existingServiceProviderCluster, replacement) {
 		serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 		_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+			// A concurrent writer updated the document and the informer will re-trigger this key. Keep the
+			// normal retry cadence anyway: without the cooldown that re-trigger would immediately re-run the
+			// validation and its Azure calls, and this run's result and probe time would be lost.
+			c.handleRequeue(key, result)
 			return nil
 		}
 		if err != nil {
@@ -217,6 +269,30 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 
 	return nil
+}
+
+// runValidation executes the validation bounded by runTimeout. A run that hits the timeout is
+// reported as Unknown regardless of what the validation returned: a validation interrupted
+// mid-flight may have reached a partial conclusion, and Unknown keeps the operation controllers
+// from treating it as a confirmed failure.
+//
+// The timeout only interrupts work that honors context cancellation (Azure SDK calls do). A
+// validation that blocks while ignoring ctx still holds the worker until it returns.
+func (c *clusterValidationSyncer) runValidation(ctx context.Context, subscription *coreapi.Subscription, cluster *coreapi.Cluster) validationutils.ValidationResult {
+	if c.runTimeout <= 0 {
+		return c.validation.Validate(ctx, subscription, cluster)
+	}
+
+	runCtx, cancel := context.WithTimeout(ctx, c.runTimeout)
+	defer cancel()
+
+	result := c.validation.Validate(runCtx, subscription, cluster)
+	if ctx.Err() == nil && errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+		validationRunTimeouts.WithLabelValues(c.validation.Name()).Inc()
+		message := fmt.Sprintf("validation did not complete within %s", c.runTimeout)
+		return validationutils.UnknownValidation("Timeout", "Validation is taking longer than expected; it will be retried.", message, validationutils.ControllerReportingPolicyTypeError)
+	}
+	return result
 }
 
 // handleRequeue sets the earliest-retry gate and, for Failed/Unknown outcomes, schedules a

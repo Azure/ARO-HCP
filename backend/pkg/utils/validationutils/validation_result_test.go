@@ -321,3 +321,11 @@ func TestValidationResult_ToCondition(t *testing.T) {
 		})
 	}
 }
+
+func TestValidationProbeRewriteIntervalFitsFreshnessWindow(t *testing.T) {
+	maxStoredProbeAge := ValidationProbeRewriteInterval + maxNonPassedRetryDelay + ValidationRunTimeout
+	assert.Positive(t, ValidationProbeRewriteInterval, "rewrite interval must be positive")
+	assert.Less(t, maxStoredProbeAge, ValidationProbeFreshnessWindow,
+		"a validation that keeps re-checking must never leave a probe older than the freshness window")
+	assert.Equal(t, 90*time.Second, maxNonPassedRetryDelay, "maxNonPassedRetryDelay must match nonpassedRetryBase plus maximum jitter")
+}
