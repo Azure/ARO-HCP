@@ -425,8 +425,8 @@ type classifiedResource struct {
 //	hypershift.openshift.io    HostedCluster          → HostedCluster
 //	hypershift.openshift.io    NodePool               → NodePool                 (nodePoolName set, scoped under nodepool)
 //	core/v1                    Namespace              → HostedClusterNamespace | ControlPlaneNamespace
-//	core/v1                    ConfigMap              → DefaultIngressConfigMap
-//	core/v1                    Secret                 → OCPPullSecret
+//	core/v1                    ConfigMap              → DefaultIngressConfigMap | ExternalAuthCAConfigMap
+//	core/v1                    Secret                 → OCPPullSecret | ExternalAuthClientSecret
 //	multitenancy.acn.azure.com PodNetwork             → PodNetwork
 //	multitenancy.acn.azure.com PodNetworkInstance      → PodNetworkInstance
 //	secret-sync.x-k8s.io      SecretSync             → {BoundServiceAccountSigningKey,DefaultIngressWildcardCert,KubeAPIServerServingCert}SecretSync
@@ -461,9 +461,15 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 		return classifiedResource{desireName: DesireNameManagedCluster}, nil
 
 	case "ConfigMap":
+		if obj.GetLabels()["api.openshift.com/type"] == "ext-auth" {
+			return classifiedResource{desireName: DesireNameExternalAuthCAConfigMap}, nil
+		}
 		return classifiedResource{desireName: DesireNameDefaultIngressConfigMap}, nil
 
 	case "Secret":
+		if obj.GetLabels()["api.openshift.com/type"] == "ext-auth" {
+			return classifiedResource{desireName: DesireNameExternalAuthClientSecret}, nil
+		}
 		return classifiedResource{desireName: DesireNameOCPPullSecret}, nil
 
 	case "PodNetwork":

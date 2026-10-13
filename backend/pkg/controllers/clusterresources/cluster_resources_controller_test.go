@@ -311,8 +311,10 @@ func TestSyncOnce(t *testing.T) {
 				mock.EXPECT().
 					GetClusterResources(gomock.Any(), gomock.Any()).
 					Return(buildClusterResources(map[string]string{
-						"pull-secret":       `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pull-secret","namespace":"ocm-env-abc"}}`,
-						"ingress-configmap": `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"}}`,
+						"pull-secret":          `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pull-secret","namespace":"ocm-env-abc"}}`,
+						"external-auth-secret": `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"external-auth-console-openshift-console","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"},"annotations":{"hypershift.openshift.io/hosted-cluster-sourced":"true"}}}`,
+						"ingress-configmap":    `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"}}`,
+						"external-auth-ca":     `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"external-auth-ca","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"}},"data":{"ca-bundle.crt":"test-ca"}}`,
 					}), nil)
 				return mock
 			},
@@ -327,10 +329,20 @@ func TestSyncOnce(t *testing.T) {
 				assert.Equal(t, "pull-secret", desireA.Spec.TargetItem.Name, "secret target name should match")
 				assert.Equal(t, "secrets", desireA.Spec.TargetItem.Resource, "secret target resource should match")
 
+				externalAuthDesire, err := crud.Get(ctx, "externalauthclientsecret")
+				require.NoError(t, err, "ApplyDesire for ExternalAuthClientSecret should exist")
+				assert.Equal(t, "external-auth-console-openshift-console", externalAuthDesire.Spec.TargetItem.Name, "external auth secret target name should match")
+				assert.Equal(t, "secrets", externalAuthDesire.Spec.TargetItem.Resource, "external auth secret target resource should match")
+
 				desireB, err := crud.Get(ctx, "defaultingressconfigmap")
 				require.NoError(t, err, "ApplyDesire for DefaultIngressConfigMap should exist")
 				assert.Equal(t, "default-ingress", desireB.Spec.TargetItem.Name, "configmap target name should match")
 				assert.Equal(t, "configmaps", desireB.Spec.TargetItem.Resource, "configmap target resource should match")
+
+				externalAuthCA, err := crud.Get(ctx, "externalauthcaconfigmap")
+				require.NoError(t, err, "ApplyDesire for ExternalAuthCAConfigMap should exist")
+				assert.Equal(t, "external-auth-ca", externalAuthCA.Spec.TargetItem.Name, "external auth CA target name should match")
+				assert.Equal(t, "configmaps", externalAuthCA.Spec.TargetItem.Resource, "external auth CA target resource should match")
 			},
 		},
 		{
@@ -779,9 +791,19 @@ func TestClassifyClusterResource(t *testing.T) {
 			wantDesire: "DefaultIngressConfigMap",
 		},
 		{
+			name:       "ext-auth labeled ConfigMap → ExternalAuthCAConfigMap",
+			resource:   `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"external-auth-ca","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"}}}`,
+			wantDesire: "ExternalAuthCAConfigMap",
+		},
+		{
 			name:       "Secret → OCPPullSecret",
 			resource:   `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pull-secret","namespace":"ocm-env-abc"}}`,
 			wantDesire: "OCPPullSecret",
+		},
+		{
+			name:       "ext-auth labeled Secret → ExternalAuthClientSecret",
+			resource:   `{"apiVersion":"v1","kind":"Secret","metadata":{"name":"external-auth-console-openshift-console","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"}}}`,
+			wantDesire: "ExternalAuthClientSecret",
 		},
 		{
 			name:       "PodNetwork",
