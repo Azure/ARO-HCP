@@ -16,15 +16,116 @@ package validation
 
 import (
 	"context"
+	"reflect"
+	"slices"
 	"testing"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func TestBuildValidationOptions(testContext *testing.T) {
+	tests := []struct {
+		name       string
+		features   []coreapi.Feature
+		apiVersion metadataapi.APIVersion
+		want       map[string]bool
+	}{
+		{name: "empty", want: map[string]bool{}},
+		{
+			name: "registered features and API version",
+			features: []coreapi.Feature{
+				{Name: ptr.To("EnabledFeature"), State: ptr.To("Registered")},
+				{Name: ptr.To("ENABLEDFEATURE"), State: ptr.To("Registered")},
+				{Name: ptr.To("PendingFeature"), State: ptr.To("Pending")},
+				{Name: ptr.To("UnregisteredFeature")},
+				{State: ptr.To("Registered")},
+				{Name: ptr.To(""), State: ptr.To("Registered")},
+			},
+			apiVersion: metadataapi.APIVersionV20260630Preview,
+			want: map[string]bool{
+				"enabledfeature": true,
+				metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true,
+			},
+		},
+	}
+	for _, test := range tests {
+		testContext.Run(test.name, func(testContext *testing.T) {
+			if got := BuildValidationOptions(test.features, test.apiVersion); !reflect.DeepEqual(got, test.want) {
+				testContext.Errorf("BuildValidationOptions() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestEnabledValidationOptions(testContext *testing.T) {
+	tests := []struct {
+		name       string
+		options    map[string]bool
+		want       []string
+		apiVersion metadataapi.APIVersion
+	}{
+		{name: "nil"},
+		{name: "empty", options: map[string]bool{}},
+		{
+			name: "disabled entries are excluded",
+			options: map[string]bool{
+				"feature": false,
+				metadataapi.APIVersionOption(metadataapi.APIVersionV20240610Preview): false,
+			},
+		},
+		{
+			name: "only enabled entries are included",
+			options: map[string]bool{
+				"feature": true,
+				metadataapi.APIVersionOption(metadataapi.APIVersionV20240610Preview): false,
+				metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true,
+			},
+			want: []string{
+				metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview),
+				"feature",
+			},
+			apiVersion: metadataapi.APIVersionV20260630Preview,
+		},
+	}
+	for _, test := range tests {
+		testContext.Run(test.name, func(testContext *testing.T) {
+			got := EnabledValidationOptions(test.options)
+			if !slices.Equal(got, test.want) {
+				testContext.Errorf("EnabledValidationOptions() = %v, want %v", got, test.want)
+			}
+			if version := metadataapi.APIVersionFromOptions(got); version != test.apiVersion {
+				testContext.Errorf("APIVersionFromOptions() = %q, want %q", version, test.apiVersion)
+			}
+		})
+	}
+}
+
+func TestValidateVersionProfileDisabledOption(testContext *testing.T) {
+	profile := &coreapi.VersionProfile{ID: "4.20.1", ChannelGroup: metadataapi.ChannelGroupNightly}
+	path := field.NewPath("version")
+	missing := validateVersionProfile(testContext.Context(), operation.Operation{Type: operation.Create}, path, profile, nil)
+	disabled := validateVersionProfile(testContext.Context(), operation.Operation{
+		Type:    operation.Create,
+		Options: map[string]bool{metadataapi.FeatureExperimentalReleaseFeatures: false},
+	}, path, profile, nil)
+	if len(missing) == 0 || !reflect.DeepEqual(missing, disabled) {
+		testContext.Errorf("missing and disabled experimental features must reject identically: missing=%v disabled=%v", missing, disabled)
+	}
+	enabled := validateVersionProfile(testContext.Context(), operation.Operation{
+		Type:    operation.Create,
+		Options: map[string]bool{metadataapi.FeatureExperimentalReleaseFeatures: true},
+	}, path, profile, nil)
+	if len(enabled) != 0 {
+		testContext.Errorf("enabled experimental features must allow full nightly versions: %v", enabled)
+	}
+}
 
 func TestValidateSystemData(t *testing.T) {
 	ctx := context.Background()

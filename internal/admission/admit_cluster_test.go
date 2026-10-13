@@ -838,7 +838,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 		oldClusterVersionID          string
 		channelGroup                 string
 		etcd                         coreapi.EtcdProfile
-		options                      []string
+		options                      map[string]bool
 		serviceProviderClusterStatus coreapi.ServiceProviderClusterStatus
 		nodePools                    []*coreapi.NodePool
 		serviceProviderNodePools     []*coreapi.ServiceProviderNodePool
@@ -1182,7 +1182,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			oldClusterVersionID:          "4.22",
 			channelGroup:                 "nightly",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22.0-0.nightly-multi-2026-06-29-132714"),
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
@@ -1193,7 +1193,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change allowed at 4.22",
 			oldClusterVersionID:          "4.22",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22.4"),
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
@@ -1204,7 +1204,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change allowed at 5.0",
 			oldClusterVersionID:          "4.22",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("5.0.1"),
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
@@ -1215,7 +1215,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change blocked at 4.21",
 			oldClusterVersionID:          "4.21",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.5"),
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
@@ -1228,7 +1228,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change allowed during upgrade with lowest >= 4.22.4",
 			oldClusterVersionID:          "4.22",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.23.0", "4.22.4"),
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
@@ -1239,7 +1239,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change blocked during upgrade with lowest < 4.22.0",
 			oldClusterVersionID:          "4.22",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.22.0", "4.21.15"),
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
@@ -1252,7 +1252,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "no error when kms key version unchanged on old cluster",
 			oldClusterVersionID:          "4.21",
 			etcd:                         kmsEtcdProfile("same-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.0"),
 			expectErrors:                 []utils.ExpectedError{},
 		},

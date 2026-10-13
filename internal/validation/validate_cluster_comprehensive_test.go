@@ -35,7 +35,7 @@ import (
 
 // testFeatureOptions creates validation options from feature names,
 // matching production behavior by normalizing to lowercase.
-func testFeatureOptions(names ...string) []string {
+func testFeatureOptions(names ...string) map[string]bool {
 	features := make([]coreapi.Feature, len(names))
 	for i, name := range names {
 		features[i] = coreapi.Feature{
@@ -54,7 +54,7 @@ func TestValidateClusterCreate(t *testing.T) {
 	tests := []struct {
 		name         string
 		cluster      *coreapi.Cluster
-		opOptions    []string
+		opOptions    map[string]bool
 		expectErrors []utils.ExpectedError
 	}{
 		{
@@ -862,7 +862,7 @@ func TestValidateClusterCreate(t *testing.T) {
 		},
 		{
 			name:      "vnet integration subnet is optional in 20240610 - create",
-			opOptions: []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20240610Preview)},
+			opOptions: map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20240610Preview): true},
 			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				// vnetIntegrationSubnetId is optional for backwards compatibility
@@ -1417,7 +1417,7 @@ func TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOper
 		t.Run(tt.name, func(t *testing.T) {
 			op := operation.Operation{
 				Type:    operation.Create,
-				Options: []string{ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption},
+				Options: map[string]bool{ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption: true},
 			}
 			errs := ValidateCluster(ctx, op, tt.cluster, nil, nil)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
@@ -1433,7 +1433,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 		name         string
 		newCluster   *coreapi.Cluster
 		oldCluster   *coreapi.Cluster
-		opOptions    []string
+		opOptions    map[string]bool
 		expectErrors []utils.ExpectedError
 	}{
 		{
@@ -2054,7 +2054,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				}
 				return c
 			}(),
-			opOptions:    []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			opOptions:    map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
@@ -2093,7 +2093,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				}
 				return c
 			}(),
-			opOptions: []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20251223Preview)},
+			opOptions: map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20251223Preview): true},
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
 			},
