@@ -13,9 +13,8 @@ resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRule
     interval: 'PT1M'
     rules: [
       {
-        // Deduplicate HA scrape rates before summing; the recorded value no longer retains the replica label.
         record: 'node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate'
-        expression: 'sum by (cluster, namespace, pod, container) (  max without (prometheus_replica) (irate(container_cpu_usage_seconds_total{job="cadvisor", image!=""}[5m]))) * on (cluster, namespace, pod) group_left(node) topk by (cluster, namespace, pod) (  1, max by(cluster, namespace, pod, node) (kube_pod_info{node!=""}))'
+        expression: 'sum by (cluster, namespace, pod, container) (  irate(container_cpu_usage_seconds_total{job="cadvisor", image!=""}[5m])) * on (cluster, namespace, pod) group_left(node) topk by (cluster, namespace, pod) (  1, max by(cluster, namespace, pod, node) (kube_pod_info{node!=""}))'
       }
       {
         record: 'node_namespace_pod_container:container_memory_working_set_bytes'
