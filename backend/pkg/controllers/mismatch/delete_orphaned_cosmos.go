@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -53,6 +54,7 @@ const (
 )
 
 type deleteOrphanedCosmosResources struct {
+	internalcontrollerutils.CacheSyncWaiter
 	name string
 
 	subscriptionLister      corelisters.SubscriptionLister
@@ -65,6 +67,8 @@ type deleteOrphanedCosmosResources struct {
 	queue workqueue.TypedRateLimitingInterface[string]
 }
 
+const DeleteOrphanedCosmosResourcesControllerName = "DeleteOrphanedCosmosResources"
+
 // NewDeleteOrphanedCosmosResourcesController periodically looks for cosmos objs that don't have an
 // owning cluster and deletes them. The sweep covers two storage layers:
 //
@@ -73,7 +77,7 @@ type deleteOrphanedCosmosResources struct {
 //   - every kube-applier container in the configured KubeApplierDBClients (one container per
 //     management cluster). *Desire documents nest in resourceID space under a cluster or
 //     nodepool; we walk each MC's container and delete any desire whose parent isn't present
-//     in this subscription's resource map.
+//     in this subscription's resource map and is confirmed gone by a point read.
 func NewDeleteOrphanedCosmosResourcesController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
@@ -81,7 +85,7 @@ func NewDeleteOrphanedCosmosResourcesController(
 	managementClusterLister fleetlisters.ManagementClusterLister,
 ) controllerutils.Controller {
 	c := &deleteOrphanedCosmosResources{
-		name:                    "DeleteOrphanedCosmosResources",
+		name:                    DeleteOrphanedCosmosResourcesControllerName,
 		subscriptionLister:      subscriptionLister,
 		managementClusterLister: managementClusterLister,
 		resourcesDBClient:       resourcesDBClient,
@@ -89,7 +93,7 @@ func NewDeleteOrphanedCosmosResourcesController(
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "DeleteOrphanedCosmosResources",
+				Name: DeleteOrphanedCosmosResourcesControllerName,
 			},
 		),
 	}
@@ -198,7 +202,14 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 // sweepOrphanedDesires walks every configured management cluster's kube-applier container
 // for *Desire documents nested under this subscription and deletes any whose parent (the
 // cluster or nodepool the *Desire is scoped to) is no longer present in
-// allSubscriptionResourceIDs.
+// allSubscriptionResourceIDs and is confirmed gone by a point read.
+//
+// allSubscriptionResourceIDs is listed once at the start of the sweep, and the rate-limited
+// resource deletes that run before this function can leave it tens of minutes old by the time
+// desires are listed. Any cluster created in that window has desires but no entry in the map,
+// so a map miss alone does not prove the parent is gone. Deleting a live cluster's desires
+// stops the kube-applier from reconciling them and lets the cluster-deletion teardown chain
+// skip ahead (for example, to namespace deletion before the HostedCluster is finalized).
 //
 // In the per-management-cluster container model, the controller cannot use a single client
 // to span all *Desires — it iterates the management clusters from the lister and looks up
@@ -215,6 +226,11 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 	managementClusters, err := c.managementClusterLister.List(ctx)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("listing management clusters for kube-applier sweep: %w", err))
+	}
+
+	resourcesCRUD, err := c.resourcesDBClient.UntypedCRUD(*subscriptionResourceID)
+	if err != nil {
+		return utils.TrackError(err)
 	}
 
 	errs := []error{}
@@ -267,6 +283,18 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 			ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger)
 
 			if _, parentExists := allSubscriptionResourceIDs[strings.ToLower(desire.ResourceID.Parent.String())]; parentExists {
+				continue
+			}
+
+			// The map can be stale (see the function comment), so re-read the parent before deleting.
+			_, getParentErr := resourcesCRUD.Get(ctxWithLocalLogger, desire.ResourceID.Parent)
+			if getParentErr == nil {
+				localLogger.Info("keeping kube-applier desire whose parent was created after the sweep snapshot")
+				continue
+			}
+			if !cosmosstorageutils.IsNotFoundError(getParentErr) {
+				localLogger.Error(getParentErr, "unable to confirm parent of kube-applier desire is gone")
+				errs = append(errs, utils.TrackError(fmt.Errorf("unable to read parent %v of desire %v: %w", desire.ResourceID.Parent.String(), desireResourceIDString, getParentErr)))
 				continue
 			}
 
@@ -335,6 +363,10 @@ func (c *deleteOrphanedCosmosResources) Run(ctx context.Context, threadiness int
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
 	defer c.queue.ShutDown()
+
+	if !c.WaitForCacheSync(ctx) {
+		return
+	}
 
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx)

@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -38,6 +39,7 @@ import (
 )
 
 type clusterServiceClusterMatching struct {
+	internalcontrollerutils.CacheSyncWaiter
 	name  string
 	clock utilsclock.PassiveClock
 
@@ -50,10 +52,12 @@ type clusterServiceClusterMatching struct {
 	queue workqueue.TypedRateLimitingInterface[string]
 }
 
+const ClusterServiceMatchingClustersControllerName = "ClusterServiceMatchingClusters"
+
 // NewClusterServiceClusterMatchingController periodically looks for mismatched cluster-service and cosmos clusters
 func NewClusterServiceClusterMatchingController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, subscriptionLister corelisters.SubscriptionLister, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.Controller {
 	c := &clusterServiceClusterMatching{
-		name:                 "ClusterServiceMatchingClusters",
+		name:                 ClusterServiceMatchingClustersControllerName,
 		clock:                clock,
 		subscriptionLister:   subscriptionLister,
 		resourcesDBClient:    resourcesDBClient,
@@ -61,7 +65,7 @@ func NewClusterServiceClusterMatchingController(clock utilsclock.PassiveClock, r
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "ClusterServiceMatchingClusters",
+				Name: ClusterServiceMatchingClustersControllerName,
 			},
 		),
 	}
@@ -235,6 +239,10 @@ func (c *clusterServiceClusterMatching) Run(ctx context.Context, threadiness int
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
 	defer c.queue.ShutDown()
+
+	if !c.WaitForCacheSync(ctx) {
+		return
+	}
 
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx)

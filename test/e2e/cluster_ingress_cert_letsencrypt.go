@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 	"time"
 
@@ -631,20 +630,7 @@ func newRoleAssignmentsClient(subscriptionID string, cred azcore.TokenCredential
 }
 
 func applyManifestFromURL(ctx context.Context, dyn dynamic.Interface, mapper meta.RESTMapper, manifestURL string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, manifestURL, nil)
-	if err != nil {
-		return err
-	}
-	httpClient := &http.Client{Timeout: 2 * time.Minute}
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("fetching %s: %w", manifestURL, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GET %s: HTTP %d", manifestURL, resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := framework.DownloadManifest(ctx, manifestURL)
 	if err != nil {
 		return err
 	}

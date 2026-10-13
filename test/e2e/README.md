@@ -20,7 +20,7 @@ Set `clusterParams.DisableSwift = false` explicitly for private API or private
 KMS scenarios, which always require VNet integration. Public SWIFT coverage is
 retained by the OCP-version install table (`2025-12-23-preview`), node-pool
 deletion (`2026-09-01-preview`), cluster/node-pool active versions
-(`2026-10-01-preview`), and the independent HyperShift presubmit test. The install
+(`2026-10-01`), and the independent HyperShift presubmit test. The install
 table covers each available OCP release line; entries without resolvable releases
 skip before creating a cluster. There is not yet a `2026-06-30-preview` creation
 test, and `2024-06-10-preview` cannot express SWIFT networking on creation.
@@ -125,6 +125,19 @@ Or `integration/parallel` test suite:
 $ ./test/aro-hcp-tests run-suite "integration/parallel" --junit-path="junit.xml"
 ```
 
+The `integration/parallel/all` and `stage/parallel/all` suites select the union
+of their fast (`integration/parallel` / `stage/parallel`) and Slow
+(`integration/parallel/slow` / `stage/parallel/slow`) suites. Each retains its
+environment exclusions and runs both Slow-labeled and non-Slow tests in one
+suite:
+
+```bash
+./test/aro-hcp-tests list tests --suite "integration/parallel/all" --output names
+./test/aro-hcp-tests run-suite "integration/parallel/all"
+./test/aro-hcp-tests list tests --suite "stage/parallel/all" --output names
+./test/aro-hcp-tests run-suite "stage/parallel/all"
+```
+
 ### Test cases with per-run cluster
 > **Important**
 > - You can use the `FALLBACK_TO_BICEP` environment variable to populate the e2esetup models and run tests that require e2esetup to be present.
@@ -196,6 +209,30 @@ Set the **CUSTOMER_SUBSCRIPTION** environment variable to the **name** of the Az
 ### Artifact Directory (ARTIFACT_DIR)
 Set the **ARTIFACT_DIR** environment variable to specify the directory where test artifacts and logs will be saved. This is especially useful in CI environments to collect and persist test outputs.
 
+When a versioned `CreateNodePoolFromParam` helper fails during bringup, it gathers
+an Azure failure bundle before returning the original error. Each failure gets
+its own `azure-failure-<nodepool>-<timestamp>-<suffix>/` directory beneath the
+test's artifact directory, including VM console logs. Collection has a single
+five-minute budget independent of the failed provisioning context.
+
+The bundle contains full typed Azure networking objects from the supplied
+customer and managed resource groups: load balancers, NICs, VNets/subnets, NSGs,
+route tables, NAT gateways, public IPs, private endpoints and DNS zone groups,
+and private DNS zones, records and VNet links. Worker NIC effective routes and
+effective NSGs are queried best-effort. VM summaries and instance views exclude
+bootstrap data, extension settings and credential-bearing URLs. Console logs
+and instance views are gathered independently. References outside those two
+resource groups are not followed; no Kubernetes collection or active network
+probe is added.
+
+Start with `manifest.json` for collection times, operation status, errors and
+artifact paths. Successful pages are retained even if later requests fail or
+the deadline expires. Empty results are distinguished from failed or skipped
+operations. Effective-state queries require the NIC diagnostic action
+permissions and may be unavailable during early VM provisioning. This bundle
+captures configuration at failure time, not historical packet delivery or the
+backend selected for an individual connection.
+
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.
 
@@ -214,7 +251,12 @@ which contains all E2E test cases compatible with dev environment.
 ./test/aro-hcp-tests run-suite "rp-api-compat-all/parallel"
 ```
 Or this could be simplified by just running the following make command which would set the required environment variable, build the binary and execute the complete suite against your RP .
+Set the config variables accordingly to run the metrics tests locally.
 ```bash
+export ARO_HCP_CONFIG_FILE="REPOROOT/config/config.yaml"; \
+export CLOUD="dev"; \
+export DEPLOY_ENV="pers"; \
+export REGION="westus3"; \
 make e2e/local
 ```
 
@@ -251,8 +293,8 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
   subscription/location, applies the selector's capability filters, and returns
   a usable SKU. When the selector requires zones, only SKUs with at least one
   non-restricted zone are considered usable. It prefers the selector's ordered
-  `Preferred` list first (so behaviour is unchanged whenever the historical SKU
-  is available), then falls back to a deterministic, sorted pick.
+  `Preferred` list first, then falls back to a deterministic, sorted pick when
+  the selector permits discovery.
 - Use the named selectors for common shapes: `DefaultWorkerVMSizeSelector()`,
   `SmallWorkerVMSizeSelector()`, `JumpboxVMSizeSelector()`,
   `ARM64NodePoolVMSizeSelector()`, `GPUNodePoolVMSizeSelector()`.
@@ -262,9 +304,67 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
   storage account type comes from the shared `DefaultDiskStorageAccountType`
   constant. Set `VMSize` explicitly only to pin a specific size (for example
   negative tests that assert on a specific SKU).
+- General-purpose family policy is an optional `vm_family_policy` field on each
+  pool in [`test/e2e-config/e2e-slots.yaml`](../e2e-config/e2e-slots.yaml). It is
+  scoped to the pool's customer subscription, not just the deployment environment.
+  `worker_families` and `helper_families` are ordered lists of Azure
+  `ResourceSKU.Family` identifiers, not VM names or name patterns.
+  Optional `regions` entries replace the supplied role's pool default; omitted
+  roles inherit it. A role absent from both uses the historical selector.
+- Slot-manager resolves regional overrides against the acquired slot's **runtime
+  region**, including weighted and runtime-selected pools, not the identity
+  provisioning region. It exports the resolved JSON object as
+  `ARO_HCP_E2E_VM_FAMILY_POLICY` in `${SHARED_DIR}/aro-hcp-slot.env`.
+  The suite only parses and applies that object; it does not resolve policy from
+  `ARO_HCP_DEPLOY_ENV` or load another configuration file.
+  The shared policy type/parser and its tests live in
+  [`test/pkg/vmfamily`](../pkg/vmfamily); `e2e-config` contains configuration only.
+- Unconfigured pools export `{}` to clear inherited policy. Explicit empty/null
+  role lists, unknown or duplicate fields, and malformed JSON fail rather than
+  falling back. An explicitly empty environment variable is invalid; unset it
+  or use `{}` for historical behavior.
+- Local, persistent, and upgrade steps already source the runtime contract.
+  With a supplied policy, the suite rejects `LOCATION` when it differs from
+  `SELECTED_LOCATION` (case-insensitive). Choose the desired region at slot
+  acquisition; do not change it after policy resolution.
+- Configured selectors search families in declared order using actual Azure
+  SKU family metadata. Within each family, usable preferred sizes win, then
+  discovery chooses a deterministic sorted size. Workers must remain in the
+  RP allowlist; helpers use Compute directly. Azure location/zone restrictions
+  and capability checks still apply. Configured sizes require x64 and exactly
+  8 vCPUs for default workers, 4 for small workers, and 2 for helpers, preventing
+  discovery from selecting oversized SKUs such as D128. Exhausting configured
+  families returns `ErrNoUsableVMSize` without falling through to other families.
+- The catalog configures **only `int` / `westus3-shard0`**:
+  workers search Dsv6 → Dsv5 → Dasv5, and helpers search Ddsv6 → Ddsv5 → Dadsv5.
+  The exact Azure family identifiers are `StandardDsv6Family`,
+  `standardDSv5Family`, `standardDASv5Family` for workers and
+  `StandardDdsv6Family`, `standardDDSv5Family`, `standardDADSv5Family` for helpers.
+  The first choices are `Standard_D8s_v6`, `Standard_D4s_v6`, and
+  `Standard_D2ds_v6`; later families are considered only when no eligible size
+  in an earlier family is available.
+  INT UK South and all other pools retain historical behavior.
+  Ephemeral OS disk, GPU, Arm64 selectors and explicit pins bypass family
+  selection policy; malformed configuration still fails suite initialization.
+
+Local runs can supply the same resolved override without slot-manager:
+
+```bash
+export ARO_HCP_E2E_VM_FAMILY_POLICY='{"worker_families":["standardDSv5Family"],"helper_families":["standardDDSv5Family"]}'
+./test/aro-hcp-tests run-suite integration/parallel
+```
+
+Keep the usual local subscription, location, and authentication setup. The
+override does not choose a subscription or region, or grant quota.
 
 Only reported **restrictions** are honoured; quota *headroom* (vCPU Usages API)
-is out of scope.
+is out of scope. [ARO-30092](https://redhat.atlassian.net/browse/ARO-30092)
+records 2,000 vCPUs for each configured worker family, 350 for each helper
+family, and a shared 6,950-vCPU regional limit in the target subscription.
+Enabling further families requires checking their quota, total regional quota,
+and workload demand first. Azure SKU metadata and quota approval do not reserve
+physical capacity or guarantee that a later VM allocation succeeds. Ordered
+selection does not retry deployments after allocation or quota failures.
 
 ## Updating E2E Timeouts
 
@@ -273,6 +373,8 @@ Shared timeout constants live in [`test/util/framework/constants.go`](../util/fr
 **When to add a constant:** Use a named constant when the same duration applies to **multiple test cases** (same ARM operation, framework helper, or verifier pattern). **When a literal is fine:** A timeout that is specific to one test and only used once (for example, polling for a CR inside a single `Eventually` block) can stay inline in that test.
 
 Set each shared constant to the **99th percentile** of observed operation duration across environments (int, stage, prod as applicable). When tuning, change only the constant in `constants.go`—do not copy the value into individual tests.
+
+Cluster and node pool update helpers set the experimental `max-update-duration` tag to the supplied timeout minus one minute. When update tags are omitted, the helpers first read the resource's current tags and preserve them while adding the timeout tag. Explicit tag maps keep their replacement semantics. This gives the server time to return pending reasons before the test context expires. The tag requires `ExperimentalReleaseFeatures`; update timeouts must be at least two minutes to allow the minimum one-minute server deadline.
 
 Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENTS.md) for naming conventions.
 

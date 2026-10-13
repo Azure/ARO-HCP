@@ -1,5 +1,8 @@
 using '../modules/cluster-service/cluster-service-lookup.bicep'
 
+param useLeasedInfrastructureIdentities = {{ .infrastructureIdentities.useLeased }}
+param infrastructureIdentityResourceGroup = '{{ .infrastructureIdentities.serviceResourceGroup }}'
+
 param imagePullerMsiName = 'image-puller'
 param csMsiName = '{{ .clustersService.managedIdentityName }}'
 param regionalResourceGroup = '{{ .regionRG }}'

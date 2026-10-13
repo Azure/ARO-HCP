@@ -36,10 +36,13 @@ services:
   pipelinePath: dev-infrastructure/dev-ci/privileged/pipeline.yaml
   purpose: No-op grouping root for the on-demand privileged entrypoint. Owner-only; run manually by an OWNERS-group member.
   children:
+  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionProviders
+    pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-providers/pipeline.yaml
+    purpose: Register required Azure resource providers on all ARO-HCP-managed E2E subscriptions. Provider list is centralised in config/config-dev-ci.yaml under ci.e2eSubscriptionProviders.
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
     pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml
     purpose: Create/reconcile the CI bot Entra applications + service principals and rotate their Key Vault secrets. Involves Entra directory-object writes, so it runs on demand under an OWNERS-group member, not the unattended postsubmit.
     children:
     - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants
       pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml
-      purpose: Manage explicit dev E2E customer-subscription RBAC and shared custom-role assignable scopes, plus the CI bot subscription-scoped RBAC. Runs after the CI bot identities exist. Owner-only; run on demand by an OWNERS-group member.
+      purpose: Manage DEV E2E subscription RBAC and shared custom-role assignable scopes, register Microsoft.CostManagement on DEV E2E and opted-in infrastructure subscriptions, then deploy Cost Management tag inheritance. Runs after the CI bot identities exist. RBAC grants require Owner; tag inheritance requires Cost Management edit permission on each target subscription. Run on demand by an OWNERS-group member with both permissions.

@@ -1,0 +1,54 @@
+{
+  "reason": "change",
+  "session_id": "11111111-1111-1111-1111-111111111111",
+  "sequence": 3,
+  "observed_at": "1970-01-01T00:01:40Z",
+  "emitted_at": "1970-01-01T00:01:41Z",
+  "last_applied_notification": 5,
+  "status": {
+    "available": true
+  },
+  "state": [
+    {
+      "ifindex": 7,
+      "name": "eth1",
+      "parent_bus": "pci",
+      "parent_device": "0001:00:02.0",
+      "master_index": 2,
+      "mtu": 1500,
+      "up": true,
+      "running": true,
+      "lower_up": true,
+      "operstate": 0,
+      "carrier": true
+    }
+  ],
+  "observations": [
+    {
+      "kind": "link_pairing_changed",
+      "ifindex": 7,
+      "fields": [
+        {
+          "field": "master_index",
+          "from": 0,
+          "to": 2
+        }
+      ],
+      "trigger": {
+        "notification": "NEWLINK"
+      },
+      "before": {
+        "ifindex": 7,
+        "name": "eth1",
+        "parent_bus": "pci",
+        "parent_device": "0001:00:02.0",
+        "mtu": 1500,
+        "up": true,
+        "running": true,
+        "lower_up": true,
+        "operstate": 0,
+        "carrier": true
+      }
+    }
+  ]
+}

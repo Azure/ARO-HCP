@@ -91,6 +91,57 @@ func TestIsRetryableBootDiagnosticsError(t *testing.T) {
 	}
 }
 
+func TestSummarizeVirtualMachineInstanceView(t *testing.T) {
+	tests := []struct {
+		name         string
+		instanceView *armcompute.VirtualMachineInstanceView
+		want         string
+	}{
+		{
+			name:         "nil instance view",
+			instanceView: nil,
+			want:         "[]",
+		},
+		{
+			name:         "no statuses",
+			instanceView: &armcompute.VirtualMachineInstanceView{},
+			want:         "[]",
+		},
+		{
+			name: "create failed inside Azure",
+			instanceView: &armcompute.VirtualMachineInstanceView{
+				Statuses: []*armcompute.InstanceViewStatus{
+					{
+						Code:    to.Ptr("ProvisioningState/failed/InternalExecutionError"),
+						Message: to.Ptr("An internal execution error occurred. Please retry later."),
+					},
+				},
+			},
+			want: `[ProvisioningState/failed/InternalExecutionError: "An internal execution error occurred. Please retry later."]`,
+		},
+		{
+			name: "statuses without messages and nil entries",
+			instanceView: &armcompute.VirtualMachineInstanceView{
+				Statuses: []*armcompute.InstanceViewStatus{
+					{Code: to.Ptr("ProvisioningState/succeeded")},
+					nil,
+					{Code: to.Ptr("PowerState/running"), Message: to.Ptr("  ")},
+					{Message: to.Ptr("no code")},
+				},
+			},
+			want: `[ProvisioningState/succeeded, PowerState/running, <no code>: "no code"]`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := summarizeVirtualMachineInstanceView(tc.instanceView); got != tc.want {
+				t.Errorf("summarizeVirtualMachineInstanceView() = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestOutputFromRunCommandInstanceView(t *testing.T) {
 	const (
 		runCommandName = "e2e-runcommand-1"

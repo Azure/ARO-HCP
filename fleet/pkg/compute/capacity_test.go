@@ -16,6 +16,7 @@ package compute
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"testing"
 
@@ -60,6 +61,80 @@ func TestPoolCapacities(t *testing.T) {
 			expected, err := os.ReadFile("testdata/capacity-" + test.name + ".json")
 			require.NoError(t, err)
 			require.Equal(t, string(expected), string(actual)+"\n")
+		})
+	}
+}
+
+func TestCapacityEnsureMeetsBaseline(t *testing.T) {
+	tests := []struct {
+		name     string
+		capacity RoleCapacity
+		missing  bool
+		wantErr  bool
+	}{
+		{name: "equal", capacity: RoleCapacity{100, 800, 40}},
+		{name: "overlap", capacity: RoleCapacity{150, 1200, 60}},
+		{name: "fewer CPUs", capacity: RoleCapacity{99, 900, 50}, wantErr: true},
+		{name: "less memory", capacity: RoleCapacity{110, 799, 50}, wantErr: true},
+		{name: "fewer NICs", capacity: RoleCapacity{110, 900, 39}, wantErr: true},
+		{name: "tier removed", capacity: RoleCapacity{}, wantErr: true},
+		{name: "missing baseline", missing: true, wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			floor := CapacityByRole{PoolRoleSystem: {}, PoolRoleInfra: {}, PoolRoleWorker: {100, 800, 40}}
+			if test.missing {
+				delete(floor, PoolRoleWorker)
+			}
+			actual := CapacityByRole{PoolRoleSystem: {}, PoolRoleInfra: {}, PoolRoleWorker: test.capacity}
+			err := actual.EnsureMeetsBaseline(floor)
+			if test.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestResolveEffectiveFloor(t *testing.T) {
+	tests := []struct {
+		name            string
+		desired         RoleCapacity
+		fullyAllocated  bool
+		missingBaseline bool
+		want            RoleCapacity
+		wantErr         bool
+	}{
+		{name: "full CPU reduction", desired: RoleCapacity{80, 900, 50}, fullyAllocated: true, want: RoleCapacity{80, 800, 40}},
+		{name: "full memory reduction", desired: RoleCapacity{120, 600, 50}, fullyAllocated: true, want: RoleCapacity{100, 600, 40}},
+		{name: "full NIC reduction", desired: RoleCapacity{120, 900, 30}, fullyAllocated: true, want: RoleCapacity{100, 800, 30}},
+		{name: "full role removal", fullyAllocated: true, want: RoleCapacity{}},
+		{name: "full growth keeps baseline", desired: RoleCapacity{120, 900, 50}, fullyAllocated: true, want: RoleCapacity{100, 800, 40}},
+		{name: "partial growth keeps baseline", desired: RoleCapacity{120, 900, 50}, want: RoleCapacity{100, 800, 40}},
+		{name: "partial CPU reduction rejected", desired: RoleCapacity{80, 900, 50}, wantErr: true},
+		{name: "partial memory reduction rejected", desired: RoleCapacity{120, 600, 50}, wantErr: true},
+		{name: "partial NIC reduction rejected", desired: RoleCapacity{120, 900, 30}, wantErr: true},
+		{name: "partial role removal rejected", wantErr: true},
+		{name: "full plan requires every baseline role", fullyAllocated: true, missingBaseline: true, wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			baseline := CapacityByRole{PoolRoleSystem: {4, 16, 0}, PoolRoleInfra: {8, 64, 0}, PoolRoleWorker: {100, 800, 40}}
+			if test.missingBaseline {
+				delete(baseline, PoolRoleWorker)
+			}
+			before := maps.Clone(baseline)
+			desired := CapacityByRole{PoolRoleSystem: {4, 16, 0}, PoolRoleInfra: {8, 64, 0}, PoolRoleWorker: test.desired}
+			floor, err := desired.ResolveEffectiveFloor(baseline, test.fullyAllocated)
+			require.Equal(t, before, baseline, "selecting a floor must not modify the supplied baseline")
+			if test.wantErr {
+				require.Error(t, err)
+				require.Nil(t, floor)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, CapacityByRole{PoolRoleSystem: {4, 16, 0}, PoolRoleInfra: {8, 64, 0}, PoolRoleWorker: test.want}, floor)
 		})
 	}
 }

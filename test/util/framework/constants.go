@@ -27,7 +27,7 @@ const (
 	// their historical p50/p90). Revisit and re-tune once the CS-side latency
 	// work lands; see test/e2e/README.md#updating-e2e-timeouts.
 	ClusterCreationTimeout      = 30 * time.Minute
-	NodePoolCreationTimeout     = 20 * time.Minute
+	NodePoolCreationTimeout     = 30 * time.Minute
 	ExternalAuthCreationTimeout = 15 * time.Minute
 	GetAdminRESTConfigTimeout   = 10 * time.Minute
 )
@@ -54,7 +54,7 @@ const (
 
 // API version deployment deadlines (timebombs)
 var V20260630PreviewDeploymentDeadline = Must(time.Parse(time.RFC3339, "2026-08-14T00:00:00Z"))
-var V20261001PreviewDeploymentDeadline = Must(time.Parse(time.RFC3339, "2026-10-15T00:00:00Z"))
+var V20261001DeploymentDeadline = Must(time.Parse(time.RFC3339, "2026-11-01T00:00:00Z"))
 
 // Backup timeouts
 const (

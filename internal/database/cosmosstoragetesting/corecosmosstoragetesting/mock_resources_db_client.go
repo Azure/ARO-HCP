@@ -15,6 +15,7 @@
 package corecosmosstoragetesting
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -62,6 +63,8 @@ func NewMockResourcesDBClient() *MockResourcesDBClient {
 // SetResourcesGlobalListers sets a custom global listers implementation for testing.
 // This allows tests to provide custom ResourcesGlobalListers that return errors or paginate.
 func (m *MockResourcesDBClient) SetResourcesGlobalListers(globalListers corecosmosstorage.ResourcesGlobalListers) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.globalListers = globalListers
 }
 
@@ -124,6 +127,8 @@ func (m *MockResourcesDBClient) ListMissingResourceID(ctx context.Context, optio
 // type across all partitions. If a custom ResourcesGlobalListers was set via SetResourcesGlobalListers,
 // that is returned instead.
 func (m *MockResourcesDBClient) ResourcesGlobalListers() corecosmosstorage.ResourcesGlobalListers {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.globalListers != nil {
 		return m.globalListers
 	}
@@ -143,17 +148,16 @@ func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourc
 }
 
 // ReadChangeFeed reads the in-memory change-feed log. Each
-// successful StoreDocument call records a snapshot of the document;
-// reads return everything past the position encoded in
-// options.Continuation. Hard deletes are not recorded, which mirrors
+// successful StoreDocument call (including fixture loads) records a snapshot
+// of the document; reads return everything past the position encoded in
+// options.Continuation, or start at options.StartFrom on the initial read.
+// Hard deletes are not recorded, which mirrors
 // "latest version" mode in real Cosmos DB. Soft deletes go through
 // StoreDocument and are therefore recorded.
 func (m *MockResourcesDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
-	var continuation string
-	if options != nil && options.Continuation != nil {
-		continuation = *options.Continuation
-	}
-	items, nextToken, hasNew := m.changeFeed.Read(continuation)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	items, nextToken, hasNew := m.changeFeed.Read(options)
 	return BuildMockChangeFeedResponse(items, nextToken, hasNew), nil
 }
 
@@ -168,9 +172,6 @@ func (m *MockResourcesDBClient) ReadFeedRanges(ctx context.Context, options *azc
 // LoadFromDirectory loads cosmos-record context data from a directory.
 // It reads all JSON files that match the pattern for "load" directories.
 func (m *MockResourcesDBClient) LoadFromDirectory(dirPath string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	return filepath.Walk(dirPath, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -200,7 +201,7 @@ func (m *MockResourcesDBClient) LoadFromDirectory(dirPath string) error {
 
 		// Store the document
 		if len(typedDoc.ID) != 0 {
-			m.documents[strings.ToLower(typedDoc.ID)] = data
+			m.StoreDocument(typedDoc.ID, data)
 		}
 
 		return nil
@@ -220,9 +221,7 @@ func (m *MockResourcesDBClient) LoadContent(ctx context.Context, content []byte)
 		return fmt.Errorf("document is missing ID field")
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.documents[strings.ToLower(typedDoc.ID)] = content
+	m.StoreDocument(typedDoc.ID, content)
 	return nil
 }
 
@@ -248,8 +247,9 @@ func (m *MockResourcesDBClient) ListAllDocuments(ctx context.Context) ([]*cosmos
 // ReadChangeFeed see the mutation.
 func (m *MockResourcesDBClient) StoreDocument(cosmosID string, data json.RawMessage) {
 	m.mu.Lock()
-	m.documents[strings.ToLower(cosmosID)] = data
-	m.mu.Unlock()
+	defer m.mu.Unlock()
+	// Keep storage and feed snapshots in the same order under concurrent writes.
+	m.documents[strings.ToLower(cosmosID)] = bytes.Clone(data)
 	m.changeFeed.Record(data)
 }
 
@@ -258,7 +258,7 @@ func (m *MockResourcesDBClient) GetDocument(cosmosID string) (json.RawMessage, b
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	data, ok := m.documents[strings.ToLower(cosmosID)]
-	return data, ok
+	return bytes.Clone(data), ok
 }
 
 // DeleteDocument removes a document from the mock database.
@@ -305,7 +305,7 @@ func (m *MockResourcesDBClient) ListDocuments(resourceType *azcorearm.ResourceTy
 			}
 		}
 
-		results = append(results, data)
+		results = append(results, bytes.Clone(data))
 	}
 
 	return results
@@ -325,7 +325,7 @@ func (m *MockResourcesDBClient) GetAllDocuments() map[string]json.RawMessage {
 
 	result := make(map[string]json.RawMessage, len(m.documents))
 	for k, v := range m.documents {
-		result[k] = v
+		result[k] = bytes.Clone(v)
 	}
 	return result
 }

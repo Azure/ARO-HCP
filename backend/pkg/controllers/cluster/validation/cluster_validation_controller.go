@@ -35,6 +35,14 @@ import (
 )
 
 const (
+	ClusterValidationContainerRegistryPullCredentialsPermissionValidationControllerName = "ClusterValidationContainerRegistryPullCredentialsPermissionValidation"
+	ClusterValidationDataPlaneIdentitiesPermissionsValidationControllerName             = "ClusterValidationDataPlaneIdentitiesPermissionsValidation"
+	ClusterValidationControlPlaneIdentitiesPermissionsClusterValidationControllerName   = "ClusterValidationControlPlaneIdentitiesPermissionsClusterValidation"
+	ClusterValidationAzureClusterManagedIdentitiesExistenceValidationControllerName     = "ClusterValidationAzureClusterManagedIdentitiesExistenceValidation"
+	ClusterValidationAzureClusterResourceGroupExistenceValidationControllerName         = "ClusterValidationAzureClusterResourceGroupExistenceValidation"
+	ClusterValidationAzureResourceProvidersRegistrationValidationControllerName         = "ClusterValidationAzureResourceProvidersRegistrationValidation"
+	ClusterValidationAzureClusterVnetIntegrationSubnetSizeValidationControllerName      = "ClusterValidationAzureClusterVnetIntegrationSubnetSizeValidation"
+	ClusterValidationAlwaysSuccessValidationControllerName                              = "ClusterValidationAlwaysSuccessValidation"
 	// consecutiveUnknownCountsCacheCapacity bounds the size of the consecutiveUnknownCounts LRU cache.
 	consecutiveUnknownCountsCacheCapacity = 50000
 
@@ -78,6 +86,16 @@ func NewClusterValidationController(
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
+	return NewNamedClusterValidationController(fmt.Sprintf("ClusterValidation%s", validation.Name()), validation, resourcesDBClient, serviceProviderClusterLister, informers)
+}
+
+func NewNamedClusterValidationController(
+	name string,
+	validation validationutils.ClusterValidation,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	informers coreinformers.BackendInformers,
+) controllerutils.Controller {
 
 	syncer := &clusterValidationSyncer{
 		retryCooldownChecker:         controllerutil.NewSettableCooldownChecker(),
@@ -88,7 +106,7 @@ func NewClusterValidationController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		fmt.Sprintf("ClusterValidation%s", validation.Name()),
+		name,
 		resourcesDBClient,
 		informers,
 		nil, // as of now, validations do not depend on ReadDesire content

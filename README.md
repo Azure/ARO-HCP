@@ -7,7 +7,8 @@ Each component is encapsulated in a top-level directory with its own Makefile. A
 
 For a full overview, see the [documentation index](./docs/README.md) and the [high-level architecture](./docs/high-level-architecture.md).
 
-> [!TIP] Make Options
+> [!NOTE] 
+>
 > [Make Options](./docs/make-options.md) describes how to customize the make build e.g. by defining the container engine to be used or limiting parallel jobs.
 
 ## Development setup

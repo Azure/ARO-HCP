@@ -48,6 +48,8 @@ type nodePoolClusterServiceIDClearer struct {
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolClusterServiceIDClearer)(nil)
 
+const NodePoolDeletionClusterServiceIDClearerControllerName = "NodePoolDeletionClusterServiceIDClearer"
+
 func NewNodePoolClusterServiceIDClearerController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -62,7 +64,7 @@ func NewNodePoolClusterServiceIDClearerController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolDeletionClusterServiceIDClearer",
+		NodePoolDeletionClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,

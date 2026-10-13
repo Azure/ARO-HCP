@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -158,9 +159,10 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 
 			syncer := &csStateDump{
-				resourcesDBClient: mockResourcesDBClient,
-				csClient:          mockCSClient,
-				nextDumpChecker:   &alwaysSyncCooldownChecker{},
+				clusterLister:   &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				nodePoolLister:  &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				csClient:        mockCSClient,
+				nextDumpChecker: &alwaysSyncCooldownChecker{},
 			}
 
 			key := controllerutils.HCPClusterKey{

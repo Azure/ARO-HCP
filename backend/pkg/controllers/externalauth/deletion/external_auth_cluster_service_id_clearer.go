@@ -47,6 +47,8 @@ type externalAuthClusterServiceIDClearer struct {
 
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthClusterServiceIDClearer)(nil)
 
+const ExternalAuthDeletionClusterServiceIDClearerControllerName = "ExternalAuthDeletionClusterServiceIDClearer"
+
 func NewExternalAuthClusterServiceIDClearerController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -60,7 +62,7 @@ func NewExternalAuthClusterServiceIDClearerController(
 	}
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthDeletionClusterServiceIDClearer",
+		ExternalAuthDeletionClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,

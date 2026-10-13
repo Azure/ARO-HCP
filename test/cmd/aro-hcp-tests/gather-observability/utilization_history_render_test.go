@@ -50,6 +50,8 @@ func TestRenderResourceHistoryHTML(t *testing.T) {
 	report.History[0].Nodes[0].Name = attack
 	report.History[0].Nodes[0].Pool = attack
 	report.History[0].Nodes[0].SKU = attack
+	partial := 0.0
+	report.History[0].Nodes[0].PartialRequests.CPU = &partial
 	before, err := json.Marshal(report)
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +98,7 @@ func decodeHistoryHTML(t *testing.T, data []byte) utilizationReport {
 		utilizationReport
 		History    []historyHTMLSample              `json:"history"`
 		Metadata   []historyHTMLMetadata            `json:"metadata"`
-		Quantities [][4]utilizationHistoryResources `json:"quantities"`
+		Quantities [][5]utilizationHistoryResources `json:"quantities"`
 		Messages   []string                         `json:"messages"`
 	}
 	if err := json.Unmarshal(data, &compact); err != nil {
@@ -110,7 +112,10 @@ func decodeHistoryHTML(t *testing.T, data []byte) utilizationReport {
 		}
 		for _, pair := range sample.Nodes {
 			m, q := compact.Metadata[pair[0]], compact.Quantities[pair[1]]
-			minute.Nodes = append(minute.Nodes, utilizationHistoryEntry{m.Cluster, m.Name, m.Pool, m.SKU, m.Inventory, m.SwiftAdvertised, q[0], q[1], q[2], q[3]})
+			minute.Nodes = append(minute.Nodes, utilizationHistoryEntry{
+				Cluster: m.Cluster, Name: m.Name, Pool: m.Pool, SKU: m.SKU, Inventory: m.Inventory, SwiftAdvertised: m.SwiftAdvertised,
+				Capacity: q[0], Allocatable: q[1], Usage: q[2], Requests: q[3], PartialRequests: q[4],
+			})
 		}
 		for _, index := range sample.Warnings {
 			minute.Warnings = append(minute.Warnings, compact.Messages[index])
@@ -155,6 +160,14 @@ func TestRenderResourceHistoryValidation(t *testing.T) {
 		{"infinite memory", func(r *utilizationReport) { *r.History[0].Nodes[0].Allocatable.Memory = math.Inf(1) }, "finite"},
 		{"NaN usage", func(r *utilizationReport) { *r.History[0].Nodes[0].Usage.CPU = math.NaN() }, "finite"},
 		{"negative requests", func(r *utilizationReport) { *r.History[0].Nodes[1].Requests.SwiftNIC = -1 }, "nonnegative"},
+		{"negative partial requests", func(r *utilizationReport) {
+			value := -1.0
+			r.History[0].Nodes[0].PartialRequests.CPU = &value
+		}, "nonnegative"},
+		{"infinite partial requests", func(r *utilizationReport) {
+			value := math.Inf(1)
+			r.History[0].Nodes[0].PartialRequests.Memory = &value
+		}, "finite"},
 		{"NIC usage", func(r *utilizationReport) {
 			r.History[0].Nodes[1].Usage.SwiftNIC = r.History[0].Nodes[1].Capacity.SwiftNIC
 		}, "no usage"},
@@ -251,7 +264,7 @@ func TestRenderResourceHistoryBrowser(t *testing.T) {
   zero.nodes[0].allocatable.cpu = 1; zero.nodes[0].requests.cpu = 2;
   check(aggregate(zero, 'cpu', svc).estimate === -1, 'negative estimate not clamped into misleading availability');
   check(!$('history-content').hidden && resources.every(r => $('chart-' + r).hidden), 'unloaded charts have no empty chart space');
-  check(!document.querySelector('details, table, textarea') && !$('samples') && !$('coverage-cpu'), 'graphs only: no coverage, samples or measurement sections');
+  check($('history-details') && !document.querySelector('table, textarea') && !$('samples') && !$('coverage-cpu'), 'graphs and collapsed diagnostics only, no sample tables');
   check(!window.injected && !document.querySelector('img'), 'saved diagnostics never execute HTML');
   check(document.documentElement.scrollWidth <= window.innerWidth, 'mobile has no page overflow');
   const choose = (id, value) => { $(id).value = value; $(id).onchange(); };
@@ -276,10 +289,11 @@ func TestRenderResourceHistoryBrowser(t *testing.T) {
   check(resources.every(resource => option(resource).xAxis[0].axisLabel.hideOverlap === true), 'time axes suppress overlapping labels on narrow viewports');
   check(option('cpu').series.every(series => series.connectNulls === false && series.smooth === false), 'no null interpolation or smooth usage');
   check(resources.every(resource => option(resource).legend[0].show && option(resource).legend[0].icon === 'rect'), 'legends always visible without circular icons');
-  check(resources.every(resource => option(resource).series.every(series => series.showSymbol === false && series.symbol === 'none' && series.triggerLineEvent)), 'lines only with hover enabled');
+  check(resources.every(resource => option(resource).series.filter(series => series.id !== 'partialRequests').every(series => series.showSymbol === false && series.symbol === 'none' && series.triggerLineEvent)), 'complete lines only with hover enabled');
+  check(resources.every(resource => option(resource).series.find(series => series.id === 'partialRequests').showSymbol), 'partial lines retain visible isolated samples');
   check(option('cpu').series.find(series => series.id === 'usage').step === false && option('cpu').series.find(series => series.id === 'requests').step === 'end', 'straight usage and step requests');
   check(option('memory').series[0].data[0][1] === 112, 'memory chart uses GiB');
-  check(option('swiftNIC').series.length === 3, 'three NIC lines, never usage');
+  check(option('swiftNIC').series.length === 4, 'four NIC lines including partial requests, never usage');
   const tip = tooltip('cpu', 0, 'requests');
   check(tip.textContent.includes('Requests:') && tip.textContent.includes('UTC') && !tip.textContent.includes('Capacity') && !tip.textContent.includes('estimate') && !tip.textContent.includes('nodes'), 'tooltip contains only hovered series value and UTC');
   check(option('cpu').tooltip[0].trigger === 'item', 'only hovered item triggers tooltip');
@@ -330,6 +344,211 @@ func TestRenderResourceHistoryBrowserRequestsWithoutAdvertisement(t *testing.T) 
 	}
 }
 
+func TestRenderResourceHistoryBrowserPartialRequests(t *testing.T) {
+	r := resourceHistoryFixture(t)
+	node := &r.History[0].Nodes[1]
+	cpu, memory, swift := 1.5, 3.0*1073741824, 2.0
+	node.PartialRequests = utilizationHistoryResources{CPU: &cpu, Memory: &memory, SwiftNIC: &swift}
+	node.Requests = utilizationHistoryResources{}
+	node.Pool = "partial"
+	// Complete measurements win even if partial evidence is also present.
+	r.History[0].Nodes[2].PartialRequests = node.PartialRequests
+	checkResourceHistoryBrowser(t, r, `
+  const fleet = {cluster: '', pool: '', node: ''};
+  const mgmt = {...fleet, cluster: 'synthetic-mgmt'};
+  const old = {...mgmt, node: JSON.stringify(['synthetic-mgmt', 'mgmt-old'])};
+  const healthy = {...mgmt, node: JSON.stringify(['synthetic-mgmt', 'mgmt-b'])};
+  const choose = (id, value) => { $(id).value = value; $(id).onchange(); };
+  const expected = {cpu: 11.5, memory: 43 * 1073741824, swiftNIC: 6};
+  for (const resource of resources) {
+    const a = aggregate(history[0], resource, fleet);
+    check(a.lines.requests.value === null && a.lines.partialRequests.value === expected[resource], 'complete plus partial ' + resource + ' without double counting');
+    check(a.lines.partialRequests.complete === 2 && a.lines.partialRequests.count === 3, 'complete and observed request counts');
+    check(a.lines.partialRequests.percent === 100 * expected[resource] / a.lines.capacity.value, 'partial percentage uses complete capacity');
+    const n = aggregate(history[0], resource, healthy);
+    const p = aggregate(history[0], resource, {...mgmt, pool: JSON.stringify('hcp')});
+    check(known(n.lines.requests.value) && n.lines.partialRequests.value === null && p.lines.requests.value === n.lines.requests.value && p.lines.partialRequests.value === null, 'healthy node and pool unaffected by other partial nodes');
+  }
+  const absent = JSON.parse(JSON.stringify(history[0]));
+  for (const n of absent.nodes) { n.requests = {}; n.partialRequests = {}; }
+  for (const resource of resources) {
+    const a = aggregate(absent, resource, fleet);
+    check(a.lines.requests.value === null && a.lines.partialRequests.value === null, 'no invented zero without request evidence');
+  }
+  absent.nodes[1].partialRequests = {cpu: 0, memory: 0, swiftNIC: 0};
+  for (const resource of resources) {
+    const a = aggregate(absent, resource, fleet);
+    check(a.lines.partialRequests.value === 0 && a.lines.partialRequests.count === 1 && a.lines.partialRequests.percent === 0, 'observed zero lower bound remains evidence');
+  }
+  const ambiguous = JSON.parse(JSON.stringify(history[0])); ambiguous.nodes[1].pool = '';
+  const pool = aggregate(ambiguous, 'cpu', {...mgmt, pool: JSON.stringify('hcp')});
+  check(pool.lines.requests.value === null && pool.lines.partialRequests.value === 8, 'ambiguous pool blocks complete total but is excluded from partial sum');
+  check(aggregate(ambiguous, 'cpu', mgmt).lines.partialRequests.value === 9.5, 'all pools retain known nodes with ambiguous labels');
+  const missing = JSON.parse(JSON.stringify(history[0])); missing.expected = ['synthetic-svc'];
+  for (const resource of resources) {
+    const a = aggregate(missing, resource, fleet);
+    check(a.lines.partialRequests.value === expected[resource] && a.lines.partialRequests.percent === null, 'missing cluster preserves observed demand, never fabricates denominator');
+  }
+  missing.nodes[1].inventory = false;
+  check(aggregate(missing, 'cpu', old).lines.partialRequests.value === 1.5, 'missing node inventory retains confidently scoped observed demand');
+  check(aggregate(missing, 'cpu', {...mgmt, pool: JSON.stringify('partial')}).lines.partialRequests.value === 1.5, 'missing inventory retains observed demand with confident pool labels');
+  missing.nodes = missing.nodes.filter(n => n.cluster === 'synthetic-svc');
+  check(aggregate(missing, 'cpu', fleet).lines.partialRequests.value === 2, 'missing cluster downgrades complete observed nodes to lower bound');
+  const zeroCapacity = JSON.parse(JSON.stringify(history[0])); zeroCapacity.nodes[1].capacity.cpu = 0;
+  check(aggregate(zeroCapacity, 'cpu', old).lines.partialRequests.percent === null, 'zero capacity cannot yield lower-bound percentage');
+  zeroCapacity.nodes[1].swiftAdvertised = null;
+  check(aggregate(zeroCapacity, 'swiftNIC', old).lines.partialRequests.value === 2 && aggregate(zeroCapacity, 'swiftNIC', old).lines.partialRequests.percent === null, 'partial assigned SWIFT requests survive unknown advertisement without percentage');
+  choose('cluster', 'synthetic-mgmt'); choose('node', old.node);
+  check(aggregates.cpu[0].lines.partialRequests.value === 1.5, 'partialRequests decoded from fifth quantity');
+  check($('history-summary').textContent.includes('1 partial / 3 missing request minutes of 5'), 'summary counts scoped partial and missing request minutes');
+  const tip = tooltip('cpu', 0, 'partialRequests').textContent;
+  check(tip.includes('lower bound') && tip.includes('0 complete / 1 observed') && tip.includes('Missing demand is unknown'), 'partial tooltip explains incomplete demand and node evidence');
+  startCharts();
+  for (const resource of resources) {
+    const series = charts[resource].getOption().series.find(s => s.id === 'partialRequests');
+    check(series.data.filter(point => known(point[1])).length === 1 && known(series.data[0][1]), 'single partial sample retained');
+    check(series.showSymbol && series.showAllSymbol && series.symbol === 'circle' && series.symbolSize >= 6 && series.lineStyle.type === 'dashed' && series.lineStyle.color === '#f0883e', 'isolated lower-bound sample is visible, orange and dashed');
+    check(series.connectNulls === false && series.data[1][1] === null && series.data[2][1] === null, 'partial series never bridges complete or absent minutes');
+    if (window.cachedECharts) {
+      const model = charts[resource].getModel().getSeries().find(s => s.id === 'partialRequests');
+      check(model.getData().getItemGraphicEl(0), 'real ECharts creates a visible symbol for the isolated sample');
+    }
+  }
+  const ids = charts.cpu.getOption().series.map(s => s.id).join(',');
+  choose('node', healthy.node);
+  check(charts.cpu.getOption().series.map(s => s.id).join(',') === ids && aggregates.cpu[0].lines.partialRequests.value === null, 'complete scope keeps stable empty partial series');
+  choose('node', old.node); choose('display', 'percent');
+  check(charts.cpu.getOption().series.find(s => s.id === 'partialRequests').data[0][1] === 18.75, 'chart plots partial requests as percent of complete capacity');
+`)
+}
+
+func TestRenderResourceHistoryBrowserDenseChart(t *testing.T) {
+	if os.Getenv("UTILIZATION_ECHARTS_JS") == "" {
+		t.Skip("set UTILIZATION_ECHARTS_JS for real chart geometry and hover regression")
+	}
+	r := resourceHistoryFixture(t)
+	node := r.History[0].Nodes[1]
+	r.History = nil
+	r.Clusters = []string{node.Cluster}
+	for i := range 77 {
+		n := node
+		n.Requests = utilizationHistoryResources{}
+		if i == 38 {
+			n.PartialRequests = node.Requests
+		}
+		r.History = append(r.History, utilizationHistorySample{Time: r.Start.Add(time.Duration(i) * time.Minute), Expected: r.Clusters, Nodes: []utilizationHistoryEntry{n}})
+	}
+	r.End = r.History[len(r.History)-1].Time
+	checkResourceHistoryBrowser(t, r, `
+  const hover = {}, init = window.cachedECharts.init;
+  window.cachedECharts.init = (dom, ...args) => {
+    const chart = init(dom, ...args), on = chart.on.bind(chart);
+    chart.on = (name, ...args) => {
+      if (name === 'mousemove') hover[dom.id] = args[args.length - 1];
+      return on(name, ...args);
+    };
+    return chart;
+  };
+  startCharts(); window.cachedECharts.init = init;
+  const rect = element => { const bounds = element.getBoundingRect().clone(); bounds.applyTransform(element.getComputedTransform()); return bounds; };
+  const checkLayout = resource => {
+    const chart = charts[resource], option = chart.getOption(), model = chart.getModel();
+    const narrow = chart.getWidth() < 600;
+    check(option.legend[0].type === 'plain', 'legend never hides partial requests behind scroll pages');
+    check(option.xAxis[0].splitNumber === (narrow ? 4 : 6), 'tick density matches chart width');
+    check(option.xAxis[0].axisLabel.formatter(timestamps[0]) === utc(timestamps[0]).slice(narrow ? 11 : 5, 16), 'narrow chart labels use only HH:mm');
+    const legendView = chart.getViewOfComponentModel(model.getComponent('legend')), entries = [];
+    legendView.group.traverse(element => {
+      if (element.type === 'text' && resourceFields(resource).some(field => labels[field] === element.style.text)) entries.push(rect(element));
+    });
+    check(entries.length === resourceFields(resource).length, 'every legend label including lower bound rendered');
+    const gridTop = model.getComponent('grid').coordinateSystem.getRect().y;
+    check(entries.every(r => r.x >= 0 && r.x + r.width <= chart.getWidth() && r.y >= 0 && r.y + r.height < gridTop - 15), 'legend fits chart and stays clear of plot and axis title');
+    check(new Set(entries.map(r => Math.round(r.y))).size === (narrow ? 3 : 1), 'legend wraps on narrow charts and stays one row on desktop: ' + resource + ' width=' + chart.getWidth() + ' rows=' + entries.map(r => Math.round(r.y)));
+    const axisView = chart.getViewOfComponentModel(model.getComponent('xAxis')), ticks = [];
+    axisView.group.traverse(element => {
+      if (element.type === 'text' && !element.ignore && !element.invisible && element.style.text) ticks.push(rect(element));
+    });
+    ticks.sort((a, b) => a.x - b.x);
+    check(ticks.length >= 2, 'time axis retains useful labels');
+    check(ticks.every((r, i) => !i || ticks[i - 1].x + ticks[i - 1].width + 2 <= r.x), 'rendered time labels do not overlap or concatenate');
+  };
+  resources.forEach(checkLayout);
+  const chart = charts.cpu, dom = $('chart-cpu'), originalWidth = dom.style.width;
+  dom.style.width = '300px'; window.dispatchEvent(new Event('resize'));
+  checkLayout('cpu');
+  const seriesIndex = chart.getOption().series.findIndex(s => s.id === 'partialRequests');
+  const point = chart.convertToPixel({seriesIndex}, [timestamps[38], aggregates.cpu[38].lines.partialRequests.value]);
+  const event = {seriesIndex, dataIndex: 38, event: {offsetX: point[0] + 2.9, offsetY: point[1]}};
+  check(chart.convertFromPixel({xAxisIndex: 0}, event.event.offsetX) > timestamps[38] + 30000 && aggregates.cpu[39].lines.partialRequests.value === null, '6px symbol edge is nearer adjacent null minute on dense chart');
+  const convert = chart.convertFromPixel.bind(chart), dispatch = chart.dispatchAction.bind(chart);
+  let action, coordinateLookups = 0;
+  chart.convertFromPixel = (...args) => { coordinateLookups++; return convert(...args); };
+  chart.dispatchAction = value => { action = value; return dispatch(value); };
+  hover['chart-cpu'](event);
+  check(coordinateLookups === 0 && action.type === 'showTip', 'symbol hover uses dataIndex instead of nearest minute and keeps tooltip visible');
+  check(action.tooltip.formatter().textContent.includes(timeLabels[38]) && action.tooltip.formatter().textContent.includes('Partial requests (lower bound): 4 cores'), 'edge hover displays the actual partial sample');
+  delete event.dataIndex;
+  hover['chart-cpu'](event);
+  check(coordinateLookups === 1 && action.type === 'hideTip', 'line-only hover still resolves coordinates and respects null gaps');
+  dom.style.width = originalWidth; window.dispatchEvent(new Event('resize'));
+  resources.forEach(checkLayout);
+`)
+}
+
+func TestRenderResourceHistoryBrowserWarnings(t *testing.T) {
+	r := resourceHistoryFixture(t)
+	attack := `</script><img src=x onerror="window.injected=true">` + strings.Repeat("long-warning", 100)
+	r.Warnings = []string{"Global collection warning", "Global collection warning", attack, "synthetic-mgmt/mgmt-old: report node warning", "synthetic-svc/svc-a: report service warning"}
+	for _, cluster := range r.Clusters {
+		for _, resource := range []string{"CPU", "memory"} {
+			r.Warnings = append(r.Warnings, cluster+" "+resource+" peak: incomplete history at 3 minute(s); these minutes were excluded")
+		}
+	}
+	for i := range r.History {
+		r.History[i].Warnings = []string{
+			"synthetic-mgmt: cluster-wide warning",
+			"synthetic-svc/svc-a: service node warning",
+			"synthetic-mgmt/mgmt-old: old node warning",
+			"Unidentified global warning",
+		}
+		if i == 0 || i == 1 || i == 3 {
+			r.History[i].Warnings = append(r.History[i].Warnings, "synthetic-mgmt/mgmt-b: repeated warning", "synthetic-mgmt/mgmt-b: repeated warning")
+		}
+	}
+	checkResourceHistoryBrowser(t, r, `
+  const choose = (id, value) => { $(id).value = value; $(id).onchange(); };
+  const details = $('history-details'), host = $('history-warnings');
+  check(!details.open && host.childElementCount === 0, 'warnings collapsed and no eager warning DOM');
+  check(history[0].warnings.includes('synthetic-mgmt/mgmt-b: repeated warning') && !('messages' in report), 'warning indices decoded before intern table discarded');
+  choose('cluster', 'synthetic-mgmt'); choose('pool', JSON.stringify('hcp'));
+  check(host.childElementCount === 0, 'closed scope changes do not build warning DOM');
+  details.open = true; details.dispatchEvent(new Event('toggle'));
+  let repeated = [...host.children].filter(p => p.textContent.startsWith('synthetic-mgmt/mgmt-b: repeated warning'));
+  check(repeated.length === 1 && repeated[0].textContent.includes(timeLabels[0]) && !repeated[0].textContent.includes(timeLabels[1]), 'pool warning filtering uses minute-local membership');
+  check(host.textContent.includes('cluster-wide warning') && host.textContent.includes('Unidentified global warning') && !host.textContent.includes('service node warning'), 'cluster and global warnings retained, other cluster removed');
+  choose('pool', ''); choose('node', JSON.stringify(['synthetic-mgmt', 'mgmt-b']));
+  repeated = [...host.children].filter(p => p.textContent.startsWith('synthetic-mgmt/mgmt-b: repeated warning'));
+  check(repeated.length === 1 && repeated[0].textContent.includes(timeLabels[0] + ' to ' + timeLabels[1] + '; ' + timeLabels[3]), 'duplicate warnings coalesce inclusive contiguous minutes but never disjoint intervals');
+  check(!host.textContent.includes('old node warning') && !host.textContent.includes('report node warning') && !host.textContent.includes('report service warning') && host.textContent.includes('cluster-wide warning'), 'open node selection refreshes sample and report warning scope');
+  for (const resource of ['CPU', 'memory']) {
+    check(host.textContent.includes('synthetic-mgmt ' + resource + ' peak: incomplete history at 3 minute(s); these minutes were excluded') && !host.textContent.includes('synthetic-svc ' + resource + ' peak:'), 'actual producer peak warning is cluster-scoped even for node selection');
+  }
+  check([...host.children].filter(p => p.textContent.startsWith('Global collection warning')).length === 1, 'global warnings deduplicated');
+  check(host.textContent.includes('<img') && !window.injected && !document.querySelector('img'), 'warning text cannot inject HTML');
+  check(document.documentElement.scrollWidth <= window.innerWidth && host.scrollWidth <= host.clientWidth, 'long diagnostics do not overflow mobile or desktop');
+  choose('cluster', 'synthetic-svc');
+  check(host.textContent.includes('synthetic-svc CPU peak:') && !host.textContent.includes('synthetic-mgmt CPU peak:'), 'peak diagnostics switch with selected cluster');
+  choose('cluster', '');
+  check(host.textContent.includes('synthetic-svc memory peak:') && host.textContent.includes('synthetic-mgmt memory peak:'), 'fleet keeps both clusters peak diagnostics');
+  choose('cluster', 'synthetic-mgmt');
+  details.open = false; details.dispatchEvent(new Event('toggle'));
+  check(host.childElementCount === 0, 'closing diagnostics releases warning DOM');
+  choose('node', JSON.stringify(['synthetic-mgmt', 'mgmt-old']));
+  check(!details.open && host.childElementCount === 0, 'scope changes keep diagnostics collapsed');
+`)
+}
+
 func TestRenderResourceHistoryBrowserLabels(t *testing.T) {
 	r := resourceHistoryFixture(t)
 	attack := `</script><img src=x onerror="window.injected=true">`
@@ -358,6 +577,8 @@ func largeResourceHistoryFixture(t *testing.T) utilizationReport {
 	t.Helper()
 	r := resourceHistoryFixture(t)
 	source := r.History
+	source[0].Nodes[1].PartialRequests = source[0].Nodes[1].Requests
+	source[0].Nodes[1].Requests = utilizationHistoryResources{}
 	r.History = nil
 	for i := range 361 {
 		minute := source[i%len(source)]
@@ -407,7 +628,7 @@ func TestRenderResourceHistoryCompact(t *testing.T) {
 		for i := range r.History {
 			for j := range r.History[i].Nodes {
 				node := &r.History[i].Nodes[j]
-				for k, field := range []*utilizationHistoryResources{&node.Capacity, &node.Allocatable, &node.Usage, &node.Requests} {
+				for k, field := range []*utilizationHistoryResources{&node.Capacity, &node.Allocatable, &node.Usage, &node.Requests, &node.PartialRequests} {
 					value := values[(i+j+k)%len(values)]
 					*field = utilizationHistoryResources{CPU: &value, Memory: nil, SwiftNIC: nil}
 				}
@@ -470,6 +691,7 @@ const historyPerformanceAssertions = `
   const choose = (id, value) => { $(id).value = value; $(id).onchange(); };
   check(history.length > 12, 'large test requires substantial history');
   check(!$('samples'), 'no sample-table DOM for large history');
+  check(!$('history-details').open && $('history-warnings').childElementCount === 0, 'large history does not eagerly build diagnostics');
   const scans = aggregate;
   let calls = 0;
   aggregate = (...args) => { calls++; return scans(...args); };
@@ -496,11 +718,14 @@ const historyPerformanceAssertions = `
     }
   }
   choose('cluster', $('cluster').options[1].value);
+  $('history-details').open = true; $('history-details').dispatchEvent(new Event('toggle'));
   choose('pool', $('pool').options[1].value);
   const poolOption = $('pool').options[1], nodeOption = $('node').options[1];
   forbidClusterReads = true;
   choose('node', nodeOption.value);
+  $('history-details').dispatchEvent(new Event('toggle'));
   check($('pool').options[1] === poolOption && $('node').options[1] === nodeOption, 'node-only selection does not rebuild selectors');
+  $('history-details').open = false; $('history-details').dispatchEvent(new Event('toggle'));
   forbidFleetReads = false; forbidClusterReads = false;
   const selectedNode = scope.node;
   for (let i = 0; i < history.length; i++) {
@@ -513,13 +738,16 @@ const historyPerformanceAssertions = `
   for (let i = 0; i < history.length; i++) for (const resource of resources) {
     const sample = history[i], nodes = sample.nodes;
     const missingCluster = report.clusters.some(cluster => !list(sample.expected).includes(cluster) || !nodes.some(node => node.cluster === cluster && node.inventory));
-    for (const field of resourceFields(resource)) {
+    for (const field of resourceFields(resource).filter(field => field !== 'partialRequests')) {
       const advertised = resource === 'swiftNIC' && field !== 'requests';
       const relevant = nodes.filter(node => !advertised || node.swiftAdvertised !== false);
       const complete = !missingCluster && nodes.every(node => node.inventory) && relevant.length > 0 && relevant.every(node => (!advertised || node.swiftAdvertised === true) && known(node[field][resource]));
       const expected = complete ? relevant.reduce((sum, node) => sum + node[field][resource], 0) : null;
       check(aggregates[resource][i].lines[field].value === expected, 'independent exact fleet sum and gap check');
     }
+    const observed = nodes.filter(node => known(node.requests[resource]) || known(node.partialRequests?.[resource]));
+    const expectedPartial = !known(aggregates[resource][i].lines.requests.value) && observed.length ? observed.reduce((sum, node) => sum + (known(node.requests[resource]) ? node.requests[resource] : node.partialRequests[resource]), 0) : null;
+    check(aggregates[resource][i].lines.partialRequests.value === expectedPartial, 'independent lower bound uses complete or partial per node, including observed zero');
   }
   Date.parse = originalDates;
   // Guard only our option preparation, including initial chart creation and

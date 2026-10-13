@@ -70,7 +70,7 @@ resourceGroups:
 ```
 
 1. `name`: An identifier for the step that is unique within the entire pipeline file.
-2. `action`: The type of step being executed. This can be an ARM step, a shell step, or any other supported step type (see [Step Types](#step-types)).
+2. `action`: The type of step being executed. This can be an ARM step, a Shell step, an IstioUpgrade step, or any other supported step type (see [Step Types](#step-types)).
 3. `dependsOn`: An optional list of other step names that must complete successfully before this step is executed. Dependencies must be cycle-free to ensure a valid execution order.
 4. Step type specific properties that define the behavior of the step.
 
@@ -108,13 +108,13 @@ Execute shell commands or scripts within the pipeline environment. Shell steps a
 ```yaml
   ...
   steps:
-  - name: upgrade-istio
+  - name: deploy-component
     action: Shell                                       (1)
     command: make deploy                                (2)
     workingDir: ./component                             (3)
     variables:                                          (4)
-    - name: TARGET_VERSION                              (5)
-      configRef: svc.istio.targetVersion                (6)
+    - name: COMPONENT_VERSION                           (5)
+      configRef: defaults.someComponent.version         (6)
     - name: RETRIES
       value: 5                                          (7)
 ```
@@ -209,6 +209,42 @@ The Helm step uses a **content-addressed cache** to skip execution when the char
 
 > [!NOTE]
 > See also [service-deployment-concept.md#helm-chart](service-deployment-concept.md#helm-chart)
+
+#### IstioUpgrade Step
+
+Used on the service cluster to reconcile AKS-managed Istio mesh revisions from configuration. The step runs the `istio-upgrade` Go tool (from ARO-Tools) via the pipeline runner in [tooling/templatize/pkg/pipeline/istio.go](../tooling/templatize/pkg/pipeline/istio.go). It reads `svc.istio.versions`, `svc.istio.tag`, and `svc.istio.ingressGatewayIPAddressName` from the rendered configuration.
+
+```yaml
+  ...
+  steps:
+  - name: istio-upgrade
+    action: IstioUpgrade                                (1)
+    aksCluster:
+      configRef: svc.aks.name                           (2)
+    timeout: 60m                                        (3)
+    dependsOn:
+    - resourceGroup: service
+      step: prometheus
+    identityFrom:                                         (4)
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:                                     (5)
+      errorContainsAny:
+      - "control plane unhealthy"
+      - "retiring revision would orphan workloads"
+      - "ingress gateway unhealthy"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
+```
+
+1. `action: IstioUpgrade` marks the step as an Istio mesh upgrade step.
+2. `aksCluster`: The service cluster to upgrade. Resolved from configuration at runtime.
+3. `timeout`: Optional. Maximum time for the full upgrade operation. Defaults to the pipeline runner context when unset.
+4. `identityFrom`: Managed identity used for AKS and cluster API access during the upgrade.
+5. `automatedRetry`: Optional retry configuration for transient mesh health failures.
+
+See [Istio usage](istio.md#mesh-management-with-revisions) for the configuration and rollout workflow. Istio mesh upgrades are not performed via Shell steps.
 
 ### Automated Retry
 

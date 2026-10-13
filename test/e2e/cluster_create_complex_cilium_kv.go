@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
 
@@ -181,20 +180,9 @@ var _ = Describe("Customer", func() {
 				framework.NodePoolCreationTimeout,
 			)
 			// We delay checking the error on purpose to get more details
-			// about the issue by running the verifiers.
-
-			var consoleLogErr error = nil
-			if nodePoolErr != nil {
-				var computeFactory *armcompute.ClientFactory
-				computeFactory, consoleLogErr = tc.GetARMComputeClientFactory(ctx)
-				if consoleLogErr == nil {
-					consoleLogErr = framework.DownloadAllVirtualMachineConsoleLogs(
-						ctx,
-						computeFactory,
-						clusterParams.ManagedResourceGroupName,
-						tc.LogDirPath)
-				}
-			}
+			// about the issue by running the verifiers. On failure,
+			// CreateNodePoolFromParam20251223 has already saved the worker
+			// VM console logs (or instance views) to the test artifacts.
 
 			By("allowing DNS pods to reach the kube-apiserver-proxy via CiliumNetworkPolicy (OCP >= 4.22 only)")
 			cnpErr := framework.EnsureDNSAllowHostAPIServerCiliumNetworkPolicy(ctx, adminRESTConfig, framework.NodePoolCreationTimeout)
@@ -202,7 +190,7 @@ var _ = Describe("Customer", func() {
 
 			By("verifying nodes become Ready with Cilium CNI")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational("kube-system", "k8s-app=cilium"))
-			Expect(errors.Join(err, nodePoolErr, consoleLogErr)).NotTo(HaveOccurred(), "failed to verify nodes are Ready with Cilium CNI for cluster %q", customerClusterName)
+			Expect(errors.Join(err, nodePoolErr)).NotTo(HaveOccurred(), "failed to verify nodes are Ready with Cilium CNI for cluster %q", customerClusterName)
 
 			By("checking that network works via a simple web app and connectivity checks")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifySimpleWebApp(), verifiers.VerifyCiliumConnectivityChecks("1.19.2"))

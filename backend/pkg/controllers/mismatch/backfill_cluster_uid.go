@@ -41,6 +41,8 @@ type backfillClusterUID struct {
 	billingDBClient   billingcosmosstorage.BillingDBClient
 }
 
+const BackfillClusterUIDControllerName = "BackfillClusterUID"
+
 // NewBackfillClusterUIDController creates a controller that populates ClusterUID
 // for existing clusters that don't have it set.
 func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, billingDBClient billingcosmosstorage.BillingDBClient, clusterLister corelisters.ClusterLister) controllerutils.ClusterSyncer {

@@ -201,7 +201,7 @@ func (o *CompletedOptions) Run(ctx context.Context) error {
 		Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Second,
 		WriteTimeout: 10 * time.Second, IdleTimeout: 15 * time.Second, MaxHeaderBytes: 16 * 1024,
 	}
-	errorsCh := make(chan error, 3)
+	errorsCh := make(chan error, 4)
 	var wg sync.WaitGroup
 	start := func(run func() error) {
 		wg.Add(1)
@@ -211,6 +211,10 @@ func (o *CompletedOptions) Run(ctx context.Context) error {
 	start(func() error { return o.controller.Run(ctx) })
 	start(func() error {
 		return discovery.Tail(ctx, o.options.CNILog, o.controller.ObserveAttempt, func() { tailReady.Store(true) })
+	})
+	netwatchLogger := utils.LoggerFromContext(ctx).WithValues("controller_name", "swift-node-netwatch", "boot_id", o.options.BootID)
+	start(func() error {
+		return runNetwatch(ctx, netwatchLogger)
 	})
 	start(func() error { return server.Serve(listener) })
 	<-ctx.Done()

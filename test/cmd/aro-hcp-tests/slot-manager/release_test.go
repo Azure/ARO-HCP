@@ -32,7 +32,8 @@ func writeReleaseTestState(t *testing.T, sharedDir string) {
 	t.Helper()
 
 	state := &slots.AcquiredSlotState{
-		Version:           1,
+		Version:           2,
+		Leases:            slots.LeaseSet{Primary: slots.Lease{ResourceType: "aro-hcp-dev-westus3-slot", ResourceName: "aro-hcp-dev-westus3-slot-00"}},
 		DeployEnvironment: "ci01",
 		RuntimeRegion:     "westus3",
 		Slot: slots.ExpandedSlot{
@@ -51,7 +52,11 @@ func writeReleaseTestState(t *testing.T, sharedDir string) {
 	if err := slots.WriteAcquiredSlotState(sharedDir, state); err != nil {
 		t.Fatalf("expected state write to succeed: %v", err)
 	}
-	if err := slots.WriteEnvFile(sharedDir, state, "dev-sub", "/var/run/aro-hcp-dev"); err != nil {
+	contract := slots.NewRuntimeContractBuilder()
+	if err := contract.Add("core", "ARO_HCP_E2E_SLOT_NAME", state.LeasedResourceName); err != nil {
+		t.Fatal(err)
+	}
+	if err := slots.WriteRuntimeContract(sharedDir, contract); err != nil {
 		t.Fatalf("expected env file write to succeed: %v", err)
 	}
 }
@@ -142,6 +147,34 @@ func TestReleaseRunNoStateFileReturnsNil(t *testing.T) {
 
 	if got := *releasedNames; len(got) != 0 {
 		t.Fatalf("expected no release calls when no state file exists, got %v", got)
+	}
+}
+
+func TestReleaseRejectsUnsupportedStateVersionBeforeNetwork(t *testing.T) {
+	t.Parallel()
+	server, releasedNames := newReleaseTestServer(t)
+	defer server.Close()
+	for _, version := range []string{"", "version: 1\n", "version: 3\n"} {
+		sharedDir := t.TempDir()
+		path, err := slots.SlotStateFile(sharedDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(version+"leased_resource_name: old-slot-00\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		err = Release(context.Background(), &RawReleaseOptions{
+			SharedDir: sharedDir, LeaseProxyServerURL: server.URL, LeaseProxyTimeout: time.Second,
+		})
+		if err == nil || !strings.Contains(err.Error(), "unsupported slot state version") {
+			t.Fatalf("expected explicit version rejection for %q, got %v", version, err)
+		}
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("unsupported state must remain untouched: %v", err)
+		}
+	}
+	if len(*releasedNames) != 0 {
+		t.Fatalf("unsupported state reached the lease proxy: %v", *releasedNames)
 	}
 }
 

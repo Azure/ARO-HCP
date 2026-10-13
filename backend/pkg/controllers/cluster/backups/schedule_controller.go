@@ -167,7 +167,7 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 	// CustomerProperties only indicates whether CMK is configured.
 	kmsKeyFingerprint := ""
 	if cm := cachedCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; cm != nil && cm.Kms != nil && cm.Kms.ActiveKey.Version != "" {
-		hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
+		hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 			ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		)
 		if err != nil {

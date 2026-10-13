@@ -30,7 +30,6 @@ import (
 	_ "github.com/Azure/ARO-HCP/test/e2e"
 
 	"github.com/go-logr/stdr"
-	"github.com/onsi/gomega/format"
 	"github.com/spf13/cobra"
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
@@ -52,11 +51,11 @@ import (
 )
 
 func fastTestsOnly(query string) string {
-	return fmt.Sprintf("%s && !labels.exists(l, l==\"%s\")", query, labels.Slow[0])
+	return fmt.Sprintf("(%s) && !labels.exists(l, l==\"%s\")", query, labels.Slow[0])
 }
 
 func slowTestsOnly(query string) string {
-	return fmt.Sprintf("%s && labels.exists(l, l==\"%s\")", query, labels.Slow[0])
+	return fmt.Sprintf("(%s) && labels.exists(l, l==\"%s\")", query, labels.Slow[0])
 }
 
 // parseSuiteParallelismOverride reads ARO_HCP_SUITE_PARALLELISM and
@@ -457,11 +456,9 @@ func isUpgradeInPlaceSuiteInvocation() bool {
 	return false
 }
 
+// Builds the test CLI with environment-specific suite defaults and resource budgets.
 func setupCli() *cobra.Command {
-	// Configure Ginkgo to be verbose - when we're emitting a full object to stdout on failure, there's no real value in truncating its
-	// content at some arbitrary length.
-	format.MaxLength = 0
-	format.MaxDepth = 0
+	configureGomegaFormatting()
 
 	parallelismOverride := parseSuiteParallelismOverride()
 	parallelism := func(defaultValue int) int {
@@ -469,6 +466,10 @@ func setupCli() *cobra.Command {
 			return *parallelismOverride
 		}
 		return defaultValue
+	}
+	integrationParallelism := 24
+	if strings.EqualFold(os.Getenv("ARO_HCP_DEPLOY_ENV"), "int") && strings.EqualFold(os.Getenv("LOCATION"), "westus3") {
+		integrationParallelism = 75
 	}
 
 	containerCount, containerCountSource := parseMIContainerCount()
@@ -520,7 +521,7 @@ func setupCli() *cobra.Command {
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(24),
+		Parallelism:   parallelism(integrationParallelism),
 		TestTimeout:   &integrationTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -532,7 +533,15 @@ func setupCli() *cobra.Command {
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(24),
+		Parallelism:   parallelism(integrationParallelism),
+		TestTimeout:   &integrationTestTimeout,
+		ResourcePools: miPools,
+	})
+	ext.AddSuite(e.Suite{
+		Name:       "integration/parallel/all",
+		Qualifiers: []string{integrationQuery},
+		// Keep the same resource limits as the existing Integration suites.
+		Parallelism:   parallelism(integrationParallelism),
 		TestTimeout:   &integrationTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -557,6 +566,14 @@ func setupCli() *cobra.Command {
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism:   parallelism(34),
+		TestTimeout:   &stageTestTimeout,
+		ResourcePools: miPools,
+	})
+	ext.AddSuite(e.Suite{
+		Name:       "stage/parallel/all",
+		Qualifiers: []string{stageQuery},
+		// Keep the same resource limits as the existing Stage suites.
 		Parallelism:   parallelism(34),
 		TestTimeout:   &stageTestTimeout,
 		ResourcePools: miPools,
@@ -593,7 +610,7 @@ func setupCli() *cobra.Command {
 			// Subset of E2E tests to be executed as a final step during ARO
 			// HCP Continous Deployment GitHub Action Workflow.
 			// TODO: revisit labels to tweak which tests to select here
-			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0]),
+			fastTestsOnly(fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0])),
 		},
 		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
 		Parallelism:   parallelism(20),

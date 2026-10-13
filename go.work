@@ -1,4 +1,4 @@
-go 1.25.7
+go 1.26.0
 
 use (
 	./admin/client
@@ -11,6 +11,7 @@ use (
 	./fleet
 	./frontend
 	./hack/verify-gomega-assertions
+	./hack/verify-gomega-cmpdiff
 	./hack/verify-mi-containers
 	./hack/verify-schema-additional-properties
 	./internal

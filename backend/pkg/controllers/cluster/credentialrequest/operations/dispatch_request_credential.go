@@ -42,6 +42,8 @@ type dispatchRequestCredential struct {
 	clusterLister     corelisters.ClusterLister
 }
 
+const SystemAdminCredentialDispatchRequestCredentialControllerName = "SystemAdminCredentialDispatchRequestCredential"
+
 // NewDispatchRequestCredentialController returns a Controller that creates a
 // SystemAdminCredential Cosmos document when a RequestCredential operation is
 // first dispatched. It generates the RSA keypair in-process, writes the
@@ -67,7 +69,7 @@ func NewDispatchRequestCredentialController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"SystemAdminCredentialDispatchRequestCredential",
+		SystemAdminCredentialDispatchRequestCredentialControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

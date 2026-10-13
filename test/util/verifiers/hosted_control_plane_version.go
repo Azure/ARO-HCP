@@ -35,8 +35,8 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
-// upgradePhaseReporter emits one line per observed change in clusterversion status.history,
-// stamped with the elapsed time since the verifier started polling.
+// upgradePhaseReporter emits one line per observed change in clusterversion state, stamped with
+// the elapsed time since the verifier started polling.
 //
 // ARO-26775 took four months and six Kusto queries across three databases to attribute,
 // because all a failing run left behind was "no version in target minor" after 2700s, with no
@@ -52,22 +52,36 @@ func newUpgradePhaseReporter(name string) *upgradePhaseReporter {
 	return &upgradePhaseReporter{name: name, startTime: time.Now()}
 }
 
-// observe logs the history only when its rendering differs from the previous observation, per
-// the delta-only logging rule for polling verifiers in test/AGENTS.md.
-func (r *upgradePhaseReporter) observe(history []configv1.UpdateHistory) {
-	current := renderClusterVersionHistory(history)
+// observe logs the summary only when it differs from the previous observation, per the delta-only
+// logging rule for polling verifiers in test/AGENTS.md. Each verifier owns its own reporter and
+// drives it from a single poll loop, so no locking is needed.
+func (r *upgradePhaseReporter) observe(status configv1.ClusterVersionStatus) {
+	current := clusterVersionSummary(status)
 	if current == r.previous {
 		return
 	}
 	r.previous = current
 	elapsed := time.Since(r.startTime).Round(time.Second)
-	ginkgo.GinkgoLogr.Info("clusterversion history changed",
-		"name", r.name, "elapsed", elapsed.String(), "history", current)
+	ginkgo.GinkgoLogr.Info("clusterversion changed",
+		"name", r.name, "elapsed", elapsed.String(), "clusterversion", current)
 	ginkgo.GinkgoWriter.Printf("[%s] +%s %s\n", r.name, elapsed, current)
 }
 
-// renderClusterVersionHistory renders history as a single compact line, e.g.
-// `4.21.13=Partial started=2026-05-06T01:24:16Z; 4.20.20=Completed started=2026-05-06T00:36:22Z completed=2026-05-06T01:24:16Z`.
+// shortImageDigest reduces a release image reference to the leading 12 characters of its digest,
+// which is enough to tell two payloads apart without putting a 100 character reference on every
+// poll line. Falls back to the reference's last path segment when there is no digest.
+func shortImageDigest(image string) string {
+	if image == "" {
+		return ""
+	}
+	if _, digest, found := strings.Cut(image, "@sha256:"); found {
+		return "sha256:" + digest[:min(len(digest), 12)]
+	}
+	return image[strings.LastIndex(image, "/")+1:]
+}
+
+// renderClusterVersionHistory renders status.history as one compact line, e.g.
+// `4.21.13=Partial started=2026-05-06T01:24:16Z image=sha256:9d0436ae6f21`.
 //
 // The stamps carry their date. status.history spans cluster install through upgrade completion, so
 // a run that crosses UTC midnight would render a time-only `started=23:55:00 completed=00:20:00`
@@ -87,12 +101,37 @@ func renderClusterVersionHistory(history []configv1.UpdateHistory) string {
 		if historyEntry.CompletionTime != nil && !historyEntry.CompletionTime.IsZero() {
 			entry += " completed=" + historyEntry.CompletionTime.UTC().Format(time.RFC3339)
 		}
+		if image := shortImageDigest(historyEntry.Image); image != "" {
+			entry += " image=" + image
+		}
 		entries = append(entries, entry)
 	}
 	return strings.Join(entries, "; ")
 }
 
-// withClusterVersionHistory appends the history an upgrade verifier judged to the verdict it
+// renderClusterVersionProgress returns the Progressing condition's message, which reports how far
+// through the rollout the CVO is ("Working towards 4.21.13: 150 of 900 done").
+func renderClusterVersionProgress(conditions []configv1.ClusterOperatorStatusCondition) string {
+	for _, condition := range conditions {
+		if condition.Type == configv1.OperatorProgressing {
+			return fmt.Sprintf("Progressing=%s: %s", condition.Status, condition.Message)
+		}
+	}
+	return ""
+}
+
+// clusterVersionSummary is the one-line state dump logged while waiting and appended to failures.
+// History answers which phase the upgrade reached and when; Progressing answers how far through
+// the current phase the CVO is, which is what separates a stalled rollout from a slow one.
+func clusterVersionSummary(status configv1.ClusterVersionStatus) string {
+	summary := "history is " + renderClusterVersionHistory(status.History)
+	if progress := renderClusterVersionProgress(status.Conditions); progress != "" {
+		summary += "; " + progress
+	}
+	return summary
+}
+
+// withClusterVersionSummary appends the state an upgrade verifier judged to the verdict it
 // reached, and passes a passing verdict through untouched.
 //
 // pollUntilReady reports the last check's error when it times out, so whatever a check returns is
@@ -100,11 +139,11 @@ func renderClusterVersionHistory(history []configv1.UpdateHistory) string {
 // branch means a branch cannot be added without its evidence: the transient
 // "upgrade hasn't happened yet" verdicts are the ones a timeout actually surfaces, and those are
 // exactly the ones that need the timestamps to tell a stalled upgrade from one that never started.
-func withClusterVersionHistory(history []configv1.UpdateHistory, err error) error {
+func withClusterVersionSummary(status configv1.ClusterVersionStatus, err error) error {
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf("%w; history is %s", err, renderClusterVersionHistory(history))
+	return fmt.Errorf("%w; %s", err, clusterVersionSummary(status))
 }
 
 // diagnoseClusterVersion dumps clusterversion status when an upgrade verifier times out, scoped
@@ -164,13 +203,13 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) check(ctx context.Context, c
 		return fmt.Errorf("failed to get clusterversion %q: %w", "version", err)
 	}
 
-	reporter.observe(clusterVersion.Status.History)
+	reporter.observe(clusterVersion.Status)
 
-	return withClusterVersionHistory(clusterVersion.Status.History, v.evaluate(clusterVersion.Status.History, initialSemver))
+	return withClusterVersionSummary(clusterVersion.Status, v.evaluate(clusterVersion.Status.History, initialSemver))
 }
 
 // evaluate decides the z-stream verdict for one observation. It describes only what is wrong;
-// check appends the history that was judged, so every branch reports the same evidence.
+// check appends the state that was judged, so every branch reports the same evidence.
 func (v verifyHostedControlPlaneZStreamUpgradeOnly) evaluate(history []configv1.UpdateHistory, initialSemver semver.Version) error {
 	uniqueVersionSet := map[string]bool{}
 	var uniqueVersions []string
@@ -264,14 +303,14 @@ func (v verifyHostedControlPlaneYStreamUpgrade) check(ctx context.Context, confi
 		return fmt.Errorf("failed to get clusterversion %q: %w", "version", err)
 	}
 
-	reporter.observe(clusterVersion.Status.History)
+	reporter.observe(clusterVersion.Status)
 
-	return withClusterVersionHistory(clusterVersion.Status.History,
+	return withClusterVersionSummary(clusterVersion.Status,
 		v.evaluate(clusterVersion.Status.History, parsedPreviousMinor, parsedTargetMinor))
 }
 
 // evaluate decides the y-stream verdict for one observation. It describes only what is wrong;
-// check appends the history that was judged, so every branch reports the same evidence.
+// check appends the state that was judged, so every branch reports the same evidence.
 func (v verifyHostedControlPlaneYStreamUpgrade) evaluate(history []configv1.UpdateHistory, parsedPreviousMinor, parsedTargetMinor semver.Version) error {
 	var previousMinorFound, targetMinorFound bool
 	for _, historyEntry := range history {
@@ -329,6 +368,9 @@ func (v verifyKubeAPIServerServerVersionUpgraded) Verify(ctx context.Context, ad
 				return fmt.Errorf("get kube-apiserver ServerVersion: %w", err)
 			}
 			if reflect.DeepEqual(v.preUpgrade, postUpgrade) {
+				// Naming the version is the point: the previous message said only "not updated",
+				// which left a reader unable to tell a stalled rollout from a bad pre-upgrade
+				// reading.
 				return fmt.Errorf("expected the kube-apiserver ServerVersion to change from the pre-upgrade %q, still observing %q",
 					v.preUpgrade.GitVersion, postUpgrade.GitVersion)
 			}

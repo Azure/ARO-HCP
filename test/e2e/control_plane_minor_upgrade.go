@@ -39,7 +39,9 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// minimumUpgradeConfirmationTimeout is the lowest the budget handed to the confirmation verifier
+// minimumUpgradeConfirmationTimeout floors the budget handed to the confirmation verifier, so an
+// upgrade landing right on the deadline still has room to be confirmed rather than failing on a
+// non-positive timeout.
 const minimumUpgradeConfirmationTimeout = 1 * time.Minute
 
 var _ = Describe("Customer", func() {
@@ -56,21 +58,22 @@ var _ = Describe("Customer", func() {
 				installVersion = semver.Version{Major: upgradeVersion.Major, Minor: upgradeVersion.Minor - 1}
 			}
 
-			// Resolve the install (previous minor) and upgrade (target minor) version strings up front.
-			// For nightly each resolves to its exact build tag
+			// Resolve the install (previous minor) and upgrade (target minor) version strings up
+			// front, so a missing version skips before we burn resources on cluster creation.
+			// For nightly, each resolves to its exact build tag.
 			installVersionId := fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
 			upgradeVersionId := fmt.Sprintf("%d.%d", upgradeVersion.Major, upgradeVersion.Minor)
 			if channelGroup == "nightly" {
 				resolvedInstall, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, installVersionId)
-				if framework.IsVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("no nightly version for %s: %v", installVersionId, err))
+				if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+					Skip(fmt.Sprintf("no usable nightly version for %s: %v", installVersionId, err))
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version for %s", installVersionId)
 				installVersionId = resolvedInstall
 
 				resolvedUpgrade, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, upgradeVersionId)
-				if framework.IsVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("no nightly version for %s: %v", upgradeVersionId, err))
+				if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+					Skip(fmt.Sprintf("no usable nightly version for %s: %v", upgradeVersionId, err))
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly upgrade version for %s", upgradeVersionId)
 				upgradeVersionId = resolvedUpgrade

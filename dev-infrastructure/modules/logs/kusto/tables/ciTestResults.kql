@@ -1,4 +1,4 @@
-// Per-test outcomes, one row per test executed in a CI run.
+// E2E test outcomes and failed observability assertions in a CI run.
 //
 // The join table between ciJobOutcomes (buildId) and ciTestNames (testId),
 // written by the same collector - see tooling/tenant-quota/pkg/cijoboutcomes.
@@ -7,6 +7,9 @@
 // of its specs depending on what it is exercising, and a skipped test has no
 // timings and no outcome worth attributing, so recording them would roughly
 // double the table to say nothing.
+// Observability includes only failed/error JUnit cases, including collection
+// failures. Its startedAt/finishedAt describe the alerts.json observation window,
+// not execution or alert-firing duration; resourceGroup and phase fields are unset.
 //
 // The timing columns bound each phase of a test, which is what makes telemetry
 // attributable to the part of the test that produced it: alerts that fire
@@ -23,6 +26,8 @@
 //
 // Timing columns are zero when the run's artifacts did not report them, which
 // happens for aborted runs and for tests whose timing metadata is missing.
+// message holds the reported failure or diagnostic text, including observability
+// test details. The JSON mapping reads it from $.message; absent messages are empty.
 .create-merge table ciTestResults (
     buildId: string,
     testId: string,
@@ -33,7 +38,8 @@
     finishedAt: datetime,
     setupFinishTime: datetime,
     testStartTime: datetime,
-    cleanupStartTime: datetime
+    cleanupStartTime: datetime,
+    message: string
 )
 with (
     docstring = "Outcome and timings of a single test within a CI run, written by the opstool tenant-quota collector",
@@ -52,6 +58,7 @@ with (
   {"column":"finishedAt","path":"$['finishedAt']","datatype":"datetime"},
   {"column":"setupFinishTime","path":"$['setupFinishTime']","datatype":"datetime"},
   {"column":"testStartTime","path":"$['testStartTime']","datatype":"datetime"},
-  {"column":"cleanupStartTime","path":"$['cleanupStartTime']","datatype":"datetime"}
+  {"column":"cleanupStartTime","path":"$['cleanupStartTime']","datatype":"datetime"},
+  {"column":"message","path":"$['message']","datatype":"string"}
 ]
 ```

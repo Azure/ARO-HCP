@@ -117,6 +117,7 @@ func TestMutateNodePool(t *testing.T) {
 			require.Empty(t, errs)
 			// Clear the deadline before comparison — it's time-dependent and tested separately.
 			tt.newObj.ServiceProviderProperties.CreateOperationCompletionDeadline = nil
+			tt.newObj.ServiceProviderProperties.UpdateOperationCompletionDeadline = nil
 			assertNodePoolEqual(t, tt.expected, tt.newObj)
 		})
 	}

@@ -17,7 +17,6 @@ package capture
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,6 +31,8 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/Azure/ARO-HCP/swift-recorder/pkg/rtnl"
 )
 
 func TestMain(m *testing.M) {
@@ -204,70 +205,6 @@ func TestNamespacePathValidation(t *testing.T) {
 	}
 }
 
-func TestDecodeLink(t *testing.T) {
-	order := binary.NativeEndian
-	data := make([]byte, unix.SizeofIfInfomsg)
-	order.PutUint32(data[4:], 8)
-	order.PutUint32(data[8:], unix.IFF_UP|unix.IFF_RUNNING|unix.IFF_LOWER_UP)
-	attr := func(kind uint16, value []byte) {
-		b := make([]byte, (len(value)+7)&^3)
-		order.PutUint16(b, uint16(len(value)+4))
-		order.PutUint16(b[2:], kind)
-		copy(b[4:], value)
-		data = append(data, b...)
-	}
-	attr(unix.IFLA_IFNAME, []byte("vf0\x00"))
-	attr(unix.IFLA_ADDRESS, []byte{0, 1, 2, 3, 4, 5})
-	attr(unix.IFLA_OPERSTATE, []byte{6}) // IF_OPER_UP
-	attr(unix.IFLA_CARRIER, []byte{0})   // Deliberately differs from IFF_RUNNING.
-	attr(unix.IFLA_MASTER, order.AppendUint32(nil, 3))
-	attr(unix.IFLA_LINK, order.AppendUint32(nil, 7))
-	stats := make([]byte, 8*8)
-	for i := range 8 {
-		order.PutUint64(stats[i*8:], uint64(i)+1<<33)
-	}
-	attr(unix.IFLA_STATS64, stats)
-	entry, err := decode(unix.RTM_GETLINK, unix.SizeofIfInfomsg, data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for key, want := range map[string]any{
-		"name": "vf0", "index": int32(8), "mac": "00:01:02:03:04:05",
-		"up": true, "carrier": false, "running": true, "lowerUp": true,
-		"masterIndex": uint32(3), "parentIndex": uint32(7),
-		"operstate": uint8(6),
-	} {
-		if entry[key] != want {
-			t.Errorf("%s = %v, want %v", key, entry[key], want)
-		}
-	}
-	values := entry["stats"].(map[string]uint64)
-	if values["rxPackets"] != 1<<33 || values["txDrops"] != 1<<33+7 {
-		t.Fatalf("incorrect 64-bit counters: %v", values)
-	}
-	// Older devices may expose only the 32-bit stats attribute.
-	data = data[:unix.SizeofIfInfomsg]
-	attr(unix.IFLA_STATS, stats[:32])
-	entry, err = decode(unix.RTM_GETLINK, unix.SizeofIfInfomsg, data)
-	if err != nil || entry["stats"].(map[string]uint64)["txPackets"] != 2 {
-		t.Fatalf("incorrect 32-bit counter fallback: %v, %v", entry, err)
-	}
-	if _, present := entry["carrier"]; present {
-		t.Fatal("missing IFLA_CARRIER must not be inferred from flags")
-	}
-	order.PutUint32(data[8:], unix.IFF_UP)
-	attr(unix.IFLA_CARRIER, []byte{1})
-	entry, err = decode(unix.RTM_GETLINK, unix.SizeofIfInfomsg, data)
-	if err != nil || entry["carrier"] != true || entry["running"] != false || entry["lowerUp"] != false {
-		t.Fatalf("carrier and running flags were conflated: %v, %v", entry, err)
-	}
-	for _, malformed := range [][]byte{nil, data[:3], append(data[:unix.SizeofIfInfomsg:unix.SizeofIfInfomsg], 1, 0, 1, 0)} {
-		if _, err := decode(unix.RTM_GETLINK, unix.SizeofIfInfomsg, malformed); err == nil {
-			t.Fatal("accepted malformed message")
-		}
-	}
-}
-
 func TestCollectCurrentNamespace(t *testing.T) {
 	result, err := collect()
 	if err != nil {
@@ -291,15 +228,12 @@ func TestCollectCurrentNamespace(t *testing.T) {
 	result = decoded.State
 	for _, name := range []string{"links", "addresses", "routes", "rules", "neighbors"} {
 		section, ok := result[name]
-		if !ok || section.Entries == nil || len(section.Entries) > maxEntries {
+		if !ok || section.Entries == nil || len(section.Entries) > rtnl.MaxEntries {
 			t.Fatalf("missing or unbounded %s: %+v", name, section)
 		}
 	}
 	if len(result["links"].Entries) == 0 {
 		t.Fatal("expected at least loopback")
-	}
-	if _, err := dump(unix.RTM_GETLINK, unix.SizeofIfInfomsg, time.Now().Add(-time.Second)); err == nil {
-		t.Fatal("accepted expired netlink deadline")
 	}
 }
 

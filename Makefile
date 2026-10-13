@@ -15,12 +15,7 @@ TOPOLOGY_FILE ?= topology.yaml
 export AZURE_TOKEN_CREDENTIALS ?= dev
 BUILD_SERVICES_OPTS ?= -j7
 
-# Pin the Go toolchain to the version declared in go.work so make targets are
-# reproducible and match CI even on machines with a newer Go installed. With the
-# default GOTOOLCHAIN=auto, a newer local toolchain is used as-is (auto only
-# upgrades, never downgrades), which drifts test output (e.g. flate/gzip bytes,
-# encoding/json error text) from CI. Override with `make GOTOOLCHAIN=...` if needed.
-export GOTOOLCHAIN ?= $(shell awk '/^go /{print "go"$$2; exit}' go.work)
+export GOTOOLCHAIN ?= local
 
 .DEFAULT_GOAL := all
 
@@ -38,12 +33,12 @@ all: test lint
 # `export` is needed (rather than the `VAR=value command` form) because the
 # go list | xargs go test pipeline runs go test in a subprocess of xargs;
 # without export the env var only reaches go list.
-test: envtest-setup
+test: envtest-setup test-infrastructure
 	@export KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR))"; \
 		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test
 
-test-unit: envtest-setup
+test-unit: envtest-setup test-infrastructure
 	@export KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR))"; \
 		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test-unit
@@ -118,7 +113,7 @@ verify-tool-versions:
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions
 .PHONY: verify
 
 verify-schema:
@@ -128,6 +123,10 @@ verify-schema:
 verify-gomega-assertions:
 	go run ./hack/verify-gomega-assertions ./test/e2e/ ./test/util/
 .PHONY: verify-gomega-assertions
+
+verify-gomega-cmpdiff:
+	go run ./hack/verify-gomega-cmpdiff ./test/e2e ./test/util/...
+.PHONY: verify-gomega-cmpdiff
 
 verify-mi-containers:
 	go run ./hack/verify-mi-containers ./test/e2e/
@@ -408,9 +407,14 @@ update-helm-fixtures:
 	UPDATE=true $(MAKE) -C swift-recorder test-deploy
 .PHONY: update-helm-fixtures
 
-test-helm-fixtures:
+test-infrastructure:
+	BICEP="$(BICEP)" go test -C dev-infrastructure system_pool_only_test.go infrastructure_identities_test.go
+.PHONY: test-infrastructure
+
+test-helm-fixtures: test-infrastructure
 	$(MAKE) -C tooling/helmtest test
 	$(MAKE) -C swift-recorder test-deploy
+	$(MAKE) -C observability/prometheus test
 .PHONY: test-helmcharts
 
 verify-materialize:

@@ -47,6 +47,8 @@ type clusterClusterServiceIDClearer struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceIDClearer)(nil)
 
+const ClusterDeletionClusterServiceIDClearerControllerName = "ClusterDeletionClusterServiceIDClearer"
+
 func NewClusterClusterServiceIDClearerController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -60,7 +62,7 @@ func NewClusterClusterServiceIDClearerController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterDeletionClusterServiceIDClearer",
+		ClusterDeletionClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
 		nil,

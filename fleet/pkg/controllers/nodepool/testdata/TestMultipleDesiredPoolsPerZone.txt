@@ -1,0 +1,41 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  (none)
+
+desired:
+  e1  worker  Standard_E32ds_v6  zone=1  max=4
+  d1  worker  Standard_D8ds_v6   zone=1  max=2
+  e2  worker  Standard_E32ds_v6  zone=2  max=4
+  d2  worker  Standard_D8ds_v6   zone=2  max=2
+  e3  worker  Standard_E32ds_v6  zone=3  max=4
+  d3  worker  Standard_D8ds_v6   zone=3  max=2
+
+budget (vCPUs):
+  standardDDSv6Family:  48
+  standardEDSv6Family:  384
+
+initial headroom (vCPUs):
+  standardDDSv6Family:  48
+  standardEDSv6Family:  384
+
+fully allocated: true
+
+initial capacity:
+  system:  cpu=0  memory=0GiB  swiftNICs=0
+  infra:   cpu=0  memory=0GiB  swiftNICs=0
+  worker:  cpu=0  memory=0GiB  swiftNICs=0
+
+actions:
+    1.  Create  worker  Standard_E32ds_v6  e1  min=1   max=4  floor: cpu=0    memory=0GiB     swiftNICs=0   capacity: cpu=128  (+128)  memory=1024GiB  (+1024GiB)  swiftNICs=28   (+28)  EDSv6:    256c remaining
+    2.  Create  worker  Standard_D8ds_v6   d1  min=1   max=2  floor: cpu=128  memory=1024GiB  swiftNICs=28  capacity: cpu=144  (+16)   memory=1152GiB  (+128GiB)   swiftNICs=34   (+6)   DDSv6:     32c remaining
+    3.  Create  worker  Standard_E32ds_v6  e2  min=1   max=4  floor: cpu=144  memory=1152GiB  swiftNICs=34  capacity: cpu=272  (+128)  memory=2176GiB  (+1024GiB)  swiftNICs=62   (+28)  EDSv6:    128c remaining
+    4.  Create  worker  Standard_D8ds_v6   d2  min=1   max=2  floor: cpu=272  memory=2176GiB  swiftNICs=62  capacity: cpu=288  (+16)   memory=2304GiB  (+128GiB)   swiftNICs=68   (+6)   DDSv6:     16c remaining
+    5.  Create  worker  Standard_E32ds_v6  e3  min=1   max=4  floor: cpu=288  memory=2304GiB  swiftNICs=68  capacity: cpu=416  (+128)  memory=3328GiB  (+1024GiB)  swiftNICs=96   (+28)  EDSv6:      0c remaining
+    6.  Create  worker  Standard_D8ds_v6   d3  min=1   max=2  floor: cpu=416  memory=3328GiB  swiftNICs=96  capacity: cpu=432  (+16)   memory=3456GiB  (+128GiB)   swiftNICs=102  (+6)   DDSv6:      0c remaining
+
+steps:      6
+converged:  true
+outcome:    converged
+reason:     pool configuration matches desired

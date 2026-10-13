@@ -62,19 +62,38 @@ func TestRenderClusterVersionHistory(t *testing.T) {
 			expected: "4.21.13=Partial started=2026-05-06T01:24:16Z",
 		},
 		{
+			// The history ARO-26775 had to be recovered from Kusto, because the test output
+			// dropped exactly these stamps. Images are the real digests from the ticket.
 			name: "the ARO-26775 history, newest entry first",
 			history: []configv1.UpdateHistory{
-				{Version: "4.21.13", State: configv1.PartialUpdate, StartedTime: completed},
-				{Version: "4.20.20", State: configv1.CompletedUpdate, StartedTime: started, CompletionTime: &completed},
+				{
+					Version: "4.21.13", State: configv1.PartialUpdate, StartedTime: completed,
+					Image: "arohcpocpint.azurecr.io/openshift-release-dev/ocp-release@sha256:9d0436ae6f2106e055d7f735d9416d2842d39f2f988be5f3a8ec4f1d0e064ff9",
+				},
+				{
+					Version: "4.20.20", State: configv1.CompletedUpdate, StartedTime: started, CompletionTime: &completed,
+					Image: "arohcpocpint.azurecr.io/openshift-release-dev/ocp-release@sha256:1a59c7136e704fb5e0b4824b55757dac29b04c606ee2d05757a142cb90504b5d",
+				},
 			},
-			expected: "4.21.13=Partial started=2026-05-06T01:24:16Z; 4.20.20=Completed started=2026-05-06T00:36:22Z completed=2026-05-06T01:24:16Z",
+			expected: "4.21.13=Partial started=2026-05-06T01:24:16Z image=sha256:9d0436ae6f21; " +
+				"4.20.20=Completed started=2026-05-06T00:36:22Z completed=2026-05-06T01:24:16Z image=sha256:1a59c7136e70",
 		},
 		{
-			name: "entry with no timestamps renders version and state only",
+			name: "entry with no timestamps or image renders version and state only",
 			history: []configv1.UpdateHistory{
 				{Version: "4.20.20", State: configv1.CompletedUpdate},
 			},
 			expected: "4.20.20=Completed",
+		},
+		{
+			// Two entries can share a version and differ only by payload, which is why the
+			// image is carried rather than dropped as the previous rendering did.
+			name: "same version, different payloads, stays distinguishable",
+			history: []configv1.UpdateHistory{
+				{Version: "4.21.13", State: configv1.PartialUpdate, Image: "example.io/ocp-release@sha256:aaaaaaaaaaaabbbb"},
+				{Version: "4.21.13", State: configv1.PartialUpdate, Image: "example.io/ocp-release@sha256:ccccccccccccdddd"},
+			},
+			expected: "4.21.13=Partial image=sha256:aaaaaaaaaaaa; 4.21.13=Partial image=sha256:cccccccccccc",
 		},
 		{
 			// A time-only rendering of this history reads as completing 1h35m before it started.
@@ -113,8 +132,85 @@ func TestRenderClusterVersionHistory(t *testing.T) {
 	}
 }
 
+func TestShortImageDigest(t *testing.T) {
+	for _, testCase := range []struct {
+		name     string
+		image    string
+		expected string
+	}{
+		{name: "empty", image: "", expected: ""},
+		{
+			name:     "digest is truncated to 12 characters",
+			image:    "arohcpocpint.azurecr.io/openshift-release-dev/ocp-release@sha256:9d0436ae6f2106e055d7f735d9416d2842d39f2f988be5f3a8ec4f1d0e064ff9",
+			expected: "sha256:9d0436ae6f21",
+		},
+		{
+			name:     "digest shorter than 12 characters is not truncated",
+			image:    "example.io/release@sha256:abc123",
+			expected: "sha256:abc123",
+		},
+		{
+			name:     "tag reference falls back to the last path segment",
+			image:    "arohcpocpint.azurecr.io/openshift-release-dev/ocp-release:4.21.13",
+			expected: "ocp-release:4.21.13",
+		},
+		{
+			name:     "reference with no path separator is returned whole",
+			image:    "ocp-release:4.21.13",
+			expected: "ocp-release:4.21.13",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			if actual := shortImageDigest(testCase.image); actual != testCase.expected {
+				t.Errorf("shortImageDigest(%q) = %q, want %q", testCase.image, actual, testCase.expected)
+			}
+		})
+	}
+}
+
+// TestClusterVersionSummaryIncludesProgress checks the Progressing message rides along with the
+// history. It reports how far through the rollout the CVO is, which is the single line that says
+// whether a stalled upgrade is stuck or merely slow.
+func TestClusterVersionSummaryIncludesProgress(t *testing.T) {
+	status := configv1.ClusterVersionStatus{
+		History: []configv1.UpdateHistory{
+			{Version: "4.21.13", State: configv1.PartialUpdate},
+		},
+		Conditions: []configv1.ClusterOperatorStatusCondition{
+			{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+			{
+				Type:    configv1.OperatorProgressing,
+				Status:  configv1.ConditionTrue,
+				Message: "Working towards 4.21.13: 150 of 900 done (16% complete)",
+			},
+		},
+	}
+
+	summary := clusterVersionSummary(status)
+	if !strings.Contains(summary, "4.21.13=Partial") {
+		t.Errorf("expected the history in the summary, got: %s", summary)
+	}
+	if !strings.Contains(summary, "150 of 900 done") {
+		t.Errorf("expected the Progressing message in the summary, got: %s", summary)
+	}
+}
+
+// TestClusterVersionSummaryWithoutProgress guards the separator: with no Progressing condition the
+// summary must not end in a dangling "; ".
+func TestClusterVersionSummaryWithoutProgress(t *testing.T) {
+	summary := clusterVersionSummary(configv1.ClusterVersionStatus{
+		History: []configv1.UpdateHistory{{Version: "4.20.20", State: configv1.CompletedUpdate}},
+	})
+	if strings.HasSuffix(summary, "; ") || strings.HasSuffix(summary, ";") {
+		t.Errorf("summary ends in a dangling separator: %q", summary)
+	}
+	if summary != "history is 4.20.20=Completed" {
+		t.Errorf("unexpected summary: %q", summary)
+	}
+}
+
 // TestUpgradeCheckErrorsCarryHistory pins the contract that every verdict an upgrade check reaches
-// after reading clusterversion reports the history it judged.
+// after reading clusterversion reports the state it judged.
 //
 // pollUntilReady surfaces the last check's error when it times out, so these strings are the whole
 // of what a failing run leaves behind. The transient "the upgrade has not happened yet" verdicts
@@ -135,6 +231,7 @@ func TestUpgradeCheckErrorsCarryHistory(t *testing.T) {
 	for _, testCase := range []struct {
 		name            string
 		history         []configv1.UpdateHistory
+		conditions      []configv1.ClusterOperatorStatusCondition
 		verifier        HostedClusterVerifier
 		expectedVerdict string
 	}{
@@ -186,11 +283,26 @@ func TestUpgradeCheckErrorsCarryHistory(t *testing.T) {
 			verifier:        VerifyHostedControlPlaneYStreamUpgrade("4.20", "4.21", time.Minute),
 			expectedVerdict: "parse clusterversion history version \"not-a-version\"",
 		},
+		{
+			// The whole point of carrying Progressing: this verdict says the target minor is
+			// missing, and the CVO says it is 150 of 900 through getting there. Reading one
+			// without the other is what made ARO-26775 take four months.
+			name:    "the Progressing message rides along with the verdict",
+			history: []configv1.UpdateHistory{installed},
+			conditions: []configv1.ClusterOperatorStatusCondition{{
+				Type:    configv1.OperatorProgressing,
+				Status:  configv1.ConditionTrue,
+				Message: "Working towards 4.21.13: 150 of 900 done (16% complete)",
+			}},
+			verifier:        VerifyHostedControlPlaneYStreamUpgrade("4.20", "4.21", time.Minute),
+			expectedVerdict: "150 of 900 done",
+		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
+			status := configv1.ClusterVersionStatus{History: testCase.history, Conditions: testCase.conditions}
 			configClient := configv1fake.NewClientset(&configv1.ClusterVersion{
 				ObjectMeta: metav1.ObjectMeta{Name: "version"},
-				Status:     configv1.ClusterVersionStatus{History: testCase.history},
+				Status:     status,
 			}).ConfigV1()
 
 			err := runCheckOnce(t, testCase.verifier, configClient)
@@ -200,9 +312,9 @@ func TestUpgradeCheckErrorsCarryHistory(t *testing.T) {
 			if !strings.Contains(err.Error(), testCase.expectedVerdict) {
 				t.Errorf("verdict\n  got:  %s\n  want it to contain: %s", err, testCase.expectedVerdict)
 			}
-			expectedHistory := "history is " + renderClusterVersionHistory(testCase.history)
-			if !strings.Contains(err.Error(), expectedHistory) {
-				t.Errorf("verdict did not carry the history it judged\n  got:  %s\n  want it to contain: %s", err, expectedHistory)
+			expectedSummary := clusterVersionSummary(status)
+			if !strings.Contains(err.Error(), expectedSummary) {
+				t.Errorf("verdict did not carry the state it judged\n  got:  %s\n  want it to contain: %s", err, expectedSummary)
 			}
 		})
 	}
@@ -237,8 +349,8 @@ func runCheckOnce(t *testing.T, verifier HostedClusterVerifier, configClient con
 }
 
 // TestUpgradePhaseReporterLogsOnlyOnChange pins the delta-only logging contract: repeated
-// observations of an unchanged history must not re-log, or a 45 minute poll emits hundreds of
-// identical lines and buries the transitions that matter.
+// observations of an unchanged clusterversion must not re-log, or a 45 minute poll emits hundreds
+// of identical lines and buries the transitions that matter.
 //
 // The assertion is on what the reporter actually emitted rather than on its recorded rendering,
 // which stays put whether or not the guard is there. GinkgoLogr writes to GinkgoWriter too, so
@@ -249,26 +361,28 @@ func TestUpgradePhaseReporterLogsOnlyOnChange(t *testing.T) {
 	t.Cleanup(ginkgo.GinkgoWriter.ClearTeeWriters)
 
 	reporter := newUpgradePhaseReporter("test-verifier")
-	history := []configv1.UpdateHistory{
-		{Version: "4.20.20", State: configv1.CompletedUpdate},
+	status := configv1.ClusterVersionStatus{
+		History: []configv1.UpdateHistory{{Version: "4.20.20", State: configv1.CompletedUpdate}},
 	}
 
-	reporter.observe(history)
+	reporter.observe(status)
 	afterFirstObservation := emitted.String()
 	if !strings.Contains(afterFirstObservation, "4.20.20=Completed") {
 		t.Fatalf("expected the first observation to be logged, got: %q", afterFirstObservation)
 	}
 
-	reporter.observe(history)
+	reporter.observe(status)
 	if repeated := emitted.String(); repeated != afterFirstObservation {
-		t.Errorf("an unchanged history logged again:\n  first:  %q\n  second: %q", afterFirstObservation, repeated)
+		t.Errorf("an unchanged clusterversion logged again:\n  first:  %q\n  second: %q", afterFirstObservation, repeated)
 	}
 
-	reporter.observe(append([]configv1.UpdateHistory{
-		{Version: "4.21.13", State: configv1.PartialUpdate},
-	}, history...))
+	reporter.observe(configv1.ClusterVersionStatus{
+		History: append([]configv1.UpdateHistory{
+			{Version: "4.21.13", State: configv1.PartialUpdate},
+		}, status.History...),
+	})
 	afterChange := strings.TrimPrefix(emitted.String(), afterFirstObservation)
 	if !strings.Contains(afterChange, "4.21.13=Partial") {
-		t.Errorf("expected a changed history to be logged, got: %q", afterChange)
+		t.Errorf("expected a changed clusterversion to be logged, got: %q", afterChange)
 	}
 }

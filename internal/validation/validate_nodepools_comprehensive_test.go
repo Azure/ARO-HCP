@@ -1203,6 +1203,40 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
+			name: "channelGroup change is rejected - update",
+			newNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ChannelGroup = "fast"
+				return np
+			}(),
+			oldNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ChannelGroup = "stable"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "updating channelGroup is not currently supported", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
+			name: "channelGroup change is rejected when version.id also changes - update",
+			newNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.20.9"
+				np.Properties.Version.ChannelGroup = "fast"
+				return np
+			}(),
+			oldNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.20.8"
+				np.Properties.Version.ChannelGroup = "stable"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "updating channelGroup is not currently supported", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
 			name: "immutable provisioning state - update",
 			newNodePool: func() *coreapi.NodePool {
 				np := createValidNodePool()
@@ -1833,6 +1867,30 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			}(),
 			opOptions:    testNodePoolFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "nightly version with minimum major.minor is accepted",
+			nodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.20.0-0.nightly-2026-10-01-125400"
+				np.Properties.Version.ChannelGroup = "nightly"
+				return np
+			}(),
+			opOptions:    testNodePoolFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "nightly version lower than the minimum major.minor is rejected",
+			nodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.19.0-0.nightly-2026-10-01-125400"
+				np.Properties.Version.ChannelGroup = "nightly"
+				return np
+			}(),
+			opOptions: testNodePoolFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be at least 4.20", FieldPath: "properties.version.id"},
+			},
 		},
 		{
 			name: "invalid channel group rejected even with experimental flag",

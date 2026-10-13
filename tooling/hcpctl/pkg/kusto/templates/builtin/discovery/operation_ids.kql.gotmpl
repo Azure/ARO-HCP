@@ -1,0 +1,19 @@
+set notruncation;
+{{- if .ClusterIds }}
+// Resolve Clusters Service IDs to the ARM cluster IDs attached to operation snapshots.
+let clusterResourceIds = clustersServiceLogs
+    | where resource_id has '{{.SubResourceGroupId}}'
+    | where cid in ({{.ClusterIds}})
+    | extend clusterResourceId = extract(@"^(.*/hcpopenshiftclusters/[^/]+)", 1, tolower(resource_id))
+    | where isnotempty(clusterResourceId)
+    | distinct clusterResourceId;
+{{- end }}
+cosmosResourceSnapshots
+| where timestamp between ({{.TimestampMin}} .. {{.TimestampMax}})
+| where subscriptionID =~ '{{.SubscriptionId}}' and resourceGroup =~ '{{.ResourceGroupName}}'
+| where resourceType =~ 'Microsoft.RedHatOpenShift/hcpOperationStatuses'
+{{- if .ClusterIds }}
+| where tolower(cluster_id) in (clusterResourceIds)
+{{- end }}
+| where isnotempty(resourceName)
+| distinct operationId = tolower(resourceName)

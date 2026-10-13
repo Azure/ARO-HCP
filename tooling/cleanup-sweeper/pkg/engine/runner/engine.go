@@ -38,6 +38,9 @@ const (
 // longer safe to delete after the step's final revalidation.
 var ErrTargetRetained = errors.New("target retained after revalidation")
 
+// ErrTargetAbsent tells the engine that cleanup found an already absent target.
+var ErrTargetAbsent = errors.New("target already absent")
+
 // Target represents a discovered resource selected for deletion.
 type Target struct {
 	ID   string
@@ -93,6 +96,7 @@ func (e *Engine) Run(ctx context.Context) error {
 	return nil
 }
 
+// Runs discovery, bounded deletion, and verification for one cleanup step.
 func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
@@ -140,10 +144,17 @@ func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error 
 						return
 					}
 					retained := false
+					absent := false
+					targetLogger := logger.WithValues("step", step.Name(), "id", target.ID)
+					targetCtx := logr.NewContext(ctx, targetLogger)
 					err := retry(ctx, step.RetryLimit(), func() error {
-						err := step.Delete(ctx, target, e.Wait)
+						err := step.Delete(targetCtx, target, e.Wait)
 						if errors.Is(err, ErrTargetRetained) {
 							retained = true
+							return nil
+						}
+						if errors.Is(err, ErrTargetAbsent) {
+							absent = true
 							return nil
 						}
 						return err
@@ -155,11 +166,16 @@ func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error 
 								"step", step.Name(),
 								"resource", target.Name,
 								"type", target.Type,
+								"id", target.ID,
 								"error", err,
 							)
 							continue
 						}
 						errs <- fmt.Errorf("%s: failed deleting %s (%s): %w", step.Name(), target.Name, target.Type, err)
+						continue
+					}
+					if absent {
+						targetLogger.Info("Resource already absent")
 						continue
 					}
 					if retained {
@@ -223,6 +239,7 @@ func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error 
 	return fmt.Errorf("%s: verification failed: %w", step.Name(), verifyErr)
 }
 
+// Retries a cleanup operation with bounded exponential backoff.
 func retry(ctx context.Context, maxAttempts int, fn func() error) error {
 	if maxAttempts < DefaultRetries {
 		maxAttempts = DefaultRetries

@@ -990,7 +990,7 @@ resourceGroups:
   - name: arobit-output
     action: ARM
     template: templates/arobit-lookup.bicep
-    parameters: configurations/arobit-lookup.tmpl.bicepparam
+    parameters: configurations/arobit-mgmt-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
     dependsOn:

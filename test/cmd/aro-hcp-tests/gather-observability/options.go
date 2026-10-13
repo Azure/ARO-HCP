@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/internal/testutil"
 	"github.com/Azure/ARO-HCP/test/util/junit"
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
@@ -304,10 +305,10 @@ func buildCosmosAutoscaleMaxLookup(cfg configtypes.Configuration) (autoscaleMaxL
 type gatherDependencies struct {
 	fetchAlerts           func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error)
 	fetchMetricAlertRules func(context.Context, azcore.TokenCredential, string, string) ([]string, error)
-	fetchAlertRules       func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) ([]string, error)
+	fetchAlertRules       func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) (alertRuleInventory, error)
 	lookupEndpoint        func(context.Context, azcore.TokenCredential, string, string, string) (string, error)
-	queryRange            func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*PrometheusResponse, error)
-	queryMetrics          func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]PrometheusResult, string, error)
+	queryRange            func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*promutil.Response, error)
+	queryMetrics          func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]promutil.Result, string, error)
 	collectUtilization    func(context.Context, map[string]*workspaceData) utilizationReport
 	collectAMW            func(context.Context) amwReport
 	renderAMW             func(amwReport) ([]byte, error)
@@ -323,8 +324,8 @@ type gatherDependencies struct {
 func (o Options) dependencies() gatherDependencies {
 	return gatherDependencies{
 		fetchAlerts: fetchAlerts, fetchMetricAlertRules: fetchMetricAlertRules,
-		fetchAlertRules: fetchAlertRules, lookupEndpoint: lookupPrometheusEndpoint,
-		queryRange: queryRange, queryMetrics: queryAzureMonitorMetrics,
+		fetchAlertRules: fetchAlertRules, lookupEndpoint: promutil.LookupPrometheusEndpoint,
+		queryRange: promutil.QueryRange, queryMetrics: queryAzureMonitorMetrics,
 		collectUtilization: o.collectUtilization, renderUtilization: renderUtilizationHTML,
 		collectAMW: o.collectAMW, renderAMW: renderAMWHTML,
 		renderResourceHistory: renderResourceHistoryHTML,
@@ -402,7 +403,8 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 			err = fmt.Errorf("failed to fetch %s alert rules: %w", wsType, err)
 			record(err)
 		}
-		wsData.AlertRules = rules
+		wsData.AlertRules = rules.Names
+		wsData.RuleDefinitions = rules.Definitions
 		scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", ws.SubscriptionID, ws.ResourceGroupName)
 		wsData.CollectionError = errors.Join(alertErrors[scope], err, o.knownIssuesError)
 		wsData.PromEndpoint, err = deps.lookupEndpoint(ctx, o.cred, ws.SubscriptionID, ws.ResourceGroupName, ws.Name)
@@ -502,11 +504,7 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 
 	// Build the tabbed observability page. The alerts view is the first tab;
 	// each metrics panel becomes an additional tab below.
-	alertsHTML, err := deps.renderAlerts(output)
-	if err != nil {
-		record(fmt.Errorf("failed to render alerts HTML: %w", err))
-	}
-	tabs := []observabilityTab{{Title: "Azure Monitor Alerts", HTML: string(incompleteHTML(alertsHTML, err))}}
+	tabs := []observabilityTab{{Title: "Azure Monitor Alerts"}}
 
 	// Write JUnit
 	junitPath := filepath.Join(o.OutputDir, "junit_alerts.xml")
@@ -549,6 +547,16 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 	}
 	tabs = append(tabs, observabilityTab{Title: "Resource History", HTML: string(incompleteHTML(historyHTML, err))})
 
+	// Existing collectors and JUnit must not wait behind the additional diagnostic
+	// budget. Persist shared results separately and embed them in the alert page.
+	output.Diagnostics = o.collectAlertDiagnostics(ctx, alerts, workspaces, deps, time.Now())
+	writeJSON("alert-diagnostics.json", output.Diagnostics)
+	alertsHTML, err := deps.renderAlerts(output)
+	if err != nil {
+		record(fmt.Errorf("failed to render alerts HTML: %w", err))
+	}
+	tabs[0].HTML = string(incompleteHTML(alertsHTML, err))
+
 	// Emit a single tabbed HTML page. The filename must match the Spyglass HTML
 	// lens regex .*-summary.*\.html so Prow renders it inline as one iframe.
 	htmlPath := filepath.Join(o.OutputDir, "observability-summary.html")
@@ -584,7 +592,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 
 		var panelCharts []chartData
 		for _, q := range panel.Queries {
-			var results []PrometheusResult
+			var results []promutil.Result
 			var queryErr string
 			var warning string
 			var metricResourceID string
@@ -632,11 +640,12 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 
 				logger.Info("executing PromQL query", "panel", panel.Title, "title", q.Title, "workspace", q.Workspace)
 
-				// Substitute __REPORT_RANGE__ with a duration literal covering the
-				// report's exact [start,end] window before executing, and keep the
-				// resolved query on q so the chart footer shows what actually ran.
-				q.Query = resolveReportRange(q.Query, o.TimeWindow.Start, o.TimeWindow.End)
-				resp, err := deps.queryRange(ctx, httpClient, o.cred, endpoint, q.Query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
+				query := resolveReportRange(q.Query, o.TimeWindow.Start, o.TimeWindow.End)
+				// Keep q.Query in sync with the resolved query so the report
+				// footer (queryFooter) shows what was actually executed
+				// instead of the unresolved __REPORT_RANGE__ placeholder.
+				q.Query = query
+				resp, err := deps.queryRange(ctx, httpClient, o.cred, endpoint, query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
 				if err != nil {
 					logger.Error(err, "PromQL query failed", "title", q.Title)
 					queryErr = err.Error()

@@ -40,6 +40,8 @@ type externalAuthDeletionController struct {
 
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthDeletionController)(nil)
 
+const ExternalAuthDeletionControllerControllerName = "ExternalAuthDeletionController"
+
 func NewExternalAuthDeletionController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
@@ -51,7 +53,7 @@ func NewExternalAuthDeletionController(
 	}
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthDeletionController",
+		ExternalAuthDeletionControllerControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,

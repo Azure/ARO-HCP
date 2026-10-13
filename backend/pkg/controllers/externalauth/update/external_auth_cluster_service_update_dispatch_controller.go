@@ -62,6 +62,8 @@ type externalAuthClusterServiceUpdateDispatchSyncer struct {
 
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthClusterServiceUpdateDispatchSyncer)(nil)
 
+const ExternalAuthClusterServiceUpdateDispatchControllerName = "ExternalAuthClusterServiceUpdateDispatch"
+
 func NewExternalAuthClusterServiceUpdateDispatchController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -76,7 +78,7 @@ func NewExternalAuthClusterServiceUpdateDispatchController(
 	)
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthClusterServiceUpdateDispatch",
+		ExternalAuthClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		backendInformers,
 		time.Minute,

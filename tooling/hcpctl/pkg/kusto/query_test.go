@@ -15,6 +15,8 @@
 package kusto
 
 import (
+	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -169,6 +171,117 @@ func TestServiceLogs_NoClusterIds(t *testing.T) {
 	require.Len(t, queries, 1)
 
 	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
+func TestOperationIdsQuery(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	def, err := f.GetBuiltinQueryDefinition("operationIds")
+	require.NoError(t, err)
+	for _, scoped := range []bool{false, true} {
+		t.Run(fmt.Sprintf("clusterScoped_%t", scoped), func(t *testing.T) {
+			data := NewTemplateDataFromOptions(baseOptions())
+			if scoped {
+				WithClusterIds([]string{"cid1", "cid2"})(&data)
+			}
+			queries, err := f.Build(*def, data)
+			require.NoError(t, err)
+			require.Len(t, queries, 1)
+			testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+		})
+	}
+}
+
+func TestBuildTimeWindows(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	def, err := f.GetCustomQueryDefinition("backendControllerConditions")
+	require.NoError(t, err)
+	start := time.Date(2026, 9, 25, 12, 34, 15, 0, time.UTC)
+	for _, tc := range []struct {
+		name     string
+		duration time.Duration
+		count    int
+	}{
+		{"reported interval", 58*time.Minute + 50*time.Second, 12},
+		{"exact multiple", 10 * time.Minute, 2},
+		{"one window", 5 * time.Minute, 1},
+		{"single timestamp", 0, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			end := start.Add(tc.duration)
+			queries, err := f.BuildTimeWindows(*def, NewTemplateDataFromOptions(baseOptions()), start, end, 5*time.Minute)
+			require.NoError(t, err)
+			require.Len(t, queries, 1)
+			windows := queries
+			if sequence, ok := queries[0].(*TimeWindowQuery); ok {
+				windows = sequence.Windows
+			}
+			require.Len(t, windows, tc.count)
+			next := start
+			for i, query := range windows {
+				assert.Equal(t, "backendControllerConditions", query.GetName())
+				bounds := regexp.MustCompile(`datetime\(([^)]+)\)`).FindAllStringSubmatch(query.GetQuery().String(), -1)
+				require.Len(t, bounds, 2)
+				minTime, err := time.Parse(time.RFC3339Nano, bounds[0][1])
+				require.NoError(t, err)
+				maxTime, err := time.Parse(time.RFC3339Nano, bounds[1][1])
+				require.NoError(t, err)
+				assert.True(t, minTime.Equal(next), "window %d must start immediately after the preceding inclusive end", i)
+				assert.LessOrEqual(t, maxTime.Sub(minTime), 5*time.Minute)
+				next = maxTime.Add(100 * time.Nanosecond)
+			}
+			assert.True(t, next.Equal(end.Add(100*time.Nanosecond)), "last window must include the requested end")
+		})
+	}
+	_, err = f.BuildTimeWindows(*def, NewTemplateDataFromOptions(baseOptions()), start, start, 0)
+	require.Error(t, err)
+	_, err = f.BuildTimeWindows(*def, NewTemplateDataFromOptions(baseOptions()), start, start.Add(-time.Second), time.Minute)
+	require.Error(t, err)
+}
+
+func TestFrontendQueriesWithOperationIds(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	for _, name := range []string{"serviceLogs", "debugQueries", "detailedServiceLogs"} {
+		t.Run(name, func(t *testing.T) {
+			var def *QueryDefinition
+			var err error
+			if name == "serviceLogs" {
+				def, err = f.GetBuiltinQueryDefinition(name)
+			} else {
+				def, err = f.GetCustomQueryDefinition(name)
+			}
+			require.NoError(t, err)
+			queries, err := f.Build(*def, NewTemplateDataFromOptions(baseOptions(),
+				WithTable("frontendLogs"), WithClusterIds([]string{"cid1"}),
+				WithOperationIds([]string{"773f5d4a-cd7a-4e25-ac56-58130cbed2d2", "operation'quoted"}),
+			))
+			require.NoError(t, err)
+			testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+		})
+	}
+}
+
+func TestVersionRolloutQueries(t *testing.T) {
+	for _, name := range []string{"versionRolloutLogs", "versionRolloutSnapshots"} {
+		for _, limit := range []int{100, -1} {
+			t.Run(fmt.Sprintf("%s/limit%d", name, limit), func(t *testing.T) {
+				f, err := NewQueryFactory()
+				require.NoError(t, err)
+				opts := baseOptions()
+				opts.Limit = limit
+				def, err := f.GetCustomQueryDefinition(name)
+				require.NoError(t, err)
+				require.NotNil(t, def)
+				require.True(t, def.IncludeInMustGather, "rollout diagnostics must be collected by default")
+				queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithClusterNames([]string{"svc-cluster-1", "mgmt-cluster-1"})))
+				require.NoError(t, err)
+				require.Len(t, queries, 1)
+				testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+			})
+		}
+	}
 }
 
 func TestHostedControlPlaneLogs(t *testing.T) {

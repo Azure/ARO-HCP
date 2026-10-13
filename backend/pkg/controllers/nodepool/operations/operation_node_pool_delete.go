@@ -43,6 +43,8 @@ type operationNodePoolDelete struct {
 	notificationClient   *http.Client
 }
 
+const OperationNodePoolDeleteControllerName = "OperationNodePoolDelete"
+
 // NewOperationNodePoolDeleteController returns a new Controller instance that
 // follows an asynchronous node pool deletion operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -81,7 +83,7 @@ func NewOperationNodePoolDeleteController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationNodePoolDelete",
+		OperationNodePoolDeleteControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

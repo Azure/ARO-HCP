@@ -86,6 +86,7 @@ func TestMatchesGroupSuffix(t *testing.T) {
 		{"fake-open-cluster-management.io", false},
 		{"notcluster.x-k8s.io", false},
 		{"x-k8s.io", false},
+		{"route.openshift.io", true},
 	}
 
 	for _, tt := range tests {
@@ -197,6 +198,8 @@ func TestWatchedExplicitGVRs(t *testing.T) {
 		{Group: "batch", Version: "v1", Resource: "jobs"},
 		{Group: "monitoring.coreos.com", Version: "v1", Resource: "podmonitors"},
 		{Group: "monitoring.coreos.com", Version: "v1", Resource: "servicemonitors"},
+		{Group: "secrets-store.csi.x-k8s.io", Version: "v1", Resource: "secretproviderclasses"},
+		{Group: "secret-sync.x-k8s.io", Version: "v1alpha1", Resource: "secretsyncs"},
 		{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
 		{Group: "policy", Version: "v1", Resource: "poddisruptionbudgets"},
 	}

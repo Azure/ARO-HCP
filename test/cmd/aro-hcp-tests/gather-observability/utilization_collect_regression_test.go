@@ -21,6 +21,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 )
 
 func TestUtilizationOwnerKindCasing(t *testing.T) {
@@ -155,7 +157,7 @@ func TestUtilizationPendingSpecWithoutRuntimeStatus(t *testing.T) {
 	for _, failedLimits := range []bool{false, true} {
 		results := utilizationTestWorkloads()
 		results[0].series, results[1].series = nil, nil
-		results[5].series = slices.DeleteFunc(results[5].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_container_info" })
+		results[5].series = slices.DeleteFunc(results[5].series, func(s promutil.Result) bool { return s.Metric["__name__"] == "kube_pod_container_info" })
 		for i := range results[5].series {
 			m := results[5].series[i].Metric
 			if m["__name__"] == "kube_pod_info" {
@@ -211,7 +213,7 @@ func TestUtilizationReusedPodUsageIncarnation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			results := utilizationTestWorkloads()
 			for i := range results {
-				results[i].series = slices.DeleteFunc(results[i].series, func(s PrometheusResult) bool { return s.Metric["pod"] == "api-rs-2" })
+				results[i].series = slices.DeleteFunc(results[i].series, func(s promutil.Result) bool { return s.Metric["pod"] == "api-rs-2" })
 			}
 			for i := range results[5].series {
 				m := results[5].series[i].Metric
@@ -274,7 +276,7 @@ func TestUtilizationSystemdCgroupAndAmbiguousKSM(t *testing.T) {
 
 func TestUtilizationFiniteLimitSumWithUnlimitedReplica(t *testing.T) {
 	results := utilizationTestWorkloads()
-	results[7].series = slices.DeleteFunc(results[7].series, func(s PrometheusResult) bool { return s.Metric["pod"] == "api-rs-2" })
+	results[7].series = slices.DeleteFunc(results[7].series, func(s promutil.Result) bool { return s.Metric["pod"] == "api-rs-2" })
 	var warnings []string
 	rows := utilizationBuildWorkloads(results, []string{"mgmt"}, utilizationTestTime, &warnings)
 	if len(rows) != 1 || rows[0].Limits.CPU == nil || *rows[0].Limits.CPU != 10 || rows[0].Limits.Memory == nil || *rows[0].Limits.Memory != 60 {
@@ -316,7 +318,7 @@ func TestUtilizationRuntimeIDDisambiguatesRestart(t *testing.T) {
 func TestUtilizationDemandMissingQueryDoesNotInventZero(t *testing.T) {
 	results := utilizationTestWorkloads()
 	results[0].series, results[1].series = nil, nil
-	results[5].series = slices.DeleteFunc(results[5].series, func(s PrometheusResult) bool { return s.Metric["__name__"] == "kube_pod_container_info" })
+	results[5].series = slices.DeleteFunc(results[5].series, func(s promutil.Result) bool { return s.Metric["__name__"] == "kube_pod_container_info" })
 	for i := range results[5].series {
 		m := results[5].series[i].Metric
 		if m["__name__"] == "kube_pod_info" {
@@ -350,7 +352,7 @@ func TestUtilizationMemoryDenominatorAndPhysicalCPU(t *testing.T) {
 	if node.Capacity.Memory == nil || *node.Capacity.Memory != 100 || *node.Usage.Memory / *node.Capacity.Memory != 0.5 {
 		t.Errorf("snapshot denominator differs from peak denominator: %+v", node)
 	}
-	results[1].series = slices.DeleteFunc(results[1].series, func(s PrometheusResult) bool {
+	results[1].series = slices.DeleteFunc(results[1].series, func(s promutil.Result) bool {
 		return s.Metric["__name__"] == "kube_node_status_capacity" && s.Metric["resource"] == "memory"
 	})
 	report = collectUtilization(context.Background(), utilizationTestTime, utilizationTestTime, utilizationTestTime, utilizationTestQuery(results))

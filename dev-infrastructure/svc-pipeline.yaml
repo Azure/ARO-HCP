@@ -73,6 +73,20 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+  - name: adminapi-apr-assignment
+    action: ARM
+    template: templates/adminapi-alert-processing-rule-assignment.bicep
+    parameters: configurations/adminapi-alert-processing-rule-assignment.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: adminApiPrincipalId
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: adminApiPrincipalId
+    dependsOn:
+    - resourceGroup: service
+      step: cluster-output
 - name: auditLogs
   resourceGroup: '{{ .auditLogsEventHub.rg }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -523,7 +537,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: regionRG
     - name: MI_RESOURCE_GROUP
-      configRef: svc.rg
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: identityResourceGroup
     - name: PG_SERVER_NAME
       configRef: clustersService.postgres.name
     - name: DATABASE_NAME
@@ -536,7 +553,7 @@ resourceGroups:
       configRef: clustersService.postgres.deploy
     dependsOn:
     - resourceGroup: service
-      step: cluster
+      step: cluster-output
     - resourceGroup: service
       step: subscription-output
   - name: maestro-postgres-access
@@ -557,7 +574,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: regionRG
     - name: MI_RESOURCE_GROUP
-      configRef: svc.rg
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: identityResourceGroup
     - name: PG_SERVER_NAME
       configRef: maestro.postgres.name
     - name: DATABASE_NAME
@@ -570,7 +590,7 @@ resourceGroups:
       configRef: maestro.postgres.deploy
     dependsOn:
     - resourceGroup: service
-      step: cluster
+      step: cluster-output
     - resourceGroup: service
       step: subscription-output
   - name: oidc-storage-setup

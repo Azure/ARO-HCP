@@ -58,6 +58,8 @@ type operationNodePoolUpdate struct {
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
 
+const OperationNodePoolUpdateControllerName = "OperationNodePoolUpdate"
+
 // NewOperationNodePoolUpdateController returns a new Controller instance that
 // follows an asynchronous node pool update operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -98,7 +100,7 @@ func NewOperationNodePoolUpdateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationNodePoolUpdate",
+		OperationNodePoolUpdateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -162,8 +164,29 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 	var persistErr *coreapi.CloudErrorBody
 	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
 		persistErr = &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeInvalidRequestContent,
+			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
+		}
+	}
+
+	if !operationalState.ProvisioningState.IsTerminal() &&
+		existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline != nil &&
+		c.clock.Now().After(existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time) {
+		message := operationbase.DeadlineExceededMessage(
+			"node pool update did not complete before the deadline",
+			operationalState.Message,
+		)
+		logger.Info("update operation deadline exceeded, marking as failed",
+			"deadline", existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time,
+			"message", message)
+		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
+		code := operationalState.CloudErrorCode
+		if code == coreapi.CloudErrorCodeInternalServerError {
+			code = coreapi.CloudErrorCodeDeadlineExceeded
+		}
+		persistErr = &coreapi.CloudErrorBody{
+			Code:    code,
+			Message: message,
 		}
 	}
 
@@ -301,10 +324,10 @@ func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx con
 			existingNodePool.Properties.Version.ID,
 		)
 		c.desiredVersionMismatchFirstSeen.Remove(operationID)
-		return operationbase.NewOperationState(coreapi.ProvisioningStateFailed, msg), nil
+		return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInvalidRequestContent, msg, nil), nil
 	}
 	c.desiredVersionMismatchFirstSeen.Remove(operationID)
-	return operationbase.NewOperationState(coreapi.ProvisioningStateFailed, intentFailedCondition.Message), nil
+	return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInvalidRequestContent, intentFailedCondition.Message, nil), nil
 }
 
 func (c *operationNodePoolUpdate) clusterServiceNodePoolStatusOperationState(ctx context.Context, operation *coreapi.Operation, existingCSNodePoolStatus *arohcpv1alpha1.NodePoolStatus) (*operationbase.OperationState, error) {
@@ -314,9 +337,10 @@ func (c *operationNodePoolUpdate) clusterServiceNodePoolStatusOperationState(ctx
 		return nil, utils.TrackError(err)
 	}
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
-	msg := ""
+	state := operationbase.NewOperationState(newOperationStatus, operationbase.NodePoolServiceOperationMessage(existingCSNodePoolStatus, opError))
 	if opError != nil {
-		msg = opError.Message
+		state.Message = opError.Message
+		state.WithCloudErrorCode(opError.Code)
 	}
-	return operationbase.NewOperationState(newOperationStatus, msg), nil
+	return state, nil
 }

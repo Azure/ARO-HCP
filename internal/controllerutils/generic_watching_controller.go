@@ -49,11 +49,18 @@ type AfterEnqueuer interface {
 	EnqueueAfter(keyObj any, duration time.Duration)
 }
 
+// Enqueuer schedules work immediately after an input change. Unlike delayed
+// requeues, these events should not increment the workqueue retry metric.
+type Enqueuer interface {
+	Enqueue(keyObj any)
+}
+
 type Notifier interface {
 	AddEventHandlerWithOptions(handler cache.ResourceEventHandler, options cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error)
 }
 
 type GenericWatchingController[T comparable] struct {
+	CacheSyncWaiter
 	name           string
 	resourceType   azcorearm.ResourceType
 	syncer         GenericSyncer[T]
@@ -83,6 +90,14 @@ func NewGenericWatchingController[T comparable](name string, resourceType azcore
 	return c
 }
 
+func (c *GenericWatchingController[T]) Enqueue(keyObj any) {
+	key, ok := keyObj.(T)
+	if !ok {
+		return
+	}
+	c.queue.Add(key)
+}
+
 func (c *GenericWatchingController[T]) EnqueueAfter(keyObj any, duration time.Duration) {
 	key, ok := keyObj.(T)
 	if !ok {
@@ -105,6 +120,10 @@ func (c *GenericWatchingController[T]) Run(ctx context.Context, threadiness int)
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
 	defer c.queue.ShutDown()
+
+	if !c.WaitForCacheSync(ctx) {
+		return
+	}
 
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx)

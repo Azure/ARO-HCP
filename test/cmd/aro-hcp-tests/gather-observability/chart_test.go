@@ -27,6 +27,7 @@ import (
 	"github.com/go-echarts/go-echarts/v2/opts"
 	"golang.org/x/net/html"
 
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
@@ -304,7 +305,7 @@ func TestRenderFacetedLineChartInitialThreshold(t *testing.T) {
 		FacetBy:          "container",
 		MinPeakThreshold: 5,
 	}
-	var results []PrometheusResult
+	var results []promutil.Result
 	for _, container := range []string{"clusters", "operations"} {
 		for _, series := range []struct {
 			name  string
@@ -313,7 +314,7 @@ func TestRenderFacetedLineChartInitialThreshold(t *testing.T) {
 			{name: "below threshold", value: "2"},
 			{name: "above threshold", value: "10"},
 		} {
-			results = append(results, PrometheusResult{
+			results = append(results, promutil.Result{
 				Metric: map[string]string{"container": container, "operation": series.name},
 				Values: [][]any{{float64(tw.Start.Unix()), series.value}, {float64(tw.End.Unix()), series.value}},
 			})

@@ -39,7 +39,7 @@ var (
 	KustoLogsAgeInSecondsDesc = prometheus.NewDesc(
 		"kusto_logs_age_in_seconds",
 		"Age of last log in seconds from Kusto",
-		[]string{"kusto_cluster", "cluster", "table"},
+		[]string{"kusto_cluster", "cluster", "table", "cluster_type"},
 		nil,
 	)
 )
@@ -99,8 +99,8 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 		logger.V(1).Info("Skipping Kusto logs collection", "lastRun", c.lastRun, "startTime", startTime)
 		return
 	}
-	clusterNames := c.clusterClient.GetDiscoverResult(ctx)
-	for _, clusterName := range clusterNames.ClusterNames {
+	discovered := c.clusterClient.GetDiscoverResult(ctx)
+	for clusterName, clusterType := range clusterTypesByName(discovered.Clusters) {
 		logger.V(1).Info("Collecting Kusto logs age in seconds", "cluster", clusterName)
 
 		queryClient := mustgather.NewQueryClientWithFileWriter(c.kustoClient, KustoLogsCurrentQueryTimeout, "", nil)
@@ -148,16 +148,36 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 
 		for logSource := range foundLogSources {
 			logger.V(1).Info("Found log source", "logSource", logSource)
-			key := fmt.Sprintf("%s/%s/%s", c.kustoCluster, clusterName, logSource)
-			c.cache.Set(key, prometheus.MustNewConstMetric(
-				KustoLogsAgeInSecondsDesc,
-				prometheus.GaugeValue,
-				float64(time.Since(foundLogSources[logSource]).Seconds()),
-				c.kustoCluster,
-				clusterName,
-				logSource,
-			))
+			c.cacheLogAge(clusterName, clusterType, logSource, foundLogSources[logSource])
 		}
 	}
 	c.lastRun = time.Now()
+}
+
+func clusterTypesByName(clusters []cluster.ClusterInfo) map[string]string {
+	clusterTypes := make(map[string]string, len(clusters))
+	for _, clusterInfo := range clusters {
+		clusterType := clusterInfo.ClusterType
+		if clusterType == "" {
+			clusterType = "unknown"
+		}
+		if previous, found := clusterTypes[clusterInfo.Name]; found && previous != clusterType {
+			clusterType = "unknown"
+		}
+		clusterTypes[clusterInfo.Name] = clusterType
+	}
+	return clusterTypes
+}
+
+func (c *KustoLogsCurrentCollector) cacheLogAge(clusterName, clusterType, logSource string, timestamp time.Time) {
+	key := fmt.Sprintf("%s/%s/%s", c.kustoCluster, clusterName, logSource)
+	c.cache.Set(key, prometheus.MustNewConstMetric(
+		KustoLogsAgeInSecondsDesc,
+		prometheus.GaugeValue,
+		time.Since(timestamp).Seconds(),
+		c.kustoCluster,
+		clusterName,
+		logSource,
+		clusterType,
+	))
 }

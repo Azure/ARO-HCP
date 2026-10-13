@@ -67,6 +67,8 @@ type externalAuthClusterServiceDeleteDispatchSyncer struct {
 
 var _ controllerutils.ExternalAuthSyncer = (*externalAuthClusterServiceDeleteDispatchSyncer)(nil)
 
+const ExternalAuthClusterServiceDeleteDispatchControllerName = "ExternalAuthClusterServiceDeleteDispatch"
+
 func NewExternalAuthClusterServiceDeleteDispatchController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -83,7 +85,7 @@ func NewExternalAuthClusterServiceDeleteDispatchController(
 	}
 
 	return controllerutils.NewExternalAuthWatchingController(
-		"ExternalAuthClusterServiceDeleteDispatch",
+		ExternalAuthClusterServiceDeleteDispatchControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,

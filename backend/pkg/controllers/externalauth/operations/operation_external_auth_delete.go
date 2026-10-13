@@ -43,6 +43,8 @@ type operationExternalAuthDelete struct {
 	notificationClient   *http.Client
 }
 
+const OperationExternalAuthDeleteControllerName = "OperationExternalAuthDelete"
+
 // NewOperationExternalAuthDeleteController returns a new Controller instance that
 // follows an asynchronous external auth deletion operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -82,7 +84,7 @@ func NewOperationExternalAuthDeleteController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationExternalAuthDelete",
+		OperationExternalAuthDeleteControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,

@@ -20,6 +20,9 @@
     .warning { border-left: 4px solid #d29922; background: #292315; padding: 12px 16px; }
     .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; } .charts .panel { margin: 0; } .charts .panel:last-child { grid-column: 1 / -1; }
     .chart { height: 350px; width: 100%; } [hidden] { display: none !important; }
+    details { margin: 12px 0; color: #9da7b3; font-size: 12px; overflow-wrap: anywhere; }
+    summary { cursor: pointer; } #history-warnings { max-height: 360px; overflow: auto; }
+    #history-warnings p { border-left: 2px solid #484f58; padding-left: 10px; }
     @media (max-width: 900px) { .charts { grid-template-columns: 1fr; } }
     @media (max-width: 650px) { main { padding: 12px; } .panel { padding: 12px; } .controls > label { width: 100%; } select { width: 100%; } .chart { height: 310px; } }
   </style>
@@ -37,6 +40,7 @@
       <label>Display<select id="display"><option value="absolute">Absolute</option><option value="percent">% capacity</option></select></label>
       <button id="reset-zoom" type="button">Reset zoom</button>
     </div>
+    <details id="history-details"><summary id="history-summary">Data quality and warnings</summary><div id="history-warnings"></div></details>
     <p id="chart-status" class="muted" role="status">Loading charts...</p>
     <div class="charts">
       <section class="panel"><h2>CPU</h2><div id="chart-cpu" class="chart" hidden role="img" aria-label="CPU history"></div></section>
@@ -53,10 +57,10 @@ const $ = id => document.getElementById(id);
 const list = value => value || [];
 const known = value => typeof value === 'number' && Number.isFinite(value);
 const history = list(report.history), resources = ['cpu', 'memory', 'swiftNIC'];
-const fields = ['capacity', 'allocatable', 'usage', 'requests'];
-const labels = {capacity: 'Capacity', allocatable: 'Allocatable', usage: 'Usage', requests: 'Requests'};
-const colors = {capacity: '#79b8ff', allocatable: '#c4a4ef', usage: '#56d4a3', requests: '#e3b341'};
-const charts = {}, legend = {Capacity: true, Allocatable: true, Usage: true, Requests: true};
+const fields = ['capacity', 'allocatable', 'usage', 'requests', 'partialRequests'];
+const labels = {capacity: 'Capacity', allocatable: 'Allocatable', usage: 'Usage', requests: 'Requests', partialRequests: 'Partial requests (lower bound)'};
+const colors = {capacity: '#79b8ff', allocatable: '#c4a4ef', usage: '#56d4a3', requests: '#e3b341', partialRequests: '#f0883e'};
+const charts = {}, legend = Object.fromEntries(fields.map(field => [labels[field], true]));
 let scope = {cluster: '', pool: '', node: ''}, percent = false, zoom = {start: 0, end: 100}, aggregates = {};
 const format = new Intl.NumberFormat('en-US', {maximumFractionDigits: 2});
 const utc = value => new Date(value).toISOString().replace('T', ' ').replace('.000Z', ' UTC');
@@ -69,8 +73,9 @@ const resourceFields = resource => fields.filter(field => resource !== 'swiftNIC
 for (const sample of history) {
   sample.nodes = list(sample.nodes).map(([metadata, quantities]) => {
     const values = report.quantities[quantities];
-    return {...report.metadata[metadata], capacity: values[0], allocatable: values[1], usage: values[2], requests: values[3]};
+    return {...report.metadata[metadata], capacity: values[0], allocatable: values[1], usage: values[2], requests: values[3], partialRequests: values[4]};
   });
+  sample.warnings = list(sample.warnings).map(index => report.messages[index]);
 }
 const timestamps = history.map(sample => Date.parse(sample.time));
 const timeLabels = timestamps.map(utc), startTime = Date.parse(report.start), endTime = Date.parse(report.end);
@@ -89,6 +94,21 @@ function sampleIndex(sample) {
 }
 const selectorNodes = list(report.metadata);
 for (const sample of history) sampleIndex(sample);
+// Classify each distinct warning once. Unrecognized messages remain global.
+const warningScopes = new Map(), warningPools = new Map();
+for (const node of selectorNodes) {
+  const key = nodeKey(node);
+  if (!warningPools.has(key)) warningPools.set(key, new Set());
+  warningPools.get(key).add(poolKey(node.pool));
+}
+for (const sample of [report, ...history]) {
+  for (const message of list(sample.warnings)) {
+    if (warningScopes.has(message)) continue;
+    const cluster = list(report.clusters).find(cluster => [': ', '/', ' CPU peak:', ' memory peak:'].some(prefix => message.startsWith(cluster + prefix)));
+    const name = cluster && message.startsWith(cluster + '/') ? message.slice(cluster.length + 1).split(': ')[0] : '';
+    warningScopes.set(message, {cluster, node: name ? JSON.stringify([cluster, name]) : ''});
+  }
+}
 delete report.metadata; delete report.quantities; delete report.messages;
 let aggregateScope;
 function el(tag, text) { const element = document.createElement(tag); if (text !== undefined) element.textContent = text; return element; }
@@ -134,7 +154,7 @@ function aggregate(sample, resource, selected = scope) {
   const blocked = missingClusters > 0 || missingInventory > 0 || ambiguousPool > 0;
   const noResource = resource === 'swiftNIC' && candidates.length > 0 && excluded === candidates.length && !blocked;
   const lines = {};
-  for (const field of resourceFields(resource)) {
+  for (const field of resourceFields(resource).filter(field => field !== 'partialRequests')) {
     // Advertisement determines capacity applicability, not whether assigned
     // requests exist. Request completeness includes even non-advertising nodes.
     const needsAdvertisement = resource === 'swiftNIC' && field !== 'requests';
@@ -143,6 +163,12 @@ function aggregate(sample, resource, selected = scope) {
     const sum = measured.reduce((total, node) => total + node[field][resource], 0);
     lines[field] = {count: measured.length, total: relevant.length, value: !blocked && !(needsAdvertisement && unknownSwift > 0) && relevant.length > 0 && measured.length === relevant.length && known(sum) ? sum : null};
   }
+  // Inventory gaps can invalidate a total without erasing confidently scoped
+  // demand. Prefer each node's complete value; partial evidence is not additive.
+  const observed = candidates.filter(node => (!selected.pool || poolKey(node.pool) === selected.pool) && (known(node.requests?.[resource]) || known(node.partialRequests?.[resource])));
+  const lowerBound = observed.reduce((sum, node) => sum + (known(node.requests?.[resource]) ? node.requests[resource] : node.partialRequests[resource]), 0);
+  lines.partialRequests = {count: observed.length, complete: observed.filter(node => known(node.requests?.[resource])).length, total: candidates.length,
+    value: !known(lines.requests.value) && observed.length > 0 && known(lowerBound) ? lowerBound : null};
   const capacity = lines.capacity.value;
   for (const line of Object.values(lines)) line.percent = known(line.value) && known(capacity) && capacity > 0 ? 100 * line.value / capacity : null;
   const a = lines.allocatable.value, r = lines.requests.value;
@@ -155,21 +181,67 @@ function tooltip(resource, index, field) {
   const line = sample.lines[field];
   if (!line) return host;
   host.append(el('div', timeLabels[index]), el('strong', labels[field] + ': ' + quantity(percent ? line.percent : line.value, resource, percent)));
+  if (field === 'partialRequests') {
+    host.style.cssText = 'max-width: min(360px, calc(100vw - 48px)); white-space: normal; overflow-wrap: anywhere';
+    host.append(el('div', line.complete + ' complete / ' + line.count + ' observed request nodes; ' + line.total + ' known nodes in scope.'),
+      el('div', (line.total - line.count) + ' nodes without scoped request evidence.'),
+      el('div', 'Lower bound only. Missing demand is unknown; actual requests may be higher.'));
+    if (sample.missingClusters || sample.missingInventory || sample.ambiguousPool) host.append(el('div', 'Incomplete cluster inventory or pool membership; additional demand may be unobserved.'));
+  }
   return host;
+}
+function renderWarnings() {
+  const host = $('history-warnings');
+  host.replaceChildren();
+  if (!$('history-details').open) return;
+  const warnings = new Map();
+  const selectedCluster = scope.node ? JSON.parse(scope.node)[0] : scope.cluster;
+  const inScope = (message, sample) => {
+    const source = warningScopes.get(message);
+    if (source.cluster && selectedCluster && source.cluster !== selectedCluster) return false;
+    if (!source.node) return true;
+    if (scope.node && source.node !== scope.node) return false;
+    if (!scope.pool) return true;
+    const node = sample ? sampleIndex(sample).nodes.get(source.node) : null;
+    if (sample) return !node || unknownPool(node.pool) || poolKey(node.pool) === scope.pool;
+    const pools = warningPools.get(source.node);
+    return !pools || pools.has(poolKey('')) || pools.has(scope.pool);
+  };
+  for (const message of list(report.warnings)) if (inScope(message)) warnings.set(message, {global: true, intervals: []});
+  history.forEach((sample, i) => {
+    for (const message of new Set(sample.warnings)) {
+      if (!inScope(message, sample)) continue;
+      if (!warnings.has(message)) warnings.set(message, {global: false, intervals: []});
+      const intervals = warnings.get(message).intervals, last = intervals[intervals.length - 1];
+      if (last && timestamps[i] === timestamps[last[1]] + 60000) last[1] = i;
+      else intervals.push([i, i]);
+    }
+  });
+  host.append(el('p', 'Request coverage counts minutes with partial or missing data in any resource; these counts can overlap. Warning intervals include both endpoints.'));
+  if (!warnings.size) host.append(el('p', 'No collection warnings for this scope.'));
+  const fragment = document.createDocumentFragment();
+  for (const [message, warning] of warnings) {
+    const ranges = warning.intervals.map(([first, last]) => timeLabels[first] + (last === first ? '' : ' to ' + timeLabels[last]));
+    fragment.append(el('p', message + ' [' + (warning.global ? 'Report-wide' + (ranges.length ? '; ' : '') : '') + ranges.join('; ') + ']'));
+  }
+  host.append(fragment);
 }
 function chartOption(resource) {
   const data = aggregates[resource];
+  const narrow = $('chart-' + resource).clientWidth < 600;
+  // ECharts deduplicates legend names, including repeated line-break entries.
+  const legendFields = resourceFields(resource).flatMap(field => narrow && (field === 'usage' || field === 'partialRequests' || resource === 'swiftNIC' && field === 'requests') ? [field === 'partialRequests' ? '\n' : '', labels[field]] : [labels[field]]);
   return {
     animation: false, useUTC: true, backgroundColor: 'transparent', textStyle: {color: '#e6edf3'},
-    legend: {show: true, icon: 'rect', data: resourceFields(resource).map(field => labels[field]), selected: {...legend}, textStyle: {color: '#e6edf3'}, type: 'scroll'},
-    grid: {left: 65, right: 22, top: 65, bottom: 85},
+    legend: {show: true, icon: 'rect', data: legendFields, selected: {...legend}, textStyle: {color: '#e6edf3'}, type: 'plain'},
+    grid: {left: 65, right: 22, top: narrow ? 105 : 65, bottom: 85},
     tooltip: {trigger: 'item', triggerOn: 'none', confine: true, renderMode: 'html', backgroundColor: '#161b22', borderColor: '#484f58', textStyle: {color: '#e6edf3'}},
     axisPointer: {label: {formatter: params => utc(params.value)}},
-    xAxis: {type: 'time', min: startTime, max: endTime, axisLabel: {hideOverlap: true, formatter: value => utc(value).slice(5, 16)}, axisPointer: {snap: true}},
+    xAxis: {type: 'time', min: startTime, max: endTime, splitNumber: narrow ? 4 : 6, axisLabel: {hideOverlap: true, formatter: value => utc(value).slice(narrow ? 11 : 5, 16)}, axisPointer: {snap: true}},
     yAxis: {type: 'value', min: 0, name: percent ? '% of capacity' : resource === 'memory' ? 'GiB' : resource === 'cpu' ? 'cores' : 'slots', splitLine: {lineStyle: {color: '#30363d'}}},
     dataZoom: [{type: 'inside', ...zoom, filterMode: 'none'}, {type: 'slider', ...zoom, filterMode: 'none', bottom: 12, textStyle: {color: '#9da7b3'}, labelFormatter: value => utc(value)}],
-    series: resourceFields(resource).map(field => ({id: field, name: labels[field], type: 'line', smooth: false, step: field === 'usage' ? false : 'end', connectNulls: false, showSymbol: false, symbol: 'none', triggerLineEvent: true,
-      lineStyle: {color: colors[field], width: 2}, itemStyle: {color: colors[field]},
+    series: resourceFields(resource).map(field => ({id: field, name: labels[field], type: 'line', smooth: false, step: field === 'usage' ? false : 'end', connectNulls: false, showSymbol: field === 'partialRequests', showAllSymbol: field === 'partialRequests', symbol: field === 'partialRequests' ? 'circle' : 'none', symbolSize: 6, triggerLineEvent: true,
+      lineStyle: {color: colors[field], width: 2, type: field === 'partialRequests' ? 'dashed' : 'solid'}, itemStyle: {color: colors[field]},
        data: data.map((sample, index) => [timestamps[index], percent ? sample.lines[field].percent : known(sample.lines[field].value) ? sample.lines[field].value / (resource === 'memory' ? 1073741824 : 1) : null])}))
   };
 }
@@ -194,15 +266,19 @@ function drawCharts() {
       });
       chart.on('mouseover', () => { for (const other of Object.values(charts)) if (other !== chart) other.dispatchAction({type: 'hideTip'}); });
       chart.on('mousemove', 'series.line', event => {
-        // Line events have no dataIndex when symbols are disabled.
-        const time = chart.convertFromPixel({xAxisIndex: 0}, event.event.offsetX);
-        if (!known(time)) return;
-        let low = 0, high = timestamps.length - 1;
-        while (low < high) {
-          const middle = Math.floor((low + high) / 2);
-          if (timestamps[middle] < time) low = middle + 1; else high = middle;
+        // A symbol's edge can be closer to the next minute on dense charts.
+        // Only line events without a sample index need coordinate lookup.
+        let index = event.dataIndex;
+        if (!Number.isInteger(index)) {
+          const time = chart.convertFromPixel({xAxisIndex: 0}, event.event.offsetX);
+          if (!known(time)) return;
+          let low = 0, high = timestamps.length - 1;
+          while (low < high) {
+            const middle = Math.floor((low + high) / 2);
+            if (timestamps[middle] < time) low = middle + 1; else high = middle;
+          }
+          index = low > 0 && time - timestamps[low - 1] < timestamps[low] - time ? low - 1 : low;
         }
-        const index = low > 0 && time - timestamps[low - 1] < timestamps[low] - time ? low - 1 : low;
         const field = resourceFields(resource)[event.seriesIndex], line = aggregates[resource][index].lines[field];
         if (!known(percent ? line.percent : line.value)) { chart.dispatchAction({type: 'hideTip'}); return; }
         // With no symbol element, showTip needs explicit content and position.
@@ -220,6 +296,10 @@ function render() {
   if (key !== aggregateScope) {
     for (const resource of resources) aggregates[resource] = history.map(sample => aggregate(sample, resource));
     aggregateScope = key;
+    const partial = history.filter((_, i) => resources.some(resource => known(aggregates[resource][i].lines.partialRequests.value))).length;
+    const missing = history.filter((_, i) => resources.some(resource => !known(aggregates[resource][i].lines.requests.value) && !known(aggregates[resource][i].lines.partialRequests.value))).length;
+    $('history-summary').textContent = 'Data quality: ' + partial + ' partial / ' + missing + ' missing request minutes of ' + history.length + '; warnings';
+    renderWarnings();
   }
   drawCharts();
 }
@@ -230,8 +310,9 @@ $('history-content').hidden = !history.length;
 options($('cluster'), list(report.clusters).map(cluster => [cluster, cluster]), 'Fleet');
 $('cluster').onchange = () => cascade('cluster'); $('pool').onchange = () => cascade('pool'); $('node').onchange = () => cascade('node');
 $('display').onchange = render;
+$('history-details').ontoggle = renderWarnings;
 $('reset-zoom').onclick = () => { zoom = {start: 0, end: 100}; if (charts.cpu) charts.cpu.dispatchAction({type: 'dataZoom', ...zoom}); };
-window.addEventListener('resize', () => Object.values(charts).forEach(chart => chart.resize()));
+window.addEventListener('resize', () => { Object.values(charts).forEach(chart => chart.resize()); drawCharts(); });
 cascade('cluster');
 </script>
 <script defer src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js" onload="drawCharts()" onerror="document.getElementById('chart-status').textContent='Chart CDN unavailable.'"></script>

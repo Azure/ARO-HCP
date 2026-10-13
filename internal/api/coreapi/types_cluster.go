@@ -179,17 +179,25 @@ type ClusterServiceProviderProperties struct {
 	// The e2e tests set this value to one minute less than the default timeout.
 	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
 
+	// UpdateOperationCompletionDeadline is the time by which the current cluster update must complete.
+	// Admission resets it on each update to 60 minutes from the request, unless overridden
+	// by the experimental max-update-duration tag (requires ExperimentalReleaseFeatures).
+	// The update operation controller fails pending operations after this deadline,
+	// including the current pending reasons in the returned error.
+	// Written by: Frontend PUT/PATCH Cluster (via admission)
+	UpdateOperationCompletionDeadline *metav1.Time `json:"updateOperationCompletionDeadline,omitempty"`
+
 	// DeleteOperationCompletionTimeout is the duration after which a cluster deletion operation will be
 	// marked as failed with a message listing the remaining cosmos resources preventing deletion.
 	// Set by admission on CREATE and UPDATE from the TagClusterMaxDeletionDuration tag.
 	// Nil when the tag is absent or the ExperimentalReleaseFeatures AFEC is not registered.
-	// The frontend DELETE handler computes the deadline as DeletionTimestamp + this duration.
+	// The frontend DELETE handler adds this duration to the accepted attempt time, defaulting to 12 hours when nil.
 	// Written by: Frontend PUT/PATCH Cluster (via admission)
 	DeleteOperationCompletionTimeout *time.Duration `json:"deleteOperationCompletionTimeout,omitempty"`
 
 	// DeleteOperationCompletionDeadline is the absolute time by which the cluster deletion operation
-	// must complete. Computed by the frontend DELETE handler as DeletionTimestamp + DeleteOperationCompletionTimeout
-	// (or DeletionTimestamp + 12h when DeleteOperationCompletionTimeout is nil).
+	// must complete. Computed by the frontend DELETE handler as the accepted attempt time plus
+	// DeleteOperationCompletionTimeout (or 12 hours when nil), preserving the original DeletionTimestamp.
 	// Written by: Frontend DELETE Cluster
 	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
 }
@@ -302,12 +310,19 @@ type CustomerManagedEncryptionProfile struct {
 	Kms            *KmsEncryptionProfile                     `json:"kms,omitempty"`
 }
 
+const (
+	KmsKeyVaultTypeKeyVault   = "KeyVault"
+	KmsKeyVaultTypeManagedHSM = "ManagedHSM"
+)
+
 // KmsEncryptionProfile represents a data encryption configuration for ETCD using
 // customer-managed Key Management Service (KMS) keys.
 // Visibility for the entire struct is "read create".
 type KmsEncryptionProfile struct {
 	Visibility metadataapi.KeyVaultVisibility `json:"visibility,omitempty"`
 	ActiveKey  KmsKey                         `json:"activeKey,omitempty"`
+	// Written by: Frontend PUT Cluster (Create)
+	KeyVaultType string `json:"keyVaultType,omitempty"`
 }
 
 // KmsKey represents an Azure KeyVault secret.
@@ -427,10 +442,13 @@ func (cluster *Cluster) EnsureDefaults() {
 	}
 	// Default KMS Visibility to Public for clusters created via v2024_06_10_preview
 	// (which doesn't expose the visibility field and assumes public KeyVaults).
-	if cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
-		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil &&
-		len(cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility) == 0 {
-		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+	if cm := cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; cm != nil && cm.Kms != nil {
+		if len(cm.Kms.Visibility) == 0 {
+			cm.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+		}
+		if len(cm.Kms.KeyVaultType) == 0 {
+			cm.Kms.KeyVaultType = KmsKeyVaultTypeKeyVault
+		}
 	}
 }
 

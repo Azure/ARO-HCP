@@ -42,6 +42,7 @@ var watchedGroupSuffixes = []string{
 	"multicluster.openshift.io",
 	"multitenancy.acn.azure.com",
 	"velero.io",
+	"route.openshift.io",
 }
 
 // watchedExplicitGVRs is the hardcoded list of GroupVersionResources to watch
@@ -63,6 +64,8 @@ var watchedExplicitGVRs = []schema.GroupVersionResource{
 	{Group: "batch", Version: "v1", Resource: "jobs"},
 	{Group: "monitoring.coreos.com", Version: "v1", Resource: "podmonitors"},
 	{Group: "monitoring.coreos.com", Version: "v1", Resource: "servicemonitors"},
+	{Group: "secrets-store.csi.x-k8s.io", Version: "v1", Resource: "secretproviderclasses"},
+	{Group: "secret-sync.x-k8s.io", Version: "v1alpha1", Resource: "secretsyncs"},
 	{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
 	{Group: "policy", Version: "v1", Resource: "poddisruptionbudgets"},
 }

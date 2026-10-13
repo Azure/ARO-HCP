@@ -222,20 +222,26 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*co
 }
 
 // newNodePoolAdmissionContext creates an admission context for node pool operations.
-// The cluster and spCluster parameters are always required (version skew validation reads
-// control plane active versions from spCluster at both CREATE and UPDATE time).
-// spNodePool is required for UPDATE only (prior node pool version state).
-func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation.Operation, subscription *coreapi.Subscription, originalNodePool *coreapi.NodePool, cluster *coreapi.Cluster, spCluster *coreapi.ServiceProviderCluster, spNodePool *coreapi.ServiceProviderNodePool) (*admission.NodePoolAdmissionContext, error) {
+// Provider cluster state is required from the cache for both CREATE and UPDATE;
+// provider node pool state is required for UPDATE only.
+func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation.Operation, subscription *coreapi.Subscription, originalNodePool *coreapi.NodePool, cluster *coreapi.Cluster) (*admission.NodePoolAdmissionContext, error) {
 	if cluster == nil {
 		return nil, fmt.Errorf("cluster is required for admission context")
 	}
 
-	if spCluster == nil {
-		return nil, fmt.Errorf("serviceProviderCluster is required for admission context")
+	clusterID := cluster.ID
+	serviceProviderCluster, err := f.serviceProviderClusterLister.Get(ctx, clusterID.SubscriptionID, clusterID.ResourceGroupName, clusterID.Name)
+	if err != nil {
+		// Do not expose a missing admission dependency as an ARM target 404.
+		return nil, fmt.Errorf("cannot load service provider cluster %s for node pool admission: %v", clusterID, err)
 	}
-
-	if spNodePool == nil && op.Type == operation.Update {
-		return nil, fmt.Errorf("serviceProviderNodePool is required for admission context")
+	var serviceProviderNodePool *coreapi.ServiceProviderNodePool
+	if op.Type == operation.Update {
+		nodePoolID := originalNodePool.ID
+		serviceProviderNodePool, err = f.serviceProviderNodePoolLister.Get(ctx, nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName, nodePoolID.Parent.Name, nodePoolID.Name)
+		if err != nil {
+			return nil, fmt.Errorf("cannot load service provider node pool %s for node pool admission: %v", nodePoolID, err)
+		}
 	}
 
 	return &admission.NodePoolAdmissionContext{
@@ -243,8 +249,8 @@ func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation
 		Subscription:            subscription,
 		OriginalNodePool:        originalNodePool.DeepCopy(),
 		Cluster:                 cluster,
-		ServiceProviderCluster:  spCluster,
-		ServiceProviderNodePool: spNodePool,
+		ServiceProviderCluster:  serviceProviderCluster,
+		ServiceProviderNodePool: serviceProviderNodePool,
 	}, nil
 }
 
@@ -285,20 +291,11 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
-	serviceProviderCluster, err := f.resourcesDBClient.ServiceProviderClusters(
-		resourceID.Parent.SubscriptionID,
-		resourceID.Parent.ResourceGroupName,
-		resourceID.Parent.Name,
-	).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
 	restOperation := operation.Operation{
 		Type:    operation.Create,
 		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), metadataapi.APIVersion(versionedInterface.String())),
 	}
-	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster, serviceProviderCluster, nil)
+	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -558,23 +555,11 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	// Get ServiceProviderCluster and ServiceProviderNodePool for version validation
-	clusterID := oldInternalNodePool.ID.Parent
-	spCluster, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, f.resourcesDBClient, clusterID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	spNodePool, err := corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, f.resourcesDBClient, oldInternalNodePool.ID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
 	restOperation := operation.Operation{
 		Type:    operation.Update,
 		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), metadataapi.APIVersion(versionedInterface.String())),
 	}
-	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster, spCluster, spNodePool)
+	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -683,15 +668,8 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	// delete, and we pass them to the delete admission validation.
 	// TODO once OCPBUGS-86702 is resolved, we should remove this retrieval and the check of last nodepool being
 	// deleted in the delete admission validation when we decide we want to allow the deletion of the last node pool.
-	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).List(ctx, nil)
+	nodePools, err := f.nodePoolLister.ListForCluster(ctx, nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName, nodePool.ID.Parent.Name)
 	if err != nil {
-		return utils.TrackError(err)
-	}
-	nodePools := make([]*coreapi.NodePool, 0)
-	for _, nodePool := range nodePoolIterator.Items(ctx) {
-		nodePools = append(nodePools, nodePool)
-	}
-	if err := nodePoolIterator.GetError(); err != nil {
 		return utils.TrackError(err)
 	}
 

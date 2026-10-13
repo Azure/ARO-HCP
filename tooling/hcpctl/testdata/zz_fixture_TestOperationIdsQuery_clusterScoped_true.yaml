@@ -1,0 +1,19 @@
+database: ServiceLogs
+kql: |
+  set notruncation;
+  // Resolve Clusters Service IDs to the ARM cluster IDs attached to operation snapshots.
+  let clusterResourceIds = clustersServiceLogs
+      | where resource_id has '/subscriptions/test-sub/resourceGroups/test-rg'
+      | where cid in ('cid1', 'cid2')
+      | extend clusterResourceId = extract(@"^(.*/hcpopenshiftclusters/[^/]+)", 1, tolower(resource_id))
+      | where isnotempty(clusterResourceId)
+      | distinct clusterResourceId;
+  cosmosResourceSnapshots
+  | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+  | where subscriptionID =~ 'test-sub' and resourceGroup =~ 'test-rg'
+  | where resourceType =~ 'Microsoft.RedHatOpenShift/hcpOperationStatuses'
+  | where tolower(cluster_id) in (clusterResourceIds)
+  | where isnotempty(resourceName)
+  | distinct operationId = tolower(resourceName)
+name: operationIds
+unlimited: false

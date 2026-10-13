@@ -1,0 +1,46 @@
+conditional projection: proposed changes are assumed to succeed; no ARM writes are performed.
+Observed transitions and failed-pool reconciliation require a new observation; workload/autoscaler activity and external quota changes are not predicted.
+
+initial:
+  a1  worker  Standard_E32ds_v6  zone=1  max=6  count=3  autoscaled
+  b1  worker  Standard_D4s_v3    zone=1  max=6  count=2  autoscaled
+  c1  worker  Standard_D4s_v3    zone=2  max=6  count=2  autoscaled
+
+desired:
+  a1  worker  Standard_E32ds_v6  zone=1  max=6
+  d1  worker  Standard_D8ds_v6   zone=1  max=4
+
+budget (vCPUs):
+  standardDDSv6Family:  32
+  standardDSv3Family:   48
+  standardEDSv6Family:  192
+
+initial headroom (vCPUs):
+  standardDDSv6Family:  32
+  standardDSv3Family:   16
+  standardEDSv6Family:  96
+
+fully allocated: true
+
+initial capacity:
+  system:  cpu=0    memory=0GiB     swiftNICs=0
+  infra:   cpu=0    memory=0GiB     swiftNICs=0
+  worker:  cpu=240  memory=1728GiB  swiftNICs=54
+
+actions:
+    1.  Create            worker  Standard_D8ds_v6  d1  min=1   max=4  floor: cpu=224  memory=1728GiB  swiftNICs=54  capacity: cpu=272  (+48)  memory=1984GiB  (+256GiB)  swiftNICs=66  (+12)  DDSv6:      0c remaining
+    2.  SetScalingBounds  worker  Standard_D4s_v3   b1  min=1   max=2  floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=256  (+32)  memory=1920GiB  (+128GiB)  swiftNICs=62  (+8)   DSv3:      32c remaining
+    3.  SetScalingBounds  worker  Standard_D4s_v3   c1  min=1   max=2  floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=240  (+16)  memory=1856GiB  (+64GiB)   swiftNICs=58  (+4)   DSv3:      48c remaining
+    4.  Freeze            worker  Standard_D4s_v3   b1  count=2        floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=240  (+16)  memory=1856GiB  (+64GiB)   swiftNICs=58  (+4)
+    5.  Freeze            worker  Standard_D4s_v3   c1  count=2        floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=240  (+16)  memory=1856GiB  (+64GiB)   swiftNICs=58  (+4)
+    6.  Reduce            worker  Standard_D4s_v3   b1  count=1        floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=236  (+12)  memory=1840GiB  (+48GiB)   swiftNICs=57  (+3)  DSv3:      52c remaining
+    7.  Reduce            worker  Standard_D4s_v3   b1  count=0        floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=232  (+8)   memory=1824GiB  (+32GiB)   swiftNICs=56  (+2)  DSv3:      56c remaining
+    8.  Reduce            worker  Standard_D4s_v3   c1  count=1        floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=228  (+4)   memory=1808GiB  (+16GiB)   swiftNICs=55  (+1)  DSv3:      60c remaining
+    9.  Reduce            worker  Standard_D4s_v3   c1  count=0        floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=224  (+0)   memory=1792GiB  (+0GiB)    swiftNICs=54  (+0)  DSv3:      64c remaining
+   10.  Delete            worker  Standard_D4s_v3   b1                 floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=224  (+0)   memory=1792GiB  (+0GiB)    swiftNICs=54  (+0)
+   11.  Delete            worker  Standard_D4s_v3   c1                 floor: cpu=224  memory=1792GiB  swiftNICs=54  capacity: cpu=224  (+0)   memory=1792GiB  (+0GiB)    swiftNICs=54  (+0)
+
+steps:      11
+converged:  true
+outcome:    converged
+reason:     pool configuration matches desired

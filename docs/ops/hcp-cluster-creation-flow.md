@@ -10,7 +10,7 @@ The individual components are described in the [service components overview](../
 1. A cluster creation request from ARM enters the ARO HCP service on the istio gateway
 2. ExternalAuthorizer rules apply to all requests that hit the istio gateway, and are redirected to MISE to ensure the request comes from ARM
 3. On success, the request is routed to the RP frontend
-4. The frontend conducts a preflight check towards Clusters Service and then issues a request to Clusters Service to create the cluster. It then stores both an Operation record and an Cluster record in CosmosDB on success. The frontend returns a 201 response to ARM and a reference to the long-running operation.
+4. The frontend conducts a preflight check towards Clusters Service and then issues a request to Clusters Service to create the cluster. It then stores both an Operation record and a Cluster record in CosmosDB on success. The frontend returns a 201 response to ARM and a reference to the long-running operation.
     - (Async) From this point forward, Backend sees the CosmosDB Operation record and asynchronously calls CS to determine current provisioning state and updates the Cluster so the customer has live feedback on status of the long-running request.
     - (Async) At the same time, ARM will automatically issue polling GET requests to the OperationStatus resources on the customer's behalf (to the Frontend) so they see this status in live time.
 5. Clusters Service prepares a managed resource group in the customers subscription and creates the cloud resources for the cluster

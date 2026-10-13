@@ -46,6 +46,8 @@ type operationExternalAuthCreate struct {
 	notificationClient     *http.Client
 }
 
+const OperationExternalAuthCreateControllerName = "OperationExternalAuthCreate"
+
 // NewOperationExternalAuthCreateController returns a new Controller instance that
 // follows an asynchronous external auth creation operation to completion and updates
 // the corresponding operation document in Cosmos DB.
@@ -81,7 +83,7 @@ func NewOperationExternalAuthCreateController(
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"OperationExternalAuthCreate",
+		OperationExternalAuthCreateControllerName,
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -145,10 +147,7 @@ func (c *operationExternalAuthCreate) SynchronizeOperation(ctx context.Context, 
 	var persistErr *coreapi.CloudErrorBody
 	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
 		persistErr = &coreapi.CloudErrorBody{
-			// TODO for now we always set the error code to InternalServerError, but we should improve to be able
-			// to be more specific than that when we calculate operationalState. When work is done to improve on this, we
-			// should design it in a way where no internal details are exposed to the operation's error.
-			Code:    coreapi.CloudErrorCodeInternalServerError,
+			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
 		}
 	}

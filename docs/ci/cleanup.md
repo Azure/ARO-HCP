@@ -147,22 +147,22 @@ Deletion requires all of the following:
   If certificate revalidation takes longer than that, the attempt fails without
   deleting and the certificate is retried by a later hourly run.
 
-Active and deleted certificate inventories stop requesting Key Vault pages when
-they exhaust their inspection budgets. `--max-deletions` bounds active metadata
-entries inspected. `--max-purges` is shared by immediate purges after active
-deletion and metadata inspected from previously deleted tombstones. When both
-actions are enabled, active inspection is bounded by the lower limit, purge
-capacity is reserved for each selected active certificate, and only the
-remainder is used to inspect deleted certificates. Ineligible and live-owned
-objects consume their applicable inspection limit, so the selected mutation
-count can be lower than the configured limit. This keeps each selected active
-certificate on the tested delete+purge path while ensuring that all irreversible
-purge operations honor one bound.
+Active and deleted certificate inventories continue requesting Key Vault pages
+until they fill their mutation budgets or exhaust the corresponding inventory.
+`--max-deletions` bounds selected active-certificate mutations, not metadata
+inspection. `--max-purges` is shared by immediate purges after active deletion
+and previously deleted tombstones. When both actions are enabled, purge capacity
+is reserved for each selected active certificate and only the remainder is
+available for deleted-certificate selection. Ineligible and live-owned objects
+do not consume either mutation budget. This prevents a stable prefix of recent
+or protected names from starving eligible certificates later in Key Vault's
+ordered inventory.
 The default 1,000-certificate budgets also comfortably exceed the normal daily
 creation rate of roughly 1,000 CI jobs per month.
 Every delete still uses a fresh owner revalidation through the shared 30-second
-guard. The limits bound reads as well as mutations, limiting Key Vault cost,
-runtime, and throttling risk.
+guard. Discovery can inspect the full active or deleted inventory when too few
+eligible objects exist, so the overall timeout remains the read-cost and runtime
+bound while the mutation flags independently cap destructive operations.
 `--delete-active` and `--purge-deleted` independently enable the two actions,
 allowing tombstones to be remediated without resuming active-certificate
 cleanup. The command emits JSON candidate and summary logs.
@@ -236,6 +236,56 @@ Today that periodic layer includes:
 The `cleanup-sweeper` `shared-leftovers` workflow runs per environment. Alongside the DEV shared subscriptions it now runs hourly against the INT, STG, and PROD e2e/customer subscriptions (`sweeper-shared-leftovers-{dev,int,stg,prod}` in the periodic-cleanup config), each reporting failures to its own `#aro-hcp-failures-<env>` channel. Each per-environment job selects its subscriptions through `VAULT_SECRET_PROFILE` (`int-rh`, `stg-rh`, `prod-rh`; DEV uses the default `dev` profile). This workflow deletes orphaned role assignments and purges orphaned soft-deleted Key Vaults; it does not delete resource groups, so it does not depend on the `createdAt` tag.
 
 To resolve the principals behind orphaned role assignments, `shared-leftovers` reads the Microsoft Graph active directory, which requires `Directory.Read.All`. It deletes an assignment when the principal is absent from the active directory, including when the principal is soft-deleted. It performs the same active-directory check again immediately before deletion. A discovery failure ends the role-assignment step before deletion. A per-target revalidation failure skips that target while independently validated targets continue. The per-environment ARM identity (`VAULT_SECRET_PROFILE`) usually lacks that tenant-wide grant, so the step exports a dedicated Graph identity from `GRAPH_SECRET_PROFILE` (the dev bot, which holds `Directory.Read.All`) whenever its mounted profile differs from the ARM profile. When the two resolve to the same profile, no separate Graph credential is used and the ARM identity serves both. The sweeper binary reads that dedicated identity from `GRAPH_AZURE_CLIENT_ID` / `GRAPH_AZURE_TENANT_ID` / `GRAPH_AZURE_CLIENT_SECRET`, which the `aro-hcp-deprovision-cleanup-sweeper` step in `openshift/release` exports from the mounted Graph profile.
+
+#### Tracing sweeper deletions
+
+The `rg-ordered` and `shared-leftovers` commands carry a unique `runID`,
+`subscriptionID`, `workflow`, and `dryRun` through their logs. Prow runs also
+record `prowJob`, `prowBuildID`, and `prowJobID` from the job environment.
+`commitSHA` contains the build-time version, or `development` when not supplied.
+Go builds with VCS stamping also record the full `vcs.revision` and
+`vcs.modified`; a modified build is not an exact reproduction of that commit.
+Missing Prow or VCS metadata is not inferred from a branch name.
+
+Role-assignment discovery records `assignmentID`, `principalID`, and
+`reason=principal_absent` with `phase=discovery`. Immediately before deletion,
+the fresh ARM assignment and Graph check supply the principal, scope, and final
+decision with `phase=revalidation`. An active principal is retained. A 404 at
+either the assignment re-read or DELETE is reported as already absent, not as
+a deletion performed by this run.
+
+Each ARM DELETE attempt logs `Sending ARM DELETE request` before dispatch and
+`Received ARM DELETE response` when a response is available. Correlation fields
+are:
+
+| Field | Meaning |
+| --- | --- |
+| `clientRequestID` | The `x-ms-client-request-id` sent to Azure. |
+| `attempt` | SDK attempt number, starting at one for each logical request. |
+| `requestPath` | Target ARM path, without query parameters. |
+| `statusCode` | HTTP response status, not proof that asynchronous cleanup finished. |
+| `azureRequestID` | Returned `x-ms-request-id`. |
+| `azureCorrelationRequestID` | Returned `x-ms-correlation-request-id`. |
+| `azureRoutingRequestID` | Returned `x-ms-routing-request-id`. |
+
+SDK retries retain the client request ID and increment `attempt`. A new
+step-level retry issues a new logical request and revalidates the target again.
+The per-attempt audit entry for a transport failure records only the error
+type, not its text, URL, body, or credentials. This restriction applies to the
+audit entries, not the complete command log stream: existing runner and command
+error logs are unchanged and can include SDK response bodies or transport URLs.
+A sent-request log without a response means the outcome is unknown. Dry-run
+emits candidate logs but no DELETE attempt logs.
+
+Match request IDs against Azure records that expose them, then use `runID` to
+find the decision and job metadata. Azure does not guarantee that every header
+appears in Activity Log, and empty response ID fields mean Azure did not return
+them. A shared caller identity or user agent alone does not identify the process.
+Missing or incomplete historical sweeper logs cannot prove that the sweeper did
+not issue a request. The dedicated `ci-certificates` data-plane command and
+other cleanup programs are outside this ARM audit path.
+
+#### Resource-group policy
 
 For `cleanup-sweeper` `rg-ordered`, candidate resource groups are chosen using `tooling/cleanup-sweeper/resourcegroups.policy.yaml`. Discovery treats the `createdAt` tag (RFC3339 timestamp on the resource group) as required for any `action: delete` rule: groups without a parseable tag are not candidates.
 

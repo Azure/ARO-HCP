@@ -259,6 +259,20 @@ func matchingGetResponseForAllTypes(cluster *coreapi.Cluster, spc *coreapi.Servi
 	}
 }
 
+func TestDenyAssignmentDefinitions(t *testing.T) {
+	for _, definition := range denyAssignmentDefinitions(newTestCluster()) {
+		t.Run(definition.denyAssignmentType, func(t *testing.T) {
+			assert.NotZero(t, len(definition.actions)+len(definition.dataActions), "deny assignment must deny at least one action or data action")
+			for _, action := range definition.actions {
+				assert.False(t, strings.HasSuffix(action, "/read"), "read action must not be denied: %s", action)
+			}
+			for _, dataAction := range definition.dataActions {
+				assert.False(t, strings.HasSuffix(dataAction, "/read"), "read data action must not be denied: %s", dataAction)
+			}
+		})
+	}
+}
+
 func TestGenerateDenyAssignmentUUIDMatchesClusterService(t *testing.T) {
 	// referenceClusterServiceUUID replicates Cluster Service's derivation exactly
 	// (pkg/utils/uuid/generators.go generateUuidV5WithSeparator): a v5 UUID over the shared
@@ -751,6 +765,64 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 
 			if tt.verify != nil {
 				tt.verify(t, ctx, mockDB)
+			}
+		})
+	}
+}
+
+func TestSyncDenyAssignmentUpsertStalePending(t *testing.T) {
+	staleRef := coreapi.DenyAssignmentReference{
+		DenyAssignmentType:       "stale-type-not-in-definitions",
+		DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedRG + "/providers/Microsoft.Authorization/denyAssignments/stale-uuid")),
+	}
+	tests := []struct {
+		name        string
+		deleteErr   error
+		expectError bool
+	}{
+		{name: "removes stale pending assignment when already deleted", deleteErr: resourceNotFoundError()},
+		{name: "retains stale pending assignment when deletion fails", deleteErr: fmt.Errorf("simulated delete failure"), expectError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			cluster := newTestCluster()
+			refs, err := allDenyAssignmentReferences(cluster)
+			require.NoError(t, err)
+			spc := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.AzureResources.DenyAssignments.AzureResources = refs
+				spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{staleRef}
+			})
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			_, err = mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, spc, nil)
+			require.NoError(t, err)
+			mockGenericResources := &azuremockclient.GenericResourcesClientFunc{DeleteErr: tt.deleteErr}
+			syncer := &clusterDenyAssignmentSyncer{
+				clock:              clocktesting.NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+				resourcesDBClient:  mockDB,
+				clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+				subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
+				azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
+					GenericResourcesClientVal: mockGenericResources,
+					DenyAssignmentsClientVal: &azuremockclient.DenyAssignmentsClientFunc{
+						GetFunc: matchingGetResponseForAllTypes(cluster, spc),
+					},
+				},
+			}
+			err = syncer.SyncOnce(ctx, testKey())
+			if tt.expectError {
+				require.ErrorContains(t, err, "simulated delete failure")
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, []string{staleRef.DenyAssignmentResourceID.String()}, mockGenericResources.DeleteCalls)
+			spc, err = mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			assert.Equal(t, refs, spc.Status.AzureResources.DenyAssignments.AzureResources)
+			if tt.expectError {
+				assert.Equal(t, []coreapi.DenyAssignmentReference{staleRef}, spc.Status.AzureResources.DenyAssignments.PendingAzureResources)
+			} else {
+				assert.Empty(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources)
 			}
 		})
 	}

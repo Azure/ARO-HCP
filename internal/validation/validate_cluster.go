@@ -27,12 +27,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 const (
@@ -97,6 +99,8 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// Nightly installs must resolve to a full version; this needs both the customer
 	// version profile and the service-provider exact pin, so it lives at cluster level.
 	errs = append(errs, validateNightlyChannelRequiresFullVersion(ctx, op, newCluster, oldCluster)...)
+
+	errs = append(errs, validateManagedHSMRequiresMinimumVersion(ctx, op, newCluster, oldCluster)...)
 
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
@@ -228,6 +232,35 @@ func validateNightlyChannelRequiresFullVersion(_ context.Context, op operation.O
 			"must be specified as MAJOR.MINOR.PATCH (optionally with a pre-release, e.g. a nightly build suffix) when channelGroup is \"nightly\"",
 		)}
 	}
+	return nil
+}
+
+var minManagedHSMOpenShiftVersion = semver.Version{Major: 4, Minor: 22}
+
+func validateManagedHSMRequiresMinimumVersion(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
+	cm := newCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged
+	if cm == nil || cm.Kms == nil || cm.Kms.KeyVaultType != coreapi.KmsKeyVaultTypeManagedHSM {
+		return nil
+	}
+
+	versionID := newCluster.CustomerProperties.Version.ID
+	if len(versionID) == 0 {
+		return nil
+	}
+
+	requestedVersion, err := semver.ParseTolerant(versionID)
+	if err != nil {
+		return nil
+	}
+
+	clusterVersion := semver.Version{Major: requestedVersion.Major, Minor: requestedVersion.Minor}
+	if clusterVersion.LT(minManagedHSMOpenShiftVersion) {
+		return field.ErrorList{field.Forbidden(
+			field.NewPath("customerProperties", "etcd", "dataEncryption", "customerManaged", "kms", "keyVaultType"),
+			fmt.Sprintf("Managed HSM KMS requires OpenShift version %d.%d or later", minManagedHSMOpenShiftVersion.Major, minManagedHSMOpenShiftVersion.Minor),
+		)}
+	}
+
 	return nil
 }
 
@@ -506,8 +539,8 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 }
 
 var (
-	toVersionID = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ID }
-	//	toChannelGroup = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ChannelGroup }
+	toVersionID           = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ID }
+	toVersionChannelGroup = func(oldObj *coreapi.VersionProfile) *string { return &oldObj.ChannelGroup }
 )
 
 // Version                 VersionProfile              `json:"version,omitempty"`
@@ -520,7 +553,9 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	if oldObj == nil || len(oldObj.ID) > 0 {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 
-		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
+		// Only the major.minor version can be specified for the control plane version
+		// so we only need to check if it meets the minimum required major.minor version
+		errs = append(errs, VersionMustBeAtLeastMajorMinor(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
 
 		errs = append(errs, VersionMayNotDecrease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 		errs = append(errs, OpenshiftVersionAtMostOneMinorSkewWithField(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
@@ -548,6 +583,7 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 		// TODO I think everyone should be able to do this, but we'll need to notify first
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, metadataapi.AllowedChannelGroupsWithExperimentalFlag, nil)...)
 	}
+	errs = append(errs, rejectUnsupportedChannelGroupUpdate(op, fldPath, newObj.ChannelGroup, safe.Field(oldObj, toVersionChannelGroup))...)
 
 	return errs
 }
@@ -1054,8 +1090,11 @@ func validateCustomerManagedEncryptionProfile(ctx context.Context, op operation.
 }
 
 var (
-	toKmsEncryptionProfileVisibility = func(oldObj *coreapi.KmsEncryptionProfile) *metadataapi.KeyVaultVisibility { return &oldObj.Visibility }
-	toKmsEncryptionProfileActiveKey  = func(oldObj *coreapi.KmsEncryptionProfile) *coreapi.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileVisibility   = func(oldObj *coreapi.KmsEncryptionProfile) *metadataapi.KeyVaultVisibility { return &oldObj.Visibility }
+	toKmsEncryptionProfileActiveKey    = func(oldObj *coreapi.KmsEncryptionProfile) *coreapi.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileKeyVaultType = func(oldObj *coreapi.KmsEncryptionProfile) *string { return &oldObj.KeyVaultType }
+
+	validKmsKeyVaultTypes = sets.New(coreapi.KmsKeyVaultTypeKeyVault, coreapi.KmsKeyVaultTypeManagedHSM)
 )
 
 func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.KmsEncryptionProfile) field.ErrorList {
@@ -1072,6 +1111,10 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 
 	//ActiveKey KmsKey `json:"activeKey,omitempty"`
 	errs = append(errs, validateKmsKey(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
+
+	//KeyVaultType string `json:"keyVaultType,omitempty"`
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("keyVaultType"), &newObj.KeyVaultType, safe.Field(oldObj, toKmsEncryptionProfileKeyVaultType))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("keyVaultType"), &newObj.KeyVaultType, safe.Field(oldObj, toKmsEncryptionProfileKeyVaultType), validKmsKeyVaultTypes, nil)...)
 
 	return errs
 }
@@ -1140,6 +1183,9 @@ func validateImageDigestMirror(ctx context.Context, op operation.Operation, fldP
 	// is more permissive than what we allow (e.g. casing of letters) but acts
 	// as a final check to make sure OpenShift will accept it.
 	errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("source"), &newObj.Source, safe.Field(oldObj, toImageDigestMirrorSource), imageDigestSourceRegistryRegex, imageDigestSourceRegistryErrorString)...)
+	if apihelpers.IsPlatformImageContentSource(newObj.Source) {
+		errs = append(errs, field.Invalid(fldPath.Child("source"), newObj.Source, "source registry is managed by the platform and cannot be used as an image digest mirror source"))
+	}
 
 	//Mirrors []string `json:"mirrors,omitempty"`
 	errs = append(errs, MinItems(ctx, op, fldPath.Child("mirrors"), newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors), 1)...)

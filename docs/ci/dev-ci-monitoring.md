@@ -18,7 +18,7 @@ For a regional provision-health incident, use
 | Azure Action Group | `opstool-pagerduty` |
 | Azure Monitor Workspace | `opstool-monitor-usw3` |
 | Exporter | Deployment and service `tenant-quota-collector` in namespace `tenant-quota` |
-| Azure dashboard | [DEV CI quota dashboard](https://portal.azure.com/#@redhat0.onmicrosoft.com/dashboard/arm/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/dashboards/providers/microsoft.portal/dashboards/901b128a-124f-43e6-a797-5fcf3d1e83fe) |
+| Azure dashboard | `opstool-westus3` resource group → dashboards `arohcpdevci-quota-{dev,int,stg,prod}` (Azure Portal → Dashboards → filter by name; see [dashboards.bicep](../../tooling/tenant-quota/dashboards.bicep) for the deployed resource names) |
 
 ## Scope and Name
 
@@ -199,6 +199,7 @@ An empty or missing Kubernetes endpoint points to deployment, pod-readiness, ser
 Use authoritative files instead of copying evolving inventories:
 
 - [`tooling/tenant-quota/alerting.bicep`](../../tooling/tenant-quota/alerting.bicep) defines alert behavior and routing.
+- [`tooling/tenant-quota/dashboards.bicep`](../../tooling/tenant-quota/dashboards.bicep) defines the per-environment (Dev/Int/Stg/Prod) Azure dashboards, built from [`tenant-quota-dashboard.bicep`](../../dev-infrastructure/modules/monitor/tenant-quota-dashboard.bicep).
 - [`tooling/tenant-quota/main.go`](../../tooling/tenant-quota/main.go) registers collectors.
 - [`tooling/tenant-quota/pkg/`](../../tooling/tenant-quota/pkg/) implements metric behavior.
 - [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml) supplies deployment configuration.
@@ -257,6 +258,7 @@ Validate the complete path after routing or secret changes:
 | Concern | Source |
 | --- | --- |
 | Alert names, expressions, thresholds, durations, annotations, and routing | [`tooling/tenant-quota/alerting.bicep`](../../tooling/tenant-quota/alerting.bicep) |
+| Per-environment quota dashboards (panels, subscriptions, regions charted) | [`tooling/tenant-quota/dashboards.bicep`](../../tooling/tenant-quota/dashboards.bicep), [`tenant-quota-dashboard.bicep`](../../dev-infrastructure/modules/monitor/tenant-quota-dashboard.bicep), and `ci.<env>.dashboardRegions` / `opstool.tenantQuota` in [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml) |
 | Registered collectors and HTTP endpoints | [`tooling/tenant-quota/main.go`](../../tooling/tenant-quota/main.go) |
 | Metric collection and credential behavior | [`tooling/tenant-quota/pkg/`](../../tooling/tenant-quota/pkg/) |
 | DEV CI deployment configuration | [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml) |

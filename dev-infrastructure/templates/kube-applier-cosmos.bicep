@@ -4,6 +4,16 @@ param rpCosmosDbAccountId string
 @description('The name of the kube-applier managed identity.')
 param kubeApplierMIName string
 
+param useLeasedInfrastructureIdentities bool = false
+param managementIdentityResourceGroups string = ''
+param stampIdentifier string
+
+import * as mi from '../modules/managed-identities.bicep'
+
+var infrastructureIdentityResourceGroup = useLeasedInfrastructureIdentities
+  ? mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier)
+  : resourceGroup().name
+
 @description('The CosmosDB container name for kube-applier.')
 param kubeApplierContainerName string
 
@@ -18,6 +28,7 @@ import * as res from '../modules/resource.bicep'
 var rpCosmosDbAccountRef = res.cosmosDBAccountRefFromId(rpCosmosDbAccountId)
 
 resource kubeApplierMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  scope: resourceGroup(infrastructureIdentityResourceGroup)
   name: kubeApplierMIName
 }
 

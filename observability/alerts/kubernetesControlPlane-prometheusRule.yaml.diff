@@ -16,7 +16,7 @@
        expr: |
          max_over_time(kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", job="kube-state-metrics"}[5m]) >= 1
        for: 15m
-@@ -24,25 +26,25 @@
+@@ -24,25 +26,26 @@
          severity: warning
      - alert: KubePodNotReady
        annotations:
@@ -35,6 +35,7 @@
 +            1, max by(namespace, pod, owner_kind, cluster) (kube_pod_owner{prometheus="prometheus/prometheus", owner_kind!="Job"})
            )
          ) > 0
++        unless on(namespace, pod, cluster) kube_pod_deletion_timestamp
 -      for: 15m
 +      for: 5m
        labels:

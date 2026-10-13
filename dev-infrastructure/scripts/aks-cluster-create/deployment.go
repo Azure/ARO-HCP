@@ -29,9 +29,9 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
-// Match the API version used by armcontainerservice/v8 v8.2.0. The deployment
-// API version is independent of the resource API versions in its template.
-const aksAPIVersion = "2025-10-01"
+// VM size updates require an API version at least as new as 2026-01-02-preview.
+// Keep this aligned with the AKS Bicep resources used elsewhere in the repository.
+const aksAPIVersion = "2026-04-02-preview"
 
 func (o *validatedOptions) buildDeployment(existing *armcontainerservice.ManagedCluster, pools []compute.Pool) (armdeployments.Deployment, []string, error) {
 	// Locate the system pool, which is created inline with the cluster resource.

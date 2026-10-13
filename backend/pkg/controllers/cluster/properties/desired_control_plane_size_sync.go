@@ -55,6 +55,8 @@ type desiredControlPlaneSizeSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*desiredControlPlaneSizeSyncer)(nil)
 
+const DesiredControlPlaneSizeControllerName = "DesiredControlPlaneSize"
+
 // NewDesiredControlPlaneSizeController creates a controller that reconciles
 // ServiceProviderCluster.Status.DesiredHostedClusterControlPlaneSize against
 // SPC Spec once the cluster update dispatch controller has applied the
@@ -76,7 +78,7 @@ func NewDesiredControlPlaneSizeController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"DesiredControlPlaneSize",
+		DesiredControlPlaneSizeControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
