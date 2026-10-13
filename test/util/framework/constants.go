@@ -16,6 +16,11 @@ package framework
 
 import "time"
 
+// V20260630PreviewDeploymentDeadline is the date by which the v20260630preview API version
+// must be deployed. Tests that require this API skip if run before the deadline and fail
+// if the API is still absent after it.
+var V20260630PreviewDeploymentDeadline = time.Date(2026, 11, 30, 0, 0, 0, 0, time.UTC)
+
 // When updating timeouts, see test/e2e/README.md#updating-e2e-timeouts.
 
 // Provisioning timeouts
