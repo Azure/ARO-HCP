@@ -39,10 +39,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// minimumUpgradeConfirmationTimeout floors the budget handed to the confirmation verifier that
-// runs after the control plane has already reported the target version, so that an upgrade which
-// lands right on the deadline still leaves room to confirm it rather than failing on a
-// non-positive timeout.
+// minimumUpgradeConfirmationTimeout is the lowest the budget handed to the confirmation verifier
 const minimumUpgradeConfirmationTimeout = 1 * time.Minute
 
 var _ = Describe("Customer", func() {
@@ -59,11 +56,8 @@ var _ = Describe("Customer", func() {
 				installVersion = semver.Version{Major: upgradeVersion.Major, Minor: upgradeVersion.Minor - 1}
 			}
 
-			// Resolve the install (previous minor) and upgrade (target minor) version strings up front
-			// so a missing version skips before we burn resources on cluster creation. For nightly,
-			// each resolves to its exact build tag (the RP cannot resolve major.minor to a nightly
-			// build). For other channel groups, each is the bare major.minor string, verified
-			// resolvable via the OpenShift update service at the channel's z-stream offset.
+			// Resolve the install (previous minor) and upgrade (target minor) version strings up front.
+			// For nightly each resolves to its exact build tag
 			installVersionId := fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
 			upgradeVersionId := fmt.Sprintf("%d.%d", upgradeVersion.Major, upgradeVersion.Minor)
 			if channelGroup == "nightly" {
