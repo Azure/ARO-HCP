@@ -118,6 +118,7 @@ var expectedControllerLaunches = []struct {
 	{"nodepoolvalidationazurenodepoolnsgbasedrequiredconnectivityvalidation", 20},
 	{"clustervalidationdataplaneidentitiespermissionsvalidation", 20},
 	{"clustervalidationcontainerregistrypullcredentialspermissionvalidation", 20},
+	{"nodepoolvalidationazurenodepoolavailabilityzonevalidation", 20},
 	{"nodepoolversion", 20},
 	{"nodepoolactiveversions", 20},
 	{"createclusterscopedreaddesires", 20},
@@ -165,7 +166,7 @@ var expectedControllerLaunches = []struct {
 
 func TestControllerRegistryManifest(t *testing.T) {
 	registry := newControllerRegistry()
-	require.Len(t, registry, 111)
+	require.Len(t, registry, 112)
 	expectedOrder := make([]string, 0, len(expectedControllerLaunches))
 	for _, expected := range expectedControllerLaunches {
 		expectedOrder = append(expectedOrder, expected.name)
@@ -330,7 +331,7 @@ func TestControllerRegistryNamedZoneRegistrations(t *testing.T) {
 	files := token.NewFileSet()
 	for zone, expectedCount := range map[string]int{
 		"billing": 2, "cluster": 64, "clusterresources": 1, "cosmosmigration": 2,
-		"datadump": 1, "externalauth": 10, "metrics": 6, "mismatch": 4, "nodepool": 19,
+		"datadump": 1, "externalauth": 10, "metrics": 6, "mismatch": 4, "nodepool": 20,
 	} {
 		source, err := parser.ParseFile(files, "../controllers/"+zone+"/registration.go", nil, 0)
 		require.NoError(t, err)
@@ -398,7 +399,7 @@ func TestControllerRegistryUnorderedConstructionAndErrors(t *testing.T) {
 	constructed = nil
 	_, err = instantiateControllers(registry, ControllerContext{}, storageFactory)
 	require.NoError(t, err)
-	require.Len(t, constructed, 110)
+	require.Len(t, constructed, 111)
 	require.NotContains(t, constructed, "clusterdenyassignment")
 	expectedErr := errors.New("constructor failed")
 	name := "union-kube-applier-informers-controller"
