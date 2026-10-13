@@ -102,6 +102,7 @@ var (
 var cascadeCoveredDesireNames = newDesireNameSet(
 	DesireNameOCPPullSecret,
 	DesireNameExternalAuthClientSecret,
+	DesireNameExternalAuthCAConfigMap,
 	DesireNameBoundServiceAccountSigningKeySecretSync,
 	DesireNameKubeAPIServerServingCertSecretSync,
 	DesireNameBoundServiceAccountSigningKeySecretProviderClass,

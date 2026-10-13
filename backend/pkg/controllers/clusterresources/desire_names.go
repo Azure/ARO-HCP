@@ -33,6 +33,7 @@ const (
 	DesireNameControlPlaneNamespace  = "ControlPlaneNamespace"
 
 	DesireNameDefaultIngressConfigMap  = "DefaultIngressConfigMap"
+	DesireNameExternalAuthCAConfigMap  = "ExternalAuthCAConfigMap"
 	DesireNameOCPPullSecret            = "OCPPullSecret"
 	DesireNameExternalAuthClientSecret = "ExternalAuthClientSecret"
 	DesireNamePodNetwork               = "PodNetwork"
