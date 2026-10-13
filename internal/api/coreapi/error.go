@@ -49,6 +49,7 @@ const (
 	CloudErrorCodeLockContention           = "LockContention"
 	CloudErrorCodeCapacityHeavyUse         = "AROHCPCapacityHeavyUse"
 	CloudErrorCodeDeadlineExceeded         = "DeadlineExceeded"
+	CloudErrorCodeQuotaExceeded            = "QuotaExceeded"
 )
 
 // CloudError represents a complete resource provider error.
