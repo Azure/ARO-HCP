@@ -39,6 +39,7 @@ import (
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/alertprocessingrules"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/manager"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
@@ -54,6 +55,10 @@ const (
 	defaultHealthzListenAddress = ":8080"
 	defaultMetricsListenAddress = ":8081"
 	defaultLeaderElectionID     = "fleet-controller"
+
+	// resourceGroupResourceType is the ARM resource type a resource group ID parses
+	// to. azcore keeps its own constant in an internal package, so we restate it here.
+	resourceGroupResourceType = "Microsoft.Resources/resourceGroups"
 )
 
 type RawControllerOptions struct {
@@ -76,6 +81,10 @@ type RawControllerOptions struct {
 	AMWWorkspaceResourceIDs []string
 	AMWScalingPollInterval  time.Duration
 
+	AlertProcessingRuleResourceGroupID string
+	AlertProcessingRulePollInterval    time.Duration
+	AlertProcessingRuleExpiryThreshold time.Duration
+
 	NodePoolProfile string
 	NodePoolZones   string
 
@@ -84,10 +93,12 @@ type RawControllerOptions struct {
 
 func DefaultControllerOptions() *RawControllerOptions {
 	return &RawControllerOptions{
-		HealthzListenAddress:   defaultHealthzListenAddress,
-		MetricsListenAddress:   defaultMetricsListenAddress,
-		LeaderElectionID:       defaultLeaderElectionID,
-		AMWScalingPollInterval: 30 * time.Minute,
+		HealthzListenAddress:               defaultHealthzListenAddress,
+		MetricsListenAddress:               defaultMetricsListenAddress,
+		LeaderElectionID:                   defaultLeaderElectionID,
+		AMWScalingPollInterval:             30 * time.Minute,
+		AlertProcessingRulePollInterval:    alertprocessingrules.DefaultPollInterval,
+		AlertProcessingRuleExpiryThreshold: alertprocessingrules.DefaultExpiryThreshold,
 	}
 }
 
@@ -105,6 +116,9 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.MetricsListenAddress, "metrics-listen-address", opts.MetricsListenAddress, "listen address for metrics server")
 	cmd.Flags().StringArrayVar(&opts.AMWWorkspaceResourceIDs, "amw-workspace-resource-id", opts.AMWWorkspaceResourceIDs, "Azure Monitor Workspace resource ID to manage ingestion limits for. Can be specified multiple times.")
 	cmd.Flags().DurationVar(&opts.AMWScalingPollInterval, "amw-scaling-poll-interval", opts.AMWScalingPollInterval, "Interval at which the AMW ingestion limits scaling controller checks utilization and scales limits.")
+	cmd.Flags().StringVar(&opts.AlertProcessingRuleResourceGroupID, "alert-processing-rule-resource-group-id", opts.AlertProcessingRuleResourceGroupID, "ARM resource ID of the regional resource group holding alert processing rules (/subscriptions/{sub}/resourceGroups/{rg}). Expired rules in this group are reaped. Empty disables reaping.")
+	cmd.Flags().DurationVar(&opts.AlertProcessingRulePollInterval, "alert-processing-rule-poll-interval", opts.AlertProcessingRulePollInterval, "Interval at which expired alert processing rules are reaped.")
+	cmd.Flags().DurationVar(&opts.AlertProcessingRuleExpiryThreshold, "alert-processing-rule-expiry-threshold", opts.AlertProcessingRuleExpiryThreshold, "How far past its effectiveUntil an alert processing rule must be before it is reaped.")
 	cmd.Flags().StringVar(&opts.NodePoolProfile, "nodepool-profile", opts.NodePoolProfile, "Shadow-only node pool tier profile (ci, development, production); empty disables reporting. Never mutates pools.")
 	cmd.Flags().StringVar(&opts.NodePoolZones, "nodepool-zones", opts.NodePoolZones, "Availability zone override for node pools: exactly three distinct zones, comma-separated (e.g. 1,3,4 to skip a known-bad zone 2). Each zone must be within 1..azure-region-availability-zone-count. If empty, zones 1,2,3 are used.")
 	cmd.Flags().IntVar(&opts.AzureRegionAvailabilityZoneCount, "azure-region-availability-zone-count", opts.AzureRegionAvailabilityZoneCount, "Number of availability zones the region offers. Node pool planning fails if this is zero.")
@@ -168,6 +182,24 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 		return nil, utils.TrackError(fmt.Errorf("--amw-scaling-poll-interval must be positive when AMW workspaces are configured"))
 	}
 
+	if len(o.AlertProcessingRuleResourceGroupID) > 0 {
+		resourceID, err := azcorearm.ParseResourceID(o.AlertProcessingRuleResourceGroupID)
+		if err != nil {
+			return nil, utils.TrackError(fmt.Errorf("--alert-processing-rule-resource-group-id %q is not a valid ARM resource ID: %w", o.AlertProcessingRuleResourceGroupID, err))
+		}
+		// Guard against being handed the ID of a resource inside the group, which
+		// would otherwise silently reap against the wrong scope.
+		if !strings.EqualFold(resourceID.ResourceType.String(), resourceGroupResourceType) {
+			return nil, utils.TrackError(fmt.Errorf("--alert-processing-rule-resource-group-id %q must be a resource group ID, but refers to a %s", o.AlertProcessingRuleResourceGroupID, resourceID.ResourceType))
+		}
+		if o.AlertProcessingRulePollInterval <= 0 {
+			return nil, utils.TrackError(fmt.Errorf("--alert-processing-rule-poll-interval must be positive when an alert processing rule resource group is configured"))
+		}
+		if o.AlertProcessingRuleExpiryThreshold < 0 {
+			return nil, utils.TrackError(fmt.Errorf("--alert-processing-rule-expiry-threshold must not be negative"))
+		}
+	}
+
 	var nodePoolProfile *compute.Profile
 	var nodePoolZones []string
 	if len(o.NodePoolProfile) > 0 {
@@ -198,10 +230,15 @@ type controllerOptions struct {
 	metricsListenAddr            string
 	amwWorkspaceResourceIDs      []string
 	amwScalingPollInterval       time.Duration
-	azureCredential              azcore.TokenCredential
-	azureClientOptions           *policy.ClientOptions
-	nodePoolProfile              *compute.Profile
-	nodePoolZones                []string
+
+	alertProcessingRuleResourceGroupID string
+	alertProcessingRulePollInterval    time.Duration
+	alertProcessingRuleExpiryThreshold time.Duration
+
+	azureCredential    azcore.TokenCredential
+	azureClientOptions *policy.ClientOptions
+	nodePoolProfile    *compute.Profile
+	nodePoolZones      []string
 }
 
 type ControllerOptions struct {
@@ -269,10 +306,15 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			metricsListenAddr:            o.MetricsListenAddress,
 			amwWorkspaceResourceIDs:      o.AMWWorkspaceResourceIDs,
 			amwScalingPollInterval:       o.AMWScalingPollInterval,
-			azureCredential:              azureCredential,
-			azureClientOptions:           azureClientOptions,
-			nodePoolProfile:              o.nodePoolProfile,
-			nodePoolZones:                o.nodePoolZones,
+
+			alertProcessingRuleResourceGroupID: o.AlertProcessingRuleResourceGroupID,
+			alertProcessingRulePollInterval:    o.AlertProcessingRulePollInterval,
+			alertProcessingRuleExpiryThreshold: o.AlertProcessingRuleExpiryThreshold,
+
+			azureCredential:    azureCredential,
+			azureClientOptions: azureClientOptions,
+			nodePoolProfile:    o.nodePoolProfile,
+			nodePoolZones:      o.nodePoolZones,
 		},
 	}, nil
 }
@@ -305,10 +347,15 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		MetricsListenAddr:            o.metricsListenAddr,
 		AMWWorkspaceResourceIDs:      o.amwWorkspaceResourceIDs,
 		AMWScalingPollInterval:       o.amwScalingPollInterval,
-		AzureCredential:              o.azureCredential,
-		AzureClientOptions:           o.azureClientOptions,
-		NodePoolProfile:              o.nodePoolProfile,
-		NodePoolZones:                o.nodePoolZones,
+
+		AlertProcessingRuleResourceGroupID: o.alertProcessingRuleResourceGroupID,
+		AlertProcessingRulePollInterval:    o.alertProcessingRulePollInterval,
+		AlertProcessingRuleExpiryThreshold: o.alertProcessingRuleExpiryThreshold,
+
+		AzureCredential:    o.azureCredential,
+		AzureClientOptions: o.azureClientOptions,
+		NodePoolProfile:    o.nodePoolProfile,
+		NodePoolZones:      o.nodePoolZones,
 	}
 	return mgr.Run(ctx)
 }

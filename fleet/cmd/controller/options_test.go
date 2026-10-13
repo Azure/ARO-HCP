@@ -19,9 +19,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
+
+// validResourceGroupID is a well-formed alert processing rule resource group ID.
+const validResourceGroupID = "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-alert-processing-rules"
 
 func TestValidate(t *testing.T) {
 	validOptions := func() *RawControllerOptions {
@@ -76,6 +80,72 @@ func TestValidate(t *testing.T) {
 			name:    "invalid cloud-environment",
 			modify:  func(opts *RawControllerOptions) { opts.CloudEnvironment = "InvalidCloud" },
 			wantErr: true,
+		},
+		{
+			name: "valid alert-processing-rule-resource-group-id",
+			modify: func(opts *RawControllerOptions) {
+				opts.AlertProcessingRuleResourceGroupID = validResourceGroupID
+				opts.AlertProcessingRulePollInterval = 2 * time.Minute
+				opts.AlertProcessingRuleExpiryThreshold = time.Hour
+			},
+		},
+		{
+			name: "zero alert-processing-rule-expiry-threshold opts out of the grace period",
+			modify: func(opts *RawControllerOptions) {
+				opts.AlertProcessingRuleResourceGroupID = validResourceGroupID
+				opts.AlertProcessingRulePollInterval = 2 * time.Minute
+				opts.AlertProcessingRuleExpiryThreshold = 0
+			},
+		},
+		{
+			name: "malformed alert-processing-rule-resource-group-id",
+			modify: func(opts *RawControllerOptions) {
+				opts.AlertProcessingRuleResourceGroupID = "not-a-resource-id"
+				opts.AlertProcessingRulePollInterval = 2 * time.Minute
+			},
+			wantErr: true,
+		},
+		{
+			name: "alert-processing-rule-resource-group-id pointing at a nested resource",
+			modify: func(opts *RawControllerOptions) {
+				opts.AlertProcessingRuleResourceGroupID = validResourceGroupID +
+					"/providers/Microsoft.AlertsManagement/actionRules/some-rule"
+				opts.AlertProcessingRulePollInterval = 2 * time.Minute
+			},
+			wantErr: true,
+		},
+		{
+			name: "alert-processing-rule-resource-group-id pointing at a subscription",
+			modify: func(opts *RawControllerOptions) {
+				opts.AlertProcessingRuleResourceGroupID = "/subscriptions/0000-0000"
+				opts.AlertProcessingRulePollInterval = 2 * time.Minute
+			},
+			wantErr: true,
+		},
+		{
+			name: "non-positive alert-processing-rule-poll-interval",
+			modify: func(opts *RawControllerOptions) {
+				opts.AlertProcessingRuleResourceGroupID = validResourceGroupID
+				opts.AlertProcessingRulePollInterval = 0
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative alert-processing-rule-expiry-threshold",
+			modify: func(opts *RawControllerOptions) {
+				opts.AlertProcessingRuleResourceGroupID = validResourceGroupID
+				opts.AlertProcessingRulePollInterval = 2 * time.Minute
+				opts.AlertProcessingRuleExpiryThreshold = -time.Hour
+			},
+			wantErr: true,
+		},
+		{
+			name: "alert processing rule settings are ignored when no resource group is configured",
+			modify: func(opts *RawControllerOptions) {
+				opts.AlertProcessingRuleResourceGroupID = ""
+				opts.AlertProcessingRulePollInterval = 0
+				opts.AlertProcessingRuleExpiryThreshold = -time.Hour
+			},
 		},
 	}
 

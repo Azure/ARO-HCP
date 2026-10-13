@@ -39,6 +39,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/alertprocessingrules"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/amwscaling"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/capacityreporting"
@@ -79,10 +80,17 @@ type Manager struct {
 	KubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	AMWWorkspaceResourceIDs      []string
 	AMWScalingPollInterval       time.Duration
-	AzureCredential              azcore.TokenCredential
-	AzureClientOptions           *policy.ClientOptions
-	NodePoolProfile              *compute.Profile
-	NodePoolZones                []string
+
+	// AlertProcessingRuleResourceGroupID is the ARM resource ID of the region's alert
+	// processing rule resource group. Empty disables the reaping controller.
+	AlertProcessingRuleResourceGroupID string
+	AlertProcessingRulePollInterval    time.Duration
+	AlertProcessingRuleExpiryThreshold time.Duration
+
+	AzureCredential    azcore.TokenCredential
+	AzureClientOptions *policy.ClientOptions
+	NodePoolProfile    *compute.Profile
+	NodePoolZones      []string
 }
 
 // Run starts the fleet controller manager. It serves /healthz, /startupz and /metrics,
@@ -289,6 +297,17 @@ func (m *Manager) runControllersUnderLeaderElection(
 		m.AzureClientOptions,
 	)
 
+	alertProcessingRulesController, err := alertprocessingrules.NewController(
+		m.AlertProcessingRulePollInterval,
+		m.AlertProcessingRuleExpiryThreshold,
+		m.AlertProcessingRuleResourceGroupID,
+		m.AzureCredential,
+		m.AzureClientOptions,
+	)
+	if err != nil {
+		return fmt.Errorf("creating alert processing rule reaping controller: %w", err)
+	}
+
 	var nodePoolController base.Controller
 	if m.NodePoolProfile != nil {
 		nodePoolController = nodepool.NewNodePoolController(
@@ -331,6 +350,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 				go scaleCeilingReportingController.Run(ctx, 1)
 				go hcpResourceRequirementsController.Run(ctx)
 				go amwScalingController.Run(ctx)
+				go alertProcessingRulesController.Run(ctx)
 				if nodePoolController != nil {
 					go nodePoolController.Run(ctx, 4)
 				}
