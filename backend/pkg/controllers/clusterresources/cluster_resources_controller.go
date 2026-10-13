@@ -275,6 +275,10 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to reconcile HostedCluster annotations for %s: %w", resourceKey, err)))
 					continue
 				}
+				if err := removeNullUsernamePrefixes(&unstructuredObj); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to normalize HostedCluster authentication for %s: %w", resourceKey, err)))
+					continue
+				}
 			}
 
 			desire, err = buildClusterResourceApplyDesire(
@@ -363,6 +367,45 @@ func ensureHostedClusterAnnotations(hostedCluster *unstructured.Unstructured) er
 	annotations[v1beta1.MachineHealthCheckNodeStartupTimeoutAnnotation] = "10m"
 
 	hostedCluster.SetAnnotations(annotations)
+	return nil
+}
+
+// removeNullUsernamePrefixes drops null prefix values emitted when HyperShift's
+// UsernameClaimMapping is marshaled with a nil Prefix pointer. The HostedCluster
+// schema requires prefix to be unset unless prefixPolicy is Prefix.
+func removeNullUsernamePrefixes(hostedCluster *unstructured.Unstructured) error {
+	providers, found, err := unstructured.NestedSlice(hostedCluster.Object,
+		"spec", "configuration", "authentication", "oidcProviders")
+	if err != nil || !found {
+		return err
+	}
+
+	changed := false
+	for _, provider := range providers {
+		providerMap, ok := provider.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("OIDC provider is not an object")
+		}
+		username, found, err := unstructured.NestedMap(providerMap, "claimMappings", "username")
+		if err != nil {
+			return err
+		}
+		if !found {
+			continue
+		}
+		if prefix, exists := username["prefix"]; exists && prefix == nil {
+			delete(username, "prefix")
+			if err := unstructured.SetNestedMap(providerMap, username, "claimMappings", "username"); err != nil {
+				return err
+			}
+			changed = true
+		}
+	}
+
+	if changed {
+		return unstructured.SetNestedSlice(hostedCluster.Object, providers,
+			"spec", "configuration", "authentication", "oidcProviders")
+	}
 	return nil
 }
 
