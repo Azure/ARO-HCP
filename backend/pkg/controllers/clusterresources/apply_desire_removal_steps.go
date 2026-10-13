@@ -101,6 +101,7 @@ var (
 // their finalizers; dropping an ApplyDesire alone does not confirm their removal.
 var cascadeCoveredDesireNames = newDesireNameSet(
 	DesireNameOCPPullSecret,
+	DesireNameExternalAuthClientSecret,
 	DesireNameBoundServiceAccountSigningKeySecretSync,
 	DesireNameKubeAPIServerServingCertSecretSync,
 	DesireNameBoundServiceAccountSigningKeySecretProviderClass,
