@@ -2749,7 +2749,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
-      "description": "Container CPU utilization per MGMT cluster node as a percentage of allocatable capacity, using the recorded five-minute irate. Helps identify hot nodes.",
+      "description": "Current CPU utilization per MGMT cluster node as a percentage of allocatable capacity. Helps identify hot nodes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2839,23 +2839,21 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (max without (prometheus_replica) (node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\"})\n* 100",
+          "expr": "sum by (node) (label_replace(rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}[$__rate_interval]), \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "CPU Utilization per Node (% of Allocatable)",
-      "type": "timeseries",
-      "interval": "1m",
-      "maxDataPoints": 300
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
-      "description": "Container memory working set per MGMT cluster node as a percentage of allocatable capacity, using the recorded container memory metric. Helps identify hot nodes.",
+      "description": "Current memory utilization per MGMT cluster node as a percentage of allocatable capacity. Helps identify hot nodes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2945,16 +2943,14 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (max without (prometheus_replica) (node_namespace_pod_container:container_memory_working_set_bytes{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\"})\n* 100",
+          "expr": "sum by (node) (label_replace(container_memory_working_set_bytes{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}, \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "Memory Utilization per Node (% of Allocatable)",
-      "type": "timeseries",
-      "interval": "1m",
-      "maxDataPoints": 300
+      "type": "timeseries"
     }
   ],
   "schemaVersion": 39,
