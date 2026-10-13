@@ -263,6 +263,18 @@ type ServiceProviderClusterStatus struct {
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []metav1.Condition `json:"validations,omitempty"`
 
+	// ValidationProbeTimes records, per validation (keyed by the validation's
+	// condition Type), the time its controller last completed a check. Unlike
+	// the Validations conditions' LastTransitionTime, which only advances when
+	// the outcome changes, these timestamps advance on every completed run.
+	// They let the operation controllers distinguish a failure that was
+	// recently re-confirmed from one that simply has not been re-checked
+	// lately (a stalled validation controller or slow Azure RBAC
+	// propagation) before failing a create or update operation terminally.
+	// Entries are removed when their validation is skipped.
+	// Written by: cluster validation controllers (per-validation probe timestamp)
+	ValidationProbeTimes map[string]metav1.Time `json:"validationProbeTimes,omitempty"`
+
 	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
 	// These bundles are used to retrieve particular K8s resources from the Management Cluster.
 	// The reference contains a mapping between the logical name we give to the Maestro bundle internally

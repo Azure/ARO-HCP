@@ -2441,6 +2441,13 @@ func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderCluster
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.ValidationProbeTimes != nil {
+		in, out := &in.ValidationProbeTimes, &out.ValidationProbeTimes
+		*out = make(map[string]v1.Time, len(*in))
+		for key, val := range *in {
+			(*out)[key] = *val.DeepCopy()
+		}
+	}
 	if in.MaestroReadonlyBundles != nil {
 		in, out := &in.MaestroReadonlyBundles, &out.MaestroReadonlyBundles
 		*out = make(MaestroBundleReferenceList, len(*in))

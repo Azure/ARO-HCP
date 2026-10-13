@@ -31,6 +31,15 @@ import (
 
 const clusterValidationFailureTimeout = 10 * time.Minute
 
+// validationProbeFreshnessWindow bounds how old a validation's last completed
+// check may be while its False condition still counts toward terminally
+// failing the operation. The validation controllers requeue failing checks
+// every 60-90s, so a probe older than this window means the check has not
+// actually run recently (stalled controller, workqueue backlog, or Azure RBAC
+// propagation lag) and the stored failure is stale evidence, not a freshly
+// confirmed one.
+const validationProbeFreshnessWindow = 5 * time.Minute
+
 func (c *operationClusterCreate) clusterValidation(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -49,6 +58,14 @@ func (c *operationClusterUpdate) clusterValidation(operation *coreapi.Operation,
 // clusterValidationOperationState waits for validations to pass, allowing each
 // failed validation and the operation itself at least ten minutes before failing.
 // Unknown conditions remain pending and do not imply an invalid resource.
+// A failed validation only fails the operation terminally when its last
+// completed check is fresh: the conditions' LastTransitionTime only advances
+// when the outcome changes, so a condition can look old simply because the
+// validation controller has not re-checked it lately (stalled requeue,
+// workqueue backlog, or Azure RBAC propagation lag after role assignments
+// were created post-create). When the probe is stale the operation stays
+// Provisioning and the validation controllers' retry cadence, with the
+// CreateOperationCompletionDeadline as backstop, gets another chance.
 func clusterValidationOperationState(serviceProviderCluster *coreapi.ServiceProviderCluster, operationStartTime, now time.Time) *operationbase.OperationState {
 	state := operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, "")
 	operationOldEnough := !operationStartTime.IsZero() && now.Sub(operationStartTime) >= clusterValidationFailureTimeout
@@ -67,7 +84,14 @@ func clusterValidationOperationState(serviceProviderCluster *coreapi.ServiceProv
 		messages = append(messages, message)
 		if validation.Status == metav1.ConditionFalse {
 			state.WithCloudErrorCode(coreapi.CloudErrorCodeInvalidResource)
-			if operationOldEnough && !validation.LastTransitionTime.IsZero() && now.Sub(validation.LastTransitionTime.Time) >= clusterValidationFailureTimeout {
+			// When no probe time was recorded (e.g. the condition predates
+			// probe recording), fall back to the age-only check so the
+			// terminal-failure behavior is unchanged during rollout.
+			probeIsFresh := true
+			if probeTime, ok := serviceProviderCluster.Status.ValidationProbeTimes[validation.Type]; ok {
+				probeIsFresh = !probeTime.IsZero() && now.Sub(probeTime.Time) <= validationProbeFreshnessWindow
+			}
+			if operationOldEnough && !validation.LastTransitionTime.IsZero() && now.Sub(validation.LastTransitionTime.Time) >= clusterValidationFailureTimeout && probeIsFresh {
 				state.ProvisioningState = coreapi.ProvisioningStateFailed
 			}
 		}

@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -75,6 +76,9 @@ type clusterValidationSyncer struct {
 	// policy in trackConsecutiveUnknowns, which avoids flapping a cluster's validation status
 	// to Unknown on a transient blip.
 	consecutiveUnknownCounts *lru.Cache
+
+	// clock provides the time recorded in Status.ValidationProbeTimes.
+	clock utilsclock.PassiveClock
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
@@ -103,6 +107,7 @@ func NewNamedClusterValidationController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		validation:                   validation,
 		consecutiveUnknownCounts:     lru.New(consecutiveUnknownCountsCacheCapacity),
+		clock:                        utilsclock.RealClock{},
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -187,6 +192,28 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		if c.shouldWriteCondition(previousCondition, consecutiveUnknowns) {
 			meta.SetStatusCondition(&replacement.Status.Validations, desiredCondition)
 		}
+	}
+
+	// Record when this validation last produced a conclusive Failed result,
+	// independently of whether the stored condition changed. The conditions'
+	// LastTransitionTime only advances on outcome changes, so it cannot
+	// distinguish "failed and recently re-confirmed" from "failed but not
+	// re-checked lately"; the operation controllers use these probe times to
+	// make that distinction before failing a create or update terminally.
+	// Only Failed outcomes refresh the probe: a Passed outcome always
+	// overwrites the condition to True (which the operation controllers
+	// skip), and refreshing on Unknown outcomes would defeat the
+	// consecutive-Unknown write suppression above. A stale probe during an
+	// Unknown streak correctly keeps the operation non-terminal. Skipped
+	// validations drop their probe alongside their condition.
+	switch result.Outcome.Type {
+	case validationutils.OutcomeTypeFailed:
+		if replacement.Status.ValidationProbeTimes == nil {
+			replacement.Status.ValidationProbeTimes = map[string]metav1.Time{}
+		}
+		replacement.Status.ValidationProbeTimes[c.validation.Name()] = metav1.NewTime(c.clock.Now())
+	case validationutils.OutcomeTypeSkipped:
+		delete(replacement.Status.ValidationProbeTimes, c.validation.Name())
 	}
 
 	if !equality.Semantic.DeepEqual(existingServiceProviderCluster, replacement) {
