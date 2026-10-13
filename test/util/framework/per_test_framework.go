@@ -126,13 +126,20 @@ func setupAzureLogging(logDirPath string) *os.File {
 	}
 
 	azureLogger := logr.FromSlogHandler(slog.NewJSONHandler(azureLogFile, &slog.HandlerOptions{}))
+	SetupAzureGlobalLoggerWithLogrLogger(azureLogger)
+
+	return azureLogFile
+}
+
+// SetupAzureGlobalLoggerWithLogrLogger performs the following:
+// 1. Sets up Azure Go SDK global logger to log its log events to the given logrLogger.
+// 2. Configures Azure Go SDK global logger to only log specific event types to reduce noise. See within the function for the list of event types.
+func SetupAzureGlobalLoggerWithLogrLogger(logrLogger logr.Logger) {
 	log.SetListener(func(event log.Event, msg string) {
-		azureLogger.Info(msg, "event", event)
+		logrLogger.Info(msg, "event", event)
 	})
 	// There are other options to log, but they are really noisy.  If we must we can enable them.
 	log.SetEvents(log.EventRequest, log.EventResponse, log.EventResponseError, log.EventRetryPolicy, log.EventLRO)
-
-	return azureLogFile
 }
 
 func NewTestContext() *perItOrDescribeTestContext {
