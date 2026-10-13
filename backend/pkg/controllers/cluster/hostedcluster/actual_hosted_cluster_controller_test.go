@@ -98,6 +98,26 @@ func TestActualHostedClusterSyncer_NoWriteWhenUnchanged(t *testing.T) {
 		"ServiceProviderCluster was rewritten despite an identical observed HostedCluster; every needless Replace costs RUs and wakes the changefeed")
 }
 
+func TestActualHostedClusterSyncer_NoWriteWhenOnlyNonSpecFieldsChange(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+	createTestHCPCluster(t, ctx, mockResourcesDBClient)
+
+	hostedCluster := newHostedCluster()
+	hostedCluster.ResourceVersion = "1"
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, hostedCluster).SyncOnce(ctx, testKey))
+	afterFirstSync := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+	require.NotNil(t, afterFirstSync.Status.ActualHostedCluster)
+
+	changed := hostedCluster.DeepCopy()
+	changed.ResourceVersion = "2"
+	require.NoError(t, newTestSyncer(t, mockResourcesDBClient, changed).SyncOnce(ctx, testKey))
+	afterSecondSync := getServiceProviderCluster(t, ctx, mockResourcesDBClient)
+
+	assert.Equal(t, afterFirstSync.CosmosETag, afterSecondSync.CosmosETag,
+		"ServiceProviderCluster must not be rewritten when only non-spec fields change")
+}
+
 func TestActualHostedClusterSyncer_WritesWhenHostedClusterChanges(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
 	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()

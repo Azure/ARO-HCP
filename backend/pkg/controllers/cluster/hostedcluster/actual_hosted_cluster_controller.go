@@ -21,6 +21,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
+	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -88,7 +90,8 @@ func NewActualHostedClusterController(
 }
 
 // SyncOnce mirrors the observed HostedCluster onto the ServiceProviderCluster,
-// writing only when the observed object differs from what is already stored.
+// writing only when the observed spec differs from what is already stored or
+// the mirror transitions to or from nil. Status and metadata churn is ignored.
 func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	_, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -126,8 +129,9 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 
 	// Every Replace costs RUs and wakes every controller watching the
 	// ServiceProviderCluster changefeed, so only write when the observed
-	// HostedCluster actually differs from what is already stored.
-	if equality.Semantic.DeepEqual(existing.Status.ActualHostedCluster, replacement.Status.ActualHostedCluster) {
+	// HostedCluster spec differs (or the mirror transitions to or from nil).
+	// Status and metadata churn is intentionally ignored.
+	if hostedClusterSpecEqual(existing.Status.ActualHostedCluster, replacement.Status.ActualHostedCluster) {
 		return nil
 	}
 
@@ -148,4 +152,16 @@ func (c *actualHostedClusterSyncer) SyncOnce(ctx context.Context, key controller
 			"hostedClusterNamespace", hostedCluster.Namespace, "hostedClusterName", hostedCluster.Name)
 	}
 	return nil
+}
+
+// hostedClusterSpecEqual reports whether two observed HostedCluster mirrors carry the same spec.
+// Only the spec is compared: status/metadata/resourceVersion churn constantly and rewriting the
+// ServiceProviderCluster for it would cost RUs and wake the changefeed for no consumer's benefit.
+// A nil mirror (no HostedCluster observed) is equal only to another nil mirror, so transitions
+// into and out of the retracted state still write.
+func hostedClusterSpecEqual(a, b *hsv1beta1.HostedCluster) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return equality.Semantic.DeepEqual(a.Spec, b.Spec)
 }
