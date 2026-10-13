@@ -799,7 +799,9 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
-      step: prometheus
+      step: arobit
+    - resourceGroup: service
+      step: kube-events
     identityFrom:
       resourceGroup: global
       step: output
