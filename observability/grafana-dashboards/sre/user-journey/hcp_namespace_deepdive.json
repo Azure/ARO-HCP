@@ -939,7 +939,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "(?i)^running$"
+              "options": "^[Rr][Uu][Nn][Nn][Ii][Nn][Gg]$"
             },
             "properties": [
               {
@@ -954,7 +954,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "(?i)^pending$"
+              "options": "^[Pp][Ee][Nn][Dd][Ii][Nn][Gg]$"
             },
             "properties": [
               {
@@ -969,7 +969,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "(?i)^failed$"
+              "options": "^[Ff][Aa][Ii][Ll][Ee][Dd]$"
             },
             "properties": [
               {
@@ -984,7 +984,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "(?i)^succeeded$"
+              "options": "^[Ss][Uu][Cc][Cc][Ee][Ee][Dd][Ee][Dd]$"
             },
             "properties": [
               {
