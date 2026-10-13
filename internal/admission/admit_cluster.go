@@ -1185,7 +1185,7 @@ func admitClusterEtcdKmsKeyVersionChange(_ context.Context, admissionContext *Cl
 		return nil
 	}
 
-	apiVersion := metadataapi.APIVersionFromOptions(op.Options)
+	apiVersion := metadataapi.APIVersionFromOptions(validation.EnabledValidationOptions(op.Options))
 	if apiVersion.LT(metadataapi.APIVersionV20260630Preview) {
 		return field.ErrorList{field.Forbidden(fldPath, "KMS key version is immutable for this API version")}
 	}
