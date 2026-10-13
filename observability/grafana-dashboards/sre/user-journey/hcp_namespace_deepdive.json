@@ -938,8 +938,8 @@
         "overrides": [
           {
             "matcher": {
-              "id": "byName",
-              "options": "Running"
+              "id": "byRegexp",
+              "options": "(?i)^running$"
             },
             "properties": [
               {
@@ -953,8 +953,8 @@
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "Pending"
+              "id": "byRegexp",
+              "options": "(?i)^pending$"
             },
             "properties": [
               {
@@ -968,8 +968,8 @@
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "Failed"
+              "id": "byRegexp",
+              "options": "(?i)^failed$"
             },
             "properties": [
               {
@@ -983,8 +983,8 @@
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "Succeeded"
+              "id": "byRegexp",
+              "options": "(?i)^succeeded$"
             },
             "properties": [
               {
