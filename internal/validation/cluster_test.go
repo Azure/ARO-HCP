@@ -43,7 +43,7 @@ func TestClusterRequired(t *testing.T) {
 		name         string
 		resource     *coreapi.Cluster
 		tweaks       *coreapi.Cluster
-		opOptions    []string
+		opOptions    map[string]bool
 		expectErrors []utils.ExpectedError
 	}{
 		{
@@ -279,7 +279,7 @@ func TestClusterValidate(t *testing.T) {
 		name         string
 		resource     *coreapi.Cluster
 		tweaks       *coreapi.Cluster
-		opOptions    []string
+		opOptions    map[string]bool
 		expectErrors []utils.ExpectedError
 	}{
 		{
