@@ -87,6 +87,14 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster-output
+  - name: fleet-apr-assignment
+    action: ARM
+    template: templates/fleet-alert-processing-rule-assignment.bicep
+    parameters: configurations/fleet-alert-processing-rule-assignment.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
 - name: auditLogs
   resourceGroup: '{{ .auditLogsEventHub.rg }}'
   subscription: '{{ .svc.subscription.key }}'
