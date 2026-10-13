@@ -1028,7 +1028,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum by (phase) (kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=~\"Running|Pending|Failed|Succeeded\"})",
+          "expr": "sum by (phase) (max without (prometheus_replica) (kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=~\"Running|Pending|Failed|Succeeded\"}))",
           "instant": true,
           "range": false,
           "legendFormat": "{{phase}}",
@@ -2623,7 +2623,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (\n  label_replace(\n    sum by (instance) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval])),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\", node=~\"aks-user.*\"})\n* 100",
+          "expr": "sum by (node) (\n  label_replace(\n    sum by (instance) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\", node=~\"aks-user.*\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
@@ -2720,7 +2720,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (\n  label_replace(\n    sum by (instance) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\", node=~\"aks-user.*\"})\n* 100",
+          "expr": "sum by (node) (\n  label_replace(\n    sum by (instance) (max without (prometheus_replica) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"})),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\", node=~\"aks-user.*\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
@@ -2839,7 +2839,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster=\"$cluster\", container!=\"\", container!=\"POD\"})\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\"})\n* 100",
+          "expr": "sum by (node) (max without (prometheus_replica) (node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
@@ -2945,7 +2945,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (node_namespace_pod_container:container_memory_working_set_bytes{cluster=\"$cluster\", container!=\"\", container!=\"POD\"})\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\"})\n* 100",
+          "expr": "sum by (node) (max without (prometheus_replica) (node_namespace_pod_container:container_memory_working_set_bytes{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
