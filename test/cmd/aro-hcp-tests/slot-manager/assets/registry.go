@@ -58,6 +58,12 @@ type LeaseRequest struct {
 	AcquiredSlotState *slots.AcquiredSlotState
 	// SelectedClusterProfileDir locates the selected cluster's subscription credentials.
 	SelectedClusterProfileDir string
+	// SkipAdmissionCleanup disables admission mutations, never reuse safety checks.
+	// The registry sets this separately for each demanded asset.
+	SkipAdmissionCleanup bool
+	// IdentityConsumerGuardMode controls enforcement without disabling inventory auditing or cleanup.
+	IdentityConsumerGuardMode string
+	MinimumIdentityContainers int
 }
 
 // Handler implements pool management and the lease lifecycle for one asset kind.
@@ -76,9 +82,9 @@ type Handler interface {
 	ApplyPools(ctx context.Context, request PoolRequest) error
 	// ValidatePools checks provisioned assets against the handler-scoped catalog data.
 	ValidatePools(ctx context.Context, request PoolRequest) error
-	// AdmitLease establishes readiness for exclusive reuse before publication.
+	// AdmitLease checks safe reuse even when SkipAdmissionCleanup disables mutations.
 	AdmitLease(ctx context.Context, request LeaseRequest) error
-	// PublishLease adds the assets' runtime exports after admission or an explicit opt-out.
+	// PublishLease adds the assets' runtime exports after successful admission.
 	PublishLease(ctx context.Context, request LeaseRequest, contract *slots.RuntimeContractBuilder) error
 }
 
@@ -244,7 +250,7 @@ func (r *Registry) ValidateRequirements(pools []slots.Pool) error {
 
 // AdmitLease prepares and checks demanded assets for exclusive reuse.
 // Call it after acquisition and before publishing runtime exports.
-// Only explicitly disabled kinds skip admission; unknown kinds are rejected.
+// Explicitly disabled kinds skip cleanup, not safety checks; unknown kinds are rejected.
 func (r *Registry) AdmitLease(ctx context.Context, request LeaseRequest, disabledKinds ...Kind) error {
 	if request.AcquiredSlotState == nil {
 		return errors.New("acquired slot state is nil")
@@ -264,12 +270,12 @@ func (r *Registry) AdmitLease(ctx context.Context, request LeaseRequest, disable
 		}
 	}
 	for _, handler := range handlers {
+		request.SkipAdmissionCleanup = disabled[handler.Kind()]
 		if disabled[handler.Kind()] {
-			logr.FromContextOrDiscard(ctx).Info("WARNING: asset admission explicitly disabled; reuse readiness is not checked",
+			logr.FromContextOrDiscard(ctx).Info("WARNING: asset admission explicitly disabled for cleanup; reuse safety checks still apply",
 				"assetKind", handler.Kind(),
 				"slotName", request.AcquiredSlotState.Slot.ResourceName,
 			)
-			continue
 		}
 		if err := handler.AdmitLease(ctx, request); err != nil {
 			return fmt.Errorf("admitting asset %q for slot %q: %w", handler.Kind(), request.AcquiredSlotState.Slot.ResourceName, err)
@@ -279,7 +285,7 @@ func (r *Registry) AdmitLease(ctx context.Context, request LeaseRequest, disable
 }
 
 // PublishLease adds demanded assets' runtime exports to contract.
-// The caller must first admit the lease, except for explicitly disabled asset kinds.
+// The caller must first admit every lease, including explicitly disabled asset kinds.
 func (r *Registry) PublishLease(ctx context.Context, request LeaseRequest, contract *slots.RuntimeContractBuilder) error {
 	if contract == nil {
 		return errors.New("runtime contract builder is nil")

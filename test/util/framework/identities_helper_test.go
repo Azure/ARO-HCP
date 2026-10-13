@@ -71,9 +71,9 @@ func TestRelease(t *testing.T) {
 				func() error { return fmt.Errorf("cleanup failed") },
 			},
 			wantErr:            true,
-			wantState:          leaseStateFree,
-			wantLeasedBy:       "",
-			wantHistoryLen:     1,
+			wantState:          leaseStateBusy,
+			wantLeasedBy:       "test-spec-1",
+			wantHistoryLen:     0,
 			wantCleanupsCalled: 2,
 		},
 	}

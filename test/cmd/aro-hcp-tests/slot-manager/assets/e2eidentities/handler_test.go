@@ -94,14 +94,27 @@ func TestHandlerPublishesIdentityGroups(t *testing.T) {
 			ResourceGroups: []string{"identity-rg-02", "identity-rg-01"},
 		}},
 	}}}
+	request.AcquiredSlotState.AdmittedIdentityContainers = []string{"identity-rg-02"}
 	contract := slots.NewRuntimeContractBuilder()
 	if err := NewHandler().PublishLease(context.Background(), request, contract); err != nil {
 		t.Fatalf("publishing identity groups: %v", err)
 	}
-	if got, want := string(contract.MarshalShell()), "export LEASED_MSI_CONTAINERS='identity-rg-02 identity-rg-01'\n"; got != want {
+	if got, want := string(contract.MarshalShell()), "export ARO_HCP_IDENTITY_CONSUMER_GUARD='enforce'\nexport LEASED_MSI_CONTAINERS='identity-rg-02'\n"; got != want {
 		t.Fatalf("identity export = %q, want %q", got, want)
 	}
 	if err := contract.Add("other", "LEASED_MSI_CONTAINERS", ""); err == nil || !strings.Contains(err.Error(), `already owned by "e2e_identities"`) {
 		t.Fatalf("identity export must be owned by e2e_identities, got %v", err)
+	}
+	request.IdentityConsumerGuardMode = "audit"
+	contract = slots.NewRuntimeContractBuilder()
+	if err := NewHandler().PublishLease(context.Background(), request, contract); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(contract.MarshalShell()), "export ARO_HCP_IDENTITY_CONSUMER_GUARD='audit'\n") {
+		t.Fatal("audit mode was not propagated to the E2E test process")
+	}
+	request.AcquiredSlotState.AdmittedIdentityContainers = nil
+	if err := NewHandler().PublishLease(context.Background(), request, slots.NewRuntimeContractBuilder()); err == nil {
+		t.Fatal("unadmitted containers were published")
 	}
 }
