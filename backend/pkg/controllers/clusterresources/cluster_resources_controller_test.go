@@ -409,6 +409,44 @@ func TestSyncOnce(t *testing.T) {
 			},
 		},
 		{
+			name:    "removes null username prefix from HostedCluster ApplyDesire",
+			cluster: newCluster(),
+			dbResources: []any{
+				newSPC(testManagementClusterResourceID),
+			},
+			setupCSMock: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mock.EXPECT().
+					GetClusterResources(gomock.Any(), gomock.Any()).
+					Return(buildClusterResources(map[string]string{
+						"hostedcluster": `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"ocm-env-abc"},"spec":{"configuration":{"authentication":{"oidcProviders":[{"name":"no-opinion","claimMappings":{"username":{"claim":"sub","prefixPolicy":"","prefix":null}}},{"name":"explicit","claimMappings":{"username":{"claim":"email","prefixPolicy":"Prefix","prefix":{"prefixString":"custom:"}}}}]}}}}`,
+					}), nil)
+				return mock
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				crud, err := kaClient.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+				require.NoError(t, err)
+				desire, err := crud.Get(ctx, "hostedcluster")
+				require.NoError(t, err)
+
+				var content map[string]interface{}
+				require.NoError(t, json.Unmarshal(desire.Spec.ServerSideApply.KubeContent.Raw, &content))
+				providers, found, err := unstructured.NestedSlice(content,
+					"spec", "configuration", "authentication", "oidcProviders")
+				require.NoError(t, err)
+				require.True(t, found)
+				require.Len(t, providers, 2)
+
+				first := providers[0].(map[string]interface{})["claimMappings"].(map[string]interface{})["username"].(map[string]interface{})
+				assert.NotContains(t, first, "prefix")
+				assert.Equal(t, "", first["prefixPolicy"])
+
+				second := providers[1].(map[string]interface{})["claimMappings"].(map[string]interface{})["username"].(map[string]interface{})
+				assert.Equal(t, map[string]interface{}{"prefixString": "custom:"}, second["prefix"])
+			},
+		},
+		{
 			name:    "skips when management cluster is not placed",
 			cluster: newCluster(),
 			dbResources: []any{
