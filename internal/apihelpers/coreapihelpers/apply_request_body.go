@@ -25,7 +25,6 @@ import (
 	kjson "sigs.k8s.io/json"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
