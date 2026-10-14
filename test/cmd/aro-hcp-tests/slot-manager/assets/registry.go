@@ -58,6 +58,9 @@ type LeaseRequest struct {
 	AcquiredSlotState *slots.AcquiredSlotState
 	// SelectedClusterProfileDir locates the selected cluster's subscription credentials.
 	SelectedClusterProfileDir string
+	// CleanupWorkers bounds how many cleanup operations a handler may run
+	// concurrently during admission. Values below 1 mean serial.
+	CleanupWorkers int
 }
 
 // Handler implements pool management and the lease lifecycle for one asset kind.

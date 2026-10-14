@@ -21,10 +21,12 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/utils/ptr"
@@ -95,7 +97,9 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 		})
 	}
 
-	if err := runSerial(ctx, deleteOperations); err != nil {
+	workers := max(request.CleanupWorkers, 1)
+	logger.Info("Deleting role assignments", "count", len(deleteOperations), "workers", workers)
+	if err := runWithWorkers(ctx, deleteOperations, workers); err != nil {
 		return fmt.Errorf("failed cleaning E2E identity lease: %w", err)
 	}
 	// Exclusive ownership lets us rely on successful synchronous deletes without
@@ -233,16 +237,35 @@ func validateIdentityNames(resourceGroup string, expected map[string]struct{}, a
 	return nil
 }
 
-func runSerial(ctx context.Context, operations []func(context.Context) error) error {
-	var errs []error
+// runWithWorkers runs every operation with at most workers running at once and
+// joins their errors. Once ctx is done no further operation starts, and the
+// context error is part of the result. Joined error order is unspecified when
+// workers > 1.
+func runWithWorkers(ctx context.Context, operations []func(context.Context) error, workers int) error {
+	var (
+		group errgroup.Group
+		lock  sync.Mutex
+		errs  []error
+	)
+	group.SetLimit(max(workers, 1))
 	for _, operation := range operations {
 		if ctx.Err() != nil {
 			break
 		}
-		if err := runOperation(ctx, operation); err != nil {
-			errs = append(errs, err)
-		}
+		group.Go(func() error {
+			// Go blocks while all workers are busy, so ctx may be done by the time we run.
+			if ctx.Err() != nil {
+				return nil
+			}
+			if err := runOperation(ctx, operation); err != nil {
+				lock.Lock()
+				errs = append(errs, err)
+				lock.Unlock()
+			}
+			return nil
+		})
 	}
+	_ = group.Wait()
 	errs = append(errs, ctx.Err())
 	return errors.Join(errs...)
 }
