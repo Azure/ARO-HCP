@@ -32,9 +32,6 @@ tenant-quota-collector:
 # ---------------------------------------------------------------------------
 # Local config rendering
 # ---------------------------------------------------------------------------
-# Renders config-dev-ci.yaml through templatize to produce the config.yaml
-# that the tool expects. This is the same content that ends up in the
-# ConfigMap data["config.yaml"] during a real deployment.
 _output/config.yaml: $(TEMPLATIZE) deploy/config.yaml.tmpl $(DEV_CI_CONFIG_FILE)
 	$(TEMPLATIZE) generate \
 		--config-file $(DEV_CI_CONFIG_FILE) \
@@ -71,7 +68,7 @@ fetch-secrets: _output/config.yaml
 # Run locally
 # ---------------------------------------------------------------------------
 run: _output/config.yaml fetch-secrets
-	SECRETS_STORE_PATH=$(SECRETS_DIR) CONFIG_PATH=_output/config.yaml go run main.go
+	SECRETS_STORE_PATH=$(SECRETS_DIR) CONFIG_PATH=_output/config.yaml go run .
 
 run-image: image _output/config.yaml fetch-secrets
 	$(CONTAINER_ENGINE) run --rm -p 8080:8080 \

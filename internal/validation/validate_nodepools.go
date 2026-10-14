@@ -102,6 +102,24 @@ func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldOb
 	//ServiceProviderProperties NodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, validateNodePoolServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, toNodePoolServiceProviderProperties))...)
 
+	// there are resourceIDs that must be verified with respect to this ID. This is the only level of validation with access to both.
+	errs = append(errs, validateResourceIDsAgainstNodePoolID(ctx, op, newObj, oldObj)...)
+
+	return errs
+}
+
+// validateResourceIDsAgainstNodePoolID validates node pool resource ID fields against the
+// node pool's own ID. A node pool is a child resource of its cluster, so newObj.ID.SubscriptionID
+// is guaranteed to be the same as the parent cluster's subscription ID.
+func validateResourceIDsAgainstNodePoolID(ctx context.Context, op operation.Operation, newObj, _ *coreapi.NodePool) field.ErrorList {
+	if newObj.ID == nil {
+		return nil
+	}
+
+	errs := field.ErrorList{}
+
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("properties", "platform", "osDisk", "encryptionSetId"), newObj.Properties.Platform.OSDisk.EncryptionSetID, nil, newObj.ID.SubscriptionID)...)
+
 	return errs
 }
 

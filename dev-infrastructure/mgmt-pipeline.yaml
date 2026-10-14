@@ -490,6 +490,7 @@ resourceGroups:
       errorContainsAny:
       - "InternalServerError"
       - "ServiceUnavailable"
+      - "waiting for deployment aks-cluster-create: context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   # Everything that needs the ManagedCluster to already exist: ACR pull roles,
@@ -734,6 +735,22 @@ resourceGroups:
       step: output
     - resourceGroup: management
       step: cluster-output
+  # TRANSIENT: remove after rollout to all environments (AROSLSRE-2290)
+  # Cleans up orphaned tracing pods (jaeger, otel-collector, lgtm) left behind
+  # after PR #7072 removed the observability/tracing pipeline.
+  - name: cleanup-observability-tracing
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: ./cleanup-observability-tracing.sh
+    workingDir: ./scripts
+    dependsOn:
+    - resourceGroup: management
+      step: cluster-output
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -990,7 +1007,7 @@ resourceGroups:
   - name: arobit-output
     action: ARM
     template: templates/arobit-lookup.bicep
-    parameters: configurations/arobit-lookup.tmpl.bicepparam
+    parameters: configurations/arobit-mgmt-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
     dependsOn:

@@ -112,7 +112,7 @@ func newCleanupResourceGroupsCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:          "resource-groups",
-		Short:        "Delete resource groups (explicit list or expired resource groups)",
+		Short:        "Delete resource groups (explicit list, expired, tracked, or job ID)",
 		SilenceUsage: true,
 	}
 
@@ -128,11 +128,13 @@ func newCleanupResourceGroupsCommand() *cobra.Command {
 	cmd.Flags().StringArrayVar(&rawOpt.IncludeLocations, "include-location", rawOpt.IncludeLocations, "Only delete resource groups in these Azure locations (repeatable)")
 	cmd.Flags().StringArrayVar(&rawOpt.ExcludeLocations, "exclude-location", rawOpt.ExcludeLocations, "Do not delete resource groups in these Azure locations (repeatable)")
 	cmd.Flags().BoolVar(&rawOpt.Tracked, "tracked", rawOpt.Tracked, "Use tracked resource groups")
+	cmd.Flags().StringVar(&rawOpt.JobID, "job-id", rawOpt.JobID, "Delete resource groups tagged with this exact Prow BUILD_ID (may be combined with --tracked)")
 	cmd.Flags().StringVar(&rawOpt.SharedDir, "shared-dir", rawOpt.SharedDir, "Shared directory to use for tracked resource groups")
 	cmd.Flags().StringVar(&rawOpt.FPAClientID, "fpa-client-id", rawOpt.FPAClientID, "Client ID of the FPA used to delete Red Hat OpenShift service association links")
 	cmd.Flags().StringVar(&rawOpt.FPACertPath, "fpa-cert-path", rawOpt.FPACertPath, "Certificate path of the FPA used to delete Red Hat OpenShift service association links")
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		rawOpt.JobIDSet = cmd.Flags().Changed("job-id")
 		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
 		defer cancel()
 

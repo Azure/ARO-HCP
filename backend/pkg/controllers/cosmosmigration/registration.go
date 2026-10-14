@@ -37,6 +37,22 @@ func instantiateCosmosMigrationController(controllerContext controllerconfig.Con
 	), nil
 }
 
+func registerCosmosRolloutVersionMigrationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     5,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateCosmosRolloutVersionMigrationController, false),
+	}
+}
+
+func instantiateCosmosRolloutVersionMigrationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return NewCosmosRolloutVersionMigrationController(
+		controllerContext.FleetDBClient,
+		controllerContext.FleetInformers,
+		5*time.Minute,
+	), nil
+}
+
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(CosmosMigrationControllerName)] = registerCosmosMigrationController()
+	registry[strings.ToLower(CosmosRolloutVersionMigrationControllerName)] = registerCosmosRolloutVersionMigrationController()
 }

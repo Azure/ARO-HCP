@@ -32,10 +32,12 @@ const (
 	DesireNameHostedClusterNamespace = "HostedClusterNamespace"
 	DesireNameControlPlaneNamespace  = "ControlPlaneNamespace"
 
-	DesireNameDefaultIngressConfigMap = "DefaultIngressConfigMap"
-	DesireNameOCPPullSecret           = "OCPPullSecret"
-	DesireNamePodNetwork              = "PodNetwork"
-	DesireNamePodNetworkInstance      = "PodNetworkInstance"
+	DesireNameDefaultIngressConfigMap  = "DefaultIngressConfigMap"
+	DesireNameExternalAuthCAConfigMap  = "ExternalAuthCAConfigMap"
+	DesireNameOCPPullSecret            = "OCPPullSecret"
+	DesireNameExternalAuthClientSecret = "ExternalAuthClientSecret"
+	DesireNamePodNetwork               = "PodNetwork"
+	DesireNamePodNetworkInstance       = "PodNetworkInstance"
 
 	DesireNameBoundServiceAccountSigningKeySecretSync = "BoundServiceAccountSigningKeySecretSync"
 	DesireNameDefaultIngressWildcardCertSecretSync    = "DefaultIngressWildcardCertSecretSync"

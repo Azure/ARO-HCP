@@ -11,6 +11,8 @@
 #   LEASED_MSI_MOCK_SP      — MSI mock SP lease name
 #   LEASED_ARM_HELPER_SP    — one or two whitespace-separated ARM helper SP lease names
 #   LEASED_MSI_CONTAINERS   — MSI identity container lease (controls MGMT sizing)
+#   LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE — proposed JSON deployment contract
+#     for a pre-created service bundle and explicit management-stamp bundles
 #
 # Outputs:
 #   OVERRIDE_CONFIG_FILE — path to the generated config-override.yaml
@@ -179,6 +181,50 @@ if [[ -n "${LEASED_ARM_HELPER_SP:-}" ]]; then
   unset _YQ_CS_ARM_HELPER_CID _YQ_CS_ARM_HELPER_CERT
 else
   echo "No ARM helper SP lease provided, skipping ARM helper overrides"
+fi
+
+# Infrastructure identity reuse is intentionally opt-in. Slot-manager #7104
+# does not publish this value; the follow-up infrastructure identity handler
+# will own it after admission succeeds.
+if [[ -n "${LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE:-}" ]]; then
+  if ! jq -e '
+    def resource_group_name:
+      if type == "string" then
+        length >= 1 and length <= 90 and
+        test("\\A[A-Za-z0-9._()-]*[A-Za-z0-9_()-]\\z")
+      else false end;
+    type == "object" and
+    (keys | sort == ["managementResourceGroups", "serviceResourceGroup"]) and
+    (.serviceResourceGroup | resource_group_name) and
+    (.managementResourceGroups | type == "object" and length > 0) and
+    all(.managementResourceGroups | to_entries[];
+      (.key | test("\\A[0-9]+\\z")) and
+      (.value | resource_group_name))
+  ' <<< "${LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE}" >/dev/null; then
+    echo "ERROR: LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE must contain serviceResourceGroup and a non-empty managementResourceGroups object keyed by numeric stamp; resource-group names must be 1-90 ASCII letters, digits, underscores, hyphens, periods or parentheses and must not end in a period" >&2
+    exit 1
+  fi
+
+  INFRASTRUCTURE_IDENTITY_SERVICE_RESOURCE_GROUP=$(jq -r '.serviceResourceGroup' <<< "${LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE}")
+  INFRASTRUCTURE_IDENTITY_MANAGEMENT_RESOURCE_GROUPS=$(jq -r '
+    .managementResourceGroups
+    | to_entries
+    | sort_by(.key | tonumber)
+    | map(.key + "=" + .value)
+    | join(",")
+  ' <<< "${LEASED_INFRASTRUCTURE_IDENTITY_BUNDLE}")
+
+  export _YQ_INFRA_SERVICE_RG="${INFRASTRUCTURE_IDENTITY_SERVICE_RESOURCE_GROUP}"
+  export _YQ_INFRA_MGMT_RGS="${INFRASTRUCTURE_IDENTITY_MANAGEMENT_RESOURCE_GROUPS}"
+  yq -i "
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.infrastructureIdentities.useLeased = true |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.infrastructureIdentities.serviceResourceGroup = strenv(_YQ_INFRA_SERVICE_RG) |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.infrastructureIdentities.managementResourceGroups = strenv(_YQ_INFRA_MGMT_RGS)
+  " "${OVERRIDE_CONFIG_FILE}"
+  unset _YQ_INFRA_SERVICE_RG _YQ_INFRA_MGMT_RGS
+  echo "Infrastructure identity reuse enabled for service bundle and explicit management stamp mappings"
+else
+  echo "No infrastructure identity bundle provided; infrastructure identities will be created in deployment resource groups"
 fi
 
 # Healthcheck workflows provision without leases and don't need E2E-sized clusters.

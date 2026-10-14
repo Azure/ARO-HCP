@@ -141,13 +141,14 @@ func loadSubscriptionInventory(ctx context.Context, subscriptionID string, cred 
 	}, nil
 }
 
+// Compare the complete physical pool inventory with the resources present in Azure.
 func compareIdentityPoolInventory(pools []identityPool, actual subscriptionInventory) validationResult {
 	expectedResourceGroups := map[string]string{}
 	managedPrefixes := make([]string, 0)
 	for _, pool := range pools {
 		managedPrefixes = append(managedPrefixes, normalizeName(pool.IdentityContainerPrefix)+"-")
 		for _, slot := range pool.Slots {
-			for _, resourceGroup := range slot.IdentityContainerNames() {
+			for _, resourceGroup := range slot.ProvisionedIdentityContainerNames() {
 				expectedResourceGroups[normalizeName(resourceGroup)] = resourceGroup
 			}
 		}

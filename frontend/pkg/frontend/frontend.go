@@ -54,7 +54,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
-	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
+	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -113,7 +113,7 @@ func NewFrontend(
 	metadataapi.Must[any](nil, v20251223preview.RegisterVersion(apiRegistry))
 	metadataapi.Must[any](nil, v20260630preview.RegisterVersion(apiRegistry))
 	metadataapi.Must[any](nil, v20260901preview.RegisterVersion(apiRegistry))
-	metadataapi.Must[any](nil, v20261001preview.RegisterVersion(apiRegistry))
+	metadataapi.Must[any](nil, v20261001.RegisterVersion(apiRegistry))
 
 	f := &Frontend{
 		clock:                utilsclock.RealClock{},
@@ -244,6 +244,26 @@ func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
 func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
 	writer.WriteHeader(http.StatusOK)
 	f.healthGauge.Set(1.0)
+}
+
+func (f *Frontend) Startupz(writer http.ResponseWriter, request *http.Request) {
+	ctx, cancel := context.WithTimeout(request.Context(), 5*time.Second)
+	defer cancel()
+	iterator, err := f.resourcesDBClient.ResourcesGlobalListers().Subscriptions().List(ctx, &cosmosstorageutils.DBClientListResourceDocsOptions{
+		PageSizeHint: metadataapihelpers.Ptr(int32(1)),
+	})
+	if err == nil {
+		for range iterator.Items(ctx) {
+			break
+		}
+		err = iterator.GetError()
+	}
+	if err != nil {
+		utils.LoggerFromContext(request.Context()).Error(err, "Startup probe failed")
+		http.Error(writer, "Cosmos DB query failed", http.StatusServiceUnavailable)
+		return
+	}
+	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {

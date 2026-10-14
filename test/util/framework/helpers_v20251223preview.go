@@ -91,8 +91,9 @@ type NodePoolParams20251223 struct {
 	// Labels are Kubernetes labels propagated to NodePool nodes.
 	Labels []*hcpsdk20251223preview.Label
 	// Taints are Kubernetes taints applied to NodePool nodes.
-	Taints []*hcpsdk20251223preview.Taint
-	Tags   map[string]*string
+	Taints          []*hcpsdk20251223preview.Taint
+	Tags            map[string]*string
+	EncryptionSetID string
 }
 
 // ---------------------------------------------------------------------------
@@ -461,6 +462,10 @@ func BuildNodePoolFromParams20251223(
 		},
 	}
 
+	if parameters.EncryptionSetID != "" {
+		nodePool.Properties.Platform.OSDisk.EncryptionSetID = to.Ptr(parameters.EncryptionSetID)
+	}
+
 	if parameters.AutoScaling != nil {
 		nodePool.Properties.AutoScaling = &hcpsdk20251223preview.NodePoolAutoScaling{
 			Min: to.Ptr(parameters.AutoScaling.Min),
@@ -812,28 +817,7 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20251223(
 		nodePool,
 		timeout,
 	); err != nil {
-		// a separate context for console log download with its own timeout,
-		// to make sure logs are fetched even when the node pool deployment
-		// context is cancelled due to timeout
-		downloadTimeout := 5 * time.Minute
-		downloadCtx, downloadCancel := context.WithTimeoutCause(
-			ctx,
-			downloadTimeout,
-			fmt.Errorf("timeout '%f' minutes exceeded during DownloadAllVirtualMachineConsoleLogs for VMs in managed resource group %s", downloadTimeout.Minutes(), managedResourceGroupName))
-		defer downloadCancel()
-		computeFactory, clientErr := tc.GetARMComputeClientFactory(downloadCtx)
-		if clientErr == nil {
-			consoleLogErr := DownloadAllVirtualMachineConsoleLogs(
-				downloadCtx,
-				computeFactory,
-				managedResourceGroupName,
-				tc.LogDirPath)
-			if consoleLogErr != nil {
-				logger.Error(consoleLogErr, "failed to download VM console logs")
-			}
-		} else {
-			logger.Error(clientErr, "failed to get ARM compute client to download VM console logs")
-		}
+		tc.collectNodePoolFailureArtifacts(nodePoolCtx, logger, resourceGroupName, managedResourceGroupName, hcpClusterName, nodePoolName)
 
 		if errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Errorf("failed to create NodePool %s, caused by: %w, error: %w", nodePoolName, context.Cause(nodePoolCtx), err)

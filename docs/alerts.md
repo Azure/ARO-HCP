@@ -26,6 +26,54 @@ Each service keeps its alerts under an `alerts/` directory. Every rule file must
 
 Cross-service and platform alerts live in `observability/alerts/`.
 
+## Backend queue-depth thresholds
+
+`BackendControllerQueueDepthHigh` normally fires when a controller's workqueue
+stays above 10 items for 15 minutes. The backend exposes
+`backend_insecure_mock_managed_identities_enabled` as a gauge on every replica:
+1 when `InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock`
+is enabled, otherwise 0. This uses the inverse of `BackendOptions.HasRealFPA`,
+which is wired directly from that flag.
+
+When any backend replica in the same cluster reports 1, the alert waits 90 minutes
+for these controllers, which receive `CheckAccessV2ClientBuilder`. Alert selectors
+match the lowercase workqueue `name` labels:
+
+- `clustervalidationcontrolplaneidentitiespermissionsclustervalidation`
+- `clustervalidationdataplaneidentitiespermissionsvalidation`
+- `clustervalidationcontainerregistrypullcredentialspermissionvalidation`
+
+This exception accounts for limited CheckAccessV2 throughput in insecure mock mode:
+[`CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS`](../backend/pkg/azure/client/rate_limited_check_access_v2_client.go)
+is set to **4.5 requests per second**, shared by callers for each tenant within a
+backend replica. Queue draining can therefore take substantially longer. The
+queue depth threshold remains 10, and the 90-minute window still requires a
+continuously high queue.
+
+All other controllers retain 15 minutes. These three controllers also retain
+15 minutes with real FPA identities or when the mode metric is absent, including
+during deployment of this metric to older backends. The two alert rules are
+mutually exclusive for each queue/cluster and share the same alert name and labels.
+When adding a controller that takes `CheckAccessV2ClientBuilder`, update both name
+selectors in the [rule file](../backend/alerts/backend-prometheusRule.yaml) and its
+[tests](../backend/alerts/backend-prometheusRule_test.yaml).
+
+### Troubleshooting a high backend queue
+
+1. Use the alert's `cluster` and `name` labels to select the affected queue.
+   Check `backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}`
+   for that cluster to determine whether the 15-minute or 90-minute window applies.
+   An absent metric uses the 15-minute window.
+2. Inspect `workqueue_depth`, `workqueue_adds_total`, and `workqueue_retries_total`
+   for the same queue and cluster. Compare queue growth with incoming work and
+   retries; a growing queue with repeated failures needs investigation even in
+   mock mode. The longer window only accommodates the expected 4.5 QPS limit.
+3. Inspect the corresponding backend controller logs and cluster validation
+   conditions for failed permission checks, authentication errors, or throttling.
+   Resolve the reported errors or reduce incoming work, then confirm queue depth
+   falls to 10 or below. Do not increase the CheckAccessV2 limiter to clear the
+   alert: its configured rate protects the ARM Permissions Manager request quota.
+
 ## Writing an alert rule
 
 ### 1. Create the rule file

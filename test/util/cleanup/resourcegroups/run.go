@@ -17,20 +17,30 @@ package resourcegroups
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 func (o *Options) Run(ctx context.Context) error {
-	logger := logr.FromContextOrDiscard(ctx)
-
 	tc := framework.NewTestContext()
 	resourceGroupsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient()
 
+	resourceGroupsToDelete, err := o.discoverResourceGroups(ctx, resourceGroupsClient)
+	if err != nil {
+		return err
+	}
+	return o.cleanupResourceGroups(ctx, tc, resourceGroupsToDelete)
+}
+
+func (o *Options) discoverResourceGroups(ctx context.Context, resourceGroupsClient *armresources.ResourceGroupsClient) ([]string, error) {
+	logger := logr.FromContextOrDiscard(ctx)
 	var resourceGroupsToDelete []string
 
 	// If resource groups are explicitly provided, filter to existing ones
@@ -41,15 +51,18 @@ func (o *Options) Run(ctx context.Context) error {
 		for resourceGroupsPager.More() {
 			page, err := resourceGroupsPager.NextPage(ctx)
 			if err != nil {
-				return fmt.Errorf("failed listing resource groups: %w", err)
+				return nil, fmt.Errorf("failed listing resource groups: %w", err)
 			}
 			for _, rg := range page.Value {
-				existingResourceGroups.Insert(*rg.Name)
-				resourceGroupLocations[*rg.Name] = *rg.Location
+				existingResourceGroups.Insert(strings.ToLower(*rg.Name))
+				resourceGroupLocations[strings.ToLower(*rg.Name)] = *rg.Location
 			}
 		}
 
-		requestedResourceGroups := sets.New(o.ResourceGroups...)
+		requestedResourceGroups := sets.New[string]()
+		for _, name := range o.ResourceGroups {
+			requestedResourceGroups.Insert(strings.ToLower(name))
+		}
 		resourceGroupsToDelete = requestedResourceGroups.Intersection(existingResourceGroups).UnsortedList()
 		resourceGroupsNotFound := requestedResourceGroups.Difference(existingResourceGroups).UnsortedList()
 
@@ -64,7 +77,7 @@ func (o *Options) Run(ctx context.Context) error {
 
 		expiredResourceGroups, err := framework.ListAllExpiredResourceGroups(ctx, resourceGroupsClient, o.EvaluationTime)
 		if err != nil {
-			return fmt.Errorf("failed to list expired resource groups: %w", err)
+			return nil, fmt.Errorf("failed to list expired resource groups: %w", err)
 		}
 
 		resourceGroupsToDelete = make([]string, 0, len(expiredResourceGroups))
@@ -80,6 +93,34 @@ func (o *Options) Run(ctx context.Context) error {
 			o.IncludeLocations, o.ExcludeLocations, logger)
 	}
 
+	if o.JobID != "" {
+		jobResourceGroups, err := framework.ListResourceGroupsByJobID(ctx, resourceGroupsClient, o.JobID)
+		if err != nil {
+			return nil, err
+		}
+		var names []string
+		locations := map[string]string{}
+		for _, resourceGroup := range jobResourceGroups {
+			if resourceGroup.Name == nil || resourceGroup.Location == nil {
+				return nil, fmt.Errorf("resource group discovered by job ID is missing name or location")
+			}
+			names = append(names, *resourceGroup.Name)
+			locations[*resourceGroup.Name] = *resourceGroup.Location
+		}
+		resourceGroupsToDelete = append(resourceGroupsToDelete, filterResourceGroupsByLocation(names, locations,
+			o.IncludeLocations, o.ExcludeLocations, logger)...)
+	}
+	unique := sets.New[string]()
+	for _, name := range resourceGroupsToDelete {
+		unique.Insert(strings.ToLower(name))
+	}
+	return sets.List(unique), nil
+}
+
+func (o *Options) cleanupResourceGroups(ctx context.Context, tc interface {
+	CleanupResourceGroups(context.Context, framework.CleanupResourceGroupsOptions) error
+}, resourceGroupsToDelete []string) error {
+	logger := logr.FromContextOrDiscard(ctx)
 	if len(resourceGroupsToDelete) == 0 {
 		logger.Info("No resource groups provided")
 		return nil

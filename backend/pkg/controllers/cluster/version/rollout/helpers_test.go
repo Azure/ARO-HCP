@@ -103,12 +103,13 @@ func newTestServiceProviderCluster(clusterName string, desired *semver.Version, 
 
 func newTestRollout(yStreamChannel string, best *semver.Version, status fleetapi.ControlPlaneVersionRolloutStatus) *fleetapi.ControlPlaneVersionRollout {
 	id := metadataapi.Must(fleetapihelpers.ToControlPlaneVersionRolloutResourceID(yStreamChannel))
+	profile := metadataapi.Must(fleetapihelpers.RolloutVersionFromName(yStreamChannel))
 	return &fleetapi.ControlPlaneVersionRollout{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   id,
 			PartitionKey: strings.ToLower(coreapi.ProviderNamespace),
 		},
-		Spec:   fleetapi.ControlPlaneVersionRolloutSpec{BestExactVersion: best},
+		Spec:   fleetapi.ControlPlaneVersionRolloutSpec{Version: profile, BestExactVersion: best},
 		Status: status,
 	}
 }

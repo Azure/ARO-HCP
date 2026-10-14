@@ -1,0 +1,7 @@
+values: ../values.yaml
+name: helmtest-mgmt-agent-system
+namespace: mgmt-agent
+testData:
+  mgmt:
+    scheduling:
+      role: system

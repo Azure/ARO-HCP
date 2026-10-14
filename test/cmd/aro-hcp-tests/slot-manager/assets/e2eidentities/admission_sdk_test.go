@@ -193,12 +193,25 @@ func TestAdmissionInventoriesOnceAndCleansOnlyLeasedPrincipals(t *testing.T) {
 						Allocation: slots.AllocationDedicated, ResourceGroups: groups,
 					}},
 				}}}
-				var reports []string
-				ctx := logr.NewContext(t.Context(), funcr.NewJSON(func(report string) {
-					reports = append(reports, report)
+				const driftMessage = "Unexpected identities in leased resource group; excluded from admission cleanup"
+				var logEntries []string
+				ctx := logr.NewContext(t.Context(), funcr.NewJSON(func(entry string) {
+					logEntries = append(logEntries, entry)
 				}, funcr.Options{}))
 				if err := admitIdentityLeaseWithClients(ctx, request, factory, roles); err != nil {
 					t.Fatalf("admission failed: %v", err)
+				}
+				var reports []string
+				for _, entry := range logEntries {
+					var decoded struct {
+						Msg string `json:"msg"`
+					}
+					if err := json.Unmarshal([]byte(entry), &decoded); err != nil {
+						t.Fatal(err)
+					}
+					if decoded.Msg == driftMessage {
+						reports = append(reports, entry)
+					}
 				}
 				wantReports := len(groups)
 				if scenario == "no extras" {

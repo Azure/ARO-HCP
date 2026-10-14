@@ -551,7 +551,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: regionRG
     - name: MI_RESOURCE_GROUP
-      configRef: svc.rg
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: identityResourceGroup
     - name: PG_SERVER_NAME
       configRef: clustersService.postgres.name
     - name: DATABASE_NAME
@@ -564,7 +567,7 @@ resourceGroups:
       configRef: clustersService.postgres.deploy
     dependsOn:
     - resourceGroup: service
-      step: cluster
+      step: cluster-output
     - resourceGroup: service
       step: subscription-output
   - name: maestro-postgres-access
@@ -585,7 +588,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: regionRG
     - name: MI_RESOURCE_GROUP
-      configRef: svc.rg
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: identityResourceGroup
     - name: PG_SERVER_NAME
       configRef: maestro.postgres.name
     - name: DATABASE_NAME
@@ -598,7 +604,7 @@ resourceGroups:
       configRef: maestro.postgres.deploy
     dependsOn:
     - resourceGroup: service
-      step: cluster
+      step: cluster-output
     - resourceGroup: service
       step: subscription-output
   - name: oidc-storage-setup
@@ -665,6 +671,22 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: cluster-output
+  # TRANSIENT: remove after rollout to all environments (AROSLSRE-2290)
+  # Cleans up orphaned tracing pods (jaeger, otel-collector, lgtm) left behind
+  # after PR #7072 removed the observability/tracing pipeline.
+  - name: cleanup-observability-tracing
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: ./cleanup-observability-tracing.sh
+    workingDir: ./scripts
+    dependsOn:
+    - resourceGroup: service
+      step: cluster-output
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: prometheus
     # Deploy prometheus first since istio depends on it's CRDs
     aksCluster: '{{ .svc.aks.name }}'
@@ -807,7 +829,9 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
-      step: prometheus
+      step: arobit
+    - resourceGroup: service
+      step: kube-events
     identityFrom:
       resourceGroup: global
       step: output

@@ -181,8 +181,9 @@ type NodePoolPlatformProfile struct {
 type OSDiskProfile struct {
 	SizeGiB                *int32                             `json:"sizeGiB,omitempty"`
 	DiskStorageAccountType metadataapi.DiskStorageAccountType `json:"diskStorageAccountType,omitempty"`
-	EncryptionSetID        *azcorearm.ResourceID              `json:"encryptionSetId,omitempty"`
-	DiskType               metadataapi.OsDiskType             `json:"diskType,omitempty"`
+	// EncryptionSetID is the resource ID of the DiskEncryptionSet to use to encrypt the OS disk. It is optional.
+	EncryptionSetID *azcorearm.ResourceID  `json:"encryptionSetId,omitempty"`
+	DiskType        metadataapi.OsDiskType `json:"diskType,omitempty"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.

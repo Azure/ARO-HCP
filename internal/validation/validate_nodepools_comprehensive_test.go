@@ -483,6 +483,26 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "encryption set in different subscription - create",
+			nodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be in the same Azure subscription", FieldPath: "properties.platform.osDisk.encryptionSetId"},
+			},
+		},
+		{
+			name: "encryption set in same subscription - valid - create",
+			nodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
 			name: "replicas at maximum limit (200) - create",
 			nodePool: func() *coreapi.NodePool {
 				np := createValidNodePool()
@@ -1279,6 +1299,23 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			oldNodePool: func() *coreapi.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](128)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "properties.platform"},
+				{Message: "field is immutable", FieldPath: "properties.platform.osDisk"},
+			},
+		},
+		{
+			name: "immutable OS disk encryption set - update",
+			newNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des-new"))
+				return np
+			}(),
+			oldNodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des-old"))
 				return np
 			}(),
 			expectErrors: []utils.ExpectedError{

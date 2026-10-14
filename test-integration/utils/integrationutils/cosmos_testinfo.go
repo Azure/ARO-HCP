@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/frontend/cmd"
+	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
@@ -413,7 +413,7 @@ func cosmosClientOptionsFromEnv() (string, cosmosclient.Options, error) {
 	// Create a custom pipeline option for the client
 	cosmosClientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
 	cosmosClientOpts.Transport = httpClient
-	cosmosClientOpts.PerCallPolicies = []policy.Policy{cmd.PolicyFunc(cmd.CorrelationIDPolicy)}
+	cosmosClientOpts.PerCallPolicies = []policy.Policy{frontend.PolicyFunc(frontend.CorrelationIDPolicy)}
 
 	// Create key credential
 	keyCredential, err := azcosmos.NewKeyCredential(emulatorKey)

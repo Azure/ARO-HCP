@@ -1857,6 +1857,18 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 	// observed a HostedCluster for. A v5 upgrade must fail closed until the
 	// required mirror is proven present.
 	spcUnmirrored := &coreapi.ServiceProviderCluster{}
+	spcWithImageContentSources := func(actualHostedCluster *hsv1beta1.HostedCluster, sources ...string) *coreapi.ServiceProviderCluster {
+		imageContentSources := make([]hsv1beta1.ImageContentSource, len(sources))
+		for index, source := range sources {
+			imageContentSources[index] = hsv1beta1.ImageContentSource{Source: source}
+		}
+		return &coreapi.ServiceProviderCluster{
+			Status: coreapi.ServiceProviderClusterStatus{
+				ImageContentSources: &imageContentSources,
+				ActualHostedCluster: actualHostedCluster,
+			},
+		}
+	}
 
 	const v4Mirror = "quay.io/openshift-release-dev/ocp-v4.0-art-dev"
 	missingMirror := []utils.ExpectedError{
@@ -1874,6 +1886,52 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 		spc          *coreapi.ServiceProviderCluster // nil models a missing ServiceProviderCluster prefetch
 		expectErrors []utils.ExpectedError
 	}{
+		{
+			name:       "new field with v5 source passes without legacy mirror",
+			op:         operation.Operation{Type: operation.Update},
+			oldVersion: &coreapi.VersionProfile{ID: "4.22"},
+			newVersion: &coreapi.VersionProfile{ID: "5.0"},
+			spc:        spcWithImageContentSources(nil, apihelpers.OcpV5ArtDevMirrorSource),
+		},
+		{
+			name:         "new field without v5 source is rejected without legacy mirror",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcWithImageContentSources(nil, v4Mirror),
+			expectErrors: missingMirror,
+		},
+		{
+			name:       "new field takes precedence over legacy mirror missing v5 source",
+			op:         operation.Operation{Type: operation.Update},
+			oldVersion: &coreapi.VersionProfile{ID: "4.22"},
+			newVersion: &coreapi.VersionProfile{ID: "5.0"},
+			spc:        spcWithImageContentSources(spcWithMirrors(v4Mirror).Status.ActualHostedCluster, apihelpers.OcpV5ArtDevMirrorSource),
+		},
+		{
+			name:         "new field missing v5 source takes precedence over legacy mirror with v5 source",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcWithImageContentSources(spcWithMirrors(apihelpers.OcpV5ArtDevMirrorSource).Status.ActualHostedCluster, v4Mirror),
+			expectErrors: missingMirror,
+		},
+		{
+			name:         "observed empty new field does not fall back to legacy v5 source",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcWithImageContentSources(spcWithMirrors(apihelpers.OcpV5ArtDevMirrorSource).Status.ActualHostedCluster),
+			expectErrors: missingMirror,
+		},
+		{
+			name:         "observed empty new field without legacy mirror reports missing not unavailable",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
+			spc:          spcWithImageContentSources(nil),
+			expectErrors: missingMirror,
+		},
 		{
 			name:         "4->5 upgrade with the v5 mirror present passes",
 			op:           operation.Operation{Type: operation.Update},

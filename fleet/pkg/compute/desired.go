@@ -191,10 +191,10 @@ func tierLabels(tier TierConfig) map[string]string {
 // FamilyPriority. PoolModeRegional reorders it to spend the most zone-restricted
 // families first: a regional pool sets no zones, so it runs fine on a family
 // whose SKU is offered in only some zones, which preserves families with broader
-// zone coverage for the PoolModePerZone tiers that actually need it. We only
-// target zonal regions, so a family whose SKU is unavailable or offered in zero
-// zones (restricted in every zone) is unschedulable; those sort last so a
-// regional pool never prefers a broken SKU over a usable one.
+// zone coverage for the PoolModePerZone tiers that actually need it. A family
+// whose SKU is missing or restricted in every zone sorts last. Zone restrictions
+// only block zonal deployments, so a regional pool can still use such a SKU,
+// but it stays a last resort behind families offered in at least one zone.
 func familyAllocationOrder(tier TierConfig, zones []string, skuIndex EligibleSKUIndex) []VMFamily {
 	if tier.PoolMode != PoolModeRegional {
 		return tier.FamilyPriority
@@ -227,114 +227,150 @@ func allocateTier(
 	budgets map[VMFamily]int64,
 	skuIndex EligibleSKUIndex,
 ) ([]Pool, bool) {
+	switch tier.PoolMode {
+	case PoolModeRegional:
+		return allocateRegionalTier(logger, tier, zones, budgets, skuIndex)
+	case PoolModePerZone:
+		return allocatePerZoneTier(logger, tier, zones, budgets, skuIndex)
+	default:
+		logger.Info("unknown pool mode, skipping tier", "poolMode", tier.PoolMode)
+		return nil, false
+	}
+}
+
+// allocateRegionalTier allocates one zoneless pool per family, in allocation
+// order, until the tier reaches MaxNodes.
+func allocateRegionalTier(
+	logger logr.Logger,
+	tier TierConfig,
+	zones []string,
+	budgets map[VMFamily]int64,
+	skuIndex EligibleSKUIndex,
+) ([]Pool, bool) {
+	var (
+		pools          []Pool
+		allocatedNodes int64
+	)
+	for _, family := range familyAllocationOrder(tier, zones, skuIndex) {
+		vmSize, meta, ok := tierSKU(logger, tier, family, skuIndex)
+		if !ok {
+			continue
+		}
+		// Regional pools set no availability zones, so AKS places nodes
+		// anywhere in the region and any SKU is eligible, including
+		// zone-restricted ones.
+		maxCount := minNonNegative(budgets[family]/meta.VCPUs, tier.MaxNodes-allocatedNodes)
+		if maxCount < 1 {
+			continue
+		}
+		pools = append(pools, Pool{
+			Role:              tier.Role,
+			Name:              poolName(tier.Name, tier.Role, "0", vmSize, tier.OSDiskSizeGB, tier.MaxPods, tier.EnableSwift),
+			Spec:              NewVMSpecFromSKU(meta),
+			AvailabilityZones: nil,
+			MaxCount:          int32(maxCount),
+			MinCount:          seedMinCount(tier.InitialMinNodes, maxCount),
+			OSDiskSizeGB:      tier.OSDiskSizeGB,
+			MaxPods:           tier.MaxPods,
+			Labels:            tierLabels(tier),
+			Taints:            slices.Clone(tier.Taints),
+			EnableSwift:       tier.EnableSwift,
+		})
+		allocatedNodes += maxCount
+		if allocatedNodes >= tier.MaxNodes {
+			break
+		}
+	}
+	return pools, len(pools) > 0 && allocatedNodes == tier.MaxNodes
+}
+
+// allocatePerZoneTier allocates each family's quota evenly across the first
+// PoolCount zones where its SKU is offered.
+func allocatePerZoneTier(
+	logger logr.Logger,
+	tier TierConfig,
+	zones []string,
+	budgets map[VMFamily]int64,
+	skuIndex EligibleSKUIndex,
+) ([]Pool, bool) {
 	var (
 		pools          []Pool
 		runningPerPool int64
 	)
-
 	for _, family := range familyAllocationOrder(tier, zones, skuIndex) {
-		vmSize, meta, found := skuIndex.Lookup(family, tier.Cores)
-		if !found {
-			logger.Info("no eligible SKU found in family, skipping", "family", family, "desiredCores", tier.Cores)
+		vmSize, meta, ok := tierSKU(logger, tier, family, skuIndex)
+		if !ok {
 			continue
 		}
-
-		if meta.EphemeralDiskSizeGB < int64(tier.OSDiskSizeGB) {
-			logger.Info("SKU ephemeral disk too small for configured OS disk size, skipping",
-				"family", family, "vmSize", vmSize,
-				"ephemeralDiskSizeGB", meta.EphemeralDiskSizeGB,
-				"osDiskSizeGB", tier.OSDiskSizeGB)
-			continue
-		}
-
-		vcpusPerNode := meta.VCPUs
-
 		budget := budgets[family]
 		if budget <= 0 {
 			continue
 		}
-
-		remaining := tier.MaxNodes - runningPerPool
-
-		switch tier.PoolMode {
-		case PoolModeRegional:
-			// Regional pools set no availability zones, so AKS places nodes
-			// anywhere in the region and any SKU is eligible, including
-			// zone-restricted ones.
-			quotaNodes := budget / vcpusPerNode
-			maxCount := minNonNegative(quotaNodes, remaining)
-			if maxCount < 1 {
-				continue
-			}
+		// PoolCount is the number of zonal pools, clamped to the number of
+		// zones available (a 3-pool tier on 2 zones yields 2).
+		targetCount := min(tier.PoolCount, len(zones))
+		if targetCount == 0 {
+			continue
+		}
+		// Each pool must land in a zone where the SKU is offered. Take the
+		// first targetCount zones in which the SKU is available; if fewer
+		// remain, it cannot serve the tier — try the next family in priority
+		// order.
+		poolZones := intersectZones(zones, meta)
+		if len(poolZones) < targetCount {
+			continue
+		}
+		poolZones = poolZones[:targetCount]
+		poolCount := int64(len(poolZones))
+		// Integer division deliberately floors: splitting the family
+		// budget evenly across pools can waste up to
+		// (poolCount-1)*vcpusPerNode vCPUs, which is the conservative
+		// choice — never provision beyond quota.
+		quotaPerZone := budget / (meta.VCPUs * poolCount)
+		perZone := minNonNegative(quotaPerZone, tier.MaxNodes-runningPerPool)
+		if perZone < 1 {
+			continue
+		}
+		for _, zone := range poolZones {
 			pools = append(pools, Pool{
 				Role:              tier.Role,
-				Name:              poolName(tier.Name, tier.Role, "0", vmSize, tier.OSDiskSizeGB, tier.MaxPods, tier.EnableSwift),
+				Name:              poolName(tier.Name, tier.Role, zone, vmSize, tier.OSDiskSizeGB, tier.MaxPods, tier.EnableSwift),
 				Spec:              NewVMSpecFromSKU(meta),
-				AvailabilityZones: nil,
-				MaxCount:          int32(maxCount),
-				MinCount:          seedMinCount(tier.InitialMinNodes, maxCount),
+				AvailabilityZones: []string{zone},
+				MaxCount:          int32(perZone),
+				MinCount:          seedMinCount(tier.InitialMinNodes, perZone),
 				OSDiskSizeGB:      tier.OSDiskSizeGB,
 				MaxPods:           tier.MaxPods,
 				Labels:            tierLabels(tier),
 				Taints:            slices.Clone(tier.Taints),
 				EnableSwift:       tier.EnableSwift,
 			})
-			runningPerPool += maxCount
-
-		case PoolModePerZone:
-			// PoolCount is the number of zonal pools, clamped to the number of
-			// zones available (a 3-pool tier on 2 zones yields 2).
-			targetCount := min(tier.PoolCount, len(zones))
-			if targetCount == 0 {
-				continue
-			}
-			// Each pool must land in a zone where the SKU is offered. Take the
-			// first targetCount zones in which the SKU is available; if fewer
-			// remain, it cannot serve the tier — try the next family in priority
-			// order.
-			poolZones := intersectZones(zones, meta)
-			if len(poolZones) < targetCount {
-				continue
-			}
-			poolZones = poolZones[:targetCount]
-			poolCount := int64(len(poolZones))
-			// Integer division deliberately floors: splitting the family
-			// budget evenly across pools can waste up to
-			// (poolCount-1)*vcpusPerNode vCPUs, which is the conservative
-			// choice — never provision beyond quota.
-			quotaPerZone := budget / (vcpusPerNode * poolCount)
-			perZone := minNonNegative(quotaPerZone, remaining)
-			if perZone < 1 {
-				continue
-			}
-			for _, zone := range poolZones {
-				pools = append(pools, Pool{
-					Role:              tier.Role,
-					Name:              poolName(tier.Name, tier.Role, zone, vmSize, tier.OSDiskSizeGB, tier.MaxPods, tier.EnableSwift),
-					Spec:              NewVMSpecFromSKU(meta),
-					AvailabilityZones: []string{zone},
-					MaxCount:          int32(perZone),
-					MinCount:          seedMinCount(tier.InitialMinNodes, perZone),
-					OSDiskSizeGB:      tier.OSDiskSizeGB,
-					MaxPods:           tier.MaxPods,
-					Labels:            tierLabels(tier),
-					Taints:            slices.Clone(tier.Taints),
-					EnableSwift:       tier.EnableSwift,
-				})
-			}
-			runningPerPool += perZone
-
-		default:
-			logger.Info("unknown pool mode, skipping tier", "poolMode", tier.PoolMode)
-			continue
 		}
-
+		runningPerPool += perZone
 		if runningPerPool >= tier.MaxNodes {
 			break
 		}
 	}
-
 	return pools, len(pools) > 0 && runningPerPool == tier.MaxNodes
+}
+
+// tierSKU returns the family's SKU for the tier, or false when the family has
+// no eligible SKU with the tier's core count or its ephemeral disk is too
+// small for the tier's OS disk.
+func tierSKU(logger logr.Logger, tier TierConfig, family VMFamily, skuIndex EligibleSKUIndex) (string, *skucache.SKUMetadata, bool) {
+	vmSize, meta, found := skuIndex.Lookup(family, tier.Cores)
+	if !found {
+		logger.Info("no eligible SKU found in family, skipping", "family", family, "desiredCores", tier.Cores)
+		return "", nil, false
+	}
+	if meta.EphemeralDiskSizeGB < int64(tier.OSDiskSizeGB) {
+		logger.Info("SKU ephemeral disk too small for configured OS disk size, skipping",
+			"family", family, "vmSize", vmSize,
+			"ephemeralDiskSizeGB", meta.EphemeralDiskSizeGB,
+			"osDiskSizeGB", tier.OSDiskSizeGB)
+		return "", nil, false
+	}
+	return vmSize, meta, true
 }
 
 // tierExhaustedFailure creates an AllocationFailure for a tier that couldn't
@@ -343,6 +379,9 @@ func allocateTier(
 func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, skuIndex EligibleSKUIndex) AllocationFailure {
 	reason := "InsufficientQuota"
 	message := fmt.Sprintf("tier %d (%d cores): no family has enough quota for at least one node per zone", tierIndex, tier.Cores)
+	if tier.PoolMode == PoolModeRegional {
+		message = fmt.Sprintf("tier %d (%d cores): the families' quota does not cover at least one node", tierIndex, tier.Cores)
+	}
 
 	if len(tier.FamilyPriority) == 0 {
 		reason = "NoEligibleFamily"
@@ -352,7 +391,7 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, skuInd
 		hasZoneCoverage := false
 		for _, family := range tier.FamilyPriority {
 			_, meta, found := skuIndex.Lookup(family, tier.Cores)
-			if !found {
+			if !found || meta.EphemeralDiskSizeGB < int64(tier.OSDiskSizeGB) {
 				continue
 			}
 			hasEligible = true
@@ -364,7 +403,7 @@ func tierExhaustedFailure(tierIndex int, tier TierConfig, zones []string, skuInd
 		switch {
 		case !hasEligible:
 			reason = "NoEligibleSKU"
-			message = fmt.Sprintf("tier %d (%d cores): no family has an eligible SKU (ephemeral OS disk support required)", tierIndex, tier.Cores)
+			message = fmt.Sprintf("tier %d (%d cores): no family has an eligible SKU with exactly %d vCPUs (unrestricted in region, unconstrained vCPUs, ephemeral OS disk of at least %d GB)", tierIndex, tier.Cores, tier.Cores, tier.OSDiskSizeGB)
 		case !hasZoneCoverage:
 			reason = "NoZoneCoverage"
 			message = fmt.Sprintf("tier %d (%d cores): no family has a SKU available in the required zones", tierIndex, tier.Cores)

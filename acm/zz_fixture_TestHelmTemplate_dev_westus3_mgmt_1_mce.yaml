@@ -47,11 +47,11 @@ metadata:
   name: multicluster-engine-operator-config
   namespace: 'multicluster-engine'
 ---
-# Source: multicluster-engine/templates/multicluster-engine-x5d5x8b93c5mh334chde54vpu6bfnweigxlxg6wtmnd.clusterrole.yaml
+# Source: multicluster-engine/templates/multicluster-engin-1uvphjce71u56svbcc2clabak6w9emmb0lztezsifgog.clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: multicluster-engine-x5d5x8b93c5mh334chde54vpu6bfnweigxlxg6wtmnd
+  name: multicluster-engin-1uvphjce71u56svbcc2clabak6w9emmb0lztezsifgog
 rules:
 - apiGroups:
   - ""
@@ -2590,6 +2590,7 @@ rules:
   - networking.k8s.io
   resources:
   - ingresses
+  - networkpolicies
   verbs:
   - create
   - delete
@@ -2598,14 +2599,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - networkpolicies
-  verbs:
-  - create
-  - get
-  - update
 - apiGroups:
   - notificationhubs.azure.com
   resources:
@@ -3350,15 +3343,15 @@ rules:
   - update
   - watch
 ---
-# Source: multicluster-engine/templates/multicluster-engine-x5d5x8b93c5mh334chde54vpu6bfnweigxlxg6wtmnd.clusterrolebinding.yaml
+# Source: multicluster-engine/templates/multicluster-engin-1uvphjce71u56svbcc2clabak6w9emmb0lztezsifgog.clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: multicluster-engine-x5d5x8b93c5mh334chde54vpu6bfnweigxlxg6wtmnd
+  name: multicluster-engin-1uvphjce71u56svbcc2clabak6w9emmb0lztezsifgog
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: multicluster-engine-x5d5x8b93c5mh334chde54vpu6bfnweigxlxg6wtmnd
+  name: multicluster-engin-1uvphjce71u56svbcc2clabak6w9emmb0lztezsifgog
 subjects:
 - kind: ServiceAccount
   name: multicluster-engine-operator
@@ -3498,8 +3491,6 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/azure-service-operator-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/must-gather-rhel9@sha256:1234567890'
-        - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
         - name: OPERAND_IMAGE_CLOUDEVENTS_CONDUCTOR
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cloudevents-conductor-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
@@ -3576,12 +3567,16 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/ose-cluster-api-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_OSE_BAREMETAL_CLUSTER_API_CONTROLLERS_RHEL9
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/ose-baremetal-cluster-api-controllers-rhel9@sha256:1234567890'
-        - name: OPERAND_IMAGE_POSTGRESQL_13
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-13@sha256:1234567890'
         - name: OPERAND_IMAGE_POSTGRESQL_15
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-15@sha256:1234567890'
+        - name: OPERAND_IMAGE_POSTGRESQL_16
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-16:latest'
         - name: OPERATOR_VERSION
           value: 2.17.4
+        - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
+        - name: OPERAND_IMAGE_POSTGRESQL_13
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-13@sha256:1234567890'
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
         image: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'

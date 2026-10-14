@@ -23,6 +23,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	clocktesting "k8s.io/utils/clock/testing"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
@@ -48,8 +50,9 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			},
 			ArtifactDir: metadataapi.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
+				fakeClock := clocktesting.NewFakePassiveClock(time.Now().Add(3 * time.Hour))
 				return newSubscriptionKeyWrapper(
-					mismatch.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
+					mismatch.NewDeleteOrphanedCosmosResourcesController(fakeClock, input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -64,8 +67,9 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			},
 			ArtifactDir: metadataapi.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
+				fakeClock := clocktesting.NewFakePassiveClock(time.Now().Add(3 * time.Hour))
 				return newSubscriptionKeyWrapper(
-					mismatch.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
+					mismatch.NewDeleteOrphanedCosmosResourcesController(fakeClock, input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -98,8 +102,22 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			},
 			ArtifactDir: metadataapi.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
+				subscriptionResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2"))
+				crud, err := input.ResourcesDBClient.UntypedCRUD(*subscriptionResourceID)
+				require.NoError(t, err)
+				resourceID := metadataapi.Must(azcorearm.ParseResourceID(subscriptionResourceID.String() + "/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/missingcluster/hcpOpenShiftControllers/orphanedcontroller"))
+				document, err := crud.Get(ctx, resourceID)
+				require.NoError(t, err)
+				fakeClock := clocktesting.NewFakePassiveClock(time.Unix(int64(document.CosmosTimestamp), 0).Add(time.Hour))
+				orphanController := mismatch.NewDeleteOrphanedCosmosResourcesController(fakeClock, input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister)
+				t.Run("newer_than_grace_kept", func(t *testing.T) {
+					require.NoError(t, orphanController.SyncOnce(ctx, subscriptionResourceID.SubscriptionID))
+					_, err := crud.Get(ctx, resourceID)
+					require.NoError(t, err, "recent orphan must survive despite its parent missing from the snapshot")
+				})
+				fakeClock.SetTime(fakeClock.Now().Add(2 * time.Hour))
 				return newSubscriptionKeyWrapper(
-					mismatch.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
+					orphanController,
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -129,8 +147,9 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			},
 			ArtifactDir: metadataapi.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
+				fakeClock := clocktesting.NewFakePassiveClock(time.Now().Add(3 * time.Hour))
 				return newSubscriptionKeyWrapper(
-					mismatch.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
+					mismatch.NewDeleteOrphanedCosmosResourcesController(fakeClock, input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {

@@ -608,7 +608,7 @@
       "properties": {
         "systemPoolOnly": {
           "type": "boolean",
-          "description": "CI service clusters only: omit worker and infra pools and allow all workloads on the system pool. Does not delete existing pools."
+          "description": "CI and personal DEV service clusters only: omit worker and infra pools and allow all workloads on the system pool. Does not delete existing pools."
         },
         "name": {
           "type": "string",
@@ -1135,6 +1135,11 @@
     "tenantId": {
       "type": "string"
     },
+    "serviceTreeId": {
+      "type": "string",
+      "description": "Official Service Tree for ARO",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
     "cloud": {
       "type": "string"
     },
@@ -1578,7 +1583,7 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Disabled pipelines skip image mirroring and deployment."
+          "description": "Enabled by default in every environment. Disabled pipelines skip image mirroring and deployment, but do not uninstall an existing release."
         },
         "useMgmtAgentImage": {
           "type": "boolean",
@@ -1596,22 +1601,7 @@
         }
       },
       "additionalProperties": false,
-      "required": ["enabled", "useMgmtAgentImage", "captureMode", "image", "k8s"],
-      "if": {
-        "properties": {
-          "enabled": {"const": true},
-          "useMgmtAgentImage": {"const": false}
-        }
-      },
-      "then": {
-        "properties": {
-          "image": {
-            "properties": {
-              "digest": {"minLength": 1}
-            }
-          }
-        }
-      }
+      "required": ["enabled", "useMgmtAgentImage", "captureMode", "image", "k8s"]
     },
     "kubeApplier": {
       "type": "object",
@@ -2841,6 +2831,48 @@
             "image"
           ]
         },
+        "watson": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            },
+            "securityContext": {
+              "type": "object",
+              "properties": {
+                "privileged": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "privileged"
+              ]
+            },
+            "resources": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "volumes": {
+              "type": "object",
+              "properties": {
+                "crashdumpHostPath": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "crashdumpHostPath"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "image",
+            "securityContext",
+            "resources",
+            "volumes"
+          ]
+        },
         "kusto": {
           "type": "object",
           "properties": {
@@ -3142,6 +3174,24 @@
     "mgmt": {
       "type": "object",
       "properties": {
+        "scheduling": {
+          "description": "Node scheduling for mgmt-agent and kube-applier on management clusters. Does not change node pools or scheduling of other components.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": {
+              "type": "string",
+              "enum": [
+                "infra",
+                "system"
+              ],
+              "default": "infra"
+            }
+          },
+          "required": [
+            "role"
+          ]
+        },
         "aks": {
           "$ref": "#/definitions/aksConfig"
         },
@@ -3200,6 +3250,7 @@
         "applyKubeletFixes",
         "monitoringApiGroup",
         "rg",
+        "scheduling",
         "stamps",
         "subscription",
         "prometheus"
@@ -3716,32 +3767,17 @@
           "$ref": "#/definitions/nsp"
         },
         "istio": {
-          "description": "Consumed by the IstioUpgrade pipeline step, not by bicep — passing revisions through ARM would overwrite upgrades the pipeline step had already applied. istioctlVersion, targetVersion, and their CEL validations will be removed in a future cleanup.",
+          "description": "Consumed by the IstioUpgrade pipeline step, not by bicep — passing revisions through ARM would overwrite upgrades the pipeline step had already applied.",
           "type": "object",
           "properties": {
-            "istioctlVersion": {
-              "description": "Latest version of istioctl. This is used to download the istioctl. Will be removed in a future cleanup.",
-              "type": "string"
-            },
             "tag": {
-              "description": "The revision tag used in istioctl",
+              "description": "Stable revision tag alias reconciled by the IstioUpgrade pipeline step (e.g. prod-stable).",
               "type": "string"
             },
             "versions": {
-              "description": "Desired Istio revision for the IstioUpgrade pipeline step to reconcile (e.g. asm-1-29). Not an observed cluster field. CSV form retained for compatibility; will move to a single value/array once tooling is ready.",
+              "description": "Single target Istio revision for the IstioUpgrade pipeline step to reconcile (e.g. asm-1-29). Not an observed cluster field.",
               "type": "string",
-              "pattern": "^[a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*$"
-            },
-            "targetVersion": {
-              "description": "Must be included in the comma-separated versions list (may be one of several during upgrades). The versions field drives the upgrade; this field is required by schema today but will be removed in a future cleanup.",
-              "type": "string",
-              "enum": [
-                "asm-1-26",
-                "asm-1-27",
-                "asm-1-28",
-                "asm-1-29",
-                "asm-1-30"
-              ]
+              "pattern": "^asm-\\d+-\\d+$"
             },
             "ingressGatewayIPAddressName": {
               "type": "string"
@@ -3750,16 +3786,9 @@
               "$ref": "#/definitions/keyColonValueCSV"
             }
           },
-          "x-cel-validations": [
-            {
-              "rule": "self.versions.split(',').exists(v, v == self.targetVersion)",
-              "message": "targetVersion must be included in the versions list"
-            }
-          ],
           "additionalProperties": false,
           "required": [
             "ingressGatewayIPAddressName",
-            "targetVersion",
             "versions"
           ]
         },
@@ -3796,28 +3825,6 @@
           "$ref": "#/definitions/prometheus"
         }
       },
-      "x-cel-validations": [
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-26' ? semver(self.aks.kubernetesVersion) >= semver('1.29.0') && semver(self.aks.kubernetesVersion) < semver('1.35.0') : true",
-          "message": "asm-1-26 requires AKS Kubernetes version between 1.29.0 (inclusive) and 1.35.0 (exclusive)"
-        },
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-27' ? semver(self.aks.kubernetesVersion) >= semver('1.29.0') && semver(self.aks.kubernetesVersion) < semver('1.36.0') : true",
-          "message": "asm-1-27 requires AKS Kubernetes version between 1.29.0 (inclusive) and 1.36.0 (exclusive)"
-        },
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-28' ? semver(self.aks.kubernetesVersion) >= semver('1.30.0') && semver(self.aks.kubernetesVersion) < semver('1.36.0') : true",
-          "message": "asm-1-28 requires AKS Kubernetes version between 1.30.0 (inclusive) and 1.36.0 (exclusive)"
-        },
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-29' ? semver(self.aks.kubernetesVersion) >= semver('1.31.0') && semver(self.aks.kubernetesVersion) < semver('1.36.0') : true",
-          "message": "asm-1-29 requires AKS Kubernetes version between 1.31.0 (inclusive) and 1.36.0 (exclusive)"
-        },
-        {
-          "rule": "self.istio.targetVersion == 'asm-1-30' ? semver(self.aks.kubernetesVersion) >= semver('1.32.0') && semver(self.aks.kubernetesVersion) < semver('1.37.0') : true",
-          "message": "asm-1-30 requires AKS Kubernetes version between 1.32.0 (inclusive) and 1.37.0 (exclusive)"
-        }
-      ],
       "additionalProperties": false,
       "required": [
         "rg",
@@ -3947,6 +3954,33 @@
         "sreServiceTag"
       ]
     },
+    "infrastructureIdentities": {
+      "type": "object",
+      "description": "Opt-in references to leased, pre-created infrastructure managed identities.",
+      "properties": {
+        "useLeased": {
+          "type": "boolean",
+          "description": "Use pre-created infrastructure identities instead of creating identities in ephemeral cluster resource groups."
+        },
+        "serviceResourceGroup": {
+          "type": "string",
+          "description": "Persistent resource group containing the service-cluster identity bundle in the service deployment subscription.",
+          "maxLength": 90,
+          "pattern": "^$|^[A-Za-z0-9._()\\-]*[A-Za-z0-9_()\\-]$"
+        },
+        "managementResourceGroups": {
+          "type": "string",
+          "description": "Comma-separated explicit stamp-to-resource-group mappings in each management deployment subscription, for example 1=rg-a,2=rg-b.",
+          "pattern": "^$|^[0-9]+=[A-Za-z0-9._()\\-]{0,89}[A-Za-z0-9_()\\-](,[0-9]+=[A-Za-z0-9._()\\-]{0,89}[A-Za-z0-9_()\\-])*$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "useLeased",
+        "serviceResourceGroup",
+        "managementResourceGroups"
+      ]
+    },
     "keyVaultDNSSuffix": {
       "type": "string"
     },
@@ -4005,6 +4039,7 @@
   "additionalProperties": false,
   "required": [
     "administration",
+    "infrastructureIdentities",
     "azureGeoShortId",
     "cloudEnvironmentName",
     "kvCertOfficerPrincipalId",
@@ -4032,6 +4067,7 @@
     "region",
     "regionRG",
     "serviceKeyVault",
+    "serviceTreeId",
     "sessiongate",
     "svc",
     "msiRp",
@@ -4044,8 +4080,16 @@
   ],
   "x-cel-validations": [
     {
-      "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01']",
-      "message": "svc.aks.systemPoolOnly is supported only in ci00 and ci01"
+      "rule": "!self.infrastructureIdentities.useLeased || (self.infrastructureIdentities.serviceResourceGroup != '' && self.infrastructureIdentities.managementResourceGroups != '')",
+      "message": "infrastructure identity reuse requires serviceResourceGroup and managementResourceGroups"
+    },
+    {
+      "rule": "!self.infrastructureIdentities.useLeased || (',' + self.infrastructureIdentities.managementResourceGroups + ',').contains(',' + self.mgmt.stampIdentifier + '=')",
+      "message": "infrastructure identity reuse requires an explicit resource-group mapping for the current management stamp"
+    },
+    {
+      "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01', 'pers']",
+      "message": "svc.aks.systemPoolOnly is supported only in ci00, ci01 and pers"
     },
     {
       "rule": "!has(self.mgmt.aks.systemPoolOnly) || !self.mgmt.aks.systemPoolOnly",
