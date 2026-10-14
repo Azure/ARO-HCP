@@ -33,7 +33,7 @@ func slowTestsOnly(query string) string {
 }
 
 // Register suite definitions with fallback worker counts and MI resource budgets.
-func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCount int, parallelism func(int) int, integrationParallelism int) {
+func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCount int) {
 	// Remember that the label constants are (currently) slices, not items.
 
 	// The tests that a suite is composed of can be filtered by CEL expressions. By
@@ -47,7 +47,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(integrationParallelism),
+		Parallelism:   24,
 		TestTimeout:   &integrationTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -59,7 +59,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(integrationParallelism),
+		Parallelism:   24,
 		TestTimeout:   &integrationTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -67,7 +67,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		Name:       "integration/parallel/all",
 		Qualifiers: []string{integrationQuery},
 		// Keep the same resource limits as the existing Integration suites.
-		Parallelism:   parallelism(integrationParallelism),
+		Parallelism:   24,
 		TestTimeout:   &integrationTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -81,7 +81,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(34),
+		Parallelism:   34,
 		TestTimeout:   &stageTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -92,7 +92,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(34),
+		Parallelism:   34,
 		TestTimeout:   &stageTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -100,7 +100,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		Name:       "stage/parallel/all",
 		Qualifiers: []string{stageQuery},
 		// Keep the same resource limits as the existing Stage suites.
-		Parallelism:   parallelism(34),
+		Parallelism:   34,
 		TestTimeout:   &stageTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -114,7 +114,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(19),
+		Parallelism:   19,
 		TestTimeout:   &prodTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -125,7 +125,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(19),
+		Parallelism:   19,
 		TestTimeout:   &prodTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -139,7 +139,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 			fastTestsOnly(fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0])),
 		},
 		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(20),
+		Parallelism:   20,
 		ResourcePools: miPools,
 	})
 
@@ -157,7 +157,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		Qualifiers: []string{fastTestsOnly(rpApiCompatBaseQualifier)},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(24),
+		Parallelism:   24,
 		TestTimeout:   &rpApiCompatTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -166,7 +166,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		Qualifiers: []string{slowTestsOnly(rpApiCompatBaseQualifier)},
 		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism:   parallelism(24),
+		Parallelism:   24,
 		TestTimeout:   &rpApiCompatTestTimeout,
 		ResourcePools: miPools,
 	})
@@ -176,7 +176,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 	ext.AddSuite(e.Suite{
 		Name:          "hypershift-presubmit/parallel",
 		Qualifiers:    []string{hypershiftPresubmitQuery},
-		Parallelism:   parallelism(24),
+		Parallelism:   24,
 		TestTimeout:   &hypershiftPresubmitTimeout,
 		ResourcePools: miPools,
 	})
@@ -199,7 +199,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		Qualifiers: []string{
 			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.UpgradeInPlace[0]),
 		},
-		Parallelism: parallelism(upgradeInPlaceCount),
+		Parallelism: upgradeInPlaceCount,
 		TestTimeout: &upgradeInPlaceTimeout,
 	})
 }

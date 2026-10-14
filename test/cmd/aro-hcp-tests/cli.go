@@ -69,21 +69,9 @@ func isUpgradeInPlaceSuiteInvocation() bool {
 	return false
 }
 
-// Builds the test CLI with environment-specific suite defaults and resource budgets.
-func setupCli() *cobra.Command {
+// Build the test CLI with runtime suite defaults and resource budgets.
+func setupCli() (*cobra.Command, error) {
 	configureGomegaFormatting()
-
-	parallelismOverride := parseSuiteParallelismOverride()
-	parallelism := func(defaultValue int) int {
-		if parallelismOverride != nil {
-			return *parallelismOverride
-		}
-		return defaultValue
-	}
-	integrationParallelism := 24
-	if strings.EqualFold(os.Getenv("ARO_HCP_DEPLOY_ENV"), "int") && strings.EqualFold(os.Getenv("LOCATION"), "westus3") {
-		integrationParallelism = 75
-	}
 
 	containerCount, containerCountSource := parseMIContainerCount()
 	pooledIdentitiesRaw := strings.TrimSpace(os.Getenv(framework.UsePooledIdentitiesEnvvar))
@@ -121,7 +109,7 @@ func setupCli() *cobra.Command {
 	// Store the count so NewUpgradeBarrier can read it at spec-run time.
 	framework.SetUpgradeInPlaceSpecCount(upgradeInPlaceCount)
 
-	registerSuites(ext, miPools, upgradeInPlaceCount, parallelism, integrationParallelism)
+	registerSuites(ext, miPools, upgradeInPlaceCount)
 
 	// If using Ginkgo, specs were already built above. Hooks can be added here.
 
@@ -240,6 +228,12 @@ func setupCli() *cobra.Command {
 		case "run-suite", "run-test":
 			wrapMISchedulerPreRun(c)
 		}
+		switch c.Name() {
+		case "run-suite":
+			configureSuiteConcurrency(c, registry)
+		case "list", "info":
+			configureSuiteMetadataConcurrency(c, registry)
+		}
 	}
 	root.AddCommand(extensionCmds...)
 	root.AddCommand(cleanup.NewCommand())
@@ -249,5 +243,5 @@ func setupCli() *cobra.Command {
 	root.AddCommand(metadataapi.Must(gatherobservability.NewCommand()))
 	root.AddCommand(metadataapi.Must(gathersnapshot.NewCommand()))
 	root.AddCommand(metadataapi.Must(slotmanager.NewCommand()))
-	return root
+	return root, nil
 }

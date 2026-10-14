@@ -37,7 +37,8 @@ migration and recovery are not supported.
   asset orchestration remain in `catalog.go` and `asset_pools.go`.
 - Runtime publication combines core exports with handler `PublishLease`
   contributions through the shared runtime contract builder. The E2E identity
-  handler exclusively owns `LEASED_MSI_CONTAINERS`.
+  handler exclusively owns `LEASED_MSI_CONTAINERS` and the derived
+  `ARO_HCP_SUITE_PARALLELISM` default.
 
 ## Implementation status
 
@@ -583,7 +584,8 @@ Core exports include:
 - `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`.
 
 Asset handlers contribute asset-specific exports. The E2E identity handler
-owns `LEASED_MSI_CONTAINERS`.
+owns `LEASED_MSI_CONTAINERS` and
+`ARO_HCP_SUITE_PARALLELISM`.
 `INFRA_SUBSCRIPTION_ID` is exported only when the selected pool demands an
 infrastructure asset and that subscription has been resolved.
 
@@ -593,6 +595,30 @@ file is atomically published.
 
 The contract contains no credentials. Downstream steps source it and use the
 acquired values without re-resolving pool behavior.
+
+### Acquired identity count and suite defaults
+
+In every deployment environment, the E2E identity handler publishes
+`ARO_HCP_SUITE_PARALLELISM` as the count of the same resolved containers
+published in `LEASED_MSI_CONTAINERS`. Physical inventory and reserve containers
+do not contribute to this count.
+
+The runtime contract assigns this default only when the variable is unset at
+source time, then exports the resulting value. User and CI overrides survive
+even when assigned after contract generation. An explicitly empty value also
+survives and selects the CLI's suite fallback defaults.
+
+One resolver applies to every registered suite, independent of pooled identity
+mode: explicit `--max-concurrency`, then `ARO_HCP_SUITE_PARALLELISM`, then the
+suite default. Nonempty environment values must be positive integers. An explicit
+CLI value takes precedence without parsing the lower-priority environment value.
+The selected runner flag and suite cap match so the upstream minimum does not
+reduce the resolved worker count. Worker overrides do not change the leased MSI
+resource budget or upgrade/in-place coordination.
+
+The CLI entrypoint is in `main.go`, orchestration in `cli.go`, suite definitions
+in `suites.go`, and concurrency resolution in `concurrency.go`. MI scheduling and
+EV2 result reporting are grouped in `mi_scheduler.go` and `ev2_reporting.go`.
 
 ### Pool VM family policy
 
