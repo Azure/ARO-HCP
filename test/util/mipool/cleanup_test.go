@@ -16,8 +16,28 @@ package mipool
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
+
+func TestScopeWithinResourceGroup(t *testing.T) {
+	const container = "/subscriptions/sub/resourceGroups/aro-hcp-msi-container-dev"
+	sibling := "/subscriptions/sub/resourceGroups/aro-hcp-msi-container-dev-a-00-00/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service"
+	child := container + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service"
+
+	if ScopeWithinResourceGroup(sibling, container) {
+		t.Fatalf("sibling scope was selected: %s", sibling)
+	}
+	if !ScopeWithinResourceGroup(child, container) {
+		t.Fatalf("child scope was not selected: %s", child)
+	}
+	if !ScopeWithinResourceGroup(strings.ToUpper(container), container) {
+		t.Fatal("exact scope comparison should be case-insensitive")
+	}
+	if ScopeWithinResourceGroup(container, "") {
+		t.Fatal("empty resource group scope should not match")
+	}
+}
 
 func TestCleanupAllContainersNoContainers(t *testing.T) {
 	err := CleanupAllContainers(context.Background(), nil, nil, "", nil, nil)

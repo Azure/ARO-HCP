@@ -130,11 +130,27 @@ func TestAllocateZero(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Allocate(0): %v", err)
 	}
-	if got != nil {
-		t.Fatalf("Allocate(0) = %v, want nil", got)
+	if len(got) != 0 {
+		t.Fatalf("Allocate(0) = %v, want empty", got)
 	}
 	if p.Free() != 2 {
 		t.Fatalf("Free() = %d, want 2 (zero alloc should not consume)", p.Free())
+	}
+	// A zero-container allocation is still recorded, so Release succeeds
+	// instead of failing with "no allocation to release".
+	if err := p.Release("test-zero"); err != nil {
+		t.Fatalf("Release after Allocate(0): %v", err)
+	}
+}
+
+func TestAllocateNegative(t *testing.T) {
+	p, err := New("rg-00 rg-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := p.Allocate("test-negative", -1); err == nil {
+		t.Fatal("expected error when allocating a negative count, got nil")
 	}
 }
 

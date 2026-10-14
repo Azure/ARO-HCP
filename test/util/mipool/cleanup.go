@@ -165,6 +165,26 @@ func cleanupFICs(
 	return errors.Join(errs...)
 }
 
+// ScopeWithinResourceGroup reports whether assignmentScope is the resource
+// group scope itself or a child scope under it. Comparison is case-insensitive.
+// A sibling resource group whose name only extends the container name does
+// not match: "rg-dev-a" is not inside "rg-dev".
+func ScopeWithinResourceGroup(assignmentScope, resourceGroupScope string) bool {
+	assignment := strings.ToLower(assignmentScope)
+	base := strings.ToLower(resourceGroupScope)
+	if base == "" {
+		return false
+	}
+	return assignment == base || strings.HasPrefix(assignment, base+"/")
+}
+
+func roleAssignmentInResourceGroup(ra *armauthorization.RoleAssignment, resourceGroupScope string) bool {
+	if ra == nil || ra.Properties == nil || ra.Properties.Scope == nil || ra.Name == nil || ra.ID == nil {
+		return false
+	}
+	return ScopeWithinResourceGroup(*ra.Properties.Scope, resourceGroupScope)
+}
+
 func cleanupRoleAssignments(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -182,7 +202,7 @@ func cleanupRoleAssignments(
 			return fmt.Errorf("list role assignments for %s: %w", resourceGroup, err)
 		}
 		for _, ra := range page.Value {
-			if !strings.HasPrefix(strings.ToLower(*ra.Properties.Scope), strings.ToLower(scope)) {
+			if !roleAssignmentInResourceGroup(ra, scope) {
 				continue
 			}
 			toDelete = append(toDelete, ra)

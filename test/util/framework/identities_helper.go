@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/test/pkg/filelock"
+	"github.com/Azure/ARO-HCP/test/util/mipool"
 )
 
 const (
@@ -256,11 +257,11 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 }
 
 // AssignIdentityContainers attempts to assign n free identity containers to
-// the caller. When the parent process has pre-assigned containers via the
-// ASSIGNED_MI_CONTAINERS environment variable (set by AddBeforeSpawn in the
-// scheduler), the containers are consumed directly — no file lock, no retry
-// loop, instant. When the env var is absent, the method falls back to the
-// file-based pool state machine.
+// the caller. When ASSIGNED_MI_CONTAINERS is set, those names are consumed
+// directly, provided each one is listed in LEASED_MSI_CONTAINERS. Release and
+// debug collection then use that in-memory list and do not consult the
+// file-based pool. When the env var is absent, the method uses the file-based
+// pool state machine.
 func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Context, count uint8, waitBetweenRetries time.Duration) error {
 	startTime := time.Now()
 	defer func() {
@@ -268,25 +269,57 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 		tc.RecordTestStep(fmt.Sprintf("Assign %d identity containers", count), startTime, finishTime)
 	}()
 
-	if containers := strings.Fields(os.Getenv(assignedMIContainersEnvvar)); len(containers) > 0 {
+	if containers := strings.Fields(os.Getenv(mipool.AssignedMIContainersEnvvar)); len(containers) > 0 {
 		return tc.assignFromEnv(containers, int(count))
 	}
 
 	return tc.assignFromFileState(ctx, count, waitBetweenRetries, startTime)
 }
 
-const assignedMIContainersEnvvar = "ASSIGNED_MI_CONTAINERS"
-
 func (tc *perItOrDescribeTestContext) assignFromEnv(containers []string, count int) error {
 	if len(containers) < count {
 		return fmt.Errorf("parent assigned %d MI containers via %s but test requires %d",
-			len(containers), assignedMIContainersEnvvar, count)
+			len(containers), mipool.AssignedMIContainersEnvvar, count)
 	}
-	tc.envAssignedContainers = slices.Clone(containers[:count])
-	tc.envAssignedIdx = 0
-	tc.envAssigned = true
+	assigned := containers[:count]
+	if err := validateAgainstLeasedContainers(assigned); err != nil {
+		return err
+	}
+
+	tc.contextLock.Lock()
+	tc.miEnvAssignedContainers = slices.Clone(assigned)
+	tc.miEnvAssignedIdx = 0
+	tc.miEnvAssigned = true
+	logged := slices.Clone(tc.miEnvAssignedContainers)
+	tc.contextLock.Unlock()
+
 	ginkgo.GinkgoLogr.Info("Using parent-assigned identity containers",
-		"count", count, "containers", tc.envAssignedContainers, "specID", specID())
+		"count", count, "containers", logged, "specID", specID())
+	return nil
+}
+
+// validateAgainstLeasedContainers rejects names that are not in
+// LEASED_MSI_CONTAINERS. The child process holds the CI credential, so an
+// inherited or injected ASSIGNED_MI_CONTAINERS value must not be able to
+// target an arbitrary resource group.
+func validateAgainstLeasedContainers(assigned []string) error {
+	if len(assigned) == 0 {
+		return nil
+	}
+	allowed := make(map[string]struct{}, len(assigned))
+	for _, name := range strings.Fields(os.Getenv(LeasedMSIContainersEnvvar)) {
+		allowed[strings.ToLower(name)] = struct{}{}
+	}
+	var rejected []string
+	for _, name := range assigned {
+		if _, ok := allowed[strings.ToLower(name)]; !ok {
+			rejected = append(rejected, name)
+		}
+	}
+	if len(rejected) > 0 {
+		return fmt.Errorf("refusing MI containers %q from %s: not listed in %s",
+			strings.Join(rejected, " "), mipool.AssignedMIContainersEnvvar, LeasedMSIContainersEnvvar)
+	}
 	return nil
 }
 
@@ -341,7 +374,10 @@ func (tc *perItOrDescribeTestContext) getLeasedIdentities() (LeasedIdentityPool,
 		tc.RecordTestStep("Lease identity container", startTime, finishTime)
 	}()
 
-	if tc.envAssigned {
+	tc.contextLock.RLock()
+	envAssigned := tc.miEnvAssigned
+	tc.contextLock.RUnlock()
+	if envAssigned {
 		return tc.leaseFromEnv()
 	}
 
@@ -349,13 +385,20 @@ func (tc *perItOrDescribeTestContext) getLeasedIdentities() (LeasedIdentityPool,
 }
 
 func (tc *perItOrDescribeTestContext) leaseFromEnv() (LeasedIdentityPool, error) {
-	if tc.envAssignedIdx >= len(tc.envAssignedContainers) {
-		return LeasedIdentityPool{}, fmt.Errorf("all %d parent-assigned MI containers already leased", len(tc.envAssignedContainers))
+	tc.contextLock.Lock()
+	if tc.miEnvAssignedIdx >= len(tc.miEnvAssignedContainers) {
+		n := len(tc.miEnvAssignedContainers)
+		tc.contextLock.Unlock()
+		return LeasedIdentityPool{}, fmt.Errorf("all %d parent-assigned MI containers already leased", n)
 	}
-	rg := tc.envAssignedContainers[tc.envAssignedIdx]
-	tc.envAssignedIdx++
+	rg := tc.miEnvAssignedContainers[tc.miEnvAssignedIdx]
+	tc.miEnvAssignedIdx++
+	idx := tc.miEnvAssignedIdx
+	total := len(tc.miEnvAssignedContainers)
+	tc.contextLock.Unlock()
+
 	ginkgo.GinkgoLogr.Info("Leasing parent-assigned identity container",
-		"resourceGroup", rg, "index", tc.envAssignedIdx, "total", len(tc.envAssignedContainers))
+		"resourceGroup", rg, "index", idx, "total", total)
 	return LeasedIdentityPool{
 		ResourceGroupName: rg,
 		Identities:        NewDefaultIdentities(),
@@ -445,8 +488,13 @@ func (tc *perItOrDescribeTestContext) DeleteUserAssignedIdentities(ctx context.C
 }
 
 // leasedIdentityContainers returns the list of resource groups that are currently leased
-// to the calling test spec.
+// to the calling test spec. Env-assigned containers are returned from memory so debug
+// collection does not depend on the file-based pool.
 func (tc *perItOrDescribeTestContext) leasedIdentityContainers() ([]string, error) {
+	if leased, envAssigned := tc.copyEnvLeasedContainers(); envAssigned {
+		return leased, nil
+	}
+
 	if !tc.UsePooledIdentities() {
 		return nil, nil
 	}
@@ -471,6 +519,13 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 		finishTime := time.Now()
 		tc.RecordTestStep("Release leased identities", startTime, finishTime)
 	}()
+
+	tc.contextLock.RLock()
+	envAssigned := tc.miEnvAssigned
+	tc.contextLock.RUnlock()
+	if envAssigned {
+		return tc.releaseEnvAssignedIdentities(ctx)
+	}
 
 	if !tc.UsePooledIdentities() {
 		// For non-pooled mode, still clean up role assignments and custom role definitions
@@ -539,6 +594,74 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 		errs = append(errs, fmt.Errorf("failed to cleanup role assignments: %w", err))
 	}
 
+	if len(errs) > 0 {
+		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
+	}
+	return nil
+}
+
+// copyEnvLeasedContainers returns the env-assigned containers that have been
+// leased. The boolean is false when this test is not on the env path. An
+// empty slice with true means the env path is active and nothing has been
+// leased yet.
+func (tc *perItOrDescribeTestContext) copyEnvLeasedContainers() ([]string, bool) {
+	tc.contextLock.RLock()
+	defer tc.contextLock.RUnlock()
+	if !tc.miEnvAssigned {
+		return nil, false
+	}
+	return slices.Clone(tc.miEnvAssignedContainers[:tc.miEnvAssignedIdx]), true
+}
+
+// releaseEnvAssignedIdentities deletes federated credentials and role
+// assignments for containers leased from ASSIGNED_MI_CONTAINERS. It does not
+// open the file-based pool: those containers were never marked busy there, and
+// opening the file would publish them as free for other specs.
+func (tc *perItOrDescribeTestContext) releaseEnvAssignedIdentities(ctx context.Context) error {
+	containers, _ := tc.copyEnvLeasedContainers()
+
+	tc.contextLock.RLock()
+	hasTrackedAssignments := len(tc.createdRoleAssignmentIDs) > 0
+	tc.contextLock.RUnlock()
+
+	if len(containers) == 0 && !hasTrackedAssignments {
+		return nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return err
+	}
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return err
+	}
+
+	var errs []error
+	if len(containers) > 0 {
+		client, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, creds, nil)
+		if err != nil {
+			return err
+		}
+		msiClientFactory, err := armmsi.NewClientFactory(subscriptionID, creds, nil)
+		if err != nil {
+			return err
+		}
+		ficsClient := msiClientFactory.NewFederatedIdentityCredentialsClient()
+
+		for _, resourceGroup := range containers {
+			if err := tc.cleanupLeasedIdentityContainerFICs(ctx, ficsClient, resourceGroup); err != nil {
+				errs = append(errs, fmt.Errorf("failed to cleanup FICs for identity container %s: %w", resourceGroup, err))
+			}
+			if err := tc.cleanupLeasedIdentityContainerRoleAssignments(ctx, client, resourceGroup); err != nil {
+				errs = append(errs, fmt.Errorf("failed to cleanup role assignments for identity container %s: %w", resourceGroup, err))
+			}
+		}
+	}
+
+	if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
+		errs = append(errs, fmt.Errorf("failed to cleanup role assignments: %w", err))
+	}
 	if len(errs) > 0 {
 		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
 	}
@@ -809,7 +932,10 @@ func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainerRoleAssignme
 			return fmt.Errorf("failed to list role assignments for scope %s: %w", scope, err)
 		}
 		for _, ra := range page.Value {
-			if !strings.HasPrefix(strings.ToLower(*ra.Properties.Scope), strings.ToLower(scope)) {
+			if ra == nil || ra.Properties == nil || ra.Properties.Scope == nil || ra.Name == nil || ra.ID == nil {
+				continue
+			}
+			if !mipool.ScopeWithinResourceGroup(*ra.Properties.Scope, scope) {
 				continue
 			}
 			toDelete = append(toDelete, ra)
