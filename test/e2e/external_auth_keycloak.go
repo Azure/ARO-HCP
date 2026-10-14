@@ -294,9 +294,8 @@ var _ = Describe("Customer", func() {
 			Expect(accessToken).NotTo(BeEmpty(), "Keycloak access token was empty")
 
 			By("verifying the Keycloak token username and groups through the Kubernetes API")
-			oidcRESTConfig := rest.CopyConfig(adminRESTConfig)
-			oidcRESTConfig.BearerToken = accessToken
-			oidcRESTConfig.BearerTokenFile = ""
+oidcRESTConfig := rest.AnonymousClientConfig(adminRESTConfig)
+oidcRESTConfig.BearerToken = accessToken
 			oidcClient, err := kubernetes.NewForConfig(oidcRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client with Keycloak token")
 
