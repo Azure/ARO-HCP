@@ -17,15 +17,13 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterErrors1h5m'
         enabled: true
         labels: {
@@ -48,15 +46,13 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterErrors6h30m'
         enabled: true
         labels: {
@@ -79,15 +75,13 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterErrors3d'
         enabled: true
         labels: {
@@ -109,15 +103,13 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterErrorsDegradation'
         enabled: true
         labels: {
@@ -138,15 +130,13 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterStuckOperation'
         enabled: true
         labels: {
@@ -179,15 +169,13 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterSaturationQueueDepth'
         enabled: true
         labels: {
@@ -207,15 +195,13 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyAccessClusterSaturationRetryHotLoop'
         enabled: true
         labels: {
@@ -248,15 +234,13 @@ resource arohcpClusterProvisionSloLatencyAlerts 'Microsoft.AlertsManagement/prom
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterProvisionStuckOperation'
         enabled: true
         labels: {
@@ -289,15 +273,13 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterProvisionErrors1h5m'
         enabled: true
         labels: {
@@ -320,15 +302,13 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterProvisionErrors6h30m'
         enabled: true
         labels: {
@@ -351,15 +331,13 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterProvisionErrors3d'
         enabled: true
         labels: {
@@ -381,15 +359,13 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterProvisionErrorsDegradation'
         enabled: true
         labels: {
@@ -424,15 +400,13 @@ resource rpUserJourneyClusterUpgradeMonitorRules 'Microsoft.AlertsManagement/pro
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterUpgradeStuckInDesired'
         enabled: true
         labels: {
@@ -457,15 +431,13 @@ Service Cluster: {{ $labels.cluster }}
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyClusterUpgradeStuckInProgress'
         enabled: true
         labels: {
@@ -503,15 +475,13 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'UJNodePoolErrors1h5m'
         enabled: true
         labels: {
@@ -534,15 +504,13 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'UJNodePoolErrors6h30m'
         enabled: true
         labels: {
@@ -565,15 +533,13 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'UJNodePoolErrors3d'
         enabled: true
         labels: {
@@ -595,15 +561,13 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'UJNodePoolErrorsDegradation'
         enabled: true
         labels: {
@@ -624,15 +588,13 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'UJNodePoolStuckOperation'
         enabled: true
         labels: {
@@ -665,15 +627,13 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'UJNodePoolSaturationQueueDepth'
         enabled: true
         labels: {
@@ -706,15 +666,13 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendErrors1h5m'
         enabled: true
         labels: {
@@ -737,15 +695,13 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendErrors6h30m'
         enabled: true
         labels: {
@@ -768,15 +724,13 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendErrors3d6h'
         enabled: true
         labels: {
@@ -812,15 +766,13 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendLatency1h5m'
         enabled: true
         labels: {
@@ -843,15 +795,13 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendLatency6h30m'
         enabled: true
         labels: {
@@ -874,15 +824,13 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendLatency3d6h'
         enabled: true
         labels: {
@@ -918,15 +866,13 @@ resource arohcpFrontendSloReadyAlerts 'Microsoft.AlertsManagement/prometheusRule
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendReady'
         enabled: true
         labels: {
@@ -953,48 +899,6 @@ resource arohcpFrontendSloReadyAlerts 'Microsoft.AlertsManagement/prometheusRule
   }
 }
 
-resource arohcpFrontendSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_frontend_slo_traffic_alerts'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyFrontendTrafficDrop'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: '4'
-          slo: 'frontend-traffic'
-        }
-        annotations: {
-          correlationId: 'userJourneyFrontendTrafficDrop/{{ $labels.cluster }}'
-          description: 'Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the 1d baseline exceeded 0.5 RPS (fleet-wide noise floor) and pods are still Ready (traffic drought, not a replica outage).'
-          info: 'Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the 1d baseline exceeded 0.5 RPS (fleet-wide noise floor) and pods are still Ready (traffic drought, not a replica outage).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
-          summary: '{{ $labels.cluster }}: Frontend HTTP traffic collapsed below 10% of 1d baseline'
-          title: '{{ $labels.cluster }}: Frontend HTTP traffic collapsed below 10% of 1d baseline'
-        }
-        expression: '(avg_over_time(traffic:frontend_http:request_rate:rate5m[15m]) < 0.1 * avg_over_time(traffic:frontend_http:request_rate:rate5m[1d])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5 and sli:frontend:ready:ratio5m > 0'
-        for: 'PT15M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
 resource arohcpFrontendSloSaturationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_frontend_slo_saturation_alerts'
   location: location
@@ -1002,15 +906,13 @@ resource arohcpFrontendSloSaturationAlerts 'Microsoft.AlertsManagement/prometheu
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyFrontendSaturationMemory'
         enabled: true
         labels: {
@@ -1037,6 +939,285 @@ resource arohcpFrontendSloSaturationAlerts 'Microsoft.AlertsManagement/prometheu
   }
 }
 
+resource arohcpClusterDeletionSloWindowedErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_deletion_slo_windowed_error_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'userJourneyClusterDeletionErrors1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'cluster-deletion-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionErrors/{{ $labels.cluster }}'
+          description: 'More than 72% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          info: 'More than 72% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: '{{ $labels.cluster }}: Cluster delete operations failing fast (>72% over 1h)'
+          title: '{{ $labels.cluster }}: Cluster delete operations failing fast (>72% over 1h)'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:failed_1h >= 3 and errors:backend_cluster_deletion_operation:error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:error_rate_5m > 0.72'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'userJourneyClusterDeletionErrors6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'cluster-deletion-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionErrors/{{ $labels.cluster }}'
+          description: 'More than 30% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          info: 'More than 30% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: '{{ $labels.cluster }}: Cluster delete operation error rate elevated (>30% over 6h)'
+          title: '{{ $labels.cluster }}: Cluster delete operation error rate elevated (>30% over 6h)'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:error_rate_30m > 0.3'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'userJourneyClusterDeletionErrors3d'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          slo: 'cluster-deletion-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionErrors/{{ $labels.cluster }}'
+          description: 'More than 5% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          info: 'More than 5% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: '{{ $labels.cluster }}: Cluster delete operation error budget burning (>5% over 3d)'
+          title: '{{ $labels.cluster }}: Cluster delete operation error budget burning (>5% over 3d)'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:total_3d >= 10 and errors:backend_cluster_deletion_operation:failed_3d >= 2 and errors:backend_cluster_deletion_operation:error_rate_3d > 0.05'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'userJourneyClusterDeletionErrorsDegradation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '4'
+          slo: 'cluster-deletion-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionErrors/{{ $labels.cluster }}'
+          description: 'More than 15% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last 6 hours (at least 5 completions and 2 failures), an early warning of degradation before the burn-rate alerts fire.'
+          info: 'More than 15% of completed cluster delete operations on {{ $labels.cluster }} failed or were canceled over the last 6 hours (at least 5 completions and 2 failures), an early warning of degradation before the burn-rate alerts fire.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: '{{ $labels.cluster }}: Cluster delete operation failure rate exceeds 15% over 6h'
+          title: '{{ $labels.cluster }}: Cluster delete operation failure rate exceeds 15% over 6h'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:total_6h >= 5 and errors:backend_cluster_deletion_operation:failed_6h >= 2 and errors:backend_cluster_deletion_operation:error_rate_6h > 0.15'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'userJourneyClusterDeletionLatency1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'cluster-deletion-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionLatency/{{ $labels.cluster }}'
+          description: 'More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Latency SLO — on track to exhaust the budget in ~12 hours.'
+          info: 'More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Latency SLO — on track to exhaust the budget in ~12 hours.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: 'Cluster deletion Latency SLO fast burn (>72% slow for 5m)'
+          title: 'Cluster deletion Latency SLO fast burn (>72% slow for 5m)'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:latency_total_1h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_1h > 0.72 and errors:backend_cluster_deletion_operation:latency_error_rate_5m > 0.72'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'userJourneyClusterDeletionLatency6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'cluster-deletion-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionLatency/{{ $labels.cluster }}'
+          description: 'More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Latency SLO — on track to exhaust the budget in ~28 hours.'
+          info: 'More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Latency SLO — on track to exhaust the budget in ~28 hours.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: 'Cluster deletion Latency SLO medium burn (>30% slow for 30m)'
+          title: 'Cluster deletion Latency SLO medium burn (>30% slow for 30m)'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:latency_total_6h >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_6h > 0.3 and errors:backend_cluster_deletion_operation:latency_error_rate_30m > 0.3'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'userJourneyClusterDeletionLatency3d'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          slo: 'cluster-deletion-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionLatency/{{ $labels.cluster }}'
+          description: 'More than 5% of successful cluster deletes exceeded 30 minutes, sustained for 6 hours. Slow burn rate (1x) against the 95% Latency SLO — budget will be exhausted in ~7 days.'
+          info: 'More than 5% of successful cluster deletes exceeded 30 minutes, sustained for 6 hours. Slow burn rate (1x) against the 95% Latency SLO — budget will be exhausted in ~7 days.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: 'Cluster deletion Latency SLO slow burn (>5% slow for 6h)'
+          title: 'Cluster deletion Latency SLO slow burn (>5% slow for 6h)'
+        }
+        expression: 'errors:backend_cluster_deletion_operation:latency_total_3d >= 5 and errors:backend_cluster_deletion_operation:latency_error_rate_3d > 0.05'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'userJourneyClusterDeletionStuckOperation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+          slo: 'cluster-deletion-stuck'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionStuckOperation/{{ $labels.cluster }}/{{ $labels.subscription_id }}'
+          description: 'Cluster delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          info: 'Cluster delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: 'Cluster deletion operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+          title: 'Cluster deletion operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+        }
+        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)) unless on (subscription_id) internal_subscription:info'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpClusterDeletionSaturationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_deletion_saturation_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'userJourneyClusterDeletionQueueDepth'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterDeletionQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
+          description: 'Cluster deletion controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+          info: 'Cluster deletion controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+          runbook_url: 'https://aka.ms/cluster-deletion-tsg'
+          summary: 'Cluster deletion controller workqueue {{ $labels.name }} depth is high'
+          title: 'Cluster deletion controller workqueue {{ $labels.name }} depth is high'
+        }
+        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name="OperationClusterDelete",namespace="aro-hcp"})) > 10'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_backup_slo_availability_alerts'
   location: location
@@ -1044,15 +1225,13 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupAvailability1h5m'
         enabled: true
         labels: {
@@ -1067,23 +1246,21 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           description: 'No successful Velero 6-hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 12 hours (6-hourly cadence; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further.'
           info: 'No successful Velero 6-hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 12 hours (6-hourly cadence; this is the primary restore-point freshness signal). Known gap: does not yet exclude an individually-paused schedule - check pause state via the admin API before paging further.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} in over 12h'
-          title: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} in over 12h'
+          summary: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} on {{ $labels.cluster }} in over 12h'
+          title: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} on {{ $labels.cluster }} in over 12h'
         }
         expression: '(time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 12 * 3600'
         for: 'PT2M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupAvailability6h30m'
         enabled: true
         labels: {
@@ -1098,23 +1275,21 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           description: 'No successful Velero 6-hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 24 hours. No recent restore point for this HC; investigate before this ages further.'
           info: 'No successful Velero 6-hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 24 hours. No recent restore point for this HC; investigate before this ages further.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} in over 24h'
-          title: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} in over 24h'
+          summary: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} on {{ $labels.cluster }} in over 24h'
+          title: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} on {{ $labels.cluster }} in over 24h'
         }
         expression: '(time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 24 * 3600'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupAvailability3d6h'
         enabled: true
         labels: {
@@ -1129,8 +1304,8 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           description: 'No successful Velero 6-hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 3 days. Daily and weekly tiers on this HC are also at risk once their own cadences lapse.'
           info: 'No successful Velero 6-hourly backup for HostedCluster namespace {{ $labels.hosted_cluster_namespace }} on management cluster {{ $labels.cluster }} in over 3 days. Daily and weekly tiers on this HC are also at risk once their own cadences lapse.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} in over 3d'
-          title: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} in over 3d'
+          summary: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} on {{ $labels.cluster }} in over 3d'
+          title: 'no successful 6-hourly backup for {{ $labels.hosted_cluster_namespace }} on {{ $labels.cluster }} in over 3d'
         }
         expression: '(time() - max by (cluster, hosted_cluster_namespace, region) (label_replace(max without (prometheus_replica) (velero_backup_last_successful_timestamp{schedule=~".+-6-hourly"}), "hosted_cluster_namespace", "$1", "schedule", "(.+)-6-hourly"))) > 72 * 3600'
         for: 'PT1H'
@@ -1150,15 +1325,13 @@ resource arohcpBackupSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGr
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupErrors1h5m'
         enabled: true
         labels: {
@@ -1173,23 +1346,21 @@ resource arohcpBackupSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above 7.2% on both the 1h and 5m windows (14.4x burn of the 99.5% success / 0.5% error budget).'
           info: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above 7.2% on both the 1h and 5m windows (14.4x burn of the 99.5% success / 0.5% error budget).'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'Velero backup failure rate critically high (>7.2%)'
-          title: 'Velero backup failure rate critically high (>7.2%)'
+          summary: 'Velero backup failure rate critically high on {{ $labels.cluster }} (>7.2%)'
+          title: 'Velero backup failure rate critically high on {{ $labels.cluster }} (>7.2%)'
         }
-        expression: '(((sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))))) > 0.072 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))))) > 0.072 and on (cluster, region) sum by (cluster, region) (increase(velero_backup_attempt_total[1h])) >= 3'
+        expression: '(((sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[1h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[1h]))))) > 0.072 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[5m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[5m]))))) > 0.072 and on (cluster) sum by (cluster, region) (increase(velero_backup_attempt_total[1h])) >= 3'
         for: 'PT2M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupErrors6h30m'
         enabled: true
         labels: {
@@ -1204,23 +1375,21 @@ resource arohcpBackupSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above 3.0% on both the 6h and 30m windows (6x burn).'
           info: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above 3.0% on both the 6h and 30m windows (6x burn).'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'Velero backup failure rate elevated (>3.0%)'
-          title: 'Velero backup failure rate elevated (>3.0%)'
+          summary: 'Velero backup failure rate elevated on {{ $labels.cluster }} (>3.0%)'
+          title: 'Velero backup failure rate elevated on {{ $labels.cluster }} (>3.0%)'
         }
-        expression: '(((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))) > 0.03 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))))) > 0.03 and on (cluster, region) sum by (cluster, region) (increase(velero_backup_attempt_total[6h])) >= 5'
+        expression: '(((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))) > 0.03 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[30m])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[30m]))))) > 0.03 and on (cluster) sum by (cluster, region) (increase(velero_backup_attempt_total[6h])) >= 5'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupErrors3d6h'
         enabled: true
         labels: {
@@ -1235,10 +1404,10 @@ resource arohcpBackupSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above the 0.5% SLO boundary on both the 3d and 6h windows (1x burn).'
           info: 'Velero backup failed-attempt share on management cluster {{ $labels.cluster }} is above the 0.5% SLO boundary on both the 3d and 6h windows (1x burn).'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'Velero backup failure rate exceeds SLO (>0.5%)'
-          title: 'Velero backup failure rate exceeds SLO (>0.5%)'
+          summary: 'Velero backup failure rate exceeds SLO on {{ $labels.cluster }} (>0.5%)'
+          title: 'Velero backup failure rate exceeds SLO on {{ $labels.cluster }} (>0.5%)'
         }
-        expression: '(((sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))))) > 0.005 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))) > 0.005 and on (cluster, region) sum by (cluster, region) (increase(velero_backup_attempt_total[3d])) >= 10'
+        expression: '(((sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[3d])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[3d]))))) > 0.005 and on (cluster) (((sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h])))) / ((sum by (cluster, region) (rate(velero_backup_success_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_partial_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))) + (sum by (cluster, region) (rate(velero_backup_validation_failure_total[6h])) or 0 * sum by (cluster, region) (rate(velero_backup_attempt_total[6h]))))) > 0.005 and on (cluster) sum by (cluster, region) (increase(velero_backup_attempt_total[3d])) >= 10'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1256,15 +1425,13 @@ resource arohcpBackupSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRule
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupLatency6h30m'
         enabled: true
         labels: {
@@ -1279,23 +1446,21 @@ resource arohcpBackupSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRule
           description: 'Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes on both the 6h and 30m windows (SLO: p99 < 20m, inside the 10m CSI snapshot / 15m item-operation timeouts).'
           info: 'Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes on both the 6h and 30m windows (SLO: p99 < 20m, inside the 10m CSI snapshot / 15m item-operation timeouts).'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'Velero backup p99 duration above SLO (>20m)'
-          title: 'Velero backup p99 duration above SLO (>20m)'
+          summary: 'Velero backup p99 duration above SLO on {{ $labels.cluster }} (>20m)'
+          title: 'Velero backup p99 duration above SLO on {{ $labels.cluster }} (>20m)'
         }
         expression: '(histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[6h]))) > 1200 and on (cluster) histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[30m]))) > 1200)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupLatency3d6h'
         enabled: true
         labels: {
@@ -1310,8 +1475,8 @@ resource arohcpBackupSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRule
           description: 'Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes on both the 3d and 6h windows (1x burn of the p99 < 20m SLO).'
           info: 'Velero backup p99 duration on management cluster {{ $labels.cluster }} is above 20 minutes on both the 3d and 6h windows (1x burn of the p99 < 20m SLO).'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'Velero backup p99 duration above SLO (>20m)'
-          title: 'Velero backup p99 duration above SLO (>20m)'
+          summary: 'Velero backup p99 duration above SLO on {{ $labels.cluster }} (>20m)'
+          title: 'Velero backup p99 duration above SLO on {{ $labels.cluster }} (>20m)'
         }
         expression: '(histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[3d]))) > 1200 and on (cluster) histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_backup_duration_seconds_bucket[6h]))) > 1200)'
         for: 'PT1H'
@@ -1331,15 +1496,13 @@ resource arohcpBackupSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRule
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupTraffic'
         enabled: true
         labels: {
@@ -1352,8 +1515,8 @@ resource arohcpBackupSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRule
           description: 'Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average, sustained across a 2h window for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC\'s problem.'
           info: 'Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average, sustained across a 2h window for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC\'s problem.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'Velero backup attempts collapsed below 10% of 1d baseline'
-          title: 'Velero backup attempts collapsed below 10% of 1d baseline'
+          summary: 'Velero backup attempts collapsed on {{ $labels.cluster }} below 10% of 1d baseline'
+          title: 'Velero backup attempts collapsed on {{ $labels.cluster }} below 10% of 1d baseline'
         }
         expression: '(avg_over_time(traffic:backup:attempt_rate:rate5m[2h]) < 0.1 * avg_over_time(traffic:backup:attempt_rate:rate5m[1d])) and avg_over_time(traffic:backup:attempt_rate:rate5m[1d]) > 0'
         for: 'PT1H'
@@ -1373,15 +1536,13 @@ resource arohcpBackupSloStorageAvailabilityAlerts 'Microsoft.AlertsManagement/pr
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupStorageAvailability'
         enabled: true
         labels: {
@@ -1394,8 +1555,8 @@ resource arohcpBackupSloStorageAvailabilityAlerts 'Microsoft.AlertsManagement/pr
           description: 'Over 80% of Velero schedules on management cluster {{ $labels.cluster }} had a failed last run, sustained for 15m, across at least 3 distinct HostedClusters on {{ $labels.cluster }}. PROXY signal for a BackupStorageLocation outage (no direct BSL-phase metric exists yet - see ARO-29949); also fires for other fleet-wide causes (e.g. a bad Velero/plugin rollout) - check `kubectl get backupstoragelocation -n velero` on the MC before assuming it is specifically storage.'
           info: 'Over 80% of Velero schedules on management cluster {{ $labels.cluster }} had a failed last run, sustained for 15m, across at least 3 distinct HostedClusters on {{ $labels.cluster }}. PROXY signal for a BackupStorageLocation outage (no direct BSL-phase metric exists yet - see ARO-29949); also fires for other fleet-wide causes (e.g. a bad Velero/plugin rollout) - check `kubectl get backupstoragelocation -n velero` on the MC before assuming it is specifically storage.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'Velero backups failing fleet-wide - possible storage location outage'
-          title: 'Velero backups failing fleet-wide - possible storage location outage'
+          summary: 'Velero backups failing fleet-wide on {{ $labels.cluster }} - possible storage location outage'
+          title: 'Velero backups failing fleet-wide on {{ $labels.cluster }} - possible storage location outage'
         }
         expression: '(sli:backup:last_run_failure:ratio5m > 0.8 and backup:hostedcluster_count:count >= 3)'
         for: 'PT15M'
@@ -1415,15 +1576,13 @@ resource arohcpBackupSloSaturationAlerts 'Microsoft.AlertsManagement/prometheusR
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupRepoMaintenanceSaturation'
         enabled: true
         labels: {
@@ -1436,8 +1595,8 @@ resource arohcpBackupSloSaturationAlerts 'Microsoft.AlertsManagement/prometheusR
           description: '{{ $value }} Velero backups on management cluster {{ $labels.cluster }} are currently in a non-terminal phase; the cluster-wide count has stayed above 10 for 3.5+ hours. Counted phases: New, Queued, ReadyToStart, InProgress, WaitingForPluginOperations, WaitingForPluginOperationsPartiallyFailed, Finalizing, FinalizingPartiallyFailed. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757\'s staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC.'
           info: '{{ $value }} Velero backups on management cluster {{ $labels.cluster }} are currently in a non-terminal phase; the cluster-wide count has stayed above 10 for 3.5+ hours. Counted phases: New, Queued, ReadyToStart, InProgress, WaitingForPluginOperations, WaitingForPluginOperationsPartiallyFailed, Finalizing, FinalizingPartiallyFailed. PROXY signal for BackupRepository/node-agent (kopia) repo-maintenance contention (no direct queue-depth metric exists yet - see ARO-29949); this pattern matches ARO-29757\'s staging BackupRepository saturation incident. Check node-agent pod resource usage and `kubectl get backuprepository -n velero` on the MC.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: '{{ $value }} Velero backups currently non-terminal; backlog above 10 for 3.5+ hours'
-          title: '{{ $value }} Velero backups currently non-terminal; backlog above 10 for 3.5+ hours'
+          summary: '{{ $value }} Velero backups non-terminal on {{ $labels.cluster }}; backlog above 10 for 3.5+ hours'
+          title: '{{ $value }} Velero backups non-terminal on {{ $labels.cluster }}; backlog above 10 for 3.5+ hours'
         }
         expression: 'backup:in_progress:count > 10'
         for: 'PT3H30M'
@@ -1457,15 +1616,13 @@ resource arohcpBackupSloMetricsAbsentAlerts 'Microsoft.AlertsManagement/promethe
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyBackupMetricsAbsent'
         enabled: true
         labels: {
@@ -1478,8 +1635,8 @@ resource arohcpBackupSloMetricsAbsentAlerts 'Microsoft.AlertsManagement/promethe
           description: 'Management cluster {{ $labels.cluster }} is in the underlay-cluster inventory but has reported zero velero_backup_attempt_total samples for 15m. Every other backup alert in this file depends on this metric existing; its absence means Velero itself, its ServiceMonitor, or the whole cluster\'s metrics pipeline may be down, not just an individual backup failing.'
           info: 'Management cluster {{ $labels.cluster }} is in the underlay-cluster inventory but has reported zero velero_backup_attempt_total samples for 15m. Every other backup alert in this file depends on this metric existing; its absence means Velero itself, its ServiceMonitor, or the whole cluster\'s metrics pipeline may be down, not just an individual backup failing.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/backups.md'
-          summary: 'no Velero backup metrics reported at all'
-          title: 'no Velero backup metrics reported at all'
+          summary: 'no Velero backup metrics reported on {{ $labels.cluster }}'
+          title: 'no Velero backup metrics reported on {{ $labels.cluster }}'
         }
         expression: 'group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster, region) (velero_backup_attempt_total)'
         for: 'PT15M'
