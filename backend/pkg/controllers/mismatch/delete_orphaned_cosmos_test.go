@@ -16,8 +16,10 @@ package mismatch
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +27,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/workqueue"
+	utilsclock "k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -198,7 +202,9 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 				})
 			}
 
+			fakeClock := clocktesting.NewFakePassiveClock(time.Now().Add(3 * time.Hour))
 			c := &deleteOrphanedCosmosResources{
+				clock:                   fakeClock,
 				name:                    "DeleteOrphanedCosmosResources",
 				resourcesDBClient:       resourcesClient,
 				kubeApplierDBClients:    kubeApplierClients,
@@ -217,56 +223,218 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 	}
 }
 
-// TestSweepOrphanedDesires_StaleParentSnapshot covers a cluster created after the sweep
-// listed the subscription's resources. Its desires are missing from the parent map, but
-// the cluster exists in Cosmos, so they must survive. A desire whose parent is really
-// gone must still be deleted.
-func TestSweepOrphanedDesires_StaleParentSnapshot(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+func TestSweepOrphanedDesires_StatelessGrace(t *testing.T) {
+	testStatelessGrace(t, true)
+}
 
-	mgmtA := mustParseResourceID(t, "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/"+testMgmtClusterA)
+func TestSweepOrphanedResources_StatelessGrace(t *testing.T) {
+	testStatelessGrace(t, false)
+}
 
-	resourcesClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
-		subscription(t),
-		cluster(t, testLiveCluster),
-		nodePool(t, testLiveCluster, testLiveNodePool),
-	})
-	require.NoError(t, err)
+func TestDeleteOrphanedCosmosResources_DefaultClock(t *testing.T) {
+	controller := NewDeleteOrphanedCosmosResourcesController(nil, nil, nil, nil, nil).(*deleteOrphanedCosmosResources)
+	t.Cleanup(controller.queue.ShutDown)
+	require.IsType(t, utilsclock.RealClock{}, controller.clock)
+}
 
-	liveClusterDesire := newApplyDesire(t, mgmtA, kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
-		testSubscriptionID, testResourceGroup, testLiveCluster, "hostedcluster"))
-	liveNodePoolDesire := newApplyDesire(t, mgmtA, kubeapplierapihelpers.ToNodePoolScopedApplyDesireResourceIDString(
-		testSubscriptionID, testResourceGroup, testLiveCluster, testLiveNodePool, "nodepool"))
-	missingClusterDesire := newApplyDesire(t, mgmtA, kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
-		testSubscriptionID, testResourceGroup, testMissingCluster, "hostedcluster"))
-
-	mock, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
-		liveClusterDesire, liveNodePoolDesire, missingClusterDesire,
-	})
-	require.NoError(t, err)
-	kubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
-	kubeApplierClients.Register(mgmtA, mock)
-
-	c := &deleteOrphanedCosmosResources{
-		name:                 "DeleteOrphanedCosmosResources",
-		resourcesDBClient:    resourcesClient,
-		kubeApplierDBClients: kubeApplierClients,
-		managementClusterLister: &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{
-			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: mgmtA, PartitionKey: strings.ToLower(mgmtA.SubscriptionID)},
-		}}},
+func TestSynchronizeSubscription_StatelessRestart(t *testing.T) {
+	for _, desire := range []bool{false, true} {
+		name := "resources"
+		if desire {
+			name = "desires"
+		}
+		t.Run(name, func(t *testing.T) {
+			fixture := newOrphanSweepFixture(t, desire)
+			fixture.setTimestamp(fixture.clock.Now())
+			require.NoError(t, fixture.controller.synchronizeSubscription(fixture.ctx, testSubscriptionID))
+			fixture.assertDeleted(false)
+			fixture.clock.SetTime(fixture.clock.Now().Add(deletionGraceOffset))
+			restarted := NewDeleteOrphanedCosmosResourcesController(fixture.clock, fixture.controller.resourcesDBClient,
+				fixture.controller.kubeApplierDBClients, nil, fixture.controller.managementClusterLister)
+			t.Cleanup(restarted.(*deleteOrphanedCosmosResources).queue.ShutDown)
+			require.NoError(t, restarted.SyncOnce(fixture.ctx, testSubscriptionID))
+			fixture.assertDeleted(true)
+		})
 	}
+}
 
-	// An empty map stands in for a snapshot taken before the live cluster was created.
-	staleSnapshot := map[string]*cosmosstorageutils.TypedDocument{}
-	subscriptionResourceID := metadataapi.Must(coreapihelpers.ToSubscriptionResourceID(testSubscriptionID))
-	require.NoError(t, c.sweepOrphanedDesires(ctx, subscriptionResourceID, staleSnapshot))
+func TestSweepOrphanedResources_CreatedAtGrace(t *testing.T) {
+	for _, testCase := range []struct {
+		name        string
+		age         time.Duration
+		wantDeleted bool
+	}{
+		{name: "old creation despite recent modification", age: deletionGraceOffset + time.Second, wantDeleted: true},
+		{name: "recent creation", age: deletionGraceOffset - time.Second},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			fixture := newOrphanSweepFixture(t, false)
+			fixture.setTimestamp(fixture.clock.Now())
+			createdAt := fixture.clock.Now().Add(-testCase.age)
+			payload, err := json.Marshal(coreapi.Resource{SystemData: &coreapi.SystemData{CreatedAt: &createdAt}})
+			require.NoError(t, err)
+			fixture.snapshot[strings.ToLower(fixture.resourceID.String())].Properties = payload
+			require.NoError(t, fixture.sweep())
+			fixture.assertDeleted(testCase.wantDeleted)
+		})
+	}
+}
 
-	_, found := mock.GetDocument(cosmosIDForDesire(t, liveClusterDesire))
-	assert.True(t, found, "desire under a cluster missing from the stale snapshot but present in Cosmos must survive")
-	_, found = mock.GetDocument(cosmosIDForDesire(t, liveNodePoolDesire))
-	assert.True(t, found, "desire under a nodepool missing from the stale snapshot but present in Cosmos must survive")
-	_, found = mock.GetDocument(cosmosIDForDesire(t, missingClusterDesire))
-	assert.False(t, found, "desire under a cluster that is really gone must be deleted")
+func testStatelessGrace(t *testing.T, desire bool) {
+	t.Helper()
+	for _, testCase := range []struct {
+		name             string
+		age              time.Duration
+		parentInSnapshot bool
+		wantDeleted      bool
+	}{
+		{name: "newer than cutoff", age: deletionGraceOffset - time.Second},
+		{name: "after snapshot", age: -time.Hour},
+		{name: "older and parent absent from snapshot", age: deletionGraceOffset + time.Second, wantDeleted: true},
+		{name: "exact cutoff and parent absent from snapshot", age: deletionGraceOffset, wantDeleted: true},
+		{name: "parent in snapshot", age: deletionGraceOffset + time.Second, parentInSnapshot: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			fixture := newOrphanSweepFixture(t, desire)
+			sweepStart := time.Date(2026, time.October, 12, 12, 0, 0, 0, time.UTC)
+			fixture.clock.SetTime(sweepStart)
+			fixture.setTimestamp(sweepStart.Add(-testCase.age))
+			if testCase.parentInSnapshot {
+				fixture.snapshot[strings.ToLower(fixture.resourceID.Parent.String())] = &cosmosstorageutils.TypedDocument{ResourceID: fixture.resourceID.Parent}
+			}
+			require.NoError(t, fixture.sweep())
+			fixture.assertDeleted(testCase.wantDeleted)
+		})
+	}
+}
+
+func TestOrphanReferenceTime_CreatedAtElseCosmosTimestamp(t *testing.T) {
+	createdAt := time.Date(2026, time.October, 12, 9, 0, 0, 0, time.UTC)
+	modifiedAt := createdAt.Add(3 * time.Hour)
+	for _, resourceType := range []string{coreapi.ClusterResourceType.String(), coreapi.NodePoolResourceType.String(), coreapi.ExternalAuthResourceType.String(), "desire", "missing resource ID"} {
+		for _, testCase := range []struct {
+			name       string
+			systemData *coreapi.SystemData
+			payload    string
+			want       time.Time
+		}{
+			{name: "createdAt preferred", systemData: &coreapi.SystemData{CreatedAt: &createdAt}, want: createdAt},
+			{name: "nil systemData", want: modifiedAt},
+			{name: "nil createdAt", systemData: &coreapi.SystemData{}, want: modifiedAt},
+			{name: "unreadable creation time", payload: "{", want: modifiedAt},
+		} {
+			t.Run(resourceType+"/"+testCase.name, func(t *testing.T) {
+				resourceID := cluster(t, testMissingCluster).ResourceID
+				switch resourceType {
+				case coreapi.NodePoolResourceType.String():
+					resourceID = nodePool(t, testMissingCluster, testMissingNodePool).ResourceID
+				case coreapi.ExternalAuthResourceType.String():
+					resourceID = mustParseResourceID(t, resourceID.String()+"/externalAuths/test")
+				case "desire":
+					resourceID = mustParseResourceID(t, resourceID.String()+"/applyDesires/test")
+				case "missing resource ID":
+					resourceID = nil
+				}
+				payload, err := json.Marshal(coreapi.Resource{SystemData: testCase.systemData})
+				require.NoError(t, err)
+				if testCase.payload != "" {
+					payload = []byte(testCase.payload)
+				}
+				referenceTime := orphanReferenceTime(&cosmosstorageutils.TypedDocument{
+					BaseDocument: cosmosstorageutils.BaseDocument{CosmosTimestamp: int(modifiedAt.Unix())},
+					ResourceID:   resourceID, Properties: payload,
+				})
+				require.True(t, testCase.want.Equal(referenceTime), "unexpected reference time: %v", referenceTime)
+			})
+		}
+	}
+}
+
+type orphanSweepFixture struct {
+	ctx           context.Context
+	clock         *clocktesting.FakePassiveClock
+	controller    *deleteOrphanedCosmosResources
+	resourceID    *azcorearm.ResourceID
+	cosmosID      string
+	setTimestamp  func(time.Time)
+	snapshot      map[string]*cosmosstorageutils.TypedDocument
+	sweep         func() error
+	assertDeleted func(bool)
+}
+
+func newOrphanSweepFixture(t *testing.T, desire bool) *orphanSweepFixture {
+	t.Helper()
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	managementClusterID := mustParseResourceID(t, "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/"+testMgmtClusterA)
+	resource := nodePool(t, testMissingCluster, testMissingNodePool)
+	resources := []any{subscription(t)}
+	if !desire {
+		resources = append(resources, resource)
+	}
+	resourcesClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+	require.NoError(t, err)
+	kubeClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+	fakeClock := clocktesting.NewFakePassiveClock(time.Now().Add(3 * time.Hour))
+	controller := NewDeleteOrphanedCosmosResourcesController(fakeClock, resourcesClient, kubeClients, nil,
+		&fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{
+			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterID},
+		}}}).(*deleteOrphanedCosmosResources)
+	t.Cleanup(controller.queue.ShutDown)
+	if !desire {
+		controller.managementClusterLister = &fleetlistertesting.SliceManagementClusterLister{}
+	}
+	fixture := &orphanSweepFixture{
+		ctx: ctx, clock: fakeClock, controller: controller,
+		resourceID: resource.ResourceID, snapshot: map[string]*cosmosstorageutils.TypedDocument{},
+	}
+	subscriptionID := subscription(t).ResourceID
+	crud, err := resourcesClient.UntypedCRUD(*subscriptionID)
+	require.NoError(t, err)
+	getDocument := resourcesClient.GetDocument
+	storeDocument := resourcesClient.StoreDocument
+	if desire {
+		document := newApplyDesire(t, managementClusterID, kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
+			testSubscriptionID, testResourceGroup, testMissingCluster, "hostedcluster"))
+		client, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{document})
+		require.NoError(t, err)
+		kubeClients.Register(managementClusterID, client)
+		fixture.resourceID = document.ResourceID
+		getDocument = client.GetDocument
+		storeDocument = client.StoreDocument
+	}
+	fixture.cosmosID = metadataapi.Must(coreapi.ResourceIDToCosmosID(fixture.resourceID))
+	if !desire {
+		data, found := getDocument(fixture.cosmosID)
+		require.True(t, found)
+		var document cosmosstorageutils.TypedDocument
+		require.NoError(t, json.Unmarshal(data, &document))
+		fixture.snapshot[strings.ToLower(fixture.resourceID.String())] = &document
+	}
+	fixture.setTimestamp = func(timestamp time.Time) {
+		data, found := getDocument(fixture.cosmosID)
+		require.True(t, found)
+		var document cosmosstorageutils.TypedDocument
+		require.NoError(t, json.Unmarshal(data, &document))
+		document.CosmosTimestamp = int(timestamp.Unix())
+		data, err := json.Marshal(document)
+		require.NoError(t, err)
+		storeDocument(fixture.cosmosID, data)
+		if !desire {
+			fixture.snapshot[strings.ToLower(fixture.resourceID.String())] = &document
+		}
+	}
+	fixture.sweep = func() error {
+		if desire {
+			return controller.sweepOrphanedDesires(ctx, subscriptionID, fixture.snapshot, fakeClock.Now())
+		}
+		return controller.sweepOrphanedResources(ctx, subscriptionID, crud, fixture.snapshot, fakeClock.Now())
+	}
+	fixture.assertDeleted = func(wantDeleted bool) {
+		t.Helper()
+		data, found := getDocument(fixture.cosmosID)
+		require.Equal(t, wantDeleted, !found || cosmosstorageutils.IsSoftDeleted(data))
+	}
+	return fixture
 }
 
 func cosmosIDForDesire(t *testing.T, d *kubeapplierapi.ApplyDesire) string {
