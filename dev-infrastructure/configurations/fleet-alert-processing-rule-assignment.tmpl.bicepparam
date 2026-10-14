@@ -1,6 +1,5 @@
 using '../templates/fleet-alert-processing-rule-assignment.bicep'
 
-// Fleet managed identity
+// Fleet identity
 // used to grant Monitoring Contributor access for alert processing rule cleanup
-param fleetMIName = '{{ .fleet.managedIdentityName }}'
-param fleetMIResourceGroup = '{{ .svc.rg }}'
+param fleetPrincipalId = '__fleetPrincipalId__'

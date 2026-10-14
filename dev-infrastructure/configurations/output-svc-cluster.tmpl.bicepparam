@@ -5,3 +5,5 @@ param aksClusterName = '{{ .svc.aks.name }}'
 param logsMSI = '{{ .logs.mdsd.msiName }}'
 
 param adminApiMIName = '{{ .adminApi.managedIdentityName }}'
+
+param fleetMIName = '{{ .fleet.managedIdentityName }}'

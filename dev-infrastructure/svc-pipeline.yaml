@@ -92,9 +92,15 @@ resourceGroups:
     template: templates/fleet-alert-processing-rule-assignment.bicep
     parameters: configurations/fleet-alert-processing-rule-assignment.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+    - name: fleetPrincipalId
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: fleetPrincipalId
     dependsOn:
     - resourceGroup: service
-      step: cluster
+      step: cluster-output
 - name: auditLogs
   resourceGroup: '{{ .auditLogsEventHub.rg }}'
   subscription: '{{ .svc.subscription.key }}'

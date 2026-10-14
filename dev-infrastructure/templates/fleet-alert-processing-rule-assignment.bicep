@@ -1,8 +1,5 @@
-@description('The name of the Fleet managed identity')
-param fleetMIName string
-
-@description('The resource group containing the Fleet managed identity')
-param fleetMIResourceGroup string
+@description('Principal ID of the Fleet managed identity')
+param fleetPrincipalId string
 
 // Monitoring Contributor role
 // https://www.azadvertizer.net/azrolesadvertizer/749f88d5-cbae-40b8-bcfc-e573ddc772fa.html
@@ -19,17 +16,20 @@ var monitoringContributorRoleId = subscriptionResourceId(
   '749f88d5-cbae-40b8-bcfc-e573ddc772fa'
 )
 
-resource fleetMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup(fleetMIResourceGroup)
-  name: fleetMIName
-}
-
+// The assignment name is derived from the principal ID rather than the identity's
+// resource ID. A resource ID is name-based and so survives a delete and recreate of the
+// identity unchanged, which would hold this name fixed while the principal ID changed.
+// A role assignment's principal is immutable, so ARM would then attempt to mutate the
+// existing assignment and fail with RoleAssignmentUpdateNotPermitted. That is reachable
+// here because the identity lives in the service resource group while this assignment
+// lives in the regional one, so recreating the identity can leave the assignment behind.
+// Keying on the principal ID means a recreated identity gets a new assignment instead.
 resource fleetMonitoringContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: resourceGroup()
-  name: guid(resourceGroup().id, fleetMSI.id, monitoringContributorRoleId)
+  name: guid(resourceGroup().id, fleetPrincipalId, monitoringContributorRoleId)
   properties: {
     roleDefinitionId: monitoringContributorRoleId
-    principalId: fleetMSI.properties.principalId
+    principalId: fleetPrincipalId
     principalType: 'ServicePrincipal'
   }
 }

@@ -12,6 +12,9 @@ param logsMSI string
 @description('The name of the Admin API managed identity')
 param adminApiMIName string
 
+@description('The name of the Fleet managed identity')
+param fleetMIName string
+
 // These must match the same vars in modules/metrics/datacollection.bicep
 var dceName = safeTake('MSProm-${location}-${aksClusterName}', 44)
 var dcrName = safeTake('MSProm-${location}-${aksClusterName}', 44)
@@ -36,8 +39,13 @@ resource adminApiUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-
   name: adminApiMIName
 }
 
+resource fleetUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
+  name: fleetMIName
+}
+
 output dcrRemoteWriteUrl string = '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${dcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
 output hcpDcrRemoteWriteUrl string = 'NONE'
 output prometheusUAMIClientId string = prometheusUAMI.properties.clientId
 output clusterLogPrincipalId string = logsUAMI.properties.principalId
 output adminApiPrincipalId string = adminApiUAMI.properties.principalId
+output fleetPrincipalId string = fleetUAMI.properties.principalId
