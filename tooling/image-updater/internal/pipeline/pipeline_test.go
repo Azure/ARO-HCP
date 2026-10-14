@@ -103,6 +103,14 @@ func newTestRepo(t *testing.T) *git.Repo {
 	return git.New(dir, nil)
 }
 
+// writeRepoFile writes a file into the working tree, leaving it uncommitted.
+func writeRepoFile(t *testing.T, repo *git.Repo, name, contents string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(repo.Root(), name), []byte(contents), 0o644); err != nil {
+		t.Fatalf("failed to write %s: %v", name, err)
+	}
+}
+
 func commitSubjects(t *testing.T, repo *git.Repo) []string {
 	t.Helper()
 	out, err := repo.Runner().Output(context.Background(), "git", "log", "--pretty=%s")
@@ -272,6 +280,56 @@ func TestRunDoesNotConfigureIdentityWithoutCommit(t *testing.T) {
 	}
 	if diff := cmp.Diff("seed", got); diff != "" {
 		t.Errorf("identity was overwritten without --commit (-want +got):\n%s", diff)
+	}
+}
+
+func TestRunRefusesDirtyTreeWithCommit(t *testing.T) {
+	// Every stage stages with `git add --all`. A change already present
+	// when the run starts would be committed under the digest message and
+	// attributed to the image update.
+	repo := newTestRepo(t)
+	writeRepoFile(t, repo, "unrelated-work.txt", "a developer's work in progress\n")
+	updater := &fakeUpdater{root: repo.Root()}
+
+	_, err := New(updater, repo, defaultOptions()).Run(context.Background())
+	if err == nil {
+		t.Fatal("expected an error when committing into a dirty tree, got nil")
+	}
+	if !strings.Contains(err.Error(), "clean tree") {
+		t.Errorf("error does not explain the requirement: %v", err)
+	}
+
+	// Refuse before doing anything, and leave the tree exactly as found.
+	if updater.updateCalls != 0 {
+		t.Errorf("update ran despite a dirty tree (%d calls)", updater.updateCalls)
+	}
+	if diff := cmp.Diff([]string{"seed"}, commitSubjects(t, repo)); diff != "" {
+		t.Errorf("history changed (-want +got):\n%s", diff)
+	}
+	if _, err := os.Stat(filepath.Join(repo.Root(), "unrelated-work.txt")); err != nil {
+		t.Errorf("the developer's file was disturbed: %v", err)
+	}
+}
+
+func TestRunAllowsDirtyTreeWithoutCommit(t *testing.T) {
+	// Nothing is committed, so a dirty tree is the normal case for a
+	// developer previewing a bump.
+	repo := newTestRepo(t)
+	writeRepoFile(t, repo, "unrelated-work.txt", "work in progress\n")
+	updater := &fakeUpdater{
+		root:    repo.Root(),
+		writes:  map[string]string{"config.yaml": "digest: sha256:new\n"},
+		summary: "summary",
+	}
+	opts := defaultOptions()
+	opts.Commit = false
+
+	result, err := New(updater, repo, opts).Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run returned an unexpected error: %v", err)
+	}
+	if diff := cmp.Diff(OutcomeUpdated, result.Outcome); diff != "" {
+		t.Errorf("unexpected outcome (-want +got):\n%s", diff)
 	}
 }
 

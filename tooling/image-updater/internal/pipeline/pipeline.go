@@ -110,7 +110,7 @@ func New(u ImageUpdater, repo *git.Repo, opts Options) *Pipeline {
 func (p *Pipeline) Run(ctx context.Context) (*Result, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	if err := p.preflight(); err != nil {
+	if err := p.preflight(ctx); err != nil {
 		return nil, err
 	}
 
@@ -172,7 +172,9 @@ func (p *Pipeline) Run(ctx context.Context) (*Result, error) {
 //
 // Unlike the bash script, which demanded every tool on every run, each stage
 // declares only what it needs: committing does not require bicep.
-func (p *Pipeline) preflight() error {
+//
+// It also refuses to commit into a working tree that was already dirty.
+func (p *Pipeline) preflight(ctx context.Context) error {
 	required := []string{"git"}
 	if p.opts.Materialize {
 		required = append(required, RequiredTools...)
@@ -181,7 +183,42 @@ func (p *Pipeline) preflight() error {
 	if missing := command.MissingTools(required...); len(missing) > 0 {
 		return fmt.Errorf("required tools not found on PATH: %s", strings.Join(missing, ", "))
 	}
+
+	if p.opts.Commit {
+		if err := p.requireCleanTree(ctx); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// requireCleanTree refuses to proceed when the working tree already has
+// changes.
+//
+// Every committing stage stages with `git add --all`, and the run decides
+// what it produced by looking at the working tree. A change that was already
+// present when the run started would therefore be swept into a bump commit
+// and attributed to the image update -- and with nothing else to commit, a
+// pull request could be opened whose only content is somebody's unrelated
+// work in progress, under a message claiming it is a digest bump.
+//
+// The bash script had the same hazard and got away with it because CI always
+// runs on a fresh checkout. That is still true, so this changes nothing in
+// CI; it exists for the documented local workflow, where refusing is far
+// better than silently committing a developer's work.
+func (p *Pipeline) requireCleanTree(ctx context.Context) error {
+	status, err := p.repo.Status(ctx)
+	if err != nil {
+		return err
+	}
+	if status == "" {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"working tree has %d uncommitted change(s); --commit requires a clean tree so the bump commit cannot absorb unrelated work (commit or stash them first)",
+		len(strings.Split(status, "\n")))
 }
 
 // commit records a commit on the result when one was actually made.
