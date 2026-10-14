@@ -51,10 +51,12 @@ tests:
     alertname: KubeApplierDesiresMetricNotPresent
     exp_alerts: []
 - interval: 1m
-  name: KubeApplierApplyFailing fires for KubeAPIError only after 15m
+  name: KubeApplierApplyFailing deduplicates replicas for KubeAPIError only after 15m
   input_series:
-  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="apply", status="False", reason="KubeAPIError"}'
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", namespace="kube-applier", group="apps", resource="deployments", operation="apply", status="False", reason="KubeAPIError", pod="kube-applier-0", instance="10.0.0.1:8080"}'
     values: "0+1x30"
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", namespace="kube-applier", group="apps", resource="deployments", operation="apply", status="False", reason="KubeAPIError", pod="kube-applier-1", instance="10.0.0.2:8080"}'
+    values: "0+2x30"
   alert_rule_test:
   - eval_time: 15m
     alertname: KubeApplierApplyFailing
@@ -65,10 +67,10 @@ tests:
     - exp_labels:
         cluster: test-cluster
         component: kube-applier
+        namespace: kube-applier
         group: apps
         resource: deployments
         operation: apply
-        status: "False"
         reason: KubeAPIError
         severity: warning
       exp_annotations:
@@ -94,7 +96,6 @@ tests:
         group: apps
         resource: deployments
         operation: apply
-        status: "False"
         reason: PreCheckFailed
         severity: warning
       exp_annotations:
@@ -124,10 +125,12 @@ tests:
     alertname: KubeApplierApplyFailing
     exp_alerts: []
 - interval: 1m
-  name: KubeApplierReadFailing fires for KubeAPIError only after 15m
+  name: KubeApplierReadFailing deduplicates replicas for KubeAPIError only after 15m
   input_series:
-  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="resync", status="False", reason="KubeAPIError"}'
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", namespace="kube-applier", group="apps", resource="deployments", operation="resync", status="False", reason="KubeAPIError", pod="kube-applier-0", instance="10.0.0.1:8080"}'
     values: "0+1x30"
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", namespace="kube-applier", group="apps", resource="deployments", operation="resync", status="False", reason="KubeAPIError", pod="kube-applier-1", instance="10.0.0.2:8080"}'
+    values: "0+2x30"
   alert_rule_test:
   - eval_time: 15m
     alertname: KubeApplierReadFailing
@@ -138,10 +141,10 @@ tests:
     - exp_labels:
         cluster: test-cluster
         component: kube-applier
+        namespace: kube-applier
         group: apps
         resource: deployments
         operation: resync
-        status: "False"
         reason: KubeAPIError
         severity: warning
       exp_annotations:
@@ -167,7 +170,6 @@ tests:
         group: apps
         resource: deployments
         operation: resync
-        status: "False"
         reason: PreCheckFailed
         severity: warning
       exp_annotations:
