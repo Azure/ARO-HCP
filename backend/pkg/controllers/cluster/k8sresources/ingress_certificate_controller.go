@@ -49,7 +49,13 @@ type ingressCertificateSyncer struct {
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	applyDesireLister            kubeapplierlisters.ApplyDesireLister
 	readDesireLister             kubeapplierlisters.ReadDesireLister
-	// The ID of the tenant where the service is running on
+	// serviceTenantID is the Azure AD tenant where the ARO-HCP service's First Party
+	// Application (FPA) identity is registered. It is the tenantId used both to
+	// retrieve the FPA credential that calls the Managed Identities Data Plane, and
+	// as the Secrets Store CSI Driver's authentication tenant when delivering TLS
+	// certificates from Key Vault onto a management cluster. It is never a customer's
+	// tenant, and permissions granted here are not scoped to any individual
+	// customer's HostedCluster or subscription.
 	serviceTenantID string
 	cloudName       string
 }

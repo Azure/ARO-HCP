@@ -16,7 +16,6 @@ package azureresources
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -142,16 +141,17 @@ func (syncer *tlsCertificateSyncer) syncDeletionObservationWork(ctx context.Cont
 	}
 	client, err := syncer.certificatesClient(reference.KeyVaultURL)
 	if err != nil {
-		return errors.Join(fmt.Errorf("observe %s certificate deletion: create certificates client: %w", syncer.field.label, err), syncer.persistIfChanged(ctx, key, existing, replacement))
+		return utils.TrackError(fmt.Errorf("observe %s certificate deletion: create certificates client: %w", syncer.field.label, err))
 	}
 	gone, err := observeTLSCertificateDeleted(ctx, client, reference.CertificateName)
 	if err != nil {
-		return errors.Join(fmt.Errorf("observe %s certificate deletion: %w", syncer.field.label, err), syncer.persistIfChanged(ctx, key, existing, replacement))
+		return utils.TrackError(fmt.Errorf("observe %s certificate deletion: %w", syncer.field.label, err))
 	}
 	if gone {
 		syncer.field.set(&replacement.Status.AzureResources, nil)
+		return syncer.persistIfChanged(ctx, key, existing, replacement)
 	}
-	return syncer.persistIfChanged(ctx, key, existing, replacement)
+	return nil
 }
 
 func (syncer *tlsCertificateSyncer) syncCreationObservationWork(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.Cluster, existing, replacement *coreapi.ServiceProviderCluster) error {
@@ -181,18 +181,12 @@ func (syncer *tlsCertificateSyncer) syncCreationObservationWork(ctx context.Cont
 		tlsCertificate = &coreapi.TLSCertificate{}
 	}
 	certificateName := syncer.field.getCertificateName(cluster)
-	if tlsCertificate.AzureReference == nil {
+	if tlsCertificate.AzureReference == nil && tlsCertificate.PendingReference == nil {
 		tlsCertificate.PendingReference = &coreapi.AzureTLSCertificateReference{KeyVaultURL: managementCluster.Status.HostedClustersSecretsKeyVaultURL, CertificateName: certificateName}
-	}
-	syncer.field.set(&replacement.Status.AzureResources, tlsCertificate)
-	// A pending reference was just created or changed above; persist it now and return
-	// early rather than observing a certificate name we haven't committed yet. This
-	// also covers precondition (ETag) failure: persistIfChanged swallows it and
-	// returns nil, so we still return early here and simply defer to the next
-	// reconciliation once the informer provides the current resource.
-	if controllerutil.NeedsUpdate(existing, replacement) {
+		syncer.field.set(&replacement.Status.AzureResources, tlsCertificate)
 		return syncer.persistIfChanged(ctx, key, existing, replacement)
 	}
+
 	client, err := syncer.certificatesClient(vaultURL.String())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("create certificates client: %w", err))
@@ -200,14 +194,15 @@ func (syncer *tlsCertificateSyncer) syncCreationObservationWork(ctx context.Cont
 	reference := tlsCertificate.PendingReference
 	ready, err := observeTLSCertificate(ctx, client, reference.CertificateName)
 	if err != nil {
-		return errors.Join(utils.TrackError(fmt.Errorf("observe certificate %q: %w", certificateName, err)), syncer.persistIfChanged(ctx, key, existing, replacement))
+		return utils.TrackError(fmt.Errorf("observe certificate %q: %w", certificateName, err))
 	}
 	if ready {
 		tlsCertificate.AzureReference = reference
 		tlsCertificate.PendingReference = nil
 		syncer.field.set(&replacement.Status.AzureResources, tlsCertificate)
+		return syncer.persistIfChanged(ctx, key, existing, replacement)
 	}
-	return syncer.persistIfChanged(ctx, key, existing, replacement)
+	return nil
 }
 
 // persistIfChanged writes replacement if it differs from existing, swallowing both the
