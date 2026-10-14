@@ -74,6 +74,11 @@ checks only the `SecretSync` status's `SecretCreated` condition (secrets-store-s
 actual condition type — its own `secretsyncv1alpha1` API package's doc comments are stale and
 still describe "Create"/"Update"); and `sigs.k8s.io/secrets-store-sync-controller` is bumped
 v0.0.2 -> v0.0.5 (also bumping `sigs.k8s.io/secrets-store-csi-driver` v1.4.8 -> v1.6.0 transitively).
+Mutator-safety baseline: `897dada03` plus working-tree changes; scope: `tlsCertificateField.get`
+now returns a deep copy (mutations must be written back via `set`) rather than the live
+`AzureResources` pointer, fixing a review-flagged mutation hazard; wraps two previously bare Key
+Vault client errors in `utils.TrackError`; and drops two now-redundant `persistIfChanged` calls
+from error paths that could never have anything to persist. No controller behavior changed.
 
 Update-deadline baseline: `a0f232352a2e933142f2f2dfb61f2870aed7a26f` plus working-tree changes; scope: cluster/node-pool update admission, create/update timeout error codes and diagnostics, and their lifecycle views.
 
