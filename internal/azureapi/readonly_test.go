@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
 	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestClearReadOnlyFields(t *testing.T) {
@@ -111,8 +112,8 @@ func TestClearReadOnlyFields(t *testing.T) {
 				for _, body := range bodies {
 					got := prototype.NewExternal().(resource)
 					want := prototype.NewExternal()
-					require.NoError(t, json.Unmarshal([]byte(body), got))
-					require.NoError(t, json.Unmarshal([]byte(body), want))
+					require.NoError(t, jsonutil.Unmarshal([]byte(body), got))
+					require.NoError(t, jsonutil.Unmarshal([]byte(body), want))
 					got.ClearReadOnlyFields()
 					require.Equal(t, want, got, "preserve nil and empty writable containers: %s", body)
 				}
@@ -133,7 +134,7 @@ func TestClearReadOnlyFields(t *testing.T) {
 						}
 					}
 					var propertyFields map[string]json.RawMessage
-					require.NoError(t, json.Unmarshal([]byte(properties), &propertyFields))
+					require.NoError(t, jsonutil.Unmarshal([]byte(properties), &propertyFields))
 					if version >= "2026-06-30-preview" {
 						propertyFields["status"] = json.RawMessage(status)
 					} else if i == 2 {
@@ -160,8 +161,8 @@ func TestClearReadOnlyFields(t *testing.T) {
 						"name":"keep",` + wantTracked + `"properties":` + wantProperties + `}`
 					got := prototype.NewExternal().(resource)
 					want := prototype.NewExternal()
-					require.NoError(t, json.Unmarshal([]byte(body), got))
-					require.NoError(t, json.Unmarshal([]byte(wantBody), want))
+					require.NoError(t, jsonutil.Unmarshal([]byte(body), got))
+					require.NoError(t, jsonutil.Unmarshal([]byte(wantBody), want))
 					require.NotEqual(t, want, got, "read-only fields must be populated before clearing")
 					got.ClearReadOnlyFields()
 					// Compare typed values directly: conversion or marshaling can drop read-only fields.

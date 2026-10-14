@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
@@ -128,7 +129,7 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 			}
 
 			var raw map[string]any
-			if err := json.Unmarshal(doc.Properties, &raw); err != nil {
+			if err := jsonutil.Unmarshal(doc.Properties, &raw); err != nil {
 				t.Fatalf("unmarshal redacted properties: %v", err)
 			}
 

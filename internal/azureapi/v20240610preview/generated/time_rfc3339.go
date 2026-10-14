@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 // Azure reports time in UTC but it doesn't include the 'Z' time zone suffix in some cases.
@@ -102,7 +104,7 @@ func unpopulateDateTimeRFC3339(data json.RawMessage, fn string, t **time.Time) e
 		return nil
 	}
 	var aux dateTimeRFC3339
-	if err := json.Unmarshal(data, &aux); err != nil {
+	if err := jsonutil.Unmarshal(data, &aux); err != nil {
 		return fmt.Errorf("struct field %s: %v", fn, err)
 	}
 	*t = (*time.Time)(&aux)

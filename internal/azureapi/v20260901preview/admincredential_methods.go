@@ -15,11 +15,10 @@
 package v20260901preview
 
 import (
-	"encoding/json"
-
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview/generated"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func newClusterAdminCredential(from *coreapi.ClusterAdminCredential) *generated.HcpOpenShiftClusterAdminCredential {
@@ -35,7 +34,7 @@ func (v version) MarshalClusterAdminCredential(from *coreapi.ClusterAdminCredent
 
 func (v version) UnmarshalClusterAdminCredentialRequest(data []byte) (*coreapi.ClusterAdminCredentialRequest, error) {
 	var versionedRequest generated.HcpOpenShiftClusterAdminCredentialRequest
-	if err := json.Unmarshal(data, &versionedRequest); err != nil {
+	if err := jsonutil.Unmarshal(data, &versionedRequest); err != nil {
 		return nil, err
 	}
 	return &coreapi.ClusterAdminCredentialRequest{

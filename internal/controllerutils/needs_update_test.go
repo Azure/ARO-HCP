@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func mustParseRID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -322,7 +323,7 @@ func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {
 	bytes, err := json.Marshal(desired)
 	require.NoError(t, err)
 	roundTripped := &coreapi.ManagementClusterContent{}
-	require.NoError(t, json.Unmarshal(bytes, roundTripped))
+	require.NoError(t, jsonutil.Unmarshal(bytes, roundTripped))
 	roundTripped.CosmosETag = azcore.ETag("server-assigned-etag")
 	roundTripped.ExistingCosmosUID = "server-assigned-uid"
 

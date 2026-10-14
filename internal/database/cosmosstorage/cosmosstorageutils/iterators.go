@@ -16,11 +16,12 @@ package cosmosstorageutils
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 type queryResourcesIterator[InternalAPIType, CosmosAPIType any] struct {
@@ -57,14 +58,14 @@ func (iter *queryResourcesIterator[InternalAPIType, CosmosAPIType]) Items(ctx co
 			}
 			for _, itemJSON := range response.Items {
 				var obj CosmosAPIType
-				if err := json.Unmarshal(itemJSON, &obj); err != nil {
+				if err := jsonutil.Unmarshal(itemJSON, &obj); err != nil {
 					iter.err = err
 					return
 				}
 				decodedItem := &obj
 
 				var baseDocument BaseDocument
-				if err := json.Unmarshal(itemJSON, &baseDocument); err != nil {
+				if err := jsonutil.Unmarshal(itemJSON, &baseDocument); err != nil {
 					iter.err = err
 					return
 				}
@@ -127,7 +128,7 @@ func (iter *queryTypedDocumentIterator) Items(ctx context.Context) DBClientItera
 			}
 			for _, itemJSON := range response.Items {
 				var doc TypedDocument
-				if err := json.Unmarshal(itemJSON, &doc); err != nil {
+				if err := jsonutil.Unmarshal(itemJSON, &doc); err != nil {
 					iter.err = err
 					return
 				}

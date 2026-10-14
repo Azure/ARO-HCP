@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -54,7 +55,7 @@ func oldResourceIDStringToCosmosID(resourceID string) (string, error) {
 
 func responseItemToInternalObj[InternalAPIType, CosmosAPIType any](ctx context.Context, cosmosID string, responseItem azcosmos.ItemResponse) (*InternalAPIType, error) {
 	var obj CosmosAPIType
-	if err := json.Unmarshal(responseItem.Value, &obj); err != nil {
+	if err := jsonutil.Unmarshal(responseItem.Value, &obj); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", cosmosID, err)
 	}
 	cosmosObj := &obj
@@ -90,7 +91,7 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 
 func IsSoftDeleted(data []byte) bool {
 	var doc TypedDocument
-	if err := json.Unmarshal(data, &doc); err != nil {
+	if err := jsonutil.Unmarshal(data, &doc); err != nil {
 		return false
 	}
 	return doc.DeletionTimestamp != nil
@@ -429,7 +430,7 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 	}
 
 	var doc GenericDocument[map[string]interface{}]
-	if err := json.Unmarshal(responseItem.Value, &doc); err != nil {
+	if err := jsonutil.Unmarshal(responseItem.Value, &doc); err != nil {
 		return fmt.Errorf("failed to unmarshal document for soft delete: %w", err)
 	}
 
@@ -479,10 +480,15 @@ func SetSoftDeleteFields(doc *GenericDocument[map[string]interface{}], now time.
 		return nil
 	}
 
-	fv, found, err := unstructured.NestedFloat64(doc.Content, "cosmosMetadata", "instanceVersion")
+	version, found, err := unstructured.NestedFieldNoCopy(doc.Content, "cosmosMetadata", "instanceVersion")
 	current := int64(1)
 	if err == nil && found {
-		current = int64(fv)
+		switch typedVersion := version.(type) {
+		case int64:
+			current = typedVersion
+		case float64:
+			current = int64(typedVersion)
+		}
 		if current < 1 {
 			current = 1
 		}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -149,7 +150,7 @@ func getCastResult[InternalAPIType, CosmosAPIType any](r *cosmosDBTransactionRes
 	}
 
 	var cosmosObj CosmosAPIType
-	if err := json.Unmarshal(data, &cosmosObj); err != nil {
+	if err := jsonutil.Unmarshal(data, &cosmosObj); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal Cosmos DB item '%s': %w", cosmosUID, err)
 	}
 
@@ -163,7 +164,7 @@ func (r *cosmosDBTransactionResult) GetItem(cosmosUID string) (any, error) {
 	}
 
 	var typedDoc cosmosstorageutils.TypedDocument
-	err := json.Unmarshal(data, &typedDoc)
+	err := jsonutil.Unmarshal(data, &typedDoc)
 	if err != nil {
 		return nil, err
 	}

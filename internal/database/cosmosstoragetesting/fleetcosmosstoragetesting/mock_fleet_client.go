@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
@@ -170,7 +171,7 @@ func (m *MockFleetDBClient) ListDocuments(resourceType *azcorearm.ResourceType, 
 	var results []json.RawMessage
 	for _, data := range m.documents {
 		var td cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &td); err != nil {
+		if err := jsonutil.Unmarshal(data, &td); err != nil {
 			continue
 		}
 		// Mirror the production query, which requires IS_DEFINED(c.resourceID);

@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestMockResourcesDBClient_LoadContentSnapshots(t *testing.T) {
@@ -153,7 +154,7 @@ func TestMockResourcesDBClient_LoadFromDirectory(t *testing.T) {
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := jsonutil.Unmarshal(data, &typedDoc); err != nil {
 			continue
 		}
 
@@ -718,7 +719,7 @@ func TestMockResourcesDBClient_StoreAndRetrieveRawDocument(t *testing.T) {
 	}
 
 	var result map[string]any
-	if err := json.Unmarshal(retrieved, &result); err != nil {
+	if err := jsonutil.Unmarshal(retrieved, &result); err != nil {
 		t.Fatalf("Failed to unmarshal retrieved data: %v", err)
 	}
 

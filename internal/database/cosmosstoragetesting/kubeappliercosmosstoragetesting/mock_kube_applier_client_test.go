@@ -16,7 +16,6 @@ package kubeappliercosmosstoragetesting
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -30,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 const (
@@ -161,7 +161,7 @@ func TestMockKubeApplier_PartitionKeyEnvelope(t *testing.T) {
 	}
 	for _, raw := range allDocs {
 		var td cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(raw, &td); err != nil {
+		if err := jsonutil.Unmarshal(raw, &td); err != nil {
 			t.Fatalf("unmarshal typed doc: %v", err)
 		}
 		if td.PartitionKey != strings.ToLower(testMgmt) {

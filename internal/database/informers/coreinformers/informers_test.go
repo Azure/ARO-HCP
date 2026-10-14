@@ -16,7 +16,6 @@ package coreinformers
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestClusterInformerSubscriptionIndex(t *testing.T) {
@@ -127,7 +127,7 @@ func TestFixtureLoadsReachSyncedInformers(t *testing.T) {
 				content, err := os.ReadFile(filepath.Join("testdata", "fixture-load", name))
 				require.NoError(t, err)
 				var doc cosmosstorageutils.TypedDocument
-				require.NoError(t, json.Unmarshal(content, &doc))
+				require.NoError(t, jsonutil.Unmarshal(content, &doc))
 				stored, ok := db.GetDocument(doc.ID)
 				require.True(t, ok)
 				require.Equal(t, content, []byte(stored), "loading must preserve the raw fixture, including unknown fields and metadata")

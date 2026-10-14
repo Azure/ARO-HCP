@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 func TestCosmosGenericToInternalRolloutVersion(t *testing.T) {
@@ -110,7 +111,7 @@ func TestRolloutVersionNormalizationPersistence(t *testing.T) {
 	require.NoError(t, err)
 	// Persist the historical representation with the field absent.
 	var raw map[string]any
-	require.NoError(t, json.Unmarshal(data, &raw))
+	require.NoError(t, jsonutil.Unmarshal(data, &raw))
 	delete(raw["properties"].(map[string]any)["spec"].(map[string]any), "version")
 	data, err = json.Marshal(raw)
 	require.NoError(t, err)
@@ -136,7 +137,7 @@ func TestRolloutVersionNormalizationPersistence(t *testing.T) {
 	stored, ok = db.GetDocument(doc.ID)
 	require.True(t, ok)
 	var persisted cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]
-	require.NoError(t, json.Unmarshal(stored, &persisted))
+	require.NoError(t, jsonutil.Unmarshal(stored, &persisted))
 	require.Empty(t, cmp.Diff(existing.Spec.Version, persisted.Content.Spec.Version), "Replace must persist the normalized profile")
 	// A writer holding the earlier normalized read still reaches the ETag check.
 	stale := existing.DeepCopy()

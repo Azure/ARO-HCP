@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 )
 
 // MockResourcesDBClient implements the corecosmosstorage.ResourcesDBClient interface for unit testing.
@@ -111,7 +112,7 @@ func (m *MockResourcesDBClient) ListMissingResourceID(ctx context.Context, optio
 	var items []*cosmosstorageutils.TypedDocument
 	for _, data := range m.documents {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := jsonutil.Unmarshal(data, &typedDoc); err != nil {
 			continue
 		}
 		if typedDoc.ResourceID != nil {
@@ -201,7 +202,7 @@ func (m *MockResourcesDBClient) LoadFromDirectory(dirPath string) error {
 
 		// Parse as TypedDocument to get the ID
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := jsonutil.Unmarshal(data, &typedDoc); err != nil {
 			return fmt.Errorf("failed to unmarshal file %s: %w", filePath, err)
 		}
 
@@ -219,7 +220,7 @@ func (m *MockResourcesDBClient) LoadFromDirectory(dirPath string) error {
 func (m *MockResourcesDBClient) LoadContent(ctx context.Context, content []byte) error {
 	// Parse as TypedDocument to get the ID
 	var typedDoc cosmosstorageutils.TypedDocument
-	if err := json.Unmarshal(content, &typedDoc); err != nil {
+	if err := jsonutil.Unmarshal(content, &typedDoc); err != nil {
 		return fmt.Errorf("failed to unmarshal content: %w", err)
 	}
 
@@ -240,7 +241,7 @@ func (m *MockResourcesDBClient) ListAllDocuments(ctx context.Context) ([]*cosmos
 	var results []*cosmosstorageutils.TypedDocument
 	for _, data := range m.documents {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := jsonutil.Unmarshal(data, &typedDoc); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal document: %w", err)
 		}
 		results = append(results, &typedDoc)
@@ -283,7 +284,7 @@ func (m *MockResourcesDBClient) ListDocuments(resourceType *azcorearm.ResourceTy
 	var results []json.RawMessage
 	for _, data := range m.documents {
 		var typedDoc cosmosstorageutils.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
+		if err := jsonutil.Unmarshal(data, &typedDoc); err != nil {
 			continue
 		}
 
@@ -422,26 +423,26 @@ func (r *mockTransactionResult) GetItem(cosmosUID string) (any, error) {
 	}
 
 	var typedDoc cosmosstorageutils.TypedDocument
-	if err := json.Unmarshal(data, &typedDoc); err != nil {
+	if err := jsonutil.Unmarshal(data, &typedDoc); err != nil {
 		return nil, err
 	}
 
 	switch strings.ToLower(typedDoc.ResourceType) {
 	case strings.ToLower(coreapi.ClusterResourceType.String()):
 		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.Cluster]
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		if err := jsonutil.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
 		return cosmosstorageutils.CosmosGenericToInternal(&cosmosObj)
 	case strings.ToLower(coreapi.NodePoolResourceType.String()):
 		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.NodePool]
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		if err := jsonutil.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
 		return cosmosstorageutils.CosmosGenericToInternal(&cosmosObj)
 	case strings.ToLower(coreapi.ExternalAuthResourceType.String()):
 		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.ExternalAuth]
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		if err := jsonutil.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
 		return cosmosstorageutils.CosmosGenericToInternal(&cosmosObj)

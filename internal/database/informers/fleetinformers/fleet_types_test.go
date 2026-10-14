@@ -16,7 +16,6 @@ package fleetinformers
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -30,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -134,7 +134,7 @@ func TestFleetInformersHCPResourceRequirements(t *testing.T) {
 	var snapshots []map[string]any
 	for _, line := range capturedLines {
 		var entry map[string]any
-		require.NoError(t, json.Unmarshal([]byte(line), &entry))
+		require.NoError(t, jsonutil.Unmarshal([]byte(line), &entry))
 		if entry["snapshotType"] == "cosmos" {
 			snapshots = append(snapshots, entry)
 		}

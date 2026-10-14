@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/jsonutil"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -87,7 +88,7 @@ func LogCosmosListItem[T any](ctx context.Context, container string, obj *T) {
 		return
 	}
 	var loggedDocument cosmosstorageutils.TypedDocument
-	if err := json.Unmarshal(serialized, &loggedDocument); err != nil {
+	if err := jsonutil.Unmarshal(serialized, &loggedDocument); err != nil {
 		logger.Error(err, "failed to decode listed document for snapshot")
 		return
 	}
