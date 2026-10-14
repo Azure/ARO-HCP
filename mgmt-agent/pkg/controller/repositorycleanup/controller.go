@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -40,7 +43,10 @@ import (
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/repositorycleanup/storage"
 )
 
-const relationIndex = "repository-cleanup-relations"
+const (
+	relationIndex    = "repository-cleanup-relations"
+	maintenanceIndex = "repository-cleanup-maintenance"
+)
 
 type key struct {
 	Resource schema.GroupVersionResource
@@ -61,8 +67,8 @@ type Controller struct {
 	queue        workqueue.TypedRateLimitingInterface[key]
 }
 
-// NewController registers routing-only event handlers. Caches determine which
-// keys to enqueue, never whether any resource or external data may be deleted.
+// NewController registers routing-only event handlers. Workers read current
+// informer observations and confirm lifecycle targets directly before mutation.
 func NewController(dynamicClient dynamic.Interface, deletePrefix func(context.Context, storage.Target) error, informers map[schema.GroupVersionResource]cache.SharedIndexInformer) (*Controller, error) {
 	if dynamicClient == nil || deletePrefix == nil {
 		return nil, fmt.Errorf("dynamic client and prefix deleter are required")
@@ -85,6 +91,14 @@ func NewController(dynamicClient dynamic.Interface, deletePrefix func(context.Co
 				return nil, err
 			}
 		}
+		if gvr == JobsGVR || gvr == PodsGVR {
+			if err := informer.AddIndexers(cache.Indexers{maintenanceIndex: func(obj interface{}) ([]string, error) {
+				return maintenanceRelations(obj, gvr == JobsGVR), nil
+			}}); err != nil {
+				c.queue.ShutDown()
+				return nil, err
+			}
+		}
 		if _, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { c.enqueue(gvr, obj) },
 			UpdateFunc: func(old, current interface{}) { c.enqueue(gvr, old); c.enqueue(gvr, current) },
@@ -95,6 +109,42 @@ func NewController(dynamicClient dynamic.Interface, deletePrefix func(context.Co
 		}
 	}
 	return c, nil
+}
+
+// Index association data, not operation state. Active, terminal and malformed
+// maintenance objects remain candidates; the planner decides what they mean.
+func maintenanceRelations(obj interface{}, job bool) []string {
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return nil
+	}
+	keys := []string{"label/" + u.GetLabels()[repoNameLabel]}
+	path := []string{"spec", "containers"}
+	if job {
+		path = []string{"spec", "template", "spec", "containers"}
+	}
+	containers, _, _ := unstructured.NestedSlice(u.Object, path...)
+	for _, raw := range containers {
+		container, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		args, _, _ := unstructured.NestedStringSlice(container, "args")
+		for _, arg := range args {
+			if volume, ok := strings.CutPrefix(arg, "--repo-name="); ok {
+				keys = append(keys, "volume/"+volume)
+			}
+		}
+	}
+	if !job {
+		for _, owner := range u.GetOwnerReferences() {
+			if owner.Kind == "Job" {
+				keys = append(keys, "owner/"+string(owner.UID))
+			}
+		}
+		keys = append(keys, "job/"+u.GetLabels()["job-name"], "job/"+u.GetLabels()["batch.kubernetes.io/job-name"])
+	}
+	return keys
 }
 
 func targetRelations(obj interface{}) ([]string, error) {
@@ -305,6 +355,61 @@ func (c *Controller) get(ctx context.Context, gvr schema.GroupVersionResource, n
 	return obj, err
 }
 
+// cachedObjects returns detached observations. Callers must never mutate shared
+// informer objects; the pure planners may retain these values across API calls.
+func (c *Controller) cachedObjects(gvr schema.GroupVersionResource, namespace string) ([]unstructured.Unstructured, error) {
+	informer := c.informers[gvr]
+	if informer == nil {
+		return nil, fmt.Errorf("missing informer for %s", gvr)
+	}
+	objects, err := informer.GetIndexer().ByIndex(cache.NamespaceIndex, namespace)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]unstructured.Unstructured, 0, len(objects))
+	for _, obj := range objects {
+		if u, ok := obj.(*unstructured.Unstructured); ok {
+			result = append(result, *u.DeepCopy())
+			continue
+		}
+		// HostedClusters use the shared typed informer.
+		raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, unstructured.Unstructured{Object: raw})
+	}
+	return result, nil
+}
+
+func (c *Controller) cachedMaintenance(gvr schema.GroupVersionResource, volume, repository string, jobs []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+	indexer := c.informers[gvr].GetIndexer()
+	keys := []string{"volume/" + volume, "label/" + RepositoryLabel(repository)}
+	if gvr == PodsGVR {
+		for _, job := range jobs {
+			keys = append(keys, "owner/"+string(job.GetUID()), "job/"+job.GetName())
+		}
+	}
+	seen := map[string]bool{}
+	var result []unstructured.Unstructured
+	for _, key := range keys {
+		objects, err := indexer.ByIndex(maintenanceIndex, key)
+		if err != nil {
+			return nil, err
+		}
+		for _, obj := range objects {
+			u := obj.(*unstructured.Unstructured)
+			if u.GetNamespace() != Namespace || seen[u.GetName()] {
+				continue
+			}
+			seen[u.GetName()] = true
+			result = append(result, *u.DeepCopy())
+		}
+	}
+	slices.SortFunc(result, func(a, b unstructured.Unstructured) int { return strings.Compare(a.GetName(), b.GetName()) })
+	return result, nil
+}
+
 func (c *Controller) observe(ctx context.Context, k key) (Observations, error) {
 	o := Observations{Objects: make(map[schema.GroupVersionResource][]unstructured.Unstructured), Now: time.Now()}
 	obj, err := c.get(ctx, k.Resource, k.Name)
@@ -328,31 +433,23 @@ func (c *Controller) observe(ctx context.Context, k key) (Observations, error) {
 	if err != nil {
 		return o, err
 	}
-	// Resolve only this repository's BSL before the pure planner decides whether
-	// broad dependency reads are needed. No cache miss authorizes an action.
+	// The handoff records are read directly; inventories come from shared watches,
+	// not repeated namespace-wide API lists for every repository and tombstone.
 	if k.Resource == BackupRepositoriesGVR && !preserved(o.Repository) && !preserved(o.Cleanup) {
-		if name := field(o.Repository, "spec", "backupStorageLocation"); name != "" {
-			bsl, err := c.get(ctx, BackupStorageLocationsGVR, name)
-			if err != nil {
-				return o, err
-			}
-			if bsl != nil {
-				o.Objects[BackupStorageLocationsGVR] = []unstructured.Unstructured{*bsl}
-			}
+		o.Objects[BackupStorageLocationsGVR], err = c.cachedObjects(BackupStorageLocationsGVR, Namespace)
+		if err != nil {
+			return o, err
 		}
 	}
 	if !plan(k, o).ObserveDependencies {
 		return o, nil
 	}
 	if namespace := HostedClusterNamespace(volume); namespace != "" {
-		list, err := c.client.Resource(HostedClustersGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+		objects, err := c.cachedObjects(HostedClustersGVR, namespace)
 		if err != nil {
 			return o, fmt.Errorf("list HostedClusters: %w", err)
 		}
-		if list.GetContinue() != "" {
-			return o, fmt.Errorf("incomplete HostedCluster list")
-		}
-		o.HostedClusters = list.Items
+		o.HostedClusters = objects
 	} else {
 		return o, fmt.Errorf("cannot observe HostedClusters for unrecognized volume namespace")
 	}
@@ -363,16 +460,91 @@ func (c *Controller) observe(ctx context.Context, k key) (Observations, error) {
 		if gvr == BackupRepositoryCleanupsGVR || gvr == HostedClustersGVR {
 			continue
 		}
-		list, err := c.client.Resource(gvr).Namespace(Namespace).List(ctx, metav1.ListOptions{})
+		var objects []unstructured.Unstructured
+		var err error
+		if gvr == JobsGVR || gvr == PodsGVR {
+			repository := k.Name
+			if k.Resource == BackupRepositoryCleanupsGVR {
+				repository = field(o.Cleanup, "spec", "repository", "name")
+			}
+			objects, err = c.cachedMaintenance(gvr, volume, repository, o.Objects[JobsGVR])
+		} else {
+			objects, err = c.cachedObjects(gvr, Namespace)
+		}
 		if err != nil {
 			return o, fmt.Errorf("list %s: %w", gvr, err)
 		}
-		if list.GetContinue() != "" {
-			return o, fmt.Errorf("incomplete list of %s", gvr)
-		}
-		o.Objects[gvr] = list.Items
+		o.Objects[gvr] = objects
 	}
 	o.DependenciesComplete = true
+	return o, nil
+}
+
+// confirm refreshes the small set of lifecycle targets whose identity matters
+// across the handoff. Shared informer observations are refreshed on each call;
+// HC absence and label-selected maintenance receive targeted live lists. Watches
+// and retained tombstones handle late work; these reads are not a writer fence.
+func (c *Controller) confirm(ctx context.Context, k key) (Observations, error) {
+	o, err := c.observe(ctx, k)
+	if err != nil || !o.DependenciesComplete {
+		return o, err
+	}
+	volume := field(o.Repository, "spec", "volumeNamespace")
+	if k.Resource == BackupRepositoryCleanupsGVR {
+		volume = field(o.Cleanup, "spec", "repository", "volumeNamespace")
+	}
+	if namespace := HostedClusterNamespace(volume); namespace != "" {
+		list, err := c.client.Resource(HostedClustersGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return o, err
+		}
+		if list.GetContinue() != "" {
+			return o, fmt.Errorf("incomplete HostedCluster list")
+		}
+		o.HostedClusters = list.Items
+	}
+	if o.Repository != nil {
+		bsl, err := c.get(ctx, BackupStorageLocationsGVR, field(o.Repository, "spec", "backupStorageLocation"))
+		if err != nil {
+			return o, err
+		}
+		// Override only this BSL, preserving cached alias observations.
+		name := field(o.Repository, "spec", "backupStorageLocation")
+		locations := o.Objects[BackupStorageLocationsGVR][:0]
+		for _, item := range o.Objects[BackupStorageLocationsGVR] {
+			if item.GetName() != name {
+				locations = append(locations, item)
+			}
+		}
+		if bsl != nil {
+			locations = append(locations, *bsl)
+		}
+		o.Objects[BackupStorageLocationsGVR] = locations
+	}
+	if k.Resource == BackupRepositoryCleanupsGVR {
+		label := RepositoryLabel(field(o.Cleanup, "spec", "repository", "name"))
+		for _, resource := range []schema.GroupVersionResource{JobsGVR, PodsGVR} {
+			list, err := c.client.Resource(resource).Namespace(Namespace).List(ctx, metav1.ListOptions{
+				LabelSelector: labels.Set{repoNameLabel: label}.String(),
+			})
+			if err != nil {
+				return o, err
+			}
+			if list.GetContinue() != "" {
+				return o, fmt.Errorf("incomplete maintenance %s list", resource.Resource)
+			}
+			// Keep cached foreign/owner-associated candidates while replacing the
+			// exact label match with its current API result.
+			objects := o.Objects[resource][:0]
+			for _, item := range o.Objects[resource] {
+				if item.GetLabels()[repoNameLabel] != label {
+					objects = append(objects, item)
+				}
+			}
+			o.Objects[resource] = append(objects, list.Items...)
+			slices.SortFunc(o.Objects[resource], func(a, b unstructured.Unstructured) int { return strings.Compare(a.GetName(), b.GetName()) })
+		}
+	}
 	return o, nil
 }
 
@@ -428,9 +600,8 @@ func (c *Controller) reconcile(ctx context.Context, k key) (time.Duration, error
 	if len(action.Applies) == 0 && len(action.Deletes) == 0 && action.DeletePrefix == nil {
 		return p.RequeueAfter, nil
 	}
-	// No mutation is authorized by cached event payloads, by an earlier sweep,
-	// or by stale plans. Refetch everything after any preceding status apply.
-	fresh, err := c.observe(ctx, k)
+	// Replan from current listers and confirm identities after status writes.
+	fresh, err := c.confirm(ctx, k)
 	if err != nil {
 		return 0, err
 	}
@@ -468,7 +639,7 @@ func (c *Controller) reconcile(ctx context.Context, k key) (time.Duration, error
 		}
 		// The receipt is never persisted. Recheck all dependencies after the
 		// sweep before reporting success or allowing explicit intent deletion.
-		after, err := c.observe(ctx, k)
+		after, err := c.confirm(ctx, k)
 		if err != nil {
 			return 0, err
 		}
