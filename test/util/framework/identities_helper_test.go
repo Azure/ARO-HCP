@@ -15,9 +15,19 @@
 package framework
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
+	"github.com/Azure/ARO-HCP/test/util/mipool"
 )
 
 func TestRelease(t *testing.T) {
@@ -133,7 +143,6 @@ func TestRelease(t *testing.T) {
 }
 
 func TestAssignFromEnv(t *testing.T) {
-	t.Parallel()
 
 	tests := []struct {
 		name       string
@@ -176,7 +185,7 @@ func TestAssignFromEnv(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+			t.Setenv(leaseenv.MSIContainers, strings.Join(tt.containers, " "))
 
 			tc := &perItOrDescribeTestContext{}
 			err := tc.assignFromEnv(tt.containers, tt.count)
@@ -185,29 +194,29 @@ func TestAssignFromEnv(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected error, got nil")
 				}
-				if tc.envAssigned {
-					t.Fatal("envAssigned should be false after assignment error")
+				if tc.miEnvAssigned {
+					t.Fatal("miEnvAssigned should be false after assignment error")
 				}
 				return
 			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if !tc.envAssigned {
-				t.Fatal("envAssigned should be true after successful env assignment")
+			if !tc.miEnvAssigned {
+				t.Fatal("miEnvAssigned should be true after successful env assignment")
 			}
-			if len(tc.envAssignedContainers) != tt.wantLen {
-				t.Fatalf("envAssignedContainers length = %d, want %d", len(tc.envAssignedContainers), tt.wantLen)
+			if len(tc.miEnvAssignedContainers) != tt.wantLen {
+				t.Fatalf("miEnvAssignedContainers length = %d, want %d", len(tc.miEnvAssignedContainers), tt.wantLen)
 			}
-			if tc.envAssignedIdx != 0 {
-				t.Fatalf("envAssignedIdx = %d, want 0", tc.envAssignedIdx)
+			if tc.miEnvAssignedIdx != 0 {
+				t.Fatalf("miEnvAssignedIdx = %d, want 0", tc.miEnvAssignedIdx)
 			}
 		})
 	}
 }
 
 func TestAssignFromEnvIsIndependent(t *testing.T) {
-	t.Parallel()
+	t.Setenv(leaseenv.MSIContainers, "rg-00 rg-01")
 
 	containers := []string{"rg-00", "rg-01"}
 	tc := &perItOrDescribeTestContext{}
@@ -215,8 +224,8 @@ func TestAssignFromEnvIsIndependent(t *testing.T) {
 		t.Fatalf("assignFromEnv: %v", err)
 	}
 	containers[0] = "mutated"
-	if tc.envAssignedContainers[0] != "rg-00" {
-		t.Fatalf("internal assignment mutated via caller slice: %v", tc.envAssignedContainers)
+	if tc.miEnvAssignedContainers[0] != "rg-00" {
+		t.Fatalf("internal assignment mutated via caller slice: %v", tc.miEnvAssignedContainers)
 	}
 }
 
@@ -224,8 +233,8 @@ func TestLeaseFromEnv(t *testing.T) {
 	t.Parallel()
 
 	tc := &perItOrDescribeTestContext{}
-	tc.envAssignedContainers = []string{"rg-00", "rg-01", "rg-02"}
-	tc.envAssignedIdx = 0
+	tc.miEnvAssignedContainers = []string{"rg-00", "rg-01", "rg-02"}
+	tc.miEnvAssignedIdx = 0
 
 	for i, wantRG := range []string{"rg-00", "rg-01", "rg-02"} {
 		pool, err := tc.leaseFromEnv()
@@ -244,7 +253,7 @@ func TestLeaseFromEnv(t *testing.T) {
 }
 
 func TestAssignFromEnvThenLeaseFromEnv(t *testing.T) {
-	t.Parallel()
+	t.Setenv(leaseenv.MSIContainers, "rg-00 rg-01 rg-02")
 
 	tc := &perItOrDescribeTestContext{}
 	if err := tc.assignFromEnv([]string{"rg-00", "rg-01", "rg-02"}, 2); err != nil {
@@ -280,8 +289,8 @@ func TestGetLeasedIdentitiesUsesEnvPathWhenAssignedEmpty(t *testing.T) {
 	if err := tc.assignFromEnv([]string{"rg-00", "rg-01"}, 0); err != nil {
 		t.Fatalf("assignFromEnv(0): %v", err)
 	}
-	if !tc.envAssigned {
-		t.Fatal("envAssigned should be true after zero-count env assignment")
+	if !tc.miEnvAssigned {
+		t.Fatal("miEnvAssigned should be true after zero-count env assignment")
 	}
 
 	_, err := tc.getLeasedIdentities()
@@ -290,5 +299,152 @@ func TestGetLeasedIdentitiesUsesEnvPathWhenAssignedEmpty(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "parent-assigned") {
 		t.Fatalf("error = %q, want parent-assigned env path (not file-pool fallback)", err)
+	}
+}
+
+func TestAssignFromEnvRejectsNameOutsideLease(t *testing.T) {
+	t.Setenv(leaseenv.MSIContainers, "rg-00")
+
+	tc := &perItOrDescribeTestContext{}
+	err := tc.assignFromEnv([]string{"not-in-the-lease"}, 1)
+	if err == nil {
+		t.Fatal("expected error for a container outside LEASED_MSI_CONTAINERS, got nil")
+	}
+	if tc.miEnvAssigned {
+		t.Fatal("miEnvAssigned should stay false when the name is rejected")
+	}
+
+	allowed := &perItOrDescribeTestContext{}
+	if err := allowed.assignFromEnv([]string{"RG-00"}, 1); err != nil {
+		t.Fatalf("case-insensitive allowlist: %v", err)
+	}
+	pool, err := allowed.leaseFromEnv()
+	if err != nil {
+		t.Fatalf("leaseFromEnv: %v", err)
+	}
+	if pool.ResourceGroupName != "RG-00" {
+		t.Fatalf("ResourceGroupName = %q, want RG-00", pool.ResourceGroupName)
+	}
+}
+
+func TestAssignIdentityContainersRejectsUnleasedEnvName(t *testing.T) {
+	t.Setenv(mipool.AssignedMIContainersEnvvar, "not-in-the-lease")
+	t.Setenv(leaseenv.MSIContainers, "rg-00")
+
+	tc := &perItOrDescribeTestContext{}
+	err := tc.AssignIdentityContainers(context.Background(), 1, time.Second)
+	if err == nil {
+		t.Fatal("expected AssignIdentityContainers to reject a name outside the lease")
+	}
+	if tc.miEnvAssigned {
+		t.Fatal("miEnvAssigned should stay false")
+	}
+}
+
+func TestLeaseFromEnvConcurrent(t *testing.T) {
+	const goroutines = 32
+	tc := &perItOrDescribeTestContext{
+		miEnvAssigned:           true,
+		miEnvAssignedContainers: []string{"rg-00", "rg-01"},
+	}
+
+	var start sync.WaitGroup
+	start.Add(1)
+	var done sync.WaitGroup
+	leased := make([]string, goroutines)
+	errs := make([]error, goroutines)
+	for i := 0; i < goroutines; i++ {
+		done.Add(1)
+		go func(i int) {
+			defer done.Done()
+			start.Wait()
+			pool, err := tc.leaseFromEnv()
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			leased[i] = pool.ResourceGroupName
+		}(i)
+	}
+	start.Done()
+	done.Wait()
+
+	counts := map[string]int{}
+	var successes int
+	for _, rg := range leased {
+		if rg == "" {
+			continue
+		}
+		successes++
+		counts[rg]++
+	}
+	if successes != 2 || counts["rg-00"] != 1 || counts["rg-01"] != 1 {
+		t.Fatalf("leased counts = %v successes = %d idx = %d errs = %v", counts, successes, tc.miEnvAssignedIdx, errs)
+	}
+}
+
+type failTokenCredential struct{}
+
+func (failTokenCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{}, fmt.Errorf("repro token denied")
+}
+
+func TestEnvAssignedContainersCleanedWithoutFilePool(t *testing.T) {
+	t.Setenv("ARTIFACT_DIR", t.TempDir())
+	t.Setenv(leaseenv.MSIContainers, "rg-a")
+
+	inv := &perBinaryInvocationTestContext{
+		pooledIdentities: true,
+		azureCredentials: failTokenCredential{},
+	}
+	tc := &perItOrDescribeTestContext{
+		perBinaryInvocationTestContext: inv,
+		subscriptionID:                 "00000000-0000-0000-0000-000000000000",
+	}
+	if err := tc.assignFromEnv([]string{"rg-a"}, 1); err != nil {
+		t.Fatalf("assignFromEnv: %v", err)
+	}
+	if _, err := tc.leaseFromEnv(); err != nil {
+		t.Fatalf("leaseFromEnv: %v", err)
+	}
+
+	state, err := inv.getLeasedIdentityPoolState()
+	if err != nil {
+		t.Fatalf("getLeasedIdentityPoolState: %v", err)
+	}
+	before, err := os.ReadFile(state.statePath)
+	if err != nil {
+		t.Fatalf("read pool file: %v", err)
+	}
+
+	visible, err := tc.leasedIdentityContainers()
+	if err != nil {
+		t.Fatalf("leasedIdentityContainers: %v", err)
+	}
+	if len(visible) != 1 || visible[0] != "rg-a" {
+		t.Fatalf("leasedIdentityContainers = %v, want [rg-a]", visible)
+	}
+
+	releaseErr := tc.releaseLeasedIdentities(context.Background())
+	if releaseErr == nil {
+		t.Fatal("releaseLeasedIdentities returned nil; env-assigned containers were not cleaned")
+	}
+	if !strings.Contains(releaseErr.Error(), "repro token denied") {
+		t.Fatalf("release error = %v, want the cleanup credential error", releaseErr)
+	}
+
+	after, err := os.ReadFile(state.statePath)
+	if err != nil {
+		t.Fatalf("re-read pool file: %v", err)
+	}
+	if string(before) != string(after) {
+		t.Fatalf("file pool changed across env release:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	fileLeases, err := state.getLeasedIdentityContainers(specID())
+	if err != nil {
+		t.Fatalf("getLeasedIdentityContainers: %v", err)
+	}
+	if len(fileLeases) != 0 {
+		t.Fatalf("file-pool leases = %v, want empty", fileLeases)
 	}
 }

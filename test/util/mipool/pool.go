@@ -12,11 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package mipool implements the parent-side MI (managed identity) container
+// pool allocator. It lives under test/util rather than test/cmd/aro-hcp-tests
+// because two independent processes need it: the run-suite parent process
+// (test/cmd/aro-hcp-tests) allocates and cleans up containers, while the
+// child test framework (test/util/framework) consumes the
+// ASSIGNED_MI_CONTAINERS environment variable the parent sets using the same
+// contract (AssignedMIContainersEnvvar). Keeping mipool under test/cmd's
+// internal/ package would make it unimportable from test/util/framework.
 package mipool
 
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -59,8 +68,11 @@ func New(containers string) (*Pool, error) {
 }
 
 // Allocate reserves n containers for the named test. It returns the container
-// resource group names. Returns an error if n containers are not available or
-// if the test already has an allocation.
+// resource group names. Returns an error if n is negative, if n containers
+// are not available, or if the test already has an allocation. n == 0 is
+// allowed and records an empty (non-nil) allocation, so a subsequent
+// Release/ReleaseWithCleanup call succeeds instead of failing with "no
+// allocation to release".
 func (p *Pool) Allocate(testName string, n int) ([]string, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -68,17 +80,21 @@ func (p *Pool) Allocate(testName string, n int) ([]string, error) {
 	if _, exists := p.assigned[testName]; exists {
 		return nil, fmt.Errorf("test %q already has an allocation", testName)
 	}
-	if n <= 0 {
-		return nil, nil
+	if n < 0 {
+		return nil, fmt.Errorf("invalid allocation request for test %q: n must be >= 0, got %d", testName, n)
+	}
+	if n == 0 {
+		p.assigned[testName] = []string{}
+		return []string{}, nil
 	}
 	if n > len(p.free) {
 		return nil, fmt.Errorf("requested %d containers but only %d free", n, len(p.free))
 	}
 
-	internal := cloneStrings(p.free[:n])
+	internal := slices.Clone(p.free[:n])
 	p.free = p.free[n:]
 	p.assigned[testName] = internal
-	return cloneStrings(internal), nil
+	return slices.Clone(internal), nil
 }
 
 // Release returns the containers assigned to testName back to the free pool.
@@ -114,7 +130,7 @@ func (p *Pool) ReleaseWithCleanup(testName string, cleanupFn func(resourceGroup 
 	// Take ownership of the assignment under the lock so a concurrent
 	// Release cannot return the same containers to the free pool twice.
 	delete(p.assigned, testName)
-	copied := cloneStrings(containers)
+	copied := slices.Clone(containers)
 	id := p.nextRel
 	p.nextRel++
 	p.releasing[id] = copied
@@ -175,7 +191,7 @@ func (p *Pool) releasingCount() int {
 func (p *Pool) Allocated(testName string) []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return cloneStrings(p.assigned[testName])
+	return slices.Clone(p.assigned[testName])
 }
 
 // AllContainers returns every container resource group name in the pool,
@@ -200,13 +216,4 @@ func (p *Pool) FormatEnv(testName string) string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return strings.Join(p.assigned[testName], " ")
-}
-
-func cloneStrings(s []string) []string {
-	if s == nil {
-		return nil
-	}
-	out := make([]string, len(s))
-	copy(out, s)
-	return out
 }
