@@ -109,7 +109,7 @@ watson:
   env:
     INCOMING_QUEUE: "/azure-watson/cores"
     REPORT_QUEUE: "/azure-watson/queue"
-    MDSD_ROLE_PREFIX: "/var/run/mdsd/asa/"
+    MDSD_ROLE_PREFIX: "/var/run/mdsd/"
     WA_CORE_PATTERN: "/azure-watson/cores/%e.%p.%h.%t"
     AUTHENTICATION_ID: "MsiClientId#__msiClientId__"
   volumes:
