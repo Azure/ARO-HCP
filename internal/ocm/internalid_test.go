@@ -21,10 +21,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	kjson "sigs.k8s.io/json"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-
-	kjson "sigs.k8s.io/json"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
