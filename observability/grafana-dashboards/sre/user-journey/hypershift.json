@@ -1,0 +1,2048 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "content": "### HyperShift User Journey SLO Dashboard\n\nMonitors whether **HyperShift creates and maintains a usable hosted control plane**, covering the HyperShift Operator (`hypershift` namespace) and the Control Plane Operator (CPO, in each `ocm-*` namespace).\n\n**Proposed SLO Targets (pending baseline and stakeholder review):**\n- Journey availability: >=99.95% of eligible HostedCluster samples with the hosted API available, 30d\n- Journey errors: >=99.9% healthy HostedCluster samples (no HyperShift failure conditions), 30d\n- Journey latency: >=99% of cluster creations reach initial availability within 30m, 30d\n- Component availability: >=99.95% available/desired operator replicas, 30d\n- Component errors: >=99.9% successful reconciliations, 30d\n- Component latency: >=99% of reconciliations within 10s\n- Component saturation: >=99% of intervals within limits\n- Traffic and journey saturation are **informational** until baselined from historical data\n\n**Eligibility:** availability samples exclude HostedClusters in their first 15m and clusters no longer reporting (same pattern as KASAvailable).\n\n**Metrics Source:** `hypershift_*` metrics from the HyperShift Operator and CPO (openshift/hypershift), `controller_runtime_*`, `workqueue_*`, kube-state-metrics deployment metrics, container resource metrics. `hostedClusterAPI_kubeapiserver_available` (KASAvailable) is shown as supporting context.\n\n**Jira:** TODO | **TSG:** TODO",
+        "mode": "markdown"
+      },
+      "title": "Dashboard Info",
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "id": 2,
+      "title": "Journey SLIs \u2014 HyperShift creates and maintains a usable hosted control plane",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Journey availability: eligible samples where the CPO /healthz probe of the hosted API succeeded / all eligible samples (excludes first 15m and clusters no longer reporting). Proposed SLO: 99.95% over 30d.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 3,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "yellow",
+                "value": 99.9
+              },
+              {
+                "color": "green",
+                "value": 99.95
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 12
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum(sum_over_time((max without(prometheus_replica) (hypershift_kube_apiserver_available) and on (namespace) max without(prometheus_replica) (hypershift_kube_apiserver_available offset 15m))[30d:5m]) and on (namespace) max without(prometheus_replica) (hypershift_kube_apiserver_available)) / sum(count_over_time((max without(prometheus_replica) (hypershift_kube_apiserver_available) and on (namespace) max without(prometheus_replica) (hypershift_kube_apiserver_available offset 15m))[30d:5m]) and on (namespace) max without(prometheus_replica) (hypershift_kube_apiserver_available))",
+          "legendFormat": "Availability",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Availability (30d)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Journey errors: 1 - HostedClusters with a failure condition / HostedClusters, averaged over 30d. A cluster with several failure conditions is counted once per condition, so this is a conservative (pessimistic) estimate. Proposed SLO: 99.9%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 3,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "yellow",
+                "value": 99.5
+              },
+              {
+                "color": "green",
+                "value": 99.9
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 12
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * (1 - avg_over_time(clamp_max(sum(max without(prometheus_replica) (hypershift_hostedclusters_failure_conditions)) / sum(max without(prometheus_replica) (hypershift_hostedclusters)), 1)[30d:1h]))",
+          "legendFormat": "Healthy",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Healthy Cluster Samples (30d)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Journey latency: HostedClusters seen waiting for initial availability in the last 30d whose wait never exceeded 30m / all such HostedClusters. Clusters still waiting count as good until they pass 30m. Proposed SLO: 99%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 12
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * (1 - (count(max_over_time(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds)[30d:5m]) > 1800) or vector(0)) / count(max_over_time(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds)[30d:5m])))",
+          "legendFormat": "Within 30m",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Creations Available Within 30m (30d)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Journey traffic (informational): current number of HostedClusters and NodePools.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 12
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (hypershift_hostedclusters))",
+          "legendFormat": "HostedClusters",
+          "refId": "A",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (hypershift_nodepools))",
+          "legendFormat": "NodePools",
+          "refId": "B",
+          "instant": true
+        }
+      ],
+      "title": "HostedClusters / NodePools",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Fraction of eligible HostedClusters whose CPO /healthz probe succeeds.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * avg((max without(prometheus_replica) (hypershift_kube_apiserver_available) and on (namespace) max without(prometheus_replica) (hypershift_kube_apiserver_available offset 15m)) and on (namespace) max without(prometheus_replica) (hypershift_kube_apiserver_available))",
+          "legendFormat": "Availability",
+          "refId": "A"
+        }
+      ],
+      "title": "Availability Over Time (SLO 99.95%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "1 - HostedClusters with a failure condition / HostedClusters (conservative).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * (1 - clamp_max(sum(max without(prometheus_replica) (hypershift_hostedclusters_failure_conditions)) / sum(max without(prometheus_replica) (hypershift_hostedclusters)), 1))",
+          "legendFormat": "Healthy",
+          "refId": "A"
+        }
+      ],
+      "title": "Healthy HostedClusters Over Time (SLO 99.9%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Journey latency: seconds each HostedCluster has been waiting for initial availability. The metric only exists until the cluster first becomes available. SLO threshold: 30m (1800s).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max by (name) (max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds))",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Initial Availability Wait by HostedCluster",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Journey traffic (informational): HostedClusters and NodePools, and conditions becoming true per hour (hypershift_hosted_cluster_transition_seconds_count by condition).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (hypershift_hostedclusters))",
+          "legendFormat": "HostedClusters",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (hypershift_nodepools))",
+          "legendFormat": "NodePools",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum by (condition) (max without(prometheus_replica) (increase(hypershift_hosted_cluster_transition_seconds_count[1h])))",
+          "legendFormat": "transitions/h {{condition}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Lifecycle Transitions and Object Counts (Traffic)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Journey saturation (informational): HostedClusters still waiting for initial availability longer than 30m.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 34
+      },
+      "id": 11,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds) > 1800) or vector(0)",
+          "legendFormat": "Over limit",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Clusters Waiting > 30m",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Journey saturation (informational): HostedClusters currently waiting for initial availability.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 34
+      },
+      "id": 12,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds)) or vector(0)",
+          "legendFormat": "Transitioning",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Transitioning HostedClusters",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Journey saturation (informational): transitioning HostedClusters over 30m / all transitioning HostedClusters.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * count(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds) > 1800) / count(max without(prometheus_replica) (hypershift_cluster_waiting_initial_availability_duration_seconds))",
+          "legendFormat": "Over limit",
+          "refId": "A"
+        }
+      ],
+      "title": "Share of Transitioning HostedClusters Over Limit",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "id": 14,
+      "title": "Component SLIs \u2014 HyperShift Operator and Control Plane Operator",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Component availability: available / desired operator replicas. Proposed SLO: 99.95% over 30d.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 3,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "yellow",
+                "value": 99.9
+              },
+              {
+                "color": "green",
+                "value": 99.95
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 43
+      },
+      "id": 15,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * avg(avg_over_time((max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=\"hypershift\", deployment=\"operator\"}) / max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=\"hypershift\", deployment=\"operator\"}))[30d:5m]))",
+          "legendFormat": "HyperShift Operator",
+          "refId": "A",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * avg(avg_over_time((max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) / max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}))[30d:5m]))",
+          "legendFormat": "Control Plane Operator",
+          "refId": "B",
+          "instant": true
+        }
+      ],
+      "title": "Availability (30d)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Component errors: successful reconciliations / all completed reconciliations. Proposed SLO: 99.9% over 30d.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 3,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "yellow",
+                "value": 99.5
+              },
+              {
+                "color": "green",
+                "value": 99.9
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 43
+      },
+      "id": 16,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * (1 - sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=\"hypershift\", pod=~\"operator-.*\", result=\"error\"}[30d]))) / sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=\"hypershift\", pod=~\"operator-.*\"}[30d]))))",
+          "legendFormat": "HyperShift Operator",
+          "refId": "A",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * (1 - sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\", result=\"error\"}[30d]))) / sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d]))))",
+          "legendFormat": "Control Plane Operator",
+          "refId": "B",
+          "instant": true
+        }
+      ],
+      "title": "Successful Reconciliations (30d)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Component latency: reconciliations completing within 10s / all completed reconciliations. Proposed SLO: 99%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 43
+      },
+      "id": 17,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace=\"hypershift\", pod=~\"operator-.*\", le=\"10\"}[30d]))) / sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=\"hypershift\", pod=~\"operator-.*\"}[30d])))",
+          "legendFormat": "HyperShift Operator",
+          "refId": "A",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\", le=\"10\"}[30d]))) / sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d])))",
+          "legendFormat": "Control Plane Operator",
+          "refId": "B",
+          "instant": true
+        }
+      ],
+      "title": "Reconciliations Within 10s (30d)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Component traffic (informational): reconciliations processed per second.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 3,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 43
+      },
+      "id": 18,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=\"hypershift\", pod=~\"operator-.*\"}[1h])))",
+          "legendFormat": "HyperShift Operator",
+          "refId": "A",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[1h])))",
+          "legendFormat": "Control Plane Operator",
+          "refId": "B",
+          "instant": true
+        }
+      ],
+      "title": "Reconciliation Rate (1h)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Component availability by operator (CPO shows the worst HCP).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 49
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "min(max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=\"hypershift\", deployment=\"operator\"}) / max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=\"hypershift\", deployment=\"operator\"}))",
+          "legendFormat": "HyperShift Operator",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "min(max without(prometheus_replica) (kube_deployment_status_replicas_available{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) / max without(prometheus_replica) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}))",
+          "legendFormat": "Control Plane Operator (worst HCP)",
+          "refId": "B"
+        }
+      ],
+      "title": "Available / Desired Replicas",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Component errors: successful / completed reconciliations.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 49
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * (1 - sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=\"hypershift\", pod=~\"operator-.*\", result=\"error\"}[5m]))) / sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=\"hypershift\", pod=~\"operator-.*\"}[5m]))))",
+          "legendFormat": "HyperShift Operator",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * (1 - sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\", result=\"error\"}[5m]))) / sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[5m]))))",
+          "legendFormat": "Control Plane Operator",
+          "refId": "B"
+        }
+      ],
+      "title": "Reconciliation Success Rate (SLO 99.9%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Component latency: reconciliations completing within 10s.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 57
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace=\"hypershift\", pod=~\"operator-.*\", le=\"10\"}[5m]))) / sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=\"hypershift\", pod=~\"operator-.*\"}[5m])))",
+          "legendFormat": "HyperShift Operator",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\", le=\"10\"}[5m]))) / sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[5m])))",
+          "legendFormat": "Control Plane Operator",
+          "refId": "B"
+        }
+      ],
+      "title": "Reconciliations Within 10s (SLO 99%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Component traffic (informational).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "ops",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 57
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=\"hypershift\", pod=~\"operator-.*\"}[5m])))",
+          "legendFormat": "HyperShift Operator reconciles",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[5m])))",
+          "legendFormat": "Control Plane Operator reconciles",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (rate(workqueue_adds_total{namespace=\"hypershift\", pod=~\"operator-.*\"}[5m])))",
+          "legendFormat": "HyperShift Operator queue adds",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (rate(workqueue_adds_total{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[5m])))",
+          "legendFormat": "Control Plane Operator queue adds",
+          "refId": "D"
+        }
+      ],
+      "title": "Reconciliations and Queue Adds per Second (Traffic)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Component saturation: controller workqueue depth (worst pod).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 65
+      },
+      "id": 23,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(max without(prometheus_replica) (workqueue_depth{namespace=\"hypershift\", pod=~\"operator-.*\"}))",
+          "legendFormat": "HyperShift Operator",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(max without(prometheus_replica) (workqueue_depth{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}))",
+          "legendFormat": "Control Plane Operator",
+          "refId": "B"
+        }
+      ],
+      "title": "Workqueue Depth (Saturation)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Component saturation: container CPU in cores.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 65
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"hypershift\", container=\"operator\"}[5m]))",
+          "legendFormat": "HyperShift Operator",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(rate(container_cpu_usage_seconds_total{namespace=~\"ocm-.*\", container=\"control-plane-operator\"}[5m]))",
+          "legendFormat": "Control Plane Operator (worst HCP)",
+          "refId": "B"
+        }
+      ],
+      "title": "CPU (Saturation)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Component saturation: container memory working set.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 73
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"hypershift\", container=\"operator\"})",
+          "legendFormat": "HyperShift Operator",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(container_memory_working_set_bytes{namespace=~\"ocm-.*\", container=\"control-plane-operator\"})",
+          "legendFormat": "Control Plane Operator (worst HCP)",
+          "refId": "B"
+        }
+      ],
+      "title": "Memory Working Set (Saturation)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 81
+      },
+      "id": 26,
+      "title": "Supporting Context \u2014 KASAvailable (hostedClusterAPI_kubeapiserver_available)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Downstream evidence: existing KASAvailable journey, fleet average of per-HostedCluster 30d availability. Target 99.95%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 3,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "yellow",
+                "value": 99.9
+              },
+              {
+                "color": "green",
+                "value": 99.95
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 82
+      },
+      "id": 27,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * avg(hostedClusterAPI_kubeapiserver_available:ratio_avg_30d)",
+          "legendFormat": "KAS availability",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "KAS Availability (30d)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Fleet SLO distribution: HostedClusters with 30d KAS availability >= 99.95%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 82
+      },
+      "id": 28,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(hostedClusterAPI_kubeapiserver_available:ratio_avg_30d >= 0.9995) or vector(0)",
+          "legendFormat": "Meeting",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "HostedClusters Meeting KAS SLO",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Fleet SLO distribution: HostedClusters with 30d KAS availability < 99.95%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 82
+      },
+      "id": 29,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(hostedClusterAPI_kubeapiserver_available:ratio_avg_30d < 0.9995) or vector(0)",
+          "legendFormat": "Missing",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "HostedClusters Missing KAS SLO",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Clusters where the CPO probe and the KSM condition disagree. The CPO metric is keyed by the control plane namespace (<HostedCluster namespace>-<name>), so KSM labels are joined into that form.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 82
+      },
+      "id": 30,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(max without(prometheus_replica) (hypershift_kube_apiserver_available) == 1 unless on (namespace) (label_join(max without(prometheus_replica) (hostedClusterAPI_kubeapiserver_available{status=\"True\"}), \"namespace\", \"-\", \"namespace\", \"name\") == 1)) or vector(0)",
+          "legendFormat": "CPO up, KSM down",
+          "refId": "A",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count((label_join(max without(prometheus_replica) (hostedClusterAPI_kubeapiserver_available{status=\"True\"}), \"namespace\", \"-\", \"namespace\", \"name\") == 1) unless on (namespace) (max without(prometheus_replica) (hypershift_kube_apiserver_available) == 1)) or vector(0)",
+          "legendFormat": "KSM up, CPO down",
+          "refId": "B",
+          "instant": true
+        }
+      ],
+      "title": "Metric Disagreement (now)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Compares the CPO /healthz probe with the HostedCluster KubeAPIServerAvailable condition (Deployment Available) to see whether HyperShift failures precede or correlate with KAS failures.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 88
+      },
+      "id": 31,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * avg(max without(prometheus_replica) (hypershift_kube_apiserver_available))",
+          "legendFormat": "hypershift_kube_apiserver_available",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "100 * avg(max without(prometheus_replica) (hostedClusterAPI_kubeapiserver_available{status=\"True\"}))",
+          "legendFormat": "hostedClusterAPI_kubeapiserver_available",
+          "refId": "B"
+        }
+      ],
+      "title": "hypershift_kube_apiserver_available vs KASAvailable",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "hypershift_kube_apiserver_request_duration_seconds: latency of the CPO /healthz probe. Additional signal not available in KASAvailable.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 88
+      },
+      "id": 32,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(histogram_quantile(0.99, sum by (le, namespace) (max without(prometheus_replica) (rate(hypershift_kube_apiserver_request_duration_seconds_bucket[5m])))))",
+          "legendFormat": "p99",
+          "refId": "A"
+        }
+      ],
+      "title": "CPO KAS Probe Latency p99 (worst HCP)",
+      "type": "timeseries"
+    },
+    {
+      "gridPos": {
+        "h": 15,
+        "w": 24,
+        "x": 0,
+        "y": 96
+      },
+      "id": 33,
+      "options": {
+        "content": "### Gaps and Open Questions\n\n**Verified from the openshift/hypershift source and this repository:**\n- `hypershift_hostedclusters`, `hypershift_hostedclusters_failure_conditions` (labels `platform`, `condition`) and `hypershift_nodepools` are gauges of object counts. A cluster with several failure conditions is counted once per condition.\n- `hypershift_cluster_waiting_initial_availability_duration_seconds` (labels `namespace`, `name`, `_id`) is a per-cluster gauge that disappears once the cluster first becomes available. The 30m SLI is therefore derived from the maximum wait seen per cluster over the window.\n- `hypershift_hosted_cluster_transition_seconds` is a histogram whose buckets stop at 600s and which does not cover the `Available` condition, so it is used only for the traffic panel.\n- `hypershift_kube_apiserver_available` is a CPO gauge (1 if the KAS `/healthz` probe returns 200) with no cluster labels; it is scoped by the control plane namespace. `hostedClusterAPI_kubeapiserver_available` is a kube-state-metrics StateSet of the HostedCluster `KubeAPIServerAvailable` condition (Deployment Available), keyed by the HostedCluster namespace and name. The probe also exposes a latency histogram.\n\n**Collection path (verified from source and this repository):**\n- The HyperShift Operator install always creates a ServiceMonitor (30s interval, no metric filtering) for the `operator` Deployment in the `hypershift` namespace. `--platform-monitoring=None` only skips the OpenShift platform monitoring RBAC, and `--metrics-set=SRE` does not filter operator metrics.\n- The CPO creates a PodMonitor per HCP namespace with no metric filtering (`ControlPlaneOperatorRelabelConfigs` returns nil).\n- The management cluster Prometheus selects all ServiceMonitors and PodMonitors in all namespaces (`serviceMonitorSelector: {}`, `podMonitorSelector: {}`), so both are collected.\n- Deployment and container names used in queries: `operator` (hypershift namespace) and `control-plane-operator` (HCP namespace). The control plane namespace is `<HostedCluster namespace>-<HostedCluster name>`.\n- `controller_runtime_reconcile_time_seconds` has a `le=\"10\"` bucket.\n\n**KASAvailable patterns:**\n- Reused here: good/eligible sample ratio, 15m new-cluster exclusion, current-series presence check, fleet SLO distribution.\n- Display only as context: KAS availability and its metric comparison.\n- Still to evaluate after SLO agreement: sample-count guards (HyperShift gauges update at the Prometheus scrape interval, unlike KSM), multi-window burn-rate alerting.\n- Targets are proposals and must be based on historical data and stakeholder agreement, not inherited from the KASAvailable 99.95%.",
+        "mode": "markdown"
+      },
+      "title": "Gaps and Open Questions",
+      "type": "text"
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "aro-hcp",
+    "hypershift",
+    "slo",
+    "user-journey"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allowCustomValue": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_services-.*$",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "HyperShift User Journey SLO",
+  "uid": "hypershift-slo",
+  "version": 1
+}
