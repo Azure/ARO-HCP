@@ -470,6 +470,82 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 	}
 }
 
+func TestAdmitNodePool_OSDiskEncryptionSet(t *testing.T) {
+	const (
+		managedResourceGroup    = "managed-rg"
+		encryptionSetOutsideMRG = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/diskEncryptionSets/des1"
+		encryptionSetInsideMRG  = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Compute/diskEncryptionSets/des2"
+	)
+
+	parseID := func(s string) *azcorearm.ResourceID {
+		return metadataapi.Must(azcorearm.ParseResourceID(s))
+	}
+
+	cluster := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
+			Platform: coreapi.CustomerPlatformProfile{ManagedResourceGroup: managedResourceGroup},
+			Version:  coreapi.VersionProfile{ChannelGroup: "stable"},
+		},
+	}
+
+	nodePoolWithEncryptionSetID := func(encryptionSetID string) *coreapi.NodePool {
+		np := &coreapi.NodePool{
+			Properties: coreapi.NodePoolProperties{
+				Version: coreapi.NodePoolVersionProfile{ChannelGroup: "stable"},
+			},
+		}
+		if encryptionSetID != "" {
+			np.Properties.Platform.OSDisk.EncryptionSetID = parseID(encryptionSetID)
+		}
+		return np
+	}
+
+	admissionContext := &NodePoolAdmissionContext{Cluster: cluster}
+
+	tests := []struct {
+		name         string
+		op           operation.Type
+		newObj       *coreapi.NodePool
+		oldObj       *coreapi.NodePool
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "create: no encryption set is valid",
+			op:           operation.Create,
+			newObj:       nodePoolWithEncryptionSetID(""),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "create: encryption set outside managed resource group allowed",
+			op:           operation.Create,
+			newObj:       nodePoolWithEncryptionSetID(encryptionSetOutsideMRG),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:   "create: encryption set in managed resource group rejected",
+			op:     operation.Create,
+			newObj: nodePoolWithEncryptionSetID(encryptionSetInsideMRG),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.osDisk.encryptionSetId", Message: "must not be the same resource group name"},
+			},
+		},
+		{
+			name:         "update: unchanged encryption set outside managed resource group allowed",
+			op:           operation.Update,
+			oldObj:       nodePoolWithEncryptionSetID(encryptionSetOutsideMRG),
+			newObj:       nodePoolWithEncryptionSetID(encryptionSetOutsideMRG),
+			expectErrors: []utils.ExpectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := AdmitNodePool(context.Background(), admissionContext, operation.Operation{Type: tt.op}, tt.newObj, tt.oldObj)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
 // assertNodePoolEqual compares node pools via their JSON representations so
 // that pointers to types with unexported fields (e.g. *azcorearm.ResourceID)
 // are compared by their externally-visible state.

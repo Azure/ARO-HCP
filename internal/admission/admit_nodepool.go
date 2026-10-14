@@ -274,7 +274,28 @@ func admitNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmiss
 		}
 	}
 
+	errs = append(errs, admitNodePoolOSDisk(ctx, admissionContext, op, fldPath.Child("osDisk"), &newObj.OSDisk)...)
+
 	return errs
+}
+
+func admitNodePoolOSDisk(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.OSDiskProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, admitNodePoolOSDiskEncryptionSet(ctx, admissionContext, op, fldPath, newObj)...)
+
+	return errs
+}
+
+// admitNodePoolOSDiskEncryptionSet ensures the OS disk's encryption set isn't
+// in the cluster's managed resource group.
+func admitNodePoolOSDiskEncryptionSet(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.OSDiskProfile) field.ErrorList {
+	if newObj.EncryptionSetID == nil {
+		return nil
+	}
+
+	clusterManagedResourceGroupName := admissionContext.Cluster.CustomerProperties.Platform.ManagedResourceGroup
+	return validation.DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("encryptionSetId"), newObj.EncryptionSetID, nil, clusterManagedResourceGroupName)
 }
 
 // validateNodePoolVersionChange validates that a node pool version change is valid, at both CREATE and UPDATE time.
