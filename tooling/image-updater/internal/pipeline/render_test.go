@@ -50,9 +50,26 @@ cd %q || exit 1
 	if err := os.WriteFile(shimPath, []byte(shim), 0o755); err != nil {
 		t.Fatalf("failed to write make shim: %v", err)
 	}
+
+	// The render stage's preflight insists on the tools its make targets
+	// invoke. Stub the ones a developer machine may not have, so these
+	// tests exercise the stage rather than the preflight.
+	stubTools(t, binDir, "az", "bicep", "yq", "jq", "curl")
+
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	return logPath
+}
+
+// stubTools writes no-op executables so a preflight check passes.
+func stubTools(t *testing.T, dir string, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatalf("failed to write %s stub: %v", name, err)
+		}
+	}
 }
 
 func invocations(t *testing.T, logPath string) []string {
@@ -225,6 +242,41 @@ esac
 	}
 }
 
+func TestPreflightNamesMissingTools(t *testing.T) {
+	// Replaces the script's required-tools loop. A missing tool must be
+	// named up front, not surface minutes later from inside a makefile.
+	repo := newTestRepo(t)
+	binDir := t.TempDir()
+	stubTools(t, binDir, "git", "make")
+	t.Setenv("PATH", binDir)
+
+	updater := &fakeUpdater{root: repo.Root()}
+	_, err := New(updater, repo, renderOptions()).Run(context.Background())
+	if err == nil {
+		t.Fatal("expected an error when required tools are missing, got nil")
+	}
+	for _, want := range []string{"az", "bicep", "yq", "jq", "curl"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error does not name missing tool %q: %v", want, err)
+		}
+	}
+	// The updater must not have run: failing before any work is the point.
+	if updater.updateCalls != 0 {
+		t.Errorf("update ran despite a failed preflight (%d calls)", updater.updateCalls)
+	}
+}
+
+func TestPreflightSkipsRenderToolsWhenNotMaterializing(t *testing.T) {
+	// Committing does not need bicep. The script demanded every tool on
+	// every run; each stage now declares only what it uses.
+	repo := newTestRepo(t)
+	updater := &fakeUpdater{root: repo.Root()}
+
+	if _, err := New(updater, repo, defaultOptions()).Run(context.Background()); err != nil {
+		t.Fatalf("Run returned an unexpected error: %v", err)
+	}
+}
+
 func TestRenderRunsAtRepositoryRoot(t *testing.T) {
 	// The binary runs from tooling/image-updater, but every make target is
 	// defined relative to the repository root.
@@ -240,6 +292,7 @@ func TestRenderRunsAtRepositoryRoot(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(binDir, "make"), []byte(shim), 0o755); err != nil {
 		t.Fatalf("failed to write make shim: %v", err)
 	}
+	stubTools(t, binDir, "az", "bicep", "yq", "jq", "curl")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	discovered, err := git.Discover(context.Background(), sub, nil)

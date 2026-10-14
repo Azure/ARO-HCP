@@ -22,9 +22,11 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 
+	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/command"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/git"
 )
 
@@ -108,6 +110,10 @@ func New(u ImageUpdater, repo *git.Repo, opts Options) *Pipeline {
 func (p *Pipeline) Run(ctx context.Context) (*Result, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	if err := p.preflight(); err != nil {
+		return nil, err
+	}
+
 	// Configure the identity before anything can commit, so a
 	// misconfiguration fails fast rather than after the registry round
 	// trips.
@@ -158,6 +164,24 @@ func (p *Pipeline) Run(ctx context.Context) (*Result, error) {
 	}
 
 	return result, nil
+}
+
+// preflight checks that the executables the requested stages depend on are
+// present, so a missing tool fails immediately with one clear message
+// instead of surfacing from deep inside a makefile several minutes in.
+//
+// Unlike the bash script, which demanded every tool on every run, each stage
+// declares only what it needs: committing does not require bicep.
+func (p *Pipeline) preflight() error {
+	required := []string{"git"}
+	if p.opts.Materialize {
+		required = append(required, RequiredTools...)
+	}
+
+	if missing := command.MissingTools(required...); len(missing) > 0 {
+		return fmt.Errorf("required tools not found on PATH: %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 // commit records a commit on the result when one was actually made.
