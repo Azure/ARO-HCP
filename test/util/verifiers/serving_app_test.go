@@ -39,6 +39,60 @@ import (
 	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
 )
 
+func TestNewRouterDiagnosticContext(testContext *testing.T) {
+	tests := []struct {
+		name      string
+		newParent func(context.Context) (context.Context, context.CancelFunc)
+		wantErr   error
+	}{
+		{
+			name: "already canceled parent",
+			newParent: func(ctx context.Context) (context.Context, context.CancelFunc) {
+				parent, cancel := context.WithCancel(ctx)
+				cancel()
+				return parent, cancel
+			},
+			wantErr: context.Canceled,
+		},
+		{
+			name: "already expired parent",
+			newParent: func(ctx context.Context) (context.Context, context.CancelFunc) {
+				return context.WithDeadline(ctx, time.Now().Add(-time.Second))
+			},
+			wantErr: context.DeadlineExceeded,
+		},
+	}
+	for _, test := range tests {
+		testContext.Run(test.name, func(testContext *testing.T) {
+			type contextKey struct{}
+			parent, cancelParent := test.newParent(context.WithValue(context.Background(), contextKey{}, "diagnostic value"))
+			defer cancelParent()
+			if err := parent.Err(); err != test.wantErr {
+				testContext.Fatalf("parent error = %v, want %v", err, test.wantErr)
+			}
+
+			before := time.Now()
+			diagnosticCtx, cancel := newRouterDiagnosticContext(parent)
+			defer cancel()
+			after := time.Now()
+			if err := diagnosticCtx.Err(); err != nil {
+				testContext.Fatalf("diagnostic context is already canceled: %v", err)
+			}
+			deadline, ok := diagnosticCtx.Deadline()
+			if !ok || deadline.Before(before.Add(30*time.Second)) || deadline.After(after.Add(30*time.Second)) {
+				testContext.Fatalf("diagnostic deadline = %v (present: %t), want 30 seconds after creation", deadline, ok)
+			}
+			if value := diagnosticCtx.Value(contextKey{}); value != "diagnostic value" {
+				testContext.Errorf("diagnostic context value = %v, want diagnostic value", value)
+			}
+			cancel()
+			if err := diagnosticCtx.Err(); err != context.Canceled {
+				testContext.Errorf("diagnostic context error after cancel = %v, want context.Canceled", err)
+			}
+		})
+	}
+}
+
 func TestLogRouterDefaultStateWithClients(testContext *testing.T) {
 	tests := []struct {
 		name                string

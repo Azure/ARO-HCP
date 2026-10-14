@@ -101,12 +101,16 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	return nil
 }
 
+func newRouterDiagnosticContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+}
+
 func logRouterDefaultState(ctx context.Context, adminRESTConfig *rest.Config) {
 	if adminRESTConfig == nil {
 		ginkgo.GinkgoWriter.Printf("[route DNS] skipping router-default diagnostics: admin REST config is nil\n")
 		return
 	}
-	diagnosticCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	diagnosticCtx, cancel := newRouterDiagnosticContext(ctx)
 	defer cancel()
 	config := rest.CopyConfig(adminRESTConfig)
 	config.Timeout = 10 * time.Second
