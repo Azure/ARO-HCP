@@ -1012,14 +1012,14 @@
   group: kube-applier
   alert: KubeApplierApplyFailing
   occurrence: 1
-  input: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m])) > 0
+  input: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
   plan:
-    expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m])) > 0
+    expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
     conditions:
-      - expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m])) > 0
+      - expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
         path: root
         queries:
-          - expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m]))
+          - expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m]))
             role: signal
         thresholds:
           - operator: '>'
@@ -1046,14 +1046,14 @@
   group: kube-applier
   alert: KubeApplierReadFailing
   occurrence: 1
-  input: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m])) > 0
+  input: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
   plan:
-    expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m])) > 0
+    expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
     conditions:
-      - expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m])) > 0
+      - expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
         path: root
         queries:
-          - expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m]))
+          - expression: max by (cluster, namespace, operation, group, resource, reason, region) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m]))
             role: signal
         thresholds:
           - operator: '>'
@@ -6976,14 +6976,14 @@
   alert: KubeApplierApplyFailing
   occurrence: 1
   input: |
-    max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply", status="False", reason=~"KubeAPIError|PreCheckFailed"}[15m])) > 0
+    max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply", status="False", reason=~"KubeAPIError|PreCheckFailed"}[5m])) > 0
   plan:
-    expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m])) > 0
+    expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
     conditions:
-      - expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m])) > 0
+      - expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
         path: root
         queries:
-          - expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m]))
+          - expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="apply",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m]))
             role: signal
         thresholds:
           - operator: '>'
@@ -7012,14 +7012,14 @@
   alert: KubeApplierReadFailing
   occurrence: 1
   input: |
-    max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync", status="False", reason=~"KubeAPIError|PreCheckFailed"}[15m])) > 0
+    max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync", status="False", reason=~"KubeAPIError|PreCheckFailed"}[5m])) > 0
   plan:
-    expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m])) > 0
+    expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
     conditions:
-      - expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m])) > 0
+      - expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m])) > 0
         path: root
         queries:
-          - expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[15m]))
+          - expression: max by (cluster, namespace, operation, group, resource, reason) (increase(kube_applier_desire_operations_total{operation="resync",reason=~"KubeAPIError|PreCheckFailed",status="False"}[5m]))
             role: signal
         thresholds:
           - operator: '>'
